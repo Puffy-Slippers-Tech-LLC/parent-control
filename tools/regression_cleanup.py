@@ -201,6 +201,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session
 # Missing-completion recovery uses private checkouts and waited owner/agent
 # doubles under the existing write-e2e fixture. No live VM or shared mutable
 # resource is added; cleanup and unit scheduling remain compatible.
+# The three-task batch case uses a pytest-private bare Git remote and finite
+# waited Git commands; no network or shared state is added, so it stays compatible.
 # Escalation/restart/stall checks use the same bounded, waited agent doubles;
 # there are no model calls, VM operations or additional shared resources.
 # Optimization cadence/interruptions and completion commits reuse isolated Git

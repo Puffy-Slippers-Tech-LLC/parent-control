@@ -23,6 +23,9 @@ existing compatible unit and cleanup classifications remain appropriate.
 Current-task exclusion recovery in write_e2e uses private checkpoint/queue trees
 and process-local doubles, without launching agents or changing ownership;
 its existing compatible classification remains appropriate.
+The three-task batch cleanup-safety case adds a tiny pytest-private bare Git
+remote and finite waited Git commands, without network access or shared state;
+its compatible unit and cleanup classifications remain appropriate.
 
 sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
 gettext/Make subprocesses and a private Codex double under the existing detached

@@ -93,8 +93,17 @@ def optimization_reply(**values):
 
 
 @pytest.mark.parametrize('empty_queue', [False, True])
-def test_three_completed_tasks_commit_then_optimize_before_fourth_task(checkout, empty_queue):
+def test_three_completed_tasks_commit_then_optimize_before_fourth_task(
+        checkout, empty_queue, tmp_path_factory):
     root, _ = checkout
+    # Completion includes a real push; keep its destination private to this case.
+    remote = tmp_path_factory.mktemp('write-e2e-batch-remote')
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
+    branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
+    subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
+                   cwd=root, check=True)
     (root / 'unrelated').write_text('pre-staged work')
     subprocess.run(['git', 'add', '--', 'unrelated'], cwd=root, check=True)
     steps = three_task_batch(root)
@@ -104,11 +113,14 @@ def test_three_completed_tasks_commit_then_optimize_before_fourth_task(checkout,
     script(root, *steps,
            {'result': optimization_reply(), 'writes': {'shared.py': 'reusable mechanics'}})
     run, _ = select_vm(root, ['--tasks', '3'])
-    assert launcher.follow(run, io.StringIO()) == 0
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
     history = subprocess.run(['git', 'log', '--reverse', '--format=%s'], cwd=root,
                              capture_output=True, text=True, check=True).stdout.splitlines()
     assert history == ['TA: Completed task 001', 'TA: Completed task 002',
                        'TA: Completed task 003', 'TA: Refactored task 001 to 003']
+    assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
+        workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
     assert workflow.queue_state(root)[0] == (None if empty_queue else '004')
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['optimization']['pending'] == []

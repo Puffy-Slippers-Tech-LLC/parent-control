@@ -898,12 +898,15 @@ def test_inventory_package_lifecycle_cases_use_clean_baseline():
     from tests.support.paths import ROOT
     inventory = json.loads((ROOT / 'tests/e2e/scenarios.json').read_text())
     families = {family['id']: family for family in inventory['scenarios']}
-    clean_baseline = {'E2E-001', 'E2E-002', 'E2E-026', 'E2E-027', 'E2E-053'}
+    # The E2E-056–058 recipes test genuine fresh installation before reboot;
+    # restoring an installed snapshot would erase the history they verify.
+    clean_baseline = {'E2E-001', 'E2E-002', 'E2E-026', 'E2E-027', 'E2E-053',
+                      'E2E-056', 'E2E-057', 'E2E-058'}
     assert clean_baseline <= families.keys()
     for name in clean_baseline:
-        assert not suite_lease.needs_installed(families[name])
+        assert not suite_lease.needs_installed(families[name]), name
     for name in families.keys() - clean_baseline:
-        assert suite_lease.needs_installed(families[name])
+        assert suite_lease.needs_installed(families[name]), name
 
 
 def test_no_ready_provider_case_is_dispatched_to_snapshot_setup(prepared_suite):

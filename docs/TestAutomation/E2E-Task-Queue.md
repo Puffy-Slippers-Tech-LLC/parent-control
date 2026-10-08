@@ -6,19 +6,12 @@ IDs and filenames are stable labels. An incomplete row keeps the pointer.
 
 A checked row preserves delivered scope and historical evidence. Current block
 qualification and scenario registration remain with their respective owners in
-the [documentation map](README.md#status-vocabulary). Historical menu, Terminal,
-external-handler or account-wizard work does not override the current UI mandate.
-Completed evidence may include popup, focus, typing, Saving or inhibition samples;
-current and future UI/E2E acceptance follows the mandate's
-[functional result contract](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
-Require final selected values, saved/rejected outcomes and their product effects.
-Every completed implementation and unfinished brief uses the shared
-[Application UI API](Application-UI-API.md) for product controls and retains
-qualified provider routes for authentication, file choosers and external tools.
-The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract) owns
-this common requirement; queue scopes and historical completion remain intact.
-Keep intermediate presentation inside shared automation only when needed to
-deliver safe input; it is not additional coverage or a future prerequisite.
+the [documentation map](README.md#status-vocabulary).
+Apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
+to retained implementations and unfinished briefs. It owns the required
+Application UI API route, current result-oriented scope and conditional provider
+qualification. Historical menu, Terminal, account-wizard or presentation samples
+do not override those current rules or create future acceptance prerequisites.
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
 acceptance for later changes.
 
@@ -54,7 +47,7 @@ Independent local duration validation remains with the UI coverage owner.
 Excluded tasks: **300l, 300m, 300n** (Fedora-specific Chinese qualification).
 The developer removed these prerequisites from scheduling on 2026-10-04.
 They are neither completed nor deferred; do not recreate their rows, briefs or
-dependencies. Task 300 resumes on Ubuntu 26.04. Preserve Fedora-specific code
+dependencies. Task 300 subsequently completed on Ubuntu 26.04. Preserve Fedora-specific code
 and retained preparation/failure evidence; this exclusion supplies no Fedora
 qualification or complete-case acceptance.
 
@@ -123,8 +116,6 @@ child while the same Parent window remains open, selects it and checks its
 settings. Preserve that journey and task 184's shared account preparation for
 the remaining account-change consumers.
 
-## Ordered task queue
-
 Task **256** and standalone inventory case **214** are absorbed into
 [task 151 / case 156](E2E-Tasks/151-case-156.md), neither completed nor deferred.
 Do not recreate the brief or separate ordinary-feedback send or reuse case ID 214.
@@ -141,6 +132,8 @@ owns both children's animation choices after sign-out and return;
 [Task 064 / case 22](E2E-Tasks/064-case-22.md) verifies natural locking with
 animation enabled during its existing exhaustion wait. All three remain pending;
 this allocation supplies no installed acceptance credit.
+
+## Ordered task queue
 
 Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
 `Baseline` means existing qualified source and the standard guarded envelope,
@@ -610,43 +603,22 @@ They do not qualify a route, waive acceptance or close a row.
 
 Tasks **301–305** were added on 2026-10-02; task 305 was subsequently removed
 under the [explicit scheduling exclusion](#excluded-automation).
-The [execution plan](E2E-Execution-Plan.md#next-task) owns the current task pointer.
-Each of 302–304 owns one independent
-complete case; task 302 delivered E2E-056 `parent`, case 257; task 303 delivered
-E2E-057 `child`, case 258; task 304 delivered E2E-058 `kiosk`, case 259.
-Other numeric coverage IDs, scenario inventory bindings, recipes and
-executables must be assigned during implementation under the
-[shared task contract](E2E-Execution-Contracts.md#task-brief-contract).
-The original addition registered or accepted no case. Historical clean
-installation case 2 reboots before opening the apps and does not cover these
-pre-reboot prompts. Task 300's completed case 254 records Chinese fresh-install
-kiosk acceptance; its historical upgrade slices alone supply no fresh-install
-acceptance. Tasks 302–304 retain their separate exact
-surface, language and result requirements.
+Tasks 302–304 delivered the independent complete histories:
+[E2E-056 Parent, case 257](E2E-Scenario-Recipes.md#e2e-056),
+[E2E-057 Child App, case 258](E2E-Scenario-Recipes.md#e2e-057) and
+[E2E-058 kiosk, case 259](E2E-Scenario-Recipes.md#e2e-058).
+Those recipes own their exact product-free start, installation boot, language,
+surface, modal Close/re-entry, public reboot and postboot usability assertions.
+The [LIFE07 qualification](E2E-Building-Blocks.md#installed-restart-notice-qualification)
+owns the shared callable bindings, public controls, qualified slice and retained reports.
 
-The positive cases must start from the product-free supported baseline, install
-the actual verified package through the maintained lifecycle route, and retain
-the installation boot until the target's first modal is observed. Do not use an
-app snapshot, upgrade/reinstall, manually written reboot marker, injected broker
-error or forced diagnostics-only mode as evidence of this regression. Child App
-uses its installed direct command before enabling child controls; kiosk opens
-the newly installed station before any Parent policy setup. Initial language
-setup must not dismiss or displace the notice.
-
-Resolve `update-required-dialog`, `update-required-message`,
-`update-required-close` and `update-required-reboot` through the shared public-ID
-adapter. Require one modal, restart instructions appropriate to installation,
-usable Close and Reboot now actions. Close must
-leave the same boot and blocked operation; ordinary reopening/session re-entry
-must show the modal again. A single normal system-authorized Reboot now action
-must lead to an independently observed new boot, usable greeter and fresh target
-entry with no reboot modal. Establish ordinary public policy/language setup
-after reboot where required; private marker checks cannot replace these results.
-
-Completed task 305a retains qualification of the unrelated
-package operation and its independent system result, not the complete history.
-Synthetic requests belong in engineering tests. Shared modal transport and marker-edge matrices remain with unit/host UI
-coverage; the installed cases must exercise real package/session/reboot causality.
+Historical clean-install case 2 reboots before opening the apps and supplies no
+pre-reboot notice acceptance. Task 300's case 254 records its separate Chinese
+fresh-install kiosk history; upgrade qualification supplies no fresh-install
+acceptance. Completed task 305a retains only the
+[finite unrelated package operation and independent system result](E2E-Building-Blocks.md#genuine-unrelated-package-reboot-request),
+not the removed complete history. Shared modal and marker-edge matrices remain
+with their unit/host UI owners.
 
 ## Deferred future work
 

@@ -166,8 +166,11 @@ Manual work omits `--y` to confirm before preparation. Selection and rolling
 concurrency follow the [VM mandate](Mandates/VM-Mandate.MD#authority-and-operation),
 including lists, `all-enabled`, `all`, and the enabled default when `--vm` is
 omitted. The flag preserves all authorization, lease, ownership and validation checks.
-Online mode is the default and reuses fresh matching snapshots without building;
-the verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
+Online mode is the default and reuses fresh matching snapshots without building.
+`--overwrite` defaults to `false` online and `true` offline; supplying the flag
+without a value means `true`. Use `--mode offline` for shutdown/snapshot
+preparation or `--overwrite true` for an authorized forced rebuild.
+The verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
 RPM/DNF preparation. Fedora uses the maintained native/Mock/rootless container
 builder and preserves enforcing SELinux during offline SSH bootstrap and installation.
 Online mode leaves the restored running guest in the existing VM-maintenance ownership
@@ -182,7 +185,9 @@ excluded. A read-only snapshot probe sends unfinished attempts through shared
 recovery before probing again. Healthy online maintenance resumes directly;
 replacement recovers its exact recorded owner through the maintained stop path.
 Failed SSH or clock readiness after a successful restore performs owned cleanup.
-There is no product package, service restart, reboot, or saved-data migration.
+Tooling activation is `none` on the development host. Guest snapshot preparation
+still installs the declared product package and performs the mode's required
+restart; it supplies no customer-acceptance credit.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or
 `--dependencies-only`. Codex setup also installs its maintained machine-wide
@@ -216,14 +221,8 @@ Polkit dialog; the publisher's explicit main-pause confirmation is required.
 When an assistant performs an authorized publication, direct `tools/publish.py`
 uses the project-tool command grant. `make publish` still needs command approval
 if platform policy requires it. Tool execution approval alone does not request
-publication. The old preparation-only
-launcher and its maintained allow rule have been removed.
+publication.
 See [unattended publishing](Publishing.md#unattended-operation-and-approvals).
-
-No setup, privilege-policy change or general interpreter/shell allowance is
-needed for this refactoring. Development activation is `none`: it changes no
-installed services or saved data. The shared package activation helper lives in
-`packaging/package_activation.py`; its installed command and behavior are unchanged.
 
 ## Launcher inspection and workspace edits
 
@@ -238,9 +237,8 @@ Continue the task to issue that command again under the newly loaded rules.
 
 For authorized workspace text edits, use native `apply_patch` with explicit
 paths/context, subject to workspace write permissions. No shell-prefix grant is
-needed. The reported `python3 -` heredoc edited a document, but allowing that
-prefix also permits arbitrary imports, execution and writes; rules cannot
-inspect Python semantics. Never add interpreter, shell or generic shell-patch
+needed. Interpreter prefixes also permit arbitrary imports, execution and writes;
+rules cannot inspect script semantics. Never add interpreter, shell or generic shell-patch
 grants for document edits.
 
 Use the existing document-check allowance, without per-file rules or refresh:
@@ -277,14 +275,10 @@ dedicated Polkit action defaults to denial and grants only active local members
 of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
-`tools/prepare-baseline --vm NAME --mode auto|manual [--y]`. Auto mode is preapproved when needed
-for authorized development or testing, including deletion of all versioned app
-snapshots and replacement of the baseline. Do not request developer confirmation;
-use `tools/prepare-baseline --vm NAME --mode auto --y` in launcher/session work
-to suppress the y/n prompt. Manual mode requires explicit developer authorization;
-once authorized, launcher/session work uses `--mode manual --y`. Manual work
-omits `--y` to retain confirmation. Both modes still show the warning, require
-the VM off and retain every safety check. Auto restores the accepted baseline and updates Ubuntu; manual
+`tools/prepare-baseline --vm NAME --mode auto|manual [--y]`; the
+[VM mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline) owns mode
+authorization, selector scope, warnings and preparation lifetime. Auto restores
+the accepted baseline and updates the supported guest distribution; manual
 prepares the current disk state. Both capture `onpc_baseline` after validation.
 The dispatcher uses fixed modules relative to the invoking repository root and a
 clean environment; trust includes edits to that checkout's setup code. The dependency
@@ -306,37 +300,17 @@ Paths are relative to
 the checkout. Quote globs and parametrized pytest IDs so Codex sees a literal
 argument; the launcher expands file patterns without a shell.
 
-Choose validation scope from the change and its regression risk, independently
-of scheduling. Prefer `tools/run-tests ui` for UI-only coverage,
-`tools/run-tests unit` for unit-only coverage, and category/file/case selections
-for the required subset. Use the launcher's existing parallelism where that
-selection supports it. Never substitute `host` or `all` merely because the
-selected suite is large or slow; additional suites and package builds need
-their own validation justification. Direct unit/UI launchers remain suitable
-for narrow iteration or diagnosis.
+Select the lowest effective scope under the
+[suite selection and scheduling contract](../tests/README.md#all-established-regressions).
+It owns exact selectors, timeouts, failure limits, UI's `live_e2e` exclusion and
+parallelism within each category. New host modules and resource changes also
+need [parallelism review](../tests/README.md#host-test-parallelism-review).
+Command authorization does not justify expanding a focused check to `host` or `all`.
 
-`tools/run-tests ui` reuses the aggregate's UI buckets and scheduler
-with up to four branches, without other host suites or package builds. File/case
-selectors, `-k`, `-m` and scoped ignores retain the exact selected inventory.
-Execution defaults to the host's 1800-second per-bucket timeout; an explicit
-`--timeout` is preserved. `-x`/`--exitfirst` or positive `--maxfail` keeps one
-serial invocation so its failure limit remains selection-wide. Inspection is
-unchanged. No marker exclusions are added implicitly. Other categories stay
-ordered. `tools/run-tests unit` uses the same four balanced unit buckets as
-`host`, keeps module fixtures together and preserves exact selectors/options.
-It adds no cleanup prerequisite inventory or other categories. Unknown modules
-retain exclusive fallback; reviewed full application-fixture tests use artifact
-resource admission and compatible overlap. New host modules require the
-[parallelism review](../tests/README.md#host-test-parallelism-review); `-x` or
-positive `--maxfail` keeps one serial invocation. Direct `tools/run-unit-tests`
-remains serial for narrow iteration. See the
-[scheduling contract](../tests/README.md#all-established-regressions).
-
-Use complete categories (`host`, `vm`, `system`, and `e2e`) only when their complete
-coverage is justified; combine them once to share reports and package inputs.
-Separate host and VM runs may execute concurrently, each owning its scope's
-activity lock and session. Combined selections reserve both locks; scheduling
-within each scope remains launcher-owned.
+In the command patterns below, `ARTIFACTS`, `FIRST` and `SECOND` mean the exact
+paths returned by maintained builders; quote each substituted path. New output
+uses [shared disk-backed storage](Mandates/Test-Storage-Mandate.md). Existing
+validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output examples.
 
 | Existing or planned coverage | Stable command / extension pattern | Boundary |
 | --- | --- | --- |
@@ -350,16 +324,16 @@ within each scope remains launcher-owned.
 | Requirement mapping | `tools/run-tests traceability stage` / `final` | Fixed verifier and its two modes |
 | Python branch coverage | `tools/run-tests coverage` | Unit and private-bus layers only; new private report directory |
 | Current aggregates | `tools/run-tests check` / `component-all` | Fixed Makefile/target; no Make options, extra targets or variable injection |
-| App fixtures | `tools/run-tests fixtures build` / `verify /tmp/onpc-...` | Fixed builder; builds generate an empty private output directory |
-| Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify /tmp/onpc-...` / `compare /tmp/onpc-first /tmp/onpc-second` | Fixed builder; explicit existing project artifact inputs |
+| App fixtures | `tools/run-tests fixtures build` / `verify 'ARTIFACTS'` | Fixed builder; builds generate an empty private output directory |
+| Package/fixture artifacts and reproducibility | `tools/run-tests artifacts build` / `verify 'ARTIFACTS'` / `compare 'FIRST' 'SECOND'` | Fixed builder; explicit existing project artifact inputs |
 | Reusable package/fixture preparation | `tools/run-tests artifacts prepare` | Content-qualified reuse or a fresh build; new private output registered in bounded run retention. No VM or installed product changes. |
 | Named qualification inputs | `tools/run-tests integration --vm NAME check_parent_setup` | Integration qualifications using `named_input()` automatically select current source-keyed inputs and prepare absent bundles before privileged dispatch. Same unprivileged builder and retention; exclusive creation, no overwrite. A legacy fixed-name bundle is never selected. Launcher regression coverage checks every consumer. |
 | Privileged harness/graphical checks | `tools/run-tests integration --vm NAME check_future_feature` | Direct `tests/integration/check_[a-z][a-z0-9_]*.py`; no script options |
-| Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --vm NAME --artifacts /tmp/onpc-... --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
-| Graphical journeys and harness scenarios | `tools/run-tests e2e --vm NAME` / `tools/run-tests e2e --vm NAME --id 1,3,4` / `tools/run-tests e2e --vm NAME --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts '/tmp/onpc-...'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
-| Asset-transfer runner qualification | `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts /tmp/onpc-...` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
-| Authenticated installation qualification | `tools/run-tests e2e --vm NAME --qualify-install --artifacts /tmp/onpc-...` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; E2E-002 remains pending until its complete reboot/readiness journey passes |
-| Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; VM attachment requires the same explicit name. |
+| Installed identity, authorization, enforcement, time, activation, migration, removal and reinstall | `tools/run-tests system --vm NAME --artifacts 'ARTIFACTS' --area authorization --test 'case[param]'` | Existing guarded VM controller; future registered areas/cases need no new rule |
+| Graphical journeys and harness scenarios | `tools/run-tests e2e --vm NAME` / `tools/run-tests e2e --vm NAME --id 1,3,4` / `tools/run-tests e2e --vm NAME --list` | Defaults to every runnable E2E case, reporting pending exclusions; no other test categories are dispatched. Missing artifacts are built automatically; `--artifacts 'ARTIFACTS'` reuses verified inputs. Explicit pending/invalid IDs refuse before privilege checks. Serial owned recovery remains mandatory; no prerequisite test suite runs. See [commands and prerequisites](../tests/e2e/README.md#run-e2e-scenarios). |
+| Asset-transfer runner qualification | `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts 'ARTIFACTS'` | Guarded diagnostic attempt with live ownership checks; no scenario/list selector or product installation; pending customer dispatch stays closed |
+| Authenticated installation qualification | `tools/run-tests e2e --vm NAME --qualify-install --artifacts 'ARTIFACTS'` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; diagnostic qualification supplies no complete-scenario acceptance. Current bindings belong to the [scenario inventory](../tests/e2e/scenarios.json). |
+| Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; [reconnection](../tests/README.md#aggregate-execution-and-reconnection) retains the original canonical selection. |
 | Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort medium] [--rounds X]` / `tools/fix-tests --vm NAME --stop` | Granular pass only by default; --rounds X adds X-1 verification rounds; explicit selectors remain fixed. The [repair policy](../tests/README.md#scripted-repair-loop) owns Sol Medium → Sol High → Astra High → Astra Extra High escalation, five sessions per case/VM including answered blockers, and bounded diagnostic changes handed to launcher-owned execution. Fresh serial Standard-speed sessions preserve stronger overrides; final-tier stalls may stop early. Different-case/preparation interruptions leave verification unknown. Existing sandbox/rules and owned cleanup apply; no automatic setup or authority expansion. |
 | Scripted E2E implementation | `tools/write-e2e --vm NAME [--sessions N] [--tasks N]` / `tools/write-e2e --vm NAME --stop` | The [launcher policy](../tests/README.md#scripted-e2e-implementation) owns fresh serial model selection, promotion/advice, task/session limits, signed live adjustments and resumable close-out. Launcher-owned staging, commit and `git push` after every accepted task; every three completed close-outs adds a resumable Sol High lessons/composition audit with a refactor commit and push. Explicit literal paths exclude unrelated work and output artifacts; existing grants, safe session-boundary stop and guarded owned cancellation/cleanup apply. |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
@@ -388,68 +362,25 @@ prompt. After changing rules, run `./setup.sh --codex-rules-only` and restart
 Codex with this checkout trusted. Setup maintains these target grants for clean
 machines without changing personal user rules.
 
-The complete `host`, `system`, `e2e` selections and their combinations, plus
-the `all`, `all-verify` and `host-builds` aliases, stop on the first
-reported test failure by default, using the Ctrl+C cooperative shutdown path:
-owned children finish cleanup, evidence is finalized, and the failure investigation
-prompt is printed. Add the valueless `--continue-on-errors` flag to continue
-independent tests after failures. Cleanup, infrastructure and prerequisite safety
-refusals still apply. Reattachment preserves the original flags. `host-builds` also
-accepts `--serial-builds` alongside this flag.
-The leading `tools/run-tests --stop-on-error CATEGORY` option applies this
-policy to selected categories while preserving their qualified parallelism.
-The repair loop uses it, and reads the generated `failure.json` handoff after
-cleanup. It never treats an attached predecessor's result as a new category run.
-Category arguments pass through unchanged for repair retries and selected
-verification rounds. The repair launcher's own options (`--vm`, `--model`,
-`--effort`, `--rounds`, `--stop`) are recognized anywhere and removed before
-forwarding; `tools/fix-tests e2e --id 6 --rounds 3` forwards `e2e --id 6`.
-The runner owns category argument validation; inspection flags and aggregate
-coordinator options do not select repair work.
-Its [`tests/README.md` contract](../tests/README.md#scripted-repair-loop) describes
-detachment, stop/restart behavior and agent isolation. Development activation is
-`none`: these are checkout tools; no product installation, service restart or
-saved-data migration is involved. The new executable joins the normal tools
-grant on a future rules refresh; no broad shell/interpreter permission is added.
+The [runner contract](../tests/README.md#all-established-regressions) owns
+failure-stop flags; [reconnection](../tests/README.md#aggregate-execution-and-reconnection)
+owns terminal independence, scope-specific attachment, cancellation and unread
+results. Host and VM namespaces are independent. Explicit VM runs retain their
+canonical selection; default queue runs can attach without `--vm`. Help, listing
+and collection remain read-only inspections, never acceptance or execution.
 
-Every `tools/run-tests` category runs in a terminal-independent session. Closing
-the terminal detaches; Ctrl+C requests owned cancellation and cleanup. While a
-session is active, a new execution invocation warns and attaches to it across
-host and VM scopes before interpreting execution arguments. Different categories
-and invalid selections are ignored. `--stop` requests cancellation and waits for
-owned cleanup; when idle it returns without starting work or consuming results.
-Help, listing and collection return immediately without inspecting session locks.
-When idle, an unread successful result is replayed in the requested scope. After
-the result is delivered, the next invocation validates and starts fresh work.
-An explicit selection can replace an idle failed/incomplete session immediately,
-preserving its output and reconciling residual state before starting tests.
-VM attachment, cancellation and unread-result replay require the original
-configured `--vm NAME`. A different or missing name refuses attachment. When idle,
-`--vm NAME` without categories starts the `all` aggregate. `--help` and `-h` always print usage
-immediately, before activity/session locks or attachment, without consuming an
-unread result.
-
-Internal workers inherit the verified checkout activity lock and execute their
-assigned work without reattaching to their own session. Older runs without
-session metadata still refuse competing launches through that lock.
-Host-only selections use a separate activity lock, storage namespace and
-retention journal, so
-`tools/prepare-appsnapshot` can run alongside `tools/run-tests ui` or other
-host-only tests. Selections containing system, E2E or integration work retain
-the VM-side checkout lock and reconnect namespace; the privileged
-cross-controller VM lease remains authoritative. Public execution invocations
-check both session namespaces under ordered gates and attach to any active run
-instead of starting a competing category. If older launchers already started both,
-the requested scope wins (VM for no arguments). Existing processes keep their
-original locks until they exit.
+The [repair launcher contract](../tests/README.md#scripted-repair-loop) owns
+option forwarding, retries, diagnostic handoffs and agent isolation. Reattachment
+does not execute new selectors. Checkout-tool changes activate on invocation
+(`none`) without installing or restarting the product on the development host.
+Selected guest lifecycle tests retain their installation and restart requirements.
 
 Bulk output, scratch, reconnect state and retained exports use gitignored,
 disk-backed `output/test-runs/`, with separate host and privileged ownership.
 Legacy `/tmp/onpc-*` paths remain readable inputs, not new bulk output targets.
-The [storage contract](../tests/README.md#aggregate-output-retention) defines
-three-run/4-GiB per-journal rotation, owner-locked scratch reclamation, short
-runtime-socket exceptions and explicit identity-audited legacy migration through
-`tools/run-tests integration --vm NAME check_storage_migration`.
+The [storage mandate](Mandates/Test-Storage-Mandate.md) owns allocation and
+exceptions; [retention](../tests/README.md#aggregate-output-retention) owns
+rotation, owner-locked reclamation and identity-audited legacy migration.
 
 When starting a new run, system and E2E listings run as the ordinary user without safety tests, privilege
 or VM mutation. `fast --list` forwards `LIST=1` once its target exists. `all`
@@ -457,8 +388,9 @@ accepts no narrowing arguments. Reserved entry points do not claim that the
 corresponding suite is implemented or passing. Future aggregate work must reuse these routes
 and the existing inventory/lease, including internally invoking the validated
 system/E2E dispatcher. It must not introduce unrestricted Make arguments or a
-second suite inventory. Future E2E execution accepts `--artifacts` and
-`--scenario` and must implement the same guarded ownership and evidence contract.
+second suite inventory. Current E2E execution accepts `--artifacts` and
+`--scenario` under the [runner contract](../tests/e2e/README.md#run-e2e-scenarios);
+extensions must preserve the same guarded ownership and evidence contract.
 
 Pytest options are intentionally bounded: quiet/verbose, exit-first, capture,
 collection, warnings, `-k`, `-m`, maxfail, durations and traceback style. A scoped
@@ -494,43 +426,21 @@ evidence in bounded retention; active owners and replaced resources still refuse
 
 ## The configured test VMs
 
-All VM consumers inherit the [VM observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate).
-`tools/watch` observes the shared lease and guarded command transport during
-E2E, installed tests, qualifications, snapshot preparation and maintenance.
-Publish nonsecret intent through `watch_activity.operation` or `observed` before
-work starts; keep it visible through blocking work and restore enclosing intent
-after nested work. Reuse this infrastructure for new routes. Independent capture,
-SSH transcript or footer implementations are outside the contract. Viewing is
-read-only for VM activity and may attach or detach at any time without controlling
-the VM. In the left runner terminal, selection and Copy are available; Ctrl+C
-requests the displayed runner's cooperative cancellation and cleanup.
+All VM consumers inherit the
+[observation mandate](Mandates/VM-Mandate.MD#vm-observation-mandate) and
+[target-selection contract](Mandates/VM-Mandate.MD#target-selection).
+Those owners define shared watch intent/transport, per-tool selectors, enabled
+defaults, concurrency, cancellation and canonical identity. Host-only tests,
+help and listing need no enabled VM. Maintenance requires one explicit registered
+target; queue-capable launchers select only their validated registry entries.
+Each guest retains its separate lease and evidence journal; unfinished legacy
+journals remain blockers until recovered.
 
-`tools/run-tests`, VM-scoped `tools/fix-tests` and `tools/write-e2e` read
-[config/test-vm.json](../config/test-vm.json) and execute all entries whose
-`enabled` equals the string `"true"`, up to its positive integer `concurrency`
-simultaneously. The finite queue drains even after a VM failure; cancellation
-stops queued work and waits for every active guest's owned cleanup. Tests within
-each guest remain ordered; repair and implementation agents remain serial.
-Explicit selectors and preparation use the shared
-[selection and scheduling contract](Mandates/VM-Mandate.MD#authority-and-operation):
-names, IDs, comma-separated lists, `all-enabled`, or `all`, including disabled
-entries when explicitly selected. Host-only tests, help and listing do not
-require enabled VMs. Maintenance requires one explicit configured `--vm NAME`;
-Make VM targets require `VM=NAME`. Replacement setup
-also requires `--vm NAME`. `tools/cleanup-e2e` without a selector reconciles all
-enabled guests serially. Workers receive validated selections, never an ambient
-environment default. Each VM has separate leases and retention journals;
-unfinished legacy journals remain blockers until recovered.
-Every `--vm NAME` and Make `VM=NAME` also accepts that entry's `id` from the
-current JSON. IDs are unique positive decimal strings or integers. Each selector
-lookup rereads the file; swapping or changing IDs needs neither a tools refresh
-nor baseline replacement. Names and disks still participate in baseline proof.
-Active runs retain their canonical guest names and UUID pins; reattachment accepts
-the current ID for that same guest, and refuses an ID reassigned to another guest.
-`tools/watch` and `make watch` observe all registered VMs without a VM parameter.
-Reattachment and cancellation of an explicit VM selection require its original
-canonical selection (current IDs for the same names also work); attach to a
-default queue without `--vm` or with its original list.
+The [runner reconnection contract](../tests/README.md#aggregate-execution-and-reconnection)
+owns attachment and cancellation of explicit selections and default queues.
+Current IDs may identify the same retained canonical guest, never adopt another
+guest after renumbering. `tools/watch` and `make watch` observe all registered
+VMs without a VM parameter; viewing does not authorize VM mutation.
 
 `tools/test-vm` accepts this configured-name selector and no URI, disk, XML or
 snapshot-name input. Its `exec` action accepts arbitrary guest command arguments
@@ -551,7 +461,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |
 | `tools/test-vm --vm NAME reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
-| `tools/test-vm --vm NAME screenshot` | Capture the owned running guest to a new private `/tmp/onpc-vm-screen-*` artifact |
+| `tools/test-vm --vm NAME screenshot` | Capture the owned running guest through the legacy `/tmp/onpc-vm-screen-*` allocation; migration to [shared storage](Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) remains required. This is separate from the caller-owned PNG export exception. |
 | `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |
 | `tools/test-vm --vm NAME reset` | Restore the accepted outer baseline while idle, leaving the VM off |
 | `tools/test-vm --vm NAME recover-online ID` | After explicit authorization of the inspected instance, recover an interrupted online start with matching maintenance, snapshot and isolation proofs; restore the baseline and leave it off |
@@ -755,8 +665,7 @@ options, then pass literal filenames.
 
 Never pass filename patterns as `rg` path operands: unquoted patterns invoke
 shell expansion; quoting makes them literal filenames, not glob filters.
-The reported graphical/E2E and baseline searches triggered shell approval this
-way. The direct `rg -n` allowance already covers regex/path variations; another
+The direct `rg -n` allowance already covers regex/path variations; another
 allow or rule refresh cannot authorize the enclosing arbitrary shell script.
 
 Quote every read path, even without spaces or with package-version `~`:
@@ -774,9 +683,7 @@ fix quoting/shape and retry the same operation under its existing grant.
 Never add shell/duplicate rules or refresh unchanged rules; honor actual denials
 and remaining sandbox restrictions.
 
-Quoted `tail`/`rg` reads of the `onpc-ppa-check-hmbj287y` build log succeeded
-without approval on 2026-09-12. That qualifies this form in that session, not all
-parser versions/contexts. `codex execpolicy check` tests an argument vector,
+`codex execpolicy check` tests an argument vector,
 not command-tool shell splitting: a raw Bash wrapper matches its shell rule
 even when the tool could split it. Prefix tests prove neither parser behavior
 nor automatic approval for unquoted wildcards. See the

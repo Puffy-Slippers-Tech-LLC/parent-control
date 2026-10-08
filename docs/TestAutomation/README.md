@@ -7,11 +7,10 @@ below own their detailed rules. Product behavior remains in the
 When documents disagree, use the ownership table below instead of combining the
 strongest-looking fragments.
 
-Checkout files may change while tests run. Such edits do not invalidate the run
-or its completed cleanup prerequisites. Preserve actual test failures and the
-staged-artifact, evidence and VM ownership checks. A test must not overwrite
-unrelated host/source files; that preservation duty is distinct from rejecting
-concurrent developer edits.
+For checkout edits during a run and reconnecting to existing work, follow
+[runner reconnection](../../tests/README.md#aggregate-execution-and-reconnection)
+and [failure handling](../../tests/README.md#handling-test-failures). Concurrent
+edits supply no reason to discard valid results or overwrite unrelated work.
 
 ## Document ownership
 
@@ -19,11 +18,13 @@ concurrent developer edits.
 | --- | --- | --- |
 | [Approval tools](../Approval-Tools.md) | Authorized command routes, setup and unattended execution | Permission for work outside the requested scope |
 | [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
-| [Application UI API](Application-UI-API.md) | Required product-control route for UI/E2E tests and tasks, stable operations, canonical values, adapter boundaries and control inventory | Installed desktop qualification |
+| [Application UI API](Application-UI-API.md) | Product-control operations, canonical values, adapter boundaries and control inventory | Installed desktop qualification or route selection independent of the UI mandate |
 | [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation and baseline preparation lifetime | A passing product result or permission to use the development host as an installed target |
 | [Test storage mandate](../Mandates/Test-Storage-Mandate.md) | Shared allocation, retention and cleanup boundaries | Permission to delete unowned artifacts |
 | [Test maintenance](../../tests/README.md) | Suite selection/scheduling, parallelism review, failure handling and runner operation | Customer acceptance from a host test |
 | [Shared support guide](../../tests/support/README.md) | Reusable fixture and harness implementation routes | Scenario data or a second implementation of shared mechanics |
+| [Installed runner guide](../../tests/integration/README.md) and [environment](../../tests/integration/Environment.md) | Guarded installed-test interfaces and finite baseline dependency/fixture inventory | Authorization independent of the VM mandate or customer acceptance from preparation |
+| [E2E runner guide](../../tests/e2e/README.md) | Controller dispatch, evidence, observation and recovery interfaces | Scenario composition, task order or acceptance from diagnostic qualification |
 | [`tests/e2e/scenarios.json`](../../tests/e2e/scenarios.json) | Persistent scenario IDs, customer steps, runtime status and executable binding | A pass merely because a declaration exists |
 | [E2E building blocks](E2E-Building-Blocks.md) | Atomic/composite operation contracts, callables, scoped qualification and provider gaps | Scenario readiness or task order |
 | [Scenario recipes](E2E-Scenario-Recipes.md) | Exact scenario composition, finite inputs and expected public results | Current runner status or scheduling |
@@ -97,6 +98,8 @@ For documentation reconciliation:
 2. Check source callables, inventory bindings and launcher help before describing
    an interface as implemented. Distinguish planned selectors from registered ones.
    Read the affected function and its necessary callers/callees, not just a search hit.
+   When source falls short of a requirement, describe the implementation gap and
+   return condition in its owner; do not rewrite the requirement to match source.
 3. Update every unfinished consumer of the changed rule, including deferred briefs.
    Keep dependency order, case IDs, acceptance, session exceptions and the current
    blocker intact. Reconcile stale task descriptions against delivered scope.
@@ -104,8 +107,14 @@ For documentation reconciliation:
    selection in [close-out](E2E-Execution-Contracts.md#completion-and-document-cleanup).
    Refactored test code also needs its affected regressions and resource review.
 
-This work does not execute or close the next queue task. Changes confined to
-prose and metadata tests need no VM qualification or package build. Runtime,
+Check renamed headings against incoming links as well: the link reader checks
+destination files, not fragments. Keep still-used anchors or update their
+consumers. Verify the final diff stays within the authorized scope; a prose-only
+session leaves executable code, inventories and generated coverage unchanged.
+
+This work does not execute or close the next queue task. Prose-only reconciliation
+needs no VM qualification or package build; changing a metadata test still needs
+its affected host checks. Runtime,
 provider, ownership or preparation changes retain their normal validation gates.
 
 For test implementation, apply the [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)

@@ -30,12 +30,9 @@ journey. Preserve distinct intermediate customer outcomes and shared target,
 ownership and input-safety guards. A capability's qualification matrix is not
 the recipe for each consuming customer case.
 
-For existing and future UI and E2E tests, operate the control and independently
-verify its final public result. Test the product function: the saved allowance,
-filtered rows, changed language, accepted request, effective app rule or restored
-draft. A toggle's final on/off state or a selector's final value is sufficient
-when that value is the feature being tested. When the choice controls another
-function, verify that function too; a selected radio indicator alone does not
+In both layers, a toggle's final on/off state or a selector's final value is
+sufficient when that value is the feature being tested. When the choice controls
+another function, verify that function too; a selected radio indicator alone does not
 prove that language, permissions or behavior changed. This control-level rule
 does not make an isolated widget check an E2E customer outcome.
 
@@ -70,41 +67,36 @@ All existing and future host UI tests, installed E2E tests and their task briefs
 must use the [Application UI API](../TestAutomation/Application-UI-API.md) for
 repository-owned product reads and input, including test setup and result
 observations. The rule includes Parent, both request surfaces, shared dialogs,
-the feedback editor and child panel. Stable-ID setters and actions operate the actual controls through their
-normal handlers, with current ownership, effective sensitivity, logical
-visibility, modal and validation guards. Canonical values are independent of
-language/locale. Transport and consumers remain distro/desktop-neutral;
-toolkit and GNOME panel details belong in their adapters. Future desktop ports
-implement the same adapter contract and public IDs rather than adding desktop
-branches to API consumers or customer cases.
+the feedback editor and child panel. Follow the API's
+[calling contract](../TestAutomation/Application-UI-API.md#calling-the-api),
+[canonical values and adapter boundaries](../TestAutomation/Application-UI-API.md#canonical-values-and-portability),
+and [lifecycle guards](../TestAutomation/Application-UI-API.md#reliability-and-lifecycle).
+Stable-ID operations run the actual controls' normal handlers; current ownership,
+effective sensitivity, logical visibility, modal and validation guards remain
+mandatory. Future desktop ports implement the same adapter contract and public
+IDs; consumers and customer cases must not add desktop branches.
 
 Use the same shared test facade and operation helpers in host UI and installed
 E2E tests. Cases supply finite values and expected outcomes; shared helpers own
 endpoint binding, surface discovery, control operations, waits and refusal
-guards. Extend those helpers before adding a second host or guest implementation;
-compatibility callable names do not permit a legacy input route. Direct selector values do not require popup, accessibility, focus,
-scrolling or native-input qualification. The fixed editor API is required for
-product editor operations;
-arbitrary caller-supplied JavaScript, private backend edits and credential
-delivery through this service are not. A setter's success acknowledges input;
-independently observe the required public outcome, and never replay uncertain
-mutations automatically. Existing external-provider and authentication guards
+guards under the [shared support guide](../../tests/support/README.md).
+Extend those helpers before adding a second host or guest implementation;
+compatibility callable names do not permit a legacy input route. Direct selector
+values require no popup, accessibility, focus, scrolling or native-input
+qualification. Product editor operations use the fixed editor API; arbitrary
+caller-supplied JavaScript, private backend edits and credential delivery through
+this service are prohibited. Never substitute toolkit calls, private widget
+state, AT-SPI product reads/actions, native key/pointer injection or an alternate
+transport after refusal. Existing external-provider and authentication guards
 continue to apply outside the product API.
-
-Use `getValue`/`setValue` and `getChoices` for canonical choices,
-`getText`/`setText` for displayed or literal text, `activate` for ordinary
-actions, and the surface `close` operation for normal close requests. Discover
-dialog surfaces and resolve every operation against its current owner and
-surface. Pin the unique endpoint owner/PID; deliberately bind a new client after
-a restart. The bounded runtime inventory owns dynamically constructed controls.
-Never substitute toolkit calls, private widget state, AT-SPI product reads/actions,
-native key/pointer injection or an alternate transport after refusal.
 
 Read-only waits may reacquire current API state within the original deadline.
 Mutations stay outside retry predicates. A successful setter and a returned
 control value do not establish save completion, approval, persistence or policy
 effects when those are the requested outcome. Editor assertions read the public
-document delta independently of toolbar state; selection offsets use UTF-16.
+document delta independently of toolbar state. Never replay an uncertain
+mutation automatically; observe its public result and make a new explicit
+decision under the API lifecycle contract.
 
 Isolated implementation tests may inspect synthetic adapter or helper objects
 directly to verify their own contracts, such as weak-reference cleanup,
@@ -136,12 +128,13 @@ product UI test, its setup or its result assertions.
   identity, command transport, observation and cleanup contracts.
   Launch supporting tools through their supported command or fixed shortcut.
   Do not open a terminal merely to type a command that guarded SSH can execute.
-- **Preparation lifetime:** Reusable dependencies, fixed app fixtures/launchers
-  and persistent harness settings belong in idempotent `tools/prepare-baseline`
-  reconciliation. UI workers verify readiness and fail on missing/stale inputs;
-  they never install or repair them during a test. Shared commands may still own
-  deliberate scenario mutations, attempt credentials and evidence. Follow the
-  [baseline contract](VM-Mandate.MD#vm-host-setup-and-baseline).
+- **Preparation lifetime:** For VM work, follow the
+  [baseline contract](VM-Mandate.MD#vm-host-setup-and-baseline) for reusable
+  guest prerequisites and attempt-owned state. Host setup follows
+  [one-time setup](../Approval-Tools.md#one-time-setup); shared fixture construction
+  follows the [support guide](../../tests/support/README.md).
+  UI workers verify readiness and fail on missing/stale prerequisites; they
+  never install or repair prerequisites during a test.
 - **GDM and login:** Reuse one shared entry helper that goes straight to the
   intended account. Use only the minimal selection/keyboard authentication
   needed when a graphical login or unlock is required. Prefer direct public
@@ -173,7 +166,8 @@ product UI test, its setup or its result assertions.
   are not customer acceptance requirements. Keep correct-dialog ownership,
   bounded input, exact-file guards and independent app readback. Do not inject
   attachments into private app state or replace the live handoff with a stub.
-- **External links:** Acceptance stops at the product's link being clickable:
+- **External links:** Acceptance stops at the product's link being available
+  for activation:
   resolve its public ID through the Application UI API and check logical
   visibility, sensitivity and the supported `activate` operation. Viewport clipping does not require following the link.
   Do not activate the link, inspect its URI/destination, launch a handler or
@@ -187,6 +181,7 @@ product UI test, its setup or its result assertions.
   submission remain separate product features.
   Rich-editor link formatting is a separate owned editing feature: check its
   synthetic link values in the API's public document delta without navigation.
+
 ### Ordinary app entry
 
 Use the shared command block for setup and reopening. Both commands run as the
@@ -205,15 +200,11 @@ and independent result checks apply to both routes.
 
 ## Target identity and provider exception
 
-- **Daily allowance selection (all UI and E2E tests):** Use the shared
-  PARENT06 block to call `setValue("parent-daily-limit-selector", token)` with
-  an offered canonical duration or `custom`. For Custom, use the same facade
-  to set `parent-custom-daily-limit` and activate its normal validation handler.
-  Independently verify the final allowance and save completion. Resolve the
-  owning Parent surface, selected child and enabled control before input.
-  Do not open a popup, inspect focus, inject keys/pointer events or derive bounds
-  for this operation. Custom validation and per-child persistence retain their
-  distinct functional assertions.
+- **Daily allowance selection (all UI and E2E tests):** Reuse PARENT06 in the
+  [daily allowance contract](../TestAutomation/E2E-Building-Blocks.md#daily-allowance-selection), including Custom
+  validation and independent saved-allowance readback. Its Application UI API
+  route requires no popup, focus, native input or geometry. Cases retain their
+  distinct validation and per-child persistence assertions.
 - For GUI operations required by the feature under test, and unavoidable
   graphical authentication, except for the external-provider exception below,
   every automated UI target
@@ -279,8 +270,8 @@ the geometry prohibition or authorize skipping unrelated active blockers.
 
 ## Input and independent results
 
-- **Presentation acceptance:** The developer removed visual inspection/review
-  from this task and all future tasks on 2026-10-05. Keep the geometry prohibition.
+- **Presentation acceptance:** Visual inspection/review is excluded from UI
+  and E2E acceptance. Keep the geometry prohibition.
   Qualify public logical text, matching accessible labels, stable identities
   and preserved user values. Keyboard focus is an input-recipient guard when
   needed, not a traversal or presentation acceptance matrix. Pixel rendering, glyph

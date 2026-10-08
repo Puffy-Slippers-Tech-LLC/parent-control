@@ -688,7 +688,7 @@ enabled Parent Hebrew policy, `20261005T201150Z-adf84902` (subject to runner ret
 All three runs passed collection, worker shutdown/callback closure, owned cleanup,
 baseline restoration, finalization and preservation. Host unit/controller/recorder/
 actual-worker refusal checks, source and four real GTK checks passed; coverage
-was regenerated. All three acceptance reports remain retained after the final
+was regenerated. All three acceptance reports were retained at close-out after the final
 289-check host consistency pass and Markdown validation.
 This completes only the Parent history. Other frontend/dialog,
 translated approval, panel/countdown and expiry bindings remain separate.
@@ -723,7 +723,7 @@ minute/final-second progression or natural expiry; retain those earlier queued
 capabilities before composing 310. No future selector listed in these briefs is
 registered merely by this table.
 
-### App-grid search and Parent launch
+### Daily allowance selection
 
 PARENT06 uses one Application UI API sequence in every UI/E2E consumer:
 set `parent-daily-limit-selector` to the offered canonical token, then
@@ -747,8 +747,16 @@ selector input, failed stream binding, a retained overview input grab and
 window-offset/pointer-target mismatches; expected saved values did not match
 the displayed values in those failures. Those mechanics have been replaced by
 the API route. The final historical host stress run retained exact latest-save,
-Custom-to-preset and custom validation assertions. Existing reports remain:
+Custom-to-preset and custom validation assertions. Historical run IDs (subject
+to runner retention):
 `20261005T183200Z-6f124ff4`, `20261005T185942Z-a1354093`, `20261005T192353Z-642681c0`, `20261005T204924Z-140e6d45`, `20261005T204607Z-9cf327f3`, `20261005T205003Z-5d6ddb1f`, `20261005T205534Z-f2e93578`, `20261005T213533Z-082cdd28`, `20261005T215528Z-df2ccd55`, `20261005T221436Z-ffcbb9d7`, `20261005T224722Z-a1d943d6`.
+
+### App-grid search and Parent launch
+
+PARENT01 owns ordinary direct-command entry. SEARCH05/06 own the explicit
+app-grid integration bindings under the
+[ordinary app-entry mandate](../Mandates/UI-Automation-Mandate.MD#ordinary-app-entry).
+The same Parent control inventory below serves both entry routes.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
@@ -764,7 +772,7 @@ Custom-to-preset and custom validation assertions. Existing reports remain:
 | PARENT05 | C | Select a daily preset through PARENT06 and independently read the saved allowance. Custom selection makes the ordinary editor available. | `AccessibleUI.allowance_preset` / `custom_allowance` delegate to `select_allowance` and PARENT08. Reload checks retain selected-child and reopened saved-value assertions. Historical qualification reports: `20260925T181548Z-2eeb40fa`, `20260926T031042Z-c0e70792`. | API implementation; historical saved-value and persistence evidence retained |
 | PARENT06 | C | Set `parent-daily-limit-selector` to an offered canonical duration or `custom`; set custom literal text and invoke normal validation. Observe saving separately. | `journey_blocks.allowance_selection`, `onpc_allowance_selection::select`, `AccessibleUI.select_allowance` and `gui_blocks.select_allowance` share the API route. Retained `allowance_keyboard` naming supplies input/result boundaries without native input. Custom, rapid-save, per-child and restart assertions remain in their existing callers. Historical qualification reports: `20260925T181548Z-2eeb40fa`, `20260926T031042Z-c0e70792`, `20260929T030021Z-d7980dce`, `20260929T070054Z-c0f58f19`, `20260929T054754Z-ff2b12fc`. | API implementation; historical saved-value and persistence evidence retained |
 | PARENT08 | C | Wait for the declared saved, rejected or unavailable result and independently read the final value. Preserve selected-child identity, rejection recovery and last-change-wins ordering; intermediate Saving and control inhibition are not acceptance. | `AccessibleUI.parent_save_snapshot` through `ParentToggleJourney` / `onpc_parent_toggle::run`; `check_e2e_parent_save` qualified enabled/disabled saved snapshots, independent entry, wrong-child refusal and owned cleanup. Snapshots verify the selected UID/label, reject visible error reports and require expected control availability. `AccessibleUI.invalid_allowance` observes the exact draft and public rejection description for empty/abc/-1/0.5/1440/1441. `check_e2e_allowance_boundaries` qualified each rejection from saved 15, then independently read unchanged saved and reopened-editor values in run `20260925T181548Z-2eeb40fa`, with collection, cleanup and baseline restoration. Complete case 158 repeated the entire rejection table and final Parent reopen persistence in `20260926T031042Z-c0e70792`, with all outcome domains and baseline restoration passed. `UiObservations.observe_accessibility_input(..., mode='save')` / `AccessibleUI.parent_save_events` qualified two independent disabled-to-enabled transitions, wrong-entry refusals, event-derived conflicting-control inhibition/recovery and independent saved snapshots through `check_e2e_parent_save_trace` in `20260929T022732Z-a3624dd4`; collection, cleanup and baseline restoration passed. `UiObservations.observe_accessibility_input(..., mode='custom-save')` / `AccessibleUI.parent_save_events(custom=True)` / `read_custom_trace_draft` qualified two enabled rapid-edit entries, event-derived inhibition/recovery with usable editor/picker, wrong-child/surface/disabled refusal and independent saved readback through `check_e2e_custom_save_trace` in `20260929T030021Z-d7980dce`; the affected toggle regression passed in `20260929T030347Z-821a11a0`. Case 57 observes saved limits-off; other result states remain pending; complete case 159 passed its save-order composition in `20260929T070054Z-c0f58f19`. A terminal snapshot makes no transient-saving claim. The same named-child qualification bound Jordan's rapid-save event-derived inhibition/recovery, usable editor/picker and Riley's independent custom 7 saved readback; wrong-child refusal remained before input or trace. `AccessibleUI.parent_app_save_snapshot` additionally qualifies the App Limits terminal controls after valid match Save/Cancel; see [Match editor Save and Cancel](#match-editor-save-and-cancel). | pending overall; saved and custom-validation snapshots qualified; historical transition samples retained as evidence only |
-| PARENT20 | C | Read an already expanded, showing remaining-time explanation for the explicitly selected child. Return daily, one-time and total values, public display precision and observation time. Perform no navigation or expansion. | `AccessibleUI.time_explanation(child)` reads the selected UID/label and showing `parent-time-status`, `parent-time-explanation` and collapse control in one complete public snapshot. `duration_projection` returns each bounded compact text, seconds and one-second display precision; `observed_monotonic_ns` timestamps the read. `UiObservations` validates the transport projection. `time_explanation.PLAN` / `onpc_time_explanation::run` / `check_e2e_read_an_expanded_time_explanation` qualified a saved 15-minute allowance, explicit collapsed refusal and expansion preparation, wrong-child refusal and two independent 900/0/900-second reads in run `20260925T061535Z-18f56b25`, with collection, owned cleanup and baseline restoration. PARENT20 never expands; PARENT09 and arithmetic/elapsed comparisons remain separate. First scheduled consumer: E2E-036 case 161. | ready |
+| PARENT20 | C | Read an already expanded, showing remaining-time explanation for the explicitly selected child. Return daily, one-time and total values, public display precision and observation time. Perform no navigation or expansion. | `AccessibleUI.time_explanation(child)` reads the selected UID/label and showing `parent-time-status`, `parent-time-explanation` and collapse control in one complete public snapshot. `duration_projection` returns each bounded compact text, seconds and one-second display precision; `observed_monotonic_ns` timestamps the read. `UiObservations` validates the transport projection. `time_explanation.PLAN` / `onpc_time_explanation::run` / `check_e2e_read_an_expanded_time_explanation` qualified a saved 15-minute allowance, explicit collapsed refusal and expansion preparation, wrong-child refusal and two independent 900/0/900-second reads in run `20260925T061535Z-18f56b25`, with collection, owned cleanup and baseline restoration. PARENT20 never expands; PARENT09 and arithmetic/elapsed comparisons remain separate. Historical first consumer: E2E-036 case 161, now [UI-owned](UI-and-E2E-Coverage.md#duplicate-review-and-allocation). | ready |
 | PARENT09 | C | Reach the selected child's remaining-time explanation, expanding it only if currently collapsed, then read its balances. | `AccessibleUI.reach_time_explanation(child)` requires the selected child's Screen Limits surface, expands only a proven collapsed section with its public row action, then uses PARENT20. Repeated reads perform no collapse. `check_e2e_time_explanation` qualified independent collapsed/expanded entry, wrong-child refusal and repeated positive/zero reads in run `20260925T062949Z-49d65b22`, including collection, owned cleanup and baseline restoration. Use PARENT20 for read-only observation; neither block visits another desktop. | ready |
 | PARENT12 | C | Read a displayed app row's identity, access choice and match choice. | `AccessibleUI.app_rows(child, maximum=256, expected_ids=None)` returns immutable public ID/access/match triples; `AppRowsObservation.from_rows` validates the controller projection. UI01 → UI02 → UI03, without installed-catalogue or executable probes. Fresh selected-child defaults, independent App Limits reread and wrong-child/page refusals qualified by `check_e2e_app_row_observations`; [scope](#app-row-observations). Declared native [search](#catalogue-search) results are qualified; filtering and policy edits retain their separate pending consumers. | ready for selected-child row observations |
 | PARENT10 | C | Search the App Limits catalogue by name, description or launcher identifier and observe the matching displayed rows, including an explicitly expected empty set. | `onpc_app_rows::search` composes UI16 replacement with caller-named UI13 row read and independent controller comparison. Representative query, filter and combined-result checks use the shared native oracle and worker composites in UI preview; installed name, absent and clear results passed `check_e2e_catalogue_search`, and combined precise/Allowed passed `check_e2e_catalogue` in `20261001T040733Z-d8b05f90`. See [catalogue search](#catalogue-search) and [catalogue filters](#catalogue-filters). Row details use PARENT12 separately. | ready for declared native queries and filter combinations; complete cases remain separate |
@@ -780,8 +788,8 @@ Custom-to-preset and custom validation assertions. Existing reports remain:
 
 `AccessibleUI.app_rows` in [accessible_ui.py](../../tests/e2e/accessible_ui.py)
 resolves `parent-app-rows` beneath the owned App Limits page and verifies the
-selected child and loaded controls. One complete public accessibility traversal
-returns at most 256 sorted `(row ID, access, match)` triples within 45 seconds.
+selected child and loaded controls. One complete Application UI API snapshot
+traversal returns at most 256 sorted `(row ID, access, match)` triples within 45 seconds.
 Off-viewport rows remain readable without scrolling; explicitly filtered rows
 are excluded. Missing, duplicate, stale, incomplete, ambiguous or wrong-owner
 observations refuse. Optional `expected_ids` compares the complete displayed
@@ -1618,7 +1626,7 @@ these blocks, not copies of them.
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | native primary draft submission ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). No hidden process/window inspection. | native primary submitted-draft capture/same-window comparison ready; cross-user retention and other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. The selected game needs usable public observations; a menu or timer fixture is insufficient. | pending |
-| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. Task 296 qualifies the Lunar/Minecraft and Shell tray provider bindings, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
+| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 The qualified FILE03 Save binding uses `AccessibleUI.save_chooser_operation` and
 `attachment_composition.save_handoff`, shared by qualification and future consumers;
@@ -2495,7 +2503,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | Shared `child-panel` client `getValue`; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-022 cases 118/120 own persistence and isolation; E2E-008 case 22 owns locking with animation enabled. | pending |
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | UI17 on `child-countdown-animation-toggle`, independent PANEL01 readback and DESK01; no popup or Escape dependency. | pending |
 | PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | UI01 → UI03 through the shared panel API; local obligation 181h retains text/function assertions. | pending UI coverage |
-| INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent: `check_parent_help`, `open_about(menu_open=True)` and `check_parent_information`; shared worker calls `onpc_about::read_help`, `open_from_help`, `check_link`, `return_to_parent`. `license_viewer_provider.INFORMATION_PLAN` / `ParentInformationJourney` and `check_e2e_read_parent_information_links` qualify the composite through `onpc_license_viewer_provider::run(exchange, 'information')`. Case 190 owns `parent_information.PLAN` / `onpc_parent_about::run_links`. Overlay: `check_overlay_help`, `open_overlay_about(menu_open=True)` and `read_overlay_link`; `journey_blocks.overlay_license_read(links='information')` / `onpc_about::overlay_license(..., 'information')` compose Help and all five About links with caller-owned immutable form comparisons. `overlay_license.INFORMATION_PLAN` / `OverlayLicenseJourney` and `onpc_request_flow::overlay_information` supply the qualification; legacy license and browser-link plans/selectors retain their finite scopes. Complete case 191 owns `overlay_about.PLAN` / `onpc_parent_about::run_overlay` and shared `KioskRequestJourney` capture/return comparisons. Fresh independent entry, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings or overlay choices. No external handler dependency. Kiosk UI11 on recognized About. [About contracts](#about-block-contracts); E2E-042. | Parent Help and all five About links qualified in `20260930T192004Z-89316fef`; complete case 190 passed in `20260930T195316Z-5a8d360d`. Overlay Help and all five About links qualified in `20261002T045632Z-62a50e45` on every enabled VM (Ubuntu 26.04); license and website/privacy regressions passed in `20261002T050326Z-b8fd7de5`. Complete case 191 passed on every enabled VM (Ubuntu 26.04) in `20261002T052623Z-0b463dbc`, including unchanged-form return, collection and owned cleanup |
+| INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent: `check_parent_help`, `open_about(menu_open=True)` and `check_parent_information`; shared worker calls `onpc_about::read_help`, `open_from_help`, `check_link`, `return_to_parent`. `license_viewer_provider.INFORMATION_PLAN` / `ParentInformationJourney` and `check_e2e_read_parent_information_links` qualify the composite through `onpc_license_viewer_provider::run(exchange, 'information')`. Historical case 190 used `parent_information.PLAN` / `onpc_parent_about::run_links`; its link-only assertions are now [UI-owned](UI-and-E2E-Coverage.md#duplicate-review-and-allocation), with no E2E executable. Overlay: `check_overlay_help`, `open_overlay_about(menu_open=True)` and `read_overlay_link`; `journey_blocks.overlay_license_read(links='information')` / `onpc_about::overlay_license(..., 'information')` compose Help and all five About links with caller-owned immutable form comparisons. `overlay_license.INFORMATION_PLAN` / `OverlayLicenseJourney` and `onpc_request_flow::overlay_information` supply the qualification; legacy license and browser-link plans/selectors retain their finite scopes. Complete case 191 owns `overlay_about.PLAN` / `onpc_parent_about::run_overlay` and shared `KioskRequestJourney` capture/return comparisons. Fresh independent entry, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings or overlay choices. No external handler dependency. Kiosk UI11 on recognized About. [About contracts](#about-block-contracts); E2E-042. | Parent Help and all five About links qualified in `20260930T192004Z-89316fef`; historical case 190 passed in `20260930T195316Z-5a8d360d`. Overlay Help and all five About links qualified in `20261002T045632Z-62a50e45` on every enabled VM (Ubuntu 26.04); license and website/privacy regressions passed in `20261002T050326Z-b8fd7de5`. Complete case 191 passed on every enabled VM (Ubuntu 26.04) in `20261002T052623Z-0b463dbc`, including unchanged-form return, collection and owned cleanup |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report` → FEED03/UI16 → FEED05 → guarded UI18 → independent destination/rule read. Direct closure: `parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report` → automatic-draft read → guarded UI18 → independent destination/rule read. See [automatic Parent error reports](#automatic-parent-error-reports). Parent has no report-choice toggle. E2E-045. | ready for the declared Parent review and edited/untouched report-close bindings; request surfaces and other bindings pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Scheduled qualification is Parent retry, E2E-046 case 208; overlay/station retry bindings are no longer scheduled. Station without-logs submission reuses FEED11 in case 213; it is not hidden inside retry. | pending |
@@ -2527,7 +2535,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). Interactive mute remains deferred outside this current-choice composite. | pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
-| FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Complete fresh-zero consumer E2E-036 case 161 retains its independent pass in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
+| FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Historical fresh-zero consumer E2E-036 case 161, now UI-owned with no E2E executable, passed in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
 | FLOW18 | C | Prepare positive daily time that outlasts a soft-app grant without resetting its launch exception. Finish on the child desktop with both balances positive and daily dominant. | FLOW13(combined, soft included) → FLOW15(child) → FLOW08(soft app) → APP04 → DESK03 → FLOW01(parent retained) → PARENT09 → TIME03(wait until the declared remaining-grant window while child is away) → PARENT09 → UI12(D>G>0) → DESK03 → FLOW15(child retained) → TIME01. No allowance edit or app save after approval. E2E-038. | pending |
 | FLOW19 | C | Configure a finite named app-rule set for one child and return to sign-in. Each match/access edit and save is explicit; no time approval or account preparation is hidden. | FLOW01(parent, explicit source/entry/window/child) → PARENT04(App Limits) → FLOW03 for each declared app/rule → DESK03. First consumers E2E-006/007; reused as AppSet in the recipes. | pending |
@@ -2759,8 +2767,9 @@ The former duplicate wrappers are retired identifiers, not pending work:
 | FEED02 | UI16 | Synthetic feedback body or reply field |
 | REQUEST07 | UI17 (future binding only) | Retired interactive mute wrapper; no current customer dependency |
 
-The split operations intentionally have separate checkpoints: UI23 scrolls and
-UI09 observes reachability; PARENT09 expands/navigates and PARENT20 only reads
+The split operations intentionally have separate checkpoints: UI23 reveals
+logically collapsed content and UI09 observes reachability; PARENT09
+expands/navigates and PARENT20 only reads
 an already showing explanation; GDM08 observes a prompt, GDM03 qualifies a secret
 recipient and GDM09 dismisses; HAR05/06/07/08 separate serial login, command,
 logout and return; FILE02 submits
@@ -2816,8 +2825,10 @@ qualified PARENT08 inhibition/recovery samples; those incidental samples are no
 longer required. This simplification does not claim a new installed pass.
 
 A row becomes `ready` only when its implemented projection/selector scope is
-explicit, source callable and meaningful qualification are recorded, and its
-first installed consumer passes. Ready primitives above refer to existing
+explicit and its source callable and required installed slice qualification are
+recorded under the [status contract](README.md#status-vocabulary). A later
+complete scenario is not a prerequisite of its own block. Ready primitives above
+refer to existing
 [public-UI regressions](../../tests/unit/test_accessible_e2e_ui.py),
 [real adapter checks](../../tests/ui/test_e2e_accessible_adapter.py),
 [actual pointer](../../tests/unit/test_e2e_pointer_helper.py) and
@@ -2829,6 +2840,11 @@ already-ready primitive leaves its established scope ready and the new consumer
 pending; do not silently broaden what the status means.
 
 ## Fixture boundaries and the common attempt envelope
+
+The [snapshot and case-entry contract](#parent-login-and-time-scenarios) owns
+suite preparation, online/offline restoration and final audit. The rows below
+own finite fixture operations within that envelope; a fixture result supplies
+no customer acceptance.
 
 These supporting operations are the only fixture exceptions to customer input.
 They prepare unrelated accounts/assets, never the policy, time balance,
@@ -3346,10 +3362,11 @@ customer actions and observations in customer families. Use the recipe together
 with these blocks; do not reintroduce old private witnesses from a task note.
 Ready callbacks retain their existing fixture, credential and phase contracts.
 
-The following index accounts for every family. A recipe range means every
-variant in that range, never sampling. Customer setup is part of each independent
-case. Harness case 1 remains separate qualification. Retired E2E IDs 140–150
-belong only to the system-test tasks listed under inventory reconciliation.
+The scoped links below locate recipe families without repeating their case lists
+or assertion review. Follow every retained variant in the selected recipe;
+a family link is not permission to sample. Customer setup is part of each
+independent case. Harness case 1 remains separate qualification. Retired E2E
+IDs 140–150 belong only to the system-test tasks listed under inventory reconciliation.
 
 ### Parent, login and time scenarios
 
@@ -3358,10 +3375,12 @@ lease. Suite preparation runs once, before the first case, reusing an existing
 `onpc-v[version]` snapshot (the current app release without package revisions).
 Qualification inputs are keyed to current source content through `named_input()`.
 Reuse requires matching package bytes, baseline identity and the
-installation recipe recorded in snapshot metadata. Missing, legacy or changed
-snapshots automatically restore `onpc_baseline`, install the package, reboot,
-verify installation, shut down and capture the version snapshot. This installation
-belongs to suite preparation.
+installation recipe recorded in snapshot metadata, plus the requested mode and
+online freshness/restore guards. Missing, legacy or changed snapshots restore
+`onpc_baseline`, install and verify the declared package, and capture the version
+snapshot under the shared lease. Online mode captures the running guest after
+verified reboot; offline mode captures after shutdown and gets its clean restart
+when the restored guest boots. This installation belongs to suite preparation.
 
 Freshness metadata is published only after snapshot creation returns successfully,
 using libvirt's [metadata redefinition API](https://libvirt.org/html/libvirt-libvirt-domain-snapshot.html#virDomainSnapshotCreateXML).
@@ -3403,11 +3422,13 @@ invocation without fallback installation.
 
 The expensive baseline audit and offline guest inspection bracket the suite.
 After collecting a case's observations, the worker's final power-off callback
-directly force-restores the next case's required off snapshot; it does not wait
-for ACPI. The next case provisions its declared inputs on that snapshot, removes
-host sharing and boots, without a second restore. Live ownership, disk identity,
-snapshot metadata and isolation checks still apply; transitions add no package
-validation, installation or reboot. Suite cleanup restores `onpc_baseline` and
+restores the required off state through the shared lease; it does not wait for
+ACPI. After fresh attempt inputs are staged, installed online state resumes
+through the owned memory-snapshot route; offline/product-free state uses guarded
+provisioning and boot. The shared lease owns these transitions; cases issue no
+additional restores. Live ownership, disk identity, snapshot metadata and
+isolation checks still apply; transitions add no package validation,
+installation or reboot. Suite cleanup restores `onpc_baseline` and
 preserves the version snapshot through the final audit. The journal records its
 exact name during creation for interrupted-preparation cleanup; successful creation
 clears that deletion obligation so completed snapshots survive interrupted runs.
@@ -3419,107 +3440,58 @@ See [suite lease](../../tests/e2e/suite_lease.py) and the shared
 `overwrite=False` to reuse a current version snapshot and uses the shared [cleanup module](../../tools/test_recovery.py)
 before starting the E2E run.
 
-The same preparation is available independently:
+Standalone preparation uses `tools/prepare-appsnapshot` under
+[Approval tools](../Approval-Tools.md#one-time-setup), which owns mode defaults,
+overwrite behavior, platform selection and maintained recovery. Online is the
+default: matching fresh state is restored without a build and the guest remains
+running under VM-maintenance ownership. Offline preparation leaves it powered
+off. Both retain `onpc-v[version]`; neither a snapshot name nor a prior task's
+mutable guest state is freshness or acceptance evidence. Reusable guest inputs
+remain exclusively owned by baseline preparation.
 
-- `./tools/cleanup-e2e --vm NAME` reconciles previous recorded run leftovers and preserves
-  evidence under the existing checkout and VM ownership checks.
-- `./tools/prepare-appsnapshot --vm NAME --y [--overwrite true|false]` builds and installs the
-  current Debian version and retains its `onpc-[version]` snapshot. It leaves the
-  VM powered off in that installed state after auditing the outer baseline.
-  Preparation restores `onpc_baseline`, boots, installs and verifies the package,
-  then shuts down and takes the disk-only snapshot without an intervening reboot.
-  Booting the restored snapshot supplies the clean restart required after
-  installation; installed-system readiness checks still run after that boot.
-  Missing `--overwrite` or a missing value means `true`. When a matching snapshot
-  exists, `true` forces replacement. `false` builds verified artifacts and compares
-  their installed-state identity under the shared lease; it retains a match and
-  automatically replaces a stale or legacy snapshot. A name-only probe is never
-  freshness evidence. When none exists, either value prepares it. Other version
-  snapshots are left alone. Preparation performs shared cleanup before building.
-  These are development-only changes (activation `none`); no product migration,
-  host installation or permission refresh is required.
-  Automation and agent sessions include `--y` for authorized preparation. Manual
-  work omits it to retain confirmation. VM selection and concurrency follow the
-  [VM mandate](../Mandates/VM-Mandate.MD#authority-and-operation); omitting `--vm`
-  selects all enabled VMs.
-
-The [live verification contract](E2E-Execution-Plan.md#live-verification-contract)
+The [live verification contract](E2E-Execution-Contracts.md#live-verification-contract)
 defines when a task prepares or reuses this snapshot. A retained snapshot is a
-setup prerequisite, not customer-acceptance evidence; subsequent VM actions
-still use the guarded ownership interfaces.
+setup prerequisite, not customer-acceptance evidence. Release an online
+maintenance instance through `tools/test-vm --vm NAME stop` before the guarded
+qualification or E2E attempt acquires its own lease. Subsequent VM actions still
+use the guarded ownership interfaces.
 
 
-| Family / cases | Contract and scope |
-| --- | --- |
-| E2E-001 / **1** | [Harness contract](#case-1-stage-contract) — Fresh boot and graphical/observation transport. No customer acceptance credit. |
-| E2E-002 / **2** | [Recipe](E2E-Scenario-Recipes.md#e2e-002) — Install the app and begin managing a child. Customer actions and public results. |
-| E2E-003 / **3–4** | [Recipe](E2E-Scenario-Recipes.md#e2e-003) — Parent discovery and navigation. Customer actions and public results. |
-| E2E-004 / **5–6** | [Recipe](E2E-Scenario-Recipes.md#e2e-004) — Standard user cannot manage policy. Customer actions and public results. |
-| E2E-005 / **7–12** | [Recipe](E2E-Scenario-Recipes.md#e2e-005) — Change screen limits while starting or returning to a child desktop. Customer actions and public results. |
-| E2E-006 / **13–16** | [Recipe](E2E-Scenario-Recipes.md#e2e-006) — Change app rules while children use apps. Customer actions and public results. |
-| E2E-007 / **17–20** | [Recipe](E2E-Scenario-Recipes.md#e2e-007) — Cancel then confirm revocation with open apps. Customer actions and public results. |
-| E2E-008 / **21–22** | [Recipe](E2E-Scenario-Recipes.md#e2e-008) — Natural daily exhaustion, retained unlock and fresh login denial. Customer actions and public results. |
-| E2E-009 / **23–24** | [Recipe](E2E-Scenario-Recipes.md#e2e-009) — Recover unfinished work after grant-only time runs out. Customer actions and public results. |
-| E2E-010 / **25–26** | [Recipe](E2E-Scenario-Recipes.md#e2e-010) — Switch User while child time expires. Customer actions and public results. |
-| E2E-011 / **27–29** | [Recipe](E2E-Scenario-Recipes.md#e2e-011) — Read remaining usable time while working through natural exhaustion and session return. |
+E2E-001 remains [harness qualification](#case-1-stage-contract). For customer
+families E2E-002–011, select the exact [family recipe](E2E-Scenario-Recipes.md#family-compositions)
+and consult the [family allocation review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
+for assertion ownership. Case IDs and runtime bindings come from the inventory;
+this catalogue does not maintain another case list.
 
 ### Request forms and remembered choices
 
-| Family / cases | Contract and scope |
-| --- | --- |
-| E2E-012 / **30–33** | [Recipe](E2E-Scenario-Recipes.md#e2e-012) — Single child overlay and selected-parent approval. Customer actions and public results. |
-| E2E-013 / **34, 36** | [Recipe](E2E-Scenario-Recipes.md#e2e-013) — One wrong-password → separate Cancel → valid-approval recovery journey per screen, with independent time, restriction and remembered-choice checks after each failure; absorbs former cases 35/37. |
-| E2E-014 / **38–43** | [Recipe](E2E-Scenario-Recipes.md#e2e-014) — Shared duration boundaries and duplicate submission. Customer actions and public results. |
-| E2E-015 / **44–49** | [Recipe](E2E-Scenario-Recipes.md#e2e-015) — Request surface exit behavior. Customer actions and public results. |
-| E2E-016 / **50–52** | [Recipe](E2E-Scenario-Recipes.md#e2e-016) — Restricted request station. Customer actions and public results. |
-| E2E-017 / **53–57** | [Recipe](E2E-Scenario-Recipes.md#e2e-017) — Kiosk selection and unavailable requests. Customer actions and public results. |
-| E2E-018 / **58–61** | [Recipe](E2E-Scenario-Recipes.md#e2e-018) — Remember each child's choices across both request forms. Customer actions and public results. |
+Use the [E2E-012–018 recipes](E2E-Scenario-Recipes.md#e2e-012) for request
+entry, approval, exit, selection and persistence compositions. E2E-014 retains
+the [native-gesture exclusion](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures);
+its recipe records uncovered assertions, not reusable qualification or an
+implementation task.
 
 ### Application routes and complete customer journeys
 
-| Family / cases | Contract and scope |
-| --- | --- |
-| E2E-019 / **retained cases in recipe** | [Recipe](E2E-Scenario-Recipes.md#e2e-019) — Every launch route and rule with limits on; ordinary, Snap and Flatpak command routes under all three rules with limits off. Actual use or refusal and another child's unaffected access. |
-| E2E-020 / **110–111** | [Recipe](E2E-Scenario-Recipes.md#e2e-020) — Catalog update/disappearance between display and save. Customer actions and public results. |
-| E2E-021 / **112–115** | [Recipe](E2E-Scenario-Recipes.md#e2e-021) — Apply an action across a child's distinct retained desktops. Customer actions and public results. |
-| E2E-022 / **116–122, 124–125** | [Recipe](E2E-Scenario-Recipes.md#e2e-022) — Customer lifecycle persistence and resume. Case 122 combines early idle return, expiry refusal and approved recovery with the original work. Customer actions and public results. |
-| E2E-023 / **126–127** | [Recipe](E2E-Scenario-Recipes.md#e2e-023) — Zero allowance to kiosk approval, real gameplay and expiry. Customer actions and public results. |
-| E2E-024 / **128, 131** | [Recipe](E2E-Scenario-Recipes.md#e2e-024) — Additional time accumulates during gameplay: daily-dominant windowed and grant-dominant fullscreen. Customer actions and public results. |
-| E2E-025 / **132–135** | [Recipe](E2E-Scenario-Recipes.md#e2e-025) — Replace an expired grant before returning with daily time left. Customer actions and public results. |
-| E2E-026 / **136–138** | [Recipe](E2E-Scenario-Recipes.md#e2e-026) — Customer package update and activation. Customer actions and public results. |
-| E2E-027 / **139** | [Recipe](E2E-Scenario-Recipes.md#e2e-027) — Install through remove, reinstall and purge. Customer actions and public results. |
+Use the [E2E-019–027 recipes](E2E-Scenario-Recipes.md#e2e-019) for launch,
+catalogue mutation, retained-session, gameplay, update and removal journeys.
+Their finite route sets, ordered outcomes and applicability gates remain in
+those recipes and their selected task briefs.
 
 ### Recovery, information and feedback
 
-| Family / cases | Contract and scope |
-| --- | --- |
-| E2E-030 / **151** | [Recipe](E2E-Scenario-Recipes.md#e2e-030) — Installed About and license access. Customer actions and public results. |
-| E2E-031 / **152–155** | [Recipe](E2E-Scenario-Recipes.md#e2e-031) — Feedback drafts, validation and attachment review. Customer actions and public results. |
-| E2E-032 / **156** | [Recipe](E2E-Scenario-Recipes.md#e2e-032) — Send reviewed feedback and read service acceptance. Customer actions and public results. |
-| E2E-033 / **157** | [Recipe](E2E-Scenario-Recipes.md#e2e-033) — Recover feedback sending after reconnecting. Customer actions and public results. |
+Use the [E2E-030–033 recipes](E2E-Scenario-Recipes.md#e2e-030) for installed
+information, report composition, service acceptance and reconnection journeys.
+Retired families E2E-028/029 retain the engineering obligations listed under
+[inventory reconciliation](#inventory-reconciliation).
 
 ### Additional customer coverage
 
-| Family / cases | Contract and scope |
-| --- | --- |
-| E2E-035 / **158–159** | [Recipe](E2E-Scenario-Recipes.md#e2e-035) — Choose allowances and save edits. Customer actions and public results. |
-| E2E-036 / **160–161** | [Recipe](E2E-Scenario-Recipes.md#e2e-036) — Revoke when there is no active grant. Customer actions and public results. |
-| Former E2E-037 / **162–163** | [Allocation](E2E-Scenario-Recipes.md#e2e-037) — Standalone cases removed; both children's animation preferences persist in E2E-022 cases 118/120, with animation-enabled locking in E2E-008 case 22. Receiving cases remain pending. |
-| E2E-038 / **164–170** | [Recipe](E2E-Scenario-Recipes.md#e2e-038) — Keep daily access after a grant ends and restore soft-app blocks. Customer actions and public results. |
-| E2E-039 / **171–176, 178** | [Recipe](E2E-Scenario-Recipes.md#e2e-039) — Leave a pending approval or request again too soon, including report review/decline on each surface. Same-child station case 177 removed; report cases 206/207 absorbed. Customer actions and public results. |
-| E2E-040 / **180–182** | [Recipe](E2E-Scenario-Recipes.md#e2e-040) — Refresh accounts and remembered selections after account removals and role changes. Case 180 removes one logged-out spare child and checks Parent and reopened-station fallback independently with the survivor's own settings; former case 183 is absorbed. Last-child removal and ineligible-approver recovery remain separate. New-child discovery remains in completed case 3; duplicate case 179 is removed. Customer actions and public results. |
-| E2E-041 / **184–189** | [Recipe](E2E-Scenario-Recipes.md#e2e-041) — Search the app list and edit match rules. Customer actions and public results. |
-| E2E-042 / **190–193** | [Recipe](E2E-Scenario-Recipes.md#e2e-042) — Read Help, About and command usage on each surface. Customer actions and public results. |
-| E2E-043 / **194** | [Recipe](E2E-Scenario-Recipes.md#e2e-043) — One offline journey uses both request screens, checks each approval's time/app results, then revokes once and reconnects. Case 195 is absorbed; complete acceptance remains pending. |
-| E2E-044 / **196–198, 200, 203** | [Recipe](E2E-Scenario-Recipes.md#e2e-044) — Three ordinary-midnight journeys and one two-child grant journey at each seasonal offset change. Separate seasonal daily renewal is dropped; fixed-grant cases 201/204 are absorbed. |
-| E2E-045 / **205** | [Recipe](E2E-Scenario-Recipes.md#e2e-045) — Parent error report. Request-surface review/decline belongs to E2E-039 cases 176/178. Customer actions and public results. |
-| E2E-046 / **208, 213** | [Recipe](E2E-Scenario-Recipes.md#e2e-046) — Genuine Parent collection failure followed by retry with draft preservation; station failure followed by explicit Send without logs, confirmation and sign-in with station restrictions. Cases 209–212 removed; IDs must not be reused. |
-| E2E-047 / **216, 218–221** | [Recipe](E2E-Scenario-Recipes.md#e2e-047) — Finish or stop feedback in different user flows. No-reply sending is combined into E2E-032 / 156; background reconnection into E2E-033 / 157. Customer actions and public results. |
-| E2E-048 / **223–225, 227–228, 230** | [Recipe](E2E-Scenario-Recipes.md#e2e-048) — Six delayed-approval journeys: both surfaces for daily-only/daily-dominant, desktop grant-only and station grant-dominant. Each retains the real 45-second prompt interval and second addition. |
-| E2E-049 / **231, 232, 233, 236, 238, 239, 242, 243, 246** | [Recipe](E2E-Scenario-Recipes.md#e2e-049) — Nine journeys: both request surfaces for the ordinary app menu, one per other launch route. Every journey keeps both parents and fresh exclude/include/exclude approval, soft-app closure, allowed work, hard denial and saved rules. |
-| E2E-050 / **247–248** | [Recipe](E2E-Scenario-Recipes.md#e2e-050) — Two continuous work/game/time-source cycles per retained/fresh journey, both forms/parents and opposite expiry/recovery app choices; reversed-start copies 249/250 removed. |
-| E2E-051 / **251** | [Recipe](E2E-Scenario-Recipes.md#e2e-051) — Two recomposed rounds of two-child management, reversed child order, both forms/parents, opposite temporary-app choices and targeted final revocation; copy 252 removed. |
-| E2E-052 / **253** | [Recipe](E2E-Scenario-Recipes.md#e2e-052) — Real Lunar AppImageLauncher login autostart with ungranted/time-only soft blocks, explicit approval and replacement exclusion. Pending manual fixture and public-provider qualification. |
+Use the [remaining family recipes](E2E-Scenario-Recipes.md#e2e-035) and
+[additional finite branch recipes](E2E-Scenario-Recipes.md#additional-finite-branch-recipes)
+for later features. The [coverage review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
+records absorbed, removed and UI-owned assertions; the inventory owns stable
+IDs and executable status. The Lunar gate below supplements E2E-052's recipe.
 
 ### Lunar Client preparation and observation gate
 
@@ -3547,15 +3519,15 @@ network dependence or unavailable assets blocks this profile until resolved in
 preparation. Pin a profile that runs the declared local activity without downloads
 or authentication during the measured launch checks; requalify after drift.
 
-Task 296 qualifies original-AppImage launch, Lunar/tray restore and genuine Quit.
-Task 296a separately qualifies Lunar's Minecraft launch, local-world action and
-ordinary exit. Task 296b then qualifies APP06/UI22 across login using both completed
-provider bindings. Their APP01/02/03 and UI18 scopes stay explicit. Prefer provider IDs, then scoped public
-accessibility/keyboard routes under the repository exception. Any necessary
-image/geometry technique stays inside an explicit provider adapter with its
-documented limitations and live qualification; it is never a repository-owned
-selector or provider-assigned ID. Ownership, complete absence observations,
-ambiguity refusal and independent results remain mandatory.
+The [canonical queue](E2E-Task-Queue.md) separates original-AppImage usable
+launch/Quit (296c), tray close/restore (296d), specific command denial and their
+composition (296), Minecraft entry/exit (296e), local-world activity (296a),
+allowed continuous login (296f), and denied login/launch observation (296b).
+Their APP01/02/03/06, UI18 and UI22 bindings stay separately qualified; task
+order and prerequisites remain in the queue. Apply the
+[provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
+inside explicit adapters. Ownership, complete absence observations, ambiguity
+refusal and independent results remain mandatory.
 
 Task 296b reuses UI22's qualified observer lifecycle and the existing reboot/session recorder: arm
 the public observation before child login submission, preserve secret filtering,
@@ -4333,7 +4305,7 @@ claims or an alternate execution order:
 | System account and clock helpers | 184/184b/184c shared account operations; 191 read-only clock/timezone commands |
 | Snap, Flatpak and game baseline preparation and restored-input verification | 109p → 109/109a; 116p → 116/116a; 126p → 126a |
 | Reviewed external feedback submissions | 150a profile/authorization → 150 and its surface/result consumers |
-| Lunar, Minecraft and login observation | 295 → 296 → 296a → 296b → case 253 in 297 |
+| Lunar, Minecraft and login observation | Tasks 295–297 and their split prerequisites under the [canonical queue](E2E-Task-Queue.md); operation scopes stay in the [profile contract](#lunar-client-preparation-and-observation-gate) |
 
 There is no active customer requirement for generic Shell notification handling,
 an archive/text/PDF viewer for diagnostic export inspection, or graphical VT6 login.
@@ -4884,7 +4856,8 @@ qualification; complete installed execution and cleanup earn acceptance.
 
 ## Existing runtime services
 
-The ordered catalogue owns feature-block status and implementation order.
+The catalogue owns feature-block contracts and status; the
+[task queue](E2E-Task-Queue.md) owns implementation order.
 These existing services support those blocks within their current qualified
 scope; reuse them without building a second runner or counting their checks
 as customer behavior.
@@ -4892,7 +4865,7 @@ as customer behavior.
 | Need | Implementation | Contract |
 | --- | --- | --- |
 | Public UI read boundary | [accessible_ui.py](../../tests/e2e/accessible_ui.py): `run`, `wait`, `observation`, `nodes` | All registered operations and standalone waits use the same element-independent observation scope. Composed lookups reuse a complete tree and its scoped projections until input, a pending predicate, a failed read or an accessibility-client reset invalidates it. Separate operations always start fresh. Protected text scopes stay distinct; tolerant/incomplete reads never seed complete observations. |
-| Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Bind package/helper bytes, install and reboot once per suite, then capture the powered-off version snapshot. Feature cases restore it without reinstalling or package validation. Failure is terminal. |
+| Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Use the [snapshot and case-entry contract](#parent-login-and-time-scenarios) for content identity, online/offline capture, independent restoration and final audit. Preparation failure is terminal; no case-local fallback installer. |
 | Controller rendezvous | [installed_journey.py](../../tests/e2e/installed_journey.py): `JourneyPlan`, `InstalledJourney` | Ordered requests, durable observation callback, fresh ownership guard, then atomic reply. Boot identity supplies harness continuity only. |
 | Recorder composition | [installed_journey.py](../../tests/e2e/installed_journey.py): `record_installed_journey` | Provision fixture credentials, enter declared phases, checkpoint observations and reconcile screenshots. Strict customer execution; existing recorder owns evidence and final acceptance. |
 | Product-free serial envelope | [serial_harness.py](../../tests/e2e/serial_harness.py): `record_serial_journey`, `matched_screens`, `validate_stages`, `validate_completion` | Retain case 1's credential/getty/assets setup, unchanged-boot recording, durable phase transitions, HAR09/HAR10 checks and separate evidence outcomes. Outer execution owns lease restoration. |
@@ -4919,60 +4892,19 @@ checkpoints, stable-absence intervals and result assertions remain required.
 
 ## Add a consumer
 
-Open `tools/watch` as the desktop user before starting a VM task. Its
-resizable command pane follows the shared guarded command runner independently
-of graphical frames: installed-system tests (including the pre-E2E test run),
-app-snapshot preparation, SSH work, VM lifecycle stages and cleanup are visible.
-Reviewed text commands show the guest command, live stdout/stderr and exit status.
-The installed guest helper forwards APT update/install/upgrade command text and
-both output streams while each command runs, including suite preparation.
-Package commands use a guest PTY with `TERM=xterm-256color`, so the package's own
-colored notices are emitted. A read-only GTK 4 VTE terminal renders ANSI colors,
-carriage returns and display controls with an Ubuntu terminal palette. The viewer
-has no shell/PTY or input channel; clipboard/title control payloads are discarded.
-The pane keeps a bounded recent transcript; the runner's private artifacts retain
-complete diagnostics. Password input, binary transfers and private observation
-programs/replies are omitted and labelled. The spectator receives no input route
-or SSH/libvirt connection. Only the authenticated invoking user receives command
-text; opening or closing the viewer cannot cancel or control the task.
-The shared lease attaches the existing display collector at every VM start.
-Maintenance retains it between commands; viewer reconnection never triggers a
-new VM connection. The frame feed remains observation-only; customer actions use
-the semantic input contract. New tasks must obey the
-[VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate): reuse these
-command, lease and progress interfaces, and enter `watch_activity.operation`
-with fixed nonsecret intent before VM work. The footer shows that intent through
-blocking work even without a recorder. Do not create per-consumer capture,
-transcript or intention infrastructure. See the
-[shared viewer contract](../../tests/e2e/README.md#optional-live-viewing).
-Development activation is `none`; `./setup.sh --test-tools-only` installs the GTK 4
-VTE dependency (`gir1.2-vte-3.91`) on existing hosts. Reopen an already running viewer
-after code changes. Refresh installed dispatcher changes through the same setup mode.
+Apply the [VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate)
+and [shared viewer contract](../../tests/e2e/README.md#optional-live-viewing)
+before VM work. They own collector lifetime, authenticated transcripts, viewer
+independence and required nonsecret intent; consumers reuse those interfaces.
 
-The recorder automatically publishes each selected case's numeric ID, title,
-invocation position/total and current phase description to `tools/watch`.
-The title appends `- (case time/total time)` in whole minutes, or hours and
-minutes from one hour onward. Case time includes preparation; total time runs
-from invocation startup. An independent progress heartbeat keeps the next case
-visible during outer cleanup and leasing, with `Preparing VM: ` followed by
-the latest controller stage output until its first step starts. Display feed
-loss still clears stale VM pixels, and expired progress returns to waiting.
-Snapshot creation, deletion and restoration publish their action and snapshot
-name before the operation starts. That message reserves the footer until the
-operation returns or fails, with its own elapsed duration; controller logs and
-worker messages cannot replace it. This includes both app and baseline snapshot
-restores between cases and during cleanup.
-Keep descriptions in `scenarios.json` complete: the viewer uses that same text.
-Before a Perl building block acts, call
-`onpc_progress::operation('Fixed nonsecret description')`; use literal prose and
-redacted role labels, never credentials, entered text or observed account names.
-The shared publisher keeps the latest operation in the private worker directory
-and logs it before input. The controller only forwards literal labels declared
-by the maintained worker. Public UI adapter operations declare their prose in
-`ui_observations.OPERATION_LABELS` and publish it before observation/action.
-[Progress regressions](../../tests/unit/test_e2e_progress.py) require messages for
-new public worker blocks and UI operations, and check inventory/recorder timing.
-Viewing cannot authorize input or change scenario acceptance.
+Before a Perl block acts, publish its fixed nonsecret intent with
+`onpc_progress::operation('Fixed nonsecret description')`. Use literal prose
+and redacted role labels, never credentials, entered text or observed account
+names. Public UI operations declare their labels in
+`ui_observations.OPERATION_LABELS`. Keep inventory descriptions complete for
+the shared recorder/viewer; viewing supplies observation, not acceptance.
+[Progress regressions](../../tests/unit/test_e2e_progress.py) own the registration
+and timing checks for new worker blocks and UI operations.
 
 1. Select one inventory variant and its complete visible result. Identify the
    required fixtures and surfaces. Reuse accepted setup; installation mechanics
@@ -5008,7 +4940,7 @@ Viewing cannot authorize input or change scenario acceptance.
    intermediate results and `reboot_transition` for a customer reboot. Finite
    `additional_reboot_transitions` supports at most four more; each refuses input
    until every preceding reboot has an independent changed-boot observation.
-   their scopes are maintained under [shared capabilities](#refactoring-the-established-cases).
+   Their scopes are maintained under [shared capabilities](#refactoring-the-established-cases).
    Product-free install recipes use `record_package_journey` with declared
    public-result checks. Fixed account-fixture stage actions are supported.
    Extend only a missing binding; do not recreate these mechanisms in a case.

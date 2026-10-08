@@ -983,7 +983,7 @@ listed above.
 
 ### Asset transfer qualification
 
-The separate `tools/run-tests e2e --vm NAME --qualify-install --artifacts /tmp/onpc-<verified-build>`
+The separate `tools/run-tests e2e --vm NAME --qualify-install --artifacts '<verified-build-directory>'`
 route qualifies the fixed authenticated installation boundary. It provisions
 verified assets and fixture credentials, then uses real serial login, fresh
 sudo authentication, package-result verification, customer reboot and graphical return.
@@ -1015,8 +1015,8 @@ retains ANSI bytes; no control stripping or arbitrary intervening output is
 accepted. Only fixed text/color/final-position flags enter public evidence.
 This proves emitted terminal output, not a graphical rendering or reboot.
 
-The sibling `tools/run-tests e2e --vm NAME --qualify-install-refusal --artifacts
-/tmp/onpc-<verified-build>` route deliberately submits one fixed non-secret,
+The sibling `tools/run-tests e2e --vm NAME --qualify-install-refusal --artifacts '<verified-build-directory>'`
+route deliberately submits one fixed non-secret,
 incorrect password after the same recipient proof, choosing between two fixed
 values so it cannot equal the configured shared password. It requires the first re-prompt,
 cancels instead of sending a retry, and then follows only the proved getty/login
@@ -1025,13 +1025,14 @@ read-only probe also requires the package payload and reboot marker to remain
 absent. Authentication capture stays sealed and no arbitrary denial value or
 command is accepted.
 
-The successful-install diagnostic now requests a real reboot; the refusal route
-still logs out without reboot. Neither establishes complete E2E-002 readiness;
-the product selection remains pending. Refresh the installed dispatcher through
-`./setup.sh --test-tools-only` when adding this option. Test-tool activation is
-`none` (next invocation); no product data migration is involved.
+The successful-install diagnostic requests a real reboot; the refusal route
+logs out without reboot. Neither supplies complete E2E-002 customer acceptance.
+Its current binding/status belongs to the [scenario inventory](scenarios.json),
+and its complete journey to the [clean-install recipe](../../docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-002).
+Follow [one-time setup](../../docs/Approval-Tools.md#one-time-setup) when installed
+dispatcher changes require a refresh.
 
-`tools/run-tests e2e --vm NAME --qualify-transfer --artifacts /tmp/onpc-<verified-build>`
+`tools/run-tests e2e --vm NAME --qualify-transfer --artifacts '<verified-build-directory>'`
 runs the existing guarded credential-free graphical worker with package/fixture
 delivery. Build current inputs with `tools/run-tests artifacts build` first.
 The qualification rejects scenario/list selectors; all pending customer cases

@@ -21,129 +21,34 @@ changing runtime readiness on the strength of documentation alone.
 
 Next task: **048b — [Complete overlay exits and approval compositions](E2E-Tasks/048b-overlay-approval.md)**.
 
-Task 305 and its customer case were deleted at the developer's request. Do not
-resume its failed attempts or recreate its brief. Completed task 305a remains qualified.
+Recent delivered scope and retained reports are recorded once in the
+[checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact
+[catalogue qualifications](E2E-Building-Blocks.md). Those historical results do
+not qualify another binding or complete a future case. The independent language
+histories remain in the
+[acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition).
 
-Task 305a qualified the finite verified Ubuntu `libc6:amd64` 2.43-2ubuntu2.4
-reconfiguration and independent system result in `20261008T031925Z-f3d2d6e5`.
-All seven assertions passed, including real product installation/activation,
-clean administrator entry, one unrelated transaction, successful completion,
-genuine libc6 reboot request and unchanged product identity/boot. The pinned
-maintainer script established that the previous completion expectation applied
-to older upgrades; the shared reader now requires the actual systemd trigger
-completion while retaining the independent request and preservation checks.
-Required package-command (`20261008T032451Z-e5adea37`) and customer-reboot
-(`20261008T032801Z-219b3d94`) regressions passed. All three runs passed collection,
-reconciliation, worker shutdown, owned cleanup, baseline restoration,
-finalization and preservation. The [catalogue](E2E-Building-Blocks.md#genuine-unrelated-package-reboot-request)
-owns the exact qualified scope and retained evidence. This qualifies the supporting
-package operation and system result only.
+Scheduling exclusions are maintained in the
+[queue's exclusion record](E2E-Task-Queue.md#excluded-automation).
+Do not recreate removed tasks, briefs, dependencies or removed case IDs.
 
-Task 304 completed E2E-058 `kiosk`, case 259, on Ubuntu 26.04 in
-`20261008T022232Z-88a775f3`: genuine installation/final notice, first English
-kiosk modal before policy setup, same-boot Close/exit/re-entry, one public kiosk
-reboot, changed boot/usable GDM, public enabled Jordan 30-minute setup and fresh
-usable Jordan/Jamie request without a modal. The recipe now supplies Jamie's
-public selection instead of assuming an initial approver order. All seven
-assertions and the required three-surface notice and command-reboot regressions
-passed, including collection, worker shutdown, owned cleanup, baseline restoration,
-finalization and preservation. Coverage was regenerated; the queue and LIFE07
-catalogue retain the scope and preserved report locations.
-
-Task 303 completed E2E-057 `child`, case 258, on Ubuntu 26.04 in
-`20261008T014508Z-450ffde5`: genuine installation/final notice, direct pre-policy
-Child App modal, same-boot Close/normal desktop return/reopen, one public Child
-Reboot now, changed boot/usable GDM, public postboot enabled Riley setup and a
-fresh usable fixed-child request without the modal. All eight assertions and
-the required command-reboot, shared three-surface notice and Parent case 257
-regressions passed, including collection, worker shutdown, owned cleanup,
-baseline restoration, finalization and preservation. Coverage was regenerated;
-the queue and LIFE07 catalogue retain the scope and preserved report locations.
-
-Task 301 qualified the English fresh-install restart notice on Parent, Child App
-and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,
-new boot/usable greeter and fresh usability without the modal. The required
-customer-reboot regression, collection, worker shutdown, owned cleanup, baseline
-restoration, finalization and preservation passed. The queue and LIFE07 catalogue
-retain the exact scope and reports.
-
-Task 300's complete Chinese latest-install case 254 and both required
-current-install/native-auth regressions passed on Ubuntu 26.04, including
-collection, owned cleanup and baseline restoration. Delivered scope and retained
-reports are recorded in the queue and catalogue. Tasks 300l–300n remain excluded
-by the developer's Fedora scope decision; Ubuntu evidence supplies no Fedora
-acceptance.
-
-The [acceptance decomposition](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
-retains the independent language histories in tasks 306–310. Task 306's complete
-account/offline case 255 and required Parent-isolation, kiosk-restoration and
-overlay-language regressions passed on Ubuntu 26.04, including collection,
-owned cleanup and baseline restoration. The queue and language catalogue retain
-the delivered scope and reports.
-
-Task 307a's fixed Parent English → Hebrew → English chooser qualification and
-required Parent-language regression passed on Ubuntu 26.04, including collection,
-worker shutdown, owned cleanup, baseline restoration, finalization and
-preservation. The queue and language catalogue retain the exact scope and reports.
-Task 307b qualified Parent About/feedback English → Hebrew → English logical
-text, keyboard focus and retained synthetic draft on Ubuntu 26.04, with both
-independent entries per dialog and all four required regressions. Collection,
-worker shutdown, owned cleanup, baseline restoration, finalization and
-preservation passed. The queue and catalogue retain the exact scope and reports.
-Capability qualification supplies no complete-case credit. Leave translated
-approval, panel/countdown and expiry work with their queued owners.
-
-Task 307c qualified Riley's enabled 60-minute Parent English → Hebrew → English
-management, policy/name and numeric public-balance observations on Ubuntu 26.04,
-including two independent reads per language against one immutable English
-capture. Required enabled-policy isolation, chooser and public-time regressions
-passed. Collection, worker shutdown, owned cleanup, baseline restoration,
-finalization and preservation passed; the queue and language catalogue retain
-the exact scope and reports. This prerequisite supplies no complete-case credit.
-
-Task 307 completed E2E-055 `parent-hebrew`, case 256, on Ubuntu 26.04: the
-complete English → Hebrew → English Parent history preserves the original
-enabled policy, account/application names, numeric balances and synthetic
-feedback draft while independently reading chooser/dialog logical text and
-keyboard focus. Required dialog-language and enabled Hebrew-policy regressions
-passed. Collection, worker shutdown, owned cleanup, baseline restoration,
-finalization and preservation passed; coverage was regenerated. The queue and
-language catalogue retain the delivered scope and reports.
-
-The developer removed visual review from this and all future tasks while
-retaining the geometry prohibition. Follow the mandate's
-[public logical-text acceptance](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results).
-No visual acceptance or product defect is claimed.
+Current work follows the mandate's
+[public logical-text acceptance](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results)
+and geometry prohibition. Historical visual or focus observations do not create
+future acceptance obligations.
 
 ## Current scope
 
-All retained implementations and unfinished briefs use the
-[Application UI API](Application-UI-API.md) for product controls through the
-shared UI/E2E facade. This includes Parent, both request surfaces, dialogs,
-feedback editing and the child panel. Canonical setters replace native
-selector, text-entry and focus choreography; external authentication, file
-choosers and explicitly tested desktop integrations keep their provider routes.
-The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract) applies
-this requirement to every task without changing its case scope or queue order.
-
-Native double-click automation is [excluded by the UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
-Tasks 070, 070a and 071–076 were removed by the developer's scope decision;
-E2E-014 cases 38–43 retain uncovered inventory/recipe obligations but have no
-active or deferred task. Do not recreate those tasks or stop queue execution
-for this known exclusion. This records no acceptance pass.
-
-Apply the [UI/E2E allocation](UI-and-E2E-Coverage.md) and
-[result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope):
-UI tests cover individual control behavior, representative choices and meaningful
-local boundaries. E2E verifies realistic customer journeys and their meaningful
-outcomes; UI operations serve those journeys. Simplify completed and planned
-operation sequences as well as assertions, retaining the steps needed to reach
-and independently observe the outcome. An installed widget sample is not a
-separate E2E obligation. Popup, focus,
-typing and rendering minutiae are removed from both layers, including retained
-implementations; historical qualification details above do not require them in
-future work. Pending functional obligations stay in existing capability tasks.
-The allocation review does not advance the pointer or replace live acceptance.
+The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
+applies the required [Application UI API](Application-UI-API.md) route,
+[result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+and [UI/E2E allocation](UI-and-E2E-Coverage.md) to retained implementations
+and unfinished briefs. Use it without changing case scope or queue order.
+The queue owns exclusions and displaced UI obligations; the
+[status vocabulary](README.md#status-vocabulary) distinguishes historical
+completion from current route qualification and scenario registration.
+Documentation or allocation review does not advance the pointer or replace
+live acceptance.
 
 Current scenario status and counts come from `tests/e2e/scenarios.json`; block
 status comes from the catalogue. The initial provider migration gate is closed.
@@ -156,19 +61,13 @@ That historical set is not the current runnable inventory. Delivered scopes and
 their evidence stay in the queue/catalogue; future shared changes follow the
 [live regression policy](E2E-Execution-Contracts.md#live-verification-contract).
 
-Preserve the customer assertions and registered bindings, except explicitly
-[reallocated UI-only coverage](UI-and-E2E-Coverage.md#duplicate-review-and-allocation);
-supporting routes
-follow the current mandate. A checked queue task records its delivered scope;
-it does not override a later `pending` block or scenario status. Future shared
-changes retain their affected regression requirements. A capability run or
-historical `ready` inventory binding does not itself validate a complete case.
-
-Retired E2E IDs 140–150 remain separate system-test obligations and cannot be
-selected as UI cases. Deferred mute task 154 is outside current-release
-completion and blocks no active task. SEC01 retains secret safety; GDM10's
-unnecessary navigation extraction is retired. A customer pass cannot replace displaced engineering
-obligations under their maintained owners.
+Preserve customer assertions and registered bindings except explicitly
+[reallocated UI-only coverage](UI-and-E2E-Coverage.md#duplicate-review-and-allocation).
+Displaced engineering results remain under
+[inventory reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
+and their proper suite; a customer pass supplies no engineering qualification.
+The queue's [deferred work](E2E-Task-Queue.md#deferred-future-work) has no active
+consumer and blocks no current-release task.
 
 ## Execute one task
 

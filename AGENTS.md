@@ -18,7 +18,7 @@
   result; retain actionable failure details.
 
 ## Localization
-- When editing strings, update all supported languages
+- When editing user-visible product strings, update all supported languages.
 - For recurring What's New translation, use `tools/sync-whatsnew` and the
   [established workflow](docs/SystemDesign/Localization.md#whats-new-translation-workflow).
   Translate only the latest numeric VersionHistory release and matching child
@@ -38,9 +38,10 @@
 - Preserve all pre-existing work. Do not reset, discard, unstage or overwrite
   unrelated changes.
 - Use the [test documentation map](docs/TestAutomation/README.md) to locate each
-  rule's owner. Read the applicable contract before work; keep enduring rules in
-  that owner and link to them from task briefs instead of copying them. For
-  reconciliation, use its [working route](docs/TestAutomation/README.md#working-route);
+  rule's owner, including for documentation-only work. Read the applicable
+  contract before work; keep enduring rules in that owner and link to them from
+  task briefs instead of copying them. For reconciliation, use its
+  [working route](docs/TestAutomation/README.md#working-route);
   updating a plan does not execute or close its tasks.
 - Reuse unchanged instructions/source in context, including injected AGENTS.md.
   After a new session or compaction, retrieve missing applicable requirements.
@@ -73,23 +74,20 @@
   and its parallel scheduling within that scope; do not expand unit/UI work to
   `host` or `all` merely for parallelism. Preserve selectors and explicit timeouts.
 - Follow [failure handling](tests/README.md#handling-test-failures). Preserve and
-  report expected versus actual behavior; do not weaken checks to match the app.
-  Obtain a missing behavior decision before accepting a mismatch. Repair proven
-  mechanical defects and missing generated inputs through authorized routes.
+  report expected versus actual behavior. That owner distinguishes authorized
+  mechanical repairs from behavior decisions; do not redefine expectations to pass.
 - For customer acceptance, use the installed product's public actions/results.
   Keep internal probes and fault injection in engineering tests. The
   [shared task contract](docs/TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
   routes implementation, UI/E2E allocation, bounded supporting work and composition
   preflight. Cases own finite data/order/assertions; shared libraries own reusable mechanics.
 - For "Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md",
-  follow the [plan](docs/TestAutomation/E2E-Execution-Plan.md): exactly the first
-  unchecked active queue row, full acceptance and close-out, then pointer advance.
-  Do not skip a blocker, absorb a later scenario into capability work, or treat
-  inventory registration/document reconciliation as live acceptance.
+  follow the [plan](docs/TestAutomation/E2E-Execution-Plan.md) and its first
+  unchecked active queue row through acceptance and close-out. Documentation
+  reconciliation does not execute or close a queue task.
 - Review new host modules and resource-affecting test changes under the
-  [parallelism contract](tests/README.md#host-test-parallelism-review). Classify
-  applicable unit, cleanup and UI inventories; unreviewed fallback is not final
-  classification. Cleanup modules need both unit and cleanup review.
+  [parallelism contract](tests/README.md#host-test-parallelism-review), including
+  every applicable inventory; runtime fallback is not completed review.
 - Run `make build` for changes that can affect building/packaging, after the final
   such edit. Use `PACKAGE_SOURCE_FILES` and build-tool dependencies in `Makefile`
   to assess scope. Tests do not replace this check. Documentation/test-only work
@@ -106,9 +104,8 @@ Read only the mandates triggered by the work:
 | VM operations, preparation or live tests | [VM mandate](docs/Mandates/VM-Mandate.MD): registered targets, unattended authorization, watch, leases and baseline lifetime |
 | Test/fixture/tool storage or cleanup changes | [Test storage mandate](docs/Mandates/Test-Storage-Mandate.md): shared allocation, retention, identity and screenshot exceptions |
 
-The VM mandate owns standing probe authorization (including disabled registered
-targets), guarded guest commands and preparation modes. Read it before VM work;
-do not infer authorization or preparation lifetime from a task's example command.
+Read the VM mandate before VM work; it owns selector-specific authorization and
+preparation lifetime, which a task's example command cannot establish.
 
 ## Reads, edits and evidence
 
@@ -117,7 +114,9 @@ do not infer authorization or preparation lifetime from a task's example command
   `--glob` filters; use `tools/read-only files|search --path-glob ...` for filename
   expansion and the validated reader for untrusted arguments.
 - Public read-only research and log inspection are authorized. Use maintained
-  diagnostics/artifact readers for privileged data; never modify logs.
+  [diagnostics](docs/Approval-Tools.md#system-reads) and
+  [artifact readers](tests/README.md#prompt-free-test-artifact-access) for
+  privileged data; never modify logs.
 - Edit text with native `apply_patch`. Check changed Markdown with
   `tools/read-only links`; use `tools/read-only words` when counts matter.
 - Keep routine failure/fix/verification details in conversation or existing
@@ -127,9 +126,9 @@ do not infer authorization or preparation lifetime from a task's example command
 - Signal only explicitly spawned, identity-recorded processes. Follow the
   [cleanup contract](tests/README.md#cleanup-safety-prerequisites); cleanup is
   serial ownership/recovery, never a regression-test prerequisite run.
-- Use documented artifact readers/exporters. PNG exports use
-  `onpc-export-screenshot`; only explicit caller-owned `/tmp/onpc-*.png` exports
-  may be cleaned through `tools/cleanup-screenshots`.
+- Use documented artifact readers/exporters. Graphical-smoke PNG exports use
+  the [screenshot export and cleanup contract](docs/Mandates/Test-Storage-Mandate.md#screenshot-export-and-cleanup),
+  including its narrow caller-owned `/tmp` exception.
 
 ## Setup
 

@@ -27,6 +27,10 @@ Use the repository's established import spelling for the calling entry point;
 do not copy these implementations into a test or local helper. Ordinary
 `TemporaryDirectory` is also appropriate within launcher-configured disk
 scratch. Retained diagnostics must not depend on that scratch's lifetime.
+Verify that the owning retention session is active before allocating retained
+evidence. `allocate()` without a session can return disposable scratch; calling
+it alone does not establish retention. Qualification helpers reuse an active
+session rather than open a second run.
 Keep the recorded allocation root private and stable through cleanup; use child
 directories for fixtures that intentionally change permissions or replace paths.
 
@@ -48,28 +52,59 @@ Build and launcher subprocess layers must forward
 use scratch, including through intermediate fixture builders. A coordinator's
 exit must not make a still-running descendant's scratch eligible for deletion.
 
-The only short-path exceptions are centrally owned socket runtime allocation
-and the existing explicit screenshot-export contract. Socket runtime holds
+The only short-path exceptions for new producers are centrally owned socket
+runtime allocation and [explicit screenshot exports](#screenshot-export-and-cleanup).
+Socket runtime holds
 only sockets and their small supporting configuration/witness files, is cleaned
 on close, and must not hold builds, bundles, logs or retained evidence. Tests
 must call the shared runtime helpers rather than spell `/tmp` themselves.
-Screenshot exports use `onpc-export-screenshot`; cleanup uses
-`tools/cleanup-screenshots` for explicit caller-owned `/tmp/onpc-*.png` files.
 
 Legacy migration readers and validator tests may contain literal paths as
 inputs. Storage-library tests may inject isolated roots beneath pytest fixtures
 to verify ownership, mount, identity and refusal behavior. Neither exception
 authorizes ordinary producers to allocate under an independent root.
 
+## Screenshot export and cleanup
+
+For an explicit graphical-smoke PNG export, run the installed
+[`onpc-export-screenshot`](../../tools/onpc-export-screenshot) helper from the
+intended checkout root with `--keep-cwd` before its path:
+
+```sh
+pkexec --keep-cwd /usr/local/libexec/onpc-export-screenshot 'SOURCE' '/tmp/onpc-new.png'
+```
+
+Replace `SOURCE` with an exact returned PNG path directly inside
+`output/test-runs/{host,privileged}/allocations/onpc-graphical-smoke-*/testresults/`.
+Legacy `/tmp/onpc-graphical-smoke-*/testresults/` sources remain readable; this
+compatibility route does not authorize new producers there. Other artifact
+types and locations use the [artifact reader/exporter](../../tests/README.md#prompt-free-test-artifact-access).
+Exports preserve the source. The helper pins descriptors, refuses symlink
+traversal and unsafe ownership/permissions, requires a regular singly linked
+PNG of at most 32 MiB, and creates a new caller-owned file at mode 0600 without
+overwriting an existing destination.
+
+Remove only explicitly selected caller-owned `/tmp/onpc-*.png` files with
+[`tools/cleanup-screenshots`](../../tools/cleanup-screenshots):
+
+```sh
+tools/cleanup-screenshots '/tmp/onpc-new.png'
+```
+
+Quote exact names; directories and wildcards are refused. Cleanup validates
+the whole selection before deletion, refuses nonregular or foreign-owned files,
+and rechecks each recorded device/inode identity before unlinking it. Missing
+files are harmless. This narrow caller-owned exception grants no deletion of
+source evidence, VM capture directories or unrelated temporary files.
+
 ## Evidence and verification
 
-Retained evidence belongs to a bounded journal. Preserve oversized current-run
-evidence and report the budget failure at finalization. Execution preflight may
-automatically retire oversized completed evidence after qualified recovery,
-under owner locks and the privileged VM leases/live-reference audit; report the
-retirement. Other journals require explicit cleanup. Failed or interrupted
-recovery must keep diagnostic
-evidence without clearing or rotating the unfinished VM journal.
+Retained evidence belongs to a bounded journal. Follow
+[aggregate output retention](../../tests/README.md#aggregate-output-retention)
+for budgets, automatic retirement of completed execution evidence and explicit
+discard authorization. Preserve current-run evidence at a budget failure;
+failed or interrupted recovery retains diagnostics without clearing or rotating
+the unfinished VM journal.
 
 Changes to allocation or cleanup must cover the affected lifetime, interruption,
 identity/refusal and retention boundaries through the maintained test launchers.

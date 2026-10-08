@@ -9,61 +9,70 @@ and supplies no live qualification.
 
 ## Authority and operation
 
-- Apply the repository-wide [approval contract](../Approval-Tools.md) to all VM
-  work. Run authorized work unattended through its existing grants and validated
-  tools. Reuse session and category-wide authorization; do not broaden libvirt
-  grants or bypass a missing prerequisite or grant.
-- Test launchers `tools/run-tests` and `tools/fix-tests`, and
-  preparation tools `tools/prepare-baseline` and `tools/prepare-appsnapshot`, read
-  `config/test-vm.json`. Without `--vm`, they select entries whose `enabled` is
-  the string `"true"`. `--vm` accepts one exact name or ID, a comma-separated
-  list of names/IDs, `all-enabled` (the default selection), or `all` (every
-  registered VM, including disabled entries). Explicit names/IDs also include
-  disabled entries. Duplicate aliases execute once, in first-selected order;
-  invalid selectors fail before any work starts.
-  The positive integer `concurrency` caps simultaneous operations with or without
-  `--vm`. Each free slot immediately takes the next VM, without waiting for the
-  other workers. The finite queue drains even after an individual VM fails.
-  Tests within each VM remain ordered. Preparation uses isolated workers;
-  baseline helper refresh runs once after workers finish. Cancellation stops
-  queued work and waits for active cleanup; an active baseline replacement
-  finishes before returning cancellation because it has no cooperative stop protocol.
-  VM maintenance still requires one explicit `--vm NAME` whose exact,
-  case-sensitive name or ID appears in the registry.
-  Automation and agent sessions use `--y` for authorized preparation; manual
-  work omits it to retain confirmation. Multiple selections are confirmed
-  together before workers start. An omitted selector prepares all enabled VMs.
-  `tools/write-e2e` also defaults to the enabled queue with the same concurrency
-  cap; its explicit selector remains one registered name or ID.
-  All `--vm` and Make
-  `VM=` selectors resolve names and IDs from the current JSON on invocation.
-  IDs are unique positive decimal strings or integers; renumbering them requires
-  no tools refresh or baseline replacement. Controllers retain canonical names
-  for leases, UUID pins and active-run ownership, never a saved ID mapping.
-  `tools/cleanup-e2e` may
-  reconcile all enabled VMs serially when the selector is omitted.
-  Operate the selected, individually pinned VM only through `tools/test-vm`.
-  Do not bypass ownership or create snapshots, overlays or clones outside the
-  maintained preparation/execution routes. Stop maintenance
-  before system/E2E tests; reset is not a customer journey step.
-  Root OS investigation uses `tools/test-vm --vm NAME exec -- COMMAND [ARG ...]`
-  in an owned running online app-snapshot maintenance instance. Arbitrary command
-  arguments and root privileges apply only in the guest. The route must reuse
-  the existing private SSH identity, guarded transport, exclusive lease and
-  observation; it must never restore the guest to inspect it or adopt another
-  controller's running instance.
-  Probing every registered VM has standing authorization, including entries
-  disabled for test scheduling. Direct `tools/test-vm` guest commands, including
-  guest shells and interpreters, require no additional command approval or
-  developer confirmation. The installed helper's Polkit grant is automatic for
-  the active local administrator; unavailable authorization fails without an
-  authentication dialog. Reuse that grant and retain all identity, ownership,
-  lease and observation checks.
-  Each VM has an exclusive preparation/execution lease and separate evidence
-  journals. New controllers also hold a shared legacy root lease,
-  excluding older controllers that still require it exclusively. Existing
-  unfinished legacy journals refuse new execution until recovered; evidence
-  is never discarded to enable parallelism.
+Apply the repository-wide [approval contract](../Approval-Tools.md) to all VM
+work. Run authorized work unattended through its existing grants and validated
+tools. Reuse session and category-wide authorization; do not broaden libvirt
+grants or bypass a missing prerequisite or grant.
+
+### Target selection
+
+Select from [the VM registry](../../config/test-vm.json) using the tool's supported
+selector. The enabled default means entries whose `enabled` is the string
+`"true"`; an explicit name/ID or `all` also includes disabled entries.
+
+| Tool | Explicit selector | When omitted | Scheduling |
+| --- | --- | --- | --- |
+| `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
+| `tools/prepare-baseline`, `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
+| `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
+| `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
+| `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
+
+Duplicate aliases execute once, in first-selected order; invalid selectors fail
+before work starts. Every `--vm` and Make `VM=` name/ID resolves from the current
+JSON on invocation. Names are case-sensitive; IDs are unique positive decimal
+strings or integers. Renumbering requires no tools refresh or baseline replacement.
+Controllers retain canonical names for leases, UUID pins and active-run ownership,
+never a saved ID mapping. Queue selectors do not imply that every Make entry
+point accepts a queue; use the public launcher's help.
+
+The positive integer `concurrency` caps parallel queue operations with or without
+`--vm`. Each free slot immediately takes the next VM; the finite execution or
+preparation queue drains even after an individual VM fails. Tests within each VM
+remain ordered. Baseline helper refresh runs once after preparation workers finish.
+Cancellation stops queued work and waits for active cleanup; an active baseline
+replacement finishes before returning cancellation because it has no cooperative
+stop protocol. Multiple preparation selections are confirmed together before
+workers start; apply the mode authorization and `--y` rules in
+[baseline preparation](#vm-host-setup-and-baseline).
+For either preparation tool, automation and agent sessions use `--y` only for
+authorized preparation; interactive work omits it to retain confirmation.
+
+### Owned maintenance and execution
+
+Operate the selected, individually pinned VM only through maintained
+preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
+ownership or create snapshots, overlays or clones outside those routes. Stop
+maintenance before system/E2E tests; reset is not a customer journey step.
+
+Root OS investigation uses `tools/test-vm --vm NAME exec -- COMMAND [ARG ...]`
+in an owned running online app-snapshot maintenance instance. Arbitrary command
+arguments and root privileges apply only in the guest. Reuse its private SSH
+identity, guarded transport, exclusive lease and observation; never restore the
+guest to inspect it or adopt another controller's running instance.
+
+Probing every registered VM has standing authorization, including entries disabled
+for test scheduling. Direct `tools/test-vm` guest commands, including guest shells
+and interpreters, require no additional command approval or developer confirmation.
+The installed helper's Polkit grant is automatic for the active local administrator;
+unavailable authorization fails without an authentication dialog. Retain all
+identity, ownership, lease and observation checks.
+
+Each VM has an exclusive preparation/execution lease and separate evidence journals.
+New controllers also hold a shared legacy root lease, excluding older controllers
+that still require it exclusively. Existing unfinished legacy journals refuse new
+execution until recovered; evidence is never discarded to enable parallelism.
+
 - **Controller contention:** Checkout activity locks do not reserve the VM
   across every category transition or exclude work from another checkout.
   For `state:busy-controller` or a launcher ownership refusal, inspect the

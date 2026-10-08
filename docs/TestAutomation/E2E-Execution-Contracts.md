@@ -136,12 +136,6 @@ APIs within that scenario task. If it needs a new operation, surface or result
 branch, add the missing capability slice before the consumer instead of silently
 expanding the task or accepting a generic block ID as qualification.
 
-After each capability, place **all newly enabled scenarios before the next
-capability**, in numeric case order. Each scenario row remains a separate
-next-task selection. For example, native fixture/catalogue work releases case
-184 before app-launch work; overlay FLOW20 releases its delayed-approval cases
-before the separate kiosk FLOW20 slice and cases.
-
 One scenario task owns one numeric case and its complete fixed recipe. The
 recipe may contain finite value checks or a continuous repeated customer history;
 these are assertions inside that case, never task-selection loops. A capability
@@ -163,12 +157,11 @@ external prerequisites are already available.
 
 ## External-provider work within the sequence
 
-First establish that the GUI operation exercises the app feature under test or
-is unavoidable graphical authentication. Routine Shell/GDM/system work uses
-shared shortcuts, SSH or public system commands/APIs, including work delivered
-by completed rows. Do not create provider tasks for Quick Settings, logout
-confirmations, Users wizards, clock pages or Terminal command entry. Negative
-GDM/keyring exercises qualify harness safety separately from customer journeys.
+Apply the [route-selection mandate](../Mandates/UI-Automation-Mandate.MD#route-selection)
+before proposing provider work. Required product integration and unavoidable
+graphical authentication need qualified GUI adapters; supporting system
+operations use shared commands/APIs. Negative GDM/keyring exercises qualify
+harness safety separately from customer journeys.
 
 Necessary provider adapters are capability work for named consumers. Their scope and
 current qualification stay in the
@@ -179,12 +172,13 @@ their shared activity adapters and mandatory public IDs; owning their fixture
 source does not turn them into product API endpoints or grant the external
 provider exception.
 
-External IDs are optional. Spend at most ten minutes per provider surface once
-on an available tree and useful official source, then use the approved scoped
-accessibility/keyboard adapter. Reuse recorded findings. Geometry or images need
-the explicit exception's documented reason and separate route qualification.
-Never invent IDs from labels, restore retired generic selectors, or make an
-upstream patch, provider rebuild or exhaustive ID search a prerequisite.
+For an external surface lacking usable IDs, use the
+[provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception).
+Spend at most ten minutes per provider surface once on an available tree and
+useful official source, then implement the permitted scoped adapter. Reuse
+recorded findings; an upstream patch, provider rebuild or exhaustive ID search
+is not a prerequisite. The catalogue records each adapter's actual selectors,
+limitations and installed route qualification.
 
 Use the existing `AccessibleUI`, `UiObservations`, worker and guarded attempt
 envelope. Apply the [input/result guards](../Mandates/UI-Automation-Mandate.MD#input-and-independent-results)
@@ -304,9 +298,29 @@ before advancing the task pointer.
 ### System acceptance
 
 For a **system obligation**, use the brief's maintained owner and listed
-`tools/run-tests system --vm NAME` selectors on the guarded VM. Require the exact fault,
-observed failure, recovery, isolation and cleanup. A mapping, placeholder
-selector or host-only check cannot complete it.
+area. Discover actual selectors with
+`tools/run-tests system --list --area '<area>'`; select every exact test needed
+to cover the obligation. For each required registered target, prepare verified
+package inputs with `tools/run-tests artifacts prepare --for-vm --vm NAME`,
+then execute `tools/run-tests system --vm NAME --artifacts '<verified-directory>' --area '<area>' --test '<listed-test>'`.
+Use the returned directory for that target: the maintained preparation route
+selects RPM or DEB from its verified baseline. Replace all placeholders with
+actual returned values and repeat the selections for the complete required
+target set. These per-target commands do not reduce acceptance to one VM;
+report any explicitly narrowed diagnostic run as such.
+
+If no listed test covers the obligation, implement the brief's bounded planned
+test under the same maintained owner and require it to be listed before running
+it. Require the exact fault, observed failure, real recovery, unrelated-user
+isolation and owned cleanup on the guarded VM. A mapping, proposed selector or
+host-only check cannot complete it.
+
+At [close-out](#completion-and-document-cleanup), record the actual owner,
+selectors and qualification in [inventory reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
+and update the [engineering scope](E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits)
+only when its composition or implementation context changed. Preserve the
+obligation's numeric identity and suite allocation; system qualification supplies
+no customer E2E credit. Regenerate coverage after inventory/collection changes.
 
 ### UI acceptance
 

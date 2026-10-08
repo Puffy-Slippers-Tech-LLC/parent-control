@@ -4,6 +4,18 @@ Start with the [documentation map](../docs/TestAutomation/README.md) for ownersh
 and customer validation design. This document describes how to select and maintain tests;
 it does not repeat completed setup tasks or historical acceptance results.
 
+Use the section for the selected operation; an ordinary focused check does not
+need the launcher implementation or retention details below.
+
+| Operation | Read |
+| --- | --- |
+| Choose or run regressions | [Suite selection](#all-established-regressions); `tools/run-tests --help` and `--list` |
+| Add a host module or change resources | [Parallelism review](#host-test-parallelism-review) and [coverage maintenance](#coverage-maintenance-workflow) |
+| Investigate a failure or continue prior work | [Failure handling](#handling-test-failures), [reconnection](#aggregate-execution-and-reconnection), then [resume](#resuming-test-execution) if needed |
+| Automate repairs or E2E implementation | [Repair loop](#scripted-repair-loop) or [E2E launcher](#scripted-e2e-implementation), respectively |
+| Read, export or reclaim test output | [Artifact access](#prompt-free-test-artifact-access), [retention](#aggregate-output-retention) and [cleanup safety](#cleanup-safety-prerequisites) |
+| Observe a host UI run | [Host UI viewer](#watching-host-ui-tests) |
+
 Tests and agents must use `make install` as the single entry point for product
 installation, reinstallation or upgrades from the checkout. It detects the
 target distribution and invokes the internal `installdeb` or `installrpm` module.
@@ -301,12 +313,10 @@ use the shared storage/state route; retained reports keep their normal lifetime.
 
 ### Scripted repair loop
 
-Launcher agents and sessions use `tools/prepare-baseline --vm NAME --mode auto --y`
-when an authorized baseline refresh is needed. Explicitly authorized manual-mode
-preparation uses `--mode manual --y`. The flag suppresses the y/n prompt; manual
-work omits it to retain confirmation. Warnings and all safety checks still apply.
-The shared launcher prompts carry this instruction; runners never prepare a
-baseline implicitly. See [VM preparation](integration/Environment.md).
+When baseline preparation is needed, follow the
+[VM mandate](../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline) for mode
+authorization, selectors and confirmation. Runners never prepare a baseline
+implicitly; guest prerequisites are described in [VM preparation](integration/Environment.md).
 
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
 or with `--vm NAME` for one registered VM, to start or attach to the scripted
@@ -811,8 +821,8 @@ terminal writes; keyboard input and terminal resizing remain responsive.
 Closing the terminal leaves it paused; rerun
 `tools/write-e2e` in an interactive terminal to answer. Piped output remains an
 observer and never invents an answer. With multiple attached terminals, the first
-submitted answer wins. Your answer continues the same task through a fresh Sol
-High recovery session with the saved handoff and your instructions. It does not
+submitted answer wins. Your answer continues the same task through a fresh
+recovery session at its retained model tier, with the saved handoff and your instructions. It does not
 count as passing the blocked prerequisite. If a session limit was exhausted at
 the blocker, answering grants one recovery session beyond that limit; automatic
 work remains subject to the limits afterward. `--stop` saves the pending question
@@ -1121,21 +1131,15 @@ test qualification cache. Explicit regression and fresh-build
 selections remain fresh.
 
 Installed-system runs retain one exclusive VM lease. Package installation/reboot
-checks keep their lifecycle together on `onpc_baseline`; each post-install area
-restores the same retained version snapshot used by E2E, preparing it only when
-missing. Explicit upgrade attempts keep the upgraded state throughout their
-selected checks. Multi-case E2E runs retain one exclusive VM lease and
-connection across fresh-baseline cases. Baseline/chain metadata verification and
-offline guest inspection run before the first case and after the last case or
-failure. At case completion, the runner force-reverts the recorded guest directly
-to the accepted off snapshot, without an ACPI shutdown wait; the next case
-uses that restored state without restoring it again. Live lock, domain instance,
-disk path/inode, snapshot metadata and isolation checks remain active. Each case
-still provisions its own declared inputs and gets its own worker and evidence;
-no product state continues between cases. Case results remain candidates until
-the suite audit, host preservation check and actual lock/connection release pass.
-Any case or transition failure stops the suite. Single-case runs retain their
-full independent attempt lifecycle.
+checks keep their lifecycle together on `onpc_baseline`; post-install checks use
+the content-qualified version snapshot. Explicit upgrade attempts keep upgraded
+state throughout their selected checks. The
+[common attempt envelope](../docs/TestAutomation/E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope)
+owns snapshot freshness, online/offline restore, per-case provisioning and final
+audit. Multi-case E2E runs share the lease and connection, while each case gets
+its own declared inputs, worker and evidence with no product state carried from
+another case. Case results remain candidates until suite audit, host preservation
+and actual lease release pass; a case or transition failure stops the suite.
 
 The command collects current unit/contract, private-D-Bus, UI and fixture runtime
 cases (including cleanup-safety regressions in the unit category);
@@ -1375,7 +1379,7 @@ ownership. Pytest temporary roots retain pytest's bounded rotation;
 ordinary pytest caches and the Hypothesis example database are disabled. Build
 scratch directories use scoped cleanup; VM guest changes use baseline restoration.
 This bounds repeated aggregate-generated output for unchanged test scope; it is
-not a byte quota on the retained runs or on unrelated applications/system logs.
+not a filesystem quota on active writes or unrelated applications/system logs.
 
 Generated `test-all-runs/` reports are Git-ignored so streaming them cannot
 invalidate package or E2E source provenance. Curated evidence elsewhere in this
@@ -1439,19 +1443,19 @@ complete current/future category matrix, validated options, targeted VM control,
 read-only system diagnostics, and trust boundaries. Stable entry points are:
 
 ```sh
-tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' tests/unit/test_graphical_lease.py -q
+tools/run-unit-tests 'tests/unit/test_*cleanup_safety.py' 'tests/unit/test_graphical_lease.py' -q
 tools/run-tests component 'tests/component/test_*.py' -q
 tools/run-tests ui -q
 tools/run-tests integration --vm NAME check_graphical_worker
 tools/run-tests integration --vm NAME check_package_notice
-tools/run-tests system --vm NAME --artifacts /tmp/onpc-test-artifacts/first --area authorization
+tools/run-tests system --vm NAME --artifacts '<builder-returned-directory>' --area authorization
 tools/run-tests e2e --vm NAME --list
 tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500
 tools/test-vm --vm NAME status
 ```
 
 `check_package_notice` runs real APT and dpkg against tiny fixture packages in
-private chroots under `/var/tmp/onpc-package-notice-*`. It exercises the production
+private chroots allocated through shared retained storage. It exercises the production
 notice bootstrap, helper, and removal hook through first install, reinstall,
 remove/reinstall, and trigger failure. It changes no host packages or VM state;
 it does not exercise the product's kiosk, PAM, or service provisioning.
@@ -1479,24 +1483,14 @@ directory to the owner/group of `tools`, allowing ordinary Debian clean to
 remove the cached files. This repair preserves contents, refuses symlinks, and
 does nothing when the cache is absent or already owned by a non-root user.
 
-Install or refresh with `./setup.sh --test-tools-only`, then restart Codex with
-the project trusted. Use `./setup.sh --codex-rules-only` for rule-only updates.
-Initial installation uses `./setup.sh --bootstrap-tools` and can require
-one-time administrator authentication. Repeated bootstrap and all routine host
-setup, including dependencies, use the dedicated `onpc-setup` action and never
-fall back to an authentication dialog. Repairing an existing denied installation
-requires running that setup mode from an administrator-authorized root session. Installed
-Polkit grants permit active local administrators and deny excluded callers;
-the new checkout wrappers check permission without requesting authentication.
+Setup modes, administrator bootstrap, denied-installation repair and activation
+belong to [one-time setup](../docs/Approval-Tools.md#one-time-setup).
+Use that route for missing prerequisites or changed installed helpers; ordinary
+tests never install dependencies or broaden authorization.
 
-Temporary screenshot cleanup still uses `tools/cleanup-screenshots` with
-explicit caller-owned `/tmp/onpc-*.png` filenames. Privileged graphical smoke
-exports still use
-`pkexec --keep-cwd /usr/local/libexec/onpc-export-screenshot SOURCE /tmp/onpc-new.png`;
-the source must be a regular PNG directly inside an
-`output/test-runs/{host,privileged}/allocations/onpc-graphical-smoke-*/testresults/`
-directory (legacy `/tmp` sources are still readable). See the helper's validation
-tests for ownership, size/signature and no-overwrite guarantees.
+Explicit graphical-smoke PNG exports and caller-owned temporary PNG cleanup
+follow the [screenshot export and cleanup contract](../docs/Mandates/Test-Storage-Mandate.md#screenshot-export-and-cleanup).
+Other artifact exports use the reader below.
 
 Full `./setup.sh` and `--test-tools-only` both maintain graphical AppArmor policy. Classic VS Code
 snap attachment needs anonymous graphics-socket peer rules in libvirtd and
@@ -1509,14 +1503,15 @@ requires restart. No product package or saved-data change is involved.
 Use the installed `onpc-test-artifacts` helper for privileged inspection across
 all test runs, names, extensions, and nested directories. Its Codex allow rule
 and dedicated Polkit rule cover the whole helper, not individual files. Run from
-the checkout root and keep `--keep-cwd` before the helper path:
+the checkout root and keep `--keep-cwd` before the helper path. Substitute exact
+returned report/artifact paths for the placeholders below:
 
 ```sh
-pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts read '/tmp/onpc-system-EXAMPLE/input/selected-inputs.json' --bytes 8000
-pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts list '/tmp/onpc-system-EXAMPLE'
-pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts tail '/tmp/onpc-system-EXAMPLE/private/command-1.log' --bytes 16000
-pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts stat '/tmp/onpc-system-EXAMPLE/evidence/result.json'
-pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export '/tmp/onpc-future-run/results/recording.webm'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts read '<report-directory>/input/selected-inputs.json' --bytes 8000
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts list '<report-directory>'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts tail '<report-directory>/private/command-1.log' --bytes 16000
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts stat '<report-directory>/evidence/result.json'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export '<report-directory>/results/recording.webm'
 ```
 
 `read` also accepts `--offset` for paging through large files. `list` returns
@@ -1524,8 +1519,8 @@ JSON names; `stat` returns JSON type, size, mode, and modification time. `export
 prints a new `output/test-runs/host/exports/onpc-artifact-export-*/<original-name>`
 path, subject to bounded export retention. Its directory is
 mode `700` and file mode `600`, both owned by the invoking account. Ordinary
-readers can then inspect the copy without privilege. Existing graphical smoke
-PNG exports continue to use `onpc-export-screenshot` above.
+readers can then inspect the copy without privilege. Graphical-smoke PNG exports
+follow the separate [screenshot contract](../docs/Mandates/Test-Storage-Mandate.md#screenshot-export-and-cleanup).
 
 Sources may be anywhere beneath `/tmp/onpc-*`, `/var/tmp/onpc-*`,
 `/var/tmp/oh-no-parent-control-artifacts`, `/var/log/oh-no-parent-control`, or
@@ -1542,13 +1537,11 @@ temporary writes. Do not use `pkexec head`, `cat`, `cp`, or an interpreter for
 routine artifact work: general root programs have no password-free Polkit grant.
 Adding future tests or file formats under these storage roots needs no new rule.
 
-Install or refresh through `./setup.sh --test-tools-only`, then restart Codex
-with this checkout trusted to load the new allow rule. Polkit grants activate
-immediately for active local `sudo`-group administrators. Installation itself may
-need administrator authentication. These development-only helpers activate on
-invocation (`none`), are absent from the product package, and change no saved
-application data. Restrictive organization-managed Codex policies still take
-precedence over local allow rules.
+These development-only helpers are absent from the product package. Follow
+[one-time setup](../docs/Approval-Tools.md#one-time-setup) for installation,
+refresh and rule loading, and [approval limits](../docs/Approval-Tools.md#approval-limits-and-review-findings)
+for policy refusals. Initial bootstrap and routine refresh have different
+authorization requirements; a missing grant is not permission to retry authentication.
 
 ### Manual entry points
 
@@ -1717,7 +1710,7 @@ regression requires a frame from a replacement capture generation after both
 applying and restoring the scale, retaining the worker identity throughout;
 a later timestamp from the outgoing stream is not recovery evidence.
 Capture failure is reported in the viewer when publication is available, with
-diagnostics at the printed `/var/tmp/onpc-ui-watch-*/capture.log`. Earlier setup
+diagnostics at the printed `onpc-ui-watch-*/capture.log` allocation. Earlier setup
 failures are reported by the runner. Optional observation never retries a test
 action or changes test outcomes. Owned collector/service cleanup still runs.
 Frames are review aids, never automation targets or acceptance evidence.
@@ -1737,30 +1730,40 @@ canonical values and ordinary control handlers. Allowance selection uses
 `setValue` on `parent-daily-limit-selector`, followed by independent saved-value
 readback. Custom entry uses `setText` and normal activation/validation;
 popup rendering, focus, key injection and menu placement are not prerequisites.
-Preview process logs are retained in private `/var/tmp/onpc-ui-preview-<run>/`
-directories, printed by the fixture, so later pytest categories cannot rotate
-away the first failure's diagnostics. These directories are disk-backed on the
-development host; logs and existing failure evidence are never removed by tests.
+Preview process logs use private `onpc-ui-preview-<run>/` allocations printed by
+the fixture. Capture, previews and render diagnostics use the shared disk-backed
+allocation and retention routes in the
+[storage mandate](../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
+Legacy `/tmp` or `/var/tmp` arguments to the shared allocator are redirected;
+use the printed allocation path to inspect evidence. Fixtures preserve their
+logs; later retention follows the
+[aggregate policy](#aggregate-output-retention).
 
-Host pytest launchers fix `TMPDIR` to owner-locked scratch beneath
-`output/test-runs/host/scratch/` for capture and temporary fixtures.
-The three 100-run retention repetition tests explicitly use private `/tmp`
-trees and check their peak footprint each iteration: fewer than 64 entries and
-256 KiB of file contents per case. Their fixture removes only its own tree on
-exit. All iterations and real filesystem calls remain; memory-backed `/tmp`
-avoids repeated disk flush latency. Separate ordinary `tmp_path` tests verify
-disk-backed journal sync ordering, write-failure propagation and preservation
-of existing evidence. This narrow exception does not move runner journals,
-capture, screenshots or other test fixtures to `/tmp`.
-`tests.support.preview.boot_preview_session` scopes tempfile's default to `/tmp`
+Host pytest launchers set `TMPDIR` through shared owner-locked scratch for capture
+and temporary fixtures. The retention repetition test covers pass, failure and
+interruption across 100 real-filesystem iterations each, checking fewer than
+64 entries and 256 KiB of file contents at every iteration. Ordinary `tmp_path`
+checks retain disk-backed journal sync ordering, write-failure propagation and
+evidence preservation. The legacy
+[`repetition_tree` fixture](unit/test_test_retention_cleanup_safety.py) still allocates
+directly under `/tmp`; migrating it to the mandate's shared fixture route remains
+required. Preserve all iterations and footprint assertions during that migration.
+
+[The preview boot helper](support/preview.py) scopes tempfile's default to `/tmp`
 only while Dogtail boots its private graphical runtime. WebKit creates
 `/var/tmp` as a symlink inside its sandbox, so placing `XDG_RUNTIME_DIR` beneath
 that path causes sandbox startup to abort. The runtime keeps its existing owned
 teardown; no sandbox protection is disabled. Success, failure and interruption
-restore pytest's disk-backed default (`test_support.py`). See the
+restore pytest's disk-backed default ([regressions](unit/test_support.py)). See the
 [upstream sandbox layout](https://github.com/WebKit/WebKit/blob/main/Source/WebKit/UIProcess/Launcher/glib/BubblewrapLauncher.cpp).
-Request-layout, allowance and legend images use private `/var/tmp/onpc-*`
-directories. After setup, assertions and all fixture teardown have passed,
+This legacy Dogtail boot route and its [observer ownership check](support/ui_watch.py)
+still require migration to the centrally owned short-runtime
+helper; preserve the sandbox constraint and owned teardown. The
+[socket exception](../docs/Mandates/Test-Storage-Mandate.md#prohibited-storage-choices)
+does not provide a separate bulk-evidence route.
+
+Request-layout, allowance and legend images use shared private render
+allocations. After setup, assertions and all fixture teardown have passed,
 the owning test removes its rendered PNGs and layout JSON. Failed, skipped,
 interrupted or teardown-failed attempts keep their images. Input event streams,
 preview logs and other diagnostics are preserved. Cleanup never scans old runs
@@ -1770,18 +1773,15 @@ Shell logs and reviewable screenshots. Synthetic E2E preflight assets have an
 explicit temporary-directory fixture lifetime, including setup failure.
 `test_ui_artifacts_cleanup_safety.py` covers successful/failed teardown,
 concurrent attempts, directory replacement and symlink/hardlink refusal.
-An earlier parallel host run
-exhausted the user quota on RAM-backed `/tmp`: retained layout cases used about
-102 MiB each, and shared filesystem exhaustion broke capture writes and package
-fixtures in other workers. Private filenames do not isolate storage capacity.
+Private filenames do not isolate storage capacity; retained images must not
+compete with runtime sockets on memory-backed storage.
 Pytest continues to own its numbered-directory locks and capture files; no
-worker deletes another worker's evidence. Completed aggregate evidence follows
-the [three-run retention policy](#aggregate-output-retention).
+worker deletes another worker's evidence.
 Maintainer-script fixtures use `tests.support.shell.relocate_system_paths` to
 rewrite only original source matches in one pass. Sequential replacements
 corrupt inserted roots containing `/var/` or `/home/`; `test_support_shell.py`
 covers those roots and the real package configuration/removal suites exercise
-the resulting scripts under `/var/tmp`.
+the resulting scripts in launcher-configured disk scratch.
 Request-layout checks exercise the shared form at supported display scales
 through public IDs, including selected approver, duration, submission and exact
 submitted values. Retained rendering artifacts are review evidence, not targets
@@ -1794,10 +1794,14 @@ exit, and continues draining owned cleanup output.
 
 Node and GJS checks are available as `make check-child-node` and
 `make check-child-gjs`. The latter prints its private
-`/tmp/onpc-gjs-coverage-<run>/` directory containing `coverage.lcov`.
-Nested-Shell logs and screenshots
-are under `artifacts/ui/child-shell/`; `latest/` is only a convenience copy,
-never evidence for a different source revision or test attempt.
+`onpc-gjs-coverage-<run>/` shared allocation containing `coverage.lcov`.
+The nested-Shell guardian uses the shared short-runtime helper and removes its
+recorded identity after owned descendants settle. Its
+[legacy review publisher](ui/test_child_shell_lifecycle.py)
+still copies attempt logs and screenshots to `artifacts/ui/child-shell/`;
+`latest/` is only a convenience copy. Migration of that publisher to shared
+disk allocations remains required; preserve each attempt's evidence and avoid
+using the convenience copy for another revision or run.
 
 ## Property tests, contracts and coverage
 
@@ -1811,9 +1815,12 @@ architecture. Keep them classified separately from executable customer behavior.
 A file assigned the `contract` marker does not become runtime acceptance merely
 because pytest executes its assertions.
 
-`make check-coverage` currently reports Python branch coverage for its default
-host collection under `artifacts/coverage/` (HTML and XML). It does not report
-full graphical/system coverage. Inspect missing paths by security boundary:
+Use `tools/run-tests coverage` for Python branch coverage of the unit and
+private-D-Bus component selections. It prints a fresh shared `onpc-coverage-`
+allocation containing `.coverage` and `coverage.xml`. The legacy
+[`make check-coverage` target](../Makefile) still writes HTML/XML to `artifacts/coverage/`;
+its storage route requires migration under the storage mandate. Neither route
+reports full graphical/system coverage. Inspect missing paths by security boundary:
 caller/target validation, authorization, transactions and rollback, preferences,
 migration, enforcement activation and process ownership. A blanket percentage
 does not establish those behaviors. Future aggregate evidence must name the

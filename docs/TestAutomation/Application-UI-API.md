@@ -23,7 +23,7 @@ The same operations are available to any language through session D-Bus.
 ```python
 from common.oh_no_parent_control_ui.application_ui_client import UIClient
 
-ui = UIClient("parent")
+ui = UIClient("parent", surface_id="parent-window")
 ui.setValue("parent-child-selector", "1001")  # Known eligible account UID.
 # Wait for the selected child's public controls to become available.
 ui.setValue("parent-screen-limit-toggle", True)
@@ -51,8 +51,12 @@ import adapters, detect the desktop or choose desktop-specific transports.
 `getElementById` rejects missing and ambiguous IDs. Element references retain
 identity and surface scope, not a widget pointer: each operation resolves the
 current control. A client pins the application's unique D-Bus owner and PID;
-restart requires deliberate client reconstruction. Specify `surface_id` for
-normal work. Automatic scope discovery only succeeds for a unique match.
+restart requires deliberate client reconstruction. Logical frontend names supply
+the default main surface from the table below; bind an explicitly discovered
+dialog with `getSurfaceById` or `surface_id`. Automatic scope discovery only
+succeeds for a unique match. Shared operations own this binding under the
+[support guide](../../tests/support/README.md); cases do not implement another
+surface-discovery or transport path.
 
 ## Transport and application inventory
 

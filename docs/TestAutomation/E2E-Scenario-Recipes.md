@@ -12,7 +12,7 @@ E2E-028, E2E-029 and E2E-034 are retired; their former coverage IDs 140–150
 remain system-test obligations outside the UI inventory. Preserve all current
 ready inventory bindings and their functional assertions. Each family below records
 current implementation context, not an independent readiness authority. Follow
-the [execution plan](E2E-Execution-Plan.md#completion-and-document-cleanup) after
+the [close-out contract](E2E-Execution-Contracts.md#completion-and-document-cleanup) after
 a complete scenario pass. A block qualification alone leaves its scenario
 pending.
 
@@ -237,7 +237,8 @@ pass from its final state. No random loops or open-ended soak are declared.
 
 Each numbered line below implements the matching inventory step. Inputs,
 observations and prerequisite prefixes above are part of every expanded case.
-No step calls a product API, reads private state or invokes a fault control.
+Product controls use the Application UI API above. No step calls a private
+product API, reads private state or invokes a fault control.
 
 ### E2E-002
 
@@ -820,8 +821,8 @@ Bindings: surface = parent.
 
 Link clickability and the full information-control matrix belong to shared UI
 coverage. This journey identifies the installed release and license and resumes
-management. It does not establish external-handler or installed-license opening
-acceptance; those obligations retain their qualification owner.
+management. Apply the [external-link acceptance contract](../Mandates/UI-Automation-Mandate.MD#product-integrations):
+no link invocation or external-handler/license-opening obligation is required.
 
 ### E2E-031
 
@@ -1489,8 +1490,10 @@ block.** Case 253, route `appimagelauncher-login-autostart`; one independent
 
 Use Jamie/Jordan fixture roles, never the reporting household's account names.
 FIX05 requires the [manually prepared real-app profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-after normal restore. Tasks 296, 296a and 296b separately qualify Lunar/tray,
-Minecraft activity and continuous login observations before case composition.
+after normal restore. The profile contract separates launch/Quit, tray
+close/restore, specific denial, Minecraft entry/activity and allowed/denied
+continuous login qualification; the [canonical queue](E2E-Task-Queue.md) owns
+their split task IDs and prerequisites before complete case composition.
 Bind exact original AppImage path, integrated launcher,
 same-directory `Lunar Client-*.AppImage` pattern, tray/autostart settings, local
 world and one observable in-world action before implementation. The ordinary
@@ -2066,29 +2069,12 @@ Retain `check_e2e_restart_notice` and `check_e2e_customer_reboot` regressions.
 ## Coverage ownership and remaining limits
 
 Repeated setup and sanity observations do not count as duplicate primary
-coverage. Each unique outcome has one owner below; a continuous journey may
-reuse it to reach a later distinct outcome.
+coverage. A continuous journey may reuse an outcome to reach a later distinct
+outcome. The [UI/E2E family allocation](UI-and-E2E-Coverage.md#complete-scenario-family-review)
+owns duplicate review, primary assertion ownership and absorbed, removed or
+reallocated coverage. Use that review with the selected finite recipe;
+this document does not maintain a second family ownership table.
 
-| Behavior | Primary owner |
-| --- | --- |
-| Installation/defaults; account discovery; standard management exclusion | 2; 3–4 and 180–182 for real account changes through shared helpers; 5–6 |
-| Allowance values/saves; enable/edit/disable and child access | 158–159; 7–12 |
-| App-rule transitions; launch routes; catalogue/matching; updates | 13–16; retained [E2E-019](#e2e-019) cases; 184–189; 110–111 |
-| Active-grant revocation; daily-only no-grant; expired grant with daily time | 17–20; 160; 170; case 161 local availability is UI-owned |
-| Daily/grant exhaustion; another foreground user; countdown/options | 22–24; 25–26; 27–29; animation persistence in 118/120 and enabled locking in 22 |
-| Approval identity/app choice; denial/cancel; input boundaries/duplicate gesture | 30–33; 34–37; 38–43 |
-| Exit destinations; station restrictions; eligibility; shared choices | 44–49; 50–52; 53–57; 58–61 |
-| Distinct same-child desktops; persisted choices/deadlines | 112–115 (public-route gate); 116–122, 124–125 (122 combines both idle returns) |
-| Gameplay at expiry; extension while playing; replacement on return | 126–127; 128, 131; 132–135 (positive daily time) |
-| Package update and remove/reinstall/purge | 136–138; 139 |
-| Expired soft exception and restoring actions; pending requests/cooldown | 164–170; 171–176, 178 |
-| About/help; local feedback; success/retry; error report/recovery/lifetimes | 151 and 190–193; 152–155; 156–157; 205–208, 213–214, 216, 218–221 |
-| Local operation offline; real calendar boundaries | 194; 196–198, 200, 203; seasonal cases pair both grant types in two children |
-| Approval after a decision delay: both surfaces for daily-only/daily-dominant, desktop grant-only and station grant-dominant | 223–225, 227–228, 230 |
-| Temporary soft permission on all eight routes; both request surfaces for native-grid, one per other route; both parents in every journey | 231, 232, 233, 236, 238, 239, 242, 243, 246 |
-| Repeated work/game/time-source history and retained/fresh departures | 247–248; two complete cycles each; reversed-start copies 249/250 removed |
-| Alternating two-parent/two-child routines and final targeted revocation | 251; two recomposed rounds; reversed-start copy 252 removed |
-| Lunar AppImageLauncher login autostart under an ungranted/time-only soft block | 253; allowed control, exclusion, explicit inclusion and replacement exclusion |
 
 The [engineering reconciliation](E2E-Building-Blocks.md#inventory-reconciliation)
 retains every displaced internal assertion, including retired E2E IDs 140–150,

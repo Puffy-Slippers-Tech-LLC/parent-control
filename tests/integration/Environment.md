@@ -179,7 +179,7 @@ lease, provenance, ownership or product-free gates. The governing rule is the
 | Resource | Contract |
 | --- | --- |
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config; guest hostname is its lowercase form |
-| Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed host helpers retain their checkout pin. |
+| Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed helpers validate the invoking checkout at runtime through the [embedded resolver](../../tools/dev_checkout.py), rather than retaining an installation-time checkout path. VM UUID pins remain separately bound to finalized baseline provenance. |
 | Disk-chain anchor | `disk_anchor` in the shared config; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc_baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept `onpc-baseline` and `oh-no-parent-control-baseline`; explicit preparation replaces them with `onpc_baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |

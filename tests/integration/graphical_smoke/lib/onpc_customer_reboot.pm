@@ -150,9 +150,15 @@ sub restart_reentry {
     onpc_progress::operation('Closing the installed notice and reopening on the same boot');
     my ($journey, $surface) = @_;
     die 'restart:roundtrip-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && ($surface eq 'parent' || $surface eq 'overlay');
+        && ($surface eq 'parent' || $surface eq 'overlay' || $surface eq 'kiosk');
     $journey->seen("$surface-close");
     $journey->seen("$surface-closed");
+    if ($surface eq 'kiosk') {
+        $journey->seen($_) for qw(kiosk-exit kiosk-returned);
+        onpc_gdm::enter_station($journey, 'renewed-');
+        $journey->seen('kiosk-reentry');
+        return;
+    }
     if ($surface eq 'overlay') {
         $journey->seen('overlay-exit');
         $journey->seen('overlay-desktop');
@@ -219,6 +225,35 @@ sub run_child_notice {
     $journey->finish();
 }
 
+sub restart_kiosk_usability {
+    my ($journey) = @_;
+    die 'restart:kiosk-usability-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    $journey->seen($_) for qw(usable-kiosk-approver usable-kiosk);
+}
+
+sub run_kiosk_notice {
+    onpc_progress::operation('Installing before request-station Close, reentry and one normal modal reboot');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'fresh-kiosk-restart:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'fresh-kiosk-restart', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_parent::login_functional($journey);
+    $journey->seen($_) for qw(command-context package-submitted package-result parent-logout);
+    onpc_gdm::enter_station($journey, 'initial-');
+    $journey->seen('kiosk-notice');
+    restart_reentry($journey, 'kiosk');
+    $journey->seen($_) for qw(reboot-requested reboot-greeter);
+    onpc_gdm::named_login($journey, 'return', 'parent');
+    $journey->seen($_) for qw(usable-parent-launch usable-parent);
+    onpc_allowance_boundaries::select_child($journey, 'postboot-jordan');
+    $journey->seen($_) for qw(postboot-jordan-configured return-parent-logout);
+    onpc_gdm::enter_station($journey, '');
+    restart_kiosk_usability($journey);
+    $journey->finish();
+}
+
 sub restart_notice {
     onpc_progress::operation('Qualifying the genuine first-install restart notice on all three surfaces');
     my ($exchange, $declared, $challenges) = @_;
@@ -236,9 +271,9 @@ sub restart_notice {
     restart_roundtrip($journey, 'overlay');
     $journey->seen('child-logout');
     onpc_gdm::enter_station($journey, 'initial-');
-    $journey->seen($_) for qw(kiosk-notice kiosk-close kiosk-closed kiosk-exit kiosk-returned);
-    onpc_gdm::enter_station($journey, 'renewed-');
-    $journey->seen($_) for qw(kiosk-reentry reboot-requested reboot-greeter);
+    $journey->seen('kiosk-notice');
+    restart_reentry($journey, 'kiosk');
+    $journey->seen($_) for qw(reboot-requested reboot-greeter);
     onpc_gdm::named_login($journey, 'return', 'parent');
     $journey->seen($_) for qw(usable-parent-launch usable-parent missing-notice-refused);
     for my $prefix ('postboot-riley', 'postboot-jamie') {
@@ -249,7 +284,7 @@ sub restart_notice {
     onpc_gdm::named_login($journey, 'child-return', 'child');
     $journey->seen($_) for qw(usable-overlay-launch usable-overlay return-child-logout);
     onpc_gdm::enter_station($journey, '');
-    $journey->seen('usable-kiosk');
+    restart_kiosk_usability($journey);
     $journey->finish();
 }
 

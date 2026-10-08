@@ -1,6 +1,6 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
-Parent fresh-install coverage retains clean_install_cleanup_safety's private
+Parent/Child App/kiosk fresh-install coverage retains clean_install_cleanup_safety's private
 pytest evidence, process-local recorder/transfer/transport doubles and bounded
 waited Perl workers. No VM, bus, display, shared path or new process lifetime;
 its existing compatible unit and cleanup classifications remain appropriate.

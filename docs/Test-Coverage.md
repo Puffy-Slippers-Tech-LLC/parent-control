@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">24918</span>/<span style="color: gray">0</span>/24918 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">24968</span>/<span style="color: gray">0</span>/24968 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">299</span>/<span style="color: gray">0</span>/299 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -14,8 +14,8 @@
 | Child Node | <span style="color: green">6</span>/<span style="color: gray">0</span>/6 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">146</span>/<span style="color: gray">0</span>/146 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">37</span>/<span style="color: gray">210</span>/247 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">25824</span>/<span style="color: gray">210</span>/26034** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">38</span>/<span style="color: gray">210</span>/248 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">25875</span>/<span style="color: gray">210</span>/26085** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">36</span>/<span style="color: gray">210</span>/246 |
+| customer-journey | <span style="color: green">37</span>/<span style="color: gray">210</span>/247 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -71,6 +71,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [256](#scenario-256) | Change Parent language while retaining feedback and child policy | `E2E-055/parent-hebrew` | ready |
 | [257](#scenario-257) | Finish fresh installation through the Parent restart notice | `E2E-056/parent` | ready |
 | [258](#scenario-258) | Finish fresh installation through the Child App restart notice | `E2E-057/child` | ready |
+| [259](#scenario-259) | Finish fresh installation through the kiosk restart notice | `E2E-058/kiosk` | ready |
 | <span style="color: gray">[7](#scenario-7)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-new`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[8](#scenario-8)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: retained; time: daily only)</span> | <span style="color: gray">`E2E-005/daily-only-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[9](#scenario-9)</span> | <span style="color: gray">Change screen limits while starting or returning to a child desktop (session: new; time: grant only)</span> | <span style="color: gray">`E2E-005/grant-only-new`</span> | <span style="color: gray">pending</span> |
@@ -791,6 +792,20 @@ Variant: surface: child
 - Sign in as the administrator, install the verified current package once and independently read its completion and final reboot notice without rebooting.
 - Enter the ordinary child desktop before policy setup, launch Child App directly, read its installation modal, Close and exit normally to the same desktop, then reopen and read the modal on the same boot.
 - Activate Child App Reboot now once, independently observe a new boot and usable greeter, enable the child through ordinary public Parent setup, then enter a fresh child desktop and require a usable fixed-child request without a restart modal.
+
+### Scenario 259
+
+**Finish fresh installation through the kiosk restart notice**
+
+Case: `E2E-058/kiosk` · Category: customer-journey · Status: **ready**
+
+Variant: surface: kiosk
+
+**Steps:**
+
+- Sign in as the administrator, install the verified current package once and independently read its completion and final reboot notice without rebooting.
+- Enter the newly installed kiosk before policy setup, read its installation modal, Close and exit normally to the same-boot greeter, then reenter and read the modal again.
+- Activate kiosk Reboot now once, independently observe a new boot and usable greeter, enable the initial child through ordinary public Parent setup, then enter a fresh kiosk and require usable account selection and Request without a restart modal.
 
 <div style="color: gray">
 

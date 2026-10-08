@@ -49,7 +49,7 @@ WORKER_APIS = {
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form',
-                            'chinese_current_entry', 'restart_reentry', 'restart_roundtrip', 'restart_notice', 'run_parent_notice', 'run_child_notice'},
+                            'chinese_current_entry', 'restart_reentry', 'restart_roundtrip', 'restart_kiosk_usability', 'restart_notice', 'run_parent_notice', 'run_child_notice', 'run_kiosk_notice'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
                               'close_parent_report'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child', 'custom_value'},
@@ -190,7 +190,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|run_removal|run_parent_notice|run_child_notice|search_filters|parent_error_report)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|run_removal|run_parent_notice|run_child_notice|run_kiosk_notice|search_filters|parent_error_report)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection

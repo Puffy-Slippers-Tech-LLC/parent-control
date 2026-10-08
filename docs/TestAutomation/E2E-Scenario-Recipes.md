@@ -1823,6 +1823,28 @@ uncertain input replay or policy setup before the notice supplies acceptance.
 The shared reentry extraction affects `check_e2e_restart_notice` and Parent
 case 257; retain those regressions and `check_e2e_customer_reboot`.
 
+### E2E-058
+
+Case **259**, variant `kiosk` (`surface=kiosk`), is one continuous English
+fresh-install request-station history. Jordan is the initial child and Jamie
+the declared approver. `fresh_kiosk_restart.PLAN` composes LIFE04's package
+installation, LIFE07's shared `restart_reentry('kiosk')`, passwordless station
+entry and fresh administrator authentication through `record_package_journey`
+and `onpc_customer_reboot::run_kiosk_notice`.
+
+| Phase | Finite actions and independent results |
+| --- | --- |
+| Actual installation | Start product-free on Ubuntu, authenticate Jamie graphically, install the verified current-source package once and read completion/final reboot notice. Preserve the installation boot. |
+| Kiosk before reboot | Log out Jamie normally and enter the newly created station before child policy setup. Read one owned modal in Jordan's initial English language before a chooser or usable request: `Restart the computer for Oh No! Parent Control to work properly.`, `Close`, `Reboot now`. Close once, require the blocked result, exit normally and observe usable GDM on the same boot. Reenter the station and independently read the same modal again. |
+| Reboot and usability | Activate kiosk Reboot now once through normal system authorization. Independently require a changed boot and usable GDM. Authenticate Jamie afresh, open Parent and finish ordinary English language setup; verify Jordan's untouched disabled zero allowance, then save enabled 30 minutes through public controls. Log out normally and enter a fresh kiosk. Complete ordinary English language setup if needed and select Jamie through the shared public account operation; independently require usable child/approver selectors, Jordan/Jamie selected, enabled Request and no restart modal. |
+
+Use the common 45-second public-result waits, shared 330-second boot-change
+deadline and 1800-second case budget. Require all seven assertions, worker-title
+reconciliation, collection, worker shutdown, owned cleanup, baseline restoration
+and preservation. No app snapshot, marker injection, command-reboot fallback,
+uncertain input replay or policy setup before the notice supplies acceptance.
+Retain `check_e2e_restart_notice` and `check_e2e_customer_reboot` regressions.
+
 ## Coverage ownership and remaining limits
 
 Repeated setup and sanity observations do not count as duplicate primary

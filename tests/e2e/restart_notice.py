@@ -1,7 +1,7 @@
 """301: genuine first-install restart modal bindings; no complete-case credit."""
 
 from installed_journey import JourneyPlan
-from journey_blocks import custom_child_selection, fresh_desktop, prefixed_stages, package_installation, restart_reentry, station_entry
+from journey_blocks import custom_child_selection, fresh_desktop, prefixed_stages, package_installation, restart_kiosk_usability, restart_reentry, station_entry
 from package_install import PackageInstallJourney, submit_install
 from product_free_entry import ProductFreeEntryJourney, refuse_command
 from private_artifacts import require
@@ -33,10 +33,7 @@ SCREENS = {
     'overlay-second-close': 'ui:restart-overlay-close', 'overlay-second-closed': 'ui:restart-overlay-closed',
     'overlay-second-exit': 'ui:restart-overlay-exit', 'overlay-second-desktop': 'ui:overlay-desktop',
     'child-logout': 'system:child-logout', **station_entry('initial-'),
-    'kiosk-notice': 'ui:restart-kiosk-read', 'kiosk-close': 'ui:restart-kiosk-close',
-    'kiosk-closed': 'ui:restart-kiosk-closed', 'kiosk-exit': 'ui:restart-kiosk-exit',
-    'kiosk-returned': 'ui:gdm-station-returned', **station_entry('renewed-'),
-    'kiosk-reentry': 'ui:restart-kiosk-read',
+    'kiosk-notice': 'ui:restart-kiosk-read', **restart_reentry('kiosk'),
     'reboot-requested': 'ui:restart-kiosk-read', 'reboot-greeter': 'ui:gdm-list',
     **PARENT_RETURN, 'usable-parent-launch': 'ui:parent-command-launch',
     'usable-parent': 'ui:restart-parent-usable', 'missing-notice-refused': 'ui:restart-parent-missing-refused',
@@ -44,7 +41,7 @@ SCREENS = {
     'return-parent-logout': 'system:parent-logout', **CHILD_RETURN,
     'usable-overlay-launch': 'ui:child-command-launch', 'usable-overlay': 'ui:restart-overlay-usable',
     'return-child-logout': 'system:child-logout', **station_entry(),
-    'usable-kiosk': 'ui:restart-kiosk-usable',
+    **restart_kiosk_usability(),
 }
 PLAN = JourneyPlan(prefix='restart-notice', worker_mode='restart_notice', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',

@@ -10,7 +10,7 @@ fixtures and external resources have been reviewed; never omit their cases.
 # ui_cleanup_safety's preview wait-cancellation checks use private tmp_path logs
 # and process-local Popen/clock doubles, without changing real signal handlers
 # or starting children. Its existing compatible unit/cleanup scheduling holds.
-# Parent fresh-install clean_install checks use private pytest evidence and
+# Parent/Child App/kiosk fresh-install clean_install checks use private evidence and
 # recorder/transfer/transport doubles with bounded waited Perl children. No VM,
 # bus, display, shared path or new cleanup owner; compatible in both inventories.
 # Restart-modal customer_reboot checks retain private pytest evidence, synthetic

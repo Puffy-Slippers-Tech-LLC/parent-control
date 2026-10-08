@@ -2102,7 +2102,16 @@ or unrelated-reboot acceptance.
 
 `journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry`
 share the same-boot Close/normal exit/reopening fragment between LIFE07 and
-complete Parent/Child App histories. `fresh_child_restart.PLAN` /
+complete Parent/Child App/kiosk histories. The kiosk binding exits to usable
+GDM and enters the station afresh; `fresh_kiosk_restart.PLAN` /
+`onpc_customer_reboot::run_kiosk_notice` register case 259 with postboot public
+Jordan setup and enabled Request plus usable Jordan/Jamie account selectors.
+`journey_blocks.restart_kiosk_usability` /
+`onpc_customer_reboot::restart_kiosk_usability` share the public Jamie selection
+and independent final usability read with LIFE07. Baselines preserve other
+eligible administrators, so the recipe supplies the declared approver input
+instead of assuming the initial account order.
+Task 304's live acceptance remains pending. `fresh_child_restart.PLAN` /
 `onpc_customer_reboot::run_child_notice` register complete E2E-057 `child`, case
 258: direct pre-policy Child App entry, overlay modal reboot, independent boot
 and GDM result, public postboot Riley setup and fresh fixed-child request

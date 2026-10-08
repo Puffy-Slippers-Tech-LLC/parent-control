@@ -272,7 +272,7 @@ def test_restart_selector_exclusive_gate(extra):
 @pytest.mark.parametrize('fault', ['', 'parent-notice', 'parent-close', 'overlay-reentry',
                                   'reboot-requested', 'reboot-greeter', 'postboot-riley-selected',
                                   'postboot-riley-configured', 'postboot-jamie-selected',
-                                  'postboot-jamie-configured', 'usable-overlay', 'usable-kiosk'])
+                                  'postboot-jamie-configured', 'usable-overlay', 'usable-kiosk-approver', 'usable-kiosk'])
 def test_restart_worker_exact_composition_and_refusal(fault):
     import restart_notice
     plan = restart_notice.PLAN
@@ -412,6 +412,8 @@ def test_restart_postboot_usability_requires_complete_modal_absence(monkeypatch,
     controls = ([Node(identity='parent-language-ready'), Node(identity='parent-child-selector')]
                 if surface == 'parent' else [Node(identity='kiosk-language-ready'),
                     Node(identity='kiosk-request-form', children=[Node(identity='kiosk-request-submit'),
+                        Node(identity='kiosk-child-selector', value='1001'),
+                        Node(identity='kiosk-approver-selector', value='1000'),
                         Node(identity='kiosk-child-selected-1001')])])
     if modal_present:
         controls.append(Node(identity='update-required-dialog'))
@@ -420,7 +422,7 @@ def test_restart_postboot_usability_requires_complete_modal_absence(monkeypatch,
     app = {'parent': adapter.PARENT_APPLICATION, 'kiosk': adapter.KIOSK_APPLICATION,
            'overlay': adapter.CHILD_APPLICATION}[surface]
     ui = ui_for(Node(identity=app, children=[window]))
-    ui.fixture_uids = {adapter.CHILD: 1001}
+    ui.fixture_uids = {adapter.CHILD: 1001, adapter.EXISTING_CHILD: 1001, adapter.PARENT: 1000}
     monkeypatch.setattr(ui, 'require_child_overlay_session', lambda: None)
     ui._invoke_target = Mock()
     if modal_present:
@@ -428,6 +430,27 @@ def test_restart_postboot_usability_requires_complete_modal_absence(monkeypatch,
             ui.restart_usable(surface)
     else:
         ui.restart_usable(surface)
+    ui._invoke_target.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['disabled-child', 'disabled-approver', 'wrong-child', 'wrong-approver', 'disabled-request'])
+def test_restart_kiosk_usability_refuses_unusable_or_wrong_account_selection(fault):
+    import accessible_ui as adapter
+    from tests.support.accessible_ui import Node, ui_for
+    child = Node(identity='kiosk-child-selector', value='1001')
+    approver = Node(identity='kiosk-approver-selector', value='1000')
+    request = Node(identity='kiosk-request-submit')
+    if fault == 'disabled-child': child.states.remove('sensitive')
+    if fault == 'disabled-approver': approver.states.remove('sensitive')
+    if fault == 'disabled-request': request.states.remove('sensitive')
+    if fault == 'wrong-child': child.value = '1002'
+    if fault == 'wrong-approver': approver.value = '1003'
+    window = Node(identity='kiosk-request-window', children=[Node(identity='kiosk-language-ready'),
+        Node(identity='kiosk-request-form', children=[child, approver, request])])
+    ui = ui_for(Node(identity=adapter.KIOSK_APPLICATION, children=[window]))
+    ui.fixture_uids = {adapter.EXISTING_CHILD: 1001, adapter.PARENT: 1000}
+    ui._invoke_target = Mock()
+    with pytest.raises(adapter.UiError): ui.restart_usable('kiosk')
     ui._invoke_target.assert_not_called()
 
 

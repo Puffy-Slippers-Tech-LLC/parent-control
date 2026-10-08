@@ -34,7 +34,7 @@ def test_customer_families_stay_customer_journeys(document):
 
 def test_shared_scenarios_declare_both_platforms_with_explicit_implemented_lifecycle(document):
     plan = inventory.resolve_selection(document)
-    assert all(case['environment'] == (['ubuntu26.04'] if case['coverage_id'] in (254, 255, 256, 257, 258) else
+    assert all(case['environment'] == (['ubuntu26.04'] if case['coverage_id'] in (254, 255, 256, 257, 258, 259) else
                                       ['ubuntu26.04', 'fedora44']) for case in plan['cases'])
     assert inventory.resolve_selection(document, coverage_id=2)['cases'][0]['status'] == 'ready'
     lifecycle = inventory.resolve_selection(document, 'E2E-027', require_runnable=True)

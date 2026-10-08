@@ -309,7 +309,16 @@ def package_installation():
 
 def restart_reentry(surface):
     """LIFE07 Close, ordinary exit and reopening on the installation boot."""
-    require(surface in ('parent', 'overlay'), 'journey:restart-surface')
+    require(surface in ('parent', 'overlay', 'kiosk'), 'journey:restart-surface')
+    if surface == 'kiosk':
+        return {
+            'kiosk-close': 'ui:restart-kiosk-close',
+            'kiosk-closed': 'ui:restart-kiosk-closed',
+            'kiosk-exit': 'ui:restart-kiosk-exit',
+            'kiosk-returned': 'ui:gdm-station-returned',
+            **station_entry('renewed-'),
+            'kiosk-reentry': 'ui:restart-kiosk-read',
+        }
     return {
         surface + '-close': 'ui:restart-' + surface + '-close',
         surface + '-closed': 'ui:restart-' + surface + '-closed',
@@ -317,6 +326,14 @@ def restart_reentry(surface):
             'overlay-desktop': 'ui:overlay-desktop'} if surface == 'overlay' else {}),
         surface + '-relaunch': 'ui:' + ('parent' if surface == 'parent' else 'child') + '-command-launch',
         surface + '-reentry': 'ui:restart-' + surface + '-read',
+    }
+
+
+def restart_kiosk_usability():
+    """Select the declared approver, then independently require postboot usability."""
+    return {
+        'usable-kiosk-approver': 'ui:kiosk-language-jordan-jamie',
+        'usable-kiosk': 'ui:restart-kiosk-usable',
     }
 
 

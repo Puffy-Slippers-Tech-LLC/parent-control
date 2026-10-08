@@ -3013,6 +3013,53 @@
       ]
     },
     {
+      "id": "E2E-058",
+      "title": "Finish fresh installation through the kiosk restart notice",
+      "category": "customer-journey",
+      "owners": ["package-lifecycle"],
+      "requirements": ["ONPC-CORE-INSTALL-001", "ONPC-CORE-LIFECYCLE-001", "ONPC-CORE-REQUEST-002"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-058"],
+      "components": ["parent", "kiosk", "broker"],
+      "environment": ["ubuntu26.04"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision fixture credentials and the verified current package."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin an independent fresh-install history at the product-free greeter."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Sign in as the administrator, install the verified current package once and independently read its completion and final reboot notice without rebooting."},
+          {"id": "step-2", "operation": "ui", "description": "Enter the newly installed kiosk before policy setup, read its installation modal, Close and exit normally to the same-boot greeter, then reenter and read the modal again."},
+          {"id": "step-3", "operation": "ui", "description": "Activate kiosk Reboot now once, independently observe a new boot and usable greeter, enable the initial child through ordinary public Parent setup, then enter a fresh kiosk and require usable account selection and Request without a restart modal."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Collect complete public outcomes, boot continuity and reconciled worker evidence."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned worker shutdown, restore the baseline and preserve unrelated host and source files."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "installation-notice", "step_id": "step-1", "description": "The actual package installation completes successfully with its final reboot notice on the original boot."},
+          {"id": "kiosk-installation-modal", "step_id": "step-2", "description": "The first kiosk session shows one owned English installation-neutral modal with usable Close/Reboot now actions before language setup or a usable request."},
+          {"id": "close-without-reboot", "step_id": "step-2", "description": "Close leaves the request blocked and normal session exit reaches usable GDM without changing boot."},
+          {"id": "reopened-installation-modal", "step_id": "step-2", "description": "Ordinary kiosk session reentry shows the installation-neutral modal again on the original boot."},
+          {"id": "new-boot-usable-greeter", "step_id": "step-3", "description": "One normal kiosk modal reboot produces an independently verified new boot and usable greeter."},
+          {"id": "public-child-setup", "step_id": "step-3", "description": "After reboot, ordinary public Parent setup saves enabled 30-minute screen time for Jordan from untouched disabled defaults."},
+          {"id": "usable-kiosk-request-without-modal", "step_id": "step-3", "description": "Fresh kiosk completes ordinary English language setup and exposes usable child and approver selectors with Jordan and Jamie selected, and enabled Request without a restart modal."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {
+        "dimensions": {"surface": ["kiosk"]}, "full_combinations": [],
+        "rationale": "One continuous genuine fresh-install kiosk history; other surfaces and unrelated reboot requests have independent cases."
+      },
+      "variants": [{
+        "coverage_id": 259, "id": "kiosk", "owner": "package-lifecycle",
+        "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null,
+        "executable": {"path": "tests/e2e/fresh_kiosk_restart.py", "test_id": "kiosk"}
+      }]
+    },
+    {
       "id": "E2E-057",
       "title": "Finish fresh installation through the Child App restart notice",
       "category": "customer-journey",

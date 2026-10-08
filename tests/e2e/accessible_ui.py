@@ -2739,6 +2739,12 @@ class AccessibleUI:
                 self.id_target('kiosk-request-submit', root=form, sensitive=True)
                 if surface == 'overlay':
                     self.initial_kiosk_child(self.read_snapshot(), root, child=CHILD)
+                else:
+                    # The recipe selects Jamie publicly before this independent
+                    # read; other eligible baseline parents may be the default.
+                    self.id_target('kiosk-child-selector', root=form, sensitive=True)
+                    self.id_target('kiosk-approver-selector', root=form, sensitive=True)
+                    self.kiosk_valid_target('kiosk-request-submit', child=EXISTING_CHILD)
 
     def restart_operation(self, surface, action):
         if action == 'read':

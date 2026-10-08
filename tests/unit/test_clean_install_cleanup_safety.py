@@ -25,6 +25,11 @@ from tests.support.perl import run_perl
        'overlay-exit', 'overlay-desktop', 'overlay-reentry', 'reboot-requested',
        'reboot-greeter', 'return-desktop', 'usable-parent', 'postboot-riley-selected',
        'postboot-riley-configured', 'child-return-desktop', 'usable-overlay')],
+    *[('fresh_kiosk_restart', 'run_kiosk_notice', fault) for fault in
+      ('', 'initial-station-branch', 'kiosk-notice', 'kiosk-close', 'kiosk-closed',
+       'kiosk-exit', 'kiosk-returned', 'renewed-station-branch', 'kiosk-reentry',
+       'reboot-requested', 'reboot-greeter', 'return-desktop', 'postboot-jordan-selected',
+       'postboot-jordan-configured', 'station-branch', 'usable-kiosk-approver', 'usable-kiosk')],
 ])
 def test_parent_restart_actual_worker_order_titles_and_failure_stop(module, worker, fault):
     plan = importlib.import_module(module).PLAN
@@ -38,6 +43,8 @@ def test_parent_restart_actual_worker_order_titles_and_failure_stop(module, work
     source = source.replace("push @events, ['stage', $_[0]];", """
         push @events, ['stage', $_[0]];
         die 'fixed refusal' if $_[0] eq $action;
+        return {observed => $_[0], station_destination => $_[0] eq 'station-branch'
+            ? 'default-request-form' : 'initial-request-window'} if $_[0] =~ /station-branch$/;
         return {observed => $_[0], ui_focused => 1} if $_[0] =~ /(?:greeter|list)$/;
         my ($id, $role) = $_[0] =~ /^child-return-/ ? ('child-return', 'child') :
             $_[0] =~ /^child-/ ? ('child', 'child') : ('return', 'parent');
@@ -59,7 +66,8 @@ def test_parent_restart_actual_worker_order_titles_and_failure_stop(module, work
 
 
 @pytest.mark.parametrize('module,surface', [('fresh_parent_restart', 'parent'),
-                                          ('fresh_child_restart', 'overlay')])
+                                          ('fresh_child_restart', 'overlay'),
+                                          ('fresh_kiosk_restart', 'kiosk')])
 @pytest.mark.parametrize('stage', ['notice', 'reentry', 'reboot-requested'])
 @pytest.mark.parametrize('fault', ['', 'text', 'surface', 'modal', 'policy', 'missing'])
 def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monkeypatch, module, surface, stage, fault):
@@ -80,7 +88,7 @@ def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monke
         'update-required-message': 'Restart the computer for Oh No! Parent Control to work properly.',
         'update-required-close': 'Close', 'update-required-reboot': 'Reboot now'}}
     if fault == 'text': value['texts']['update-required-message'] = 'Update before opening the kiosk'
-    if fault == 'surface': value['surface'] = 'kiosk'
+    if fault == 'surface': value['surface'] = 'parent' if surface == 'kiosk' else 'kiosk'
     if fault == 'modal': value['modal'] = False
     if fault == 'policy': value['policy_blocked'] = False
     current.ui.observe.return_value = {} if fault == 'missing' else {'restart': value}
@@ -101,7 +109,7 @@ def test_parent_restart_literal_results_precede_reply_and_reboot(tmp_path, monke
             assert json.loads((tmp_path / 'customer-reboot-intent.json').read_text())['surface'] == surface
 
 
-@pytest.mark.parametrize('module', ['fresh_parent_restart', 'fresh_child_restart'])
+@pytest.mark.parametrize('module', ['fresh_parent_restart', 'fresh_child_restart', 'fresh_kiosk_restart'])
 def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(tmp_path, monkeypatch, module):
     parent_case = importlib.import_module(module)
     monkeypatch.setattr(package_journey, 'AssetTransfer', Mock())
@@ -121,8 +129,12 @@ def test_parent_restart_real_recorder_constructs_package_envelope_before_worker(
     context.credentials.provision.assert_called_once()
 
 
-@pytest.mark.parametrize('surface', ['parent', 'overlay'])
-@pytest.mark.parametrize('fault', ['', 'close', 'closed', 'relaunch', 'reentry'])
+@pytest.mark.parametrize('surface,fault', [
+    *[(surface, fault) for surface in ('parent', 'overlay')
+      for fault in ('', 'close', 'closed', 'relaunch', 'reentry')],
+    *[('kiosk', fault) for fault in ('', 'close', 'closed', 'exit', 'returned',
+                                    'renewed-station-branch', 'reentry')],
+])
 def test_restart_reentry_independent_recipe_order_titles_and_refusal(surface, fault):
     from journey_blocks import restart_reentry
     screens = restart_reentry(surface)
@@ -134,9 +146,10 @@ def test_restart_reentry_independent_recipe_order_titles_and_refusal(surface, fa
         "onpc_customer_reboot::restart_reentry(onpc_journey->new(prefix => 'independent-restart', review => 0, exchange => sub {")
     source = source.replace('}, $action);', '}), $action);')
     source = source.replace("push @events, ['stage', $_[0]];",
-        "push @events, ['stage', $_[0]]; die 'fixed refusal' if $_[0] eq $ARGV[1];")
+        "push @events, ['stage', $_[0]]; die 'fixed refusal' if $_[0] eq $ARGV[1]; "
+        "return {observed => $_[0], station_destination => 'initial-request-window'} if $_[0] =~ /station-branch$/;")
     source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
-    fault = surface + '-' + fault if fault else ''
+    fault = (fault if fault.startswith('renewed-') else surface + '-' + fault) if fault else ''
     result = json.loads(run_perl(source, surface, fault).stdout)
     expected = list(restart_reentry(surface))
     stages = [event[1] for event in result['events'] if event[0] == 'stage']
@@ -144,8 +157,11 @@ def test_restart_reentry_independent_recipe_order_titles_and_refusal(surface, fa
     assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
     assert [event[1] for event in result['events'] if event[0] == 'title'] == [
         'independent-restart-' + stage for stage in stages]
-    assert not any(event[0] in ('secret', 'key', 'pointer', 'click') for event in result['events'])
-    with pytest.raises(EvidenceError): restart_reentry('kiosk')
+    assert not any(event[0] in ('secret', 'pointer', 'click') for event in result['events'])
+    assert [event for event in result['events'] if event[0] == 'key'] == (
+        [['key', 'ret']] if surface == 'kiosk' and (not fault or fault in
+          ('renewed-station-branch', 'kiosk-reentry')) else [])
+    with pytest.raises(EvidenceError): restart_reentry('wrong')
 
 
 def test_child_restart_registered_leaves_and_postboot_policy_order():
@@ -164,6 +180,59 @@ def test_child_restart_registered_leaves_and_postboot_policy_order():
     # saved enabled 30-minute policy; PackageJourney adds no balance subclass.
     assert plan.screen_tags['postboot-riley-configured'] == 'ui:time-explanation-setup-thirty-read'
     assert plan.settings_checks['postboot-riley-selected'] == child_case.SettingsObservation('fixture-child', False, ('0 minutes',))
+
+
+def test_kiosk_restart_registered_leaves_and_postboot_policy_order():
+    import fresh_kiosk_restart as kiosk_case
+    import session_control
+    plan = kiosk_case.PLAN
+    stages = list(plan.screen_tags)
+    for tag in plan.screen_tags.values():
+        assert (tag[3:] in ui_module.OPERATIONS if tag.startswith('ui:')
+                else tag[7:] in session_control.BINDINGS)
+    assert stages.index('kiosk-returned') < stages.index('kiosk-reentry') < stages.index('reboot-greeter')
+    assert stages.index('reboot-greeter') < stages.index('postboot-jordan-selected')
+    assert stages.index('postboot-jordan-configured') < stages.index('station-branch') < stages.index('usable-kiosk')
+    assert plan.modal_reboots == {'reboot-requested': 'kiosk'}
+    assert plan.child_bindings == {'postboot-jordan-configured': 'existing'}
+    assert plan.settings_checks['postboot-jordan-selected'] == kiosk_case.SettingsObservation(
+        'existing-fixture-child', False, ('0 minutes',))
+
+
+@pytest.mark.parametrize('module', ['fresh_kiosk_restart', 'restart_notice'])
+def test_restart_kiosk_selects_declared_approver_before_final_usability(module):
+    plan = importlib.import_module(module).PLAN
+    stages = list(plan.screen_tags)
+    # A product-free baseline preserves other eligible administrators; the
+    # recipe must provide Jamie's input rather than assume the first parent.
+    assert plan.screen_tags['usable-kiosk-approver'] == 'ui:kiosk-language-jordan-jamie'
+    assert stages.index('station-branch') < stages.index('usable-kiosk-approver') < stages.index('usable-kiosk')
+    assert ui_module.KIOSK_ACCOUNT_REQUESTS['kiosk-language-jordan-jamie'] == (
+        'existing-fixture-child', 'fixture-parent')
+
+
+@pytest.mark.parametrize('fault', ['', 'usable-kiosk-approver', 'usable-kiosk'])
+def test_restart_kiosk_usability_independent_consumer_order_titles_and_refusal(fault):
+    from journey_blocks import restart_kiosk_usability
+    screens = restart_kiosk_usability()
+    assert list(screens.values()) == ['ui:kiosk-language-jordan-jamie', 'ui:restart-kiosk-usable']
+    screens.clear()
+    assert restart_kiosk_usability()
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
+    source = source.replace('onpc_desktop_session::run(sub {',
+        "onpc_customer_reboot::restart_kiosk_usability(onpc_journey->new(prefix => 'independent-usable', review => 0, exchange => sub {")
+    source = source.replace('}, $action);', '}));')
+    source = source.replace("push @events, ['stage', $_[0]];",
+        "push @events, ['stage', $_[0]]; die 'fixed refusal' if $_[0] eq $ARGV[0];")
+    source = source.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
+    result = json.loads(run_perl(source, fault).stdout)
+    expected = list(restart_kiosk_usability())
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    assert bool(result['ok']) == (not fault), result
+    assert stages == (expected[:expected.index(fault) + 1] if fault else expected)
+    assert [event[1] for event in result['events'] if event[0] == 'title'] == [
+        'independent-usable-' + stage for stage in stages]
+    assert not any(event[0] in ('secret', 'key', 'pointer', 'click') for event in result['events'])
 
 
 def test_restart_instruction_oracle_is_immutable_and_validated():

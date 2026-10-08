@@ -485,7 +485,20 @@ using private evidence and bounded waited Perl children without new resources.
 
 `journey_blocks.restart_reentry` / `onpc_customer_reboot::restart_reentry` share
 Close, normal overlay exit and same-boot reopening between qualification and
-complete Parent/Child App histories. Case 258 retains its own initial child
+complete Parent/Child App/kiosk histories. The kiosk binding shares normal
+result exit, same-boot GDM and renewed station entry with LIFE07 qualification.
+Case 259 retains its own genuine installation, first kiosk notice, single kiosk
+reboot, postboot disabled-default Jordan read/public enabled 30-minute setup,
+and fresh usable Jordan/Jamie selectors plus Request without the modal.
+`journey_blocks.restart_kiosk_usability` /
+`onpc_customer_reboot::restart_kiosk_usability` select Jamie with the existing
+Jordan/English public account operation before the unchanged final selection
+guard. They share this finite input/result with LIFE07; preserved eligible
+baseline administrators do not imply Jamie is the initial approver.
+The same existing private fixtures and waited Perl children cover the kiosk
+worker order, real package recorder entry and independent reentry consumer;
+unit and cleanup classifications remain compatible with no new resource owner.
+Case 258 retains its own initial child
 entry, overlay reboot, postboot Riley disabled-default read, public enabled
 30-minute setup and fresh fixed-child request result. The clean-install safety
 owner checks both complete worker orders, real recorder construction, literal

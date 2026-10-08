@@ -24,14 +24,19 @@ from ui_observations import OPERATION_LABELS
 
 
 @pytest.mark.parametrize('fault', [None, 'session', 'desktop', 'window', 'prompt',
-                                 'instance', 'uncertain', 'submission'])
+                                 'instance', 'uncertain', 'preparation',
+                                 'final-session', 'final-prompt', 'submission'])
 def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
     ui = ui_for(Node())
     monkeypatch.setattr(accessible_ui, 'require_active_launch_session',
-                        Mock(side_effect=UiError('session') if fault == 'session' else None))
+                        Mock(side_effect=(UiError('session') if fault == 'session' else
+                            [None, UiError('session')] if fault == 'final-session' else None)))
     ui.desktop_result = Mock(side_effect=UiError('desktop') if fault == 'desktop' else None)
     ui.native_app_closed = Mock(return_value=fault != 'window')
-    ui.handle_system_prompt = Mock(side_effect=UiError('prompt') if fault == 'prompt' else None)
+    ui.handle_system_prompt = Mock(side_effect=(UiError('prompt') if fault == 'prompt' else
+        [None, UiError('prompt')] if fault == 'final-prompt' else None))
+    ui.prepare_launch_desktop = Mock(
+        side_effect=UiError('preparation') if fault == 'preparation' else None)
     ui.input_uncertain = fault == 'uncertain'
     submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
     monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
@@ -53,6 +58,8 @@ def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
         assert submit.call_count == 1
     else:
         submit.assert_not_called()
+    assert ui.prepare_launch_desktop.call_count == int(fault in (
+        None, 'preparation', 'final-session', 'final-prompt', 'submission'))
     if fault not in ('instance', 'uncertain', 'session'):
         ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
 
@@ -71,6 +78,7 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
     ui.require_child_overlay_session = Mock()
     ui.desktop_result = Mock()
     ui.handle_system_prompt = Mock()
+    ui.prepare_launch_desktop = Mock()
     first = UiError('ui:incomplete-tree') if failure == 'incomplete' else LookupError()
     second = LookupError() if failure == 'persistent' else failure != 'window'
     ui.native_app_closed = Mock(side_effect=[first, second])
@@ -85,7 +93,9 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
     else:
         ui.native_launch_command(child=child)
 
-    assert session.call_count == ui.desktop_result.call_count == ui.native_app_closed.call_count == 2
+    assert ui.desktop_result.call_count == ui.native_app_closed.call_count == 2
+    assert session.call_count == 2 + int(failure not in ('persistent', 'window'))
+    assert ui.prepare_launch_desktop.call_count == int(failure not in ('persistent', 'window'))
     assert ui.require_child_overlay_session.call_count == (2 if child == accessible_ui.CHILD else 0)
     assert submit.call_count == (0 if failure in ('persistent', 'window') else 1)
     assert ui.input_uncertain == (submit.call_count == 1)
@@ -150,6 +160,7 @@ def test_child_launch_diagnostic_names_only_its_single_submission(monkeypatch):
     ui.desktop_result = Mock()
     ui.native_app_closed = Mock(return_value=True)
     ui.handle_system_prompt = Mock()
+    ui.prepare_launch_desktop = Mock()
     submit = Mock()
     monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
     ui.native_launch_command(child=accessible_ui.CHILD)
@@ -159,6 +170,7 @@ def test_child_launch_diagnostic_names_only_its_single_submission(monkeypatch):
         '--service-type=exec', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
     ], stdin=accessible_ui.subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
     ui.timing.assert_called_once_with({'event': 'ui-native-launch', 'unit': unit})
+    ui.prepare_launch_desktop.assert_called_once_with()
     with pytest.raises(UiError, match='uncertain-input'):
         ui.native_launch_command(child=accessible_ui.CHILD)
     assert submit.call_count == 1

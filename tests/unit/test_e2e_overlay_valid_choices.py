@@ -271,12 +271,14 @@ def test_native_child_command_binds_actual_overlay_account_and_single_input(monk
     ui = ui_for(Node())
     ui.desktop_result = Mock()
     ui.native_app_closed = Mock(return_value=True)
+    ui.prepare_launch_desktop = Mock()
     submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
     monkeypatch.setattr(a.subprocess, 'run', submit)
     if fault:
         with pytest.raises((a.UiError, TimeoutError)): ui.run('overlay-native-command-launch', '')
     else: ui.run('overlay-native-command-launch', '')
     assert submit.call_count == (0 if fault == 'wrong-account' else 1)
+    assert ui.prepare_launch_desktop.call_count == (0 if fault == 'wrong-account' else 1)
     if fault != 'wrong-account':
         ui.desktop_result.assert_called_once_with(a.CHILD, 'success')
         with pytest.raises(a.UiError): ui.run('overlay-native-command-launch', '')

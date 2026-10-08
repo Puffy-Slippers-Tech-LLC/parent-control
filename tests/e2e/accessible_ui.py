@@ -9608,6 +9608,14 @@ class AccessibleUI:
         # Reacquire it within the existing deadline before any launch input;
         # complete negative/ownership results still refuse immediately.
         self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
+        if not blocked:
+            # Fresh GNOME login can leave Overview owning compositor input.
+            # Prepare the desktop before the single supporting-app launch;
+            # APP02 still independently requires the usable foreground window.
+            self.prepare_launch_desktop()
+            require_active_launch_session()
+            self.invalidate_observation()
+            self.handle_system_prompt()
         # Identify this one service for failure-only journal reads. The
         # executable, session, service type and single submission stay the same.
         unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
@@ -11690,6 +11698,16 @@ def main():
                       file=sys.stderr, flush=True)
             except Exception:
                 print('ui:native-startup-diagnostic-unavailable', file=sys.stderr, flush=True)
+            try:
+                # A uniquely resolved, running fixture can remain inactive
+                # beneath Shell's overview. Reuse the bounded public desktop
+                # reads without a UI argument: no second tree, journal text,
+                # input or change to the original foreground refusal.
+                print(json.dumps({**allowance_failure_diagnostic(),
+                                  'event': 'ui-native-desktop'}, sort_keys=True),
+                      file=sys.stderr, flush=True)
+            except Exception:
+                print('ui:native-desktop-diagnostic-unavailable', file=sys.stderr, flush=True)
         if (sys.argv[1] == 'kiosk-request-form' and any(
                 item.get('source') == 'crash-report'
                 for item in getattr(error, 'system_prompts', ()) or ())):

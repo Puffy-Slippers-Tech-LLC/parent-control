@@ -6,6 +6,27 @@ import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 const catalog = JSON.parse(readFileSync(new URL(
     '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
 
+test('reminder diagnostics reject content, identities and invalid state', () => {
+    const events = {
+        'child.reminder-settings': {count: 4, fullscreen: true},
+        'child.reminder-trigger': {threshold: 60, remaining: 59, critical: true},
+        'child.reminder-presentation': {closed: false, visible: true, mapped: true,
+            fullscreen: true, critical: true, inhibited: true},
+    };
+    const privateText = 'private@example.test /home/private';
+    for (const [event, fields] of Object.entries(events)) {
+        assert.doesNotThrow(() => diagnosticEnvelope(catalog, event, fields));
+        assert.throws(() => diagnosticEnvelope(catalog, event, {...fields, text: privateText}));
+        for (const key of Object.keys(fields))
+            assert.throws(() => diagnosticEnvelope(catalog, event, {...fields, [key]: privateText}));
+    }
+    assert.throws(() => diagnosticEnvelope(catalog, 'child.reminder-settings', {count: 65, fullscreen: true}));
+    for (const remaining of [0, -1, 0x100000000, Infinity, NaN])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.reminder-trigger', {
+            threshold: 60, remaining, critical: true,
+        }));
+});
+
 test('child evidence is validated before serialization', () => {
     assert.deepEqual(JSON.parse(diagnosticEnvelope(catalog, 'child.estimate', {remaining: 14662})),
         {v: 1, event: 'child.estimate', operation: 0, fields: {remaining: 14662}});

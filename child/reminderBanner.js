@@ -6,6 +6,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {describeControl} from './accessibility.js';
+import {logInfo} from './logger.js';
 
 // Shell's tray times out noncritical banners after four seconds. Own only
 // this product's chrome and lifetime so fullscreen urgency stays independent.
@@ -57,8 +58,34 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     let tooltipChromeAdded = false;
     let chromeAdded = false;
     let timer = 0;
+    let compositionHeld = false;
+    let ready = false;
+    let monitor = null;
+    let lastPresentation = null;
+    const reportPresentation = (closed = false) => {
+        if (!ready) return;
+        const fields = {closed, visible: !closed && Boolean(card?.visible),
+            mapped: !closed && Boolean(card?.mapped), fullscreen: Boolean(monitor?.inFullscreen),
+            critical: urgency === MessageTray.Urgency.CRITICAL, inhibited: compositionHeld};
+        const state = JSON.stringify(fields);
+        if (state === lastPresentation) return;
+        lastPresentation = state;
+        logInfo('child.reminder-presentation', fields);
+    };
+    const holdComposition = visible => {
+        if (visible === compositionHeld) return;
+        // Match Shell's message tray: stacking alone does not prevent a
+        // fullscreen client from bypassing composition (direct scanout).
+        // Mutter counts these holds, so release only the one we acquired.
+        if (visible) global.compositor.disable_unredirect();
+        else global.compositor.enable_unredirect();
+        compositionHeld = visible;
+    };
     source.connect('destroy', () => {
         if (activeSource === source) activeSource = null;
+        holdComposition(false);
+        reportPresentation(true);
+        ready = false;
         if (timer) GLib.source_remove(timer);
         timer = 0;
         if (tooltip) {
@@ -78,7 +105,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         title: '', body, gicon: icon, useBodyMarkup: false, urgency,
         privacyScope: MessageTray.PrivacyScope.USER, isTransient: true});
     const assets = icon.get_file().get_parent();
-    card = new St.BoxLayout({style_class: 'screen-time-reminder', reactive: true,
+    card = new St.BoxLayout({style_class: 'screen-time-reminder', reactive: true, visible: false,
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.START});
     // Horizontal BoxLayout defaults to width-for-height. This card has a
     // monitor-bounded width and wrapped text, so measure its height at that
@@ -102,7 +129,6 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     content.add_child(countdown.actor);
     card.add_child(content);
     const actions = [];
-    let monitor = null;
     tooltip = new St.Label({style_class: 'dash-label screen-time-tooltip',
         visible: false, reactive: false});
     const syncTooltip = () => {
@@ -154,6 +180,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     button('DISMISS', 'reminder-dismiss.svg', dismiss);
     card.add_child(actionRow);
     card.connect('notify::allocation', syncTooltip);
+    card.connect('notify::mapped', () => reportPresentation());
     // Usable time keeps running even while fullscreen suppresses presentation.
     let deadline = !autoClose && totalSeconds > 0
         ? GLib.get_monotonic_time() + seconds * 1000000 : null;
@@ -178,8 +205,12 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         const {monitors, primaryMonitor} = Main.layoutManager;
         monitor = monitors[global.display.focus_window?.get_monitor()] ??
             (monitors.includes(primaryMonitor) ? primaryMonitor : monitors[0]) ?? null;
-        card.visible = Boolean(monitor) && (notification.urgency === MessageTray.Urgency.CRITICAL ||
+        urgency = notification.urgency;
+        const visible = Boolean(monitor) && (notification.urgency === MessageTray.Urgency.CRITICAL ||
             (!monitor.inFullscreen && source.policy.showBanners));
+        holdComposition(visible);
+        card.visible = visible;
+        reportPresentation();
         if (!monitor) {
             syncTooltip();
             return;
@@ -227,6 +258,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     chromeAdded = true;
     Main.layoutManager.addTopChrome(tooltip, {trackFullscreen: false});
     tooltipChromeAdded = true;
+    ready = true;
     relabel();
     if (!autoClose && deadline !== null && tick())
         timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);

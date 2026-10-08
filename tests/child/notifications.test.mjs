@@ -4,6 +4,8 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {ReminderSchedule, notificationPreferences, reminderSeconds, reminderText} from '../../child/notificationLogic.mjs';
 import {createIndicator} from './support/indicator.mjs';
+import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
+import {displayState} from '../../child/indicatorLogic.mjs';
 
 // All state is private to each test: no Shell, sockets, processes or files written.
 const reminders = [
@@ -87,8 +89,18 @@ function harness() {
         destroy() { this.notification?.destroy(); super.destroy(); }
     }
     const sources = [], errors = [], callbacks = [], cancelled = [], banners = [], chrome = [];
+    const diagnostics = [];
+    const catalog = JSON.parse(readFileSync(new URL(
+        '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url), 'utf8'));
     const timers = new Map();
     let now = 0, serial = 0, preferencesOpened = 0;
+    // One pre-existing hold belongs to another Shell feature. Our banners
+    // must balance only their own hold, including suppressed/error paths.
+    let unredirectHolds = 1;
+    const compositor = {
+        disable_unredirect() { unredirectHolds++; },
+        enable_unredirect() { assert.ok(unredirectHolds > 1); unredirectHolds--; },
+    };
     class Actor extends SignalObject {
         constructor(params = {}) {
             super({width: 100, visible: true, ...params});
@@ -151,7 +163,9 @@ function harness() {
         St: {BoxLayout: Actor, Label: Actor, Icon: Actor, Button: Actor, Widget: Actor,
             ThemeContext: {get_for_stage: () => ({scale_factor: 1})}},
         describeControl: () => {},
-        global: {stage: {}, display: new SignalObject()},
+        logInfo: (event, fields) => diagnostics.push(JSON.parse(diagnosticEnvelope(
+            catalog, event, JSON.parse(JSON.stringify(fields))))),
+        global: {stage: {}, display: new SignalObject(), compositor},
         Pango: {WrapMode: {WORD_CHAR: 2}, EllipsizeMode: {NONE: 0}},
         Main: {sessionMode, layoutManager},
         MessageTray: {Source, Notification: SignalObject, Urgency: {CRITICAL: 3, HIGH: 2}, PrivacyScope: {USER: 0}},
@@ -174,8 +188,107 @@ function harness() {
         for (const [id, callback] of [...timers]) if (!callback()) timers.delete(id);
     };
     return {notifier, sources, errors, callbacks, cancelled, banners, chrome, layers, topWindowGroup, reply, policyReply,
-        advance, timers, sessionMode, layoutManager, context, preferencesOpened: () => preferencesOpened};
+        advance, timers, sessionMode, layoutManager, context, diagnostics, preferencesOpened: () => preferencesOpened,
+        unredirectHolds: () => unredirectHolds};
 }
+
+test('visible reminders hold composition through refreshes and release only their own hold', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.update(60, true);
+    assert.equal(h.unredirectHolds(), 2);
+    for (let remaining = 59; remaining >= 56; remaining--) {
+        h.notifier.update(remaining, true);
+        for (const sync of h.notifier.current.notification.handlers['notify::body']) sync();
+        assert.equal(h.unredirectHolds(), 2);
+    }
+    h.advance(5000);
+    assert.equal(h.unredirectHolds(), 1);
+    h.notifier.schedule.previous = 15;
+    h.notifier.present(reminders[3], false);
+    h.advance(6000);
+    assert.equal(h.unredirectHolds(), 2);
+    const old = h.notifier.current;
+    h.notifier.present(reminders[3], false);
+    old.dismiss();
+    assert.equal(h.unredirectHolds(), 2);
+    h.notifier.current.dismiss();
+    assert.equal(h.unredirectHolds(), 1);
+    h.notifier.present(reminders[3], false);
+    h.notifier.close();
+    assert.equal(h.unredirectHolds(), 1);
+    assert.deepEqual(h.errors, []);
+});
+
+test('suppression, monitor loss, locking and construction errors balance composition holds', () => {
+    const h = harness();
+    const monitor = h.layoutManager.primaryMonitor;
+    monitor.inFullscreen = true;
+    h.notifier.preferences = {show_in_fullscreen: false, reminders};
+    h.notifier.present(reminders[2], false);
+    assert.equal(h.unredirectHolds(), 1);
+    const sync = () => h.context.global.display.handlers['in-fullscreen-changed'].forEach(fn => fn());
+    monitor.inFullscreen = false;
+    sync();
+    assert.equal(h.unredirectHolds(), 2);
+    monitor.inFullscreen = true;
+    sync();
+    assert.equal(h.unredirectHolds(), 1);
+    monitor.inFullscreen = false;
+    sync();
+    assert.equal(h.unredirectHolds(), 2);
+    h.layoutManager.monitors = [];
+    sync();
+    assert.equal(h.unredirectHolds(), 1);
+    h.layoutManager.monitors = [monitor];
+    sync();
+    assert.equal(h.unredirectHolds(), 2);
+    h.sessionMode.isLocked = true;
+    sync();
+    assert.equal(h.unredirectHolds(), 1);
+    assert.equal(h.notifier.current, null);
+
+    const failed = harness();
+    failed.notifier.preferences = {show_in_fullscreen: true, reminders};
+    failed.context.GLib.get_monotonic_time = () => { throw new Error('clock fixture failure'); };
+    failed.notifier.update(60, true);
+    assert.equal(failed.errors.length, 1);
+    assert.equal(failed.unredirectHolds(), 1);
+    assert.equal(failed.chrome.length, 0);
+    assert.equal(failed.timers.size, 0);
+});
+
+test('reminder diagnostics distinguish triggering, suppression, mapping and disposal without content', () => {
+    const h = harness();
+    const privateText = 'private@example.test /home/private';
+    h.notifier.refresh();
+    h.reply({show_in_fullscreen: false, reminders: [{...reminders[2], text: privateText}]});
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.update(61, true);
+    h.notifier.update(60, true);
+    assert.deepEqual(h.diagnostics.map(item => item.event), [
+        'child.reminder-settings', 'child.reminder-trigger', 'child.reminder-presentation']);
+    assert.deepEqual(h.diagnostics[1].fields, {threshold: 60, remaining: 60, critical: false});
+    assert.deepEqual(h.diagnostics.at(-1).fields, {closed: false, visible: false,
+        mapped: false, fullscreen: true, critical: false, inhibited: false});
+    h.notifier.refresh();
+    h.reply({show_in_fullscreen: true, reminders: [{...reminders[2], text: privateText}]});
+    const current = h.notifier.current;
+    current.notification.handlers['notify::urgency'].forEach(fn => fn());
+    current.card.mapped = true;
+    current.card.handlers['notify::mapped'].forEach(fn => fn());
+    assert.deepEqual(h.diagnostics.at(-1).fields, {closed: false, visible: true,
+        mapped: true, fullscreen: true, critical: true, inhibited: true});
+    const count = h.diagnostics.length;
+    for (let i = 0; i < 20; i++) current.notification.handlers['notify::body'].forEach(fn => fn());
+    assert.equal(h.diagnostics.length, count, 'unchanged state does not log per-tick history');
+    current.dismiss();
+    assert.deepEqual(h.diagnostics.at(-1).fields, {closed: true, visible: false,
+        mapped: false, fullscreen: true, critical: true, inhibited: false});
+    assert(!JSON.stringify(h.diagnostics).includes(privateText));
+    assert(!JSON.stringify(h.diagnostics).includes('one'));
+});
 
 test('production notification uses Shell urgency, logo, literal text and owned replacement/cleanup', () => {
     const h = harness();
@@ -731,4 +844,48 @@ test('production indicator schedules custom thresholds and still locks at zero',
     indicator._expiryDiagnostic = 'loaded=true limitEnabled=true locked=false greeter=false pending=undefined';
     indicator._sync();
     assert.deepEqual(updates, [[90, true], [0, false], 'lock']);
+});
+
+test('real countdown controller delivers both final reminders while the game hides the panel', () => {
+    const h = harness();
+    let now = 0;
+    let locked = false;
+    const delays = [];
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    const indicator = createIndicator({displayState, logInfo() {},
+        Main: {sessionMode: h.sessionMode,
+            timeLimitsManager: {getCurrentTime: () => now, dailyLimitEnabled: true}}});
+    Object.assign(indicator, {_statusLoaded: true, _activeExtensionEnd: 0,
+        _calculatedEnd: 163, _notifications: h.notifier, _preview: false,
+        container: {mapped: false}, _prepareSession() {}, _setShown() {}, _updateLabel() {},
+        _schedule: delay => delays.push(delay), _clearTimeout() {}, _stopRequestIconSpin() {},
+        _lockSession() { locked = true; }});
+    indicator._sync();
+    assert.equal(h.notifier.current, null);
+    assert.equal(delays.at(-1), 43);
+    now = 43;
+    indicator._sync();
+    assert.equal(delays.at(-1), 60);
+    now = 103;
+    indicator._sync();
+    assert.equal(h.notifier.current.notification.body, '1 minute left');
+    assert.equal(h.notifier.current.card.visible, true);
+    assert.equal(h.unredirectHolds(), 2);
+    h.advance(5000);
+    assert.equal(h.notifier.current, null);
+    now = 147;
+    indicator._sync();
+    now = 148;
+    indicator._sync();
+    h.policyReply(true);
+    assert.equal(h.notifier.current.notification.body, '15 seconds left, save your games!');
+    assert.equal(h.notifier.current.card.visible, true);
+    assert.equal(h.unredirectHolds(), 2);
+    now = 163;
+    indicator._sync();
+    assert.equal(locked, true);
+    assert.equal(h.notifier.current, null);
+    assert.equal(h.unredirectHolds(), 1);
+    assert.deepEqual(h.errors, []);
 });

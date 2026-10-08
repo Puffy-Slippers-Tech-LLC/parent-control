@@ -41,6 +41,8 @@ display and focus changes reposition the current banner without restarting its
 deadline. Banner and tooltip chrome sit above application window groups.
 Its notification model is not registered with Shell's message tray. The public
 top-chrome layer also sits above override-redirect fullscreen windows.
+Visible banners also temporarily inhibit compositor bypass through Mutter's
+public API; their visibility and disposal lifecycle balances that owned hold.
 Notifications use the product logo, user privacy scope, plain text and transient
 lifetime. A later reminder replaces the previous product notification so an
 undismissed critical banner cannot obstruct later reminders. Default content

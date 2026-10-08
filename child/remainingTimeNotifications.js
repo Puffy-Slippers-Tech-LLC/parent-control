@@ -3,6 +3,7 @@ import GLib from 'gi://GLib';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {ReminderSchedule, notificationPreferences, reminderSeconds, reminderText} from './notificationLogic.mjs';
 import {showReminderBanner} from './reminderBanner.js';
+import {logInfo} from './logger.js';
 
 const BUS = 'com.puffyslippers.OhNoParentControl1';
 
@@ -47,6 +48,8 @@ export class RemainingTimeNotifications {
                     this.schedule.delivered = new Set([...this.schedule.delivered]
                         .filter(id => unchanged.has(id)));
                     this.preferences = preferences;
+                    logInfo('child.reminder-settings', {count: preferences.reminders.length,
+                        fullscreen: preferences.show_in_fullscreen});
                     if (this.deliveryReminder && !preferences.reminders.some(reminder =>
                         JSON.stringify(reminder) === JSON.stringify(this.deliveryReminder)))
                         this.clear();
@@ -112,6 +115,9 @@ export class RemainingTimeNotifications {
 
     show(reminder) {
         this.clear();
+        logInfo('child.reminder-trigger', {threshold: reminderSeconds(reminder),
+            remaining: this.schedule.previous,
+            critical: this.preferences.show_in_fullscreen});
         if (reminderSeconds(reminder) >= 60 || reminder.text.trim()) {
             this.present(reminder, false);
             return;

@@ -196,6 +196,18 @@ or portal change is required.
 
 ### Investigation coverage
 
+Reminder diagnostics separate loaded configuration, threshold crossing and
+banner actor state. `child.reminder-settings` records only list count and the
+fullscreen boolean; `child.reminder-trigger` records duration operands and
+critical urgency. `child.reminder-presentation` records changes to the owned
+actor's visible/mapped flags, selected monitor's fullscreen flag, urgency,
+compositor-inhibition ownership and disposal. Repeated unchanged state is not
+logged. These are lifecycle observations, not proof that a physical monitor
+displayed the banner. No reminder IDs, custom text, application/window identity,
+monitor identifiers or screen contents enter the events. The additive catalogue
+must ship with the child and broker validators; broker restart and child session
+renewal load it. Older reports cannot reconstruct missing reminder events.
+
 While the shared product reboot detector finds an installation or upgrade
 request (see [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle)), the broker starts in
 diagnostics-only mode. The existing role checks still authorize `LogEvent` and

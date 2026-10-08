@@ -502,6 +502,14 @@ uses the selected monitor. Focus, window-monitor and display changes reposition
 the current banner without restarting its deadline or taking application focus.
 The public `addTopChrome` layer also sits above Mutter's override-redirect
 window group; `trackFullscreen` controls hiding rather than stacking.
+While the card is visible, the renderer also holds Mutter's public
+`disable_unredirect()` inhibition, matching
+[GNOME Shell's message tray](https://raw.githubusercontent.com/GNOME/gnome-shell/50.1/js/ui/messageTray.js).
+Top chrome alone does not prevent fullscreen direct scanout from bypassing
+composition. Repeated updates retain one hold; hiding, monitor loss, dismissal,
+replacement, locking and construction failure release only that banner's hold
+with `enable_unredirect()`. Suppressed banners acquire no hold. No application
+focus or fullscreen state is changed.
 The renderer attaches both actors before measuring themed controls.
 An unlocked visible delivery at 60 seconds or more starts a five-second
 monotonic deadline and five-segment countdown. Shorter positive deliveries use

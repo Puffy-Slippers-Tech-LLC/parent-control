@@ -381,8 +381,8 @@ def test_child_overlay_uses_fixed_child_identity(launch_ui, request_ui,
 
 @pytest.mark.parametrize("overlay, scenario, expected", (
     (False, "denied", "Request denied"), (True, "denied", "Request denied"),
-    (False, "cancelled", "Estimated time remaining if approved: 1h 17m"),
-    (True, "cancelled", "Estimated time remaining if approved: 1h 17m"),
+    (False, "cancelled", "Estimated remaining time: 1h 17m"),
+    (True, "cancelled", "Estimated remaining time: 1h 17m"),
 ))
 def test_outcomes_are_actionable_and_redacted(launch_ui, request_ui,
                                               wait_for_accessible_state, tmp_path,
@@ -514,17 +514,17 @@ def test_footer_estimate_tracks_requested_duration(
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay)
     status(request_ui, wait_for_accessible_state,
-           "Estimated time remaining if approved: 1h 17m")
+           "Estimated remaining time: 1h 17m")
     request_ui.activate("kiosk-duration-300")
     status(request_ui, wait_for_accessible_state,
-           "Estimated time remaining if approved: 52m")
+           "Estimated remaining time: 52m")
     assert calls(path, "GetTimeStatus")[-1]["values"] == [1001, 300]
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 @pytest.mark.parametrize("scenario, expected", (
     ("rest-of-day", "If approved, access until midnight."),
-    ("two-hours-grant-only", "Estimated time remaining if approved: 2h"),
+    ("two-hours-grant-only", "Estimated remaining time: 2h"),
     ("estimate-unavailable", "Time estimate unavailable"),
 ))
 def test_footer_special_cases_keep_requests_available(
@@ -552,10 +552,10 @@ def test_footer_estimate_changes_with_selected_child(
     path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                         overlay=False)
     status(ui, wait_for_accessible_state,
-           "Estimated time remaining if approved: 1h 17m")
+           "Estimated remaining time: 1h 17m")
     ui.setValue("kiosk-child-selector", "1002")
     status(ui, wait_for_accessible_state,
-           "Estimated time remaining if approved: 45m")
+           "Estimated remaining time: 45m")
     assert calls(path, "GetTimeStatus")[-1]["values"] == [1002, 1800]
 
 
@@ -566,11 +566,11 @@ def test_footer_estimate_tracks_custom_edits_and_preserves_validation(
     open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
                  overlay=overlay, scenario="remembered")
     status(ui, wait_for_accessible_state,
-           "Estimated time remaining if approved: 49m 30s")
+           "Estimated remaining time: 49m 30s")
     for value, expected in (
-        ("0.5", "Estimated time remaining if approved: 47m 30s"),
+        ("0.5", "Estimated remaining time: 47m 30s"),
         ("0.09", "Enter a number from 0.1 to 1440 minutes."),
-        ("5", "Estimated time remaining if approved: 52m"),
+        ("5", "Estimated remaining time: 52m"),
     ):
         ui.setText("kiosk-custom-duration", value)
         status(ui, wait_for_accessible_state, expected)

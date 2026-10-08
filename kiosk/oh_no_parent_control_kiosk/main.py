@@ -915,7 +915,7 @@ def configure_logging(preview=False, component="kiosk"):
 
 
 def _time_estimate_label(seconds):
-    return m.ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S % {'format_duration_seconds': format_duration(seconds)}
+    return m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {'format_duration_seconds': format_duration(seconds)}
 
 
 class RequestWindow(Adw.ApplicationWindow):

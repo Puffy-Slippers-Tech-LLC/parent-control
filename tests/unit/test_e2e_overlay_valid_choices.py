@@ -74,7 +74,7 @@ def overlay(monkeypatch):
     child = ui.find_id('kiosk-child-selector')
     child.states.discard('sensitive')
     child.value = '1001'
-    status = Node('Estimated time remaining if approved: 45m', identity='kiosk-request-status')
+    status = Node('Estimated remaining time: 45m', identity='kiosk-request-status')
     custom = Node(identity='kiosk-custom-duration', states=('visible', 'sensitive', 'editable'))
     custom.value = '1.25'
     custom.get_text_iface = lambda: SimpleNamespace(
@@ -94,8 +94,8 @@ def overlay(monkeypatch):
             if value == 'custom': custom.states.add('showing')
             else: custom.states.discard('showing')
             status.name = ('If approved, access until midnight.' if value == 0 else
-                'Estimated time remaining if approved: 16m 15s' if value == 'custom' else
-                'Estimated time remaining if approved: 20m')
+                'Estimated remaining time: 16m 15s' if value == 'custom' else
+                'Estimated remaining time: 20m')
             return True
         target.action.do_action.side_effect = select
     soft = ui.find_id('kiosk-soft-apps-toggle')

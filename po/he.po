@@ -629,11 +629,11 @@ msgstr "זמן הוענק"
 msgid "Time granted, Close"
 msgstr "זמן הוענק, סגירה"
 
-#. Shared message: ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S
+#. Shared message: ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
 #, python-format
-msgid "Estimated time remaining if approved: %(format_duration_seconds)s"
-msgstr "יתרת הזמן המשוערת אם הבקשה תאושר: %(format_duration_seconds)s"
+msgid "Estimated remaining time: %(format_duration_seconds)s"
+msgstr "יתרת הזמן המשוערת: %(format_duration_seconds)s"
 
 #. Shared message: REVIEW_AN_ERROR_REPORT_BEFORE_CLOSING_OR_RETURNING_TO_LOGIN
 msgid "Review an error report before closing or returning to login."

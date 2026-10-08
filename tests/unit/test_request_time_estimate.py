@@ -327,7 +327,7 @@ def test_old_child_reply_is_discarded_and_latest_selection_is_fetched(error):
     assert window._bus_call.call_args.args[1].unpack() == (1002, 600)
     reply(window, seconds=1800)
     window._request_content.set_time_estimate.assert_called_once_with(
-        "Estimated time remaining if approved: 30m",
+        "Estimated remaining time: 30m",
     )
 
 
@@ -339,7 +339,7 @@ def test_periodic_refresh_updates_estimate_and_recovers_after_failure():
     window._refresh_time_estimate()
     reply(window, seconds=1190)
     window._request_content.set_time_estimate.assert_called_with(
-        "Estimated time remaining if approved: 19m 50s",
+        "Estimated remaining time: 19m 50s",
     )
 
 
@@ -391,7 +391,7 @@ def test_estimate_diagnostics_retain_operands_but_exclude_stale_replies_and_iden
     ({"_screen_time_limit_enabled": None}, "Loading request details…"),
     ({"_accounts_loaded": False}, "Loading accounts…"),
     ({"_screen_time_limit_enabled": False}, "Screen limit is not enabled in Parent App"),
-    ({}, "Estimated time remaining if approved: 35m"),
+    ({}, "Estimated remaining time: 35m"),
 ))
 def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expected):
     form = bind_methods(SimpleNamespace(
@@ -403,7 +403,7 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
     ), RequestContent, ("set_time_estimate", "_update_status"))
     for key, value in state.items():
         setattr(form, key, value)
-    form.set_time_estimate("Estimated time remaining if approved: 35m")
+    form.set_time_estimate("Estimated remaining time: 35m")
     form._status.set_label.assert_called_once_with(expected)
 
 
@@ -415,7 +415,7 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
 ))
 def test_shared_duration_format_preserves_precision_and_omits_zero_minutes(seconds, expected):
     assert format_duration(seconds) == expected
-    assert _time_estimate_label(seconds) == f"Estimated time remaining if approved: {expected}"
+    assert _time_estimate_label(seconds) == f"Estimated remaining time: {expected}"
 
 
 def test_pending_estimate_keeps_label_with_blank_value_until_result():
@@ -427,12 +427,12 @@ def test_pending_estimate_keeps_label_with_blank_value_until_result():
         _status=Mock(),
     ), RequestContent, ("set_time_estimate", "_update_status"))
     form.set_time_estimate(None)
-    form._status.set_label.assert_called_with("Estimated time remaining if approved: ")
+    form._status.set_label.assert_called_with("Estimated remaining time: ")
     form.set_time_estimate(None)
-    form._status.set_label.assert_called_with("Estimated time remaining if approved: ")
+    form._status.set_label.assert_called_with("Estimated remaining time: ")
     form.set_time_estimate(_time_estimate_label(4620))
-    form._status.set_label.assert_called_with("Estimated time remaining if approved: 1h 17m")
-    assert all(call.args[0].startswith("Estimated time remaining if approved: ")
+    form._status.set_label.assert_called_with("Estimated remaining time: 1h 17m")
+    assert all(call.args[0].startswith("Estimated remaining time: ")
                for call in form._status.set_label.call_args_list)
 
 

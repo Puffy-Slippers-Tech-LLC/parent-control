@@ -197,7 +197,7 @@ def test_nondefault_chinese_request_uses_public_identity_and_translation():
     custom.get_text_iface = lambda: SimpleNamespace(value='1.25')
     ui.api.Text = SimpleNamespace(get_character_count=lambda text: len(text.value),
                                   get_text=lambda text, a, b: text.value[a:b])
-    status = Node('获批后预计可用时间：1分钟 15秒', 'label', identity='kiosk-request-status')
+    status = Node('预计剩余时间：1分钟 15秒', 'label', identity='kiosk-request-status')
     for node in (custom, status): node.parent = form; form.children.append(node)
     soft = ui.find_id('kiosk-soft-apps-toggle')
     soft.action.do_action.side_effect = lambda _: soft.states.add('checked') or True

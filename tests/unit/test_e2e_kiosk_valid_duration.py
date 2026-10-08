@@ -281,7 +281,7 @@ def valid_form():
     selector.setValue('1000')
     selector.setValue.reset_mock()
     form = ui.find_id('kiosk-request-form')
-    status = Node('Estimated time remaining if approved: 45m', 'label', identity='kiosk-request-status')
+    status = Node('Estimated remaining time: 45m', 'label', identity='kiosk-request-status')
     custom = Node('Custom minutes', 'entry', identity='kiosk-custom-duration', states=('visible', 'sensitive', 'editable'))
     custom.value = '1.25'
     custom.get_text_iface = lambda: SimpleNamespace(
@@ -300,11 +300,11 @@ def valid_form():
             ui.find_id(f'kiosk-duration-{value}').states.add('pressed')
             if value == 'custom':
                 custom.states.add('showing')
-                status.name = 'Estimated time remaining if approved: 16m 15s'
+                status.name = 'Estimated remaining time: 16m 15s'
             else:
                 custom.states.discard('showing')
                 status.name = ('If approved, access until midnight.' if value == 0 else
-                               'Estimated time remaining if approved: 20m')
+                               'Estimated remaining time: 20m')
             return True
         node.action.do_action.side_effect = select
     soft = ui.find_id('kiosk-soft-apps-toggle')
@@ -1182,7 +1182,7 @@ def test_multiple_cancel_waits_for_refresh_without_accepting_errors_or_replaying
         assert submit.action.do_action.call_count == cancel.action.do_action.call_count == 1
         status.name = {'unavailable': 'Time estimate unavailable',
                        'denied': 'Request denied', 'other': 'Unexpected result'}.get(
-            outcome, 'Estimated time remaining if approved: 30m')
+            outcome, 'Estimated remaining time: 30m')
         if outcome == 'changed-form':
             ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
 

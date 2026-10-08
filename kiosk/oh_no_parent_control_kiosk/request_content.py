@@ -742,7 +742,7 @@ class RequestContent(MetalBoard):
             else:
                 message = self._time_estimate
         if message is None:
-            message = m.ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S % {
+            message = m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {
                 'format_duration_seconds': '',
             }
         set_text(self._status, 'label', message)

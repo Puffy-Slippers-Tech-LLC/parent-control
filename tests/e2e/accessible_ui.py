@@ -8568,7 +8568,7 @@ class AccessibleUI:
             if seconds == 0:
                 require(message == 'If approved, access until midnight.', 'ui:kiosk-rest-estimate')
                 return {'kind': 'midnight'}
-            prefix = '获批后预计可用时间：' if chinese else 'Estimated time remaining if approved: '
+            prefix = '预计剩余时间：' if chinese else 'Estimated remaining time: '
             require(message.startswith(prefix), 'ui:kiosk-estimate:request-denied'
                     if message == 'Request denied' else 'ui:kiosk-estimate')
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}
@@ -9284,7 +9284,7 @@ class AccessibleUI:
 
         def estimate_kind(message):
             return ('missing' if message is None else
-                    'estimated' if message.startswith('Estimated time remaining if approved: ') else
+                    'estimated' if message.startswith('Estimated remaining time: ') else
                     'calculating' if message == 'Calculating time estimate…' else
                     'waiting' if message == 'Waiting for approval…' else
                     'unavailable' if message == 'Time estimate unavailable' else

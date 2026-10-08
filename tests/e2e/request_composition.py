@@ -45,10 +45,10 @@ class KioskRequestJourney(InstalledJourney):
             require(before in self.countdown_baselines, 'countdown:missing-estimate')
             require(stage not in self.countdowns, 'countdown:comparison-replay')
             estimated, timestamp = self.countdown_baselines[before]
-            require(estimated == seconds, 'countdown:expected-estimate')
+            require(seconds == 'estimate' or estimated == seconds, 'countdown:expected-estimate')
             current = CountdownObservation.from_value(observed['ui']['countdown'], present=True)
             comparison = check_countdown_balance(current,
-                seconds=seconds, precision_seconds=precision,
+                seconds=estimated, precision_seconds=precision,
                 observed_monotonic_ns=timestamp, max_elapsed_seconds=elapsed)
             observed.setdefault('comparison', {}).update(comparison)
             self.countdowns[stage] = current

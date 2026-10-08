@@ -1260,7 +1260,7 @@ snapshot freshness, provenance and ownership guards.
 `overlay_approved_exit.IMMEDIATE_PLAN`, `FLOW_REJECTION_PLAN` and
 `FLOW_CANCEL_PLAN` / `OverlayApprovedExitJourney` passed
 `check_e2e_overlay_approval` on every selected VM (Ubuntu 26.04) in
-[`20261008T192839Z-50210847`](../../output/test-runs/host/exports/onpc-artifact-export-2s0pusx3/report.md).
+`20261008T192839Z-50210847` (its exported report has since rotated).
 Three fresh attempts publicly prepared the 900-second allowance and child
 desktop with an immutable native-app activity, then declared Riley/Jamie,
 75 seconds and included soft apps. The Shell tuple was `50.1-0ubuntu1.3`,
@@ -1274,6 +1274,16 @@ child-owned success result and activate its offered public action once, after
 independent prompt absence. Both branches then require overlay disappearance,
 the child desktop and the exact original usable window, draft and activity through
 `JourneyPlan.activity_checks` / `InstalledJourney.check_activity`.
+
+Complete case 46 now composes this immediate binding with the shared native
+activity entry/resume operations and TIME01 in `overlay_approved.PLAN` /
+`onpc_kiosk_cancel::run(exchange, 'overlay-approved', ...)`. Its
+`KioskRequestJourney` countdown comparison uses an immutable public estimate
+already bounded by the earlier daily/no-grant balance, elapsed child usage and
+requested addition. The numeric kiosk binding remains exact. This consumer
+passed on the selected Ubuntu 26.04 VM; the [completed task row](E2E-Task-Queue.md#ordered-task-queue)
+retains its acceptance and affected exit/countdown regression reports. It
+qualifies no additional request choice, provider tuple or scenario.
 
 `request_flow.overlay_rejected_request(outcome='rejection'|'cancel')` and
 `onpc_request_flow::overlay_reject` compose FLOW07, leaving the form open after
@@ -1293,11 +1303,11 @@ missing-desktop, denied and uncertain-operation refusals. This repaired the
 observer's abort after explicit approval while the child window was closing.
 
 Required regressions passed: overlay automatic approval/activity return in
-[`20261008T194256Z-987c8208`](../../output/test-runs/host/exports/onpc-artifact-export-rib61duq/report.md),
+`20261008T194256Z-987c8208` (its exported report has since rotated),
 independent overlay rejection and password-free Cancel in
-[`20261008T194714Z-14858d96`](../../output/test-runs/host/exports/onpc-artifact-export-a4_yo871/report.md),
+`20261008T194714Z-14858d96` (its exported report has since rotated),
 and kiosk approval through the shared success reader in
-[`20261008T195522Z-2e720591`](../../output/test-runs/host/reports/20261008T195522Z-2e720591/report.md).
+`20261008T195522Z-2e720591` (its aggregate report has since rotated).
 All attempts passed sealed capture reconciliation, collection, worker shutdown,
 callback closure, owned cleanup, baseline restoration, finalization and
 host/source preservation. Affected host guards and source validation passed in

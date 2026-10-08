@@ -14,6 +14,7 @@ import installed_journey
 from installed_journey import matched_screens
 from native_fixtures import fixture_actions
 from overlay_cancel import PLAN, ESCAPE_PLAN, execute, execute_escape
+from overlay_approved import PLAN as APPROVED_PLAN, execute as execute_approved
 from private_artifacts import EvidenceError
 from request_composition import KioskRequestJourney
 from tests.support.perl import run_perl
@@ -87,8 +88,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         'independent-consumer-' + stage for stage in stages]
 
 
-@pytest.mark.parametrize('plan,callback', [(PLAN, execute), (ESCAPE_PLAN, execute_escape)],
-                         ids=['cancel', 'escape'])
+@pytest.mark.parametrize('plan,callback', [(PLAN, execute), (ESCAPE_PLAN, execute_escape),
+                                         (APPROVED_PLAN, execute_approved)],
+                         ids=['cancel', 'escape', 'approved'])
 def test_real_case_recorder_startup_uses_shared_journey_and_verify_only(monkeypatch, tmp_path, plan, callback):
     recorder = MagicMock(assertion=Mock())
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
@@ -97,10 +99,12 @@ def test_real_case_recorder_startup_uses_shared_journey_and_verify_only(monkeypa
         journey = kwargs['guarded_observe'].__self__
         assert type(journey) is KioskRequestJourney and journey.plan is plan
         assert set(journey.actions) == {'native-verify'}
-        journey.progress('open-estimate', {'stage': 'open-estimate'})
+        advance = next(iter(plan.advance_after))
+        journey.progress(advance, {'stage': advance})
         assert recorder.step.call_args.args == ('step-2',)
         recorder.assertion.assert_not_called()
-        journey.progress('resumed-submitted', {'stage': 'resumed-submitted'})
+        result = next(iter(plan.assertions_after))
+        journey.progress(result, {'stage': result})
         assert recorder.assertion.call_args.args == ('visible-result',)
         return dict(shutdown_verified=True, worker_stopped=True,
                     callback_closed=True, outcome='passed')
@@ -136,7 +140,7 @@ def test_shared_fixture_action_selection_preserves_verification_owner(monkeypatc
 
 @pytest.mark.parametrize('fault', [None, 'window', 'draft', 'missing', 'replay', 'mutated-capture'])
 @pytest.mark.parametrize('stage', ['activity-returned', 'resumed-opened'])
-@pytest.mark.parametrize('plan', [PLAN, ESCAPE_PLAN], ids=['cancel', 'escape'])
+@pytest.mark.parametrize('plan', [PLAN, ESCAPE_PLAN, APPROVED_PLAN], ids=['cancel', 'escape', 'approved'])
 def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault, stage, plan):
     journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
                                   actions=fixture_actions(include_refusal=False))
@@ -167,10 +171,12 @@ def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault, s
 
 
 @pytest.mark.parametrize('plan,exit,fault', [
-    (plan, exit, fault) for plan, exit in ((PLAN, 'overlay'), (ESCAPE_PLAN, 'overlay-escape'))
+    (plan, exit, fault) for plan, exit in ((PLAN, 'overlay'), (ESCAPE_PLAN, 'overlay-escape'),
+                                       (APPROVED_PLAN, 'overlay-approved'))
     for fault in ('', *plan.screen_tags)
 ], ids=[exit + '-' + (fault or 'success')
-        for plan, exit in ((PLAN, 'overlay'), (ESCAPE_PLAN, 'overlay-escape'))
+        for plan, exit in ((PLAN, 'overlay'), (ESCAPE_PLAN, 'overlay-escape'),
+                           (APPROVED_PLAN, 'overlay-approved'))
         for fault in ('', *plan.screen_tags)])
 def test_actual_worker_order_titles_and_every_stage_failure_stop(tmp_path, plan, exit, fault):
     result = json.loads(run_perl(r'''
@@ -191,7 +197,9 @@ no warnings 'redefine';
 *onpc_journey::finish = sub { push @events, ['finish'] };
 my $ok = eval {
     onpc_kiosk_cancel::run(sub {
-        my ($stage) = @_; push @events, ['seen', $stage]; die 'refused' if $stage eq $fault;
+        my ($stage, $shot, $input) = @_; push @events, ['seen', $stage]; die 'refused' if $stage eq $fault;
+        $input->({stage => $stage, token => 'a' x 32, source => 'a' x 64,
+                  child => 'child', binding => 'overlay-approve', values => ['ret']}) if $input;
         my $reply = {observed => $stage, ($stage =~ /(?:greeter|picker-opened)$/ ? (ui_focused => JSON::PP::true) : ())};
         for my $id (keys %$challenges) {
             my ($role, $first, $second) = @{$challenges->{$id}};
@@ -227,9 +235,13 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
         assert stages.count('cancel') == (exit == 'overlay')
         assert stages.index('activity-returned') < stages.index('resumed-submit')
-        assert sum(event[0] == 'password' for event in result['events']) == 2
+        assert sum(event[0] == 'password' for event in result['events']) == (3 if exit == 'overlay-approved' else 2)
         assert not any(event[0] == 'text' for event in result['events'])
         assert ['key', 'esc'] not in result['events']
+        if exit == 'overlay-approved':
+            assert stages.count('approval-success') == 1
+            assert plan.screen_tags['approval-success'] == 'ui:overlay-approval-immediate'
+            assert stages.index('resumed-submitted') < stages.index('countdown') < stages.index('activity-close')
         if exit == 'overlay-escape':
             ready = result['events'].index(['seen', 'escape-ready'])
             returned = result['events'].index(['seen', 'escape-returned'])

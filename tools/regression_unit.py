@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Case 46 extends e2e_overlay_cancel and e2e_kiosk_valid_duration with private
+recorder/transport values, pytest-owned evidence and bounded waited Perl workers.
+No live VM, display, bus, socket, shared cache or new cleanup owner; both retain
+their existing compatible unit classification. Neither enters the cleanup inventory.
+
 Unrelated-package qualification and shared comparisons extend package_authority/package_install cleanup
 modules with process-local package/metadata doubles, private recorder/marker
 files and bounded waited Perl/isolated Python children. No live package manager,

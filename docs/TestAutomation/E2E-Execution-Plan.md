@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **060 — [E2E-015: child-overlay-approved](E2E-Tasks/060-case-46.md)**.
+Next task: **042a — [Lock a desktop and observe its challenge surface](E2E-Tasks/042a-lock-surface.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

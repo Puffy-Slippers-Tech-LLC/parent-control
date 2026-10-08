@@ -569,6 +569,16 @@ absence. The caller still compares the original usable activity. These helpers
 add no storage, process or cleanup owner; existing private unit/cleanup resource
 classifications remain applicable. Installed qualification is tracked in the
 [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#overlay-approval-and-automatic-return-qualification).
+Case 46 composes that same immediate approval with the existing native activity
+entry/resume worker and `KioskRequestJourney` countdown comparison. Overlay
+countdown plans may use the finite `estimate` binding: the captured public
+estimate is independently bounded against the earlier Parent balance and elapsed
+time before comparison. Kiosk plans retain their explicit numeric expectation.
+Host regressions exercise immutable capture, stale/missing/replayed results,
+refusal before durable reply and complete worker titles/failure stops. These
+extend existing private pytest fixtures and bounded waited Perl children without
+new storage, process, display or cleanup ownership; both existing unit modules
+retain compatible scheduling classifications.
 
 E2E declaration fragments and worker execution have matching shared owners:
 `journey_blocks.parent_reopen` / `onpc_lifecycle::reopen` for LIFE01,

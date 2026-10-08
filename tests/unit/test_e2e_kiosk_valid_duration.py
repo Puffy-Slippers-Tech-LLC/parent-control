@@ -1521,17 +1521,20 @@ def test_approved_case_complete_worker_order_and_failure_stops(monkeypatch, refu
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'changed', 'stale', 'late',
                                   'capture-replay', 'result-replay', 'aliased'])
-def test_shared_approved_countdown_with_renamed_endpoints_and_immutable_capture(tmp_path, fault):
+@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
+def test_shared_approved_countdown_with_renamed_endpoints_and_immutable_capture(tmp_path, fault, surface):
     from installed_journey import JourneyPlan
     plan = JourneyPlan(prefix='independent-approved', worker_mode='fixture', phases={},
-        screen_tags={'estimate': 'ui:kiosk-valid-fraction-soft-read',
+        screen_tags={'estimate': 'ui:' + surface + '-valid-fraction-soft-read',
                      'result': 'ui:child-countdown-present'},
-        countdown_checks={'result': ('estimate', 975, 1, 180)})
+        countdown_checks={'result': ('estimate', 975 if surface == 'kiosk' else 'estimate', 1, 180)})
     journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
     journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
         'one_time': {'seconds': 0, 'precision_seconds': 1}, 'observed_monotonic_ns': 1_000_000_000}
-    choice = {'request': dict(CHOICES), 'estimate': {'kind': 'fixed', 'seconds': 975},
-              'observed_monotonic_ns': 2_000_000_000}
+    timestamp = 2_000_000_000 if surface == 'kiosk' else 62_000_000_000
+    choice = {'request': dict(CHOICES, surface=surface),
+              'estimate': {'kind': 'fixed', 'seconds': 975 if surface == 'kiosk' else 915},
+              'observed_monotonic_ns': timestamp}
     if fault != 'missing':
         journey.check_settings('estimate', {'ui': {'valid_choice': choice}})
     if fault == 'capture-replay':
@@ -1542,10 +1545,11 @@ def test_shared_approved_countdown_with_renamed_endpoints_and_immutable_capture(
         choice['estimate']['seconds'] = 0
         choice['observed_monotonic_ns'] = 999_000_000_000
     countdown = {'child': 'fixture-child', 'surface': 'desktop', 'present': True,
-                 'text': '00:16', 'observed_monotonic_ns': 12_000_000_000, 'stable_ms': 0}
+                 'text': '00:16' if surface == 'kiosk' else '00:15',
+                 'observed_monotonic_ns': timestamp + 10_000_000_000, 'stable_ms': 0}
     if fault == 'changed': countdown['text'] = '00:14'
-    if fault == 'stale': countdown['observed_monotonic_ns'] = 2_000_000_000
-    if fault == 'late': countdown['observed_monotonic_ns'] = 183_000_000_000
+    if fault == 'stale': countdown['observed_monotonic_ns'] = timestamp
+    if fault == 'late': countdown['observed_monotonic_ns'] = timestamp + 181_000_000_000
     observed = {'ui': {'countdown': countdown}}
     if fault in ('missing', 'changed', 'stale', 'late'):
         with pytest.raises(EvidenceError, match='countdown:'):
@@ -1555,32 +1559,34 @@ def test_shared_approved_countdown_with_renamed_endpoints_and_immutable_capture(
         journey.check_settings('result', observed)
         assert observed['comparison']['elapsed_seconds'] == 10
         countdown['text'] = 'changed'
-        assert journey.countdowns['result'].text == '00:16'
+        assert journey.countdowns['result'].text == ('00:16' if surface == 'kiosk' else '00:15')
         if fault == 'result-replay':
             with pytest.raises(EvidenceError, match='comparison-replay'):
                 journey.check_settings('result', observed)
 
 
 @pytest.mark.parametrize('fault', [None, 'countdown', 'request'])
-def test_approved_countdown_comparison_through_real_step_precedes_durable_reply(tmp_path, fault):
+@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
+def test_approved_countdown_comparison_through_real_step_precedes_durable_reply(tmp_path, fault, surface):
     from installed_journey import JourneyPlan
     plan = JourneyPlan(prefix='independent-approved', worker_mode='fixture', phases={},
-        screen_tags={'estimate': 'ui:kiosk-valid-fraction-soft-read',
+        screen_tags={'estimate': 'ui:' + surface + '-valid-fraction-soft-read',
                      'result': 'ui:child-countdown-present'},
-        countdown_checks={'result': ('estimate', 975, 1, 180)})
+        countdown_checks={'result': ('estimate', 975 if surface == 'kiosk' else 'estimate', 1, 180)})
     progress = Mock()
     journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), progress, plan)
     journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
     journey.boot = 'a' * 64
     journey.balance = {'daily': {'seconds': 900, 'precision_seconds': 1},
         'one_time': {'seconds': 0, 'precision_seconds': 1}, 'observed_monotonic_ns': 1_000_000_000}
-    request = dict(surface='kiosk', form_count=1, **CHOICES, custom_text='1.25',
-                   child_selector_enabled=True, approver_selector_enabled=True,
+    request = dict(surface='child-overlay' if surface == 'overlay' else 'kiosk',
+                   form_count=1, **CHOICES, custom_text='1.25',
+                   child_selector_enabled=surface == 'kiosk', approver_selector_enabled=True,
                    duration_enabled=True, soft_choice_enabled=True, request_enabled=True,
                    cancel_enabled=True, message='', mute=None)
     for stage in plan.screen_tags:
         (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
-        result = ({'operation': 'kiosk-valid-fraction-soft-read', 'request': dict(request),
+        result = ({'operation': surface + '-valid-fraction-soft-read', 'request': dict(request),
             'valid_choice': {'request': dict(request), 'estimate': {'kind': 'fixed', 'seconds': 975},
                              'observed_monotonic_ns': 2_000_000_000}} if stage == 'estimate' else
             {'operation': 'child-countdown-present', 'countdown': {

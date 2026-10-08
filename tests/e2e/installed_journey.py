@@ -93,8 +93,11 @@ class JourneyPlan:
         require(all(stage in stages and self.screen_tags[stage] == 'ui:child-countdown-present'
                     and type(binding) is tuple and len(binding) == 4
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
-                    and self.screen_tags[binding[0]] == 'ui:kiosk-valid-fraction-soft-read'
-                    and type(binding[1]) is int and 0 < binding[1] < 86400
+                    and self.screen_tags[binding[0]] in (
+                        'ui:kiosk-valid-fraction-soft-read', 'ui:overlay-valid-fraction-soft-read')
+                    and (type(binding[1]) is int and 0 < binding[1] < 86400
+                         or binding[1] == 'estimate'
+                         and self.screen_tags[binding[0]] == 'ui:overlay-valid-fraction-soft-read')
                     and type(binding[2]) is int and 1 <= binding[2] <= 60
                     and type(binding[3]) is int and 0 < binding[3] <= 300
                     for stage, binding in self.countdown_checks.items()),

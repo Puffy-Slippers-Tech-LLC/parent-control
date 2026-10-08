@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">25294</span>/<span style="color: gray">0</span>/25294 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">25717</span>/<span style="color: gray">0</span>/25717 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">299</span>/<span style="color: gray">0</span>/299 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">6</span>/<span style="color: gray">0</span>/6 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">148</span>/<span style="color: gray">0</span>/148 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">38</span>/<span style="color: gray">155</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">26203</span>/<span style="color: gray">155</span>/26358** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">149</span>/<span style="color: gray">0</span>/149 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">39</span>/<span style="color: gray">154</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">26628</span>/<span style="color: gray">154</span>/26782** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">37</span>/<span style="color: gray">155</span>/192 |
+| customer-journey | <span style="color: green">38</span>/<span style="color: gray">154</span>/192 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -42,6 +42,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [6](#scenario-6) | Standard user cannot manage policy (launch: terminal) | `E2E-004/terminal` | ready |
 | [44](#scenario-44) | Request surface exit behavior (exit: cancel; surface: child overlay) | `E2E-015/child-overlay-cancel` | ready |
 | [45](#scenario-45) | Request surface exit behavior (exit: escape; surface: child overlay) | `E2E-015/child-overlay-escape` | ready |
+| [46](#scenario-46) | Request surface exit behavior (exit: approved; surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
 | [47](#scenario-47) | Request surface exit behavior (exit: cancel; surface: kiosk) | `E2E-015/kiosk-cancel` | ready |
 | [48](#scenario-48) | Request surface exit behavior (exit: escape; surface: kiosk) | `E2E-015/kiosk-escape` | ready |
 | [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
@@ -104,7 +105,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[41](#scenario-41)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[42](#scenario-42)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[43](#scenario-43)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-rest-of-day`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[46](#scenario-46)</span> | <span style="color: gray">Request surface exit behavior (exit: approved; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-approved`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[58](#scenario-58)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-first`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[60](#scenario-60)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-first`</span> | <span style="color: gray">pending</span> |
@@ -330,6 +330,19 @@ Variant: exit: cancel; surface: child overlay
 Case: `E2E-015/child-overlay-escape` · Category: customer-journey · Status: **ready**
 
 Variant: exit: escape; surface: child overlay
+
+**Steps:**
+
+- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
+- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
+
+### Scenario 46
+
+**Request surface exit behavior (exit: approved; surface: child overlay)**
+
+Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **ready**
+
+Variant: exit: approved; surface: child overlay
 
 **Steps:**
 
@@ -1400,25 +1413,6 @@ Variant: choice: rest of day; surface: kiosk
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
 Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 46
-
-**Request surface exit behavior (exit: approved; surface: child overlay)**
-
-Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **pending**
-
-Variant: exit: approved; surface: child overlay
-
-**Steps:**
-
-- Enable limits and open the selected form. Leave recognizable allowed work beneath overlay; kiosk starts at sign-in. Change choices. Cancel/Escape have no approval prompt open; approved obtains actual parent approval.
-- Take the selected exit. Approved reads confirmation and uses its immediate exit action. Verify the same child activity after overlay or sign-in after kiosk; after approval enter the child desktop and read new time.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

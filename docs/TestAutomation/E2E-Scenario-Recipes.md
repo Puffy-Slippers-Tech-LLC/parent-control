@@ -475,9 +475,15 @@ usable no-error choices after rejection or password-free Cancel, leaving the
 form open. A subsequent FLOW05 requires a new challenge. See the
 [overlay composition qualification](E2E-Building-Blocks.md#overlay-immediate-exit-and-approval-compositions).
 Consumers compose these shared declarations/workers and activity comparisons;
-the qualification plans supply no complete-case acceptance. Case 46 must still
+the qualification plans supply no complete-case acceptance. Case 46 uses
+`overlay_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'overlay-approved', ...)`:
 take the immediate action after explicit success, independently compare the
-same usable child activity and read the approved time through TIME01.
+same usable child activity, submit the retained draft again and read the approved
+time through TIME01 before closing the app. `KioskRequestJourney` binds the
+countdown to the immutable public `open-estimate`, already bounded by the earlier
+900-second daily/no-grant balance, real elapsed child usage and the 75-second
+request. Its `estimate` binding retains one-second public precision, minute
+flooring and two-second sampling tolerance within 180 real elapsed seconds.
 
 Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved', ...)`, the shared
 `approved_request(exit='immediate')` declaration and

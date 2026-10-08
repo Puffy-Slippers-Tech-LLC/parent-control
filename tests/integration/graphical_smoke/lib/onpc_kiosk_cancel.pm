@@ -14,10 +14,10 @@ sub run {
     onpc_progress::operation('Preparing a kiosk request and taking its declared exit');
     my ($exchange, $exit, $declared, $challenges) = @_;
     $exit //= 'cancel';
-    die 'kiosk-cancel:arguments' unless (@_ == 1 || @_ == 4 && ($exit eq 'approved' || $exit eq 'overlay' || $exit eq 'overlay-escape'))
+    die 'kiosk-cancel:arguments' unless (@_ == 1 || @_ == 4 && ($exit eq 'approved' || $exit eq 'overlay' || $exit eq 'overlay-escape' || $exit eq 'overlay-approved'))
         && ref($exchange) eq 'CODE';
     return overlay_cancel($exchange, $declared, $challenges,
-        $exit eq 'overlay-escape' ? 'escape' : 'cancel') if $exit =~ /^overlay/;
+        $exit eq 'overlay-escape' ? 'escape' : $exit eq 'overlay-approved' ? 'approved' : 'cancel') if $exit =~ /^overlay/;
     my $journey = onpc_journey->new(exchange => $exchange,
         prefix => $exit eq 'approved' ? 'kiosk-approval' : 'kiosk-cancel', review => 0);
     if ($exit eq 'approved') {
@@ -49,8 +49,8 @@ sub overlay_cancel {
     $exit //= 'cancel';
     die 'overlay-cancel:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($exit eq 'cancel' || $exit eq 'escape');
-    my $prefix = 'overlay-' . $exit;
+        && ($exit eq 'cancel' || $exit eq 'escape' || $exit eq 'approved');
+    my $prefix = $exit eq 'approved' ? 'overlay-approved-exit' : 'overlay-' . $exit;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -69,7 +69,9 @@ sub overlay_cancel {
     onpc_request_flow::overlay_entry($journey, 'direct', 'command');
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
         'fixture-child', 'fixture-parent', 75, 1, 'overlay');
-    if ($exit eq 'escape') {
+    if ($exit eq 'approved') {
+        onpc_request_flow::overlay_approve($journey, 'immediate');
+    } elsif ($exit eq 'escape') {
         onpc_request_exit::escape($journey);
     } else {
         $journey->consume_observation('cancel', $journey->seen('cancel'));
@@ -77,6 +79,7 @@ sub overlay_cancel {
     }
     onpc_app_rows::native_read_activity($activity, 'returned');
     onpc_app_rows::native_activity_resume($journey, 'resumed');
+    $journey->seen('countdown') if $exit eq 'approved';
     onpc_app_rows::native_finish_app($activity);
     $journey->finish();
 }

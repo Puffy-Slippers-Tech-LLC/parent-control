@@ -5045,6 +5045,15 @@ Before the first live attempt, check the changed boundary end to end on the host
    including defaults in nested helpers and asynchronous input receipts. Test
    the nondefault identity and a mismatched receipt before live qualification;
    a renamed stage alone does not prove the input targets the intended child.
+   Trace each post-transition usability assertion to the public input that
+   establishes its required policy and selected accounts. A reboot does not
+   enable fresh-install child controls, and preserved eligible administrators
+   do not guarantee the recipe's initial approver. Keep untouched startup reads
+   before setup; exercise explicit account selection from a different eligible
+   default on the host, retaining the final identity and enabled-control guards.
+   Reuse the declaration/execution pairs in the
+   [shared support guide](../../tests/support/README.md#extend-without-hiding-the-scenario)
+   and the qualified [LIFE07 scope](#installed-restart-notice-qualification).
 2. Exercise the actual worker sequence against the plan and inject refusal at
    the changed boundary. Check that no later input or successful reply occurs.
    Reconcile the worker's actual recorded titles through `matched_screens`;

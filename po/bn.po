@@ -1653,10 +1653,6 @@ msgstr "একই অনুস্মারক এড়াতে “কখন �
 msgid "Dismiss"
 msgstr "বন্ধ করুন"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "এই বিজ্ঞপ্তিটি ৫ সেকেন্ড পরে বন্ধ হবে।"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "এখানে তোমার জন্য নতুন কী আছে দেখো। মা-বাবার জন্য আপডেট এখানে দেখানো হয় না।"

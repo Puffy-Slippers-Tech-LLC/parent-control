@@ -1647,10 +1647,6 @@ msgstr "เลือกค่า “เมื่อใดที่จะแส�
 msgid "Dismiss"
 msgstr "ปิด"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "การแจ้งเตือนนี้จะปิดในอีก 5 วินาที"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "นี่คือสิ่งใหม่ ๆ สำหรับคุณ การอัปเดตสำหรับผู้ปกครองจะไม่แสดงที่นี่"

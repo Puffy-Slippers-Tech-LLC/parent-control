@@ -1651,10 +1651,6 @@ msgstr "Wählen Sie einen anderen Wert für „Wann anzeigen“, um doppelte Eri
 msgid "Dismiss"
 msgstr "Schließen"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Diese Benachrichtigung wird in 5 Sekunden geschlossen."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Hier siehst du, was für dich neu ist. Neuigkeiten für Eltern werden hier nicht angezeigt."

@@ -1653,10 +1653,6 @@ msgstr "Välj ett annat värde för ”När den visas” för att undvika dubbla
 msgid "Dismiss"
 msgstr "Stäng"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Det här meddelandet stängs om 5 sekunder."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Här ser du vad som är nytt för dig. Uppdateringar för föräldrar visas inte här."

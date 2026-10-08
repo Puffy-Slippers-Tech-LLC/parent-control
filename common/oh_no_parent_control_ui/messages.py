@@ -416,7 +416,6 @@ SAVE_GRANT_FAILED = gettext('Could not save the one-time grant. Please try again
 SAVE_SCREEN_TIME_FAILED = gettext('Could not save screen-time settings. Please try again later.')
 SAVE_APP_ACCESS_FAILED = gettext('Could not save app access. Please try again later.')
 TIME_REMAINING_NOTIFICATION = gettext('%(time)s left')
-REMINDER_AUTO_CLOSE = gettext('This notification will close in 5 seconds.')
 DISMISS = gettext('Dismiss')
 TIME_REMAINING_SAVE_GAMES_NOTIFICATION = gettext('%(time)s left, save your games!')
 REMINDERS = gettext('Reminders')

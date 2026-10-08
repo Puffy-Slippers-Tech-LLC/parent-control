@@ -312,6 +312,9 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # Make/Node/GJS children. Importing feedback for size formatting constructs no
 # widgets or workers. Controller presentation doubles remain process-local and
 # restored after each test; existing compatible unit classifications apply.
+# Child preview presentation checks use private temporary modes/theme fixtures
+# and waited shell children; no compositor, host settings or new cleanup owner.
+# Keep test_child_preview in its existing compatible whole-module bucket.
 # The diagnostic-report import-failure regression uses its existing tmp_path
 # writer and restored process-local logger/command doubles; no additional shared
 # service, bus, subprocess or cache. diagnostic collectors remain compatible.

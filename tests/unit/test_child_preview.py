@@ -1,4 +1,5 @@
 import ast
+import json
 import pathlib
 import subprocess
 import tempfile
@@ -165,7 +166,7 @@ class ChildPreviewTests(unittest.TestCase):
             result.stdout.splitlines(),
             [
                 f"{root}/logs",
-                "dbus-run-session -- gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --force-animations",
+                "dbus-run-session -- gnome-shell --devkit --wayland --mode user --no-x11 --wayland-display onpc-preview-test --force-animations",
             ],
         )
 
@@ -193,6 +194,68 @@ class ChildPreviewTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), [f"{runtime}/data", f"{runtime}/schemas"])
+
+    def test_ubuntu_presentation_uses_yaru_without_system_extensions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            system = root / 'system'
+            (system / 'modes').mkdir(parents=True)
+            # A real Ubuntu mode enables several unrelated system extensions.
+            (system / 'modes/ubuntu.json').write_text(json.dumps({
+                'enabledExtensions': ['unrelated@system'],
+            }))
+            theme = system / 'theme/Yaru'
+            theme.mkdir(parents=True)
+            for name in ('gnome-shell.css', 'gnome-shell-theme.gresource', 'gnome-shell-icons.gresource'):
+                (theme / name).touch()
+            preview = root / 'preview'
+            result = self.run_orchestration(
+                f"export ONPC_PREVIEW_SYSTEM_SHELL_DIR='{system}'; "
+                "export GNOME_SHELL_SESSION_MODE=gdm XDG_CURRENT_DESKTOP=Other; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure '{ROOT / 'child'}' '{preview}'; "
+                "onpc_preview_prepare_presentation; onpc_preview_build_shell_command; "
+                "printf '%s\\n' \"$GNOME_SHELL_SESSION_MODE\" \"$XDG_CURRENT_DESKTOP\" "
+                "\"${onpc_preview_shell_command[*]}\""
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines()[:2], ['onpc-preview-ubuntu', 'ubuntu:GNOME'])
+            self.assertIn('--mode onpc-preview-ubuntu', result.stdout)
+            mode = json.loads((preview / 'data/gnome-shell/modes/onpc-preview-ubuntu.json').read_text())
+            self.assertEqual(mode['parentMode'], 'user')
+            self.assertEqual(mode['stylesheetName'], 'Yaru/gnome-shell.css')
+            self.assertEqual(mode['themeResourceName'], 'theme/Yaru/gnome-shell-theme.gresource')
+            self.assertEqual(mode['iconsResourceName'], 'theme/Yaru/gnome-shell-icons.gresource')
+            self.assertEqual(mode['enabledExtensions'], [])
+            self.assertEqual(json.loads((system / 'modes/ubuntu.json').read_text()),
+                             {'enabledExtensions': ['unrelated@system']})
+
+    def test_standard_gnome_presentation_does_not_inherit_host_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.run_orchestration(
+                f"export ONPC_PREVIEW_SYSTEM_SHELL_DIR='{temporary}'; "
+                "export GNOME_SHELL_SESSION_MODE=gdm XDG_CURRENT_DESKTOP=Other; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure child '{temporary}'; "
+                "onpc_preview_prepare_presentation; "
+                "printf '%s\\n' \"$GNOME_SHELL_SESSION_MODE\" \"$XDG_CURRENT_DESKTOP\""
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['user', 'GNOME'])
+
+    def test_ubuntu_presentation_refuses_missing_theme_instead_of_substituting(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            system = pathlib.Path(temporary) / 'system'
+            (system / 'modes').mkdir(parents=True)
+            (system / 'modes/ubuntu.json').write_text('{}')
+            result = self.run_orchestration(
+                f"export ONPC_PREVIEW_SYSTEM_SHELL_DIR='{system}'; "
+                "source child/preview-orchestration.sh; "
+                f"onpc_preview_configure child '{temporary}'; "
+                "onpc_preview_prepare_presentation"
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('requires Yaru asset', result.stderr)
 
     def test_automated_environment_copies_the_packaged_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -236,7 +299,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "gnome-shell --devkit --wayland --no-x11 --wayland-display onpc-preview-test --force-animations",
+            "gnome-shell --devkit --wayland --mode user --no-x11 --wayland-display onpc-preview-test --force-animations",
         )
 
     def test_wayland_host_keeps_nested_xwayland_for_virtual_input(self):
@@ -252,7 +315,7 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            "dbus-run-session -- gnome-shell --devkit --wayland --wayland-display onpc-preview-test --force-animations",
+            "dbus-run-session -- gnome-shell --devkit --wayland --mode user --wayland-display onpc-preview-test --force-animations",
         )
 
     def test_private_bus_uses_the_preview_runtime_socket(self):

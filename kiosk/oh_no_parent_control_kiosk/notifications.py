@@ -85,7 +85,7 @@ class NotificationApplication(Gtk.Application):
         register_form_font()
         css.load_from_string('''window.kiosk-notification { background: transparent; }
             .kiosk-notification-card { background: transparent; color: #eeedf8;
-            border: 12px solid transparent; border-radius: 0; padding: 2px 6px;
+            border: 32px solid transparent; border-radius: 0; padding: 8px;
             border-image-source: url("FRAME"); border-image-slice: 32 fill; border-image-width: 32px; }
             .kiosk-notification label { font: 8.5px "Monocraft", "Ubuntu Mono", monospace; }
             .kiosk-notification .reminder-message { font-size: 15px; font-weight: bold; color: #83edff;

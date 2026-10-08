@@ -1653,10 +1653,6 @@ msgstr "Causissètz una autra valor per «Quand mostrar» per evitar de rampèls
 msgid "Dismiss"
 msgstr "Tampar"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Aquesta notificacion se tamparà dins 5 segondas."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Aquí son las novetats per tu. Las novetats pels parents son pas afichadas aquí."

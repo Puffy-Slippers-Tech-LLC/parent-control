@@ -1645,10 +1645,6 @@ msgstr "リマインダーの重複を避けるため、「表示するタイミ
 msgid "Dismiss"
 msgstr "閉じる"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "この通知は5秒後に閉じます。"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "ここでは、あなた向けの新しい機能を紹介します。保護者向けの更新は表示されません。"

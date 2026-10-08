@@ -1647,10 +1647,6 @@ msgstr "중복 알림을 방지하려면 “표시 시점”을 다른 값으로
 msgid "Dismiss"
 msgstr "닫기"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "이 알림은 5초 후에 닫힙니다."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "여기서는 너를 위한 새로운 기능을 소개해. 부모님을 위한 업데이트는 표시하지 않아."

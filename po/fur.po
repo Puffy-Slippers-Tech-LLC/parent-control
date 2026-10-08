@@ -1653,10 +1653,6 @@ msgstr "Sielç un altri valôr par «Cuant mostrâ» par evitâ memoriis doplis.
 msgid "Dismiss"
 msgstr "Siere"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Cheste notifiche si sierarà fra 5 seconts."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Achì tu cjatis lis novitâts par te. Lis novitâts pai gjenitôrs no son mostradis achì."

@@ -9,6 +9,8 @@ onpc_preview_configure() {
     onpc_preview_runtime_dir="$onpc_preview_root/runtime"
     onpc_preview_uuid=${3:-oh-no-parent-control@tech.puffyslippers.com}
     onpc_preview_schema_source=${ONPC_PREVIEW_SYSTEM_SCHEMA_DIR:-/usr/share/glib-2.0/schemas}
+    onpc_preview_system_shell_dir=${ONPC_PREVIEW_SYSTEM_SHELL_DIR:-/usr/share/gnome-shell}
+    onpc_preview_session_mode=user
     onpc_preview_ready_timeout=${ONPC_PREVIEW_READY_TIMEOUT_SECONDS:-30}
     onpc_preview_generation=0
     onpc_preview_shell_pid=''
@@ -51,6 +53,7 @@ onpc_preview_require_dependencies() {
         printf 'GNOME settings schemas are missing from %s.\n' "$onpc_preview_schema_source" >&2
         return 1
     }
+    onpc_preview_require_supported_shell_version || return
     onpc_preview_require_accessibility_registry
 }
 
@@ -160,6 +163,7 @@ onpc_preview_prepare_environment() {
     export TMPDIR="$onpc_preview_root/tmp"
     export GSETTINGS_BACKEND=keyfile
     export GSETTINGS_SCHEMA_DIR="$schema_dir"
+    onpc_preview_prepare_presentation || return
     export OH_NO_PARENT_CONTROL_PREVIEW=1
     # Share personal presentation state between the disposable Shell and its
     # request processes without contacting the developer host's broker.
@@ -185,6 +189,32 @@ onpc_preview_prepare_environment() {
     gsettings set org.gnome.shell enabled-extensions "['$onpc_preview_uuid']"
 }
 
+onpc_preview_prepare_presentation() {
+    # Ubuntu's mode selects Yaru, while XDG_CURRENT_DESKTOP selects its compiled
+    # GSettings defaults. Do not inherit either from the host session: Devkit
+    # often starts from a terminal with no GNOME_SHELL_SESSION_MODE at all.
+    # A private mode uses Ubuntu's presentation without loading its system
+    # extension list into this isolated component session.
+    local asset mode_dir="$onpc_preview_root/data/gnome-shell/modes"
+    onpc_preview_session_mode=user
+    export XDG_CURRENT_DESKTOP=GNOME
+    if [[ -f "$onpc_preview_system_shell_dir/modes/ubuntu.json" ]]; then
+        for asset in gnome-shell.css gnome-shell-theme.gresource gnome-shell-icons.gresource; do
+            [[ -f "$onpc_preview_system_shell_dir/theme/Yaru/$asset" ]] || {
+                printf 'Ubuntu child preview requires Yaru asset: %s\n' "$asset" >&2
+                return 1
+            }
+        done
+        mkdir -p "$mode_dir"
+        cp "$onpc_preview_source_dir/preview-session.json" "$mode_dir/onpc-preview-ubuntu.json"
+        onpc_preview_session_mode=onpc-preview-ubuntu
+        export XDG_CURRENT_DESKTOP=ubuntu:GNOME
+    fi
+    export GNOME_SHELL_SESSION_MODE=$onpc_preview_session_mode
+    printf 'Child preview presentation: %s (%s).\n' \
+        "$onpc_preview_session_mode" "$XDG_CURRENT_DESKTOP" >&2
+}
+
 onpc_preview_build_shell_command() {
     # Devkit creates the visible monitor through its video stream. Adding a
     # --virtual-monitor here creates another, invisible screen that can receive
@@ -198,11 +228,13 @@ onpc_preview_build_shell_command() {
     fi
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
         onpc_preview_shell_command=(gnome-shell --devkit --wayland \
+            --mode "$onpc_preview_session_mode" \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --force-animations)
     else
         onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
+            --mode "$onpc_preview_session_mode" \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --force-animations)

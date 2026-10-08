@@ -1653,10 +1653,6 @@ msgstr "Vel ein annan verdi for «Når ho vert vist» for å unngå dupliserte p
 msgid "Dismiss"
 msgstr "Lukk"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Dette varselet vert lukka om 5 sekund."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Her ser du kva som er nytt for deg. Oppdateringar for foreldre blir ikkje viste her."

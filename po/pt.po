@@ -1654,10 +1654,6 @@ msgstr "Escolha outro valor para «Quando mostrar» para evitar lembretes duplic
 msgid "Dismiss"
 msgstr "Dispensar"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Esta notificação será fechada dentro de 5 segundos."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Aqui estão as novidades para ti. As novidades para os pais não aparecem aqui."

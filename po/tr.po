@@ -1647,10 +1647,6 @@ msgstr "Yinelenen hatırlatıcıları önlemek için “Ne zaman gösterilsin”
 msgid "Dismiss"
 msgstr "Kapat"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Bu bildirim 5 saniye içinde kapanacak."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "İşte senin için yenilikler. Ebeveynlere yönelik yenilikler burada gösterilmez."

@@ -171,7 +171,7 @@ route, add no app-behavior coverage and are not multiplied. Every declared
 interacting matrix is complete; this is a finite coverage model, not a claim
 that arbitrary inputs, elapsed durations and user histories can be enumerated.
 Setup is shared code, not prior execution. Group implementation work, but run
-each numeric variant as an independent attempt. Long calendar and retry-expiry
+each numeric variant as an independent attempt. Long calendar
 cases retain their declared acceptance prerequisites and budgets in the same fixed queue.
 
 ### Explicit time preparation
@@ -1111,9 +1111,9 @@ Bindings: surface = parent / child-overlay / kiosk; choice = retry / without-log
 
 Implementation status: All cases pending.
 
-**Finish or stop feedback in different user flows.** Cases 214, 215, 216, 217, 218, 219, 220, 221, 222.
+**Finish or stop feedback in different user flows.** Cases 214–216, 218–222.
 
-Bindings: flow = no-reply / background / app-exit / retry-expired / overlay-stop / kiosk-stop / overlay-success / kiosk-success / parent-error-success.
+Bindings: flow = no-reply / background / app-exit / overlay-stop / kiosk-stop / overlay-success / kiosk-success / parent-error-success.
 
 1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03 → FEED05; LIFE06(disconnect) for retry branches → DESK10(report) → FEED11.
 2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
@@ -1484,7 +1484,6 @@ One action is issued once; uncertain input is never replayed.
 | 214 no-reply | FEED09(success) → TIME03(5 seconds) → UI03(thanks without reply follow-up) → FEED14 → FEED01 → FEED03(cleared). |
 | 215 background | Start offline, FEED09(retry) → UI18(ordinary feedback only) → LIFE06(reconnect). Keep Parent open and UI11(feedback/thanks); reopen feedback after the bounded success interval and FEED03(cleared). If sending remains active, read FEED09 until acceptance; no inference from elapsed time alone. |
 | 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → PARENT01 → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
-| 217 retry-expired | Offline FEED09(retry) → TIME03(up to the actual 15-minute retry window, with observation checkpoints) → FEED09(expired) → FEED03(preserved draft and duplicate-risk explanation). Reconnect and close; do not submit again. Budget 1800 seconds includes preparation and cleanup. |
 | 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17 → UI03(stop warning) → FEED18(stay) → FEED17 → FEED18(stop) → UI11(report) → DESK01 or GDM01. Restore Internet access through the same LIFE06 VM helper from that surface; no Parent visit/login. A stop cannot recall a request already accepted. |
 | 220 overlay-success / 221 kiosk-success | FEED09(acceptance) → TIME03(5 seconds) → UI01(thanks still showing) → FEED14 → UI11(report) → DESK01 or GDM01. Original request flow exits only after manual dismissal. |
 | 222 parent-error-success | Parent's customer-rejected rule automatically opens its report; FEED09(acceptance) → FEED14 → PARENT03(last confirmed policy). No request-station exit or nonexistent Report toggle is added to Parent. |

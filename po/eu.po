@@ -1653,10 +1653,6 @@ msgstr "Aukeratu beste balio bat «Noiz erakutsi» eremuan, abisu bikoiztuak sai
 msgid "Dismiss"
 msgstr "Itxi"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Jakinarazpen hau 5 segundo barru itxiko da."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Hemen dituzu zuretzako berritasunak. Gurasoentzako eguneraketak ez dira hemen erakusten."

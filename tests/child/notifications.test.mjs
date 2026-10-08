@@ -16,7 +16,6 @@ const translations = {text: (key, values) => key === 'TIME_REMAINING_NOTIFICATIO
     ? `${values.time} left` : key === 'TIME_REMAINING_SAVE_GAMES_NOTIFICATION'
         ? `${values.time} left, save your games!`
         : key === 'COMPACT_SECONDS' ? `${values.count}s`
-        : key === 'REMINDER_AUTO_CLOSE' ? 'This notification will close in 5 seconds.'
         : key === 'PREFERENCES' ? 'Preferences' : key === 'DISMISS' ? 'Dismiss'
         : `${values.count} ${key === 'MINUTE_COUNT' ? 'minute' : 'second'}${values.count === 1 ? '' : 's'}`};
 
@@ -545,7 +544,7 @@ test('preview source destruction releases its sender watch without recursive des
         text(key) {
             assert.equal(this.language, 'zh-Hans');
             return {PREFERENCES: '偏好设置', DISMISS: '关闭',
-                REMINDER_AUTO_CLOSE: '此通知将在 5 秒后关闭。', COMPACT_SECONDS: '5 秒'}[key];
+                COMPACT_SECONDS: '5 秒'}[key];
         }
     };
     preview.PreviewLocalizedAsync(['还剩 20 秒', 0, 20, 'zh-Hans'], {});

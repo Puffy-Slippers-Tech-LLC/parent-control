@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">25151</span>/<span style="color: gray">0</span>/25151 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">25290</span>/<span style="color: gray">0</span>/25290 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">299</span>/<span style="color: gray">0</span>/299 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">6</span>/<span style="color: gray">0</span>/6 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">38</span>/<span style="color: gray">210</span>/248 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">26059</span>/<span style="color: gray">210</span>/26269** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">148</span>/<span style="color: gray">0</span>/148 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">38</span>/<span style="color: gray">209</span>/247 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">26199</span>/<span style="color: gray">209</span>/26408** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">37</span>/<span style="color: gray">210</span>/247 |
+| customer-journey | <span style="color: green">37</span>/<span style="color: gray">209</span>/246 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -245,7 +245,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[214](#scenario-214)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: no reply)</span> | <span style="color: gray">`E2E-047/no-reply`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[215](#scenario-215)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: background)</span> | <span style="color: gray">`E2E-047/background`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[216](#scenario-216)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: app exit)</span> | <span style="color: gray">`E2E-047/app-exit`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[217](#scenario-217)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: retry expired)</span> | <span style="color: gray">`E2E-047/retry-expired`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[218](#scenario-218)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: overlay stop)</span> | <span style="color: gray">`E2E-047/overlay-stop`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[219](#scenario-219)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: kiosk stop)</span> | <span style="color: gray">`E2E-047/kiosk-stop`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[220](#scenario-220)</span> | <span style="color: gray">Finish or stop feedback in different user flows (flow: overlay success)</span> | <span style="color: gray">`E2E-047/overlay-success`</span> | <span style="color: gray">pending</span> |
@@ -4242,8 +4241,8 @@ Variant: flow: no reply
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4262,8 +4261,8 @@ Variant: flow: background
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4282,28 +4281,8 @@ Variant: flow: app exit
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 217
-
-**Finish or stop feedback in different user flows (flow: retry expired)**
-
-Case: `E2E-047/retry-expired` · Category: customer-journey · Status: **pending**
-
-Variant: flow: retry expired
-
-**Steps:**
-
-- Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4322,8 +4301,8 @@ Variant: flow: overlay stop
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4342,8 +4321,8 @@ Variant: flow: kiosk stop
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4362,8 +4341,8 @@ Variant: flow: overlay success
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4382,8 +4361,8 @@ Variant: flow: kiosk success
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
@@ -4402,8 +4381,8 @@ Variant: flow: parent error success
 **Steps:**
 
 - Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send.
-- Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance.
-- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed.
+- Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance.
+- Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed.
 
 Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 

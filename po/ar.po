@@ -1677,10 +1677,6 @@ msgstr "اختر قيمة أخرى لـ «وقت العرض» لتجنب الت�
 msgid "Dismiss"
 msgstr "إغلاق"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "سيُغلق هذا الإشعار بعد 5 ثوانٍ."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "إليك ما هو جديد لك. لا تُعرض تحديثات الوالدين هنا."

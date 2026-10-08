@@ -1665,10 +1665,6 @@ msgstr "Изаберите другу вредност за „Када прик
 msgid "Dismiss"
 msgstr "Затвори"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Ово обавештење ће се затворити за 5 секунди."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Овде су новости за тебе. Новости за родитеље се овде не приказују."

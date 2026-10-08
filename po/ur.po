@@ -1653,10 +1653,6 @@ msgstr "دہری یاددہانیوں سے بچنے کے لیے «کب دکھا�
 msgid "Dismiss"
 msgstr "بند کریں"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "یہ اطلاع 5 سیکنڈ میں بند ہو جائے گی۔"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "یہاں دیکھو تمہارے لیے کیا نیا ہے۔ والدین کے لیے اپ ڈیٹس یہاں نہیں دکھائی جاتیں۔"

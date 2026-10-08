@@ -475,9 +475,11 @@ the 15-pixel bold cyan heading sits above the
 progress bar. The countdown uses 12 pixels so fallback
 glyphs, including dense Chinese and Japanese scripts, remain readable.
 The product logo is 56 pixels and action icons
-are 40 pixels; the Shell card starts at 517 logical pixels and grows with the
+are 40 pixels; the Shell card starts at 561 logical pixels and grows with the
 translated action widths, bounded by the monitor width. Both renderers retain
-compact inner spacing and centered action icons.
+32-pixel frame insets plus eight pixels of inner padding and centered action icons.
+The CSS border reserves the full painted border-image slices in both toolkits,
+so the logo, heading, progress bar and buttons stay clear of the rails and corners.
 Height follows the content. Literal reminder
 text wraps naturally.
 Action caption widgets are removed; their translations remain for tooltips
@@ -752,6 +754,15 @@ The child Shell preview also starts private WirePlumber and relies on Devkit's
 single visible monitor. Supplying an additional command-line virtual monitor
 would allow the overlay to open on a screen the viewer does not show. Child
 preview overlays use the same fullscreen behavior as production.
+On Ubuntu it explicitly selects the installed Yaru Shell resources through a
+[private presentation mode](../../child/preview-session.json), and selects
+Ubuntu's compiled desktop settings defaults. The private mode omits Ubuntu's
+system extensions; only the checkout extension is enabled. Other GNOME hosts
+use the standard user mode. Both interactive and automated child previews
+require GNOME Shell 50.x and share this setup. The preview renders the current
+checkout; an installed extension needs package activation and session renewal
+to render changed payloads. Compare equivalent versions, monitor scales and
+viewer zoom when reviewing screenshots.
 
 The rendering contract follows GTK's
 [surface scale](https://docs.gtk.org/gdk4/method.Surface.get_scale.html) and

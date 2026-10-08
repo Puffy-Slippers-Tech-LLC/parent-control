@@ -1653,10 +1653,6 @@ msgstr "நகல் நினைவூட்டல்களைத் தவி�
 msgid "Dismiss"
 msgstr "மூடு"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "இந்த அறிவிப்பு 5 வினாடிகளில் மூடப்படும்."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "உனக்கான புதிய விஷயங்களை இங்கே பார்க்கலாம். பெற்றோருக்கான புதுப்பிப்புகள் இங்கே காட்டப்படாது."

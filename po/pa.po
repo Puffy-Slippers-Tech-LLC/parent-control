@@ -1653,10 +1653,6 @@ msgstr "ਦੁਹਰਾਈਆਂ ਯਾਦ-ਸੂਚਨਾਵਾਂ ਤੋਂ �
 msgid "Dismiss"
 msgstr "ਬੰਦ ਕਰੋ"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "ਇਹ ਸੂਚਨਾ 5 ਸਕਿੰਟਾਂ ਵਿੱਚ ਬੰਦ ਹੋ ਜਾਵੇਗੀ।"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "ਇੱਥੇ ਦੇਖੋ ਤੁਹਾਡੇ ਲਈ ਕੀ ਨਵਾਂ ਹੈ। ਮਾਪਿਆਂ ਲਈ ਅੱਪਡੇਟ ਇੱਥੇ ਨਹੀਂ ਦਿਖਾਏ ਜਾਂਦੇ।"

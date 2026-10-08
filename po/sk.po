@@ -1659,10 +1659,6 @@ msgstr "Vyberte inú hodnotu „Kedy zobraziť“, aby ste predišli duplicitný
 msgid "Dismiss"
 msgstr "Zavrieť"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Toto oznámenie sa zavrie o 5 sekúnd."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Tu nájdeš novinky pre teba. Novinky pre rodičov sa tu nezobrazujú."

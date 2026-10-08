@@ -2432,8 +2432,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Open ordinary feedback or the declared report, prepare authorized synthetic content and inspect Privacy. No-reply omits the address. Retry branches remove Internet access through the shared distro-independent LIFE06 VM helper before one explicit Send."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, close only its dialog, exit the app, wait through retry expiry, or choose Stop sending and close. Success branches require actual service acceptance."},
-          {"id": "step-3", "operation": "ui", "description": "Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, preserved draft and duplicate-risk explanation after expiry, or the original error-flow exit. Restore connectivity where needed."}
+          {"id": "step-2", "operation": "ui", "description": "Perform the declared action: keep feedback open, close only its dialog, exit the app, or choose Stop sending and close. Success branches require actual service acceptance."},
+          {"id": "step-3", "operation": "ui", "description": "Check manual thanks without a reply note, background completion without reopening, no outbox after relaunch, or the original error-flow exit. Restore connectivity where needed."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2454,16 +2454,15 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "flow": ["no-reply", "background", "app-exit", "retry-expired", "overlay-stop", "kiosk-stop", "overlay-success", "kiosk-success", "parent-error-success"]
+          "flow": ["no-reply", "background", "app-exit", "overlay-stop", "kiosk-stop", "overlay-success", "kiosk-success", "parent-error-success"]
         },
         "full_combinations": [],
-        "rationale": "Nine distinct send lifetimes; ordinary visible success with reply address stays in E2E-032."
+        "rationale": "Eight distinct send lifetimes; ordinary visible success with reply address stays in E2E-032."
       },
       "variants": [
         {"coverage_id": 214, "id": "no-reply", "owner": "continuous-journeys", "parameters": {"flow": "no-reply"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 215, "id": "background", "owner": "continuous-journeys", "parameters": {"flow": "background"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 216, "id": "app-exit", "owner": "continuous-journeys", "parameters": {"flow": "app-exit"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 217, "id": "retry-expired", "owner": "continuous-journeys", "parameters": {"flow": "retry-expired"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 218, "id": "overlay-stop", "owner": "continuous-journeys", "parameters": {"flow": "overlay-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 219, "id": "kiosk-stop", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-stop"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
         {"coverage_id": 220, "id": "overlay-success", "owner": "continuous-journeys", "parameters": {"flow": "overlay-success"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},

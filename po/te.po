@@ -1653,10 +1653,6 @@ msgstr "నకిలీ సూచనలను నివారించడాన�
 msgid "Dismiss"
 msgstr "మూసివేయి"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "ఈ నోటిఫికేషన్ 5 సెకన్లలో మూసివేయబడుతుంది."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "ఇక్కడ నీ కోసం కొత్తగా ఏముందో చూడు. తల్లిదండ్రుల కోసం అప్‌డేట్‌లు ఇక్కడ చూపించబడవు."

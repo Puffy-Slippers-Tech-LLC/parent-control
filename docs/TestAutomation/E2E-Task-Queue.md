@@ -63,6 +63,14 @@ The developer removed the whole task on 2026-10-07. It is neither completed nor
 deferred; do not recreate its row, brief or dependencies. Completed prerequisite
 305a, reusable helpers and retained failure evidence remain preserved.
 
+Excluded tasks: **259** (feedback retry-expiry journey).
+The developer removed the task and inventory case 217 on 2026-10-07. It is
+neither completed nor deferred; do not recreate its row, brief or dependencies
+or reuse the removed case ID. Retry expiration remains covered by
+[focused transport checks](../../tests/unit/test_feedback_transport.py) and
+[feedback UI checks](../../tests/ui/test_parent_feedback.py), without complete
+installed retry-deadline acceptance credit.
+
 ## Ordered task queue
 
 Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
@@ -510,7 +518,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157; gate in brief | 35–55 (exception) |
 | [ ] | 257 | [E2E-047: background](E2E-Tasks/257-case-215.md) | 152 | Cases 215; gate in brief | 20–30 |
 | [ ] | 258 | [E2E-047: app-exit](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216; gate in brief | 20–30 |
-| [ ] | 259 | [E2E-047: retry-expired](E2E-Tasks/259-case-217.md) | 152 | Cases 217; gate in brief | 35–60 incl. retry (exception) |
 | [ ] | 150p | [Send an authorized Parent error report](E2E-Tasks/150p-parent-error-send.md) | 150, 186 | FEED11, FEED09 success and FEED14 Parent error-report; gate in brief | 20–30 |
 | [ ] | 264 | [E2E-047: parent-error-success](E2E-Tasks/264-case-222.md) | 150p | Cases 222; gate in brief | 20–30 |
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006, 036 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |

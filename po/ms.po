@@ -1647,10 +1647,6 @@ msgstr "Pilih nilai lain untuk “Bila ditunjukkan” bagi mengelakkan peringata
 msgid "Dismiss"
 msgstr "Tutup"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "Pemberitahuan ini akan ditutup dalam 5 saat."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "Ini yang baharu untuk kamu. Kemas kini untuk ibu bapa tidak dipaparkan di sini."

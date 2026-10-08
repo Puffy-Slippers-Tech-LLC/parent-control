@@ -1645,10 +1645,6 @@ msgstr "请选择不同的“何时显示”，以避免重复提醒。"
 msgid "Dismiss"
 msgstr "关闭"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "此通知将在 5 秒后关闭。"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "这里是与你有关的新变化。给家长的更新不会显示在这里。"

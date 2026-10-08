@@ -1653,10 +1653,6 @@ msgstr "दोहोरिएका सम्झाउने सूचनाह�
 msgid "Dismiss"
 msgstr "बन्द गर्नुहोस्"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "यो सूचना 5 सेकेन्डमा बन्द हुनेछ।"
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "यहाँ तिम्रा लागि के नयाँ छ हेर। आमाबुबाका लागि अपडेटहरू यहाँ देखाइँदैनन्।"

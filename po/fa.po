@@ -1653,10 +1653,6 @@ msgstr "برای جلوگیری از یادآوری‌های تکراری، مق
 msgid "Dismiss"
 msgstr "بستن"
 
-#. Shared message: REMINDER_AUTO_CLOSE
-msgid "This notification will close in 5 seconds."
-msgstr "این اعلان پس از ۵ ثانیه بسته می‌شود."
-
 #. Shared message: WHATS_NEW_CHILD_SUBTITLE
 msgid "Here’s what’s new for you. Updates for parents aren’t shown here."
 msgstr "اینجا تازه‌های مربوط به تو را می‌بینی. تازه‌های مربوط به والدین اینجا نمایش داده نمی‌شوند."

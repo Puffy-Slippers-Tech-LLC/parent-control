@@ -199,7 +199,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
         // translated action widths. Let native layout move both buttons inward.
         const actionWidth = actions.reduce((width, {control}) =>
             width + control.get_preferred_width(-1)[1], 0);
-        card.width = Math.min(Math.max(517 * scale, 360 * scale + actionWidth),
+        card.width = Math.min(Math.max(561 * scale, 404 * scale + actionWidth),
             monitor.width - 16 * scale);
         card.set_position(monitor.x + (monitor.width - card.width) / 2, monitor.y + 8 * scale);
         syncTooltip();

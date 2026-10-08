@@ -120,7 +120,7 @@ customer outcome.
 | E2E-044 / 196–204 | Retain daily renewal and midnight/fixed-grant access across actual calendar boundaries. Natural date windows and public precision remain gates. |
 | E2E-045 / 205–207 | Retain recovering from a customer-reproducible error, reviewing or declining its report and returning to confirmed policy/request destination. No injected fault or unauthorized Send. |
 | E2E-046 / 208–213 | Retain real failed collection → genuine retry recovery or explicitly authorized Send without logs. Missing reproducible public trigger remains pending; do not simulate it. |
-| E2E-047 / 214–222 | Retain report lifetime/background completion/retry expiry/stop and correct original-flow exit. Actual sending retains separate authorization/profile gates. |
+| E2E-047 / 214–216, 218–222 | Retain report lifetime/background completion/stop and correct original-flow exit. Actual sending retains separate authorization/profile gates. Retry expiry remains with focused transport and feedback UI checks; its complete installed journey was removed. |
 | E2E-048 / 223–230 | Retain realistic decision delay, current-balance approval and a second increment. No frozen estimate or private arithmetic substitute. |
 | E2E-049 / 231–246 | Retain changing temporary permission through each supported route and both request surfaces, with real parent prompts, retained work and unchanged saved rules. |
 | E2E-050 / 247–250 | Retain three complete homework/game/recovery cycles and intermediate results. Shortest shared navigation is allowed; no final-state-only pass or hidden reset. |

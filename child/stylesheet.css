@@ -6,9 +6,11 @@
   background-color: transparent;
   color: #eeedf8;
   font-family: Monocraft;
-  border: 12px solid transparent;
+  /* St paints 32px border-image slices independently of the CSS border.
+     Reserve their full area before laying out the logo, text and actions. */
+  border: 32px solid transparent;
   border-radius: 0;
-  padding: 2px 6px;
+  padding: 8px;
   spacing: 11px;
   box-shadow: none;
 }

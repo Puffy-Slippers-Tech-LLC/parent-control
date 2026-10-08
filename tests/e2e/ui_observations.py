@@ -1526,7 +1526,7 @@ class UiObservations:
                     accessible_ui.validate_shell_metadata(value['provider'])
                     require(value['provider']['locale'] in ('zh_CN.UTF-8', 'zh_CN.utf8', 'zh_CN')
                             and type(value['agent_id']) is str and re.fullmatch(r'[0-9a-f]{64}', value['agent_id'])
-                            and value['texts'] == accessible_ui.chinese_mate_texts()
+                            and value['texts'] == accessible_ui.chinese_mate_texts(value['provider']['version'])
                             and value['child'] == 'existing-fixture-child' and value['approver'] == 'fixture-parent'
                             and type(value['duration_seconds']) is int and value['duration_seconds'] == 75
                             and value['allow_soft'] is True and value['rejected_proofs'] == (

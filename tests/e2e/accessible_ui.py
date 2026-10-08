@@ -824,18 +824,27 @@ MATE_REFUSALS = ('wrong-agent', 'owner', 'recipient', 'child', 'duration', 'apps
 CHINESE_MATE_REFUSALS = (*MATE_REFUSALS, 'native-explanation', 'native-authenticate')
 
 
-def chinese_mate_texts():
-    # Fixed provider catalogue, with GTK mnemonic underscores removed. Native
-    # labels come from mate-polkit 1.26.1; product expectations are independent.
+def chinese_mate_texts(provider_version=None):
+    # Fixed provider catalogues, with GTK mnemonic underscores removed. Bind
+    # the oracle to installed package metadata, never to the observed UI text.
     # https://github.com/mate-desktop/mate-polkit/blob/v1.26.1/po/zh_CN.po
+    # https://github.com/mate-desktop/mate-polkit/blob/v1.28.1/po/zh_CN.po
     # polkitmateauthenticationdialog.c selects the super-user explanation when
     # its sole authentication identity differs from the agent's session user.
     # This binding authenticates Jamie from the station-owned kiosk session.
+    require(provider_version is None or type(provider_version) is str and
+            re.fullmatch(r'[A-Za-z0-9_.+:@()/-]{1,128}', provider_version),
+            'ui:mate-native-version')
+    version = (provider_version.rsplit(':', 1)[-1].split('-', 1)[0]
+               if provider_version is not None else '1.26.1')
+    require(version in ('1.26.1', '1.28.1'), 'ui:mate-native-version')
     return {'recipient': 'onpc-parent-jamie 的密码(P)：',
             'message': '允许 Jordan (Child) 访问吗？\n请求时长：1 分钟、15 秒。\n'
                        '在本次授权期间允许使用可临时解除封锁的应用。',
-            'cancel': '取消(C)', 'authenticate': '授权(A)',
-            'explanation': '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。'}
+            'cancel': '取消' if version == '1.28.1' else '取消(C)', 'authenticate': '授权(A)',
+            'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
+                            if version == '1.28.1' else
+                            '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
@@ -8302,7 +8311,6 @@ class AccessibleUI:
         require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
-        texts = chinese_mate_texts() if language == 'zh-Hans' else None
         if observation is None:
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
@@ -8336,10 +8344,12 @@ class AccessibleUI:
         self.validate_mate_field(proof)
         labels = [facts[node]['name'] for node in controls
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
+        texts = (chinese_mate_texts(self.mate_provider_metadata(pid)['version'])
+                 if language == 'zh-Hans' else None)
         recipient = texts['recipient'] if texts else 'Password for ' + APPROVER_ACCOUNTS[approver] + ':'
         require(labels.count(recipient) == 1,
                 'ui:mate-recipient-context-missing')
-        # Both qualified catalogues keep the complete request in one multiline
+        # The native catalogues keep the complete request in one multiline
         # label. Check every sentence, including the explicit soft-app choice.
         message = (f'Grant {child} access?\nRequested time: 30 minutes.' if binding else
                    f'Grant {CHILD} access?\nRequested time: 1 minute, 15 seconds.\n'
@@ -8509,10 +8519,11 @@ class AccessibleUI:
                 nodes, snapshot, _, facts = self.read_snapshot(protect_text=True)
                 current = self.mate_prompt(pid, observation=(nodes, snapshot, _, facts),
                                            challenge=challenge, filled=True, **options)
+                authenticate = (chinese_mate_texts(self.mate_provider_metadata(pid)['version'])['authenticate']
+                                if chinese else 'Authenticate')
                 buttons = [node for node in self.snapshot_scope(nodes, snapshot, current[1])
                            if facts[node]['role'] in ('button', 'push button')
-                           and facts[node]['name'] == (chinese_mate_texts()['authenticate'] if chinese
-                                                      else 'Authenticate') and facts[node]['showing']]
+                           and facts[node]['name'] == authenticate and facts[node]['showing']]
                 require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
                         'ui:mate-submit')
                 self._invoke_target(buttons[0])
@@ -8531,7 +8542,8 @@ class AccessibleUI:
                 # live challenge after them, with the same current service PID.
                 require(self.mate_agent_pid() == pid, 'ui:mate-owner')
                 self.mate_prompt(pid, challenge=challenge, **options)
-                return {'challenge_id': identity, 'provider': provider, 'texts': chinese_mate_texts(),
+                return {'challenge_id': identity, 'provider': provider,
+                        'texts': chinese_mate_texts(provider['version']),
                         'agent_id': self.mate_agent_identity(pid),
                         'child': 'existing-fixture-child', 'approver': 'fixture-parent',
                         'duration_seconds': 75, 'allow_soft': True, 'rejected_proofs': rejected}
@@ -8891,7 +8903,8 @@ class AccessibleUI:
         observation = self.read_snapshot(protect_text=True)
         options = {'language': language} if language != 'en' else {}
         self.mate_prompt(pid, observation=observation, challenge=challenge, **options)
-        texts = chinese_mate_texts() if language == 'zh-Hans' else None
+        texts = (chinese_mate_texts(self.mate_provider_metadata(pid)['version'])
+                 if language == 'zh-Hans' else None)
         nodes, snapshot, identities, facts = observation
         owner, dialog, field, cancel = challenge
         variants = []
@@ -8972,6 +8985,25 @@ class AccessibleUI:
                 'ui:mate-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
 
+        def estimate_kind(message):
+            return ('missing' if message is None else
+                    'estimated' if message.startswith('Estimated time remaining if approved: ') else
+                    'calculating' if message == 'Calculating time estimate…' else
+                    'waiting' if message == 'Waiting for approval…' else
+                    'unavailable' if message == 'Time estimate unavailable' else
+                    'denied' if message == 'Request denied' else 'other')
+
+        estimate_observations = set()
+
+        def diagnose_estimate(phase, kind):
+            # Retain finite status transitions, not one record per pending read.
+            if (phase, kind) in estimate_observations:
+                return
+            estimate_observations.add((phase, kind))
+            print(json.dumps({'event': 'mate-form-estimate-observation',
+                              'phase': phase, 'status_kind': kind}, sort_keys=True),
+                  file=sys.stderr, flush=True)
+
         def form(phase):
             if binding is None:
                 return self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
@@ -8979,22 +9011,32 @@ class AccessibleUI:
                 expected_selection=('child', CHILD_IDENTITIES[child]))
             require(value['approver'] == APPROVER_IDENTITIES[approver]
                     and value['allow_soft'] is False, 'ui:mate-form-binding')
-            status = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
-            message = None if status is None else ' '.join(status.get_name().split())
-            estimated = message is not None and message.startswith(
-                'Estimated time remaining if approved: ')
-            # Keep this assertion immediate while diagnosing its boundary.
-            # Retain only finite categories in the existing private command
-            # error log, never displayed text, accounts or prompt contents.
-            if not estimated:
-                kind = ('missing' if message is None else
-                        'calculating' if message == 'Calculating time estimate…' else
-                        'unavailable' if message == 'Time estimate unavailable' else
-                        'denied' if message == 'Request denied' else 'other')
-                print(json.dumps({'event': 'mate-form-estimate-failure',
-                                  'phase': phase, 'status_kind': kind}, sort_keys=True),
-                      file=sys.stderr, flush=True)
-            require(status is not None and estimated, 'ui:mate-form-estimate')
+            def estimate():
+                status = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
+                message = None if status is None else ' '.join(status.get_name().split())
+                kind = estimate_kind(message)
+                diagnose_estimate(phase, kind)
+                # REQUEST-017 permits loading while the asynchronous estimate
+                # refresh completes. Cancel queues that refresh after returning
+                # the form; prompt absence alone is not its completion witness.
+                if phase == 'after-cancel' and kind == 'calculating':
+                    return None
+                if kind != 'estimated':
+                    print(json.dumps({'event': 'mate-form-estimate-failure',
+                                      'phase': phase, 'status_kind': kind}, sort_keys=True),
+                          file=sys.stderr, flush=True)
+                require(status is not None and kind == 'estimated', 'ui:mate-form-estimate')
+                return True
+
+            if phase == 'after-cancel':
+                require(value == before, 'ui:mate-form-changed')
+                self.wait(estimate, 'mate-form-estimate', prompt_in_predicate=True)
+                # Recheck all choices and enabled controls after the refresh,
+                # rather than returning the projection captured before waiting.
+                value = self.kiosk_request_form(enabled=True,
+                    expected_selection=('child', CHILD_IDENTITIES[child]))
+            else:
+                estimate()
             return value
 
         def prompt(**kwargs):
@@ -9020,6 +9062,14 @@ class AccessibleUI:
                 nodes, snapshot, _identities, facts = observation
                 kind = self.system_prompt_kind(observation=(nodes, snapshot, facts))
                 if kind is None:
+                    if binding is not None:
+                        statuses = [node for node in nodes
+                                    if _identities[node] == 'kiosk-request-status'
+                                    and facts[node]['showing']]
+                        status_kind = ('ambiguous' if len(statuses) > 1 else
+                                       estimate_kind(' '.join(facts[statuses[0]]['name'].split())
+                                                     if statuses else None))
+                        diagnose_estimate('prompt-absent', status_kind)
                     return True
                 prompt(observation=observation, challenge=challenge)
                 return False

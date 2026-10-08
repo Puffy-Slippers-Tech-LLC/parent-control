@@ -2901,7 +2901,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-058"],
       "components": ["parent", "kiosk", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision fixture credentials and the verified current package."}],
@@ -2948,7 +2948,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-057"],
       "components": ["parent", "kiosk", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision fixture credentials and the verified current package."}],
@@ -2996,7 +2996,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Lifecycle.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-056"],
       "components": ["parent", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision fixture credentials and the verified current package."}],
@@ -3047,7 +3047,7 @@
         "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-055"
       ],
       "components": ["parent", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": [
         "existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets",
         "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product",
@@ -3105,7 +3105,7 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Localization.md", "docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md#e2e-053"],
       "components": ["parent", "child", "kiosk", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "declared-package-lifecycle-fixture", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the product-free baseline and provision declared credentials and one verified current-source package; Chinese reusable assets are only verified."}],
@@ -3151,7 +3151,7 @@
       },
       "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
       "duration_seconds": 3600,
-      "matrix": {"dimensions": {"history": ["latest-install"]}, "full_combinations": [], "rationale": "One indivisible Chinese customer history on the developer-selected Ubuntu target; other language histories remain separate scenarios."},
+      "matrix": {"dimensions": {"history": ["latest-install"]}, "full_combinations": [], "rationale": "One indivisible Chinese customer history on the selected Ubuntu or Fedora target; other language histories remain separate scenarios."},
       "variants": [{"coverage_id": 254, "id": "latest-install", "owner": "personal-language", "parameters": {"history": "latest-install"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/chinese_lifecycle.py", "test_id": "latest-install"}}]
     },
     {

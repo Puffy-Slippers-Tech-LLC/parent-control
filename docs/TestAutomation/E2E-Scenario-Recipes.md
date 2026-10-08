@@ -1743,7 +1743,9 @@ their fast technical coverage.
 Case **254**, variant `latest-install` (`history=latest-install`), implements the
 continuous [Chinese kiosk lifecycle](#chinese-kiosk-language-lifecycle)
 below through `chinese_lifecycle.PLAN` and `onpc_chinese_lifecycle::run`.
-It starts product-free on Ubuntu 26.04. Complete acceptance passed in
+It starts product-free on Ubuntu 26.04 or Fedora Workstation 44, using the same
+journey and all declared assertions. The shared native package helper selects
+APT/DEB or DNF/RPM for the selected distribution. Complete Ubuntu acceptance passed in
 `20261005T052511Z-d5a980d9`; required current-install and native-auth regressions
 passed in `20261005T053736Z-2bf99fd4` and `20261005T054603Z-b58a3339`.
 After the untouched chooser/form observations, cancel the station normally,
@@ -1762,9 +1764,10 @@ Case 254 is registered as E2E-053 and passed all 25 declared assertions,
 collection and owned cleanup on Ubuntu 26.04.
 Task 300k qualified the revised fresh-install first presentation in
 `20261004T185057Z-2010e28f`, with both required lifecycle regressions passed.
-That evidence is Ubuntu-only. The selected complete-case target is Ubuntu
-26.04. The developer removed Fedora-specific Chinese qualification from this
-case's acceptance scope on 2026-10-04; queue repair establishes no acceptance.
+That evidence is Ubuntu-only. The developer authorized extending this case to
+Fedora Workstation 44 on 2026-10-08, preserving the Ubuntu journey and all checks.
+Fedora complete-case acceptance remains unqualified until the same installed
+journey passes there; scope metadata and queue repair establish no acceptance.
 Keep all three reported
 symptoms in this continuous history, without a German/Hebrew lifecycle matrix.
 
@@ -1905,8 +1908,10 @@ records the shared bindings and retained acceptance reports.
 
 ### E2E-055
 
-One complete Parent English → Hebrew → English history for Jamie, selecting
-Riley with its recorded 60-minute allowance, zero grant and captured app rules.
+One complete Parent English → Hebrew → English history on Ubuntu 26.04 or
+Fedora Workstation 44 for Jamie, selecting Riley with its recorded 60-minute
+allowance, zero grant and captured app rules. Both distributions use the same
+installed journey, public operations and assertions.
 At each language, use representative translated management/feedback context to
 continue the same work and independently compare the exact mixed Hebrew/Latin
 draft and child policy. Stable IDs and accessibility observations identify safe
@@ -2003,7 +2008,8 @@ finite compositions; shared UI owns local control matrices.
 ### E2E-056
 
 Case **257**, variant `parent` (`surface=parent`), is one continuous English
-fresh-install history. Task 302 owns complete acceptance; LIFE07's three-surface
+fresh-install history on Ubuntu 26.04 or Fedora Workstation 44.
+Task 302 owns complete acceptance; LIFE07's three-surface
 qualification supplies shared operations, not this Parent reboot result.
 `fresh_parent_restart.PLAN` composes `package_installation`, public restart
 reads/actions and `prefixed_stages('return', fresh_desktop('parent'))` through
@@ -2011,7 +2017,7 @@ reads/actions and `prefixed_stages('return', fresh_desktop('parent'))` through
 
 | Phase | Finite actions and independent results |
 | --- | --- |
-| Actual installation | Start from the product-free Ubuntu baseline, authenticate Jamie graphically and install the verified current-source package once through LIFE04. Read successful completion and the final reboot notice separately. Retain this boot; no upgrade, app snapshot, private marker or injected error supplies the history. |
+| Actual installation | Start from the product-free baseline of the selected supported distribution, authenticate Jamie graphically and install the verified current-source package once through LIFE04's shared native package helper. Read successful completion and the final reboot notice separately. On Fedora, require the notice as the final nonempty product-scriptlet line; DNF's own framing may follow. Retain this boot; no upgrade, app snapshot, private marker or injected error supplies the history. |
 | Parent before reboot | Launch installed Parent directly. Require one owned modal before management or language setup, with `Restart the computer for Oh No! Parent Control to work properly.`, `Close` and `Reboot now`. Activate Close once; observe the administrator desktop, no Parent management and unchanged boot. Reopen directly and independently read the same owned modal and exact instructions on that boot. |
 | Reboot and usability | Activate the Parent modal's Reboot now once through normal system authorization. Require a changed boot digest and fresh usable GDM before new graphical administrator authentication. Launch fresh Parent, finish ordinary English language setup if needed, and require an available child selector with no restart modal. No command-reboot fallback, uncertain-input replay or policy setup precedes the notice. |
 
@@ -2024,14 +2030,15 @@ restoration and preservation. The command-reboot continuity regression remains
 ### E2E-057
 
 Case **258**, variant `child` (`surface=child`), is one continuous English
-fresh-install Child App history. `fresh_child_restart.PLAN` composes LIFE04's
+fresh-install Child App history on Ubuntu 26.04 or Fedora Workstation 44.
+`fresh_child_restart.PLAN` composes LIFE04's
 `package_installation`, LIFE07's shared `restart_reentry('overlay')`, fresh
 desktop challenges and public postboot setup through `record_package_journey`
 and `onpc_customer_reboot::run_child_notice`.
 
 | Phase | Finite actions and independent results |
 | --- | --- |
-| Actual installation | Start product-free on Ubuntu, authenticate Jamie graphically, install the verified current-source package once and read completion/final reboot notice. Preserve the installation boot. |
+| Actual installation | Start product-free on the selected supported distribution, authenticate Jamie graphically, install the verified current-source package once through the shared native package helper and read completion/final reboot notice. On Fedora, require the notice as the final nonempty product-scriptlet line; DNF's own framing may follow. Preserve the installation boot. |
 | Child App before reboot | Log out Jamie and authenticate Riley into the ordinary desktop through the installed GDM route. Keep controls disabled; launch `oh-no-parent-control-child` directly without requiring a panel. Read one owned modal before language setup or a usable request: `Restart the computer for Oh No! Parent Control to work properly.`, `Close`, `Reboot now`. Close once, independently require blocked request, exit normally and observe the same child desktop/boot. Reopen directly and read the same modal again. |
 | Reboot and usability | Activate the Child App modal's Reboot now once. Independently require a changed boot and usable GDM. Authenticate Jamie afresh, open Parent and finish English language setup; verify Riley's untouched disabled zero allowance, then save enabled 30 minutes through ordinary public controls. Log out Jamie, authenticate Riley afresh and launch Child App. Finish ordinary English language setup if needed; require enabled Request for the fixed correct child and no restart modal. |
 
@@ -2046,7 +2053,8 @@ case 257; retain those regressions and `check_e2e_customer_reboot`.
 ### E2E-058
 
 Case **259**, variant `kiosk` (`surface=kiosk`), is one continuous English
-fresh-install request-station history. Jordan is the initial child and Jamie
+fresh-install request-station history on Ubuntu 26.04 or Fedora Workstation 44.
+Jordan is the initial child and Jamie
 the declared approver. `fresh_kiosk_restart.PLAN` composes LIFE04's package
 installation, LIFE07's shared `restart_reentry('kiosk')`, passwordless station
 entry and fresh administrator authentication through `record_package_journey`
@@ -2054,7 +2062,7 @@ and `onpc_customer_reboot::run_kiosk_notice`.
 
 | Phase | Finite actions and independent results |
 | --- | --- |
-| Actual installation | Start product-free on Ubuntu, authenticate Jamie graphically, install the verified current-source package once and read completion/final reboot notice. Preserve the installation boot. |
+| Actual installation | Start product-free on the selected supported distribution, authenticate Jamie graphically, install the verified current-source package once through the shared native package helper and read completion/final reboot notice. On Fedora, require the notice as the final nonempty product-scriptlet line; DNF's own framing may follow. Preserve the installation boot. |
 | Kiosk before reboot | Log out Jamie normally and enter the newly created station before child policy setup. Read one owned modal in Jordan's initial English language before a chooser or usable request: `Restart the computer for Oh No! Parent Control to work properly.`, `Close`, `Reboot now`. Close once, require the blocked result, exit normally and observe usable GDM on the same boot. Reenter the station and independently read the same modal again. |
 | Reboot and usability | Activate kiosk Reboot now once through normal system authorization. Independently require a changed boot and usable GDM. Authenticate Jamie afresh, open Parent and finish ordinary English language setup; verify Jordan's untouched disabled zero allowance, then save enabled 30 minutes through public controls. Log out normally and enter a fresh kiosk. Complete ordinary English language setup if needed and select Jamie through the shared public account operation; independently require usable child/approver selectors, Jordan/Jamie selected, enabled Request and no restart modal. |
 

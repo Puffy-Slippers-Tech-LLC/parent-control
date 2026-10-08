@@ -23,8 +23,8 @@ from tests.support.e2e_recording import session
 from ui_observations import UiObservations
 
 
-def native_tree():
-    # Independent mate-polkit 1.26.1 zh_CN catalogue projection. Its dialog
+def native_tree(provider_version='1.26.1-6'):
+    # Independent mate-polkit 1.26.1/1.28.1 zh_CN catalogue projections. The dialog
     # selects the super-user explanation for one identity other than the
     # agent's user (Jamie authenticates in the station-owned kiosk session).
     # Do not derive the fixture from the adapter's expected strings: doing so
@@ -36,6 +36,10 @@ def native_tree():
         'cancel': '取消(C)', 'authenticate': '授权(A)',
         'explanation': '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。',
     }
+    if provider_version == '0:1.28.1-8.fc44':
+        # https://github.com/mate-desktop/mate-polkit/blob/v1.28.1/po/zh_CN.po
+        texts['cancel'] = '取消'
+        texts['explanation'] = '一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
     field = Node(role='password text', states=('showing', 'visible', 'sensitive', 'focused'))
     field.get_text_iface = lambda: SimpleNamespace(length=0)
     field.get_child_count = Mock(side_effect=AssertionError('protected descendants'))
@@ -50,14 +54,14 @@ def native_tree():
     ui.mate_agent_pid = Mock(return_value=100)
     ui.mate_challenge_identity = Mock(return_value='a' * 64)
     ui.mate_agent_identity = Mock(return_value='b' * 64)
-    ui.mate_provider_metadata = Mock(return_value={'version': '1.26.1-6', 'locale': 'zh_CN.UTF-8',
+    ui.mate_provider_metadata = Mock(return_value={'version': provider_version, 'locale': 'zh_CN.UTF-8',
                                                   'keyboard': [['xkb', 'us']]})
     return ui, field, labels, cancel, submit, agent, dialog
 
 
-def prompt_receipt(identity='a' * 64, agent='b' * 64, opening=True):
-    return {'challenge_id': identity, 'agent_id': agent, 'texts': public.chinese_mate_texts(),
-        'provider': {'version': '1.26.1-6', 'locale': 'zh_CN.UTF-8', 'keyboard': [['xkb', 'us']]},
+def prompt_receipt(identity='a' * 64, agent='b' * 64, opening=True, provider_version='1.26.1-6'):
+    return {'challenge_id': identity, 'agent_id': agent, 'texts': public.chinese_mate_texts(provider_version),
+        'provider': {'version': provider_version, 'locale': 'zh_CN.UTF-8', 'keyboard': [['xkb', 'us']]},
         'child': 'existing-fixture-child', 'approver': 'fixture-parent', 'duration_seconds': 75,
         'allow_soft': True, 'rejected_proofs': list(public.CHINESE_MATE_REFUSALS) if opening else []}
 
@@ -92,10 +96,11 @@ def test_exclusive_mode_refuses_before_vm(extra):
     with pytest.raises(CommandError): smoke.main(chinese_native_auth=True, **args)
 
 
+@pytest.mark.parametrize('provider_version', ['1.26.1-6', '0:1.28.1-8.fc44'])
 @pytest.mark.parametrize('fault', ['', 'recipient', 'message', 'explanation', 'authenticate', 'cancel',
     'hidden', 'disabled', 'unfocused', 'nonempty', 'stale', 'owner', 'multiple', 'replacement'])
-def test_actual_chinese_prompt_guard_and_refusals(fault):
-    ui, field, labels, cancel, submit, agent, dialog = native_tree()
+def test_actual_chinese_prompt_guard_and_refusals(fault, provider_version):
+    ui, field, labels, cancel, submit, agent, dialog = native_tree(provider_version)
     if fault in labels: labels[fault].name = 'English or incorrect request'
     if fault == 'authenticate': submit.name = 'Authenticate'
     if fault == 'cancel': cancel.name = 'Cancel'
@@ -119,12 +124,14 @@ def test_actual_chinese_prompt_guard_and_refusals(fault):
     field.get_child_count.assert_not_called(); field.get_description.assert_not_called()
 
 
+@pytest.mark.parametrize('provider_version', ['1.26.1-6', '0:1.28.1-8.fc44'])
 @pytest.mark.parametrize('explanation', [
     '一个程序正试图执行一个需要特权的动作。要求授权以执行该动作。',
     '一个程序正试图执行一个需要特权的动作。要求授权为下列用户之一来执行该动作。',
+    '一个程序正试图执行一个需要特权的动作。要求授权为下列用户之一以执行该动作。',
 ])
-def test_chinese_kiosk_refuses_other_native_explanation_branches(explanation):
-    ui, field, labels, cancel, submit, _, _ = native_tree()
+def test_chinese_kiosk_refuses_other_native_explanation_branches(explanation, provider_version):
+    ui, field, labels, cancel, submit, _, _ = native_tree(provider_version)
     ui.expected_mate_challenge = 'a' * 64
     labels['explanation'].name = explanation
     with pytest.raises(public.UiError, match='ui:mate-native-explanation'):
@@ -134,16 +141,31 @@ def test_chinese_kiosk_refuses_other_native_explanation_branches(explanation):
     field.get_child_count.assert_not_called(); field.get_description.assert_not_called()
 
 
+@pytest.mark.parametrize('actual, reported', [
+    ('1.26.1-6', '0:1.28.1-8.fc44'), ('0:1.28.1-8.fc44', '1.26.1-6'),
+    ('0:1.28.1-8.fc44', '0:1.30.0-1.fc44'),
+])
+def test_chinese_native_catalogue_refuses_wrong_or_unknown_provider(actual, reported):
+    ui, field, _, cancel, submit, _, _ = native_tree(actual)
+    ui.mate_provider_metadata.return_value['version'] = reported
+    with pytest.raises(public.UiError, match='ui:mate-native-(explanation|version)'):
+        ui.mate_prompt(100, language='zh-Hans')
+    cancel.action.do_action.assert_not_called(); submit.action.do_action.assert_not_called()
+    field.get_child_count.assert_not_called(); field.get_description.assert_not_called()
+
+
+@pytest.mark.parametrize('provider_version', ['1.26.1-6', '0:1.28.1-8.fc44'])
 @pytest.mark.parametrize('fault', ['', 'replacement', 'locale', 'uncertain', 'missing-success'])
-def test_guarded_chinese_approval_same_challenge_and_single_submission(fault):
-    ui, field, labels, cancel, submit, _, _ = native_tree()
+def test_guarded_chinese_approval_same_challenge_and_single_submission(fault, provider_version):
+    ui, field, labels, cancel, submit, _, _ = native_tree(provider_version)
     ui.expected_mate_challenge = 'c' * 64 if fault == 'replacement' else 'a' * 64
     if fault == 'locale': ui.mate_provider_metadata.return_value['locale'] = 'en_US.UTF-8'
     if fault in ('replacement', 'locale'):
         with pytest.raises(public.UiError): ui.kiosk_mate_approval('chinese-mate-rechecked')
         submit.action.do_action.assert_not_called()
         return
-    assert ui.kiosk_mate_approval('chinese-mate-rechecked') == prompt_receipt(opening=False)
+    assert ui.kiosk_mate_approval('chinese-mate-rechecked') == prompt_receipt(
+        opening=False, provider_version=provider_version)
     field.get_text_iface = lambda: SimpleNamespace(length=12)
     submit.action.do_action.return_value = fault != 'uncertain'
     ui.kiosk_approval_success = Mock(return_value={'approved': True, 'form_success': True},
@@ -203,8 +225,9 @@ def test_actual_chinese_public_approval_result(title):
             ui.kiosk_approval_success(language='zh-Hans')
 
 
-@pytest.mark.parametrize('fault', ['', 'reused', 'wrong-text', 'wrong-child', 'wrong-locale', 'intervening', 'early-reentry'])
-def test_real_decoder_two_fresh_challenges_and_terminal_refusal(fault):
+@pytest.mark.parametrize('provider_version', ['1.26.1-6', '0:1.28.1-8.fc44'])
+@pytest.mark.parametrize('fault', ['', 'reused', 'wrong-text', 'wrong-child', 'wrong-locale', 'wrong-catalogue', 'intervening', 'early-reentry'])
+def test_real_decoder_two_fresh_challenges_and_terminal_refusal(fault, provider_version):
     observer = UiObservations(SimpleNamespace())
     count = 0
     def call(argv, operation, **options):
@@ -216,10 +239,13 @@ def test_real_decoder_two_fresh_challenges_and_terminal_refusal(fault):
                 value['approval'] = {'approved': True, 'form_success': True}
             else:
                 value['approval'] = prompt_receipt('a' * 64 if count == 1 or fault == 'reused' else 'c' * 64,
-                    'b' * 64 if count == 1 else 'd' * 64, operation.endswith('open'))
+                    'b' * 64 if count == 1 else 'd' * 64, operation.endswith('open'), provider_version)
                 if fault == 'wrong-text': value['approval']['texts']['authenticate'] = 'Authenticate'
                 if fault == 'wrong-child': value['approval']['child'] = 'fixture-child'
                 if fault == 'wrong-locale': value['approval']['provider']['locale'] = 'en_US.UTF-8'
+                if fault == 'wrong-catalogue':
+                    value['approval']['texts'] = public.chinese_mate_texts(
+                        '0:1.28.1-8.fc44' if provider_version == '1.26.1-6' else '1.26.1-6')
         if operation == 'chinese-persisted-form': value['initial'] = initial()
         if len(argv) == 7: value['boot_sha256'] = 'e' * 64
         return json.dumps(value, ensure_ascii=False).encode(), []
@@ -227,7 +253,7 @@ def test_real_decoder_two_fresh_challenges_and_terminal_refusal(fault):
     if fault == 'early-reentry':
         with pytest.raises(EvidenceError): observer.observe('chinese-persisted-form')
         observer.call.assert_not_called(); return
-    if fault in ('wrong-text', 'wrong-child', 'wrong-locale'):
+    if fault in ('wrong-text', 'wrong-child', 'wrong-locale', 'wrong-catalogue'):
         with pytest.raises(EvidenceError): observer.observe('chinese-mate-open')
         with pytest.raises(EvidenceError): observer.observe('chinese-mate-qualified')
         assert observer.call.call_count == 1; return

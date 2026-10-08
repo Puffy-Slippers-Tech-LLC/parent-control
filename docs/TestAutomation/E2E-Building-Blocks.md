@@ -2920,11 +2920,12 @@ snapshot-readiness and FIX06 routes. Its finite package owners are
 bytes. The canonical release/Workstation identity, targeted enforcing SELinux,
 runtime UTF-8 locale, required Chinese translations and static Noto CJK glyphs
 must all pass. Fedora assets, renewed desktop/first presentation and native
-prompt bindings remain unqualified. The developer removed Fedora-specific
-Chinese qualification from task 300's acceptance scope on 2026-10-04; its
-complete-case target is Ubuntu 26.04. Retained Fedora preparation work supplies
-no installed acceptance and does not block task 300. Asset preparation and
-scope decisions supply no complete-case acceptance.
+prompt bindings remain unqualified. Task 300's historical acceptance scope was
+Ubuntu-only. On 2026-10-08 the developer authorized the same E2E-053/latest-install
+journey on Fedora Workstation 44 with all current assertions preserved and no
+change to the Ubuntu path. Retained Fedora preparation work supplies no installed
+acceptance; the complete journey must pass on Fedora before claiming it qualified.
+Asset preparation and scope decisions supply no complete-case acceptance.
 Task 300a passed host checks and auto baseline/app-snapshot preparation. Chinese
 FIX06 qualified wrong-entry refusal, two independent valid reads and unchanged
 account/locale/product state on every enabled VM (Ubuntu 26.04) in
@@ -3050,10 +3051,15 @@ The fixed Jamie-from-station binding uses MATE's single-other-user explanation,
 not its same-user explanation: the upstream
 [dialog branch](https://github.com/mate-desktop/mate-polkit/blob/v1.26.1/src/polkitmateauthenticationdialog.c#L653-L675)
 selects the super-user message when the sole authentication identity differs
-from the agent's user. `chinese_mate_texts` pins that Chinese catalogue string;
-its host public-tree fixture specifies the provider text independently and
-rejects the same-user and multiple-user branches. Native text still must pass
-on each actual prompt before credentials are released.
+from the agent's user. `chinese_mate_texts(provider_version)` pins the exact
+Chinese catalogue for the installed MATE version: Ubuntu's 1.26.1 retains its
+original wording and mnemonic Cancel label; Fedora's 1.28.1 uses its upstream
+wording and Cancel label without a mnemonic. Unknown versions refuse. The host
+decoder independently checks the version-bound oracle; public-tree fixtures
+specify both catalogues independently and reject crossed catalogues, same-user
+and multiple-user branches. Native text still must pass on each actual prompt
+before credentials are released. This reader extension supplies no Fedora
+installed acceptance; the complete journey remains subject to verification.
 The task 300e first-presentation/reboot slice
 is implemented in [chinese_kiosk_lifecycle.py](../../tests/e2e/chinese_kiosk_lifecycle.py)
 and `check_e2e_chinese_kiosk_lifecycle`, with qualification recorded below. It composes

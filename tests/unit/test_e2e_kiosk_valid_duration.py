@@ -1163,6 +1163,48 @@ def test_mate_cancel_real_decoder_single_input_and_unchanged_form(operation):
     assert 'onpc-parent-jamie' not in json.dumps(result)
 
 
+@pytest.mark.parametrize('outcome', ['estimated', 'unavailable', 'denied', 'other',
+                                   'stuck', 'changed-form'])
+def test_multiple_cancel_waits_for_refresh_without_accepting_errors_or_replaying(monkeypatch, outcome):
+    operation = 'multiple-first-first-cancel'
+    ui, desktop, agent, _dialog, field, cancel, submit, *_ = mate_form(operation)
+    status = ui.find_id('kiosk-request-status')
+    ui.timeout = 0 if outcome == 'stuck' else 1
+    sleeps = []
+
+    def dismiss(_):
+        desktop.children.remove(agent)
+        status.name = 'Calculating time estimate…'
+        return True
+
+    def finish_refresh(_delay):
+        sleeps.append(_delay)
+        assert submit.action.do_action.call_count == cancel.action.do_action.call_count == 1
+        status.name = {'unavailable': 'Time estimate unavailable',
+                       'denied': 'Request denied', 'other': 'Unexpected result'}.get(
+            outcome, 'Estimated time remaining if approved: 30m')
+        if outcome == 'changed-form':
+            ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
+
+    cancel.action.do_action.side_effect = dismiss
+    monkeypatch.setattr(accessible_ui.time, 'sleep', finish_refresh)
+    if outcome == 'estimated':
+        result = ui.run(operation, '')
+        assert result['mate']['unchanged_form'] and result['mate']['no_error']
+        assert len(sleeps) == 1
+    else:
+        code = ('ui:timeout:mate-form-estimate' if outcome == 'stuck' else
+                'ui:mate-form-changed' if outcome == 'changed-form' else 'ui:mate-form-estimate')
+        with pytest.raises(UiError, match=code):
+            ui.run(operation, '')
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.run(operation, '')
+        assert len(sleeps) == (0 if outcome == 'stuck' else 1)
+    submit.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_called_once()
+    field.get_child_count.assert_not_called()
+
+
 @pytest.mark.parametrize('binding', sorted(accessible_ui.MULTIPLE_MATE_BINDINGS))
 @pytest.mark.parametrize('fault', ['recipient', 'child', 'duration', 'soft', 'owner', 'changed-form'])
 def test_multiple_prompt_rejects_wrong_binding_and_never_replays(binding, fault):

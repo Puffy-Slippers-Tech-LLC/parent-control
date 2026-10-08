@@ -485,6 +485,8 @@ Height follows the content. Literal reminder
 text wraps naturally.
 Shell banner and tooltip positions round to whole stage pixels so centering an
 odd-width card on an even-width monitor does not soften the entire actor tree.
+Shell labels paint directly while opaque, using automatic offscreen redirection
+only when needed for group opacity, rather than always sampling a label texture.
 Action caption widgets are removed; their translations remain for tooltips
 and accessibility. The icon buttons
 share a centered horizontal action row and retain translated accessible names.
@@ -492,7 +494,8 @@ Hovering either icon shows its translated caption in a tooltip; Shell tooltip
 chrome is owned and destroyed with the banner, and kiosk uses native GTK tooltips.
 Each countdown segment represents one second and empties as a whole block;
 adjacent fills form a continuous thin track, but it never drains continuously
-within a segment. Both renderers use the system sans-serif font for all languages.
+within a segment. Both renderers inherit the desktop interface font and its normal
+language fallbacks instead of forcing the generic sans-serif family.
 The child renderer owns only its own Shell chrome and notification model,
 without registering it with the message tray: the tray's fixed noncritical
 timeout cannot express persistence independently of fullscreen urgency.

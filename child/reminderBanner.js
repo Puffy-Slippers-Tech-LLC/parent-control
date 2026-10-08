@@ -12,6 +12,14 @@ import {logInfo} from './logger.js';
 // this product's chrome and lifetime so fullscreen urgency stays independent.
 let activeSource = null;
 
+function createLabel(params) {
+    // St.Label defaults to ALWAYS redirecting through an offscreen texture.
+    // Paint opaque banner text directly to avoid another texture sampling pass,
+    // while retaining group-opacity handling if Shell fades an ancestor.
+    return new St.Label({...params,
+        offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY});
+}
+
 // Both the delivery timeout and the remaining-time countdown use whole-second
 // cells. Keep the original cell count as the denominator while fills go dark.
 function createCountdown(totalSeconds, translations) {
@@ -29,7 +37,7 @@ function createCountdown(totalSeconds, translations) {
         track.add_child(cell);
         return fill;
     });
-    const time = new St.Label({style_class: 'screen-time-reminder-time'});
+    const time = createLabel({style_class: 'screen-time-reminder-time'});
     row.add_child(track);
     row.add_child(time);
     actor.add_child(row);
@@ -118,7 +126,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     const content = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
         style_class: 'screen-time-reminder-content', x_expand: true,
         y_align: Clutter.ActorAlign.CENTER});
-    const message = new St.Label({text: body, style_class: 'screen-time-reminder-message'});
+    const message = createLabel({text: body, style_class: 'screen-time-reminder-message'});
     message.clutter_text.line_wrap = true;
     message.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
     message.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
@@ -129,7 +137,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     content.add_child(countdown.actor);
     card.add_child(content);
     const actions = [];
-    tooltip = new St.Label({style_class: 'dash-label screen-time-tooltip',
+    tooltip = createLabel({style_class: 'dash-label screen-time-tooltip',
         visible: false, reactive: false});
     const syncTooltip = () => {
         if (!tooltip || !card) return;

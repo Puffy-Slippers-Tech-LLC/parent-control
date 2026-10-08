@@ -11,13 +11,18 @@ oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
   * What's New: Added metadata-driven What's new infra
 
   Bug Fixes
+  * Broker: Fixed startup failures caused by temporary trust-database lock
+    contention and preserved bounded dependency diagnostics after service
+    recovery without collecting personal data.
+  * Broker: Added automatic recovery when the fapolicyd service exits with an
+    error.
   * Parent App: Parent app app grid column headers on some RTL languages
     overlap
   * Parent App: Fixed the disabled Revoke button at zero remaining time when
     soft-blocked apps are still running, allowing parents to close those apps
     after the child’s session locks.
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Wed, 07 Oct 2026 22:05:02 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 08 Oct 2026 22:14:52 +0000
 
 oh-no-parent-control (1.3+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

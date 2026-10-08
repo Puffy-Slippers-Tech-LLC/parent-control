@@ -158,6 +158,7 @@ function harness() {
             timeout_add: (_priority, _interval, callback) => { timers.set(++serial, callback); return serial; },
             source_remove: id => timers.delete(id), SOURCE_REMOVE: false, SOURCE_CONTINUE: true},
         Clutter: {ActorAlign: {CENTER: 2, START: 1}, Orientation: {VERTICAL: 1}, BinLayout: class {},
+            OffscreenRedirect: {AUTOMATIC_FOR_OPACITY: 1},
             RequestMode: {HEIGHT_FOR_WIDTH: 0, WIDTH_FOR_HEIGHT: 1},
             TextDirection: {LTR: 0, RTL: 1}},
         St: {BoxLayout: Actor, Label: Actor, Icon: Actor, Button: Actor, Widget: Actor,

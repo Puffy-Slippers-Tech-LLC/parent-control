@@ -84,7 +84,7 @@ class NotificationApplication(Gtk.Application):
             .kiosk-notification-card { background: transparent; color: #242b4b;
             border: 12px solid transparent; border-radius: 0; padding: 6px;
             border-image-source: url("FRAME"); border-image-slice: 12 fill; border-image-width: 12px; }
-            .kiosk-notification label { font: 11px sans-serif; }
+            .kiosk-notification label { font-size: 11px; font-weight: normal; }
             .kiosk-notification .reminder-message { font-size: 20px; font-weight: 600; color: #242b4b; }
             .kiosk-notification .reminder-time { font-size: 12px; color: #424a70; min-width: 14px; }
             .kiosk-notification button { background: transparent; color: #242b4b;

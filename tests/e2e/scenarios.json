@@ -2651,7 +2651,8 @@
         "broker"
       ],
       "environment": [
-        "ubuntu26.04"
+        "ubuntu26.04",
+        "fedora44"
       ],
       "preconditions": [
         "existing-guarded-vm-lease",

@@ -58,6 +58,11 @@ dependencies. Task 300 resumes on Ubuntu 26.04. Preserve Fedora-specific code
 and retained preparation/failure evidence; this exclusion supplies no Fedora
 qualification or complete-case acceptance.
 
+Excluded tasks: **305** (unrelated-package three-app reboot history).
+The developer removed the whole task on 2026-10-07. It is neither completed nor
+deferred; do not recreate its row, brief or dependencies. Completed prerequisite
+305a, reusable helpers and retained failure evidence remain preserved.
+
 ## Ordered task queue
 
 Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
@@ -255,7 +260,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 302 | E2E-056: parent fresh-install reboot prompt | 301 | Cases 257; complete genuine fresh-install Parent history passed all seven assertions on Ubuntu 26.04 in `20261008T005153Z-5fc78720`: installation/final notice, same-boot owned modal before management, Close/reopen, one Parent Reboot now, new boot/usable GDM, fresh administrator desktop and usable Parent without modal. Required command-reboot regression passed all five assertions in `20261008T010236Z-98646c71`. Both passed collection, worker shutdown, owned cleanup, baseline restoration, finalization and preservation. Scoped host safety/composition and consistency checks passed; coverage regenerated | 40–60 (exception) |
 | [x] | 303 | E2E-057: child fresh-install reboot prompt | 301 | Cases 258; complete genuine fresh-install Child App history passed all eight assertions on Ubuntu 26.04 in `20261008T014508Z-450ffde5`: installation/final notice, direct modal before policy setup, same-boot Close/normal desktop return/reopen, one overlay Reboot now, changed boot/usable GDM, public enabled 30-minute Riley setup and fresh fixed-child usable request without modal. Required command-reboot (`20261008T015149Z-bfb425de`), three-surface notice (`20261008T012832Z-f24bf5b2`) and Parent case 257 (`20261008T013814Z-8069c961`) regressions passed. All passed collection, worker shutdown, owned cleanup, baseline restoration, finalization and preservation. LIFE07 retains exported acceptance reports; scoped host safety/composition, consistency and traceability passed; coverage regenerated | 40–60 (exception) |
 | [x] | 304 | E2E-058: kiosk fresh-install reboot prompt | 301 | Cases 259; complete genuine fresh-install kiosk history passed all seven assertions on Ubuntu 26.04 in `20261008T022232Z-88a775f3`: installation/final notice, first English modal before policy setup, same-boot Close/normal exit/re-entry, one public kiosk Reboot now, changed boot/usable GDM, public Jordan 30-minute setup and fresh usable Jordan/Jamie request without modal. The shared recipe supplies Jamie's public selection before the unchanged final guard. Required three-surface notice (`20261008T022938Z-30eb5c08`) and command-reboot (`20261008T023915Z-9b1c48e7`) regressions passed. All passed collection, worker shutdown, owned cleanup, baseline restoration, finalization and preservation. LIFE07 retains exported reports; scoped host safety/composition and consistency passed; coverage regenerated | 40–60 (exception) |
-| [ ] | 305 | [Unrelated reboot requests leave all apps usable](E2E-Tasks/305-unrelated-reboot.md) | 301 | One planned case: genuinely unrelated package reboot request, no product request, Parent/Child App/kiosk usable without modal, then normal reboot and no-reboot controls; real unrelated-package trigger, registration and live acceptance pending | 40–60 (exception) |
+| [x] | 305a | Qualify a real unrelated-package reboot request | 301 | LIFE04 finite verified Ubuntu libc6:amd64 2.43-2ubuntu2.4 reconfiguration and independent system result passed all seven assertions in `20261008T031925Z-f3d2d6e5`: genuine installation/activation, clean administrator entry, one transaction, actual systemd trigger completion, genuine libc6 reboot request and unchanged product identity/boot. Required package-command (`20261008T032451Z-e5adea37`) and customer-reboot (`20261008T032801Z-219b3d94`) regressions passed. All passed collection, reconciliation, worker shutdown, owned cleanup, baseline restoration, finalization and preservation. Scoped host safety/composition checks passed; catalogue retains exact scope/evidence; no complete-case credit | 40–60 (exception) |
 | [ ] | 048f | [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md) | 048a, 021, 048c, 048d | AUTH02 overlay rejection/Cancel and preserved-form readback | 20–30 |
 | [ ] | 048b | [Complete overlay exits and approval compositions](E2E-Tasks/048b-overlay-approval.md) | 048a, 021, 048c, 048d, 048f | Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07 | 20–30 |
 | [ ] | 060 | [E2E-015: child-overlay-approved](E2E-Tasks/060-case-46.md) | 180, 048b, 052 | Cases 46 | 20–30 |
@@ -587,9 +592,10 @@ They do not qualify a route, waive acceptance or close a row.
 
 ## Fresh-install restart regression scope
 
-Tasks **301–305** are documentation-only additions requested on 2026-10-02.
+Tasks **301–305** were added on 2026-10-02; task 305 was subsequently removed
+under the [explicit scheduling exclusion](#excluded-automation).
 The [execution plan](E2E-Execution-Plan.md#next-task) owns the current task pointer.
-Each of 302–305 owns one independent
+Each of 302–304 owns one independent
 complete case; task 302 delivered E2E-056 `parent`, case 257; task 303 delivered
 E2E-057 `child`, case 258; task 304 delivered E2E-058 `kiosk`, case 259.
 Other numeric coverage IDs, scenario inventory bindings, recipes and
@@ -599,7 +605,7 @@ The original addition registered or accepted no case. Historical clean
 installation case 2 reboots before opening the apps and does not cover these
 pre-reboot prompts. Task 300's completed case 254 records Chinese fresh-install
 kiosk acceptance; its historical upgrade slices alone supply no fresh-install
-acceptance. Tasks 302–305 retain their separate exact
+acceptance. Tasks 302–304 retain their separate exact
 surface, language and result requirements.
 
 The positive cases must start from the product-free supported baseline, install
@@ -621,12 +627,9 @@ must lead to an independently observed new boot, usable greeter and fresh target
 entry with no reboot modal. Establish ordinary public policy/language setup
 after reboot where required; private marker checks cannot replace these results.
 
-Task 305 owns the negative installed control: a real unrelated package requests
-reboot after normal product activation, while the product itself has no pending
-request. All three apps must remain usable and show no modal. A normal reboot
-then supplies the no-reboot control on all three. Keep missing real package
-assets/trigger explicit as a gate; synthetic requests belong in engineering
-tests. Shared modal transport and marker-edge matrices remain with unit/host UI
+Completed task 305a retains qualification of the unrelated
+package operation and its independent system result, not the complete history.
+Synthetic requests belong in engineering tests. Shared modal transport and marker-edge matrices remain with unit/host UI
 coverage; the installed cases must exercise real package/session/reboot causality.
 
 ## Deferred future work

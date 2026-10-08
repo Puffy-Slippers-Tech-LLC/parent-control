@@ -438,6 +438,23 @@ identity; declared challenges and independent selection/readback remain required
 These add no storage, process or cleanup owner. The existing private unit and
 cleanup classifications remain applicable.
 
+Unrelated-package histories use `package_install.unrelated_journey` with named
+clean-entry and independent-result endpoints. Task 305a's completed qualification
+reuses that engine and `submit_unrelated` / `observe_unrelated`. The engine copies the
+complete public package/preservation witness, refuses changed identity or replay,
+and declares verified attempt assets through `AssetTransfer` on installed
+snapshots. After restoration and fresh helper provisioning, `provision_installed`
+copies the fixed payload with exclusive destination creation, root ownership,
+descriptor/digest/tree guards and independent read-only verification before the
+setup reply. Offline product-free transfers retain their existing route. The
+installed product and activation remain in the snapshot.
+`journey_blocks.restart_request_usability` / `onpc_customer_reboot::restart_request_usability`
+pair fresh child/station entry, public no-modal usability and normal Cancel/
+greeter return. Caller prefixes retain distinct observations and authentication
+challenges. The kiosk leaf selects Jamie before its independent Jordan/Jamie
+guard. Host checks use private recorder/transfer doubles and waited Perl/title
+files; existing unit/cleanup classifications apply with no new live owner.
+
 Package lifecycle declarations reuse `journey_blocks.package_installation` in
 case 2 and LIFE04 qualification; LIFE02, genuine upgrade and Chinese lifecycle
 plans inherit that same fragment. It declares fresh administrator entry,

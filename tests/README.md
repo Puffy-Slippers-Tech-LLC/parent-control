@@ -895,6 +895,12 @@ resolves authorized remaining work, then runs host and live VM validation in
 that session. A pass closes the task; a failure preserves evidence and hands off
 for investigation and repairs in the next session.
 Blocked checkpoints retain their pending question and pause again until answered.
+If the developer removes the unfinished current task and explicitly declares it
+under `Excluded tasks:` in the queue, restart selects the next task with a fresh
+task budget and no acceptance credit for the removed task. Retained queue order
+and completion states must be unchanged; pending acceptance/commit recovery still
+refuses exclusion. Saved evidence and partial source work remain preserved, and
+the recovery session verifies prior owned cleanup before new live work.
 The full engineering handoff remains in `handoff.txt`, without being repeated in
 the blocked display. If an interrupted session checked its own task but did not
 save a valid completion response, the launcher automatically starts a recovery

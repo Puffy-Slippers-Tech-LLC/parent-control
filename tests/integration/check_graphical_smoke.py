@@ -680,7 +680,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
-         parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False):
+         parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
+         unrelated_reboot_request=False):
+    require(type(unrelated_reboot_request) is bool and (not unrelated_reboot_request or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and approval_flow is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'unrelated_reboot_request')
+            and isinstance(value, bool)))), 'smoke:unrelated-reboot-prerequisites')
     require(type(restart_notice) is bool and (not restart_notice or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1101,7 +1107,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     dual_packages = upgrade_assets or package_upgrade or chinese_kiosk_lifecycle
     product_free_entry = (product_free_entry or package_authority or package_install
                           or customer_reboot or chinese_language_assets or desktop_language or dual_packages
-                          or chinese_current_install or restart_notice)
+                          or chinese_current_install or restart_notice or unrelated_reboot_request)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
             and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1586,6 +1592,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'chinese-current-install-qualification'
         if restart_notice:
             result['scope'] = 'restart-notice-qualification'
+        if unrelated_reboot_request:
+            result['scope'] = 'unrelated-reboot-request-qualification'
         if chinese_native_auth:
             result['scope'] = 'chinese-native-auth-qualification'
         started = time.monotonic()
@@ -1763,6 +1771,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if restart_notice:
                     from parent_setup_qualification import RestartNoticeQualification
                     qualification_class = RestartNoticeQualification
+                if unrelated_reboot_request:
+                    from parent_setup_qualification import UnrelatedRebootQualification
+                    qualification_class = UnrelatedRebootQualification
                 if kiosk_entry:
                     from parent_setup_qualification import KioskEntryQualification
                     qualification_class = KioskEntryQualification

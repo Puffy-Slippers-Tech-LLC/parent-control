@@ -112,10 +112,10 @@ def select_task_state(task, state):
 
 
 def resume_after_exclusion(root, state, previous):
-    """Restore a suspended consumer after explicit removal of its prerequisites."""
+    """Resume the queue after explicit removal of an unfinished task."""
     current, after = queue_state(root)
     task = state['task_id']
-    if task in after or current not in state.get('suspended_tasks', {}):
+    if task in after or current is None:
         return None
     before = state.get('queue_before', {})
     text = (root / QUEUE).read_text().split('## Ordered task queue', 1)[0]
@@ -124,7 +124,11 @@ def resume_after_exclusion(root, state, previous):
     excluded = {item for declaration in declarations for item in declaration.split(', ')}
     removed = set(before) - set(after)
     retained = {key: done for key, done in before.items() if key in after}
-    consumer = state['suspended_tasks'][current]
+    consumer = state.get('suspended_tasks', {}).get(current)
+    if consumer is None and (state.get('suspended_tasks') or removed != {task}
+                             or before.get(current) is not False
+                             or next((key for key, done in before.items() if not done), None) != task):
+        return None
     if (not removed or task not in removed or not removed <= excluded
             or not excluded.isdisjoint(after)
             or any(before[key] for key in removed)
@@ -132,13 +136,14 @@ def resume_after_exclusion(root, state, previous):
             or state.get('pending_completion') or state.get('optimization_session')
             or state.get('completion_recovery') or state.get('closeout_recovery_run')
             or state.get('phase') == 'complete'
-            or consumer.get('pending_completion') or consumer.get('optimization_session')
-            or consumer.get('completion_recovery') or consumer.get('closeout_recovery_run')
-            or consumer.get('task_id') != current):
+            or (consumer is not None and (
+                consumer.get('pending_completion') or consumer.get('optimization_session')
+                or consumer.get('completion_recovery') or consumer.get('closeout_recovery_run')
+                or consumer.get('task_id') != current))):
         return None
     selected = select_task_state(current, state)
     selected.update(phase='recover', in_flight=False, recovery_run=str(previous),
-                    summary=f'Resume task {current} after explicit prerequisite exclusion; '
+                    summary=f'Resume task {current} after explicit task exclusion; '
                             'acceptance and owned cleanup still require verification.',
                     handoff=f'Resume task {current} from its current brief and scope. '
                             f'Tasks {", ".join(sorted(removed))} were explicitly excluded '

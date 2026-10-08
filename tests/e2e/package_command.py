@@ -12,6 +12,8 @@ import re
 from private_artifacts import require
 import session_control
 from watch_activity import operation
+from installation_observations import (UNRELATED_PACKAGE, UNRELATED_SCRIPTS,
+    UNRELATED_ARGV, unrelated_observation)
 
 BINDING = 'install-staged-package'
 ARGV = ('/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install',
@@ -30,7 +32,8 @@ LIFECYCLE = (REMOVE, PURGE, REINSTALL, FRESH_INSTALL)
 INSTALLATIONS = (BINDING, REINSTALL, FRESH_INSTALL)
 REMOVAL_NOTICE = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
 PURGE_COMPLETE = 'oh-no-parent-control: saved-state purge outcome=accepted'
-BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE)
+UNRELATED = 'reconfigure-unrelated-libc6'
+BINDINGS = (BINDING, OLD_INSTALL, UPGRADE, *LIFECYCLE, UNRELATED)
 
 
 def rpm_scriptlet_output(lines, package, binding):
@@ -186,11 +189,21 @@ def guest_submit(binding, expected, packages=None):
         in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
     source = session_control.source_session(session_control.sessions(), account.pw_uid)
     label = 'previous' if binding == OLD_INSTALL else 'current'
-    actual = session_control.package_digest() if binding in (BINDING, *LIFECYCLE) else session_control.package_digest(label)
+    actual = (UNRELATED_PACKAGE['sha256'] if binding == UNRELATED else
+              session_control.package_digest() if binding in (BINDING, *LIFECYCLE)
+              else session_control.package_digest(label))
     session_control.require(actual == expected, 'package-changed')
     boot = guest_phase(binding, packages) if binding in (OLD_INSTALL, UPGRADE) else None
     if binding in LIFECYCLE:
         guest_lifecycle_phase(binding, packages)
+    if binding == UNRELATED:
+        session_control.require(type(packages) is dict and set(packages) == {'current', 'unrelated'},
+                                'package-identities')
+        unrelated_observation(packages['unrelated'], entry=True)
+        item = packages['current']
+        query = guest_read({'current': item})
+        session_control.require(query['version'] == item['version']
+            and query['packages']['current'] == item['sha256'], 'package:product-identity')
     session_control.require(session_control.source_session(
         session_control.sessions(), account.pw_uid) == source, 'source-changed')
     if session_control.package_format() == 'rpm':
@@ -204,12 +217,15 @@ def guest_submit(binding, expected, packages=None):
                 (*ARGV[:-1], '/var/lib/onpc-e2e-assets/previous/package.deb') if binding == OLD_INSTALL else ARGV)
     if binding == PURGE:
         argv = ('/usr/bin/oh-no-parent-control-purge', '--yes')
+    if binding == UNRELATED:
+        argv = UNRELATED_ARGV
     # FIX04 owns this root-only parent. An uncertain exec leaves the marker in
     # place, and another controller object cannot replay it in this attempt.
     marker = {BINDING: '.package-install-used', OLD_INSTALL: '.previous-install-used',
               UPGRADE: '.package-upgrade-used', REMOVE: '.package-remove-used',
               PURGE: '.package-purge-used', REINSTALL: '.package-reinstall-used',
-              FRESH_INSTALL: '.package-fresh-install-used'}[binding]
+              FRESH_INSTALL: '.package-fresh-install-used',
+              UNRELATED: '.package-unrelated-reconfigure-used'}[binding]
     fd = os.open('/var/lib/onpc-e2e-assets/' + marker,
                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     if boot is not None:
@@ -242,6 +258,11 @@ def guest_source(*, read=False):
             'LIFECYCLE = ' + repr(LIFECYCLE) + '\nREMOVE = ' + repr(REMOVE) + '\n' +
             'PURGE = ' + repr(PURGE) + '\nREINSTALL = ' + repr(REINSTALL) + '\n' +
             'FRESH_INSTALL = ' + repr(FRESH_INSTALL) + '\n' +
+            'UNRELATED = ' + repr(UNRELATED) + '\n' +
+            'UNRELATED_PACKAGE = ' + repr(UNRELATED_PACKAGE) + '\n' +
+            'UNRELATED_SCRIPTS = ' + repr(UNRELATED_SCRIPTS) + '\n' +
+            'UNRELATED_ARGV = ' + repr(UNRELATED_ARGV) + '\n' +
+            inspect.getsource(unrelated_observation) +
             inspect.getsource(guest_phase) + inspect.getsource(guest_read) + inspect.getsource(guest_lifecycle_phase) +
             inspect.getsource(guest_submit) +
             '\nimport sys, json\n' + (
@@ -271,7 +292,8 @@ class PackageCommand:
             require(self.verified.upgrade_inputs is not None, 'package:upgrade-inputs-required')
         if binding in LIFECYCLE:
             require(self.verified.upgrade_inputs is None, 'package:lifecycle-current-only')
-        expected = (self.verified.inputs['package_sha256'] if binding in (BINDING, *LIFECYCLE) else
+        expected = (UNRELATED_PACKAGE['sha256'] if binding == UNRELATED else
+                    self.verified.inputs['package_sha256'] if binding in (BINDING, *LIFECYCLE) else
                     self.verified.upgrade_inputs['packages'][
                         'previous' if binding == OLD_INSTALL else 'current']['sha256'])
         require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest)
@@ -294,6 +316,13 @@ class PackageCommand:
                 self.entry = self.read_identity()
                 require(self.entry['version'] == (self.package_identities()['current']['version']
                         if binding in (REMOVE, PURGE) else None), 'package:wrong-phase')
+            elif binding == UNRELATED:
+                self.entry = self.read_identity()
+                require(self.entry['version'] == self.package_identities()['current']['version'],
+                        'package:wrong-phase')
+                self.read_unrelated(entry=True)
+                arguments.append(json.dumps({**self.package_identities(),
+                    'unrelated': UNRELATED_PACKAGE}, sort_keys=True))
             self.attempted = True  # Even transport failure is uncertain input.
             self.binding = binding
             self.transport.package_attempts.add(binding)
@@ -307,6 +336,34 @@ class PackageCommand:
             status = self.transport.commands.last_returncode
             self.receipt = (raw, status)
         return {'submitted': True}
+
+    def read_unrelated(self, *, entry=False):
+        """Independent public distribution read through the same guarded transport."""
+        require(self.transport.config == self.identity, 'package:wrong-attempt')
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        source = guest_source().rsplit(b'\nimport sys, json\n', 1)[0]
+        source += ('\nimport json\nprint(json.dumps(unrelated_observation(UNRELATED_PACKAGE, entry=' +
+                   repr(entry) + '), sort_keys=True))\n').encode()
+        with operation('Verifying the unrelated Ubuntu package and its independent system reboot request'):
+            raw = self.transport.call(['/usr/bin/python3', '-I', '-'], input=source, timeout=90)
+        self.transport.guard(self.identity)
+        self.verified.recheck()
+        require(type(raw) is bytes and 0 < len(raw) <= 65536, 'package:unrelated-bound')
+        value = json.loads(raw)
+        require(type(value) is dict and set(value) == {'package', 'integration_verified',
+            'system_reboot_required', 'request_packages', 'message', 'product_request_absent'}
+            and raw == (json.dumps(value, sort_keys=True) + '\n').encode()
+            and value['package'] == UNRELATED_PACKAGE and value['integration_verified'] is True
+            and value['product_request_absent'] is True
+            and value['system_reboot_required'] is (not entry)
+            and type(value['request_packages']) is list
+            and all(type(item) is str and re.fullmatch('[a-z0-9][a-z0-9+.-]{0,127}', item)
+                    for item in value['request_packages'])
+            and (value['request_packages'] == [] and value['message'] is None if entry else
+                 'libc6' in value['request_packages'] and 'oh-no-parent-control' not in value['request_packages']
+                 and value['message'] == '*** System restart required ***'), 'package:unrelated-schema')
+        return value
 
     def read_identity(self):
         require(self.transport.config == self.identity, 'package:wrong-attempt')
@@ -356,6 +413,18 @@ class PackageCommand:
         text = raw.decode('utf-8', errors='strict')
         text = re.sub(r'\x1b\[[0-9;]*m', '', text)
         lines = text.splitlines()
+        if self.binding == UNRELATED:
+            # The pinned libc6 postinst emits libc-upgrade, whose normal dpkg
+            # processing reports the systemd trigger. Its "Nothing to restart."
+            # branch applies only to a previous version below 2.43, not this
+            # same-version reconfiguration. The later independent system read,
+            # never this completion output, proves the genuine reboot request.
+            completion = [line for line in lines if re.fullmatch(
+                r'Processing triggers for systemd \([0-9][^()\s]{0,127}\) \.\.\.', line)]
+            require(len(completion) == 1 and COMPLETE not in lines and NOTICE not in lines,
+                    'package:unrelated-completion')
+            return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
+                    'interface': 'SSH stdout/stderr', 'completion': completion[0], 'notice': None}
         if 'package.rpm' in self.verified.asset_files and self.binding != PURGE:
             lines = rpm_scriptlet_output(lines, self.package_identities()['current'], self.binding)
         removing = self.binding in (REMOVE, PURGE)

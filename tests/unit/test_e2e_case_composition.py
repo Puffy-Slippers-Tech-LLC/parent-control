@@ -49,7 +49,7 @@ WORKER_APIS = {
     'onpc_station': {'restrictions'},
     'onpc_lifecycle': {'reopen'},
     'onpc_customer_reboot': {'chinese_desktop_renewal', 'chinese_initial_notice', 'chinese_initial_form',
-                            'chinese_current_entry', 'restart_reentry', 'restart_roundtrip', 'restart_kiosk_usability', 'restart_notice', 'run_parent_notice', 'run_child_notice', 'run_kiosk_notice'},
+                            'chinese_current_entry', 'restart_reentry', 'restart_roundtrip', 'restart_kiosk_usability', 'restart_request_usability', 'restart_notice', 'run_parent_notice', 'run_child_notice', 'run_kiosk_notice'},
     'onpc_feedback_privacy': {'app_exit', 'preserve_dialog', 'review_privacy', 'review_parent_report',
                               'close_parent_report'},
     'onpc_allowance_boundaries': {'exercise', 'reload_child', 'select_child', 'custom_value'},

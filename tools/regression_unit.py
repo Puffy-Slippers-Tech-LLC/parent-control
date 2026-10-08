@@ -1,5 +1,16 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Unrelated-package qualification and shared comparisons extend package_authority/package_install cleanup
+modules with process-local package/metadata doubles, private recorder/marker
+files and bounded waited Perl/isolated Python children. No live package manager,
+VM, bus, display, shared cache or new owner; existing compatible buckets apply.
+Installed-snapshot asset provisioning uses private real descriptor/file trees
+with process-local guest ownership mapping and transport/recorder doubles.
+All descriptors close on success/refusal; no VM, shared path, bus or new child
+lifetime is acquired. Asset-transfer/package-install/installed-journey modules
+retain compatible unit/cleanup scheduling. Named comparison endpoints and
+immutable nested witnesses use only private values.
+
 Parent/Child App/kiosk fresh-install coverage retains clean_install_cleanup_safety's private
 pytest evidence, process-local recorder/transfer/transport doubles and bounded
 waited Perl workers. No VM, bus, display, shared path or new process lifetime;
@@ -9,6 +20,9 @@ Restart-modal coverage retains customer_reboot_cleanup_safety's private pytest
 evidence, synthetic UI/transport trees and bounded waited Perl children. Its
 isolated-Python payload check has no live UI, socket or product process. The
 existing compatible unit and cleanup classifications remain appropriate.
+Current-task exclusion recovery in write_e2e uses private checkpoint/queue trees
+and process-local doubles, without launching agents or changing ownership;
+its existing compatible classification remains appropriate.
 
 sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
 gettext/Make subprocesses and a private Codex double under the existing detached

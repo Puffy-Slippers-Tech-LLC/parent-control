@@ -18,6 +18,20 @@ from tests.support.desktop_session import RUN_PROBE
 from tests.support.perl import run_perl
 
 
+
+
+@pytest.mark.parametrize('prefix,station', [('bad/prefix', ''), ('independent', 'unknown-')])
+def test_request_usability_invalid_binding_refuses_before_login(prefix, station):
+    from journey_blocks import restart_request_usability
+    with pytest.raises(EvidenceError): restart_request_usability(prefix, station)
+    source = RUN_PROBE.replace('require onpc_desktop_session;', 'require onpc_customer_reboot;')
+    source = source.replace('onpc_desktop_session::run(sub {',
+        "onpc_customer_reboot::restart_request_usability(onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {")
+    source = source.replace('}, $action);', '}), ' + repr(prefix) + ', ' + repr(station) + ');')
+    result = json.loads(run_perl(source, '').stdout)
+    assert not result['ok'] and result['events'] == []
+
+
 BEFORE, AFTER = 'a' * 64, 'b' * 64
 
 

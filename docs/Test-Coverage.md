@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">24977</span>/<span style="color: gray">0</span>/24977 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">25151</span>/<span style="color: gray">0</span>/25151 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">299</span>/<span style="color: gray">0</span>/299 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">244</span>/<span style="color: gray">0</span>/244 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">6</span>/<span style="color: gray">0</span>/6 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">146</span>/<span style="color: gray">0</span>/146 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| Integration qualification | <span style="color: green">147</span>/<span style="color: gray">0</span>/147 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
 | E2E | <span style="color: green">38</span>/<span style="color: gray">210</span>/248 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">25884</span>/<span style="color: gray">210</span>/26094** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">26059</span>/<span style="color: gray">210</span>/26269** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 

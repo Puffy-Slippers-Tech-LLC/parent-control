@@ -882,6 +882,13 @@ class RestartNoticeQualification(ProductFreeEntryQualification):
         return RestartNoticeJourney(context, progress)
 
 
+class UnrelatedRebootQualification(ProductFreeEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from unrelated_reboot import UnrelatedRebootJourney
+        return UnrelatedRebootJourney(context, progress)
+
+
 class PackageUpgradeQualification(ProductFreeEntryQualification):
     upgrade_assets = True
 

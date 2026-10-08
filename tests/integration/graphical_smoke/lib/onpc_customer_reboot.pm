@@ -47,6 +47,25 @@ sub return_entry {
         'reboot-installed-greeter', 'reboot-parent-focused', 'reboot-desktop');
 }
 
+sub unrelated_request {
+    onpc_progress::operation('Qualifying the genuine Ubuntu libc6 reboot request after product activation');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'unrelated-reboot:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq
+            'reboot-installed-greeter/reboot-parent-focused/reboot-recipient-qualified/reboot-recipient-rechecked/reboot-desktop'
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 1
+        && ref($challenges->{'after-reboot'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'after-reboot'}}) eq
+            'parent/reboot-recipient-qualified/reboot-recipient-rechecked';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'unrelated-reboot', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    install_entry($journey);
+    return_entry($journey);
+    $journey->seen($_) for qw(unrelated-context unrelated-submitted unrelated-result);
+    $journey->finish();
+}
+
 sub run_upgrade {
     onpc_progress::operation('Installing the authentic old release before the real upgrade');
     my ($exchange, $declared, $challenges) = @_;
@@ -226,10 +245,26 @@ sub run_child_notice {
 }
 
 sub restart_kiosk_usability {
-    onpc_progress::operation('Selecting the declared kiosk approver and independently checking postboot usability');
-    my ($journey) = @_;
-    die 'restart:kiosk-usability-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
-    $journey->seen($_) for qw(usable-kiosk-approver usable-kiosk);
+    onpc_progress::operation('Selecting the declared kiosk approver and independently checking usability');
+    my ($journey, $prefix) = @_;
+    die 'restart:kiosk-usability-binding' unless (@_ == 1 || @_ == 2)
+        && ref($journey) eq 'onpc_journey'
+        && (!defined($prefix) || $prefix =~ /\A[a-z][a-z0-9-]*\z/);
+    $prefix = defined($prefix) ? $prefix . '-' : '';
+    $journey->seen($prefix . $_) for qw(usable-kiosk-approver usable-kiosk);
+}
+
+sub restart_request_usability {
+    onpc_progress::operation('Opening fresh Child App and station requests without a restart modal');
+    my ($journey, $prefix, $station_prefix) = @_;
+    die 'restart:request-usability-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
+        && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && defined($station_prefix) && $station_prefix =~ /\A(?:cancel-|escape-|initial-|renewed-)?\z/;
+    onpc_gdm::named_login($journey, $prefix . '-child', 'child');
+    $journey->seen($prefix . '-' . $_) for qw(overlay-launch usable-overlay child-logout);
+    onpc_gdm::enter_station($journey, $station_prefix);
+    restart_kiosk_usability($journey, $prefix);
+    $journey->seen($prefix . '-' . $_) for qw(kiosk-exit kiosk-returned);
 }
 
 sub run_kiosk_notice {

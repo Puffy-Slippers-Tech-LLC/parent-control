@@ -329,11 +329,25 @@ def restart_reentry(surface):
     }
 
 
-def restart_kiosk_usability():
-    """Select the declared approver, then independently require postboot usability."""
-    return {
+def restart_kiosk_usability(prefix=None):
+    """Select the declared approver, then independently require usable requests."""
+    screens = {
         'usable-kiosk-approver': 'ui:kiosk-language-jordan-jamie',
         'usable-kiosk': 'ui:restart-kiosk-usable',
+    }
+    return prefixed_stages(prefix, screens) if prefix is not None else screens
+
+
+def restart_request_usability(prefix, station_prefix):
+    """Fresh Child App and station reads after the caller's Parent logout."""
+    return {
+        **prefixed_stages(prefix + '-child', fresh_desktop('child')),
+        prefix + '-overlay-launch': 'ui:child-command-launch',
+        prefix + '-usable-overlay': 'ui:restart-overlay-usable',
+        prefix + '-child-logout': 'system:child-logout',
+        **station_entry(station_prefix), **restart_kiosk_usability(prefix),
+        prefix + '-kiosk-exit': 'ui:kiosk-request-cancel',
+        prefix + '-kiosk-returned': 'ui:gdm-station-returned',
     }
 
 

@@ -216,6 +216,12 @@ sub run {
         onpc_customer_reboot::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{unrelated_reboot_request}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_customer_reboot::unrelated_request(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{package_install}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

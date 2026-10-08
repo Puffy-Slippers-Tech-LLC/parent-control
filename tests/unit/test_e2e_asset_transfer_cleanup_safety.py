@@ -2,6 +2,7 @@
 
 import builtins
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -242,3 +243,121 @@ def test_exact_guest_probe_detects_changed_file_inventory(attempt, capsys, fault
     vm.read.return_value = observed
     with pytest.raises(transfer.EvidenceError, match='booted-assets-mismatch'):
         control.observe(vm)
+
+
+@pytest.mark.parametrize('fault', ['', 'lease', 'phase', 'domain', 'run', 'upgrade',
+                                  'assets', 'command', 'interrupt', 'late-assets'])
+def test_installed_transfer_guard_and_latched_failure(attempt, fault):
+    control, lease, guest, api = attempt
+    lease.state.update(phase='running', domain_id=12, domain_uuid='vm', run='attempt')
+    transport = Mock(config={'domain_uuid': 'vm', 'domain_id': 12, 'run': 'attempt'})
+    selected = lease
+    if fault == 'lease': selected = Mock()
+    if fault == 'phase': lease.state['phase'] = 'isolated'
+    if fault == 'domain': transport.config['domain_id'] = 13
+    if fault == 'run': transport.config['run'] = 'foreign'
+    if fault == 'upgrade': control.verified._upgrade = {'packages': {}}
+    package = control.verified.assets / provenance.package_filename(control.verified.asset_files)
+    if fault == 'assets': package.write_bytes(b'changed')
+    if fault == 'command': transport.call.side_effect = OSError('private-canary')
+    if fault == 'interrupt': transport.call.side_effect = KeyboardInterrupt('private-canary')
+    if fault == 'late-assets': transport.call.side_effect = lambda *a, **kw: package.write_bytes(b'changed')
+    if fault:
+        with pytest.raises(BaseException): control.provision_installed(selected, transport)
+        with pytest.raises(transfer.EvidenceError, match='verified-provisioning-required'):
+            control.observe(Mock())
+        if fault not in ('command', 'interrupt', 'late-assets'): transport.call.assert_not_called()
+    else:
+        receipt = control.provision_installed(lease, transport)
+        assert receipt == {'files': len(control.verified.asset_files),
+                           'sha256': provenance.digest(control.verified.asset_files)}
+        command = transport.call.call_args
+        assert command.args[0][:2] == ['/usr/bin/python3', '-c']
+        assert inspect.getsource(transfer.provision_installed_assets) in command.args[0][2]
+        assert json.loads(command.kwargs['input']) == control.verified.asset_files
+        vm = Mock()
+        vm.read.return_value = receipt
+        assert control.observe(vm) == receipt
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision_installed(lease, transport)
+    with pytest.raises(transfer.EvidenceError, match='already-attempted'):
+        control.provision(lease, api)
+    api.GuestFS.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'collision', 'dangling', 'unsafe-parent', 'source-link',
+    'file-link', 'directory-link', 'hardlink', 'mode', 'owner', 'missing', 'extra',
+    'empty-directory', 'digest', 'replacement', 'copied-bytes', 'interrupt'])
+def test_exact_installed_guest_copy_safety(tmp_path, capsys, fault):
+    """Execute the shipped helper with real files/fds, mapping guest root identity."""
+    guest = GuestFiles(tmp_path / 'guest')
+    source = guest.path('/var/tmp/onpc-system-input')
+    destination = guest.path(transfer.DESTINATION)
+    source.mkdir(parents=True, mode=0o700)
+    destination.parent.mkdir(parents=True)
+    source.parent.chmod(0o1777)
+    destination.parent.chmod(0o755)
+    package = source / 'package.deb'
+    package.write_bytes(b'package input')
+    package.chmod(0o644)
+    (source / 'nested').mkdir(mode=0o700)
+    (source / 'nested/with spaces').write_bytes(b'nested input')
+    (source / 'nested/with spaces').chmod(0o644)
+    files = {p.relative_to(source).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+             for p in source.rglob('*') if p.is_file()}
+    if fault == 'collision': destination.mkdir()
+    if fault == 'dangling': destination.symlink_to(guest.root / 'absent')
+    if fault == 'unsafe-parent': destination.parent.chmod(0o777)
+    if fault == 'source-link':
+        source.rename(source.with_name('real-input'))
+        source.symlink_to(source.with_name('real-input'))
+    if fault == 'file-link':
+        package.rename(source / 'real-package')
+        package.symlink_to(source / 'real-package')
+    if fault == 'directory-link': (source / 'link').symlink_to(source / 'nested')
+    if fault == 'hardlink': os.link(package, source / 'second-link')
+    if fault == 'mode': package.chmod(0o666)
+    if fault == 'missing': package.unlink()
+    if fault == 'extra': (source / 'extra').write_bytes(b'extra')
+    if fault == 'empty-directory': (source / 'empty').mkdir()
+    if fault == 'digest': package.write_bytes(b'wrong')
+
+    def root_info(info):
+        fields = ('st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
+        return SimpleNamespace(**{field: getattr(info, field) for field in fields},
+                               st_uid=1 if fault == 'owner' else 0, st_gid=0)
+    class GuestPath(type(source)):
+        def lstat(self): return root_info(super().lstat())
+    mutated = False
+    def read(fd, count):
+        nonlocal mutated
+        block = os.read(fd, count)
+        if block and not mutated and fault in ('replacement', 'interrupt'):
+            mutated = True
+            if fault == 'interrupt': raise KeyboardInterrupt('private-canary')
+            package.unlink()
+            package.write_bytes(b'replacement')
+        return block
+    def write(fd, block):
+        return os.write(fd, b'x' * len(block) if fault == 'copied-bytes' else block)
+    guest_os = SimpleNamespace(**{name: getattr(os, name) for name in dir(os)})
+    guest_os.geteuid = lambda: 0
+    guest_os.fstat = lambda fd: root_info(os.fstat(fd))
+    guest_os.stat = lambda *a, **kw: root_info(os.stat(*a, **kw))
+    guest_os.read, guest_os.write = read, write
+    def imported(name, *args, **kwargs):
+        if name == 'os': return guest_os
+        if name == 'pathlib':
+            return SimpleNamespace(Path=lambda value: GuestPath(guest.path(value))
+                                   if str(value).startswith('/') else Path(value))
+        return builtins.__import__(name, *args, **kwargs)
+    namespace = {'__builtins__': {**vars(builtins), '__import__': imported}}
+    exec(compile(inspect.getsource(transfer.provision_installed_assets), '<installed-asset-copy>', 'exec'), namespace)
+    if fault:
+        with pytest.raises((AssertionError, OSError, KeyboardInterrupt)):
+            namespace['provision_installed_assets'](files)
+    else:
+        namespace['provision_installed_assets'](files)
+        observed = execute_observation(guest, capsys)
+        assert observed == {'files': len(files), 'sha256': provenance.digest(files)}
+        with pytest.raises(FileExistsError): namespace['provision_installed_assets'](files)

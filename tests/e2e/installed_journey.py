@@ -506,6 +506,8 @@ class InstalledJourney:
                     observed['setup'] = setup.run(guard, verify=False)
                 else:
                     setup.provision(guard)
+                    if getattr(context, 'asset_transfer', None) is not None:
+                        context.asset_transfer.provision_installed(context.lease, transport)
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport

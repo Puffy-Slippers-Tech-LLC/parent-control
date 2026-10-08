@@ -203,6 +203,15 @@ def test_excluded_fedora_prerequisites_cannot_reenter_the_queue(rows):
                    for path in (DOCS / 'E2E-Tasks').glob('*.md'))
 
 
+def test_removed_unrelated_reboot_task_and_case_remain_deleted(rows, variants):
+    queue = (DOCS / 'E2E-Task-Queue.md').read_text()
+    assert 'Excluded tasks: **305**' in queue
+    assert all(row['id'] != '305' and '305' not in row['requires'] for row in rows)
+    assert not any(path.name.startswith('305-') for path in (DOCS / 'E2E-Tasks').glob('*.md'))
+    assert 260 not in variants
+    assert all(family['id'] != 'E2E-059' for family, _ in variants.values())
+
+
 def test_reallocated_ui_coverage_does_not_claim_customer_acceptance(rows, variants, briefs):
     for number in (161, 190):
         _, variant = variants[number]

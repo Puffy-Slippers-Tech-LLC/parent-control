@@ -7,6 +7,15 @@ fixtures and external resources have been reviewed; never omit their cases.
 """
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
+# Unrelated-package package_authority/package_install checks use private markers,
+# recorder files, package/metadata doubles and bounded waited Perl/Python children.
+# No live package manager, VM, bus, display, shared cache or new cleanup owner;
+# their existing compatible unit and cleanup classifications remain appropriate.
+# Installed-snapshot provisioning uses private real file/descriptor trees with
+# process-local ownership mapping and transport/recorder doubles. Descriptors
+# close on every path; no VM, shared path, bus or new child lifetime is acquired.
+# Asset-transfer/package-install/installed-journey remain compatible in both
+# inventories; renamed comparison endpoints retain the same private lifetime.
 # ui_cleanup_safety's preview wait-cancellation checks use private tmp_path logs
 # and process-local Popen/clock doubles, without changing real signal handlers
 # or starting children. Its existing compatible unit/cleanup scheduling holds.

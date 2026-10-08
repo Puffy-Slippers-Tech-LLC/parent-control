@@ -1798,8 +1798,7 @@ Use the common 45-second public-result waits and the shared 330-second boot-chan
 deadline within the 1800-second case budget. Require all seven declared assertions,
 worker-title reconciliation, collection, worker shutdown, owned cleanup, baseline
 restoration and preservation. The command-reboot continuity regression remains
-`check_e2e_customer_reboot`; Child App is case 258 below, while kiosk and the
-unrelated-request control remain tasks 304–305.
+`check_e2e_customer_reboot`; Child App and kiosk are cases 258–259 below.
 
 ### E2E-057
 
@@ -1844,6 +1843,7 @@ reconciliation, collection, worker shutdown, owned cleanup, baseline restoration
 and preservation. No app snapshot, marker injection, command-reboot fallback,
 uncertain input replay or policy setup before the notice supplies acceptance.
 Retain `check_e2e_restart_notice` and `check_e2e_customer_reboot` regressions.
+
 
 ## Coverage ownership and remaining limits
 

@@ -74,6 +74,75 @@ def observe_install(journey):
     return journey.package.read_result()
 
 
+def submit_unrelated(journey, guard):
+    """One normal distribution reconfiguration; retain uncertain consumption."""
+    from package_command import UNRELATED, UNRELATED_PACKAGE
+    require(journey.unrelated_package is None, 'unrelated-package:replay')
+    guard()
+    command = journey.unrelated_package = PackageCommand(journey.transport, journey.context.verified)
+    result = command.submit(UNRELATED, UNRELATED_PACKAGE['sha256'], command.identity)
+    guard()
+    return result
+
+
+def observe_unrelated(command, before):
+    """Separate command completion, genuine system request and preservation."""
+    from package_command import UNRELATED
+    require(command is not None and command.binding == UNRELATED, 'unrelated-package:missing-command')
+    completion = command.read_result()
+    first, second = command.read_identity(), command.read_identity()
+    require(first == second == before == command.entry, 'unrelated-package:product-or-boot-changed')
+    system = command.read_unrelated()
+    return {'completion': completion, 'system': system, 'product_identity_unchanged': True,
+            'boot_sha256': first['boot'], 'independent_readback': True}
+
+
+class UnrelatedPackageJourney(InstalledJourney):
+    """Bind clean entry and independent result to caller-declared endpoints."""
+
+    def __init__(self, context, progress, plan, *, entry, result, actions=None):
+        stages = list(plan.screen_tags)
+        submissions = [stage for stage, action in plan.stage_actions.items()
+                       if action == 'unrelated-package']
+        require(entry in stages and result in stages and len(submissions) == 1
+                and stages.index(entry) < stages.index(submissions[0]) < stages.index(result)
+                and all(plan.screen_tags[stage] == 'system:parent-command-context'
+                        for stage in (entry, submissions[0], result)), 'unrelated-package:plan')
+        super().__init__(context, progress, plan, actions=actions)
+        self.unrelated_entry_stage, self.unrelated_result_stage = entry, result
+        self.unrelated_package = self.unrelated_entry = None
+        self.unrelated_result_observed = False
+        if getattr(context, 'installed_snapshot', None):
+            from asset_transfer import AssetTransfer
+            require(getattr(context, 'asset_transfer', None) is None,
+                    'unrelated-package:transfer-replay')
+            context.asset_transfer = AssetTransfer(context.verified)
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == self.unrelated_entry_stage:
+            from copy import deepcopy
+            require(self.unrelated_entry is None and (getattr(self.context, 'installed_snapshot', None)
+                    or self.reboot_observed), 'unrelated-package:activation-required')
+            command = PackageCommand(self.transport, self.context.verified)
+            entry = command.read_identity()
+            require(entry['version'] == command.package_identities()['current']['version']
+                    and entry['boot'] == self.boot, 'unrelated-package:product-identity')
+            observed['unrelated_entry'] = command.read_unrelated(entry=True)
+            self.unrelated_entry = deepcopy(entry)
+        if stage == self.unrelated_result_stage:
+            require(self.unrelated_entry is not None and not self.unrelated_result_observed,
+                    'unrelated-package:entry-required')
+            observed['unrelated_package'] = observe_unrelated(self.unrelated_package, self.unrelated_entry)
+            self.unrelated_result_observed = True
+
+
+def unrelated_journey(*, entry, result):
+    """Recorder-compatible shared comparison engine; recipes own endpoints."""
+    from functools import partial
+    return partial(UnrelatedPackageJourney, entry=entry, result=result)
+
+
 def observe_current_install(command, before):
     """Latest install completion/version/same boot with pre-existing state preserved."""
     require(command is not None and command.binding == BINDING, 'package-install:missing-command')

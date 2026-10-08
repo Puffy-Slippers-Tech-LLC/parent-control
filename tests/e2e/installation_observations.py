@@ -7,6 +7,98 @@ digest to VerifiedInputs and separately retain those remaining assertions.
 
 from terminal_observations import SERIAL, VT6
 
+# Ubuntu archive identity and installed maintainer bytes discovered through the
+# owned maintenance route. Reconfiguration uses these existing baseline inputs;
+# no installer asset, notification fixture or marker is manufactured.
+UNRELATED_PACKAGE = {
+    'name': 'libc6', 'version': '2.43-2ubuntu2.4', 'architecture': 'amd64',
+    'sha256': 'a613b457f3ff9c84ebd28af8a05afdec22605ad9aed87c71e3a6ae5170aeb9ca',
+    'filename': 'pool/main/g/glibc/libc6_2.43-2ubuntu2.4_amd64.deb',
+    'origin': 'Ubuntu', 'source': 'glibc',
+}
+UNRELATED_SCRIPTS = {
+    '/var/lib/dpkg/info/libc6:amd64.preinst':
+        'b023c160d13e40691b4f685be9a336e8989c0601af83624011b168c01b2a9708',
+    '/var/lib/dpkg/info/libc6:amd64.postinst':
+        '8fb7461442c71dd57ceed3968ad74c2a31b78834099c48678679fa3898fa3562',
+    '/usr/share/update-notifier/notify-reboot-required':
+        '85ab248d2a2e6606c4eadf616700ccc9c7697c0b01e632898cc500da20ba5f55',
+    '/usr/sbin/dpkg-reconfigure':
+        '8a7869c4c3efd0aa83a32e873b5bad435cc954080bb2490e605eb84096902343',
+}
+UNRELATED_ARGV = ('/usr/sbin/dpkg-reconfigure', '--frontend=noninteractive', 'libc6:amd64')
+
+
+def unrelated_observation(expected, *, entry=False):
+    """Read genuine distribution identity/integration and system reboot state.
+
+    This read-only supporting result does not establish product UI usability.
+    All input guards are repeated immediately at exec.
+    """
+    import hashlib
+    import os
+    from pathlib import Path
+    import stat
+    import subprocess
+    import session_control
+    check = session_control.require
+    check(expected == UNRELATED_PACKAGE and session_control.package_format() == 'deb',
+          'unrelated-package:identity')
+
+    def regular(path):
+        item = Path(path)
+        info = item.lstat()
+        check(item.resolve() == item and stat.S_ISREG(info.st_mode)
+              and info.st_uid == info.st_gid == 0 and info.st_nlink == 1
+              and not info.st_mode & 0o022 and info.st_size <= 65536,
+              'unrelated-package:file-identity')
+        return item
+
+    def read(*argv):
+        result = subprocess.run(argv, capture_output=True, timeout=30,
+            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+        check(result.returncode == 0 and len(result.stdout) <= 65536,
+              'unrelated-package:query')
+        return result.stdout.decode('utf-8', errors='strict')
+
+    check(read('/usr/bin/dpkg-query', '-W', '-f=${Package}\\n${Version}\\n${Architecture}\\n${Status}\\n',
+               'libc6:amd64').splitlines() == [expected['name'], expected['version'],
+               expected['architecture'], 'install ok installed'], 'unrelated-package:installed-identity')
+    records = []
+    for paragraph in read('/usr/bin/apt-cache', 'show', 'libc6:amd64=' + expected['version']).split('\n\n'):
+        fields = dict(line.split(': ', 1) for line in paragraph.splitlines()
+                      if ': ' in line and not line.startswith(' '))
+        if fields:
+            records.append(fields)
+    check(records and all(all(record.get(field) == expected[key] for field, key in (
+        ('Package', 'name'), ('Version', 'version'), ('Architecture', 'architecture'),
+        ('SHA256', 'sha256'), ('Filename', 'filename'), ('Origin', 'origin'), ('Source', 'source')))
+        for record in records), 'unrelated-package:repository-provenance')
+    check(read('/usr/bin/dpkg', '--verify', 'libc6:amd64') == '', 'unrelated-package:payload-changed')
+    for path, digest in UNRELATED_SCRIPTS.items():
+        check(hashlib.sha256(regular(path).read_bytes()).hexdigest() == digest
+              and os.access(path, os.X_OK), 'unrelated-package:integration-changed')
+    # dpkg-reconfigure also executes these leaves if present. Their discovered
+    # absence is part of the finite integration, including dangling-link refusal.
+    for leaf in ('prerm', 'config'):
+        check(not os.path.lexists('/var/lib/dpkg/info/libc6:amd64.' + leaf),
+              'unrelated-package:unexpected-script')
+    check(not os.path.lexists('/snap/bin/canonical-livepatch'), 'unrelated-package:livepatch-entry')
+    for path in ('/run/oh-no-parent-control-child-trust-reboot',
+                 '/run/oh-no-parent-control-reboot-required'):
+        check(not os.path.lexists(path), 'unrelated-package:product-activation-pending')
+    request = os.path.lexists('/run/reboot-required')
+    message = regular('/run/reboot-required').read_text().strip() if request else None
+    packages = (regular('/run/reboot-required.pkgs').read_text().splitlines()
+                if os.path.lexists('/run/reboot-required.pkgs') else [])
+    check('oh-no-parent-control' not in packages, 'unrelated-package:product-request')
+    check((not request and not packages) if entry else
+          (request and message == '*** System restart required ***' and 'libc6' in packages),
+          'unrelated-package:preexisting-request' if entry else 'unrelated-package:system-request')
+    return {'package': dict(expected), 'integration_verified': True,
+            'system_reboot_required': request, 'request_packages': sorted(set(packages)),
+            'message': message, 'product_request_absent': True}
+
 COMMON = '''import hashlib,json,pathlib,stat,subprocess
 package = 'oh-no-parent-control'
 def call(*args):

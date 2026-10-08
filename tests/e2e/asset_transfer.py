@@ -1,10 +1,13 @@
-"""Provision verified assets on the held, powered-off guest before a journey.
+"""Provision verified attempt assets before customer entry.
 
-No installation, guest command, lifecycle operation, or observation write API.
+Offline consumers copy on the held powered-off disk; installed consumers copy
+from the fresh setup payload after snapshot restoration. No installation,
+lifecycle operation, or observation write API.
 Partial/failed transfers are terminal; the outer lease owns restoration.
 """
 
 import json
+import inspect
 import os
 from pathlib import Path
 import stat
@@ -28,6 +31,116 @@ TRANSFER_REFUSALS = frozenset('transfer:' + condition for condition in (
 ))
 
 from guest_observations import ASSETS as OBSERVE
+
+
+def provision_installed_assets(files):
+    """Fixed guest-side copy from fresh setup inputs; never adopt existing assets."""
+    import hashlib
+    import os
+    from pathlib import Path
+    import stat
+
+    assert os.geteuid() == 0
+    source = Path('/var/tmp/onpc-system-input')
+    destination = Path('/var/lib/onpc-e2e-assets')
+    for parent in (source.parent, destination.parent):
+        info = parent.lstat()
+        assert parent.resolve() == parent and stat.S_ISDIR(info.st_mode)
+        assert info.st_uid == info.st_gid == 0
+        assert (parent == source.parent and stat.S_IMODE(info.st_mode) == 0o1777
+                or not stat.S_IMODE(info.st_mode) & 0o022)
+    assert type(files) is dict and files
+    directories = {'.'}
+    seen_files, seen_directories = set(), {'.'}
+    for name in files:
+        path = Path(name)
+        assert not path.is_absolute() and path.as_posix() == name
+        assert all(part not in ('', '.', '..') for part in path.parts)
+        directories.update(parent.as_posix() for parent in path.parents)
+
+    def identity(info):
+        return tuple(getattr(info, field) for field in (
+            'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+            'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+
+    def safe(info, directory=False):
+        assert info.st_uid == info.st_gid == 0 and not stat.S_IMODE(info.st_mode) & 0o022
+        assert stat.S_ISDIR(info.st_mode) if directory else (
+            stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
+
+    def copy_tree(origin, target, prefix=''):
+        before = os.fstat(origin)
+        safe(before, directory=True)
+        names = sorted(os.listdir(origin))
+        for name in names:
+            relative = prefix + name
+            info = os.stat(name, dir_fd=origin, follow_symlinks=False)
+            is_directory = stat.S_ISDIR(info.st_mode)
+            safe(info, directory=is_directory)
+            assert relative in (directories if is_directory else files)
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            if is_directory:
+                flags |= os.O_DIRECTORY
+            original = os.open(name, flags, dir_fd=origin)
+            try:
+                assert identity(os.fstat(original)) == identity(info)
+                if is_directory:
+                    seen_directories.add(relative)
+                    os.mkdir(name, 0o755, dir_fd=target)
+                    copied = os.open(name, flags, dir_fd=target)
+                    try:
+                        os.fchmod(copied, 0o755)
+                        copy_tree(original, copied, relative + '/')
+                    finally:
+                        os.close(copied)
+                else:
+                    seen_files.add(relative)
+                    copied = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                     0o644, dir_fd=target)
+                    try:
+                        os.fchmod(copied, 0o644)
+                        digest = hashlib.sha256()
+                        while block := os.read(original, 1048576):
+                            digest.update(block)
+                            view = memoryview(block)
+                            while view:
+                                count = os.write(copied, view)
+                                assert count > 0
+                                view = view[count:]
+                        assert digest.hexdigest() == files[relative]
+                        os.fsync(copied)
+                        os.lseek(copied, 0, os.SEEK_SET)
+                        digest = hashlib.sha256()
+                        while block := os.read(copied, 1048576):
+                            digest.update(block)
+                        assert digest.hexdigest() == files[relative]
+                        safe(os.fstat(copied))
+                    finally:
+                        os.close(copied)
+                assert identity(os.fstat(original)) == identity(info)
+                assert identity(os.stat(name, dir_fd=origin, follow_symlinks=False)) == identity(info)
+            finally:
+                os.close(original)
+        assert sorted(os.listdir(origin)) == names and identity(os.fstat(origin)) == identity(before)
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    original = os.open(source, flags)
+    try:
+        safe(os.fstat(original), directory=True)
+        assert source.resolve() == source
+        # mkdir refuses directories, files and dangling symlinks alike.
+        os.mkdir(destination, 0o755)
+        copied = os.open(destination, flags)
+        try:
+            os.fchmod(copied, 0o755)
+            copy_tree(original, copied)
+            assert seen_files == set(files) and seen_directories == directories
+            assert identity(source.lstat()) == identity(os.fstat(original))
+            assert destination.resolve() == destination
+        finally:
+            os.close(copied)
+    finally:
+        os.close(original)
 
 
 def preservation_witness(g):
@@ -70,6 +183,36 @@ class AssetTransfer:
         self._attempted = False
         self._failure = None
         self._receipt = None
+
+    def provision_installed(self, lease, transport):
+        """One current-package transfer after running snapshot restoration/setup."""
+        require(not self._attempted, 'transfer:already-attempted')
+        self._attempted = True
+        try:
+            require(lease is self.verified.lease and lease.fd is not None
+                    and lease.state['phase'] == 'running' and lease.state['domain_id'] is not None
+                    and transport.config['domain_uuid'] == lease.state['domain_uuid']
+                    and transport.config['domain_id'] == lease.state['domain_id']
+                    and transport.config['run'] == lease.state['run']
+                    and not self.verified.upgrade_inputs, 'transfer:outside-provisioning')
+            lease.guard()
+            self.verified.recheck()
+            files = self.verified.asset_files
+            require(files[package_filename(files)] == self.verified.inputs['package_sha256'],
+                    'transfer:package-mismatch')
+            program = inspect.getsource(provision_installed_assets) + (
+                '\nimport json,sys\nprovision_installed_assets(json.load(sys.stdin))\n')
+            transport.call(['/usr/bin/python3', '-c', program],
+                           input=json.dumps(files, sort_keys=True).encode(), timeout=300)
+            lease.guard()
+            self.verified.recheck()
+            self._receipt = {'files': len(files), 'sha256': digest(files)}
+            print('e2e:asset-transfer-verified', file=sys.stderr, flush=True)
+            return dict(self._receipt)
+        except BaseException:
+            self._failure = 'transfer:provisioning-failed'
+            print('e2e:asset-transfer-rejected code=' + self._failure, file=sys.stderr, flush=True)
+            raise
 
     def provision(self, lease, guestfs):
         require(not self._attempted, 'transfer:already-attempted')

@@ -19,7 +19,25 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **305 — [Unrelated reboot requests leave all apps usable](E2E-Tasks/305-unrelated-reboot.md)**.
+Next task: **048f — [Observe overlay password rejection and Cancel](E2E-Tasks/048f-overlay-rejection.md)**.
+
+Task 305 and its customer case were deleted at the developer's request. Do not
+resume its failed attempts or recreate its brief. Completed task 305a remains qualified.
+
+Task 305a qualified the finite verified Ubuntu `libc6:amd64` 2.43-2ubuntu2.4
+reconfiguration and independent system result in `20261008T031925Z-f3d2d6e5`.
+All seven assertions passed, including real product installation/activation,
+clean administrator entry, one unrelated transaction, successful completion,
+genuine libc6 reboot request and unchanged product identity/boot. The pinned
+maintainer script established that the previous completion expectation applied
+to older upgrades; the shared reader now requires the actual systemd trigger
+completion while retaining the independent request and preservation checks.
+Required package-command (`20261008T032451Z-e5adea37`) and customer-reboot
+(`20261008T032801Z-219b3d94`) regressions passed. All three runs passed collection,
+reconciliation, worker shutdown, owned cleanup, baseline restoration,
+finalization and preservation. The [catalogue](E2E-Building-Blocks.md#genuine-unrelated-package-reboot-request)
+owns the exact qualified scope and retained evidence. This qualifies the supporting
+package operation and system result only.
 
 Task 304 completed E2E-058 `kiosk`, case 259, on Ubuntu 26.04 in
 `20261008T022232Z-88a775f3`: genuine installation/final notice, first English
@@ -47,8 +65,7 @@ and kiosk on Ubuntu 26.04, with same-boot Close/re-entry, one kiosk Reboot now,
 new boot/usable greeter and fresh usability without the modal. The required
 customer-reboot regression, collection, worker shutdown, owned cleanup, baseline
 restoration, finalization and preservation passed. The queue and LIFE07 catalogue
-retain the exact scope and reports; the unrelated-request complete case remains
-with task 305.
+retain the exact scope and reports.
 
 Task 300's complete Chinese latest-install case 254 and both required
 current-install/native-auth regressions passed on Ubuntu 26.04, including

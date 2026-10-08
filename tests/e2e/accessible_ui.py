@@ -1054,6 +1054,12 @@ EXTERNAL_PROVIDER_CONTRACTS = {
 }
 
 
+LOCK_SURFACE_OPERATIONS = frozenset((
+    'parent-lock-curtain', 'parent-lock-reveal-ready', 'parent-lock-challenge',
+    'parent-lock-refusals', 'parent-lock-unlocked-refused'))
+OPERATIONS |= LOCK_SURFACE_OPERATIONS
+
+
 class UiError(RuntimeError):
     pass
 
@@ -7267,6 +7273,229 @@ class AccessibleUI:
             return desktop if time.monotonic() - stable_since >= 2 else None
         return self.wait(stable, 'fresh-shell-desktop', prompt_in_predicate=True)
 
+    def require_lock_session(self, uid):
+        """Bind a lock read to the sole active, local, locked fixture desktop."""
+        require(uid == os.getuid() == pwd.getpwnam('onpc-parent-jamie').pw_uid,
+                'ui:lock-session')
+        try:
+            return session_control.source_session(session_control.sessions(), uid, locked=True)
+        except session_control.SessionError as error:
+            raise UiError('ui:lock-session') from error
+
+    def lock_window_diagnostic(self, owner, windows, observation):
+        """Project the refused protected snapshot; never read text or authorize input."""
+        nodes, edges, _identities, facts = observation
+        selected = windows[:16]
+        scopes = [set(self.snapshot_scope(nodes, edges, window)) for window in selected]
+        rows = []
+        for index, window in enumerate(selected):
+            nested = [other for other, scope in enumerate(scopes)
+                      if other != index and selected[other] in scopes[index]]
+            own = scopes[index].difference(*(scopes[other] for other in nested))
+            showing = [node for node in own if facts[node]['showing']]
+            rows.append({
+                'node': index,
+                'contains_windows': nested,
+                'incoming_edges': sum(window in children for children in edges.values()),
+                'owner_process_matches': window.get_process_id() == owner.get_process_id(),
+                'focused': self.has_state(window, self.api.StateType.FOCUSED),
+                'modal': facts[window]['modal'],
+                'own_focused': sum(self.has_state(node, self.api.StateType.FOCUSED)
+                                   for node in showing),
+                'own_hints': sum(facts[node]['role'] == 'label' and facts[node]['name']
+                                 == 'Click or press a key to unlock' for node in showing),
+                'own_parent_labels': sum(facts[node]['role'] == 'label'
+                                         and facts[node]['name'] == PARENT for node in showing),
+                'own_password_fields': sum(facts[node]['role'] == 'password text'
+                                           for node in showing),
+            })
+        return {'event': 'ui-lock-window-ambiguity', 'window_count': len(windows),
+                'truncated': len(windows) > len(selected), 'windows': rows}
+
+    def shell_lock_window(self, owner, windows, observation):
+        """Bind lock semantics, allowing only empty strict ancestor windows.
+
+        Shell exposes its unlock window beneath a containing window. Window
+        count alone cannot distinguish that wrapper from a competing surface.
+        Validate the recorded graph, not just reachability or window depth.
+        """
+        nodes, edges, _identities, facts = observation
+        scopes = {window: set(self.snapshot_scope(nodes, edges, window)) for window in windows}
+        parents = {}
+        for parent, children in edges.items():
+            for child in children:
+                parents.setdefault(child, []).append(parent)
+
+        def marker(node):
+            return facts[node]['showing'] and (
+                facts[node]['role'] == 'password text'
+                or (facts[node]['role'] == 'label' and facts[node]['name'] in (
+                    'Click or press a key to unlock', *GREETER_IDENTITIES)))
+
+        candidates = []
+        for window, scope in scopes.items():
+            # A marker belongs to its nearest window, never to a wrapper.
+            own = scope.difference(*(other_scope for other, other_scope in scopes.items()
+                                     if other != window and other in scope))
+            if any(marker(node) for node in own):
+                candidates.append(window)
+        if len(windows) == 1:
+            window = windows[0]  # Existing bounded readiness checks handle no markers.
+        else:
+            require(len(candidates) == 1, 'ui:lock-surface-ambiguous')
+            window = candidates[0]
+
+        ancestors, node = set(), window
+        while node != owner:
+            require(node not in ancestors and len(parents.get(node, ())) == 1,
+                    'ui:lock-surface-ambiguous')
+            ancestors.add(node)
+            node = parents[node][0]
+        require(all(other == window or other in ancestors for other in windows),
+                'ui:lock-surface-ambiguous')
+        controls = scopes[window]
+        # A cycle through the owner or any shared control path cannot establish
+        # exclusive ownership, even when all paths resolve to the same PID.
+        require(owner not in controls and not any(parent in ancestors
+                for parent in parents.get(owner, ())), 'ui:lock-surface-ambiguous')
+        require(all(len(parents.get(node, ())) == 1 and parents[node][0] in controls
+                    for node in controls if node != window), 'ui:lock-surface-ambiguous')
+        outside = self.snapshot_scope(nodes, edges, owner)
+        require(not any(marker(node) for node in outside if node not in controls),
+                'ui:lock-surface-ambiguous')
+        require(all(node.get_process_id() == owner.get_process_id() for node in ancestors),
+                'ui:lock-owner')
+        return window
+
+    def shell_lock_snapshot(self, uid, entry, *, observation=None):
+        """DESK06, Shell 50 English provider semantics; no secret authorization.
+
+        unlockDialog.js exposes a WINDOW with a clock hint or an AuthPrompt.
+        These are provider semantics, not public automation IDs. Only the curtain
+        branch can guard a single nonprinting normal-key reveal in the worker.
+        https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/unlockDialog.js
+        """
+        require(entry in ('curtain', 'challenge'), 'ui:lock-entry')
+        session = self.require_lock_session(uid)
+        if observation is None:
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+        nodes, edges, _identities, facts = observation
+        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                  for node in nodes), 'ui:incomplete-tree')
+        owners = [node for node in nodes if facts[node]['role'] == 'application'
+                  and facts[node]['name'].casefold() in GDM_SEMANTIC_APPLICATION_NAMES]
+        require(len(owners) == 1, 'ui:lock-owner')
+        owner = owners[0]
+        pid = owner.get_process_id()
+        require(owner.get_parent() == self.api.get_desktop(0)
+                and type(pid) is int and pid > 0
+                and Path('/proc/' + str(pid)).stat().st_uid == uid, 'ui:lock-owner')
+        scoped = self.snapshot_scope(nodes, edges, owner)
+        windows = [node for node in scoped if facts[node]['role'] == 'window'
+                   and facts[node]['showing']]
+        if not windows:
+            return None
+        try:
+            window = self.shell_lock_window(owner, windows, observation)
+        except UiError as error:
+            if str(error) != 'ui:lock-surface-ambiguous':
+                raise
+            try:
+                print(json.dumps(self.lock_window_diagnostic(owner, windows, observation),
+                                 sort_keys=True), file=sys.stderr, flush=True)
+            except Exception:
+                # Failure-only diagnostics must preserve the original refusal.
+                print('ui:lock-window-diagnostic-unavailable', file=sys.stderr, flush=True)
+            raise
+        controls = self.snapshot_scope(nodes, edges, window)
+        require(all(node.get_process_id() == pid for node in controls), 'ui:lock-owner')
+        # The focused recipient and all authentication controls must belong to
+        # this lock window. A hidden desktop or an unrelated modal cannot guard input.
+        require(not any(facts[node]['showing'] and node not in controls and (
+            self.has_state(node, self.api.StateType.FOCUSED)
+            or facts[node]['role'] in ('password text', 'dialog', 'alert')
+            or facts[node]['modal']) for node in nodes), 'ui:lock-other-surface')
+        focused = [node for node in controls if facts[node]['showing']
+                   and self.has_state(node, self.api.StateType.FOCUSED)]
+        require(len(focused) <= 1, 'ui:lock-focus-ambiguous')
+        if not focused:
+            return None
+        fields = [node for node in controls if facts[node]['role'] == 'password text'
+                  and facts[node]['showing']]
+        require(len(fields) <= 1, 'ui:lock-field-ambiguous')
+        if entry == 'curtain':
+            require(not fields, 'ui:lock-not-curtain')
+            hints = [node for node in controls if facts[node]['role'] == 'label'
+                     and facts[node]['showing']
+                     and facts[node]['name'] == 'Click or press a key to unlock']
+            require(len(hints) <= 1, 'ui:lock-hint-ambiguous')
+            if not hints:
+                return None
+            require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
+            return owner, window, None, observation
+        if not fields:
+            return None
+        field = fields[0]
+        labels = [facts[node]['name'] for node in controls if facts[node]['role'] == 'label'
+                  and facts[node]['showing'] and facts[node]['name'] in GREETER_IDENTITIES]
+        require(labels == [PARENT], 'ui:lock-recipient')
+        require(focused == [field] and self.has_state(field, self.api.StateType.SENSITIVE)
+                and self.has_state(field, self.api.StateType.EDITABLE), 'ui:lock-field')
+        require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
+        return owner, window, field, observation
+
+    def lock_surface(self, operation):
+        require(operation in LOCK_SURFACE_OPERATIONS, 'ui:lock-operation')
+        uid = os.getuid()
+        if operation == 'parent-lock-unlocked-refused':
+            require_active_launch_session()
+            self.standard_shell_desktop(no_prompt=True)
+            try:
+                self.shell_lock_snapshot(uid, 'curtain')
+            except UiError as error:
+                require(str(error) == 'ui:lock-session', 'ui:lock-unlocked-refusal')
+            else:
+                raise UiError('ui:lock-unlocked-accepted')
+            return {'refused': ['unlocked-session']}
+        entry = 'curtain' if operation in ('parent-lock-curtain', 'parent-lock-reveal-ready') else 'challenge'
+        value = self.wait(lambda: self.shell_lock_snapshot(uid, entry), 'lock-' + entry,
+                          prompt_in_predicate=True)
+        owner, window, field, observation = value
+        if operation == 'parent-lock-refusals':
+            nodes, edges, identities, facts = observation
+            variants = [(uid + 1, observation, 'ui:lock-session')]
+            # Project the complete live tree; never visit another session or send
+            # input to a bad recipient. The same adapter must reject each proof.
+            for code, changes in (
+                    ('ui:lock-surface-ambiguous', {field: {'role': 'window'}}),
+                    ('ui:lock-field-ambiguous', {node: {'role': 'password text'}
+                        for node in nodes if facts[node]['role'] == 'label'
+                        and facts[node]['name'] == PARENT}),
+                    ('ui:lock-recipient', {node: {'name': OTHER_PARENT}
+                        for node in nodes if facts[node]['role'] == 'label'
+                        and facts[node]['name'] == PARENT})):
+                projected = {node: {**facts[node], **changes.get(node, {})} for node in nodes}
+                variants.append((uid, (nodes, edges, identities, projected), code))
+            refused = []
+            for expected_uid, tree, code in variants:
+                try:
+                    self.shell_lock_snapshot(expected_uid, 'challenge', observation=tree)
+                except UiError as error:
+                    require(str(error) == code, 'ui:lock-refusal')
+                else:
+                    raise UiError('ui:lock-refusal-missing')
+                refused.append(code.removeprefix('ui:lock-'))
+            fresh = self.shell_lock_snapshot(uid, 'challenge')
+            require(fresh is not None and fresh[:3] == value[:3], 'ui:lock-surface-changed')
+            return {'refused': refused}
+        result = {'entry': entry, 'owner': 'fixture-parent', 'locked': True,
+                  'desktop_input_available': False,
+                  'recipient': 'fixture-parent' if field is not None else None,
+                  'surface_id': self.mate_challenge_identity(owner.get_process_id(), (owner, window)),
+                  'provider': self._shell_provider_metadata(owner)}
+        return result
+
     def keyring_cancel_target(self):
         """Resolve the real gcr login-keyring Cancel through one complete tree."""
         root = self.api.get_desktop(0)
@@ -10423,7 +10652,9 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in RESTART_OPERATIONS:
+        if operation in LOCK_SURFACE_OPERATIONS:
+            result['lock'] = self.lock_surface(operation)
+        elif operation in RESTART_OPERATIONS:
             surface, action = RESTART_OPERATIONS[operation]
             value = self.restart_operation(surface, action)
             if action == 'reboot':

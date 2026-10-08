@@ -176,6 +176,9 @@ from regression_resources import HOST_WORKERS
 # worker probes; no protected operation, live owner or shared state is added.
 # Parent presentation exercises terminal refusals in private recorder/decoder
 # fixtures and waited Perl children; compatible here and in the unit inventory.
+# Desktop lock plans extend desktop_session's private recorder/checkpoint files
+# only. The same pytest allocation owns cleanup; no VM/display/process owner is
+# acquired. Compatible here and in the unit inventory.
 REVIEWED = frozenset('''
 parent_presentation
 package_lifecycle

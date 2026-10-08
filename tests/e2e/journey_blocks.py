@@ -15,6 +15,18 @@ def prefixed_stages(prefix, screens):
     return {prefix + '-' + stage: tag for stage, tag in screens.items()}
 
 
+def lock_challenge(prefix='', *, entry='curtain'):
+    """DESK06 declared curtain, fresh reveal guard and independent challenge."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
+            'journey:lock-prefix')
+    require(entry in ('curtain', 'challenge'), 'journey:lock-entry')
+    if entry == 'challenge':
+        return {prefix + 'challenge': 'ui:parent-lock-challenge'}
+    return {prefix + stage: 'ui:parent-lock-' + operation for stage, operation in (
+        ('curtain', 'curtain'), ('reveal-ready', 'reveal-ready'), ('challenge', 'challenge'))}
+
+
 def custom_allowance(prefix, minutes):
     """Ordinary editor input and saved readback; selection belongs to the caller."""
     from accessible_ui import CUSTOM_ALLOWANCE_OPERATIONS, TEXT_VALUES

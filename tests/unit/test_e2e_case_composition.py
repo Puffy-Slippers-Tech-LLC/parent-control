@@ -40,7 +40,7 @@ WORKER_APIS = {
                     'named_management', 'language_presentation_roundtrip', 'language_save',
                     'dialog_visit', 'dialog_close', 'dialog_use'},
     'onpc_request_exit': {'enter_station', 'escape'},
-    'onpc_desktop_session': {'switch_user'},
+    'onpc_desktop_session': {'switch_user', 'lock', 'observe_lock'},
     'onpc_window': {'close'},
     'onpc_about': {'open_about', 'read_help', 'open_from_help', 'open_license', 'close_information',
                    'check_link', 'return_to_parent', 'overlay_license'},

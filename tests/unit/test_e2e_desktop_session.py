@@ -550,3 +550,340 @@ def test_session_qualification_uses_installed_snapshot_and_separate_attempts():
         check.smoke = original
     assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
                       'desktop_session_logout': True}]
+
+
+def lock_tree(monkeypatch, entry='curtain'):
+    import accessible_ui as a
+    window = Node(role='window', states=('showing', 'visible', 'sensitive', 'focused'))
+    hint = Node('Click or press a key to unlock', 'label')
+    recipient = Node(a.PARENT, 'label')
+    field = Node('Password:', 'password text', states=(
+        'showing', 'visible', 'sensitive', 'focused', 'editable'))
+    field.get_child_count = Mock(side_effect=AssertionError('protected traversal'))
+    field.getText = Mock(side_effect=AssertionError('protected text'))
+    window.children = [hint] if entry == 'curtain' else [recipient, field]
+    if entry == 'challenge': window.states.discard('focused')
+    for child in window.children: child.parent = window
+    shell = Node('gnome-shell', 'application', children=[window])
+    root = Node(role='desktop frame', children=[shell])
+    monkeypatch.setattr(a.os, 'getuid', lambda: 1000)
+    monkeypatch.setattr(a.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    monkeypatch.setattr(a, 'Path', lambda _: SimpleNamespace(stat=lambda: SimpleNamespace(st_uid=1000)))
+    monkeypatch.setattr(control, 'sessions', lambda: {'7': props(locked='yes')})
+    ui = ui_for(root)
+    ui.mate_challenge_identity = Mock(return_value='a' * 64)
+    ui._shell_provider_metadata = Mock(return_value={
+        'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]})
+    return ui, root, shell, window, recipient, field
+
+
+@pytest.mark.parametrize('entry', ['curtain', 'challenge'])
+def test_lock_surface_reads_public_identity_without_secret_input(monkeypatch, entry):
+    ui, _, _, _, _, field = lock_tree(monkeypatch, entry)
+    result = ui.run('parent-lock-' + entry, '')['lock']
+    assert result == {'entry': entry, 'owner': 'fixture-parent', 'locked': True,
+        'desktop_input_available': False, 'recipient': 'fixture-parent' if entry == 'challenge' else None,
+        'surface_id': 'a' * 64, 'provider': ui._shell_provider_metadata.return_value}
+    field.get_child_count.assert_not_called()
+    field.getText.assert_not_called()
+    field.action.do_action.assert_not_called()
+    field.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['unlocked', 'wrong-session', 'wrong-seat', 'multiple-sessions',
+    'multiple-windows', 'wrong-owner', 'foreign-password', 'foreign-focus', 'foreign-dialog',
+    'duplicate-field', 'wrong-recipient', 'disabled-field', 'unfocused-field', 'defunct', 'incomplete'])
+def test_lock_challenge_refuses_unsafe_surfaces_without_input(monkeypatch, fault):
+    import accessible_ui as a
+    ui, root, shell, window, recipient, field = lock_tree(monkeypatch, 'challenge')
+    current = {'7': props(locked='yes')}
+    if fault == 'unlocked': current['7']['LockedHint'] = 'no'
+    elif fault == 'wrong-session': current['7']['User'] = '1001'
+    elif fault == 'wrong-seat': current['7']['Seat'] = 'seat1'
+    elif fault == 'multiple-sessions': current['8'] = props('1001', locked='yes')
+    elif fault == 'multiple-windows': shell.children.append(Node(role='window'))
+    elif fault == 'wrong-owner': shell.get_process_id = lambda: 200
+    elif fault.startswith('foreign-'):
+        node = Node(role={'foreign-password': 'password text', 'foreign-focus': 'text',
+                          'foreign-dialog': 'dialog'}[fault])
+        if fault == 'foreign-focus': node.states.add('focused')
+        root.children.append(Node('other', 'application', children=[node]))
+    elif fault == 'duplicate-field': window.children.append(Node(role='password text'))
+    elif fault == 'wrong-recipient': recipient.name = a.OTHER_PARENT
+    elif fault == 'disabled-field': field.states.discard('sensitive')
+    elif fault == 'unfocused-field': field.states.discard('focused')
+    elif fault == 'defunct': field.states.add('defunct')
+    elif fault == 'incomplete': window.children.append(None)
+    monkeypatch.setattr(control, 'sessions', lambda: current)
+    with pytest.raises(a.UiError): ui.run('parent-lock-challenge', '')
+    field.action.do_action.assert_not_called()
+    field.component.grab_focus.assert_not_called()
+    ui.mate_challenge_identity.assert_not_called()
+
+
+def test_curtain_proof_cannot_authorize_input_to_an_open_challenge(monkeypatch):
+    import accessible_ui as a
+    ui, _, _, _, _, _ = lock_tree(monkeypatch, 'challenge')
+    with pytest.raises(a.UiError, match='lock-not-curtain'):
+        ui.run('parent-lock-reveal-ready', '')
+
+
+def test_live_tree_refusal_projections_use_the_same_read_only_adapter(monkeypatch):
+    ui, _, _, _, _, field = lock_tree(monkeypatch, 'challenge')
+    assert ui.run('parent-lock-refusals', '')['lock'] == {
+        'refused': ['session', 'surface-ambiguous', 'field-ambiguous', 'recipient']}
+    field.action.do_action.assert_not_called()
+    field.getText.assert_not_called()
+
+
+@pytest.mark.parametrize('entry', ['curtain', 'challenge'])
+def test_lock_surface_binds_semantic_window_beneath_empty_shell_wrapper(monkeypatch, entry):
+    ui, _, shell, window, _, field = lock_tree(monkeypatch, entry)
+    wrapper = Node(role='window', children=[window])
+    shell.children = [wrapper]
+    wrapper.parent = shell
+    result = ui.run('parent-lock-' + entry, '')['lock']
+    assert result['entry'] == entry
+    ui.mate_challenge_identity.assert_called_once_with(shell.get_process_id(), (shell, window))
+    field.get_child_count.assert_not_called()
+    field.getText.assert_not_called()
+
+
+@pytest.mark.parametrize('entry', ['curtain', 'challenge'])
+@pytest.mark.parametrize('fault', ['hint', 'recipient', 'password', 'focus', 'modal', 'dialog',
+    'descendant-window', 'sibling-window', 'shared-window', 'shared-control', 'cycle',
+    'owner-cycle', 'foreign-wrapper', 'duplicate-edge'])
+def test_lock_wrapper_never_hides_competing_or_ambiguous_ownership(monkeypatch, entry, fault):
+    import accessible_ui as a
+    ui, _, shell, window, _, field = lock_tree(monkeypatch, entry)
+    wrapper = Node(role='window', children=[window])
+    shell.children = [wrapper]
+    wrapper.parent = shell
+    if fault in ('hint', 'recipient', 'password', 'focus', 'modal', 'dialog'):
+        extra = Node(role='label')
+        if fault == 'hint': extra.name = 'Click or press a key to unlock'
+        elif fault == 'recipient': extra.name = a.OTHER_PARENT
+        elif fault == 'password': extra.role = 'password text'
+        elif fault == 'focus': extra.states.add('focused')
+        elif fault == 'modal': extra.states.add('modal')
+        elif fault == 'dialog': extra.role = 'dialog'
+        wrapper.children.append(extra)
+    elif fault == 'descendant-window': window.children.append(Node(role='window'))
+    elif fault == 'sibling-window': wrapper.children.append(Node(role='window'))
+    elif fault == 'shared-window': shell.children.append(window)
+    elif fault == 'shared-control': wrapper.children.append(window.children[0])
+    elif fault == 'cycle': window.children.append(wrapper)
+    elif fault == 'owner-cycle': wrapper.children.append(shell)
+    elif fault == 'foreign-wrapper': wrapper.get_process_id = lambda: 200
+    elif fault == 'duplicate-edge': wrapper.children.append(window)
+    with pytest.raises(UiError): ui.run('parent-lock-' + entry, '')
+    ui.mate_challenge_identity.assert_not_called()
+    field.getText.assert_not_called()
+    field.action.do_action.assert_not_called()
+    window.component.grab_focus.assert_not_called()
+
+
+def test_lock_replacement_under_unchanged_wrapper_cannot_release_reveal(monkeypatch):
+    from ui_observations import UiObservations
+    from private_artifacts import EvidenceError
+    ui, _, shell, window, _, _ = lock_tree(monkeypatch)
+    wrapper = Node(role='window', children=[window])
+    shell.children = [wrapper]
+    wrapper.parent = shell
+    ui.mate_challenge_identity = lambda pid, targets: ('a' if targets[1] is window else 'b') * 64
+    reader = UiObservations(SimpleNamespace())
+    reader.call = lambda argv, *args, **kwargs: (json.dumps(ui.run(argv[3], '')).encode(), [])
+    assert reader.observe('parent-lock-curtain')['lock']['surface_id'] == 'a' * 64
+    replacement = Node(role='window', children=[Node('Click or press a key to unlock', 'label')],
+                       states=('showing', 'visible', 'sensitive', 'focused'))
+    wrapper.children = [replacement]
+    replacement.parent = wrapper
+    with pytest.raises(EvidenceError, match='lock-surface-changed'):
+        reader.observe('parent-lock-reveal-ready')
+
+
+@pytest.mark.parametrize('entry', ['curtain', 'challenge'])
+@pytest.mark.parametrize('topology', ['ancestor', 'sibling', 'cycle', 'shared'])
+def test_lock_ambiguity_diagnostic_preserves_refusal_and_private_text(
+        monkeypatch, capsys, entry, topology):
+    ui, _, shell, window, _, field = lock_tree(monkeypatch, entry)
+    extra = Node('private-window-canary', 'window', children=[
+        Node('private-label-canary', 'label')])
+    if topology == 'ancestor':
+        # An ancestor is ambiguous only when it has independent lock semantics.
+        extra.children.append(Node('Click or press a key to unlock', 'label'))
+    if topology in ('ancestor', 'cycle', 'shared'):
+        extra.children.append(window)
+        shell.children = [extra]
+        window.parent = extra
+        if topology == 'cycle': window.children.append(extra)
+        if topology == 'shared': shell.children.append(window)
+    else:
+        shell.children.append(extra)
+    extra.parent = shell
+    ui.read_snapshot = Mock(wraps=ui.read_snapshot)
+    with pytest.raises(UiError, match='lock-surface-ambiguous'):
+        ui.run('parent-lock-' + entry, '')
+    stderr = capsys.readouterr().err
+    diagnostic = next(json.loads(line) for line in stderr.splitlines()
+                      if line.startswith('{') and json.loads(line).get('event')
+                      == 'ui-lock-window-ambiguity')
+    assert diagnostic['window_count'] == 2 and not diagnostic['truncated']
+    rows = diagnostic['windows']
+    assert sorted(len(row['contains_windows']) for row in rows) == (
+        [1, 1] if topology == 'cycle' else [0, 1] if topology != 'sibling' else [0, 0])
+    if topology == 'shared': assert max(row['incoming_edges'] for row in rows) == 2
+    if topology != 'cycle':
+        assert sum(row['own_hints'] for row in rows) == int(entry == 'curtain') + int(topology == 'ancestor')
+        assert sum(row['own_password_fields'] for row in rows) == int(entry == 'challenge')
+        assert sum(row['own_parent_labels'] for row in rows) == int(entry == 'challenge')
+    assert 'private-window-canary' not in stderr and 'private-label-canary' not in stderr
+    ui.read_snapshot.assert_called_once_with(protect_text=True)
+    ui.mate_challenge_identity.assert_not_called()
+    field.getText.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.action.do_action.assert_not_called()
+    window.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('unavailable', [False, True])
+def test_lock_ambiguity_diagnostic_bounds_output_and_cannot_replace_failure(
+        monkeypatch, capsys, unavailable):
+    ui, _, shell, _, _, _ = lock_tree(monkeypatch)
+    shell.children.extend(Node('private-canary', 'window') for _ in range(24))
+    if unavailable:
+        ui.lock_window_diagnostic = Mock(side_effect=RuntimeError('private-error-canary'))
+    with pytest.raises(UiError, match='lock-surface-ambiguous'):
+        ui.run('parent-lock-curtain', '')
+    stderr = capsys.readouterr().err
+    if unavailable:
+        assert 'ui:lock-window-diagnostic-unavailable' in stderr
+    else:
+        diagnostic = next(json.loads(line) for line in stderr.splitlines()
+                          if line.startswith('{') and json.loads(line).get('event')
+                          == 'ui-lock-window-ambiguity')
+        assert diagnostic['window_count'] == 25 and diagnostic['truncated']
+        assert len(diagnostic['windows']) == 16 and len(stderr) < 8192
+    assert 'private-canary' not in stderr and 'private-error-canary' not in stderr
+    ui.mate_challenge_identity.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'entry', 'owner', 'locked', 'desktop', 'recipient',
+                                  'identity', 'provider', 'extra', 'replacement'])
+def test_lock_decoder_validates_public_result_and_pins_surface(monkeypatch, fault):
+    from ui_observations import UiObservations
+    from private_artifacts import EvidenceError
+    ui, _, _, _, _, _ = lock_tree(monkeypatch, 'curtain')
+    curtain = ui.run('parent-lock-curtain', '')
+    reader = UiObservations(SimpleNamespace())
+    reader.call = Mock(return_value=(json.dumps(curtain).encode(), []))
+    assert reader.observe('parent-lock-curtain')['lock']['surface_id'] == 'a' * 64
+    result = {**curtain, 'operation': 'parent-lock-challenge', 'lock': {
+        **curtain['lock'], 'entry': 'challenge', 'recipient': 'fixture-parent'}}
+    changes = {'entry': ('entry', 'curtain'), 'owner': ('owner', 'other'),
+        'locked': ('locked', False), 'desktop': ('desktop_input_available', True),
+        'recipient': ('recipient', 'other'), 'identity': ('surface_id', 'bad'),
+        'provider': ('provider', {}), 'extra': ('private', 'canary'),
+        'replacement': ('surface_id', 'b' * 64)}
+    if fault:
+        key, value = changes[fault]
+        result['lock'][key] = value
+    reader.call.return_value = (json.dumps(result).encode(), [])
+    if fault:
+        with pytest.raises((EvidenceError, UiError)): reader.observe('parent-lock-challenge')
+    else:
+        assert reader.observe('parent-lock-challenge')['lock']['recipient'] == 'fixture-parent'
+
+
+@pytest.mark.parametrize('supplied', [False, True])
+def test_lock_worker_complete_sequence_and_refusal_stops(supplied):
+    from desktop_session import LOCK_PLAN, SUPPLIED_LOCK_PLAN
+    plan = SUPPLIED_LOCK_PLAN if supplied else LOCK_PLAN
+    program = RUN_PROBE.replace("onpc_desktop_session::run(sub {",
+        "onpc_desktop_session::qualify_lock(sub {").replace('}, $action);', '}, $action);')
+    result = json.loads(run_perl(program, '1' if supplied else '0').stdout)
+    assert result['ok'], result
+    events = result['events']
+    assert [event[1] for event in events if event[0] == 'stage'] == list(plan.screen_tags)
+    assert events.count(['secret']) == 1  # Fresh login only; lock input is never secret.
+    assert events.count(['key', 'spc']) == 1
+    assert events.count(['key', 'super-l']) == int(supplied)
+    assert events[-1] == ['power', 'off']
+    for stage in ('unlocked-refused', 'lock-ready', 'curtain', 'reveal-ready', 'challenge', 'lock-refusals'):
+        failed = program.replace("push @events, ['stage', $_[0]];",
+            "push @events, ['stage', $_[0]]; die 'guard' if $_[0] eq '" + stage + "';")
+        result = json.loads(run_perl(failed, '1' if supplied else '0').stdout)
+        assert not result['ok']
+        expected = events[:events.index(['stage', stage]) + 1]
+        assert result['events'] == expected
+
+
+def test_lock_qualification_separate_attempts_and_registered_transport(monkeypatch):
+    import check_e2e_lock_surface as check
+    import check_graphical_smoke as smoke
+    from desktop_session import LOCK_PLAN, SUPPLIED_LOCK_PLAN
+    from parent_setup_qualification import LockSurfaceQualification, SuppliedLockSurfaceQualification
+    from tools import test_commands
+    calls = []
+    monkeypatch.setattr(check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
+    assert check.main() == 0
+    assert [value['lock_surface'] for value in calls] == ['command', 'supplied']
+    monkeypatch.setattr(check, 'smoke', lambda **kwargs: calls.append(kwargs) or 1)
+    calls.clear()
+    assert check.main() == 1 and len(calls) == 1
+    for cls, plan in ((LockSurfaceQualification, LOCK_PLAN),
+                      (SuppliedLockSurfaceQualification, SUPPLIED_LOCK_PLAN)):
+        context = SimpleNamespace()
+        journey = cls.journey(context, Mock())
+        assert journey.plan is plan
+        assert context.installed_snapshot.startswith('onpc-v')
+        assert set(plan.phases) == set(plan.stages)
+        assert all(tag[7:] in control.BINDINGS for tag in plan.screen_tags.values()
+                   if tag.startswith('system:'))
+        assert all(tag[3:] in OPERATIONS for tag in plan.screen_tags.values() if tag.startswith('ui:'))
+    # Invalid mixed modes fail before credentials, storage, VM or other preparation.
+    with pytest.raises(RuntimeError, match='lock-surface-prerequisites'):
+        smoke.main(assets=check.ASSETS, provision_credentials=True,
+                   lock_surface='command', desktop_session_switch=True)
+    prepare = Mock(return_value='prepared')
+    monkeypatch.setattr(test_commands, 'allocate_artifact_output', prepare)
+    monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
+    assert test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_lock_surface'])
+    prepare.assert_called_once()
+
+
+def test_lock_read_reacquires_delayed_and_incomplete_transitions(monkeypatch):
+    import accessible_ui as a
+    ui, _, _, window, _, field = lock_tree(monkeypatch, 'challenge')
+    original = ui.shell_lock_snapshot
+    reads = []
+
+    def observe(*args, **kwargs):
+        reads.append(1)
+        if len(reads) == 1: return None
+        if len(reads) == 2: raise a.UiError('ui:incomplete-tree')
+        return original(*args, **kwargs)
+
+    ui.shell_lock_snapshot = observe
+    ui.timeout = 2
+    assert ui.run('parent-lock-challenge', '')['lock']['entry'] == 'challenge'
+    assert len(reads) == 3
+    field.action.do_action.assert_not_called()
+    window.component.grab_focus.assert_not_called()
+
+
+def test_already_open_lock_observation_has_no_reveal_input(monkeypatch):
+    from journey_blocks import lock_challenge
+    from ui_observations import UiObservations
+    ui, _, _, _, _, _ = lock_tree(monkeypatch, 'challenge')
+    reader = UiObservations(SimpleNamespace())
+    reader.call = Mock(return_value=(json.dumps(ui.run('parent-lock-challenge', '')).encode(), []))
+    assert reader.observe('parent-lock-challenge')['lock']['entry'] == 'challenge'
+    assert lock_challenge('again-', entry='challenge') == {'again-challenge': 'ui:parent-lock-challenge'}
+    program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
+my $journey = onpc_journey->new(exchange => sub { push @events, ['stage', $_[0]]; return {}; },
+    prefix => 'independent', review => 0);
+onpc_desktop_session::observe_lock($journey, 'challenge');
+print encode_json({events => \@events});
+'''
+    assert json.loads(run_perl(program, '0').stdout)['events'] == [['stage', 'challenge']]

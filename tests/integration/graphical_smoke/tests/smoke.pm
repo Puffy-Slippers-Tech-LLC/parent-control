@@ -416,6 +416,12 @@ sub run {
         onpc_command_help::run(\&exchange);
         return;
     }
+    if ($ready->{lock_surface_command} || $ready->{lock_surface_supplied}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::qualify_lock(\&exchange, $ready->{lock_surface_supplied} ? 1 : 0);
+        return;
+    }
     if ($ready->{desktop_session_logout}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

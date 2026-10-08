@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **042a — [Lock a desktop and observe its challenge surface](E2E-Tasks/042a-lock-surface.md)**.
+Next task: **042 — [Prove the intended lock-screen recipient](E2E-Tasks/042-lock-recipient.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

@@ -541,6 +541,9 @@ from regression_ui import Bucket
 # disk files and the real recorder, with collector-only checked sync calls.
 # e2e_evidence keeps real file/directory sync and failure-before-registration
 # coverage. Retention synchronization is untouched; all three remain compatible.
+# Lock-surface additions reuse e2e_desktop_session's in-memory provider/session
+# doubles and waited Perl probes, plus desktop_session_cleanup_safety's private
+# pytest files. They introduce no display, bus, VM, socket or shared cache owner.
 REVIEWED = frozenset("""
 application_ui_support
 test_checkpoint

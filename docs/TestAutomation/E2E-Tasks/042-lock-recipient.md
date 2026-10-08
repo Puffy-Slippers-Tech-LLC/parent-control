@@ -24,7 +24,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Implement normal explicit Lock, curtain/challenge observation and a separate public lock-recipient proof. Bind intended identity and empty focused masked field; GDM proofs never authorize lock input.
+Reuse the [qualified Parent lock surface](../E2E-Building-Blocks.md#parent-lock-surface-qualification) and add a separate public lock-recipient proof. Bind intended identity and empty focused masked field; GDM proofs never authorize lock input. The delivered DESK06 read observes identity and password role, but does not prove an empty field or authorize a secret.
+
+Source routes: `desktop_session.LOCK_PLAN` / `SUPPLIED_LOCK_PLAN`,
+`journey_blocks.lock_challenge`, `onpc_desktop_session::lock` / `observe_lock`,
+`AccessibleUI.shell_lock_window` / `shell_lock_snapshot` / `lock_surface`, and
+the lock-result decoder in `ui_observations.py`. Reuse the actual unlock-window
+identity beneath permitted empty ancestors; preserve ownership, protected
+traversal, session rechecks and refusal before input. Host checks live in
+`test_e2e_desktop_session.py` and `test_desktop_session_cleanup_safety.py`.
+The delivered qualification selector is `check_e2e_lock_surface`; the recipient
+selector below remains unimplemented.
 
 Resolve this actual Shell lock surface separately from GDM; explicit locking uses shared DESK05 (Super+L or the session lock API). Observe that ordinary desktop input is blocked while locked. Reject ambiguous or wrong-owner challenges and qualify the guarded reveal/input/readback on the pinned VM.
 

@@ -34,6 +34,8 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{operation: 'Checking the bound Parent lock surface: ' + operation.removeprefix('parent-lock-')
+       for operation in accessible_ui.LOCK_SURFACE_OPERATIONS},
     **{operation: 'Checking the installed restart notice: ' + surface + ' / ' + action
        for operation, (surface, action) in accessible_ui.RESTART_OPERATIONS.items()},
     'parent-about-information': 'Reading installed product, version and legal information',
@@ -1240,6 +1242,29 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation in accessible_ui.LOCK_SURFACE_OPERATIONS:
+            value = result.get('lock')
+            if operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals'):
+                require(value == {'refused': ['unlocked-session'] if operation.endswith('unlocked-refused')
+                    else ['session', 'surface-ambiguous', 'field-ambiguous', 'recipient']},
+                    'ui:lock-refusal-response')
+            else:
+                entry = 'challenge' if operation == 'parent-lock-challenge' else 'curtain'
+                require(type(value) is dict and set(value) == {
+                    'entry', 'owner', 'locked', 'desktop_input_available', 'recipient', 'surface_id', 'provider'}
+                    and value['entry'] == entry and value['owner'] == 'fixture-parent'
+                    and value['locked'] is True and value['desktop_input_available'] is False
+                    and value['recipient'] == ('fixture-parent' if entry == 'challenge' else None)
+                    and type(value['surface_id']) is str and re.fullmatch(r'[0-9a-f]{64}', value['surface_id']),
+                    'ui:lock-response')
+                accessible_ui.validate_shell_metadata(value['provider'])
+                if operation == 'parent-lock-curtain' or (
+                        operation == 'parent-lock-challenge' and not hasattr(self, 'lock_surface_id')):
+                    self.lock_surface_id = value['surface_id']
+                else:
+                    require(value['surface_id'] == getattr(self, 'lock_surface_id', None),
+                            'ui:lock-surface-changed')
+            expected['lock'] = value
         if operation in accessible_ui.RESTART_OPERATIONS:
             surface, action = accessible_ui.RESTART_OPERATIONS[operation]
             if action == 'read':

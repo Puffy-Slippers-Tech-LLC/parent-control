@@ -16,7 +16,6 @@
 .screen-time-reminder-content { spacing: 6px; min-width: 160px; }
 .screen-time-reminder-message { font-size: 15px; font-weight: bold; color: #83edff; text-shadow: 1px 1px #24305b; }
 /* Keep fallback glyphs, including dense CJK scripts, readable at native scale. */
-.screen-time-reminder-caption { font-size: 12px; color: #dddfef; }
 .screen-time-reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
 .screen-time-reminder-countdown { spacing: 6px; }
 .screen-time-reminder-progress-row { spacing: 8px; margin-right: 17px; }

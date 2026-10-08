@@ -89,7 +89,6 @@ class NotificationApplication(Gtk.Application):
             .kiosk-notification label { font: 8.5px "Monocraft", "Ubuntu Mono", monospace; }
             .kiosk-notification .reminder-message { font-size: 15px; font-weight: bold; color: #83edff;
             text-shadow: 1px 1px #24305b; }
-            .kiosk-notification .reminder-caption { font-size: 12px; color: #dddfef; }
             .kiosk-notification .reminder-time { font-size: 12px; color: #c0efff; min-width: 14px; }
             .kiosk-notification button { background: transparent; color: #eeedf8;
             border: 0; border-radius: 0; padding: 0; box-shadow: none; min-width: 50px; }
@@ -183,9 +182,6 @@ class NotificationApplication(Gtk.Application):
         content.append(message)
         countdown = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
                             visible=milliseconds > 0)
-        caption = Gtk.Label(xalign=0, wrap=True, max_width_chars=42, css_classes=['reminder-caption'])
-        set_text(caption, 'label', m.REMINDER_AUTO_CLOSE)
-        countdown.append(caption)
         progress_row = Gtk.Box(spacing=8, margin_end=17)
         self._progress = Gtk.Box(spacing=3, hexpand=True, valign=Gtk.Align.CENTER,
                                  css_classes=['reminder-track'])

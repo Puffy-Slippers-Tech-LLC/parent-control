@@ -472,7 +472,7 @@ request form's Monocraft font, dark HUD face, cyan heading and five-segment
 countdown. The armored rails have cyan/violet beveled plates and orange corner
 accents, six-sided corner plates with straight outer chamfers and thin rails;
 the 15-pixel bold cyan heading sits above the
-12-pixel caption and progress bar. The countdown also uses 12 pixels so fallback
+progress bar. The countdown uses 12 pixels so fallback
 glyphs, including dense Chinese and Japanese scripts, remain readable.
 The product logo is 56 pixels and action icons
 are 40 pixels; the Shell card starts at 517 logical pixels and grows with the

@@ -79,12 +79,6 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     content.add_child(message);
     const countdown = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
         style_class: 'screen-time-reminder-countdown', visible: seconds >= 60});
-    const caption = new St.Label({text: translations.text('REMINDER_AUTO_CLOSE'),
-        style_class: 'screen-time-reminder-caption'});
-    caption.clutter_text.line_wrap = true;
-    caption.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-    caption.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-    countdown.add_child(caption);
     const progressRow = new St.BoxLayout({style_class: 'screen-time-reminder-progress-row'});
     const track = new St.BoxLayout({
         style_class: 'screen-time-reminder-track', x_expand: true,
@@ -205,7 +199,6 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     };
     const relabel = () => {
         message.text = notification.body;
-        caption.text = translations.text('REMINDER_AUTO_CLOSE');
         card.set_text_direction(translations.direction === 'rtl' ? Clutter.TextDirection.RTL : Clutter.TextDirection.LTR);
         const joining = ['ar', 'fa', 'he', 'ug', 'ur', 'bn', 'hi', 'mr', 'ne', 'ta', 'te', 'ml', 'pa', 'th', 'ka'];
         card.set_style(`border-image: url("${assets.get_child('reminder-frame.svg').get_path()}") 32;` +

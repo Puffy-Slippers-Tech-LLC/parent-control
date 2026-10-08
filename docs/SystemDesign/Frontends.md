@@ -498,6 +498,9 @@ including unmanaged X11 surfaces. Both follow the focused application's monitor,
 with the active primary or first active monitor as fallback; fullscreen gating
 uses the selected monitor. Focus, window-monitor and display changes reposition
 the current banner without restarting its deadline or taking application focus.
+The public `addTopChrome` layer also sits above Mutter's override-redirect
+window group; `trackFullscreen` controls hiding rather than stacking.
+The renderer attaches both actors before measuring themed controls.
 An unlocked visible delivery at 60 seconds or more starts a five-second
 monotonic deadline and countdown; shorter deliveries persist without a bar.
 New banners dispose the old source, actor, signals and timer. Locking, extension

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.child_shell import run_child_shell
+from tests.support.child_shell import extension_error_context, run_child_shell
 
 # The Devkit viewer needs an outer display. Request our private compositor
 # explicitly instead of depending on another module having booted it first.
@@ -21,11 +21,6 @@ pytestmark = [pytest.mark.ui, pytest.mark.usefixtures('hermetic_ui_session')]
 ROOT = Path(__file__).resolve().parents[2]
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 ARTIFACTS = ROOT / "artifacts" / "ui" / "child-shell"
-ERROR_LEVEL = re.compile(r"(?:JS ERROR|CRITICAL|WARNING|ERROR)", re.IGNORECASE)
-EXTENSION_IDENTITY = re.compile(
-    rf"(?:{re.escape(UUID)}|gnome-shell/extensions/.+/{re.escape(UUID)})",
-    re.IGNORECASE,
-)
 
 
 def _new_artifact_root(scenario: str, render_artifacts) -> Path:
@@ -114,13 +109,7 @@ def _assert_preview_evidence(
 
 
 def _extension_error_context(log: str) -> list[str]:
-    lines = log.splitlines()
-    failures = []
-    for index, line in enumerate(lines):
-        context = "\n".join(lines[max(0, index - 4):index + 5])
-        if ERROR_LEVEL.search(context) and EXTENSION_IDENTITY.search(context):
-            failures.append(context)
-    return failures
+    return extension_error_context(log, UUID)
 
 
 def test_child_extension_lifecycle_in_isolated_shell(render_artifacts):

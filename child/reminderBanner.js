@@ -223,15 +223,16 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     global.display.connectObject('in-fullscreen-changed', sync, card);
     global.display.connectObject('notify::focus-window', sync, card);
     global.display.connectObject('window-entered-monitor', sync, card);
-    relabel();
     source.addNotification(notification);
-    // Normal chrome sits below the top window group (including unmanaged X11
-    // surfaces). Critical reminders must remain above those game surfaces too.
+    // Ordinary chrome is below Mutter's override-redirect window group,
+    // which X11/Xwayland games can use in fullscreen. Keep our owned actors
+    // above that group too; urgency still controls fullscreen suppression.
+    // Attach before measuring themed controls in relabel()/sync().
     Main.layoutManager.addTopChrome(card, {trackFullscreen: false});
     chromeAdded = true;
     Main.layoutManager.addTopChrome(tooltip, {trackFullscreen: false});
     tooltipChromeAdded = true;
-    sync();
+    relabel();
     return {source, notification, card, dismiss, preferences,
         countdown: () => deadline === null ? null : Math.max(0,
             Math.ceil((deadline - GLib.get_monotonic_time()) / 1000000))};

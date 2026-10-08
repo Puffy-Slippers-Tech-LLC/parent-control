@@ -96,12 +96,17 @@ function harness() {
             this.children = [];
             this.clutter_text = {};
         }
-        add_child(child) { this.children.push(child); }
+        add_child(child) { this.children.push(child); child.parent = this; }
         set_style(style) { this.style = style; }
         set_request_mode(mode) { this.request_mode = mode; }
         get_style() { return this.style; }
         set_position(x, y) { this.x = x; this.y = y; }
-        get_preferred_width() { return [this.width, this.width]; }
+        get_preferred_width() {
+            let root = this;
+            while (root.parent) root = root.parent;
+            assert.ok(chrome.includes(root), 'measure themed controls only after stage attachment');
+            return [this.width, this.width];
+        }
         set_text_direction(value) { this.direction = value; }
         get_text_direction() { return this.direction; }
         get_transformed_position() { return [this.x ?? 0, this.y ?? 0]; }
@@ -120,10 +125,12 @@ function harness() {
         if (actor.style_class === 'screen-time-reminder') banners.push(actor);
     };
     const layoutManager = new SignalObject({primaryMonitor, monitors: [primaryMonitor],
-        addChrome: actor => {
+        addChrome: (actor, params) => {
+            assert.equal(params.trackFullscreen, false);
             layers.splice(layers.indexOf(topWindowGroup), 0, actor);
             addChrome(actor);
-        }, addTopChrome: actor => {
+        }, addTopChrome: (actor, params) => {
+            assert.equal(params.trackFullscreen, false);
             layers.push(actor);
             addChrome(actor);
         }, removeChrome: actor => {
@@ -419,6 +426,39 @@ test('monitor changes recover from stale app indices, missing displays and absen
     current.dismiss();
     assert.equal(h.chrome.length, 0);
     assert.deepEqual(h.errors, []);
+});
+
+test('critical reminders stay above override-redirect games through external-only monitor changes', () => {
+    const h = harness();
+    h.notifier.preferences = {show_in_fullscreen: true, reminders};
+    h.layoutManager.primaryMonitor.inFullscreen = true;
+    h.notifier.schedule.previous = 15;
+    h.notifier.present(reminders[3], false);
+    const current = h.notifier.current;
+    const tooltip = h.chrome.find(actor => actor.style_class === 'dash-label screen-time-tooltip');
+    assert.equal(current.card.visible, true);
+    assert.ok(h.layers.indexOf(current.card) > h.layers.indexOf(h.topWindowGroup));
+    assert.ok(h.layers.indexOf(tooltip) > h.layers.indexOf(current.card));
+    const monitorsChanged = () => {
+        for (const sync of h.layoutManager.handlers['monitors-changed']) sync();
+    };
+    h.layoutManager.primaryMonitor = null;
+    h.layoutManager.monitors = [];
+    monitorsChanged();
+    assert.equal(current.card.visible, false);
+    h.layoutManager.primaryMonitor = {x: 1920, y: 120, width: 2560, height: 1440, inFullscreen: true};
+    h.layoutManager.monitors = [h.layoutManager.primaryMonitor];
+    monitorsChanged();
+    assert.equal(current.card.visible, true);
+    assert.equal(current.card.x, 1920 + (2560 - current.card.width) / 2);
+    assert.equal(current.card.y, 128);
+    h.advance(6000);
+    assert.equal(h.notifier.current, current);
+    h.notifier.clear();
+    assert.equal(h.layers.length, 2);
+    assert.equal(h.layers[1], h.topWindowGroup);
+    assert.equal(h.chrome.length, 0);
+    assert.equal(h.timers.size, 0);
 });
 
 test('preview source destruction releases its sender watch without recursive destruction', () => {

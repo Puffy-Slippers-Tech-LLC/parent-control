@@ -579,6 +579,17 @@ Developers author US English Parent Markdown in
 preparation, coding-agent sessions and validation. Future synchronization changes
 translation assets only; it does not change the infrastructure.
 
+**Mandate: never run synchronization automatically.** A change to
+`docs/VersionHistory.md` or `data/whats-new-child.toml` does not authorize running
+`tools/sync-whatsnew`. Agents, hooks, watchers, builds and release workflows must
+not launch synchronization in response to those changes. Run synchronization
+only on an explicit user request; permission to edit release notes, build or
+publish is not a request to synchronize translations. This restriction also
+applies to `--prepare`, which writes translation assets. Read-only `--check` and
+`make check-whats-new-translations` remain allowed without a separate
+synchronization request. If a check finds pending translations, report them
+rather than launching synchronization automatically.
+
 ```sh
 tools/sync-whatsnew
 tools/sync-whatsnew --check
@@ -679,7 +690,7 @@ Parent, kiosk and child overlay use this adapter for their
 [release-note dialogs](Frontends.md#parent-release-notes), inheriting the owning
 frontend's resolved language after startup preference setup closes.
 
-Future-session prompt:
+Prompt for an explicitly requested synchronization:
 
 > Run `tools/sync-whatsnew` to translate new or changed records for the latest
 > numeric release in `docs/VersionHistory.md` and any matching record in

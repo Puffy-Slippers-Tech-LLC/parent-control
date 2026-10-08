@@ -79,6 +79,39 @@ Configuration compiles and reloads rules before the gate, including an owned
 Fedora-only early root-canary deny before the distribution's trusted-file allow.
 Ubuntu's drop-ins and readiness helper are unchanged.
 
+Both packages also ship a separate
+[fapolicyd recovery drop-in](../../data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf).
+Systemd restarts the daemon after unexpected nonzero exits, abnormal signals or
+timeouts using `Restart=on-failure`, with a five-second delay. This includes
+trust-database failures that exit with status 1 and were left down by the
+upstream `on-abnormal` policy. The start budget allows five starts within 300
+seconds, including the initial and manual starts; exhausting it leaves the
+service failed for diagnosis rather than scheduling another retry. Expiry of
+that window alone does not start the service. This is a start-rate limit, not a
+total retry cap: repeated slow failures, including Ubuntu's 180-second startup
+timeouts, can outlast the window and continue retrying. Deliberate service stops
+and clean exits remain stopped. Recovery uses the ordinary startup path and its
+existing distribution-specific readiness checks; it does not repair the database or
+replay a failed approval. A request during the outage can still fail and must be
+submitted again after recovery. Existing dependency diagnostics retain earlier
+service failures after a successful restart.
+
+Normal automatic restarts propagate through the existing `Requires` and
+`PartOf` dependencies to already-active dependents. This reruns Fedora's
+readiness gate and can restart the display manager on either distribution,
+ending graphical sessions. Failed or inactive dependents are not started by
+that propagation: daemon recovery after a boot failure does not by itself
+recover a failed readiness gate or display manager. These consequences follow
+systemd's [automatic restart](https://github.com/systemd/systemd/blob/v259/src/core/service.c)
+and [dependency propagation](https://github.com/systemd/systemd/blob/v259/src/core/transaction.c)
+behavior; live recovery qualification remains pending.
+
+The shared drop-in adds no commands, runtime-directory changes or broker service
+control. It is package-owned payload and removal restores the distribution's
+restart policy through the existing systemd reload. Its activation manifest uses
+the existing `reboot` classification for fapolicyd drop-ins; installation does
+not force a running daemon or desktop to restart just to load it.
+
 Both packages generate supplemental fapolicyd trust for the shipped child `.mjs`
 modules from final staged bytes (path, size and SHA256). Configuration installs
 the owned `/etc/fapolicyd/trust.d/oh-no-parent-control.trust` and refreshes a running

@@ -18,7 +18,13 @@
   result; retain actionable failure details.
 
 ## Localization
-- When editing user-visible product strings, update all supported languages.
+- When editing user-visible product strings, update all supported languages,
+  except What's New release notes, whose synchronization requires the explicit
+  request below.
+- Never automatically run `tools/sync-whatsnew` when `docs/VersionHistory.md`
+  changes. Synchronization requires an explicit user request under the
+  [localization mandate](docs/SystemDesign/Localization.md#whats-new-translation-workflow);
+  read-only completeness checks remain allowed.
 - For recurring What's New translation, use `tools/sync-whatsnew` and the
   [established workflow](docs/SystemDesign/Localization.md#whats-new-translation-workflow).
   Translate only the latest numeric VersionHistory release and matching child

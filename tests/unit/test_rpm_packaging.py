@@ -112,6 +112,9 @@ def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
     # No additional process may inherit the daemon's SELinux-labelled runtime
     # directory. This is the integration that previously broke Fedora boot.
     assert not (system / 'fapolicyd.service.d/oh-no-parent-control-readiness.conf').exists()
+    recovery = 'fapolicyd.service.d/oh-no-parent-control-recovery.conf'
+    assert (system / recovery).read_bytes() == (ROOT / 'data/systemd' / recovery).read_bytes()
+    assert (system / recovery).stat().st_mode & 0o7777 == 0o644
     gate = configparser.ConfigParser(interpolation=None)
     gate.read(system / 'oh-no-parent-control-execution-policy-ready.service')
     assert gate['Unit']['Requires'] == 'fapolicyd.service'
@@ -131,6 +134,7 @@ def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
         ROOT / 'tools/execution_policy_ready.py').read_bytes()
     manifest = json.loads((fedora_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     entries = {entry['path']: entry for entry in manifest['files']}
+    assert entries['usr/lib/systemd/system/' + recovery]['activation'] == 'reboot'
     assert entries['usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service']['activation'] == 'reboot'
     canary = '00-oh-no-parent-control-canary.rules'
     rule = fedora_payload / 'usr/share/oh-no-parent-control' / canary
@@ -144,7 +148,8 @@ def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
     ]
     spec = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
     assert '%{_unitdir}/oh-no-parent-control-execution-policy-ready.service\n' in spec
-    assert '%{_unitdir}/fapolicyd.service.d/' not in spec
+    assert '%{_unitdir}/' + recovery + '\n' in spec
+    assert '%{_unitdir}/fapolicyd.service.d/oh-no-parent-control-readiness.conf' not in spec
 
 
 @pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])

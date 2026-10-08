@@ -199,6 +199,7 @@ def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
     system = production_payload / 'usr/lib/systemd/system'
     for relative in (
         'fapolicyd.service.d/oh-no-parent-control-readiness.conf',
+        'fapolicyd.service.d/oh-no-parent-control-recovery.conf',
         'display-manager.service.d/oh-no-parent-control.conf',
     ):
         assert (system / relative).read_bytes() == (ROOT / 'data/systemd' / relative).read_bytes()
@@ -218,6 +219,11 @@ def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
     assert display['Unit']['Requires'] == 'fapolicyd.service'
     assert display['Unit']['After'] == 'fapolicyd.service'
     manifest = json.loads((production_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
+    entries = {entry['path']: entry for entry in manifest['files']}
+    recovery = 'usr/lib/systemd/system/fapolicyd.service.d/oh-no-parent-control-recovery.conf'
+    assert entries[recovery]['activation'] == 'reboot'
+    assert entries[recovery]['sha256'] == hashlib.sha256((production_payload / recovery).read_bytes()).hexdigest()
+    assert (production_payload / recovery).stat().st_mode & 0o7777 == 0o644
     assert not any(entry['path'].endswith('/oh-no-parent-control-execution-policy-ready.service')
                    for entry in manifest['files'])
 

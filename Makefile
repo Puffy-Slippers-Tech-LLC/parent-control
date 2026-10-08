@@ -30,6 +30,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/gnome-shell/extensions/$(UUID) \
 	$(PRODUCT_LIBDIR)/kiosk \
 	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-broker.service \
+	$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/oh-no-parent-control-recovery.conf \
 	$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
 	$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/oh-no-parent-control.conf \
 	$(SYSTEMD_SYSTEM_DIR)/onpc-execution-probe-.service.d/oh-no-parent-control-timeout.conf \
@@ -145,6 +146,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/gdm3/PreSession/Default data/fapolicyd/99-oh-no-parent-control-allow.rules \
 	data/fapolicyd/00-oh-no-parent-control-canary.rules \
 	data/systemd/oh-no-parent-control-broker.service \
+	data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf \
 	data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf \
 	data/systemd/display-manager.service.d/oh-no-parent-control.conf \
 	data/systemd/fedora/oh-no-parent-control-execution-policy-ready.service \
@@ -570,6 +572,8 @@ endif
 	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
+	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
+	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	# Keep the probe outside Fedora's SELinux-confined fapolicyd runtime setup.
@@ -577,7 +581,6 @@ ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0644 data/systemd/fedora/oh-no-parent-control-execution-policy-ready.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -m 0644 data/systemd/fedora/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
 else
-	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-readiness.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -m 0644 data/systemd/display-manager.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d/"
 endif

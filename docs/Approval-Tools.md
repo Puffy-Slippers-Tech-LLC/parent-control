@@ -57,7 +57,10 @@ New recurring operations should use an existing validated route where possible.
 If a new privileged capability is needed, maintain a scoped helper with argument
 validation and regression coverage. Do not normalize per-command approvals.
 
-The translation-only `tools/sync-whatsnew` launcher follows the
+Running translation-only `tools/sync-whatsnew`, including `--prepare`, requires
+an explicit user request; its command grant and release-note edits do not
+authorize automatic synchronization. Read-only `--check` remains allowed.
+The launcher follows the
 [localization workflow](SystemDesign/Localization.md#whats-new-translation-workflow):
 latest numeric VersionHistory release and optional matching child TOML entry,
 read-only coding-agent sessions, launcher-owned

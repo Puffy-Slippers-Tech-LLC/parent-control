@@ -15,6 +15,16 @@ DISPLAY_MANAGER_DROP_IN = (
 FAPOLICYD_FALLBACK = ROOT / "data/fapolicyd/99-oh-no-parent-control-allow.rules"
 
 
+def test_fapolicyd_recovers_exit_code_failures_with_a_bounded_start_budget():
+    unit = configparser.ConfigParser(interpolation=None)
+    unit.read(ROOT / 'data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf')
+    assert dict(unit['Unit']) == {'startlimitintervalsec': '300s', 'startlimitburst': '5'}
+    assert dict(unit['Service']) == {'restart': 'on-failure', 'restartsec': '5s'}
+    # The same policy works with Ubuntu's startup checks and Fedora's separate
+    # readiness unit, without adding a process to its SELinux runtime setup.
+    assert set(unit.sections()) == {'Unit', 'Service'}
+
+
 def test_wellbeing_recovery_is_unprivileged_restartable_and_available_without_extension():
     unit = configparser.ConfigParser(interpolation=None)
     unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-wellbeing.service')

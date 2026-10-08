@@ -28,6 +28,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
+| VM disaster recovery | `tools/backupvms` and `tools/restorevms` for registered selections and configured `backup_root`; fixed operations through the setup dispatcher, with shared leases and retained recovery evidence |
 | E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; add `--discard-completed` only when discarding saved execution results is explicitly authorized, under [retention ownership](../tests/README.md#aggregate-output-retention); `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
@@ -270,7 +271,12 @@ matches literal argument prefixes; the strictest decision wins.
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`,
-`replace-missing-baseline` or `prepare-baseline`. Only `prepare-baseline`
+`replace-missing-baseline`, `prepare-baseline`, `backupvms` or `restorevms`.
+The disaster recovery operations accept only a registered `--vm` queue selector
+(default `all`), never caller-supplied archive, domain XML or disk paths. They
+use `backup_root` from the trusted registry and the existing setup authorization;
+see [VM disaster recovery](../tests/integration/Environment.md#vm-disaster-recovery).
+Only `prepare-baseline`
 requires the fixed arguments `--mode auto` or `--mode manual`, optionally
 followed by `--y`; arbitrary paths
 and other arguments are refused. Its

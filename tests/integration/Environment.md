@@ -320,6 +320,111 @@ case may continue after a failure. See [suite controller](../e2e/suite_lease.py)
 
 External firmware/TPM state outside the recorded snapshot contract is refused.
 
+## VM disaster recovery
+
+The [`backupvms`](../../tools/backupvms) and
+[`restorevms`](../../tools/restorevms) commands read `backup_root` from
+[`config/test-vm.json`](../../config/test-vm.json). Run them as the unprivileged
+local administrator after ordinary `./setup.sh` on a replacement host, or
+`./setup.sh --test-tools-only` to refresh existing development helpers.
+They accept the same `--vm` names, IDs, comma-separated lists, `all-enabled`
+and `all` selectors as baseline preparation. Their default is **all**, including
+disabled entries. IDs resolve from the current registry on every invocation.
+
+```sh
+tools/backupvms
+tools/backupvms --vm '1,2'
+tools/restorevms
+tools/restorevms --vm '1'
+```
+
+Backup first calls `tools/prepare-baseline --vm SELECTION --mode auto --y`
+once for the whole selection. That tool uses registry concurrency and its
+existing isolated workers. Automatic preparation updates the product-free
+baselines and deletes versioned app snapshots under the existing preparation
+contract. If any preparation fails, no archive copying starts. Shut down selected
+VMs completely before invocation; disable their libvirt autostart and finish any
+owned maintenance/test attempt. Preparation itself still applies all its usual
+authorization, baseline and guest-prerequisite checks.
+
+After successful preparation, archive copying is strictly serial. Each VM gets
+a new complete generation below `backup_root/NAME/`, with independent sparse
+disk-chain copies, inactive domain XML, snapshot hierarchy/current snapshot,
+referenced persistent network definitions, private baseline provenance and any
+saved-memory credential record. A checksummed `latest.json` pointer selects the
+last successful generation. Copies are checked against their source hashes before
+publication. Full payload checksums are specific to disaster
+archives; ordinary test disk verification remains metadata-only. Partial copies
+never replace the previous complete generation. Older backups are retained.
+
+Restore processes selected VMs serially, validating each archive before changing
+its VM. Missing libvirt domains and disks are recreated; an existing domain must
+have the archived UUID, matching registered disk layout, and be powered off
+without autostart or managed-save state. Disk paths must not be shared with
+another domain.
+Foreign storage references are checked again after staging each payload and
+before publishing it, and before redefining the restored domain.
+Names/anchors must match the current registry; selector IDs, scheduling flags
+and unrelated checkout edits remain current. The archive also
+contains the source registry for reference, without overwriting current config.
+Changing `backup_root` on a replacement host does not invalidate guest preparation.
+Original disk owners/groups must exist on the replacement host; ownership is
+mapped by account names. Missing referenced networks are restored; conflicting
+existing networks are refused rather than overwritten. An otherwise equivalent
+named network on a fresh host keeps its current UUID.
+
+Missing images belonging to other inactive domains do not block serial recovery
+after a multi-VM disk loss. Their domain/snapshot XML and every readable backing
+link are still checked for shared paths. Missing storage of an active foreign
+domain and symlinked paths are refused. Restore journals network creation intent
+and UUIDs before defining missing networks; interrupted retries finish their
+archived activation and autostart settings. Equivalent pre-existing networks
+retain their current runtime settings. A changed network UUID or definition
+refuses the retry. Older journals can acquire this plan; in the metadata phase,
+an exact archived network UUID/definition is reconciled to its saved runtime
+settings. Equivalent networks with another UUID keep their current settings.
+
+Restore retains displaced files and previous domain/snapshot definitions under
+its private journal. A matching interrupted restoration resumes the same generation,
+UUID and filesystem identities; damaged or superseded recovery journals are retained
+before a new transaction begins. Ordinary preparation/execution refuses an
+unfinished restore. It recreates snapshot metadata through libvirt's redefine
+API without creating/reverting snapshots, rebinds baseline directory/disk inode
+identities, verifies the preserved internal baseline proof, and leaves the VM
+off. On success, it refreshes installed helper UUID pins through
+`./setup.sh --test-tools-only`. A failed pin refresh is reported separately and
+must be completed before maintenance/tests. No product is installed on the host.
+
+For explicit disaster recovery, the verified restored VM and archive are the
+authority for local bookkeeping. Corrupt/stale baseline records do not prevent
+replacement of registered destinations. Local provenance or saved credentials
+absent from the archive are durably moved aside; restored historical test-run and
+maintenance-owner records are also retired, never converted into passing results
+or adopted as current owners. Their bytes and displaced destinations remain
+available for diagnosis. Required archived rename attestations remain available
+for snapshot verification. Retirement and baseline rebinding can resume after
+interruption. Active domains, held leases, foreign storage references, unsafe
+paths and conflicting identities still refuse restoration.
+
+A completed restore binds the exact rebound baseline state to its original logical
+hash. Shared preparation, execution and maintenance consumers use this binding,
+so preserved app-snapshot/guest-memory provenance survives host inode changes.
+Changed baseline state receives a new hash; ordinary disk identity, snapshot proof
+and preparation freshness checks remain mandatory. A subsequent archive preserves
+the logical hash across repeated recovery.
+
+Preparation-source freshness still applies after recovery. Use the normal
+explicit baseline refresh if the checkout's preparation contract changed since
+backup; derived app snapshots must then be prepared normally. External snapshot
+files, firmware/TPM state and unsupported disk layouts are refused under the
+existing VM boundaries. Backups cannot restore host dependencies, arbitrary
+unregistered machines or unrelated checkout files. Preserve backup storage
+outside any host corruption domain you need to survive.
+
+Host-safe refusal, corruption, interruption/retry and provenance reconciliation
+coverage lives in
+[`test_vm_backup_cleanup_safety.py`](../unit/test_vm_backup_cleanup_safety.py).
+
 ## Interrupted or invalid state
 
 Preserve `phase.json`, `system-run.json`, snapshot metadata, run evidence and

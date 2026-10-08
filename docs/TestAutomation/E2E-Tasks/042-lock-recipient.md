@@ -33,8 +33,23 @@ the lock-result decoder in `ui_observations.py`. Reuse the actual unlock-window
 identity beneath permitted empty ancestors; preserve ownership, protected
 traversal, session rechecks and refusal before input. Host checks live in
 `test_e2e_desktop_session.py` and `test_desktop_session_cleanup_safety.py`.
-The delivered qualification selector is `check_e2e_lock_surface`; the recipient
-selector below remains unimplemented.
+The delivered surface qualification selector is `check_e2e_lock_surface`.
+The recipient selector below is implemented through
+`desktop_session.LOCK_RECIPIENT_PLAN`, `journey_blocks.lock_recipient`,
+`onpc_desktop_session::lock_recipient` and `LockRecipientQualification`.
+Scoped host safety/source checks passed; final revalidation and live
+qualification remain pending. Recipient reads
+use only the public password character count, never its contents. Two ordered
+proofs bind the same actual lock window and field within 30 seconds; GDM replies,
+changed challenges, stale reads and failed durable acknowledgements refuse.
+
+Blocker: unrelated edits to `config/test-vm.json` added an unsupported
+`backuproot` field and replaced the requested Fedora target with a differently named Fedora entry;
+resume when the registry is valid and the developer confirms the Fedora target.
+The last host run stopped during collection with `vm-config:fields`, before
+tests or VM acceptance. Ubuntu auto preparation created its baseline but the
+following helper refresh refused; rerun the maintained tools-only refresh after
+the registry is corrected, then app-snapshot preparation and host validation.
 
 Resolve this actual Shell lock surface separately from GDM; explicit locking uses shared DESK05 (Super+L or the session lock API). Observe that ordinary desktop input is blocked while locked. Reject ambiguous or wrong-owner challenges and qualify the guarded reveal/input/readback on the pinned VM.
 
@@ -42,7 +57,7 @@ Resolve this actual Shell lock surface separately from GDM; explicit locking use
 
 On the VM, lock an observed usable fixture desktop, reveal its challenge through one declared normal key, and qualify the correct recipient. Refuse wrong-user/nonempty/stale proofs; this explicit Lock earns no natural-expiry credit.
 
-Qualification selector (implement and register before use):
+Qualification selector:
 
 ```sh
 tools/run-tests integration check_e2e_lock_recipient

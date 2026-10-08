@@ -217,7 +217,7 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         ((state['domain_id'] is None) if recovery_instance is not None else
          (interrupted_off or (type(state['domain_id']) is int and state['domain_id'] >= 0))) and
         state['domain_uuid'] == lease.source.uuid and
-        state['baseline_sha256'] == hashlib.sha256(base.encode(lease.capture.state)).hexdigest(),
+        state['baseline_sha256'] == base.baseline_sha256(lease.capture.state, lease.directory),
         'vm-control:journal-identity')
     expected = {key: state[key] for key in ('run', 'domain_uuid', 'baseline_sha256')}
     expected['snapshot_sha256'] = hashlib.sha256(lease.source.baseline().encode()).hexdigest()

@@ -1,0 +1,10 @@
+#!/usr/bin/python3 -IB
+"""Back up registered, powered-off VMs to the configured backup_root."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from vm_backup_launcher import main
+
+if __name__ == '__main__':
+    sys.exit(main('backup'))

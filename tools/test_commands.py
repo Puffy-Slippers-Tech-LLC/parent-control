@@ -411,6 +411,7 @@ def qualification_artifact_command(root, category, args):
             ['check_parent_about'], ['check_parent_about.py'],
             ['check_e2e_desktop_session'], ['check_e2e_desktop_session.py'],
             ['check_e2e_lock_surface'], ['check_e2e_lock_surface.py'],
+            ['check_e2e_lock_recipient'], ['check_e2e_lock_recipient.py'],
             ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
             ['check_e2e_request_exit'], ['check_e2e_request_exit.py'],
             ['check_e2e_read_restricted_station_about'], ['check_e2e_read_restricted_station_about.py'],

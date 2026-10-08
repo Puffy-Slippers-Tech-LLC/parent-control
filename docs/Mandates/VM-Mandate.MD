@@ -24,6 +24,7 @@ selector. The enabled default means entries whose `enabled` is the string
 | --- | --- | --- | --- |
 | `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
 | `tools/prepare-baseline`, `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
+| `tools/backupvms`, `tools/restorevms` | Same queue selectors | `all`, including disabled entries | Backup preparation uses the existing baseline queue; archive copying and restoration are serial |
 | `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
@@ -54,6 +55,22 @@ Operate the selected, individually pinned VM only through maintained
 preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
 ownership or create snapshots, overlays or clones outside those routes. Stop
 maintenance before system/E2E tests; reset is not a customer journey step.
+
+Disaster recovery uses the scoped `tools/backupvms` and `tools/restorevms`
+routes described in [the environment guide](../../tests/integration/Environment.md#vm-disaster-recovery).
+Both retain exclusive per-VM leases and shared observation. Backup first runs
+automatic baseline preparation for the complete selection through its maintained
+queue; preparation failure prevents archive copying. Archive work runs one VM at
+a time and stops on failure. Restore verifies complete checksummed generations,
+refuses active domains, held leases and foreign storage references, retains displaced files and definitions, and
+reconciles filesystem identities with the original snapshot proof. It never
+boots a guest or substitutes new baseline preparation for missing backup evidence.
+An unfinished restore blocks ordinary preparation/execution and helper pinning
+until restoration completes. Explicit restore treats the verified restored guest
+as the authority for local bookkeeping: it preserves and retires stale controller
+records and superseded/damaged restore journals rather than adopting their owners
+or fabricating successful results. Matching interrupted transactions resume with
+their recorded identities; ordinary controllers retain their existing refusals.
 
 Root OS investigation uses `tools/test-vm --vm NAME exec -- COMMAND [ARG ...]`
 in an owned running online app-snapshot maintenance instance. Arbitrary command

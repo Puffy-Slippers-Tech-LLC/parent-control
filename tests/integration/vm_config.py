@@ -52,15 +52,38 @@ def validate_name(name):
     return name
 
 
-def configuration(path=None):
+def read_document(path=None):
     path = CONFIG if path is None else path
     try:
         document = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique_keys)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError('vm-config:unreadable; check config/test-vm.json') from error
-    if (not isinstance(document, dict) or set(document) not in ({'vms'}, {'vms', 'concurrency'}) or
+    if (not isinstance(document, dict) or not {'vms'} <= set(document) or
+            not set(document) <= {'vms', 'concurrency', 'backup_root'} or
             not isinstance(document['vms'], list) or not document['vms']):
         raise ValueError('vm-config:fields')
+    if 'backup_root' in document:
+        absolute_path(document['backup_root'], 'backup_root')
+    return document
+
+
+def absolute_path(value, field):
+    if (not isinstance(value, str) or not value.startswith('/') or value == '/' or
+            any(ord(char) < 32 for char in value) or
+            any(part in {'', '.', '..'} for part in value.split('/')[1:])):
+        raise ValueError(f'vm-config:{field}; use an absolute path without traversal')
+    return Path(value)
+
+
+def backup_root(path=None):
+    value = read_document(path).get('backup_root')
+    if value is None:
+        raise ValueError('vm-config:backup_root is required for VM backup/restore')
+    return absolute_path(value, 'backup_root')
+
+
+def configuration(path=None):
+    document = read_document(path)
     concurrency = document.get('concurrency', 1)
     if type(concurrency) is not int or concurrency < 1:
         raise ValueError('vm-config:concurrency must be a positive integer')
@@ -121,10 +144,7 @@ def validate_entry(document):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
-    if (not isinstance(value, str) or not value.startswith('/') or
-            any(ord(char) < 32 for char in value) or
-            any(part in {'', '.', '..'} for part in value.split('/')[1:])):
-        raise ValueError('vm-config:disk-anchor; use an absolute image path without traversal')
+    absolute_path(value, 'disk-anchor')
     enabled = document.get('enabled', 'false')
     if enabled not in ('true', 'false'):
         raise ValueError('vm-config:enabled must be the string true or false')

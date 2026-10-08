@@ -76,6 +76,56 @@ sub qualify_lock {
     $journey->finish();
 }
 
+# DESK07: GDM acknowledgements carry no lock authority. Keep the two fresh
+# controller proofs on the same lock challenge; input/submission are separate.
+sub lock_recipient {
+    onpc_progress::operation('Qualifying the intended lock-screen recipient');
+    my ($journey, $prefix) = @_;
+    $prefix //= '';
+    die 'desk:lock-recipient-binding' unless (@_ == 1 || @_ == 2)
+        && $prefix =~ /\A(?:[a-z][a-z0-9-]*-)?\z/ && ref($journey) eq 'onpc_journey'
+        && !$journey->{review} && !$journey->{lock_recipient_failed};
+    my ($identity, $reply);
+    my $ok = eval {
+        for my $check ('qualified', 'rechecked') {
+            my $stage = $prefix . 'lock-recipient-' . $check;
+            $reply = $journey->seen($stage);
+            die 'desk:lock-recipient-proof' unless ref($reply) eq 'HASH' && keys(%$reply) == 2;
+            my $proof = $reply->{lock_recipient};
+            die 'desk:lock-recipient-proof' unless ($reply->{observed} // '') eq $stage && ref($proof) eq 'HASH'
+                && keys(%$proof) == 3 && ($proof->{surface} // '') eq 'lock'
+                && ($proof->{role} // '') eq 'parent'
+                && ($proof->{challenge_id} // '') =~ /\A[0-9a-f]{64}\z/;
+            die 'desk:lock-recipient-replaced' if defined($identity) && $identity ne $proof->{challenge_id};
+            $identity = $proof->{challenge_id};
+        }
+        1;
+    };
+    unless ($ok) {
+        $journey->{lock_recipient_failed} = 1;
+        delete $journey->{last_observation};
+        die $@;
+    }
+    return $reply;
+}
+
+sub qualify_lock_recipient {
+    onpc_progress::operation('Qualifying the lock-screen password boundary');
+    my ($exchange) = @_;
+    die 'desk:lock-recipient-binding' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'lock-recipient', review => 0);
+    my $desktop = onpc_parent::login_functional($journey);
+    $journey->seen('unlocked-refused');
+    # The negative observation is not the desktop proof consumed by Lock.
+    $desktop = $journey->seen('lock-ready');
+    lock($journey, $desktop, 'lock-ready');
+    $journey->seen('lock-recipient-refusals');
+    $journey->seen('independent-challenge');
+    lock_recipient($journey);
+    $journey->seen('final-challenge');
+    $journey->finish();
+}
+
 sub run {
     onpc_progress::operation('Checking shared desktop session commands');
     my ($exchange, $action) = @_;

@@ -64,6 +64,26 @@ inputs. Storage-library tests may inject isolated roots beneath pytest fixtures
 to verify ownership, mount, identity and refusal behavior. Neither exception
 authorizes ordinary producers to allocate under an independent root.
 
+## Disaster recovery archives
+
+Explicit VM disaster archives use `backup_root` in
+[`config/test-vm.json`](../../config/test-vm.json) through
+[`tools/backupvms`](../../tools/backupvms) and
+[`tools/restorevms`](../../tools/restorevms). This operator-owned durable storage
+is an exception to disposable test-output allocation, not a new test scratch
+route. The archive root, VM directories and generations are root-private;
+generation publication is atomic and checksummed. Partial/older generations
+are retained, never swept or rotated by test retention. File copies preserve
+sparse holes and use independent bytes rather than reflinks.
+
+Restore staging files and displaced originals stay beside their exact registered
+destinations, under the VM lease and identity-bound `restore-vms.json` journal.
+They are transaction/recovery payloads, not disposable scratch. Preserve them
+on success and interruption; this workflow grants no automatic deletion.
+Saved-memory credentials continue to use the shared state allocation route;
+host-safe regressions use pytest-private fixtures. See
+[VM disaster recovery](../../tests/integration/Environment.md#vm-disaster-recovery).
+
 ## Screenshot export and cleanup
 
 For an explicit graphical-smoke PNG export, run the installed

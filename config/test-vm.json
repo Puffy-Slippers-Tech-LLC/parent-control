@@ -1,5 +1,6 @@
 {
   "concurrency": 2,
+  "backup_root": "/Data/virt-manager/backups",
   "vms": [
     {
       "id": "1",
@@ -9,10 +10,10 @@
     },
     {
       "id": "2",
-      "name": "onpc-Fedora-Workstation-44",
+      "name": "onpc-Fedora44",
       "enabled": "true",
       "clipboard": "true",
-      "disk_anchor": "/Data/virt-manager/onpc-Fedora-Workstation-44.qcow2"
+      "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2"
     }
   ]
 }

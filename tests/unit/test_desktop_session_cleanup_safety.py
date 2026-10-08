@@ -11,8 +11,9 @@ from private_artifacts import EvidenceError
 
 
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,
-                                 desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN],
-                         ids=['logout', 'switch', 'lock', 'supplied-lock'])
+                                 desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN,
+                                 desktop_session.LOCK_RECIPIENT_PLAN],
+                         ids=['logout', 'switch', 'lock', 'supplied-lock', 'lock-recipient'])
 @pytest.mark.parametrize('failure', [None, 'checkpoint', 'worker-loss'])
 def test_next_input_requires_persisted_observation_and_current_worker(tmp_path, plan, failure):
     reply = tmp_path / 'ready.reply.json'
@@ -45,8 +46,9 @@ def test_next_input_requires_persisted_observation_and_current_worker(tmp_path, 
 
 
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,
-                                 desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN],
-                         ids=['logout', 'switch', 'lock', 'supplied-lock'])
+                                 desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN,
+                                 desktop_session.LOCK_RECIPIENT_PLAN],
+                         ids=['logout', 'switch', 'lock', 'supplied-lock', 'lock-recipient'])
 def test_boot_replacement_refuses_before_next_customer_action(tmp_path, plan):
     stage = 'desktop'
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
@@ -106,3 +108,48 @@ def test_actual_lock_reveal_recorder_decoder_refuses_before_reply(tmp_path, fail
         journey.step(guard)
         assert observed == [stage]
         assert json.loads(reply.read_text()) == {'observed': stage}
+
+
+@pytest.mark.parametrize('failure', ['', 'checkpoint', 'worker-loss', 'changed-challenge', 'stale'])
+def test_lock_recipient_real_recorder_persists_fresh_proof_before_reply(tmp_path, failure):
+    from ui_observations import UiObservations
+    import time
+    plan = desktop_session.LOCK_RECIPIENT_PLAN
+    stage = 'lock-recipient-rechecked'
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    reply = tmp_path / (stage + '.reply.json')
+    observed = []
+
+    def progress(current, result):
+        assert not reply.exists()
+        assert result['ui']['lock']['empty'] is True
+        if failure == 'checkpoint': raise OSError('checkpoint failed')
+        observed.append(current)
+
+    guard = Mock(side_effect=lambda: (_ for _ in ()).throw(RuntimeError('worker lost'))
+                 if observed and failure == 'worker-loss' else None)
+    journey = desktop_session.DesktopSessionJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    journey.steps = [{'stage': s} for s in plan.stages[:plan.stages.index(stage)]]
+    journey.boot = 'a' * 64
+    journey.transport = SimpleNamespace(call=Mock(return_value=json.dumps({
+        'operation': 'parent-lock-recipient-rechecked', 'outcome': 'passed',
+        'interface': 'ApplicationUI+external-provider', 'boot_sha256': 'a' * 64,
+        'lock': {'entry': 'challenge', 'owner': 'fixture-parent', 'locked': True,
+            'desktop_input_available': False, 'recipient': 'fixture-parent',
+            'surface_id': 'b' * 64, 'empty': True, 'masked': True, 'focused': True,
+            'challenge_id': ('d' if failure == 'changed-challenge' else 'c') * 64,
+            'provider': {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}}}).encode()))
+    journey.ui = UiObservations(journey.transport)
+    journey.ui.last_operation = 'parent-lock-recipient-qualified'
+    journey.ui.lock_surface_id = 'b' * 64
+    journey.ui.lock_recipient_id = 'c' * 64
+    journey.ui.lock_recipient_checked = time.monotonic() - (30 if failure == 'stale' else 0)
+    if failure:
+        with pytest.raises((OSError, RuntimeError, EvidenceError)): journey.step(guard)
+        assert not reply.exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(guard)
+        assert observed == [stage]
+        assert json.loads(reply.read_text()) == {'observed': stage,
+            'lock_recipient': {'surface': 'lock', 'role': 'parent', 'challenge_id': 'c' * 64}}

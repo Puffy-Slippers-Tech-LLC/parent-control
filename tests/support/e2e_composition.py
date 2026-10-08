@@ -29,7 +29,7 @@ APIS = {
                        'product_free_desktop', 'package_installation', 'restart_reentry', 'restart_kiosk_usability', 'restart_request_usability', 'reboot_desktop', 'station_entry',
                        'custom_child_selection', 'custom_save_entry', 'ordinary_custom_save', 'allowance_selection',
                        'filter_screens', 'rejected_gdm_return', 'native_usable_app', 'native_activity_entry', 'overlay_entry',
-                       'overlay_license_read', 'prefixed_stages', 'custom_allowance', 'lock_challenge'},
+                       'overlay_license_read', 'prefixed_stages', 'custom_allowance', 'lock_challenge', 'lock_recipient'},
     'native_fixtures': {'fixture_actions', 'check_catalogue', 'expected_rows', 'search_rows', 'catalogue_rows',
                         'CataloguePolicyJourney'},
     'journey_checks': {'allowed_app_rows', 'installed_accounts', 'access_choice', 'AllowanceJourney',

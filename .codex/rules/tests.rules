@@ -56,6 +56,8 @@ prefix_rule(
 # they are not host commands and need no additional interpreter or shell grant.
 prefix_rule(
     pattern = [[
+        "tools/backupvms",
+        "./tools/backupvms",
         "tools/cleanup-e2e",
         "./tools/cleanup-e2e",
         "tools/cleanup-screenshots",
@@ -80,6 +82,8 @@ prefix_rule(
         "./tools/publishing/signing.py",
         "tools/read-only",
         "./tools/read-only",
+        "tools/restorevms",
+        "./tools/restorevms",
         "tools/run-tests",
         "./tools/run-tests",
         "tools/run-ui-tests",
@@ -114,7 +118,7 @@ prefix_rule(
         "tools/diagnose journal --unit 'oh-no-parent-control*' --lines 500",
         "tools/test-vm send-key 28",
         "tools/test-vm --vm 2 exec -- python3 -c 'print(1)'",
-        "./tools/test-vm --vm onpc-Fedora-Workstation-44 exec -- sh -c 'printf probe'",
+        "./tools/test-vm --vm onpc-Fedora44 exec -- sh -c 'printf probe'",
         "tools/test-vm --vm 1 exec --timeout 30 -- journalctl --no-pager -n 100",
         "tools/read-only search --fixed-strings test_runner tests tools",
         "tools/read-only links docs/TestAutomation/E2E-Building-Blocks.md tests/e2e/README.md",

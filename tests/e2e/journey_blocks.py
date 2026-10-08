@@ -27,6 +27,15 @@ def lock_challenge(prefix='', *, entry='curtain'):
         ('curtain', 'curtain'), ('reveal-ready', 'reveal-ready'), ('challenge', 'challenge'))}
 
 
+def lock_recipient(prefix=''):
+    """DESK07: two independent empty masked focused lock-recipient reads."""
+    import re
+    require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
+            'journey:lock-prefix')
+    return {prefix + 'lock-recipient-' + check: 'ui:parent-lock-recipient-' + check
+            for check in ('qualified', 'rechecked')}
+
+
 def custom_allowance(prefix, minutes):
     """Ordinary editor input and saved readback; selection belongs to the caller."""
     from accessible_ui import CUSTOM_ALLOWANCE_OPERATIONS, TEXT_VALUES

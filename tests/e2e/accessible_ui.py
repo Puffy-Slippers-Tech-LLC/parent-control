@@ -1054,9 +1054,12 @@ EXTERNAL_PROVIDER_CONTRACTS = {
 }
 
 
-LOCK_SURFACE_OPERATIONS = frozenset((
+LOCK_RECIPIENT_OPERATIONS = frozenset((
+    'parent-lock-recipient-qualified', 'parent-lock-recipient-rechecked'))
+LOCK_RECIPIENT_REFUSALS = ('session', 'recipient', 'field-state', 'field-not-empty', 'owner')
+LOCK_SURFACE_OPERATIONS = LOCK_RECIPIENT_OPERATIONS | frozenset((
     'parent-lock-curtain', 'parent-lock-reveal-ready', 'parent-lock-challenge',
-    'parent-lock-refusals', 'parent-lock-unlocked-refused'))
+    'parent-lock-refusals', 'parent-lock-unlocked-refused', 'parent-lock-recipient-refusals'))
 OPERATIONS |= LOCK_SURFACE_OPERATIONS
 
 
@@ -7462,6 +7465,41 @@ class AccessibleUI:
         value = self.wait(lambda: self.shell_lock_snapshot(uid, entry), 'lock-' + entry,
                           prompt_in_predicate=True)
         owner, window, field, observation = value
+        if operation in LOCK_RECIPIENT_OPERATIONS or operation == 'parent-lock-recipient-refusals':
+            # DESK07 is distinct from DESK06: access the protected field's count
+            # only after the complete lock/session/identity/focus checks above.
+            session = self.require_lock_session(uid)
+            proof = self.mate_field_proof(field, observation[3])
+            self.validate_mate_field(proof, provider='lock')
+            if operation == 'parent-lock-recipient-refusals':
+                nodes, edges, identities, facts = observation
+                projected = {node: {**facts[node], **({'name': OTHER_PARENT}
+                    if facts[node]['role'] == 'label' and facts[node]['name'] == PARENT else {})}
+                    for node in nodes}
+                for expected_uid, tree, code in (
+                        (uid + 1, observation, 'ui:lock-session'),
+                        (uid, (nodes, edges, identities, projected), 'ui:lock-recipient')):
+                    try:
+                        self.shell_lock_snapshot(expected_uid, 'challenge', observation=tree)
+                    except UiError as error:
+                        require(str(error) == code, 'ui:lock-recipient-refusal')
+                    else:
+                        raise UiError('ui:lock-recipient-refusal-missing')
+                for key, replacement, code in (
+                        ('focused', False, 'ui:lock-field-state'),
+                        ('length', 1, 'ui:lock-field-not-empty'),
+                        ('stale', True, 'ui:lock-owner')):
+                    try:
+                        self.validate_mate_field({**proof, key: replacement}, provider='lock')
+                    except UiError as error:
+                        require(str(error) == code, 'ui:lock-recipient-refusal')
+                    else:
+                        raise UiError('ui:lock-recipient-refusal-missing')
+                fresh = self.shell_lock_snapshot(uid, 'challenge')
+                require(fresh is not None and fresh[:3] == value[:3], 'ui:lock-surface-changed')
+                self.validate_mate_field(self.mate_field_proof(fresh[2], fresh[3][3]), provider='lock')
+                return {'refused': list(LOCK_RECIPIENT_REFUSALS)}
+            require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
         if operation == 'parent-lock-refusals':
             nodes, edges, identities, facts = observation
             variants = [(uid + 1, observation, 'ui:lock-session')]
@@ -7494,6 +7532,9 @@ class AccessibleUI:
                   'recipient': 'fixture-parent' if field is not None else None,
                   'surface_id': self.mate_challenge_identity(owner.get_process_id(), (owner, window)),
                   'provider': self._shell_provider_metadata(owner)}
+        if operation in LOCK_RECIPIENT_OPERATIONS:
+            result.update(empty=True, masked=True, focused=True,
+                challenge_id=self.mate_challenge_identity(owner.get_process_id(), (owner, window, field)))
         return result
 
     def keyring_cancel_target(self):
@@ -8866,7 +8907,7 @@ class AccessibleUI:
 
     @staticmethod
     def validate_mate_field(proof, *, provider='mate'):
-        require(provider in ('mate', 'shell'), 'ui:authentication-provider')
+        require(provider in ('mate', 'shell', 'lock'), 'ui:authentication-provider')
         require(not proof['stale'], 'ui:' + provider + '-owner')
         try:
             require(all(proof[key] for key in ('showing', 'sensitive', 'focused')),

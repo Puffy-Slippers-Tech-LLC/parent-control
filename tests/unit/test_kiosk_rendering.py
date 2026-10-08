@@ -558,7 +558,7 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("icon = dropdown.account_icon", content)
         self.assertIn("apply_gtk_user_icon", content)
         self.assertIn("SHIELD", content)
-        self.assertIn("PixelIcon(LOCK", content)
+        self.assertNotIn("PixelIcon(LOCK", content)
         self.assertIn("PixelIcon(POINTER", content)
         self.assertIn('label=m.REQUEST', content)
         self.assertIn('label=m.CANCEL_2', content)

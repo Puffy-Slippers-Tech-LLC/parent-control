@@ -638,7 +638,7 @@ class Lease:
             self.state = {'schema_version': 1, 'run': run, 'phase': 'validated',
                           'domain_uuid': self.source.uuid, 'domain_id': None,
                           'original_xml': self.original_xml,
-                          'baseline_sha256': hashlib.sha256(baseline.encode(self.capture.state)).hexdigest()}
+                          'baseline_sha256': baseline.baseline_sha256(self.capture.state, self.directory)}
             self.save('validated')
             return self
         except BaseException:
@@ -902,7 +902,7 @@ class Lease:
                 ((isolated and state['domain_id'] is None) or
                  (not isolated and type(state['domain_id']) is int and state['domain_id'] >= 0)) and
                 state['domain_uuid'] == self.source.uuid and
-                state['baseline_sha256'] == hashlib.sha256(baseline.encode(self.capture.state)).hexdigest(),
+                state['baseline_sha256'] == baseline.baseline_sha256(self.capture.state, self.directory),
                 'recovery:journal-identity')
             require('e2e_snapshot' not in state or (
                 self.view.graphics_type == 'vnc' and isinstance(state['e2e_snapshot'], str) and

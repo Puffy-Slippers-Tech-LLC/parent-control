@@ -887,3 +887,166 @@ onpc_desktop_session::observe_lock($journey, 'challenge');
 print encode_json({events => \@events});
 '''
     assert json.loads(run_perl(program, '0').stdout)['events'] == [['stage', 'challenge']]
+
+
+@pytest.mark.parametrize('fault', ['', 'nonempty', 'missing-text', 'unfocused', 'wrong-user', 'stale'])
+def test_lock_recipient_reads_only_empty_count_after_identity_guards(monkeypatch, fault):
+    import accessible_ui as a
+    ui, _, _, _, recipient, field = lock_tree(monkeypatch, 'challenge')
+    interface = SimpleNamespace()
+    field.get_text_iface = Mock(return_value=None if fault == 'missing-text' else interface)
+    ui.api.Text = SimpleNamespace(get_character_count=Mock(return_value=1 if fault == 'nonempty' else 0))
+    if fault == 'unfocused': field.states.discard('focused')
+    elif fault == 'wrong-user': recipient.name = a.OTHER_PARENT
+    elif fault == 'stale': field.states.add('defunct')
+    if fault:
+        with pytest.raises(UiError): ui.run('parent-lock-recipient-qualified', '')
+    else:
+        result = ui.run('parent-lock-recipient-qualified', '')['lock']
+        assert result['empty'] is result['masked'] is result['focused'] is True
+        assert result['challenge_id'] == 'a' * 64
+        ui.api.Text.get_character_count.assert_called_once_with(interface)
+    if fault in ('unfocused', 'wrong-user', 'stale'):
+        field.get_text_iface.assert_not_called()
+    field.getText.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.action.do_action.assert_not_called()
+    field.component.grab_focus.assert_not_called()
+
+
+def recipient_reader(monkeypatch):
+    from ui_observations import UiObservations
+    ui, _, _, _, _, field = lock_tree(monkeypatch, 'challenge')
+    field.get_text_iface = Mock(return_value=SimpleNamespace())
+    ui.api.Text = SimpleNamespace(get_character_count=Mock(return_value=0))
+    reader = UiObservations(SimpleNamespace())
+    reader.call = Mock(side_effect=lambda argv, *args, **kwargs:
+        (json.dumps(ui.run(argv[3], '')).encode(), []))
+    return ui, reader
+
+
+@pytest.mark.parametrize('fault', ['', 'gdm', 'reordered', 'intervening', 'stale', 'slow',
+                                  'replacement', 'replay', 'nonempty-response'])
+def test_lock_recipient_decoder_orders_two_fresh_same_challenge_proofs(monkeypatch, fault):
+    from private_artifacts import EvidenceError
+    import ui_observations as observations
+    ui, reader = recipient_reader(monkeypatch)
+    clock = [10.0]
+    monkeypatch.setattr(observations.time, 'monotonic', lambda: clock[0])
+    reader.observe('parent-lock-challenge')
+    if fault in ('gdm', 'reordered'):
+        reader.last_operation = 'gdm-parent-recipient' if fault == 'gdm' else None
+        with pytest.raises(EvidenceError, match='lock-recipient-order'):
+            reader.observe('parent-lock-recipient-qualified')
+        assert reader.call.call_count == 1
+        return
+    first = reader.observe('parent-lock-recipient-qualified')
+    assert first['lock']['empty'] is True
+    if fault == 'intervening': reader.observe('parent-lock-challenge')
+    elif fault == 'stale': clock[0] = 40.0
+    elif fault == 'replacement':
+        ui.mate_challenge_identity = lambda pid, nodes: ('b' if len(nodes) == 3 else 'a') * 64
+    elif fault in ('slow', 'nonempty-response'):
+        original = reader.call.side_effect
+        def response(*args, **kwargs):
+            raw, prompts = original(*args, **kwargs)
+            if fault == 'slow': clock[0] += 30.0
+            if fault == 'nonempty-response':
+                result = json.loads(raw)
+                result['lock']['empty'] = False
+                raw = json.dumps(result).encode()
+            return raw, prompts
+        reader.call.side_effect = response
+    if fault and fault != 'replay':
+        with pytest.raises(EvidenceError): reader.observe('parent-lock-recipient-rechecked')
+        calls = reader.call.call_count
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            reader.observe('parent-lock-recipient-qualified')
+        assert reader.call.call_count == calls
+    else:
+        assert reader.observe('parent-lock-recipient-rechecked')['lock']['challenge_id'] == 'a' * 64
+        if fault == 'replay':
+            with pytest.raises(EvidenceError, match='lock-recipient-order'):
+                reader.observe('parent-lock-recipient-rechecked')
+
+
+def test_live_lock_recipient_refusals_project_field_state_without_input(monkeypatch):
+    import accessible_ui as a
+    ui, reader = recipient_reader(monkeypatch)
+    assert reader.observe('parent-lock-recipient-refusals')['lock'] == {
+        'refused': list(a.LOCK_RECIPIENT_REFUSALS)}
+
+
+def test_lock_recipient_worker_sequence_refusals_and_registration(monkeypatch):
+    from desktop_session import LOCK_RECIPIENT_PLAN as plan
+    from parent_setup_qualification import LockRecipientQualification
+    import check_e2e_lock_recipient as check
+    from tools import test_commands
+    program = RUN_PROBE.replace('onpc_desktop_session::run(sub {',
+        'onpc_desktop_session::qualify_lock_recipient(sub {').replace('}, $action);', '});')
+    program = program.replace("return {observed => $_[0]} if $_[0] =~ /recipient-", """
+        return {observed => $_[0], lock_recipient => {surface => 'lock', role => 'parent',
+            challenge_id => 'a' x 64}} if $_[0] =~ /\\Alock-recipient-/;
+        return {observed => $_[0]} if $_[0] =~ /recipient-""")
+    result = json.loads(run_perl(program, '').stdout)
+    assert result['ok'], result
+    events = result['events']
+    assert [row[1] for row in events if row[0] == 'stage'] == list(plan.screen_tags)
+    assert events.count(['secret']) == 1 and events.count(['key', 'spc']) == 1
+    assert events[-1] == ['power', 'off']
+    for stage in plan.screen_tags:
+        failed = program.replace("push @events, ['stage', $_[0]];",
+            "push @events, ['stage', $_[0]]; die 'guard' if $_[0] eq '" + stage + "';")
+        result = json.loads(run_perl(failed, '').stdout)
+        assert not result['ok']
+        assert result['events'] == events[:events.index(['stage', stage]) + 1]
+    context = SimpleNamespace()
+    assert LockRecipientQualification.journey(context, Mock()).plan is plan
+    assert context.installed_snapshot.startswith('onpc-v')
+    assert set(plan.phases) == set(plan.stages)
+    assert all(tag[3:] in OPERATIONS for tag in plan.screen_tags.values() if tag.startswith('ui:'))
+    smoke = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 0
+    smoke.assert_called_once_with(assets=check.ASSETS, provision_credentials=True, lock_surface='recipient')
+    monkeypatch.setattr(test_commands, 'allocate_artifact_output', Mock(return_value='prepared'))
+    monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
+    assert test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_lock_recipient'])
+
+
+@pytest.mark.parametrize('fault', ['gdm', 'replacement', 'review'])
+def test_lock_worker_refuses_gdm_replaced_and_review_proofs(fault):
+    program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
+my $journey = onpc_journey->new(prefix => 'unit', review => $action eq 'review' ? 1 : 0,
+    exchange => sub {
+        push @events, ['stage', $_[0]];
+        return {observed => $_[0]} if $action eq 'gdm';
+        return {observed => $_[0], lock_recipient => {surface => 'lock', role => 'parent',
+            challenge_id => ($_[0] =~ /rechecked/ ? 'b' : 'a') x 64}};
+    });
+my $ok = eval { onpc_desktop_session::lock_recipient($journey); 1; };
+my $count = scalar @events;
+my $retry = eval { onpc_desktop_session::lock_recipient($journey); 1; };
+print encode_json({ok => $ok ? 1 : 0, retry => $retry ? 1 : 0,
+    count => $count, final_count => scalar @events});
+'''
+    result = json.loads(run_perl(program, fault).stdout)
+    assert not result['ok'] and not result['retry']
+    assert result['count'] == result['final_count']
+
+
+def test_lock_recipient_shared_fragment_supports_independent_named_callers():
+    from journey_blocks import lock_recipient
+    program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
+my $journey = onpc_journey->new(prefix => 'independent', review => 0, exchange => sub {
+    push @events, ['stage', $_[0]];
+    return {observed => $_[0], lock_recipient => {surface => 'lock', role => 'parent',
+        challenge_id => 'a' x 64}};
+});
+onpc_desktop_session::lock_recipient($journey, 'again-');
+print encode_json({events => \@events});
+'''
+    events = json.loads(run_perl(program, '').stdout)['events']
+    stages = lock_recipient('again-')
+    assert events == [['stage', stage] for stage in stages]
+    assert list(stages.values()) == ['ui:parent-lock-recipient-qualified', 'ui:parent-lock-recipient-rechecked']

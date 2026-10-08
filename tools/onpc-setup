@@ -15,12 +15,29 @@ OPERATIONS = {
     'graphical-policy': ('tools/install_graphical_test_policy.py',),
     'prepare-baseline': ('tests/integration/prepare_baseline.py',),
     'replace-missing-baseline': ('tests/integration/prepare_baseline.py', '--replace-missing'),
+    'backupvms': ('tools/vm_backup.py', 'backup'),
+    'restorevms': ('tools/vm_backup.py', 'restore'),
 }
 
 
 def command(root, argv):
     mode_args = []
     vm_args = []
+    recovery = bool(argv and argv[0] in ('backupvms', 'restorevms'))
+    if recovery:
+        sys.path.insert(0, str(root / 'tests/integration'))
+        try:
+            import vm_config
+            remaining, selector = vm_config.extract_selector(argv)
+            if len(remaining) != 1:
+                raise ValueError('setup-helper: VM recovery accepts only --vm')
+            _, vms = vm_config.execution(selector if selector is not None else 'all',
+                                        path=root / 'config/test-vm.json')
+            vm_config.backup_root(root / 'config/test-vm.json')
+            argv = remaining
+            vm_args = ['--vm', ','.join(vm.name for vm in vms)]
+        finally:
+            sys.path.pop(0)
     if argv and argv[0] in ('prepare-baseline', 'replace-missing-baseline'):
         sys.path.insert(0, str(root / 'tests/integration'))
         try:
@@ -49,7 +66,7 @@ def command(root, argv):
         return ['/bin/bash', str(target), *args]
     # prepare_baseline imports its sibling guest contract; the other installers use
     # only the standard library and can run with Python's isolated mode.
-    return ['/usr/bin/python3', '-B' if argv[0] in ('prepare-baseline', 'replace-missing-baseline') else '-IB', str(target), *args]
+    return ['/usr/bin/python3', '-B' if recovery or argv[0] in ('prepare-baseline', 'replace-missing-baseline') else '-IB', str(target), *args]
 
 
 def main():

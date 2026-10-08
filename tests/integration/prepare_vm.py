@@ -264,6 +264,9 @@ def preparation_digest(checkout: Path = CHECKOUT) -> str:
             # change between preparation and app-snapshot execution.
             document = json.loads(contents, object_pairs_hook=vm_config.unique_keys)
             document.pop('concurrency', None)
+            # Archive location is host-only and may change on a replacement
+            # machine without changing any prepared guest input.
+            document.pop('backup_root', None)
             for entry in document.get('vms', []):
                 entry.pop('id', None)
                 entry.pop('enabled', None)

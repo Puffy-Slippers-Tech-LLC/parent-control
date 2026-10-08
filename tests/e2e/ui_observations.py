@@ -1005,6 +1005,17 @@ class UiObservations:
         require(operation in accessible_ui.OPERATIONS, 'ui:operation')
         with watch_activity.operation(OPERATION_LABELS[operation]):
             try:
+                if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
+                    require(not getattr(self, 'lock_recipient_failed', False),
+                            'ui:lock-recipient-previous-failure')
+                    first = operation == 'parent-lock-recipient-qualified'
+                    require(self.last_operation == ('parent-lock-challenge' if first else
+                            'parent-lock-recipient-qualified'), 'ui:lock-recipient-order')
+                    if not first:
+                        require(time.monotonic() - self.lock_recipient_checked < 30,
+                                'ui:lock-recipient-stale-proof')
+                    if first:
+                        self.lock_recipient_checked = time.monotonic()
                 shell_index = getattr(self, 'shell_approval_index', 0)
                 if operation == 'overlay-shell-open' and getattr(self, 'shell_cancel_active', False):
                     require(getattr(self, 'shell_dismissed', False)
@@ -1071,6 +1082,14 @@ class UiObservations:
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 result = self._observe(operation, **({'child': child} if child else {}))
+                if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
+                    require(time.monotonic() - self.lock_recipient_checked < 30,
+                            'ui:lock-recipient-stale-proof')
+                    challenge_id = result['lock']['challenge_id']
+                    if first:
+                        self.lock_recipient_id = challenge_id
+                    else:
+                        require(challenge_id == self.lock_recipient_id, 'ui:lock-recipient-replaced')
                 if operation == 'chinese-mate-open':
                     self.mate_approval_checked = time.monotonic()
                     self.chinese_returned = False
@@ -1097,6 +1116,8 @@ class UiObservations:
                 self.last_mate_operation = operation
                 return result
             except BaseException:
+                if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
+                    self.lock_recipient_failed = True
                 if operation in (accessible_ui.PARENT_LANGUAGE_OPERATIONS |
                                  set(accessible_ui.PARENT_DIALOG_BINDINGS) |
                                  accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
@@ -1244,19 +1265,28 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in accessible_ui.LOCK_SURFACE_OPERATIONS:
             value = result.get('lock')
-            if operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals'):
+            if operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals',
+                             'parent-lock-recipient-refusals'):
                 require(value == {'refused': ['unlocked-session'] if operation.endswith('unlocked-refused')
+                    else list(accessible_ui.LOCK_RECIPIENT_REFUSALS) if operation == 'parent-lock-recipient-refusals'
                     else ['session', 'surface-ambiguous', 'field-ambiguous', 'recipient']},
                     'ui:lock-refusal-response')
             else:
-                entry = 'challenge' if operation == 'parent-lock-challenge' else 'curtain'
+                recipient = operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS
+                entry = 'challenge' if operation == 'parent-lock-challenge' or recipient else 'curtain'
                 require(type(value) is dict and set(value) == {
                     'entry', 'owner', 'locked', 'desktop_input_available', 'recipient', 'surface_id', 'provider'}
+                    | ({'empty', 'masked', 'focused', 'challenge_id'} if recipient else set())
                     and value['entry'] == entry and value['owner'] == 'fixture-parent'
                     and value['locked'] is True and value['desktop_input_available'] is False
                     and value['recipient'] == ('fixture-parent' if entry == 'challenge' else None)
                     and type(value['surface_id']) is str and re.fullmatch(r'[0-9a-f]{64}', value['surface_id']),
                     'ui:lock-response')
+                if recipient:
+                    require(all(value[key] is True for key in ('empty', 'masked', 'focused'))
+                            and type(value['challenge_id']) is str
+                            and re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']),
+                            'ui:lock-recipient-response')
                 accessible_ui.validate_shell_metadata(value['provider'])
                 if operation == 'parent-lock-curtain' or (
                         operation == 'parent-lock-challenge' and not hasattr(self, 'lock_surface_id')):

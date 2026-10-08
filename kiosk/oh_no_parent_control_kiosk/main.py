@@ -1760,7 +1760,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _queue_time_estimate(self):
         # Invalidate replies immediately, including when the form becomes invalid.
         self._estimate_revision += 1
-        self._request_content.set_time_estimate(m.CALCULATING_TIME_ESTIMATE)
+        self._request_content.set_time_estimate(None)
         if self._estimate_debounce_id:
             GLib.source_remove(self._estimate_debounce_id)
         self._estimate_debounce_id = GLib.timeout_add(250, self._time_estimate_debounced)

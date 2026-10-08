@@ -22,7 +22,7 @@ from common.oh_no_parent_control_ui.accessibility import describe_control, set_a
 from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
-    LOCK, POINTER, SHIELD, ArmoredButton,
+    POINTER, SHIELD, ArmoredButton,
     MetalBoard, MetalPanel, PixelIcon,
 )
 
@@ -314,7 +314,7 @@ class RequestContent(MetalBoard):
         self._ready = False
         self._controls_enabled = True
         self._screen_time_limit_enabled = None
-        self._time_estimate = m.CALCULATING_TIME_ESTIMATE
+        self._time_estimate = None
         self._validation_error = None
         self._lock_child_selector = lock_child_selector
         self._selection_store = selection_store
@@ -513,10 +513,6 @@ class RequestContent(MetalBoard):
         set_automation_id(status_inner, "kiosk-request-status-content")
         status_inner.add_css_class("oh-no-parent-control-status-inner")
         status_inner.set_overflow(Gtk.Overflow.VISIBLE)
-        lock = PixelIcon(LOCK, display_size=16, label="")
-        set_automation_id(lock, "kiosk-request-status-icon")
-        lock.set_valign(Gtk.Align.CENTER)
-        status_inner.append(lock)
         status_inner.append(self._status)
         status_row.append(status_inner)
         self.append(status_row)
@@ -681,7 +677,7 @@ class RequestContent(MetalBoard):
         self._screen_time_limit_enabled = None
         self._update_controls()
         self._validation_error = None
-        self._time_estimate = m.CALCULATING_TIME_ESTIMATE
+        self._time_estimate = None
         self._update_status()
 
     def set_accounts(self, users):
@@ -745,6 +741,10 @@ class RequestContent(MetalBoard):
                 message = error.args[0]
             else:
                 message = self._time_estimate
+        if message is None:
+            message = m.ESTIMATED_TIME_REMAINING_IF_APPROVED_FORMAT_DURATION_SECONDS_S % {
+                'format_duration_seconds': '',
+            }
         set_text(self._status, 'label', message)
         if self._validation_error and message == self._validation_error:
             self._status.add_css_class("oh-no-parent-control-error")
@@ -774,7 +774,7 @@ class RequestContent(MetalBoard):
                 self._on_account_selected is not None):
             self._screen_time_limit_enabled = None
             self._validation_error = None
-            self._time_estimate = m.CALCULATING_TIME_ESTIMATE
+            self._time_estimate = None
             self._update_ready()
             self._on_account_selected(self._account_uids[index])
 

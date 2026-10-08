@@ -77,7 +77,7 @@ def test_language_save_uses_own_account_api_and_ignores_late_callbacks(closed, e
 def test_language_read_coalesces_preferences_requests_and_retries_after_failure():
     window = bind_methods(SimpleNamespace(
         _estimate_closed=False, _language_loading=False, _preview=False,
-        _child_overlay=True, _language_revision=0,
+        _child_overlay=True, _language_revision=0, _own_language=None,
         _bus_call=Mock(), _show_error=Mock(), _stack=Mock(), _result_detail=Mock(),
         _language_readiness=Mock(), _language_requested=True, _language_load_failed=False,
         _open_language_dialog=Mock(), _apply_language=Mock(return_value=True),
@@ -416,6 +416,24 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
 def test_shared_duration_format_preserves_precision_and_omits_zero_minutes(seconds, expected):
     assert format_duration(seconds) == expected
     assert _time_estimate_label(seconds) == f"Estimated time remaining if approved: {expected}"
+
+
+def test_pending_estimate_keeps_label_with_blank_value_until_result():
+    form = bind_methods(SimpleNamespace(
+        _accounts_loaded=True, _approvers_loaded=True, _account_uids=[1001],
+        _approver_uids=[1000], _screen_time_limit_enabled=True,
+        _validation_error=None, _controls_enabled=True,
+        selected=Mock(return_value=(1001, "Child", 1000, 300, False)),
+        _status=Mock(),
+    ), RequestContent, ("set_time_estimate", "_update_status"))
+    form.set_time_estimate(None)
+    form._status.set_label.assert_called_with("Estimated time remaining if approved: ")
+    form.set_time_estimate(None)
+    form._status.set_label.assert_called_with("Estimated time remaining if approved: ")
+    form.set_time_estimate(_time_estimate_label(4620))
+    form._status.set_label.assert_called_with("Estimated time remaining if approved: 1h 17m")
+    assert all(call.args[0].startswith("Estimated time remaining if approved: ")
+               for call in form._status.set_label.call_args_list)
 
 
 def release_presenter(overlay):

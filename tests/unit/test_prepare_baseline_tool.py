@@ -1,5 +1,6 @@
 """Standalone baseline replacement cannot skip password, privilege or tools refresh."""
 from tests.support.vm_registry import vm_name
+import json
 import runpy
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -131,7 +132,12 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
     assert capsys.readouterr().out == 'prepare-baseline: cancelled; no baseline snapshot was prepared.\n'
 
 
-def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypatch, capsys):
+def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypatch, capsys, tmp_path):
+    path = tmp_path / 'test-vm.json'
+    path.write_text(json.dumps({'vms': [
+        {'name': 'Single-guest', 'disk_anchor': '/single.qcow2', 'enabled': 'true'},
+        {'name': 'Disabled-guest', 'disk_anchor': '/disabled.qcow2', 'enabled': 'false'}]}))
+    monkeypatch.setattr(vm_selection.vm_config, 'CONFIG', path)
     configured, = vm_selection.vm_config.execution()[1]
     def dispatch(command, **kwargs):
         assert command[-2:] == ['--vm', configured.name]

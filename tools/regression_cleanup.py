@@ -179,6 +179,8 @@ from regression_resources import HOST_WORKERS
 # Desktop lock plans extend desktop_session's private recorder/checkpoint files
 # only. The same pytest allocation owns cleanup; no VM/display/process owner is
 # acquired. Compatible here and in the unit inventory.
+# DESK07 keeps that lifetime: count/clock/transport doubles and private durable
+# replies introduce no new process, display, socket or cleanup owner.
 REVIEWED = frozenset('''
 parent_presentation
 package_lifecycle
@@ -203,8 +205,16 @@ graphical_worker installed_journey desktop_session package_authority package_ins
 probe_bus_client probe_channel probe_generation qualification_storage
 regression repeated_operations screen_preview screenshot session_expiry system_accounts system_agent
 system_caller system_enforcement system_probe_sandbox system_runner storage_migration terminal
-test_retention test_storage ui ui_artifacts ui_watch vm_control vm_watch_session write_e2e
+test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_watch_session write_e2e
 '''.split())
+
+# VM backup/restore checks own pytest-private files and descriptor leases with
+# process-local libvirt/launcher doubles and tiny QCOW2 images with waited
+# qemu-img children; no live VM, privilege or bus. Unit/cleanup are compatible.
+# Missing foreign images and interrupted network creation retain that private
+# lifetime, with process-local network/UUID and host-command doubles only.
+# Reconciliation and baseline-hash checks retain this lifetime, using private
+# record files and injected interruptions without any live controller/guest.
 
 # Missing-completion recovery uses private checkouts and waited owner/agent
 # doubles under the existing write-e2e fixture. No live VM or shared mutable

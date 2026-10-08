@@ -687,26 +687,33 @@ def test_cancelled_vm_queue_never_starts_another_guest():
     assert attempts == ['guest-0']
 
 
-def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(monkeypatch):
+@pytest.mark.parametrize('enabled', [('true', 'false'), ('false', 'true'), ('true', 'true')])
+def test_batch_test_selection_and_explicit_diagnosis_obey_enabled_config(selector_config, enabled):
     import test_commands
     import vm_selection
+    path, document = selector_config
+    for entry, value in zip(document['vms'], enabled):
+        entry['enabled'] = value
+    path.write_text(json.dumps(document))
+    names = [entry['name'] for entry in document['vms'] if entry['enabled'] == 'true']
     args, configured = test_commands.vm_request(['system'])
     assert args == ['system'] and configured is None
-    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
-    assert vm_selection.execution_binding()['vms'] == [vm_name()]
-    test_commands.vm_request(['system', '--vm', vm_name(1)])
-    assert vm_selection.execution_arguments() == ['--vm', vm_name(1)]
-    test_commands.vm_request(['system', '--vm', vm_name()])
-    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
+    assert vm_selection.execution_arguments() == ['--vm', ','.join(names)]
+    assert vm_selection.execution_binding() == {'concurrency': len(names), 'vms': names}
+    for entry in document['vms']:
+        test_commands.vm_request(['system', '--vm', entry['name']])
+        assert vm_selection.execution_arguments() == ['--vm', entry['name']]
+        assert vm_selection.execution_binding() == entry['name']
 
 
-def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_options():
+def test_mixed_host_and_vm_categories_use_queue_without_reinterpreting_host_options(selector_config):
     import test_commands
     import vm_selection
     assert test_commands.host_only_request(['unit', '-k', 'e2e'])
     assert not test_commands.host_only_request(['unit', 'system'])
     test_commands.vm_request(['unit', 'system'])
-    assert vm_selection.execution_arguments() == ['--vm', vm_name()]
+    assert vm_selection.execution_arguments() == ['--vm', 'Alpha-guest,Beta-guest']
+    assert vm_selection.execution_binding() == {'concurrency': 2, 'vms': ['Alpha-guest', 'Beta-guest']}
 
 
 def test_queue_cancellation_binding_survives_disabled_configuration(tmp_path):

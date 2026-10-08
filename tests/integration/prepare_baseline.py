@@ -143,6 +143,35 @@ def parse_json(data):
     return json.loads(data, object_pairs_hook=unique)
 
 
+def baseline_sha256(state, directory):
+    """Keep verified guest provenance stable across disaster inode rebinding.
+
+    Only the exact rebound state attested by a completed restore inherits its
+    original logical identity. A later preparation/rename gets its own digest.
+    Ordinary source, snapshot and lease checks remain mandatory at the caller.
+    """
+    current = hashlib.sha256(encode(state)).hexdigest()
+    path = directory / 'restore-vms.json'
+    if not os.path.lexists(path):
+        return current
+    identity(path, private=True, mode=0o600)
+    record = parse_json(path.read_bytes())
+    require(isinstance(record, dict) and record.get('phase') == 'complete',
+            'state:interrupted-vm-restore; rerun tools/restorevms for this VM')
+    binding = record.get('baseline_identity')
+    if binding is None:
+        return current
+    require(isinstance(binding, dict) and set(binding) == {'original', 'restored'} and
+            all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value)
+                for value in binding.values()), 'state:restore-baseline-identity')
+    if binding['restored'] == current:
+        require(record.get('uuid') == state['source']['layout']['uuid'] and
+                record.get('directory') == private_baseline_directory(directory),
+                'state:restore-baseline-identity')
+        return binding['original']
+    return current
+
+
 class Commands:
     """Every signal targets a pidfd for the child just spawned by this object.
 
@@ -698,6 +727,11 @@ class Capture:
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
     def require_idle_attempt(self, *, manual_inventory=None):
+        restore = self.directory / 'restore-vms.json'
+        if os.path.lexists(restore):
+            identity(restore, private=True, mode=0o600)
+            require(parse_json(restore.read_bytes()).get('phase') == 'complete',
+                    'state:interrupted-vm-restore; rerun tools/restorevms for this VM')
         for record in self.directory.glob('disk-rename-*.json'):
             identity(record, private=True, mode=0o600)
             rename = parse_json(record.read_bytes())
@@ -738,7 +772,7 @@ class Capture:
                  (attempt['phase'] in (*prestart, 'cleanup-requested') and attempt['domain_id'] is None)) and
                 isinstance(attempt['run'], str) and re.fullmatch(r'[0-9a-f]{32}', attempt['run']) and
                 attempt['domain_uuid'] == self.state['source']['layout']['uuid'] and
-                attempt['baseline_sha256'] == hashlib.sha256(encode(self.state)).hexdigest(), category)
+                attempt['baseline_sha256'] == baseline_sha256(self.state, self.directory), category)
         owner_path = self.directory / 'vm-control.json'
         require(os.path.lexists(owner_path), 'state:interrupted-run; recovery-check:maintenance-owner-missing')
         identity(owner_path, private=True, mode=0o600)

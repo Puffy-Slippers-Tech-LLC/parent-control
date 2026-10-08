@@ -390,6 +390,16 @@ class SuppliedLockSurfaceQualification(LockSurfaceQualification):
     supplied = True
 
 
+class LockRecipientQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from desktop_session import DesktopSessionJourney, LOCK_RECIPIENT_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return DesktopSessionJourney(context, progress, LOCK_RECIPIENT_PLAN)
+
+
 class DesktopLogoutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

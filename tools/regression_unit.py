@@ -544,6 +544,8 @@ from regression_ui import Bucket
 # Lock-surface additions reuse e2e_desktop_session's in-memory provider/session
 # doubles and waited Perl probes, plus desktop_session_cleanup_safety's private
 # pytest files. They introduce no display, bus, VM, socket or shared cache owner.
+# DESK07 recipient proofs retain those doubles, waited Perl probes and private
+# recorder files; no live session, display, socket or shared resource is added.
 REVIEWED = frozenset("""
 application_ui_support
 test_checkpoint
@@ -622,9 +624,22 @@ system_remote_accounts system_runner system_runner_cleanup_safety system_snapsho
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety
 ui_cleanup_safety ui_watch ui_watch_cleanup_safety uninstall unit_test_launcher usage_query_retry verify_test_traceability
-vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
+vm_backup_cleanup_safety vm_config vm_control_cleanup_safety vm_transport vm_watch_session_cleanup_safety watch_activity watch_output
 write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 """.split())
+
+# VM archive/restore safety uses only pytest-private sparse files, locks and
+# libvirt/launcher doubles, plus tiny QCOW2 images and finite, waited qemu-img
+# children. No live VM, privilege or shared storage; compatible overlap is
+# reviewed in unit and cleanup inventories.
+# Missing foreign disk chains and network interruption/ownership checks add
+# only private fixture files and process-local libvirt doubles; no new owner,
+# service, cache or resource demand changes this compatible classification.
+# Bookkeeping retirement, damaged journals and logical baseline bindings reuse
+# private files and those doubles; interruption has no real controller/guest.
+# Enabled-queue VM selection and baseline default-dispatch checks use explicit
+# private JSON registries and launcher doubles; deployed scheduling edits no
+# longer change their finite fixture assumptions. Compatible ownership remains.
 
 # Interrupted write-e2e close-out recovery reuses private pytest checkouts and
 # waited launcher/agent doubles. No live VM, display, cache or shared mutation;

@@ -77,6 +77,19 @@ def pinned_vm_uuid(directory=None, *, owner=0, name=None):
     info = directory.stat()
     if info.st_uid != owner or stat.S_IMODE(info.st_mode) != 0o700:
         raise ValueError('test-runner-install:unsafe-baseline-directory')
+    restore = directory / 'restore-vms.json'
+    if os.path.lexists(restore):
+        record = restore.lstat()
+        if (not stat.S_ISREG(record.st_mode) or record.st_nlink != 1 or
+                record.st_uid != owner or stat.S_IMODE(record.st_mode) != 0o600 or
+                json.loads(restore.read_text()).get('phase') != 'complete'):
+            raise ValueError('test-runner-install:unfinished-or-unsafe-vm-restore')
+    if not path.exists():
+        # Registered, not-yet-prepared VMs may have only an idle lease or a
+        # completed recovery journal. They have no accepted UUID to pin.
+        if set(item.name for item in directory.iterdir()) <= {'.lock', 'restore-vms.json'}:
+            return None
+        raise ValueError('test-runner-install:missing-baseline-state')
     info = path.stat()
     if info.st_uid != owner or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600:
         raise ValueError('test-runner-install:unsafe-baseline-state')

@@ -11,6 +11,7 @@ import re
 import sys
 import time
 
+import accessible_ui
 from check_graphical_smoke import module_result, screenshot
 import command_documentation
 import session_control
@@ -600,6 +601,9 @@ class InstalledJourney:
                 observed['desktop_preparation'] = session_control.observe(
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
+            if tag[3:] in accessible_ui.LOCK_RECIPIENT_OPERATIONS and tag.startswith('ui:'):
+                reply['lock_recipient'] = {'surface': 'lock', 'role': 'parent',
+                    'challenge_id': observed['ui']['lock']['challenge_id']}
             if plan.challenge_at(stage):
                 reply['challenge'] = observed['challenge']
             if tag == 'ui:station-entry-branch':

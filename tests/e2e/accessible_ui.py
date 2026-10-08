@@ -8918,7 +8918,7 @@ class AccessibleUI:
                 'ui:mate-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
 
-        def form():
+        def form(phase):
             if binding is None:
                 return self.kiosk_valid_choice('kiosk-valid-fraction-soft-read')['request']
             value = self.kiosk_request_form(enabled=True,
@@ -8926,14 +8926,27 @@ class AccessibleUI:
             require(value['approver'] == APPROVER_IDENTITIES[approver]
                     and value['allow_soft'] is False, 'ui:mate-form-binding')
             status = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
-            require(status is not None and ' '.join(status.get_name().split()).startswith(
-                'Estimated time remaining if approved: '), 'ui:mate-form-estimate')
+            message = None if status is None else ' '.join(status.get_name().split())
+            estimated = message is not None and message.startswith(
+                'Estimated time remaining if approved: ')
+            # Keep this assertion immediate while diagnosing its boundary.
+            # Retain only finite categories in the existing private command
+            # error log, never displayed text, accounts or prompt contents.
+            if not estimated:
+                kind = ('missing' if message is None else
+                        'calculating' if message == 'Calculating time estimate…' else
+                        'unavailable' if message == 'Time estimate unavailable' else
+                        'denied' if message == 'Request denied' else 'other')
+                print(json.dumps({'event': 'mate-form-estimate-failure',
+                                  'phase': phase, 'status_kind': kind}, sort_keys=True),
+                      file=sys.stderr, flush=True)
+            require(status is not None and estimated, 'ui:mate-form-estimate')
             return value
 
         def prompt(**kwargs):
             return self.mate_prompt(pid, **kwargs, **({'binding': binding} if binding else {}))
 
-        before = form()
+        before = form('before-request')
         pid = self.mate_agent_pid()
         require(prompt() is None, 'ui:mate-already-open')
         challenge_id = os.urandom(32).hex()
@@ -8957,7 +8970,7 @@ class AccessibleUI:
                 prompt(observation=observation, challenge=challenge)
                 return False
             self.wait(absent, 'mate-dismissed', prompt_in_predicate=True)
-            after = form()
+            after = form('after-cancel')
             require(after == before, 'ui:mate-form-changed')
             return {'provider': provider, 'child': CHILD_IDENTITIES[child],
                     'approver': APPROVER_IDENTITIES[approver],

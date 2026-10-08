@@ -3653,7 +3653,12 @@ class AccessibleUI:
             if step == 'result':
                 self.save_app_result('Could not save logs. Try another location.' if denied
                                      else 'Downloaded · Ready to examine')
-            self.feedback_snapshot(projection)
+            # The cancelled portal may retire after collection readiness was
+            # read. Reacquire a complete snapshot under the shared read deadline;
+            # never omit its failed subtree or replay chooser input. Draft and
+            # ownership mismatches remain immediate refusals.
+            self.wait(lambda: self.feedback_snapshot(projection), 'save-draft-result',
+                      prompt_in_predicate=True)
         return result
 
     def save_app_result(self, expected):

@@ -10,6 +10,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import platform
 import stat
 import sys
 import tempfile
@@ -275,10 +276,14 @@ def compare_diagnostic_contents(archive, contents):
                 and len(actual[len(header):].decode('ascii').splitlines()) == count)
     require(records <= 12000)
     system = info['system']
+    # Compare against the guest OS independently of the exported report.
+    # The shared reader runs on both registered packaging targets.
+    os_id = platform.freedesktop_os_release().get('ID')
+    require(os_id in ('ubuntu', 'fedora'))
     require(type(system) is dict and set(system) == {'schema', 'app_version', 'os', 'kernel',
         'architecture', 'timezone', 'session_type', 'accounts', 'dependencies'}
         and type(system['schema']) is int and system['schema'] == 1
-        and system['os']['id'] == 'ubuntu' and system['session_type'] == 'wayland'
+        and system['os']['id'] == os_id and system['session_type'] == 'wayland'
         and system['app_version'] != 'unknown')
     require(set(info['health']) == {'accounts', 'timer', 'polkit', 'systemd', 'migration', 'storage'}
             and all(value in ('available', 'inactive', 'unavailable', 'incomplete', 'unknown')

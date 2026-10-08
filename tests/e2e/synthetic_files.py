@@ -1,6 +1,7 @@
 """FILE05/FIX04 shared finite commands and task-local qualification."""
 import json
 import hashlib
+import sys
 from pathlib import Path
 
 from private_artifacts import EvidenceError, require
@@ -204,6 +205,25 @@ def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
     require(user == 'onpc-parent-jamie' and artifact in ('synthetic-archive', 'diagnostic-export'),
             'zip:declaration')
     if artifact == 'diagnostic-export':
+        # Bounded diagnostics for a retained Save receipt rejected by FILE08.
+        # Emit comparisons only: never receipt contents, paths or identities.
+        owner_valid = isinstance(owner, SyntheticFiles)
+        print('diagnostic-zip:entry ' + json.dumps({
+            'owner_type': owner_valid,
+            'transport_matches': owner_valid and owner.transport is transport,
+            'save_profile': owner_valid and owner.profile == 'save',
+            'owner_ready': owner_valid and not owner.failed,
+            'attempt_matches': owner_valid and getattr(owner, 'attempt', None) == attempt,
+            'receipt_matches': owner_valid and owner.previous == receipt,
+            'saved': owner_valid and 'saved' in owner.attempted,
+            'cleanup_absent': owner_valid and 'cleanup' not in owner.attempted,
+            'inspect_absent': owner_valid and 'inspect' not in owner.attempted,
+            'receipt_fields': type(receipt) is dict and set(receipt) == {
+                'directory', 'unwritable', 'baseline', 'created', 'files'},
+            'saved_file_set': type(receipt) is dict
+                and type(receipt.get('files')) is dict
+                and set(receipt['files']) == {'Selected diagnostics.zip'},
+        }, sort_keys=True), file=sys.stderr, flush=True)
         require(isinstance(owner, SyntheticFiles) and owner.transport is transport
                 and owner.profile == 'save' and not owner.failed
                 and owner.attempt == attempt and owner.previous == receipt
@@ -217,6 +237,7 @@ def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
             owner.attempted.add('inspect')
             owner.failed = True
             result = owner._command('open-zip', {'receipt': receipt, 'artifact': artifact})
+        print('diagnostic-zip:decoder-returned', file=sys.stderr, flush=True)
         require(type(result) is dict and set(result) == {'artifact', 'matched', 'members', 'checks'}
                 and result['artifact'] == artifact and result['matched'] is True, 'zip:comparison')
         members, checks = result['members'], result['checks']
@@ -245,6 +266,7 @@ def read_declared_zip(transport, receipt, *, attempt, user='onpc-parent-jamie',
                 and type(checks['records']) is int and 0 <= checks['records'] <= 12000,
                 'zip:comparison')
         owner.failed = False
+        print('diagnostic-zip:validated', file=sys.stderr, flush=True)
         return result
     require(type(receipt) is dict and set(receipt) == {'directory', 'files'}
             and type(receipt['files']) is dict

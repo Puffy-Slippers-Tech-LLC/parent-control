@@ -2922,6 +2922,62 @@ def test_save_cancel_checks_fresh_filename_and_closure_without_save():
     accept.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', ['query', 'incomplete', 'persistent', 'draft', 'prompt'])
+def test_save_cancel_draft_read_reacquires_retired_provider_without_replaying_input(monkeypatch, fault):
+    # Private trees and a mocked clock only; existing compatible unit scheduling
+    # and cleanup ownership remain applicable.
+    ui, window, field, accept, caller = save_ui()
+    for binding in accessible_ui.FEEDBACK_PROJECTIONS['synthetic-first']:
+        identity, value = accessible_ui.TEXT_VALUES[binding]
+        node = next(node for node in caller.children if node.identity == identity)
+        node.text.value = value
+    cancel = next(node for node in window.children if node.name == 'Close')
+    cancel.action.do_action.side_effect = lambda _: window.states.clear() or True
+    field.value = accessible_ui.SAVE_NAMES[1]
+    ui.save_chooser_operation('export-save-chooser-cancel')
+    ui.wait_feedback_collection = Mock()
+    now = [0.0]
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    root = ui.root()
+    attributes = root.get_attributes
+    reads = []
+
+    def read():
+        reads.append(now[0])
+        if fault == 'persistent' or (len(reads) == 1 and fault in ('query', 'incomplete')):
+            if fault == 'incomplete':
+                raise accessible_ui.UiError('ui:incomplete-tree')
+            raise LookupError('retired external provider')
+        return attributes()
+
+    root.get_attributes = read
+    if fault == 'draft':
+        next(node for node in caller.children if node.identity == 'feedback-editor-input').text.value = ''
+    elif fault == 'prompt':
+        root.children.append(Node(role='application', children=[
+            Node(role='dialog', states=('visible', 'showing', 'active', 'modal'))]))
+    if fault in ('query', 'incomplete'):
+        assert ui.save_chooser_operation('export-save-chooser-preserved') == {
+            'checked': 'export-save-chooser-preserved'}
+        assert reads[:2] == [0.0, .2]
+        assert now[0] == .2
+    else:
+        expected = ('ui:timeout:save-draft-result' if fault == 'persistent' else
+                    'ui:feedback-nonempty-draft' if fault == 'draft' else 'ui:system-prompt')
+        with pytest.raises(accessible_ui.UiError, match=expected):
+            ui.save_chooser_operation('export-save-chooser-preserved')
+        assert now[0] == (.4 if fault == 'persistent' else 0.0)
+    cancel.action.do_action.assert_called_once_with(0)
+    accept.action.do_action.assert_not_called()
+    for node in caller.children:
+        node.action.do_action.assert_not_called()
+    ui.api.EditableText.set_text_contents.assert_not_called()
+    assert not ui.input_uncertain
+
+
 @pytest.mark.parametrize('step', ['location', 'destination'])
 def test_denied_save_supplies_and_independently_checks_only_fixed_destination(step):
     ui, window, field, _, _ = save_ui()

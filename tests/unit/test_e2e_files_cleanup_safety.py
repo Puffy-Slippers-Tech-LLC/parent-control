@@ -27,9 +27,11 @@ def exported_format_validation_on_development_host(monkeypatch):
     # from source; the isolated VM command uses its fixed installed common path.
     from tests.support.paths import ROOT
     monkeypatch.syspath_prepend(str(ROOT / 'common'))
+    # Synthetic exports declare Ubuntu unless a test selects the Fedora tuple.
+    monkeypatch.setattr(guest.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
 
 
-def diagnostic_bytes(*, maximum=False):
+def diagnostic_bytes(*, maximum=False, os_id='ubuntu'):
     from common.oh_no_parent_control_ui.diagnostic_report import build_report
     from common.oh_no_parent_control_ui.diagnostic_events import event
     from tests.support.system_info import sample_info
@@ -38,7 +40,9 @@ def diagnostic_bytes(*, maximum=False):
     logs = ({f'{component}/2026-09-{day:02}.log': []
              for component in ('broker', 'child', 'kiosk', 'parent') for day in (10, 11, 12)}
             if maximum else {'broker/2026-09-12.log': [record]})
-    return build_report(logs, system_info=sample_info())
+    system = sample_info()
+    system['os'] = {'id': os_id, 'version': '44' if os_id == 'fedora' else '26.04'}
+    return build_report(logs, system_info=system)
 
 
 def saved_diagnostics(home, content, *, mode=0o700):
@@ -53,8 +57,11 @@ def saved_diagnostics(home, content, *, mode=0o700):
 
 
 @pytest.mark.parametrize('mode', [0o700, 0o755])
-def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(home, mode):
-    receipt = saved_diagnostics(home, diagnostic_bytes(maximum=True), mode=mode)
+@pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
+def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(home, monkeypatch, mode, os_id):
+    # Both tuples retain exact inventory, original-owner and cleanup checks.
+    monkeypatch.setattr(guest.platform, 'freedesktop_os_release', lambda: {'ID': os_id})
+    receipt = saved_diagnostics(home, diagnostic_bytes(maximum=True, os_id=os_id), mode=mode)
     calls = []
     def call(argv, **kwargs):
         calls.append(argv[7])
@@ -78,6 +85,17 @@ def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(ho
     assert sorted(p.name for p in root.iterdir()) == ['unrelated.txt']
     assert root.stat().st_mode & 0o777 == mode
     assert (root / 'unrelated.txt').read_bytes() == b'preserve existing download'
+
+
+@pytest.mark.parametrize(('guest_os', 'reported_os'), [('ubuntu', 'fedora'), ('fedora', 'ubuntu')])
+def test_diagnostic_export_refuses_wrong_os_and_preserves_saved_file(home, monkeypatch, guest_os, reported_os):
+    monkeypatch.setattr(guest.platform, 'freedesktop_os_release', lambda: {'ID': guest_os})
+    content = diagnostic_bytes(os_id=reported_os)
+    receipt = saved_diagnostics(home, content)
+    with pytest.raises(ValueError):
+        guest.operate(home, 'open-zip', {'receipt': receipt, 'artifact': 'diagnostic-export'}, 'save')
+    assert (home / 'Downloads' / guest.SAVE_NAME).read_bytes() == content
+    assert guest.operate(home, 'read', receipt, 'save') == receipt
 
 
 @pytest.mark.parametrize('fault', ['attempt', 'user', 'artifact', 'owner', 'receipt', 'failed', 'transport'])

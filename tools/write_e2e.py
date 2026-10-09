@@ -29,6 +29,59 @@ INITIAL_PROMPT = """Implement the next task in docs/TestAutomation/E2E-Execution
 through host validation and the first live VM test. Close the task if it passes;
 if it fails, hand off the failure to the next session.
 """
+LIVE_DIAGNOSIS_INSTRUCTIONS = """Live diagnosis and repair loop:
+Follow tests/README.md#live-diagnosis-before-another-repair-attempt. After an initial
+scoped attempt, use a bounded source/log review to choose between a proven correction
+and live investigation. When the cause remains unclear, evidence conflicts, or a
+correction repeats the same failure, reproduce in an owned maintenance VM before
+another speculative patch or full acceptance run. Do not wait for a fixed number
+of failed rounds. A directly established mechanical cause needs no mandatory probe.
+Let the failed runner finish its evidence and cleanup first; never pause or adopt
+its lease. Use tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false
+for a maintenance reproduction, then tools/test-vm --vm NAME exec -- COMMAND [ARG ...]
+for guarded guest probes. Keep shared watch and input/identity guards active.
+Engineering investigation is separate from E2E acceptance. Use whatever guest-side
+inspection, debugging, temporary instrumentation and controlled state changes are
+needed to establish the cause and validate a fix, including root access when useful.
+Use the identity, privileges, environment and graphical/session bus context where
+the failure occurs, including the non-admin child session. A successful root-shell
+probe does not establish what happens in that child session. Switch or instrument
+the relevant guest context as needed and observe the failing operation there.
+Inspect the VM's internals directly; public-action/result restrictions on customer
+acceptance do not prohibit internal probes or experiments during investigation.
+Keep experiments within the owned disposable guest and maintained command routes;
+record changes and recreate clean state for acceptance.
+Reproduce with the shared journey/helpers, stop progression at the suspect boundary,
+and keep that maintenance guest running while inspecting the actual failing state.
+Name competing hypotheses and choose a probe whose result distinguishes them.
+Use focused live fix experiments, comparing the original symptom and
+independent result before/after one causal change. Product installation still uses
+make install. Internal probes/instrumentation are diagnostic evidence, not customer
+acceptance, and never authorize bypassing an input or ownership refusal.
+If unresolved, continue useful live probing and live fix validation in further
+rounds: refine the hypothesis/probe using new evidence, not repeated guesses.
+A single inconclusive probe is not a reason to abandon live investigation.
+If a bounded investigation remains unresolved but has useful next live work,
+finish owned maintenance cleanup and return investigating with live_result not_run,
+repair_outcome diagnostic and an empty failure_checkpoint. This is available only
+after a retained failed acceptance attempt; host_validated reports actual checks.
+Record actual new observations and a concrete next probe, not just plans to probe.
+Do not run full acceptance merely to qualify for another session, or return stalled
+while a useful authorized live experiment remains. The continuation consumes a
+session but no new acceptance attempt and preserves the last formal failure.
+Carry established observations, ruled-out hypotheses, exact reproduction/probe
+commands, experimental changes/results, cleanup and the next discriminating live
+experiment in the handoff. After session cleanup, the next coordinator recreates
+the reproduction under its own maintenance ownership; it does not inherit a VM.
+Keep experiments bounded within the existing session/task limits. Reasoning is
+not stalled while a useful authorized probe or experiment remains available.
+Codify a supported correction in maintained source/shared helpers, remove temporary
+instrumentation, run affected host checks, and finish tools/test-vm --vm NAME stop
+before clean live acceptance through tools/run-tests. Live experiments cannot
+replace that acceptance, erase a failed attempt or change model-promotion counts.
+The failed-acceptance handoff boundary still applies; maintenance experiments
+investigate the previous failure before the session's acceptance attempt.
+"""
 
 
 def queue_state(root):
@@ -198,6 +251,8 @@ def session_progress(root, state, count):
     summary = ('Writing task code + host validation + first live VM test; close on success, hand off on failure'
                if state['phase'] == 'implement' else
                f"Investigate/fix previous failure + host validation + live VM test {state['live_attempts'] + 1}; close on success, hand off on failure")
+    if state.get('diagnostic_continuation'):
+        summary = 'Continue live probing/fix experiments; clean acceptance when the correction is supported'
     model, effort = session_model(state)
     return [f'{task_label}: {title}',
             f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary} ({model} {effort})"]
@@ -350,6 +405,8 @@ dumps and repeated broad scans. Use bounded diagnostic output and evidence paths
 Keep handoffs concise, carrying decisions and remaining work rather than transcripts.
 Do not reduce required reading, assertions, validation or cleanup to save tokens.
 
+{LIVE_DIAGNOSIS_INSTRUCTIONS}
+
 Return the required structured result; only blockers requiring developer action
 return blocked so the launcher pauses for the user's answer. Keep summary under
 600 characters and handoff under 16000.
@@ -373,6 +430,8 @@ blocked, never stalled. For blocked or task_complete use not_applicable.
 Use an empty failure_checkpoint when live_result is not failed; furthest_checkpoint
 may be empty when nothing has been independently verified.
 Previous progress: {json.dumps(state.get('progress'), ensure_ascii=False)}
+Last formal live acceptance: {json.dumps(acceptance_evidence(state), ensure_ascii=False)}
+Previous diagnostic progress: {json.dumps(state.get('diagnostic_progress'), ensure_ascii=False)}
 {BLOCKER_INSTRUCTIONS}
 Missing generated qualification assets are routine test preparation. Use the
 maintained artifact builder to prepare missing named inputs, then resume validation
@@ -381,8 +440,10 @@ in the runner when appropriate; preserve valid existing inputs and all guards.
 A preparation failure before VM access is not a failed live VM attempt and does
 not trigger the live-failure handoff boundary. Repair authorized preparation
 defects and retry preparation; do not count them as acceptance or advance the task.
-The handoff is a standalone prompt with only remaining work, task ID, exact next
+The handoff is a standalone prompt with remaining work, task ID, exact next
 commands/selectors, evidence paths, blockers and recommended model/effort.
+Retain the live investigation's established and rejected hypotheses, experiment
+results and next discriminating probe; do not reset to log-only guessing on resume.
 Carry forward user decisions that still apply to that remaining work.
 Format summary and handoff as Markdown: backticks for inline paths, selectors
 and identifiers; fenced bash blocks for commands; Markdown links for references.
@@ -430,7 +491,8 @@ Last safe handoff:
     else:
         preparation = common + """
 Continue this task with the selected coordinator from the handoff and current source/evidence.
-Start by investigating the previous VM validation error, when present. Review
+Start by investigating the previous VM validation error, when present, using the
+live diagnosis and repair loop above when its cause is not established. Review
 unstaged code (including new files) and retained failure evidence, apply the
 repository failure contract and repair authorized defects. For interrupted or
 blocked work, recheck the operation or prerequisite and owned test cleanup first.
@@ -450,7 +512,8 @@ selected by the launcher.
 Leave investigation and repairs of this new failure to the next session; do not
 repair it, retry live acceptance or advance the pointer in this session.
 Do not end a normal session with only host validation: finish live VM validation
-with a passed or failed result. If a prerequisite still prevents validation after
+with a passed or failed result, except for the investigating continuation above
+when the previous failure still needs useful live diagnosis. If a prerequisite still prevents validation after
 authorized repair and requires developer action, return blocked with the actual
 live_result and the specific external action needed; do not claim a VM attempt.
 After all acceptance and cleanup pass, complete the plan's close-out and return
@@ -496,6 +559,7 @@ The launcher owns staging and commits the validated fix as
 invoke write-e2e/fix-tests. Preserve unrelated staged and unstaged work. Read
 current source; do not inspect prior Codex sessions, memories or transcripts.
 No delegation. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
+{LIVE_DIAGNOSIS_INSTRUCTIONS}
 This optimization is resumable; recheck interrupted operations and owned cleanup
 using the retained runner evidence before continuing. Missing authority or a
 required behavior decision returns blocked with a concrete question.
@@ -504,15 +568,19 @@ Return the existing structured result with task_id {state['task_id']}.
 Use task_complete only when both asks, affected validation and cleanup are done,
 host_validated true, live_result passed or not_run as appropriate, progress outcome
 not_applicable, and explicit optimization-owned stage_paths (deletions included).
+After failed live validation, completion requires a subsequent clean live pass;
+not_run cannot clear that failure, including after blockers or diagnostic rounds.
 No changes or lessons is a valid audited outcome; report the evidence in summary.
 A failed live validation returns ready_for_vm with host_validated true and a
-failed live_result; unresolved work without a developer blocker returns stalled.
+failed live_result. After that failure, useful unresolved live diagnosis may return
+investigating as above; reasoning with no useful next step returns stalled.
 Keep summary under 600 characters and handoff under 16000; carry only findings,
 decisions, remaining work, exact selectors and evidence paths across sessions.
 {BLOCKER_INSTRUCTIONS}
 
 Previous optimization handoff:
 {state['handoff']}
+Last formal live acceptance: {json.dumps(acceptance_evidence(state), ensure_ascii=False)}
 User answer: {json.dumps(state.get('user_answer'), ensure_ascii=False)}
 Recovery evidence: {state.get('recovery_run', 'current workflow directory')}
 """
@@ -546,9 +614,22 @@ def start_optimization(state):
     return selected
 
 
+def acceptance_evidence(state):
+    """Keep live evidence independent of promotion accounting and session status."""
+    if 'acceptance' in state:
+        return state['acceptance']
+    # Migrate retained checkpoints without inventing checkpoint details. Blockers
+    # did not spend failed_attempts, but older progress may still prove a failure.
+    progress = state.get('progress')
+    if ((progress or {}).get('failure_checkpoint')
+            or state.get('failed_attempts', state.get('live_attempts', 0))):
+        return {'live_result': 'failed', 'progress': progress}
+    return None
+
+
 def validate_progress(state, result):
     progress = result.get('progress')
-    if progress is None and 'progress' not in result and result['status'] != 'stalled':
+    if progress is None and 'progress' not in result and result['status'] not in ('stalled', 'investigating'):
         # Retained results from an older launcher still use all acceptance guards.
         return None
     if (not isinstance(progress, dict)
@@ -558,14 +639,16 @@ def validate_progress(state, result):
         raise ValueError('invalid escalation progress')
     outcome = progress['repair_outcome']
     allowed = ({'stalled'} if result['status'] == 'stalled' else
+               {'diagnostic'} if result['status'] == 'investigating' else
                {'advanced', 'diagnostic', 'failed_repair'} if result['status'] == 'ready_for_vm'
                else {'not_applicable'})
     if (not isinstance(outcome, str) or outcome not in allowed
             or bool(progress['failure_checkpoint'].strip()) != (result['live_result'] == 'failed')):
         raise ValueError('escalation progress does not match validation outcome')
     if outcome == 'failed_repair':
-        previous = state.get('progress') or {}
-        if (not previous.get('failure_checkpoint')
+        acceptance = acceptance_evidence(state) or {}
+        previous = acceptance.get('progress') or {}
+        if (acceptance.get('live_result') != 'failed' or not previous.get('failure_checkpoint')
                 or progress['failure_checkpoint'] != previous['failure_checkpoint']
                 or progress['furthest_checkpoint'] != previous['furthest_checkpoint']):
             raise ValueError('failed repair must retain the same failure and verified checkpoint')
@@ -574,7 +657,7 @@ def validate_progress(state, result):
 
 def accept_result(root, state, result, before):
     if (not isinstance(result, dict) or result.get('task_id') != state['task_id']
-            or result.get('status') not in ('ready_for_vm', 'task_complete', 'blocked', 'stalled')
+            or result.get('status') not in ('ready_for_vm', 'investigating', 'task_complete', 'blocked', 'stalled')
             or result.get('live_result') not in ('not_run', 'failed', 'passed')
             or type(result.get('host_validated')) is not bool
             or not isinstance(result.get('stage_paths'), list)
@@ -589,13 +672,21 @@ def accept_result(root, state, result, before):
     elif blocker is not None:
         raise ValueError('only a blocked result may ask a question')
     progress = validate_progress(state, result)
+    acceptance = acceptance_evidence(state)
+    outstanding_failure = bool(acceptance and acceptance['live_result'] == 'failed')
+    if result['status'] == 'investigating':
+        if not outstanding_failure or result['live_result'] != 'not_run':
+            raise ValueError('diagnostic continuation requires a prior failed acceptance and no new live result')
+    if result['live_result'] != 'not_run':
+        acceptance = {'live_result': result['live_result'], 'progress': progress}
     current, after = queue_state(root)
     task = state['task_id']
     if state.get('optimization_session'):
         if list(after.items()) != list(before.items()):
             raise ValueError('optimization changed queue status or order')
         if result['status'] == 'task_complete' and (
-                not result['host_validated'] or result['live_result'] == 'failed'):
+                not result['host_validated'] or result['live_result'] == 'failed'
+                or (outstanding_failure and result['live_result'] != 'passed')):
             raise ValueError('optimization completion lacks passing validation')
         if result['status'] != 'task_complete' and result['stage_paths']:
             raise ValueError('incomplete optimization requested staging')
@@ -605,7 +696,10 @@ def accept_result(root, state, result, before):
         if result['status'] == 'stalled' and result['live_result'] == 'passed':
             raise ValueError('optimization stall cannot claim passing live acceptance')
         return dict(state, summary=result['summary'], handoff=result['handoff'],
-                    in_flight=False, blocker=blocker, progress=progress,
+                    in_flight=False, blocker=blocker, acceptance=acceptance,
+                    progress=state.get('progress') if result['live_result'] == 'not_run' else progress,
+                    diagnostic_progress=progress if result['status'] == 'investigating' else None,
+                    diagnostic_continuation=result['status'] == 'investigating',
                     phase='complete' if result['status'] == 'task_complete' else
                           'blocked' if result['status'] == 'blocked' else 'optimize')
     if any(after.get(key) != complete for key, complete in before.items() if key != task):
@@ -627,9 +721,17 @@ def accept_result(root, state, result, before):
             raise ValueError('VM handoff lacks host validation or a matching live outcome')
     if status == 'stalled' and result['live_result'] == 'passed':
         raise ValueError('reasoning stall cannot claim passing live acceptance')
-    updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False)
+    updated = dict(state, summary=result['summary'], handoff=result['handoff'], in_flight=False,
+                   acceptance=acceptance)
     updated['model_tier'] = model_tier(state)
     updated['failed_attempts'] = state.get('failed_attempts', state.get('live_attempts', 0))
+    updated['diagnostic_continuation'] = status == 'investigating'
+    if status == 'investigating':
+        # Retain formal failure/checkpoint evidence for later same-checkpoint
+        # failed-repair promotion; diagnostic probes are not acceptance attempts.
+        updated['diagnostic_progress'] = progress
+    else:
+        updated.pop('diagnostic_progress', None)
     if status in ('ready_for_vm', 'stalled'):
         if result['live_result'] == 'failed':
             updated['failed_attempts'] += 1
@@ -644,7 +746,7 @@ def accept_result(root, state, result, before):
     if state['phase'] in ('implement', 'live', 'recover') and result['live_result'] != 'not_run':
         updated['live_attempts'] += 1
     updated['phase'] = ('complete' if status == 'task_complete' else
-                        'live' if status == 'ready_for_vm' else
+                        'live' if status in ('ready_for_vm', 'investigating') else
                         'recover' if status == 'stalled' else 'blocked')
     if current != task and status == 'blocked':
         return defer_to_prerequisite(root, updated)

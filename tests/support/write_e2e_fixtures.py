@@ -25,7 +25,7 @@ def reply(status='ready_for_vm', live='failed', **values):
             'progress': {'failure_checkpoint': 'qualification:entry' if live == 'failed' else '',
                          'furthest_checkpoint': 'qualification:prepared',
                          'repair_outcome': 'stalled' if status == 'stalled' else
-                                           'diagnostic' if status == 'ready_for_vm' else 'not_applicable'},
+                                           'diagnostic' if status in ('ready_for_vm', 'investigating') else 'not_applicable'},
             **values}
 
 

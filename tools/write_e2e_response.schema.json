@@ -1,7 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "status": {"type": "string", "enum": ["ready_for_vm", "task_complete", "blocked", "stalled"]},
+    "status": {"type": "string", "enum": ["ready_for_vm", "investigating", "task_complete", "blocked", "stalled"]},
     "task_id": {"type": "string"},
     "summary": {"type": "string"},
     "handoff": {"type": "string"},

@@ -41,6 +41,10 @@ threads and owned agent cleanup
 remain unchanged; no network, shared cache, VM or new cleanup owner is added.
 The existing compatible unit and cleanup classifications remain appropriate.
 
+Diagnostic failure/blocker restart coverage reuses write_e2e's private checkpoints,
+question files and bounded waited agent doubles. It adds no VM, network, shared
+resource or cleanup owner; both existing compatible classifications still apply.
+
 sync_whatsnew uses tiny private pytest Markdown/TOML/PO/catalogue trees, bounded waited
 gettext/Make subprocesses and a private Codex double under the existing detached
 worker/supervisor ownership. Children are reaped through that established owner;

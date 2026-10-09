@@ -226,6 +226,8 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # Missing-completion recovery uses private checkouts and waited owner/agent
 # doubles under the existing write-e2e fixture. No live VM or shared mutable
 # resource is added; cleanup and unit scheduling remain compatible.
+# Diagnostic failure/blocker restarts use the same private checkpoints/question
+# files and bounded waited agent doubles; no new resource or cleanup owner.
 # The batch, separate-run checkpoint, cumulative-session restart, cross-session staging,
 # missing-completion recovery and early worker-spawn failure cases use private bare
 # Git remotes and finite waited Git commands; no network or shared state is added,

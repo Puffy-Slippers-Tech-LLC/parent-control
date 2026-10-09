@@ -747,7 +747,9 @@ the interrupted operation or blocked prerequisite and owned cleanup. Every live
 failure ends the session after evidence preservation and cleanup; investigation
 and repairs of that new failure belong to the next session. A normal handoff
 requires passing host checks and a completed failed VM attempt, including in
-recovery. A preparation failure before VM access does not count as a failed live
+recovery. The diagnostic continuation below permits further useful live
+investigation of a retained failure without another acceptance attempt.
+A preparation failure before VM access does not count as a failed live
 attempt: repair authorized mechanical defects or prepare missing generated inputs
 through the maintained artifact builder and resume validation in the same session.
 Do not ask the developer to choose between building and restoring qualification
@@ -767,6 +769,127 @@ close-out files; the launcher stages, commits and pushes those files before
 starting another session. This staging uses literal Git paths and needs no
 agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
 Staged code is the baseline; agents do not analyze staged diffs.
+
+#### Live diagnosis before another repair attempt
+
+After an initial scoped live attempt, start repair with bounded source and
+retained-error review. Use a directly established mechanical cause to make a
+focused correction. When that review leaves competing explanations, the failure
+depends on transient session/process state, or a correction fails again at the
+same checkpoint without explaining why, move to live reproduction and probing
+before another speculative patch or full acceptance run. Do not wait for a fixed
+number of failures or require maintenance for every straightforward defect.
+Explain the unresolved question and the observation that would distinguish its
+possible causes. A timeout or generic transport error alone does not identify one.
+
+The repair session's sequence is evidence review → live reproduction/probes when
+needed → focused live fix experiment → maintained correction and host checks →
+clean acceptance. Failed formal acceptance still ends the session after evidence
+and owned cleanup; the next session investigates it. Diagnostic experiments on
+the previous failure happen before that session's formal acceptance attempt.
+They do not erase the original failure, supply acceptance credit, renew session
+limits or alter the launcher's unsuccessful-attempt/promotion accounting.
+
+If bounded live investigation remains unresolved but has useful next work,
+return structured status `investigating` after owned maintenance cleanup, with
+`live_result: not_run`, actual `host_validated`, empty `stage_paths`, no blocker,
+and progress outcome `diagnostic` with an empty `failure_checkpoint`. Report
+actual new observations and an exact next live experiment in the handoff. This
+is a continuation of a prior failed acceptance attempt, not an alternative to
+the first attempt or a way to skip validation after a supported correction.
+The launcher refuses it without a prior failed acceptance or if it claims a new
+live pass/failure, staging or queue advancement. It retains the formal failure's
+progress separately from diagnostic progress, preserving subsequent
+same-checkpoint failed-repair promotion. Each continuation consumes the existing
+session budget, but increments neither live/unsuccessful-attempt counts nor the
+model tier. Success still requires all host and clean live acceptance checks.
+This route also applies to optimization repair after its own failed validation.
+Formal live outcomes are retained independently of promotion counters. A failed
+attempt reported with a blocker permits diagnostic continuation after the blocker
+is resolved, without counting the blocker as a failed repair. Blockers, stalls and
+diagnostic rounds without a new live attempt preserve the last formal outcome and
+its checkpoint evidence. An outstanding optimization live failure requires a
+subsequent clean live pass; host-only completion cannot clear it.
+
+Engineering investigation and customer E2E acceptance are separate activities.
+During investigation, use whatever guest-side inspection, debugger, temporary
+instrumentation, direct internal API calls or controlled state changes are needed
+to establish the cause and validate a correction. Root access is one available
+tool, not the required investigation context: reproduce and probe under the
+actual account, privileges, environment and session where the failure occurs,
+including a non-admin child's graphical session and session bus. Switch identities
+or instrument that context as needed; success from a root shell cannot establish
+the result in the affected child session. E2E restrictions to public actions and
+results do not restrict these engineering experiments. Use the owned disposable
+VM and maintained transport/observation routes, record the experimental changes,
+then validate the maintained fix with clean customer acceptance.
+
+1. Let any test runner finish collection and owned cleanup. Do not suspend its
+   process, intercept teardown, borrow its lease or adopt a foreign running VM.
+   Start an owned online maintenance instance through
+   `tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false`,
+   under the [live preparation contract](../docs/TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
+   A matching instance already owned by this workflow can be reused through its
+   maintained ownership checks. Use the selected registered target, valid package
+   input and required baseline; a missing prerequisite follows its repair/blocker
+   route. This creates a separate reproduction after the failed attempt's cleanup;
+   it does not retain the failed runner's state.
+2. Recreate the smallest history that actually exhibits the original symptom,
+   using the existing shared journey/helpers and the same relevant accounts,
+   policy, session transitions and timing. Stop progression at the suspect
+   boundary and keep this maintenance guest running while investigating. Do not
+   invoke another full test whose cleanup would remove that reproduction. If a
+   shared operation lacks a diagnostic entry point, add the smallest maintained
+   route in its owner rather than duplicate case mechanics or bypass guards.
+   An unreproduced symptom is an unresolved hypothesis, not a validated fix.
+3. Use `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]`
+   for direct guest investigation under the [VM mandate](../docs/Mandates/VM-Mandate.MD#owned-maintenance-and-execution).
+   Its `--input-file 'PATH'` option passes a bounded caller-owned regular file to
+   guest stdin when a diagnostic script/input is needed; it is not a host shell
+   or arbitrary privileged host-file reader. Shared watch, intention, guarded
+   transport and VM identity checks remain active between commands. Probe actual
+   process/session ownership, service and bus state, API responses or event order
+   as the question requires, instead of inferring them only from postmortem logs.
+   Keep output bounded and free of secrets/PII. Internal instrumentation belongs
+   to engineering diagnosis. Guest experiments may inspect and manipulate internal
+   product state; actual secret entry still requires a verified recipient and
+   must respect uncertain-input guards.
+4. State a hypothesis and its predicted observation before each experiment.
+   Capture the unmodified symptom and relevant live state, change one causal
+   factor where practical, then independently observe the same operation/result.
+   Change guest runtime state and add temporary diagnostic instrumentation as
+   needed; prefer reversible changes when practical. Record exactly what changed
+   and whether the prediction held. Product
+   installation, reinstallation and upgrade still use `make install`; do not
+   turn guest tinkering into an alternate deployment or prerequisite-preparation
+   route. Do not modify reusable snapshots or weaken assertions/ownership/input
+   guards. If a transition destroys the reproduction, deliberately recreate its
+   history before the next comparison. A successful command, a vanished symptom
+   without a reproduced baseline, or an extra sleep alone is not causal evidence.
+5. If still unresolved, continue live probing and live fix validation in further
+   rounds. Choose the next discriminating observation from what the previous
+   experiment established; retain and retire disproven hypotheses. One
+   inconclusive probe does not send the workflow back to log-only guessing.
+   Repeated experiments need a new hypothesis, changed probe or materially new
+   evidence. Bound each command and investigation to the existing task/session
+   limits; do not create an unbounded retry loop or claim a reasoning stall while
+   a useful authorized experiment remains. A handoff carries the symptom,
+   reproduction inputs/commands, established observations, rejected explanations,
+   temporary changes and before/after results, evidence locations, cleanup and
+   exact next live probe. End the session with owned maintenance cleanup; the
+   following coordinator recreates the reproduction under its own ownership
+   and continues the live investigation instead of inheriting a guest or
+   restarting already disproven theories. If safe reproduction is unavailable,
+   record why, the remaining uncertainty and the best supported next observation;
+   do not manufacture a cause or ask for approval already provided.
+6. Move a causally supported correction into maintained source/shared helpers and
+   add the lowest effective regression when needed. Remove temporary
+   instrumentation, finish affected host checks and run
+   `tools/test-vm --vm NAME stop` to complete maintenance cleanup before formal
+   acceptance through `tools/run-tests` with the original required selectors and
+   assertions. Acceptance uses fresh declared state and the maintained package,
+   not experimental guest mutations. Keep expected versus actual behavior and
+   unresolved product decisions under [failure handling](#handling-test-failures).
 
 Close-out ignores reported paths that are absent from both the working tree and
 the Git index, such as temporary briefs created and deleted within the task.

@@ -391,6 +391,188 @@ def test_implementation_prompt_preserves_requested_boundary():
     assert 'tools/run-tests' in prompt
 
 
+@pytest.mark.parametrize('phase', ['implement', 'live', 'recover', 'completion_recovery', 'optimize'])
+def test_live_diagnosis_is_available_across_repairs_and_requires_clean_acceptance(phase):
+    state = dict(workflow.fresh_state('001'), phase='recover' if phase == 'completion_recovery' else phase)
+    if phase == 'completion_recovery':
+        state.update(completion_recovery=True, recovery_run='retained-run')
+    if phase == 'optimize':
+        state.update(optimization_session=True, optimization={'pending': ['001', '002', '003']})
+    prompt = workflow.session_prompt(state)
+    for rule in ('tests/README.md#live-diagnosis-before-another-repair-attempt',
+                 'before\nanother speculative patch or full acceptance run',
+                 'never pause or adopt\nits lease',
+                 'tools/test-vm --vm NAME exec -- COMMAND',
+                 'Engineering investigation is separate from E2E acceptance.',
+                 'including the non-admin child session',
+                 'public-action/result restrictions on customer',
+                 'A single inconclusive probe is not a reason to abandon live investigation',
+                 'return investigating with live_result not_run',
+                 'only\nafter a retained failed acceptance attempt',
+                 'does not inherit a VM',
+                 'before clean live acceptance through tools/run-tests'):
+        assert rule in prompt
+
+
+def test_diagnostic_rounds_preserve_formal_failure_and_next_same_checkpoint_promotion(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply(), before)
+    formal_progress = state['progress'].copy()
+    for index in range(2):
+        handoff = f'Probe {index}: session ownership verified; next compare the live challenge before input.'
+        state = workflow.accept_result(tmp_path, state,
+            reply('investigating', 'not_run', host_validated=False, handoff=handoff), before)
+        assert state['phase'] == 'live' and state['diagnostic_continuation']
+        assert state['live_attempts'] == state['failed_attempts'] == 1
+        assert state['model_tier'] == 0 and state['progress'] == formal_progress
+        assert state['diagnostic_progress']['repair_outcome'] == 'diagnostic'
+        assert state['diagnostic_progress']['failure_checkpoint'] == ''
+        assert handoff in workflow.session_prompt(state)
+        assert 'Continue live probing/fix experiments' in workflow.session_progress(tmp_path, state, index)[-1]
+        assert workflow.queue_state(tmp_path)[0] == '001'
+    state = workflow.accept_result(tmp_path, state, reply(progress=dict(
+        formal_progress, repair_outcome='failed_repair')), before)
+    assert state['model_tier'] == 1 and state['failed_attempts'] == state['live_attempts'] == 2
+    assert not state['diagnostic_continuation'] and 'diagnostic_progress' not in state
+
+
+@pytest.mark.parametrize('fault', ['no-prior-failure', 'failed', 'passed', 'stage', 'queue',
+                                  'missing-progress', 'wrong-progress', 'blocker'])
+def test_invalid_diagnostic_continuation_cannot_bypass_acceptance(tmp_path, fault):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.accept_result(tmp_path, workflow.fresh_state('001'), reply(), before)
+    result = reply('investigating', 'not_run', host_validated=False)
+    if fault == 'no-prior-failure':
+        state = workflow.fresh_state('001')
+    elif fault in ('failed', 'passed'):
+        result = reply('investigating', fault)
+    elif fault == 'stage':
+        result['stage_paths'] = ['repair.py']
+    elif fault == 'queue':
+        (tmp_path / workflow.QUEUE).write_text('| [x] | 001 | First |\n| [ ] | 002 | Second |\n')
+        (tmp_path / workflow.PLAN).write_text('Next task: **002 — Second**.\n')
+    elif fault == 'missing-progress':
+        result.pop('progress')
+    elif fault == 'wrong-progress':
+        result['progress']['repair_outcome'] = 'not_applicable'
+    else:
+        result['blocker'] = reply('blocked')['blocker']
+    with pytest.raises(ValueError):
+        workflow.accept_result(tmp_path, state, result, before)
+
+
+def test_optimization_diagnostic_rounds_keep_failed_acceptance_without_closing_batch(tmp_path):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), phase='optimize', optimization_session=True,
+                 optimization={'pending': ['001', '002', '003']})
+    with pytest.raises(ValueError, match='prior failed acceptance'):
+        workflow.accept_result(tmp_path, state, reply('investigating', 'not_run'), before)
+    state = workflow.accept_result(tmp_path, state, reply(), before)
+    formal_progress = state['progress'].copy()
+    for _ in range(2):
+        state = workflow.accept_result(tmp_path, state, reply('investigating', 'not_run'), before)
+        assert state['phase'] == 'optimize' and state['progress'] == formal_progress
+        assert state['diagnostic_continuation'] and state['live_attempts'] == 0
+        assert state['optimization']['pending'] == ['001', '002', '003']
+
+
+@pytest.mark.parametrize('optimizing', [False, True])
+def test_first_blocked_live_failure_allows_diagnosis_without_promotion(tmp_path, optimizing):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.fresh_state('001')
+    if optimizing:
+        state.update(optimization_session=True, phase='optimize',
+                     optimization={'pending': ['000a', '000b', '001']})
+    failure = reply('blocked', 'failed')
+    state = workflow.accept_result(tmp_path, state, failure, before)
+    assert state['failed_attempts'] == 0 and state['model_tier'] == 0
+    # An answered blocker resumes without manufacturing another acceptance run.
+    state = json.loads(json.dumps(state))
+    state['phase'] = 'optimize' if optimizing else 'recover'
+    state = workflow.accept_result(tmp_path, state,
+        reply('investigating', 'not_run', host_validated=False), before)
+    assert state['acceptance'] == {'live_result': 'failed', 'progress': failure['progress']}
+    assert state['failed_attempts'] == 0 and state['model_tier'] == 0
+    assert json.dumps(failure['progress']) in workflow.session_prompt(state)
+    state = workflow.accept_result(tmp_path, state,
+        reply(progress=dict(failure['progress'], repair_outcome='failed_repair')), before)
+    if not optimizing:
+        assert state['failed_attempts'] == 1 and state['model_tier'] == 1
+    assert workflow.queue_state(tmp_path)[1] == before
+
+
+@pytest.mark.parametrize('optimizing', [False, True])
+@pytest.mark.parametrize('interruption', ['blocked', 'stalled'])
+def test_non_live_handoffs_preserve_failure_for_diagnosis_and_repair(
+        tmp_path, optimizing, interruption):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = workflow.fresh_state('001')
+    if optimizing:
+        state.update(optimization_session=True, phase='optimize',
+                     optimization={'pending': ['000a', '000b', '001']})
+    state = workflow.accept_result(tmp_path, state, reply(), before)
+    failure = state['acceptance']
+    for result in (reply('investigating', 'not_run'),
+                   reply(interruption, 'not_run', host_validated=False),
+                   reply('investigating', 'not_run')):
+        state = workflow.accept_result(tmp_path, state, result, before)
+        state = json.loads(json.dumps(state))
+        assert state['acceptance'] == failure
+    tier = state['model_tier']
+    state = workflow.accept_result(tmp_path, state,
+        reply(progress=dict(failure['progress'], repair_outcome='failed_repair')), before)
+    if not optimizing:
+        assert state['model_tier'] == min(tier + 1, 2)
+
+
+@pytest.mark.parametrize('first_status', ['ready_for_vm', 'blocked'])
+def test_optimization_live_failure_requires_clean_pass_after_diagnostic_handoffs(tmp_path, first_status):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), optimization_session=True, phase='optimize',
+                 optimization={'pending': ['000a', '000b', '001']})
+    state = workflow.accept_result(tmp_path, state, reply(first_status, 'failed'), before)
+    for result in (None, reply('investigating', 'not_run'), reply('blocked', 'not_run'),
+                   reply('stalled', 'not_run'), reply('investigating', 'not_run')):
+        if result:
+            state = workflow.accept_result(tmp_path, state, result, before)
+        with pytest.raises(ValueError, match='passing validation'):
+            workflow.accept_result(tmp_path, state, reply('task_complete', 'not_run'), before)
+    completed = workflow.accept_result(tmp_path, state, reply('task_complete', 'passed'), before)
+    assert completed['phase'] == 'complete' and completed['acceptance']['live_result'] == 'passed'
+
+
+@pytest.mark.parametrize('optimizing', [False, True])
+def test_live_pass_clears_diagnostic_eligibility_despite_historical_failure_counts(tmp_path, optimizing):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), optimization_session=optimizing)
+    state = workflow.accept_result(tmp_path, state, reply(), before)
+    state = workflow.accept_result(tmp_path, state, reply('blocked', 'passed'), before)
+    state = workflow.accept_result(tmp_path, state, reply('blocked', 'not_run'), before)
+    with pytest.raises(ValueError, match='prior failed acceptance'):
+        workflow.accept_result(tmp_path, state, reply('investigating', 'not_run'), before)
+    if optimizing:
+        assert workflow.accept_result(tmp_path, state,
+            reply('task_complete', 'not_run'), before)['phase'] == 'complete'
+
+
+@pytest.mark.parametrize('optimizing', [False, True])
+def test_legacy_failure_evidence_migrates_and_survives_non_live_blocker(tmp_path, optimizing):
+    prepare(tmp_path)
+    _, before = workflow.queue_state(tmp_path)
+    state = dict(workflow.fresh_state('001'), optimization_session=optimizing,
+                 progress=reply()['progress'])
+    state = workflow.accept_result(tmp_path, state, reply('blocked', 'not_run'), before)
+    state = workflow.accept_result(tmp_path, state, reply('investigating', 'not_run'), before)
+    assert state['acceptance'] == {'live_result': 'failed', 'progress': reply()['progress']}
+
+
 @pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 def test_missing_qualification_inputs_are_repaired_without_a_developer_question(phase):
     prompt = workflow.session_prompt(dict(workflow.fresh_state('030a'), phase=phase))

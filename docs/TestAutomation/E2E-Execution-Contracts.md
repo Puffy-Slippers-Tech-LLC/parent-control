@@ -224,6 +224,19 @@ Use shared watch observation and nonsecret intentions under the
 [VM observation mandate](../Mandates/VM-Mandate.MD#vm-observation-mandate).
 The viewer may attach independently; its lifetime never gates the operation.
 
+When a failed attempt's cause remains unclear after initial review, follow the
+[live diagnosis loop](../../tests/README.md#live-diagnosis-before-another-repair-attempt)
+before another speculative correction or acceptance run. Reproduce separately
+in an owned maintenance VM, stop progression at the suspect boundary and probe
+the live state; use focused live fix experiments and continue them across repair
+rounds while useful questions remain. Internal probes and temporary instrumentation
+are permitted engineering diagnosis, separate from the public-action/result
+restrictions on customer acceptance. Investigate in the actual failing account
+and session context, including a non-admin child session, using whatever guest
+inspection or controlled experiments are needed. Finish maintenance cleanup, codify the correction
+and run clean acceptance; experimental results never replace the required public
+actions/results or a failed attempt's retained evidence.
+
 Before preparation or live runs, plan the required report lifetimes under
 [completion and document cleanup](#completion-and-document-cleanup).
 

@@ -512,6 +512,96 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(
         assert json.loads((final / 'result.json').read_text())['tasks'] == 2
 
 
+def test_diagnostic_continuation_survives_restart_without_new_acceptance_or_staging(checkout):
+    root, _ = checkout
+    formal_progress = reply()['progress']
+    script(root, {'result': reply()},
+           {'result': reply('investigating', 'not_run', host_validated=False,
+                            handoff='Probe A ruled out service restart; next inspect the active session bus.')},
+           {'result': reply('investigating', 'not_run', host_validated=False,
+                            handoff='Probe B found stale session identity; next validate rebinding live.')},
+           {'result': reply(progress=dict(formal_progress, repair_outcome='failed_repair'))})
+    first, _ = select_vm(root, ['--sessions', '3'])
+    assert launcher.follow(first, io.StringIO()) == 0
+    state = json.loads((first / 'checkpoint.json').read_text())
+    assert state['task_sessions'] == 3 and state['live_attempts'] == state['failed_attempts'] == 1
+    assert state['progress'] == formal_progress and state['diagnostic_continuation']
+    assert state['model_tier'] == 0 and workflow.queue_state(root)[0] == '001'
+    assert workflow.git_output(root, 'ls-files').stdout == ''
+    retained = (first / 'checkpoint.json').read_bytes()
+    second, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    assert (first / 'checkpoint.json').read_bytes() == retained
+    invocations = calls(root)
+    assert len(invocations) == 4 and 'Probe B found stale session identity' in invocations[-1]['prompt']
+    assert 'Previous diagnostic progress:' in invocations[-1]['prompt']
+    assert all(call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol' for call in invocations)
+    state = json.loads((second / 'checkpoint.json').read_text())
+    assert state['task_sessions'] == 4 and state['live_attempts'] == state['failed_attempts'] == 2
+    assert state['model_tier'] == 1 and not state['diagnostic_continuation']
+    assert workflow.queue_state(root)[0] == '001' and workflow.git_output(root, 'ls-files').stdout == ''
+
+
+def test_diagnostic_rounds_still_exhaust_the_existing_task_session_cap(checkout):
+    root, _ = checkout
+    script(root, {'result': reply()}, *({'result': reply('investigating', 'not_run',
+        handoff=f'Probe {index} observed event order; next compare the session identity.')} for index in range(5)))
+    run, _ = select_vm(root, ['--tasks', '2'])
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 1
+    assert len(calls(root)) == 5
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['task_sessions'] == 5 and state['live_attempts'] == state['failed_attempts'] == 1
+    assert state['model_tier'] == 0 and state['diagnostic_continuation']
+    assert json.loads((run / 'result.json').read_text()) == {'status': 1, 'sessions': 5, 'tasks': 0}
+    assert 'Task 001 is not complete in 5 sessions' in output.getvalue()
+    assert workflow.queue_state(root)[0] == '001'
+
+
+@pytest.mark.parametrize('optimizing', [False, True])
+@pytest.mark.parametrize('first_failure_blocked', [False, True])
+def test_answered_blocker_retains_live_failure_for_diagnosis_across_restart(
+        checkout, monkeypatch, optimizing, first_failure_blocked):
+    from launcher_question import submit
+    root, spawned = checkout
+    state = workflow.fresh_state('001')
+    if optimizing:
+        state.update(optimization_session=True, phase='optimize',
+                     optimization={'pending': ['000a', '000b', '001']})
+    steps = ([{'result': reply('blocked', 'failed')}] if first_failure_blocked else
+             [{'result': reply()}, {'result': reply('investigating', 'not_run')},
+              {'result': reply('blocked', 'not_run')}])
+    script(root, *steps, {'result': reply('investigating', 'not_run', host_validated=False,
+        handoff='Child-session probe confirmed the bus owner; next inspect the live recipient.')},
+        {'result': reply('task_complete', 'not_run')})
+    with monkeypatch.context() as patch:
+        patch.setattr(workflow, 'initial_state', lambda *args, **kwargs: state.copy())
+        first, _ = select_vm(root, ['--sessions', '5'])
+    wait_for(first / 'question.json')
+    (first / 'stop').touch()
+    assert finish_answered_run(first, spawned) == 0
+    retained = (first / 'checkpoint.json').read_bytes()
+    failure = json.loads(retained)['acceptance']
+    question = json.loads((first / 'question.json').read_text())
+    assert submit(first, question['id'], 0)
+    second, _ = select_vm(root, ['--sessions', '1'])
+    assert launcher.follow(second, io.StringIO()) == 0
+    assert (first / 'checkpoint.json').read_bytes() == retained
+    resumed = json.loads((second / 'checkpoint.json').read_text())
+    assert resumed['acceptance'] == failure and resumed['diagnostic_continuation']
+    assert resumed['failed_attempts'] == (0 if optimizing or first_failure_blocked else 1)
+    assert resumed['model_tier'] == 0 and workflow.queue_state(root)[0] == '001'
+    assert workflow.git_output(root, 'ls-files').stdout == ''
+    assert 'Last formal live acceptance:' in calls(root)[-1]['prompt']
+    if optimizing:
+        third, _ = select_vm(root, ['--sessions', '1'])
+        output = io.StringIO()
+        assert launcher.follow(third, output) == 1
+        assert 'optimization completion lacks passing validation' in output.getvalue()
+        assert workflow.git_output(root, 'ls-files').stdout == ''
+        assert json.loads((third / 'checkpoint.json').read_text())['acceptance'] == failure
+
+
 def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
         checkout, tmp_path_factory):
     root, _ = checkout

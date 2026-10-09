@@ -353,7 +353,7 @@ def test_chinese_initial_e2e_reader_uses_real_owned_controls(
     assert not committed(path)
     records = read_events(path)
     assert not [event for event in records if event.get('method') in (
-        'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
+        'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted')]
     assert not [event for event in records if event['event'] in (
         'set_preferences', 'set_parent_control', 'revoke_one_time_grant', 'feedback',
         'logout', 'close_overlay', 'language-committed', 'reboot-requested')]
@@ -824,7 +824,7 @@ def assert_no_policy_or_request_writes(path, *, expected_results=0):
     # startup-error scenario may produce one without submitting a request.
     assert len([event for event in records if event['event'] == 'result']) == expected_results
     assert not [event for event in records if event.get('method') in (
-        'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferences', 'SetRequestMuted')]
+        'RequestOwnAccess', 'RequestAccess', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted')]
 
 
 @pytest.mark.parametrize('selected_language', ['zh-Hans', 'he'])
@@ -1003,7 +1003,7 @@ def test_kiosk_shared_selector_restores_per_child_language_and_approver_independ
         'RequestOwnAccess', 'RequestAccess', 'SetRequestMuted')]
     # Public approver selection persists request choices. It must preserve the
     # default duration, hidden custom value and excluded soft apps for each child.
-    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferences']
+    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferencesWithUnit']
     assert updates and {value[0] for value in updates} == {1001, 1002}
     assert all(value[1:4] == ['1800', 7.5, False] and value[4] in (1000, 1010) for value in updates)
     for uid in (1001, 1002):
@@ -1049,7 +1049,7 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
     assert committed(path) == ['en', 'de', 'he']
     records = read_events(path)
     assert not [event for event in records if event.get('method') in ('RequestAccess', 'RequestOwnAccess')]
-    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferences']
+    updates = [event['values'] for event in records if event.get('method') == 'UpdateRequestPreferencesWithUnit']
     for uid in (1001, 1002):
         assert [value for value in updates if value[0] == uid][-1][1:5] == ['custom', 1.25, True, 1000]
 

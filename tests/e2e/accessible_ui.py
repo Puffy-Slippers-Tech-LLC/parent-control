@@ -8691,16 +8691,18 @@ class AccessibleUI:
             message = ' '.join(node.get_name().split())
             if message == ('正在估算可用时间…' if chinese else 'Calculating time estimate…'):
                 return None
+            prefix = '预计剩余时间：' if chinese else 'Estimated remaining time: '
+            # Every duration, including rest of day, first clears the old
+            # estimate while the shared 250 ms debounce is pending.
+            if message == prefix.rstrip():
+                return None
             if seconds == 0:
                 require(message == 'If approved, access until midnight.', 'ui:kiosk-rest-estimate')
                 return {'kind': 'midnight'}
-            prefix = '预计剩余时间：' if chinese else 'Estimated remaining time: '
             # The shared form keeps its estimate label with a blank duration
             # while the debounced refresh is pending. Whitespace normalization
             # removes the English prefix's trailing space. Reacquire the read
             # within the existing deadline; only a parsed duration is success.
-            if message == prefix.rstrip():
-                return None
             require(message.startswith(prefix), 'ui:kiosk-estimate:request-denied'
                     if message == 'Request denied' else 'ui:kiosk-estimate')
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}

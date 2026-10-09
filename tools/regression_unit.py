@@ -106,6 +106,11 @@ existing relocated, synchronously waited launcher processes. No system bus,
 installed service, shared log directory or new cleanup lifetime is used; the
 service_contract, diagnostic_privacy, systemd_unit and package_configuration
 modules retain compatible overlap.
+The v1.4 package-configuration migration cases reuse the private maintainer
+machine and its bounded, waited subprocess. The real state pass uses only that
+machine's tiny records, lock and atomic writes under the fixture UID; no host
+service, account, shared path or new cleanup lifetime is added. The existing
+package_configuration compatible classification remains appropriate.
 Dependency-collection cases in diagnostics and service_contract mock all service
 and journal commands and use the existing private event/report/rule files.
 Pipe-limit cases launch one isolated Python child each, retain its Popen identity,

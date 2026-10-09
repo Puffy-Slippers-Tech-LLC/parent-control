@@ -12,6 +12,33 @@ from oh_no_parent_control.preferences import (
 )
 
 
+def test_request_unit_legacy_default_and_per_user_persistence(tmp_path):
+    store = PreferenceStore(tmp_path)
+    legacy = default_preferences()
+    del legacy["request"]["last_custom_unit"]
+    legacy["request"]["last_custom_minutes"] = 90
+    store.save(1001, legacy)
+    path = tmp_path / "1001.json"
+    path.write_text(json.dumps(legacy))
+    legacy_bytes = path.read_bytes()
+    assert store.load(1001)["request"]["last_custom_unit"] == "minutes"
+    assert store.load(1001)["request"]["last_custom_minutes"] == 90
+    assert path.read_bytes() == legacy_bytes
+    store.update_request(1001, "custom", 90, True, 1000, custom_unit="hours")
+    restarted = PreferenceStore(tmp_path)
+    assert restarted.load(1001)["request"]["last_custom_unit"] == "hours"
+    assert restarted.load(1001)["request"]["last_custom_minutes"] == 90
+    assert restarted.load(1002)["request"]["last_custom_unit"] == "minutes"
+    before = (tmp_path / "1001.json").read_bytes()
+    for unit in ("days", "", None, [], True):
+        with pytest.raises(PreferencesError):
+            store.update_request(1001, "custom", 90, True, custom_unit=unit)
+        assert (tmp_path / "1001.json").read_bytes() == before
+    # Old callers still send minutes and reset the display unit accordingly.
+    store.update_request(1001, "custom", 30, False)
+    assert store.load(1001)["request"]["last_custom_unit"] == "minutes"
+
+
 def test_time_grant_preset_crud_sorting_and_preservation(tmp_path):
     store = PreferenceStore(tmp_path)
     assert store.load(1001)["personal"]["time_grant_presets"] == list(DEFAULT_TIME_GRANT_PRESETS)

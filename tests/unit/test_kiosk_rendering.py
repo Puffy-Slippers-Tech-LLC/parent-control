@@ -772,12 +772,12 @@ class KioskRenderingTests(unittest.TestCase):
             "self._screen_limit_overlay.add_overlay(self._screen_limit_notice)", source,
         )
         self.assertLess(
-            source.index("self.append(child_selector)"),
-            source.index("self.append(self._screen_limit_overlay)"),
+            source.index("self._body.append(child_selector)"),
+            source.index("self._body.append(self._screen_limit_overlay)"),
         )
         self.assertLess(
-            source.index("self.append(self._screen_limit_overlay)"),
-            source.index("self.append(actions)"),
+            source.index("self._body.append(self._screen_limit_overlay)"),
+            source.index("self._body.append(actions)"),
         )
         self.assertIn("self._screen_time_limit_enabled is True", source)
         self.assertIn(

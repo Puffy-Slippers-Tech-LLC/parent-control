@@ -1557,6 +1557,11 @@ same maintenance envelope and supplies no acceptance credit.
 `tools/test-vm --vm NAME probe-lock-curtain` runs the current shared read-only
 child curtain observer against that owned scene and retains its command evidence.
 It cannot reveal, unlock, authenticate or supply acceptance credit.
+The temporary Task 044 `reproduce-retained-focus` route adds read-only child
+focus checkpoints to that unchanged history, including while the child is
+inactive. These engineering observations authorize no input and establish no
+customer result. Its probe source and route must be removed when the supported
+correction is maintained; the owner finishes the retained scene with `stop`.
 
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256

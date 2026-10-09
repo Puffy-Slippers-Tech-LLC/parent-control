@@ -203,6 +203,15 @@ INTROSPECTION_XML = f"""
       <arg name="last_selected_approver_uid" type="u" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
+    <method name="UpdateRequestPreferencesWithUnit">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="selected_duration" type="s" direction="in"/>
+      <arg name="custom_minutes" type="d" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="last_selected_approver_uid" type="u" direction="in"/>
+      <arg name="custom_unit" type="s" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
     <method name="SetRequestMuted">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="surface" type="s" direction="in"/>
@@ -682,11 +691,12 @@ class Service:
                     raise InvalidRequest("preferences are not valid JSON") from error
                 saved = self.broker.set_preferences(caller_uid, target_uid, value)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
-            elif method == "UpdateRequestPreferences":
-                target_uid, selected, custom, allow_soft, approver_uid = parameters.unpack()
+            elif method in {"UpdateRequestPreferences", "UpdateRequestPreferencesWithUnit"}:
+                values = parameters.unpack()
+                target_uid, selected, custom, allow_soft, approver_uid = values[:5]
                 saved = self.broker.update_request_preferences(
                     caller_uid, target_uid, selected, custom, allow_soft,
-                    approver_uid,
+                    approver_uid, *values[5:],
                 )
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "SetRequestMuted":

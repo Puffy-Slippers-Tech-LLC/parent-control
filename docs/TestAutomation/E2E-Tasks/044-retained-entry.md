@@ -59,7 +59,40 @@ Both runners completed cleanup/restoration and preserved source/host state.
 
 Retained reports: [Ubuntu](../../../output/test-runs/host/exports/onpc-artifact-export-o0pl6hqm/report.md)
 and [Fedora](../../../output/test-runs/host/exports/onpc-artifact-export-zgtvwk5s/report.md).
-Investigate this new failure in the next session, preserving the lock-surface
-guard and assertions. No diagnosis, repair or retry was attempted after this
-failure. All five later regression selectors remain unexecuted. Complete the
+All five later regression selectors remain unexecuted. Complete the
 qualification and those regressions on both selected VMs before close-out.
+
+The repair session reproduced the exact refusal in owned Ubuntu maintenance.
+The sole competing node is the native fixture's focused text entry, not a modal
+or password prompt. The locked child session and its actual session bus report
+ScreenSaver active, but those facts do not establish exclusive keyboard input.
+The reader's guard and all acceptance assertions remain unchanged; failure-only
+structural diagnostics contain no UI text.
+
+One bounded read-only adviser review rejected exemptions for known fixture,
+same-user or nonmodal focus. Shell Component.GrabFocus returned success but left
+the fixture focused. Opening Overview cleared that focus and preserved its
+controls/process/values, yet replaying the full remaining history still produced
+the original curtain refusal. Neither preparation is a supported correction.
+
+A read-only timeline through the original history establishes that source lock
+and switch clear fixture focus. It stays clear through Parent return, zero-time
+configuration, authenticated GDM denial and greeter return. `enter-locked`
+restores fixture focus while the same child remains locked and ScreenSaver stays
+active. The native lock-surface read still requires investigation at that
+activation boundary. Retained engineering artifacts are
+`output/test-runs/privileged/allocations/onpc-retained-focus-diagnosis-xn7i34x5`
+and `onpc-e2e-evidence-w41gamty`; its final read is
+`private/command-1215.txt` in the former allocation.
+
+Use the maintained `reproduce-retained-entry`, temporary
+`reproduce-retained-focus` timeline and `probe-lock-curtain` routes under the
+[live diagnosis contract](../../../tests/README.md#live-diagnosis-before-another-repair-attempt).
+The temporary `tests/e2e/lock_surface_probe.py` supplies fixed engineering modes;
+its new read-only `compositor` mode is the next unexecuted probe. It reads Shell's
+grab/key-focus state only when its existing debug interface permits that read;
+refusal never enables debug access, changes focus or authorizes input. Remove
+the temporary script/timeline route after codifying a supported correction and
+before clean acceptance. No new formal acceptance was attempted in this repair
+session; maintenance cleanup restored the baseline. Host checks passed: 1,331
+affected tests and the source check, followed by 249 ownership/worker checks.

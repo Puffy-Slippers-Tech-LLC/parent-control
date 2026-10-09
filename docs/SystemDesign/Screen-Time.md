@@ -285,6 +285,21 @@ process restart. No saved-data migration is needed. Regression coverage uses
 isolated Node adapter contexts and real GJS error classification; it does not
 claim installed suspend/resume acceptance.
 
+The [locked-session focus controller](../../child/lockedSessionFocus.js) owns a
+GNOME 50 compatibility workaround for keyboard-device reactivation. Mutter can
+restore the remembered client surface while Shell's lock grab remains active.
+An after-handler for the default Clutter seat's `device-added` signal runs after
+Mutter enables keyboard capability. For a keyboard-capable device, a locked
+non-greeter session and an existing stage grab, it re-notifies the public
+`is-grabbed` property so Mutter reapplies its existing device-focus policy.
+It creates no grab, changes no actor focus and never unlocks or relocks. This is
+not a dedicated Clutter focus-resynchronization API; it is qualified against the
+supported GNOME 50 implementation. The synchronous hook is independent of panel
+visibility, prevents reentrant notification, and disconnects on failed extension
+startup or disable. It owns no idle or deferred callback. The
+`child.lock-focus-sync` diagnostic records only a closed completion/failure
+outcome; device, window, account and session identities are excluded.
+
 Once an estimate has been successfully loaded, at zero usable time with a daily
 limit enabled the extension invokes the public GNOME ScreenSaver `Lock` method.
 It reevaluates enforcement when the retained desktop is unlocked without new

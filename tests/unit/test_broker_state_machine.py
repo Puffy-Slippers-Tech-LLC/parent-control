@@ -127,12 +127,13 @@ class ModelPreferences:
         self.values[uid] = validate_preferences(value)
         return self.load(uid)
 
-    def update_request(self, uid, selected, custom, allow_soft, approver=0):
+    def update_request(self, uid, selected, custom, allow_soft, approver=0, custom_unit="minutes"):
         value = self.load(uid)
         value["request"] = {
             **value["request"],
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
+            "last_custom_unit": custom_unit,
             "allow_soft_blocked_apps": allow_soft,
             "last_selected_approver_uid": approver,
         }

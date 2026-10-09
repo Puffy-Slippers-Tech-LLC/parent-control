@@ -14,6 +14,7 @@ import {ChildApplicationUi} from './applicationUi.js';
 import {GnomeApplicationUiAdapter} from './gnomeApplicationUiAdapter.js';
 import {ReminderPreview} from './reminderPreview.js';
 import {WellbeingSuppression} from './wellbeingSuppression.js';
+import {LockedSessionFocus} from './lockedSessionFocus.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -28,6 +29,8 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             this._enable();
         } catch (error) {
+            this._lockedSessionFocus?.close();
+            this._lockedSessionFocus = null;
             this._errors.report(error);
             // Keep GNOME's extension startup failure visible to the broker;
             // a reporting dialog cannot make a failed enforcer healthy.
@@ -37,6 +40,10 @@ export default class OhNoParentControlExtension extends Extension {
 
     _enable() {
         logInfo('child.enabled');
+        this._lockedSessionFocus = new LockedSessionFocus(
+            global.stage.context.get_backend().get_default_seat(), global.stage,
+            Main.sessionMode, outcome => (outcome === 'failed' ? logWarning : logInfo)(
+                'child.lock-focus-sync', {outcome}));
         this._appName = appName(this);
         this._settings = this.getSettings(SETTINGS_SCHEMA);
         this._requestProcess = null;
@@ -112,6 +119,8 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        this._lockedSessionFocus?.close();
+        this._lockedSessionFocus = null;
         try { this._wellbeing?.close(); } catch (_error) {
             logWarning('child.wellbeing', {stage: 'shutdown', outcome: 'failed'});
         }

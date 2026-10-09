@@ -31,6 +31,37 @@ def rpm_script_source(path):
     return path.read_text().replace('%%', '%')
 
 
+def use_real_state_migration(root):
+    """Replace the configuration double with the production migration pass.
+
+    Only state paths and the launcher are adapted for this unprivileged machine;
+    validation, locking and atomic writes run unchanged under the fixture UID.
+    """
+    # Match preinst's private state directory; the lightweight command double
+    # ordinarily has no need to enforce the production filesystem permissions.
+    (root / 'var/lib/oh-no-parent-control').chmod(0o700)
+    helper = root / 'usr/libexec/oh-no-parent-control-migrate-state'
+    helper.unlink()
+    helper.write_text(f'''#!{sys.executable}
+import sys
+from pathlib import Path
+sys.path[:0] = [{str(ROOT)!r}, {str(ROOT / 'broker')!r}]
+from oh_no_parent_control.data_migration import MigrationError, migrate_all_state
+root = Path({str(root)!r})
+state = root / 'var/lib/oh-no-parent-control'
+assert (state / 'migration-in-progress').is_file()
+assert not (root / 'broker-active').exists()
+with (root / 'commands').open('a') as stream:
+    stream.write('oh-no-parent-control-migrate-state \\n')
+try:
+    migrate_all_state(state, product_path=root / 'usr/share/oh-no-parent-control/app.json')
+except MigrationError as error:
+    sys.stderr.write(str(error) + '\\n')
+    raise SystemExit(1)
+''')
+    helper.chmod(0o755)
+
+
 class Machine:
     def __init__(self, root, distribution='ubuntu'):
         self.root = root

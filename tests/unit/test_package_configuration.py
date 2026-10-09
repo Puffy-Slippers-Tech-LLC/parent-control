@@ -18,7 +18,154 @@ BROKER = "oh-no-parent-control-broker.service"
 REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
 
 
-from tests.support.package_scripts import package_machine
+from tests.support.package_scripts import package_machine, use_real_state_migration
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('schema', [1, 2, 3, 4])
+def test_v1_4_configuration_upgrades_legacy_policy_without_losing_choices(package_machine, schema):
+    from oh_no_parent_control.preferences import PreferenceStore
+
+    root, state, run = package_machine
+    use_real_state_migration(root)
+    product = root / 'usr/share/oh-no-parent-control/app.json'
+    product.write_text('{"version": "1.4"}')
+    (state / 'previous-product.json').write_text('{"version": "1.3"}')
+    (state / 'previous-product.json').chmod(0o600)
+    entry = {'state': 'conditional', 'targets': ['/opt/game/game']}
+    if schema >= 2:
+        entry['patterns'] = ['/opt/game/*']
+    if schema >= 3:
+        entry['user_saved_match_rule'] = True
+    legacy = {
+        'version': schema, 'parent_control_enabled': True,
+        'daily_time_limit_minutes': 75, 'apps': {'game.desktop': entry},
+        'request': {'last_selected_duration': 'custom', 'last_custom_minutes': 12.5,
+                    'allow_soft_blocked_apps': True, 'last_selected_approver_uid': 1003,
+                    'child_muted': False, 'kiosk_muted': False},
+    }
+    if schema == 4:
+        legacy['personal'] = {'language': 'fr'}
+    directory = state / 'preferences'
+    directory.mkdir(mode=0o700)
+    record = directory / '1001.json'
+    record.write_text(json.dumps(legacy))
+    record.chmod(0o600)
+    before = record.read_bytes()
+    # Reconfiguration must establish its own exclusion and stop a running broker.
+    (state / 'migration-in-progress').unlink()
+    (root / 'broker-active').touch()
+
+    result = run()
+    assert result.returncode == 0, result.stderr
+    saved = PreferenceStore(directory).load(1001)
+    assert saved['version'] == 4
+    assert saved['parent_control_enabled'] is True
+    assert saved['daily_time_limit_minutes'] == 75
+    assert saved['request'] == legacy['request']
+    assert saved['apps'] == {'game.desktop': {
+        **entry, 'patterns': ['/opt/game/*'] if schema >= 2 else [],
+        'user_saved_match_rule': schema >= 2,
+    }}
+    assert saved['personal'] == {
+        'language': 'fr' if schema == 4 else '',
+        'time_grant_presets': [300, 900, 1800, 3600, 7200, 14400],
+        'notifications': {'show_in_fullscreen': True, 'reminders': [
+            {'id': name, 'value': value, 'unit': unit, 'text': ''}
+            for name, value, unit in [('ten-minutes', 10, 'minute'), ('five-minutes', 5, 'minute'),
+                                     ('one-minute', 1, 'minute'), ('fifteen-seconds', 15, 'second')]]
+        },
+    }
+    if schema == 4:
+        assert record.read_bytes() == before, 'compatible additions need no on-disk rewrite'
+    assert record.stat().st_mode & 0o777 == 0o600
+    assert json.loads((state / 'whats-new-installation.json').read_text()) == {
+        'version': 1, 'first_version': '1.3', 'current_version': '1.4',
+    }
+    assert not (state / 'previous-product.json').exists()
+    commands = (root / 'commands').read_text().splitlines()
+    assert commands.index('oh-no-parent-control-migrate-state ') < commands.index(
+        f'systemctl --system restart {BROKER}')
+    after = record.read_bytes()
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert record.read_bytes() == after
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('personal_only', [False, True])
+@pytest.mark.parametrize('fields', ['reminders', 'presets', 'both', 'empty'])
+def test_v1_4_configuration_retains_personal_customizations(package_machine, personal_only, fields):
+    from oh_no_parent_control.preferences import PreferenceStore, default_preferences
+
+    root, state, run = package_machine
+    use_real_state_migration(root)
+    (root / 'usr/share/oh-no-parent-control/app.json').write_text('{"version": "1.4"}')
+    personal = {'language': 'fr', 'whats_new_seen': ['1.3:Child']}
+    if fields in ('reminders', 'both', 'empty'):
+        personal['notifications'] = {'show_in_fullscreen': False, 'reminders': [] if fields == 'empty' else [
+            {'id': 'save-game', 'value': 42, 'unit': 'second', 'text': '  Save <game>!  '}]}
+    if fields in ('presets', 'both', 'empty'):
+        personal['time_grant_presets'] = [] if fields == 'empty' else [123, 6, 86400]
+    value = {'version': 4, 'personal': personal}
+    if not personal_only:
+        value = {**default_preferences(), **value}
+        # A remembered duration remains valid even when deleted from presets.
+        value['request']['last_selected_duration'] = '900'
+    directory = state / 'preferences'
+    directory.mkdir(mode=0o700)
+    record = directory / '0.json'
+    record.write_text(json.dumps(value))
+    record.chmod(0o600)
+    before = record.read_bytes()
+
+    for _ in range(2):
+        result = run()
+        assert result.returncode == 0, result.stderr
+        assert record.read_bytes() == before
+        saved = PreferenceStore(directory).load(0)
+        assert saved['personal']['language'] == 'fr'
+        assert saved['personal']['whats_new_seen'] == ['1.3:Child']
+        if 'notifications' in personal:
+            assert saved['personal']['notifications'] == personal['notifications']
+        if 'time_grant_presets' in personal:
+            assert saved['personal']['time_grant_presets'] == sorted(personal['time_grant_presets'])
+        if not personal_only:
+            assert saved['request'] == value['request']
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('invalid', [
+    {'version': 5, 'personal': {'language': ''}},
+    {'version': 4, 'personal': {'language': '', 'time_grant_presets': [0]}},
+    {'version': 4, 'personal': {'language': '', 'notifications': {}}},
+], ids=['future-schema', 'invalid-presets', 'invalid-reminders'])
+def test_v1_4_configuration_validation_failure_blocks_activation_and_allows_retry(package_machine, invalid):
+    root, state, run = package_machine
+    use_real_state_migration(root)
+    (root / 'usr/share/oh-no-parent-control/app.json').write_text('{"version": "1.4"}')
+    directory = state / 'preferences'
+    directory.mkdir(mode=0o700)
+    record = directory / '1001.json'
+    record.write_text(json.dumps(invalid))
+    record.chmod(0o600)
+    before = record.read_bytes()
+
+    result = run()
+    assert result.returncode != 0
+    assert (state / 'migration-in-progress').exists()
+    assert record.read_bytes() == before
+    assert f'--system restart {BROKER}' not in (root / 'commands').read_text()
+    assert f'--system start {BROKER}' not in (root / 'commands').read_text()
+    assert not (state / 'whats-new-installation.json').exists()
+
+    # Model correcting the rejected input, then retry normal configuration.
+    record.write_text('{"version": 4, "personal": {"language": "fr"}}')
+    corrected = record.read_bytes()
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert not (state / 'migration-in-progress').exists()
+    assert record.read_bytes() == corrected
 
 
 @pytest.mark.parametrize('package_machine', ['fedora'], indirect=True)

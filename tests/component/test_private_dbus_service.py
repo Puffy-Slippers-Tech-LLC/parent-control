@@ -78,6 +78,9 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
         ("UpdateRequestPreferences",
          GLib.Variant("(usdbu)", (1100, "300", 0.5, False, 1200)),
          "(s)", None),
+        ("UpdateRequestPreferencesWithUnit",
+         GLib.Variant("(usdbus)", (1100, "custom", 90.0, False, 1200, "hours")),
+         "(s)", None),
         ("SetRequestMuted", GLib.Variant("(usb)", (1100, "child", True)),
          "(s)", None),
         ("SetParentControl", GLib.Variant("(ubu)", (1100, True, 60)),
@@ -95,7 +98,7 @@ def test_every_public_method_uses_real_dbus_signatures_and_serialization(private
         if method == "GetPreferences":
             assert json.loads(unpacked[0]) == default_preferences()
         elif method in {
-            "SetPreferences", "UpdateRequestPreferences", "SetRequestMuted",
+            "SetPreferences", "UpdateRequestPreferences", "UpdateRequestPreferencesWithUnit", "SetRequestMuted",
             "SetParentControl",
         }:
             assert isinstance(json.loads(unpacked[0]), dict)

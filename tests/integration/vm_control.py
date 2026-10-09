@@ -373,7 +373,7 @@ def main(argv=None):
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
-                                          'reproduce-retained-focus'))
+                                          'reproduce-retained-focus', 'probe-retained-focus-resync'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -450,6 +450,10 @@ def main(argv=None):
             from vm_probe import probe_lock_curtain
             resume(lease)
             probe_lock_curtain(lease)
+        elif args.action == 'probe-retained-focus-resync':
+            from vm_probe import probe_retained_focus_resync
+            resume(lease)
+            probe_retained_focus_resync(lease)
         else:
             operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')

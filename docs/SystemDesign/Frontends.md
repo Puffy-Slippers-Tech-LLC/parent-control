@@ -938,12 +938,17 @@ local approver does not fall back to `last_selected_approver_uid`; the initial
 eligible selection remains. Preview windows have no local store and may use
 the broker field, but do not persist selectors.
 
-Duration, custom minutes and the soft-app choice still come from the shared
+Duration, custom value/unit and the soft-app choice still come from the shared
 per-child record, so those values follow the child between surfaces. The kiosk's
 last selected child and approver instead belong to the kiosk OS user, and each
 child overlay has its own OS user's approver selection. Sound settings are
 stored separately per child/surface but are not actionable while media is
 disabled.
+
+The custom unit menu floats over the form without contributing to its measured
+height. Its choices stay in the form's GTK overlay/snapshot, so the gateway yaw
+applies to the expanded menu too. Selecting a unit, clicking outside, or Escape
+closes it; Escape first dismisses an open unit menu before the form's exit action.
 
 ## Related design
 

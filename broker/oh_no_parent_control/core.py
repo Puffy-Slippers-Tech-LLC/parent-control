@@ -109,7 +109,8 @@ class Preferences(Protocol):
     def load(self, uid: int) -> dict: ...
     def save(self, uid: int, preferences: object) -> dict: ...
     def update_request(self, uid: int, selected: str, custom: float,
-                       allow_soft: bool, last_selected_approver_uid: int = 0) -> dict: ...
+                       allow_soft: bool, last_selected_approver_uid: int = 0,
+                       custom_unit: str = "minutes") -> dict: ...
     def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict: ...
     def update_language(self, uid: int, language: object) -> str: ...
     def acknowledge_whats_new(self, uid: int, record_id: str, retained: set[str]) -> list[str]: ...
@@ -1064,7 +1065,8 @@ class Broker:
     def update_request_preferences(self, caller_uid: int, target_uid: int,
                                    selected: str, custom: float,
                                    allow_soft: bool,
-                                   last_selected_approver_uid: int = 0) -> dict:
+                                   last_selected_approver_uid: int = 0,
+                                   custom_unit: str = "minutes") -> dict:
         config = self._load_config()
         target = self._target(config, target_uid)
         if caller_uid != target.uid and not self._can_manage_or_kiosk(config, caller_uid):
@@ -1074,7 +1076,7 @@ class Broker:
         try:
             return self._preferences.update_request(
                 target.uid, selected, custom, allow_soft,
-                last_selected_approver_uid,
+                last_selected_approver_uid, custom_unit,
             )
         except PreferencesError as error:
             raise InvalidRequest(str(error)) from error

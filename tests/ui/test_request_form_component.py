@@ -128,6 +128,36 @@ def ready(ui, wait):
     wait(request_is_ready, "request controls ready")
 
 
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_custom_hours_save_restore_and_submit(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay)
+    ready(ui, wait)
+    ui.activate("kiosk-duration-custom")
+    assert ui.getValue("kiosk-custom-duration-units") == "minutes"
+    ui.activate("kiosk-custom-duration-units")
+    ui.activate("kiosk-custom-duration-unit-hours")
+    ui.setText("kiosk-custom-duration", "1.5")
+    wait(lambda: any(call["values"][1:] == ["custom", 90.0, False, 1000, "hours"]
+                     for call in calls(path, "UpdateRequestPreferencesWithUnit")),
+         "hours and equivalent minutes saved together")
+    if not overlay:
+        ui.setValue("kiosk-child-selector", "1002")
+        ready(ui, wait)
+        ui.activate("kiosk-duration-custom")
+        assert ui.getValue("kiosk-custom-duration-units") == "minutes"
+        ui.setValue("kiosk-child-selector", "1001")
+        wait(lambda: ui.getValue("kiosk-custom-duration-units") == "hours",
+             "first child's unit restored")
+        assert ui.getText("kiosk-custom-duration") == "1.5"
+    ui.activate("kiosk-request-submit")
+    method = "RequestOwnAccess" if overlay else "RequestAccess"
+    wait(lambda: bool(calls(path, method)), "hour duration submitted")
+    assert calls(path, method)[0]["values"] == (
+        [1000, 5400, False] if overlay else [1001, 1000, 5400, False])
+
+
 def status(ui, wait, expected):
     wait(lambda: ui.text("kiosk-request-status") == expected, expected)
 
@@ -260,7 +290,7 @@ def test_custom_45_minutes_and_30_minute_preset_submit_distinct_durations(
     ui.setText("kiosk-custom-duration", "45")
     wait_for_accessible_state(
         lambda: any(call["values"][1:3] == ["custom", 45.0]
-                    for call in calls(path, "UpdateRequestPreferences")),
+                    for call in calls(path, "UpdateRequestPreferencesWithUnit")),
         "custom 45-minute choice saved",
     )
     if seconds == 1800:
@@ -268,7 +298,7 @@ def test_custom_45_minutes_and_30_minute_preset_submit_distinct_durations(
         ui.activate("kiosk-duration-1800")
         wait_for_accessible_state(
             lambda: any(call["values"][1] == "1800"
-                        for call in calls(path, "UpdateRequestPreferences")),
+                        for call in calls(path, "UpdateRequestPreferencesWithUnit")),
             "30-minute preset replaces custom choice",
         )
     ui.activate("kiosk-request-submit")

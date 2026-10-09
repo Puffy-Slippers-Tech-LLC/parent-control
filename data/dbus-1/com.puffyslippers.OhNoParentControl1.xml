@@ -157,6 +157,15 @@
       <arg name="last_selected_approver_uid" type="u" direction="in"/>
       <arg name="saved_json" type="s" direction="out"/>
     </method>
+    <method name="UpdateRequestPreferencesWithUnit">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="selected_duration" type="s" direction="in"/>
+      <arg name="custom_minutes" type="d" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="last_selected_approver_uid" type="u" direction="in"/>
+      <arg name="custom_unit" type="s" direction="in"/>
+      <arg name="saved_json" type="s" direction="out"/>
+    </method>
     <method name="SetRequestMuted">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="surface" type="s" direction="in"/>

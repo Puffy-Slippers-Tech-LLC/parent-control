@@ -364,7 +364,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
-                   'probe-lock-curtain', 'reproduce-retained-focus'):
+                   'probe-lock-curtain', 'reproduce-retained-focus', 'probe-retained-focus-resync'):
         command = select(root, ['vm', action, *VM_ARGS])
         assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
         with pytest.raises(ValueError):

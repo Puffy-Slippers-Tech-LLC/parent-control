@@ -141,6 +141,7 @@ the broker resolves and revalidates it.
 | `CalculateOwnRemainingTime` | own | - | - |
 | `PrepareOwnSession` | own | - | - |
 | `UpdateRequestPreferences` | own | selected child | selected child |
+| `UpdateRequestPreferencesWithUnit` | own | selected child | selected child |
 | `SetRequestMuted` | own | selected child | selected child |
 | `SetPreferences` | - | - | selected child |
 | `SetParentControl` | - | - | selected child |
@@ -287,7 +288,7 @@ broker memory. All children selected by the same kiosk therefore share its
 cooldown; different child callers have separate entries. Broker restart clears
 this transient history. The check runs before the authentication prompt.
 
-`SetParentControl`, `UpdateRequestPreferences` and `SetRequestMuted` do not take
+`SetParentControl`, both request-preference methods and `SetRequestMuted` do not take
 that shared lock. The parent serializes its own saves, and approval checks for
 stale preferences, but the lock is not a blanket serialization guarantee for
 every settings write or independent client.

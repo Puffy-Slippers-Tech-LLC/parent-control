@@ -59,6 +59,8 @@ DEMANDS = {
     # and read-only source imports; the child-node demand/isolation is unchanged.
     # Wellbeing lease/client cases likewise use private maps, clocks and settings
     # doubles; no desktop bus, persistent settings or subprocesses are touched.
+    # Locked-session focus cases use synchronous signal/device doubles and
+    # read-only module imports; they add no live seat, bus or cleanup resource.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

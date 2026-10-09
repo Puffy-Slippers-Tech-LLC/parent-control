@@ -35,7 +35,7 @@ apps[desktop-id] = {
     state, targets[], patterns[], user_saved_match_rule
 }
 request = {
-    last_selected_duration, last_custom_minutes,
+    last_selected_duration, last_custom_minutes, last_custom_unit?,
     allow_soft_blocked_apps, last_selected_approver_uid,
     kiosk_muted, child_muted
 }
@@ -44,6 +44,14 @@ request = {
 App states are `allowed`, `permanent` (hard blocked), and `conditional` (soft
 blocked). Normalization omits an allowed entry unless it carries a saved match
 rule that must survive later policy changes.
+
+The optional `request.last_custom_unit` is `minutes` or `hours`, defaulting to
+`minutes` for existing records. `last_custom_minutes` retains its original
+meaning and bounds; the form converts hours at the UI boundary. Both choices
+are saved together per child. This compatible version-4 addition needs no
+migration and leaves released migrations unchanged. The original
+`UpdateRequestPreferences` signature remains available and saves minutes;
+`UpdateRequestPreferencesWithUnit` additionally accepts the unit string.
 This is a storage guarantee. The current Parent restoration path has a
 [precise-override display limitation](Frontends.md#parent-controls-and-shared-information)
 for apps with a suggested wildcard.

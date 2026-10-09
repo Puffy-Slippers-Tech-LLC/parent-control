@@ -280,11 +280,12 @@ class Broker:
             if self.scenario == "two-hours-grant-only":
                 daily = grant = 0
             return Reply((daily, grant, additional, max(daily, grant) + additional))
-        if method == "UpdateRequestPreferences":
-            uid, duration, custom, soft, approver = values
+        if method in {"UpdateRequestPreferences", "UpdateRequestPreferencesWithUnit"}:
+            uid, duration, custom, soft, approver = values[:5]
             self.preferences[uid]["request"].update({
                 "last_selected_duration": duration, "last_custom_minutes": custom,
                 "allow_soft_blocked_apps": soft, "last_selected_approver_uid": approver,
+                "last_custom_unit": values[5] if len(values) == 6 else "minutes",
             })
             return Reply(("saved",))
         if method == "SetRequestMuted":

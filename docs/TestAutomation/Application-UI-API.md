@@ -193,7 +193,8 @@ screen-time control and absent accounts retain their existing restrictions.
 | `kiosk-<role>-choice-<uid>`, `kiosk-<role>-selected-<uid>` | Actual account choice and selected identity |
 | `kiosk-duration-choices`, alias `kiosk-duration` | Get/set seconds string from choices, `0` for rest of day, or `custom` |
 | `kiosk-duration-<seconds>`, `kiosk-duration-custom` | Actual duration radio toggle; selecting it uses the click handler, including custom-field visibility |
-| `kiosk-custom-duration` | Literal minutes text; normal request validation |
+| `kiosk-custom-duration` | Literal text in the selected unit; normal request validation |
+| `kiosk-custom-duration-units` | Unit selector: canonical `minutes` (default) or `hours` |
 | `kiosk-soft-apps-toggle` | Boolean get/set |
 | `kiosk-request-submit`, `kiosk-request-cancel` | Ordinary request/cancel actions; authentication remains external |
 | `kiosk-request-status`, `kiosk-screen-limit-notice` | Current estimate, progress or validation text |

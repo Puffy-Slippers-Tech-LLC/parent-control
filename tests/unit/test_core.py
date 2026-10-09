@@ -1196,6 +1196,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(request["last_custom_minutes"], 22.5)
         self.assertTrue(request["allow_soft_blocked_apps"])
         self.assertEqual(request["last_selected_approver_uid"], 1003)
+        self.assertEqual(request["last_custom_unit"], "minutes")
+        broker.update_request_preferences(991, 1001, "custom", 90, False, 1003, "hours")
+        request = broker.get_preferences(1001, 1001)["request"]
+        self.assertEqual(request["last_custom_minutes"], 90)
+        self.assertEqual(request["last_custom_unit"], "hours")
+        with self.assertRaises(AccessDenied):
+            broker.update_request_preferences(1002, 1001, "custom", 90, False, 1003, "hours")
 
     def test_kiosk_and_child_mutes_are_independent(self):
         preferences = Preferences()

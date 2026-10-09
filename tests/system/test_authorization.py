@@ -20,6 +20,7 @@ METHODS = (
     'ListManagedUsers', 'ListApprovers', 'GetOwnAccount', 'GetPreferences',
     'ListApplications', 'GetTimeStatus', 'CalculateRemainingTime',
     'CalculateOwnRemainingTime', 'PrepareOwnSession', 'UpdateRequestPreferences',
+    'UpdateRequestPreferencesWithUnit',
     'SetRequestMuted', 'SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant',
     'RequestOwnAccess', 'RequestAccess', 'LogEvent',
 )
@@ -91,6 +92,8 @@ def invocation(method, role, accounts):
         'CalculateOwnRemainingTime': ('(u)', (10,), child),
         'PrepareOwnSession': ('()', (), child),
         'UpdateRequestPreferences': ('(usdbu)', (target, '300', 5.0, False, accounts['parent1']), True),
+        'UpdateRequestPreferencesWithUnit': ('(usdbus)',
+            (target, 'custom', 90.0, False, accounts['parent1'], 'hours'), True),
         'SetRequestMuted': ('(usb)', (target, 'child' if child else 'kiosk', True), True),
         'SetParentControl': ('(ubu)', (target, False, 60), parent),
         'RevokeOneTimeGrant': ('(u)', (target,), parent),
@@ -123,7 +126,7 @@ def test_method_role_matrix(accounts, role, method):
 
 @pytest.mark.parametrize('role', ('child1', 'child2', 'unrelated'))
 @pytest.mark.parametrize('method', ('GetPreferences', 'GetTimeStatus', 'CalculateRemainingTime',
-                                  'UpdateRequestPreferences', 'SetRequestMuted'))
+                                  'UpdateRequestPreferences', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted'))
 def test_cross_child_targets_fail_closed(accounts, role, method):
     signature, args, _ = invocation(method, role, accounts)
     other = accounts['child2'] if role == 'child1' else accounts['child1']

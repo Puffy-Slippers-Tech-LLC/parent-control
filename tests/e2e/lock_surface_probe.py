@@ -1,5 +1,6 @@
 """Temporary engineering probe for Task 044; explicit guarded focus experiment."""
 import json
+import hashlib
 import os
 import pwd
 import subprocess
@@ -19,7 +20,7 @@ gi.require_version('Atspi', '2.0')
 from gi.repository import Atspi
 Atspi.set_timeout(2000, 5000)
 mode = sys.argv[1] if len(sys.argv) > 1 else 'read'
-assert mode in ('read', 'focus', 'overview', 'telemetry')
+assert mode in ('read', 'focus', 'overview', 'telemetry', 'compositor')
 
 def session():
     ids = subprocess.run(['/usr/bin/loginctl', 'list-sessions', '--no-legend', '--no-pager'],
@@ -55,6 +56,12 @@ before_session = session()
 active = subprocess.run(['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
     '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.GetActive'],
     capture_output=True, text=True, check=True, timeout=5).stdout.strip()
+assert active in ('(true,)', '(false,)')
+overview = subprocess.run(['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+    '--object-path', '/org/gnome/Shell', '--method', 'org.freedesktop.DBus.Properties.Get',
+    'org.gnome.Shell', 'OverviewActive'], capture_output=True, text=True,
+    check=True, timeout=5).stdout.strip()
+assert overview in ('(<true>,)', '(<false>,)')
 print(json.dumps({'screensaver_active': active == '(true,)', 'child_context': os.getuid() == account.pw_uid}))
 seen = set()
 count = 0
@@ -65,8 +72,7 @@ draft_states = {}
 
 def scan(node, app='other', window=None):
     global count
-    if node is None or count >= 6000:
-        return
+    assert node is not None and count < 6000
     token = (node.get_process_id(), node.get_id())
     if node in seen:
         return
@@ -117,17 +123,65 @@ def scan(node, app='other', window=None):
     if role == 'password text':
         return
     for index in range(node.get_child_count()):
-        scan(node.get_child_at_index(index), app, window)
+        child = node.get_child_at_index(index)
+        assert child is not None
+        scan(child, app, window)
 
 scan(Atspi.get_desktop(0))
 print(json.dumps({'nodes_read': count}))
+if mode == 'compositor':
+    # Fixed read-only engineering query. Refusal never enables unsafe mode,
+    # retries through another route, changes focus or authorizes lock input.
+    from gi.repository import Gio, GLib
+    assert set(activity) == {'draft', 'submitted', 'score'}
+    pid = activity['draft'][1]
+    assert type(pid) is int and pid > 0
+    expression = '''(() => {
+        const shield = Main.screenShield;
+        const focus = global.stage.get_key_focus();
+        return {active: shield.active, locked: shield.locked,
+            modal_count: Main.modalCount, action_mode: Main.actionMode,
+            shield_grab: !!shield._grab,
+            grab_revoked: shield._grab ? shield._grab.is_revoked() : null,
+            stage_grab_is_ui_group: global.stage.get_grab_actor() === Main.uiGroup,
+            key_focus_in_shield: !!focus && shield.actor.contains(focus),
+            compositor_focus_matches_fixture:
+                global.display.focus_window?.get_pid() === FIXTURE_PID};
+    })()'''.replace('FIXTURE_PID', str(pid))
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    success, raw = bus.call_sync('org.gnome.Shell', '/org/gnome/Shell',
+        'org.gnome.Shell', 'Eval', GLib.Variant('(s)', (expression,)),
+        GLib.VariantType.new('(bs)'), Gio.DBusCallFlags.NONE, 5000, None).unpack()
+    assert type(success) is bool and type(raw) is str and len(raw) <= 2048
+    print(json.dumps({'compositor_probe_available': success}), flush=True)
+    if not success:
+        print(json.dumps({'compositor_probe_unavailable_reason':
+                         'disabled' if raw == '' else 'query-failed'}), flush=True)
+    if success:
+        result = json.loads(raw)
+        assert type(result) is dict and set(result) == {
+            'active', 'locked', 'modal_count', 'action_mode', 'shield_grab',
+            'grab_revoked', 'stage_grab_is_ui_group', 'key_focus_in_shield',
+            'compositor_focus_matches_fixture'}
+        assert all(type(result[key]) is bool for key in (
+            'active', 'locked', 'shield_grab', 'key_focus_in_shield',
+            'stage_grab_is_ui_group', 'compositor_focus_matches_fixture'))
+        assert all(type(result[key]) is int and 0 <= result[key] <= 255
+                   for key in ('modal_count', 'action_mode'))
+        assert result['grab_revoked'] is None or type(result['grab_revoked']) is bool
+        print(json.dumps({'compositor_state': result}), flush=True)
 if mode == 'telemetry':
     assert set(activity) == {'draft', 'submitted', 'score'}
     print(json.dumps({'probe_summary': {
         'child_active': before_session[1]['Active'] == 'yes',
         'child_locked': before_session[1]['LockedHint'] == 'yes',
         'screensaver_active': active == '(true,)',
-        'draft': draft_states, 'foreign_focus_count': len(foreign_focus)}}), flush=True)
+        'overview_active': overview == '(<true>,)',
+        'draft': draft_states, 'foreign_focus_count': len(foreign_focus),
+        'activity_sha256': hashlib.sha256(json.dumps({key:
+            (value[0].get_id(), value[1], value[2])
+            for key, value in activity.items()}, sort_keys=True).encode()).hexdigest(),
+        'fixture_pid': activity['draft'][1]}}), flush=True)
 if mode in ('focus', 'overview'):
     assert len(targets) == 1 and session() == before_session and active == '(false,)'
     assert set(activity) == {'draft', 'submitted', 'score'}

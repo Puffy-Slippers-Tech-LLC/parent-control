@@ -32,7 +32,7 @@ REQUIRED_REQUEST_KEYS = {
     "last_selected_duration", "last_custom_minutes", "allow_soft_blocked_apps",
 }
 OPTIONAL_REQUEST_KEYS = {
-    "last_selected_approver_uid", "kiosk_muted", "child_muted",
+    "last_selected_approver_uid", "kiosk_muted", "child_muted", "last_custom_unit",
 }
 LOG = get_logger("preferences")
 
@@ -130,6 +130,7 @@ def default_preferences() -> dict:
         "request": {
             "last_selected_duration": "1800",
             "last_custom_minutes": MIN_CUSTOM_MINUTES,
+            "last_custom_unit": "minutes",
             "allow_soft_blocked_apps": False,
             "last_selected_approver_uid": 0,
             "kiosk_muted": True,
@@ -219,6 +220,9 @@ def validate_preferences(raw: object) -> dict:
              MIN_TIME_GRANT_SECONDS <= int(selected) <= MAX_TIME_GRANT_SECONDS))):
         raise PreferencesError("invalid selected duration")
     custom = request["last_custom_minutes"]
+    unit = request.get("last_custom_unit", "minutes")
+    if not isinstance(unit, str) or unit not in {"minutes", "hours"}:
+        raise PreferencesError("invalid custom duration unit")
     if (type(custom) not in (int, float) or not math.isfinite(custom) or
             not MIN_CUSTOM_MINUTES <= custom <= MAX_CUSTOM_MINUTES):
         raise PreferencesError("invalid custom duration")
@@ -245,6 +249,7 @@ def validate_preferences(raw: object) -> dict:
         "request": {
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
+            "last_custom_unit": unit,
             "allow_soft_blocked_apps": request["allow_soft_blocked_apps"],
             "last_selected_approver_uid": approver_uid,
             "kiosk_muted": kiosk_muted,
@@ -423,12 +428,14 @@ class PreferenceStore:
         return normalized
 
     def update_request(self, uid: int, selected: str, custom: float,
-                       allow_soft: bool, last_selected_approver_uid: int = 0) -> dict:
+                       allow_soft: bool, last_selected_approver_uid: int = 0,
+                       custom_unit: str = "minutes") -> dict:
         current = self.load(uid)
         current["request"] = {
             **current["request"],
             "last_selected_duration": selected,
             "last_custom_minutes": custom,
+            "last_custom_unit": custom_unit,
             "allow_soft_blocked_apps": allow_soft,
             "last_selected_approver_uid": last_selected_approver_uid,
         }

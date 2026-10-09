@@ -6,7 +6,7 @@ import pytest
 
 from oh_no_parent_control_kiosk.selection_store import SelectionStore
 from oh_no_parent_control_kiosk.request_content import RequestContent
-from oh_no_parent_control_kiosk.main import RequestWindow
+from oh_no_parent_control_kiosk.main import Gdk, RequestWindow
 from oh_no_parent_control_kiosk.model import RequestState
 from common.oh_no_parent_control_ui.diagnostic_events import decode
 from oh_no_parent_control.logs import DailyLogWriter
@@ -63,6 +63,46 @@ def form_methods():
     names = {"set_accounts", "_account_changed", "_approver_changed",
              "selected_approver_uid", "_restore_approver"}
     return bind_methods(SimpleNamespace(), RequestContent, names)
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_escape_dismisses_unit_choices_before_exiting_request(overlay):
+    choices = Mock()
+    choices.get_visible.return_value = True
+    choices.set_visible.side_effect = lambda visible: setattr(
+        choices.get_visible, "return_value", visible)
+    form = bind_methods(SimpleNamespace(
+        _unit_choices=choices, _unit_button=Mock(),
+    ), RequestContent, ("dismiss_custom_units",))
+    window = SimpleNamespace(
+        _child_overlay=overlay, _state=RequestState(), _request_content=form,
+        _stack=Mock(), _cancel=Mock(), _result_dismissed=Mock(),
+    )
+    window._stack.get_visible_child_name.return_value = "request"
+    # The window handles Escape before descendant controllers see the key.
+    assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
+    window._cancel.assert_not_called()
+    window._result_dismissed.assert_not_called()
+    assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
+    window._cancel.assert_called_once_with()
+
+
+@pytest.mark.parametrize("page, busy, key, consumed", [
+    ("request", False, Gdk.KEY_a, False),
+    ("request", True, Gdk.KEY_Escape, False),
+    ("result", False, Gdk.KEY_Escape, True),
+])
+def test_unit_menu_does_not_intercept_other_keys_authentication_or_results(
+        page, busy, key, consumed):
+    window = SimpleNamespace(
+        _state=SimpleNamespace(in_flight=busy), _request_content=Mock(),
+        _stack=Mock(), _cancel=Mock(), _result_dismissed=Mock(),
+    )
+    window._stack.get_visible_child_name.return_value = page
+    assert RequestWindow._escape_pressed(window, None, key, 0, 0) is consumed
+    window._request_content.dismiss_custom_units.assert_not_called()
+    window._cancel.assert_not_called()
+    assert window._result_dismissed.call_count == int(page == "result")
 
 
 class Selector:
@@ -165,7 +205,7 @@ def test_unwritable_state_is_nonfatal_and_logs_no_identity(tmp_path, caplog):
 
 
 def diagnostic_window(overlay):
-    return bind_methods(SimpleNamespace(
+    window = bind_methods(SimpleNamespace(
         _preview=False, _child_overlay=overlay, _applying_preferences=False,
         _request_content=Mock(), _state=RequestState(), _bus_call=Mock(),
         _queue_time_estimate=Mock(), _apply_mute=Mock(), _mute_surface=lambda: "kiosk",
@@ -175,6 +215,8 @@ def diagnostic_window(overlay):
         "_log_duration_selection", "_preferences_done", "_persist_form_values",
         "_request_access",
     ))
+    window._request_content.custom_unit.return_value = "minutes"
+    return window
 
 
 @pytest.mark.parametrize("overlay", (False, True))

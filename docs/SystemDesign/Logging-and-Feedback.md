@@ -96,6 +96,14 @@ it does not change the broker sandbox, commands, verification or rollback.
 Ship the additive catalogue with all validators; the broker loads this logging
 on process restart, and new frontend processes load the updated catalogue.
 
+The child extension's `child.lock-focus-sync` event records only `complete` or
+`failed` for the GNOME 50 locked-session device-focus compatibility hook. The
+outcome comes from the synchronous notification result; neither device
+capabilities nor device, window, account or session identities enter the event.
+Exceptions are discarded without formatting. Ship the additive catalogue with
+the child and broker validators; child session renewal and broker restart load
+the new producer and catalogue.
+
 Diagnostic export also observes eligible live child sessions through GNOME's
 public `GetExtensionInfo` interface, before taking the log snapshot. This catches
 module import failures that prevent the extension's own logger from loading.

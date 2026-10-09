@@ -145,6 +145,12 @@ class ParentJourneyQualification(smoke.Qualification):
                 observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
                 on_failure=self.failure, timeout=1800, credentials=self.credentials)
             self.result['matched_screens'] = journey.validate()
+        except BaseException as error:
+            code = (str(error) if isinstance(error, smoke.EvidenceError)
+                    else smoke.runner.error_category(error))
+            if not any(v['outcome'] == 'failed' for v in self.ledger.outcomes.values()):
+                self.ledger.fail_outcome('infrastructure', code)
+            raise
         finally:
             self.checkpoint('before-cleanup')
 
@@ -174,8 +180,8 @@ class KioskEntryQualification(ParentJourneyQualification):
 
     def attach_installed_snapshot(self, lease):
         from app_snapshot import snapshot_name
-        version = self.commands.run(
-            ['dpkg-deb', '-f', str(self.assets / 'package.deb'), 'Version']).decode().strip()
+        package = self.assets / ('package.' + smoke.runner.package_format(lease.capture.state['guest']))
+        version = smoke.runner.package_version(self.commands, package)
         name = snapshot_name(version)
         snap = lease.source.domain.snapshotLookupByName(name, 0)
         import xml.etree.ElementTree as ET

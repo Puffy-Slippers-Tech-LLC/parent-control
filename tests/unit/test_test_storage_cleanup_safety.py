@@ -36,6 +36,26 @@ def test_vm_privileged_journals_are_separate(tmp_path, monkeypatch):
     assert storage.privileged_state(1000) == tmp_path / 'retention-1000-second'
 
 
+def test_vm_named_inputs_keep_other_vm_and_legacy_bundles(tmp_path, monkeypatch):
+    from tools import package_inputs, vm_selection
+    monkeypatch.setattr(storage, 'ROOT', tmp_path)
+    monkeypatch.setattr(storage, 'BASE', tmp_path / 'outputs')
+    monkeypatch.setattr(package_inputs, 'paths', lambda _: [Path('product.py')])
+    (tmp_path / 'product.py').write_text('product')
+    selected = SimpleNamespace(name='first')
+    monkeypatch.setattr(vm_selection, 'selected', lambda **kwargs: selected)
+    legacy = storage.named_input()
+    first = storage.named_input(vm_source=True)
+    first.mkdir(parents=True)
+    (first / 'preserved').write_text('first VM package')
+    selected.name = 'second'
+    second = storage.named_input(vm_source=True)
+    assert len({legacy, first, second}) == 3
+    assert not second.exists()
+    assert (first / 'preserved').read_text() == 'first VM package'
+    assert storage.named_input() == legacy
+
+
 @pytest.mark.parametrize('options', [{}, {'package_source': True}, {'package_source': False}])
 def test_current_named_input_changes_with_product_bytes_without_overwriting(tmp_path, monkeypatch, options):
     from tools import package_inputs

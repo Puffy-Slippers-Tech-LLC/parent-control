@@ -53,8 +53,10 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         ROOT, 'integration', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
     flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
-    assert execute.call_args_list[0].args[0] == commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', *flags, '--output', output)
+    assert execute.call_args_list[0].args[0] == (commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
+        if options.get('vm_source') else commands.python_file(
+        ROOT, 'tools/build_test_artifacts.py', *flags, '--output', output))
     if build_status:
         assert execute.call_count == 1
         authorize.assert_not_called()
@@ -278,7 +280,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
         'check_e2e_text', 'check_e2e_feedback_privacy',
         'check_e2e_overlay_prompt', 'check_e2e_overlay_rejection', 'check_e2e_kiosk_approval',
         'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
-    output = str(test_storage.named_input(package_source=current_package))
+    vm_source = selector.removesuffix('.py') == 'check_e2e_challenges'
+    output = str(test_storage.named_input(package_source=current_package, vm_source=vm_source))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
@@ -289,8 +292,9 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     allocate.assert_called_once_with(output)
     # A failed prerequisite never enters the privileged runner or the VM.
     assert execute.call_count == 1
-    assert execute.call_args.args[0] == commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+    assert execute.call_args.args[0] == (commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS) if vm_source else
+        commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', output))
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',

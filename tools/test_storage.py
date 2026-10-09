@@ -73,7 +73,8 @@ def allocation_parent():
     return directory()
 
 
-def named_input(*, package_source=False, fixture_source=False, upgrade_source=False):
+def named_input(*, package_source=False, fixture_source=False, upgrade_source=False,
+                vm_source=False):
     # Privileged qualifiers consume the caller's already frozen host bundle.
     # Every qualification must select current sources, including default callers.
     # package_source remains accepted for existing explicit callers.
@@ -91,6 +92,12 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     identity = package_inputs.digest(ROOT, paths)
     prefix = ('onpc-upgrade-v1.2-' if upgrade_source else
               'onpc-native-fixtures-' if fixture_source else 'onpc-parent-setup-')
+    if vm_source:
+        if __package__:
+            from .vm_selection import selected
+        else:
+            from vm_selection import selected
+        prefix += selected().name + '-'
     return BASE / ('host/allocations/' + prefix + identity)
 
 

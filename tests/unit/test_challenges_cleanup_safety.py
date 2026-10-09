@@ -52,7 +52,7 @@ def test_fresh_child_dispatch_and_nondefault_identity(monkeypatch):
     calls = []
     monkeypatch.setattr(child_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert child_check.main() == 0
-    assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
+    assert calls == [{'assets': child_check.named_input(), 'provision_credentials': True,
                      'challenges': True, 'challenge_profile': 'fresh-child'}]
     assert CHILD_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
     for tag in CHILD_PLAN.screen_tags.values():
@@ -71,7 +71,7 @@ def test_denied_child_dispatch_and_declared_result(monkeypatch):
     calls = []
     monkeypatch.setattr(denied_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert denied_check.main() == 0
-    assert calls == [{'assets': check.ASSETS, 'provision_credentials': True,
+    assert calls == [{'assets': denied_check.named_input(), 'provision_credentials': True,
                      'challenges': True, 'challenge_profile': 'fresh-child-denied'}]
     assert DENIED_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
     for tag in DENIED_PLAN.screen_tags.values():

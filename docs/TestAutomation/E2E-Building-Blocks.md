@@ -357,8 +357,8 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK03 | C | Lock and switch to the greeter while retaining the fixture desktop. Independently check the original session and usable GDM destination. | `session_control.observe` uses the bound user's public ScreenSaver lock and GDM switching API over guarded SSH; `onpc_desktop_session::switch_user` then observes GDM01. `check_e2e_desktop_session` qualified a fresh installed Parent entry, one switch, independent source locked/inactive readback and usable GDM using its then-current installed snapshot, then requalified it in a separate restored attempt alongside DESK04; private collection and owned cleanup passed (run `20260923T170614Z-02c46f60`, now outside runner retention). [Fresh child qualification](#fresh-child-success-qualification) additionally consumes a newly observed Parent `repeat-desktop` proof after allowance preparation. No Quick Settings. Other fixture bindings and retained-window behavior remain pending. | pending; fresh and newly reobserved Parent switch bindings ready |
 | DESK04 | C | Log out the bound fixture desktop and independently check that its session ended and GDM is usable. | Shared `session_control.observe` invokes `gnome-session-quit --logout --no-prompt` once as the bound user over guarded SSH, verifies the source session disappeared and a greeter session is active; `onpc_desktop_session::log_out` then observes usable GDM01. `check_e2e_desktop_session` qualified a fresh installed Parent desktop, direct logout and independent GDM result, then requalified DESK03 in a separate restored attempt; private collection and owned cleanup passed (run `20260923T170614Z-02c46f60`, now outside runner retention). No logout-dialog/Cancel or forced-termination fallback. Other fixture bindings remain pending. | pending; fresh Parent logout binding ready |
 | DESK05 | C | Explicitly lock through Super+L or the supported session lock API and independently observe the lock surface. Never manufacture natural expiry. | `onpc_desktop_session::lock` consumes a fresh desktop proof, invokes shared `session_control` Lock once and calls DESK06. `desktop_session.LOCK_PLAN` / `SUPPLIED_LOCK_PLAN` qualify separate command and independently supplied Super+L attempts. No system-menu navigation. [Qualified scope](#parent-lock-surface-qualification). | fresh Parent command and Super+L bindings ready; other bindings pending |
-| DESK06 | C | Observe the intended user's lock challenge. Input declares curtain or already-open challenge; reveal with one normal key only for curtain. | `journey_blocks.lock_challenge` / `onpc_desktop_session::observe_lock` and `AccessibleUI.shell_lock_snapshot` bind the sole local locked Parent session and its Shell-owned public window. Curtain requires the English unlock hint and fresh scoped focus before one Space; challenge reads the public Parent identity and focused password role without contents or secret authority. Wrong-session, other-surface, ambiguity and replacement guards retain independent result readback. [Qualified scope](#parent-lock-surface-qualification). | Parent curtain/reveal and independent challenge read ready; other bindings and DESK07 secret authority pending |
-| DESK07 | A | Qualify the lock-screen recipient, masked empty focused field and intended identity independently of GDM. | New public-UI recipient adapter; reuse secret-boundary rules, not GDM evidence. | pending |
+| DESK06 | C | Observe the intended user's lock challenge. Input declares curtain or already-open challenge; reveal with one normal key only for curtain. | `journey_blocks.lock_challenge` / `onpc_desktop_session::observe_lock` and `AccessibleUI.shell_lock_snapshot` bind the sole local locked Parent session and its Shell-owned public window. Curtain requires the English unlock hint and fresh scoped focus before one Space; challenge reads the public Parent identity and focused password role without contents or secret authority. Wrong-session, other-surface, ambiguity and replacement guards retain independent result readback. [Qualified scope](#parent-lock-surface-qualification); recipient proofs are qualified separately below. | Parent curtain/reveal and independent challenge read ready; other bindings pending |
+| DESK07 | A | Qualify the lock-screen recipient, masked empty focused field and intended identity independently of GDM. | `journey_blocks.lock_recipient` / `onpc_desktop_session::lock_recipient`, `AccessibleUI.lock_surface` and `UiObservations` bind two ordered fresh proofs to the same actual lock window and password field. `desktop_session.LOCK_RECIPIENT_PLAN` / `LockRecipientQualification` independently qualify the Parent command-lock binding. [Exact scope and reports](#parent-lock-recipient-qualification). | Parent command-lock recipient proofs ready; child and retained-user bindings pending |
 | DESK08 | C | Attempt normal unlock with an explicit expected success or time-limit denial. | DESK06 → DESK07 twice → UI19 → UI05(Enter) → GDM06. | pending |
 | DESK09 | C | From another usable desktop, visit a specified retained user's desktop without replacing it. Inputs include target account and expected unlock result. | DESK03 → GDM02(destination=lock) → DESK08. Fresh entry explicitly uses DESK03 → GDM07 instead. | pending |
 | DESK10 | C | Activate a named existing window with the simplest reliable public focus action or bounded shortcut, then verify that window is active. | `AccessibleUI.window_switch_ready` → `onpc_feedback_read::activate_existing_window` (one Alt+Tab) → `window_switch_proof`; compare recorded public endpoint/PID and preserved synthetic draft. [Qualified scope](#same-desktop-window-activation). No logout or relaunch. | Parent, feedback and supporting GPL viewer ready; diagnostic exports use FILE08 without a viewer |
@@ -370,7 +370,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 
 `check_e2e_lock_surface` passed separate restored command-lock and supplied
 Super+L attempts on every selected VM (Ubuntu 26.04), in
-[`20261008T212721Z-70cc7575`](../../output/test-runs/host/reports/20261008T212721Z-70cc7575/report.md).
+`20261008T212721Z-70cc7575` (now outside runner retention).
 Provider tuple: Shell `50.1-0ubuntu1.3`, actual locale `en_US.UTF-8`, keyboard
 `xkb/us`. Both attempts observed a fresh usable Parent desktop, refused unlocked
 entry, observed the curtain, consumed a fresh reveal proof before one Space,
@@ -391,11 +391,39 @@ focused sensitive editable challenge field and fresh input proofs remain require
 Host regressions cover those boundaries and preserve bounded text-free diagnostics.
 
 The required DESK03/04 logout and switch regression passed separate restored
-attempts in [`20261008T213017Z-fc39a92b`](../../output/test-runs/host/reports/20261008T213017Z-fc39a92b/report.md).
+attempts in `20261008T213017Z-fc39a92b` (now outside runner retention).
 All four attempts passed private collection, worker shutdown, callback closure,
 owned cleanup, baseline restoration and host/source preservation. Child, retained
-unlock, other tuples, natural expiry and DESK07 secret-recipient proofs remain
-unqualified; this capability supplies no complete-scenario acceptance.
+unlock and natural expiry remain unqualified; this capability supplies no
+complete-scenario acceptance. Task 042 requalified both lock-surface routes and
+DESK03/04 on Ubuntu 26.04 and Fedora 44 in the retained reports below.
+
+#### Parent lock recipient qualification
+
+Task 042's `check_e2e_lock_recipient` passed on every selected VM:
+
+- Ubuntu 26.04: [`20261009T001919Z-c214d973`](../../output/test-runs/host/reports/20261009T001919Z-c214d973/report.md), Shell `50.1-0ubuntu1.3`, actual locale `en_US.UTF-8`, keyboard `xkb/us`.
+- Fedora 44: [`20261009T003642Z-42e11ff1`](../../output/test-runs/host/reports/20261009T003642Z-42e11ff1/report.md), Shell `0:50.5-1.fc44`, actual locale `en_US.UTF-8`, keyboard `xkb/us`.
+
+Each restored attempt observed a fresh usable Parent desktop, command Lock,
+curtain and guarded reveal, wrong-user/nonempty/unfocused/stale-owner refusals,
+an independent challenge, two ordered empty/masked/focused intended-recipient
+proofs on the same actual window and field, and a final independent challenge.
+Only the public password character count is read; contents are never read.
+The controller refuses GDM proofs, changed challenges, reads older than 30 seconds
+and failed durable acknowledgements. No lock password or unlock is delivered.
+Child, retained-user and other provider tuples remain pending.
+
+Both reports also retain the required `check_e2e_lock_surface` (command and
+supplied Super+L), `check_e2e_desktop_session` (logout and switch) and
+`check_e2e_challenges` regressions. All six attempts per VM passed collection,
+worker shutdown, callback closure, owned cleanup, baseline restoration and
+host/source preservation. Ubuntu's valid live results were preserved by resume;
+Fedora used separate VM-bound named inputs, the verified baseline's RPM package
+probe and the shared package-version reader for snapshot attachment. Host
+safety/source revalidation passed in
+[`20261009T003418Z-2f9de057`](../../output/test-runs/host/reports/20261009T003418Z-2f9de057/report.md).
+This fixed capability supplies no complete-scenario or natural-expiry credit.
 
 ### Same-desktop window activation
 

@@ -39,6 +39,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Fresh child denial recorder/worker coverage uses only existing private pytest
 # evidence and waited Perl doubles. No new cleanup resource or live access;
 # challenges and installed-journey remain compatible in cleanup and unit scopes.
+# Task 042's storage/desktop preflight checks use tiny pytest-private files and
+# process-local registry/package/lease doubles. Challenges retains its existing
+# waited Perl children. No live VM, build, shared cache, bus, display or new
+# owner; storage, desktop-session and challenges retain compatible cleanup.
 # Panel focus/Enter order checks reuse challenges' same waited Perl API double
 # and private evidence; no new process, display, bus or shared cleanup resource.
 # Shell approval adds sealed-input doubles and private installed-recorder files

@@ -549,7 +549,11 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_operate_public_connectivity_controls.py']):
         return None
     from test_storage import named_input
-    output = str(named_input(fixture_source=True) if args in (
+    vm_source = args[0].removesuffix('.py') in (
+        'check_e2e_lock_recipient', 'check_e2e_lock_surface',
+        'check_e2e_desktop_session', 'check_e2e_challenges')
+    output = str(named_input(vm_source=True) if vm_source else
+        named_input(fixture_source=True) if args in (
         ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
         ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
         ['check_e2e_overlay_approval'], ['check_e2e_overlay_approval.py'],
@@ -607,6 +611,9 @@ def qualification_artifact_command(root, category, args):
         return None  # The privileged consumer verifies the frozen manifest.
     directory = allocate_artifact_output(output)
     print('run-tests: output=' + directory, flush=True)
+    if vm_source:
+        from vm_selection import arguments
+        return python_file(root, 'tools/vm_artifacts.py', '--output', directory, *arguments())
     return python_file(root, 'tools/build_test_artifacts.py', '--output', directory)
 
 

@@ -10,6 +10,45 @@ import desktop_session
 from private_artifacts import EvidenceError
 
 
+@pytest.mark.parametrize('guest,filename,command', [
+    ({'ubuntu_version': '26.04'}, 'package.deb', ['dpkg-deb', '-f']),
+    ({'os_id': 'fedora', 'version': '44'}, 'package.rpm',
+     ['rpm', '-qp', '--queryformat', '%{VERSION}']),
+])
+def test_snapshot_attachment_reads_verified_platform_package(tmp_path, guest, filename, command):
+    from parent_setup_qualification import KioskEntryQualification
+    qualification = object.__new__(KioskEntryQualification)
+    qualification.assets = tmp_path
+    qualification.commands = SimpleNamespace(run=Mock(return_value=b'1.4\n'))
+    snapshot = SimpleNamespace(getXMLDesc=Mock(return_value='<domainsnapshot><memory snapshot="internal"/></domainsnapshot>'))
+    domain = SimpleNamespace(snapshotLookupByName=Mock(return_value=snapshot))
+    lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': guest}),
+                            source=SimpleNamespace(domain=domain))
+    qualification.attach_installed_snapshot(lease)
+    assert qualification.commands.run.call_args.args[0] == (
+        command + [str(tmp_path / filename)] + (['Version'] if filename.endswith('.deb') else []))
+    domain.snapshotLookupByName.assert_called_once_with('onpc-v1.4', 0)
+    assert lease.online_pending is True
+
+
+def test_input_preflight_failure_is_retained_before_cleanup(tmp_path, monkeypatch):
+    import parent_setup_qualification as setup
+    qualification = object.__new__(setup.ParentJourneyQualification)
+    qualification.directory, qualification.assets = tmp_path, tmp_path
+    qualification.commands = Mock()
+    qualification.ledger = setup.smoke.runner.RunLedger()
+    qualification.checkpoint = Mock()
+    lease = SimpleNamespace(prepare=Mock(), guard=Mock(), save=Mock())
+    monkeypatch.setattr(setup.smoke.runner, 'bootstrap', Mock(return_value='host key'))
+    monkeypatch.setattr(setup.smoke, 'VerifiedInputs', Mock(
+        side_effect=EvidenceError('provenance:package-platform')))
+    with pytest.raises(EvidenceError, match='provenance:package-platform'):
+        qualification.execute(lease, Mock())
+    assert qualification.ledger.outcomes['infrastructure'] == {
+        'outcome': 'failed', 'category': 'provenance:package-platform'}
+    assert qualification.checkpoint.call_args.args == ('before-cleanup',)
+
+
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,
                                  desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN,
                                  desktop_session.LOCK_RECIPIENT_PLAN],

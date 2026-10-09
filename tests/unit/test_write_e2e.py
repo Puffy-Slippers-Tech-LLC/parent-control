@@ -29,13 +29,13 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
     assert config['agents']['enabled'] is True
     assert config['agents']['max_concurrent_threads_per_session'] == 1
     assert config['agents']['max_depth'] == 1
-    assert config['agents']['default_subagent_model'] == 'gpt-6-astra'
-    assert config['agents']['default_subagent_reasoning_effort'] == 'high'
+    assert config['agents']['default_subagent_model'] == 'gpt-6.1-sol'
+    assert config['agents']['default_subagent_reasoning_effort'] == 'max'
     assert config['agents']['e2e_adviser']['config_file'] == str(adviser)
     role = tomllib.loads(adviser.read_text())
-    assert role['model'] == 'gpt-6-astra'
+    assert role['model'] == 'gpt-6.1-sol'
     assert role['service_tier'] == 'default' and role['features']['fast_mode'] is False
-    assert 'model_reasoning_effort' not in role  # Inherit the bounded adviser's requested effort.
+    assert role['model_reasoning_effort'] == 'max'  # Pin effort even if a spawn requests less.
     assert role['sandbox_mode'] == 'read-only' and role['approval_policy'] == 'never'
     assert role['agents']['enabled'] is False
     assert role['features']['multi_agent'] is role['features']['multi_agent_v2'] is False
@@ -48,11 +48,11 @@ def test_sequential_adviser_config_preserves_coordinator_and_transport_boundarie
 @pytest.mark.parametrize('phase,attempts,tier,model,effort', [
     ('implement', 0, 0, 'gpt-6.1-sol', 'high'),
     ('live', 1, 0, 'gpt-6.1-sol', 'high'),
-    ('live', 2, 0, 'gpt-6-astra', 'high'),
+    ('live', 2, 0, 'gpt-6.1-sol', 'xhigh'),
     ('recover', 0, 0, 'gpt-6.1-sol', 'high'),
-    ('recover', 2, 1, 'gpt-6-astra', 'high'),
-    ('recover', 5, 1, 'gpt-6-astra', 'high'),
-    ('recover', 1, 2, 'gpt-6-astra', 'xhigh'),
+    ('recover', 2, 1, 'gpt-6.1-sol', 'xhigh'),
+    ('recover', 5, 1, 'gpt-6.1-sol', 'xhigh'),
+    ('recover', 1, 2, 'gpt-6.1-sol', 'max'),
 ])
 def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
                                                      phase, attempts, tier, model, effort):
@@ -64,21 +64,20 @@ def test_command_prompt_and_display_use_selected_tier(tmp_path, monkeypatch,
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == model
     assert config['model_reasoning_effort'] == effort
-    assert config['features']['multi_agent'] is (model == 'gpt-6.1-sol')
-    assert config['agents']['enabled'] is (model == 'gpt-6.1-sol')
+    assert config['features']['multi_agent'] is (effort == 'high')
+    assert config['agents']['enabled'] is (effort == 'high')
     assert config['service_tier'] == 'default' and config['features']['fast_mode'] is False
     assert '--output-schema' in command and '--ephemeral' in command
     prompt = workflow.session_prompt(state)
-    label = ('GPT-6.1-Sol' if model == 'gpt-6.1-sol' else 'GPT-6-Astra') + ' ' + (
-        'Extra High' if effort == 'xhigh' else 'High')
+    label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
     assert f'You are the {label} coordinator' in prompt
-    if model == 'gpt-6.1-sol':
+    if effort == 'high':
         assert 'Consult before implementing such an unresolved\nrisky design' in prompt
         assert 'e2e_adviser agent' in prompt
     else:
         assert 'do not spawn an adviser' in prompt and 'e2e_adviser agent' not in prompt
     assert f'({model} {effort})' in workflow.session_progress(tmp_path, state, 20)[-1]
-    assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
+    assert 'never use Astra' in prompt
     assert 'Never use Sol High' not in prompt
     assert 'Leave investigation and repairs of this new failure to the next session' in prompt
 
@@ -89,9 +88,9 @@ def test_follow_up_keeps_implementation_and_acceptance_with_sol_high(phase):
                  handoff='Legacy recommendation: continue with Astra High.')
     prompt = workflow.session_prompt(state)
     assert 'GPT-6.1-Sol High coordinator and implementer for this session' in prompt
-    assert 'Prefer GPT-6.1-Sol High over Astra Low' in prompt
+    assert 'never use Astra' in prompt
     assert 'Ignore model recommendations in older handoffs' in prompt
-    assert 'or review to the e2e_adviser agent using GPT-6-Astra High only when' in prompt
+    assert 'or review to the e2e_adviser agent using GPT-6.1-Sol Max only when' in prompt
     assert 'No parallel agents or overlapping work' in prompt
     assert 'close it before resuming your work' in prompt
     assert 'You alone implement the settled correction, run all validation' in prompt
@@ -117,18 +116,18 @@ def test_failure_history_promotes_implementer_and_failed_repair_raises_effort(tm
     _, before = workflow.queue_state(tmp_path)
     state = workflow.fresh_state('001')
     assert workflow.session_model(state) == ('gpt-6.1-sol', 'high')
-    for expected in [('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high')]:
+    for expected in [('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh')]:
         state = workflow.accept_result(tmp_path, state, reply(), before)
         assert workflow.session_model(state) == expected
     progress = dict(state['progress'], repair_outcome='failed_repair')
     state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6-astra', 'xhigh')
+    assert workflow.session_model(state) == ('gpt-6.1-sol', 'max')
     state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6-astra', 'xhigh')
+    assert workflow.session_model(state) == ('gpt-6.1-sol', 'max')
     assert state['failed_attempts'] == state['live_attempts'] == 4
 
 
-def test_verified_progress_keeps_astra_high_and_carries_checkpoint_evidence(tmp_path):
+def test_verified_progress_keeps_sol_xhigh_and_carries_checkpoint_evidence(tmp_path):
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)
     state = workflow.fresh_state('001')
@@ -136,7 +135,7 @@ def test_verified_progress_keeps_astra_high_and_carries_checkpoint_evidence(tmp_
         progress = {'failure_checkpoint': f'lifecycle:step-{index + 1}',
                     'furthest_checkpoint': f'lifecycle:step-{index}', 'repair_outcome': 'advanced'}
         state = workflow.accept_result(tmp_path, state, reply(progress=progress), before)
-    assert workflow.session_model(state) == ('gpt-6-astra', 'high')
+    assert workflow.session_model(state) == ('gpt-6.1-sol', 'xhigh')
     assert state['progress'] == progress
     assert json.dumps(progress) in workflow.session_prompt(state)
 
@@ -195,7 +194,7 @@ def test_legacy_handoffs_escalate_without_inventing_repair_evidence(tmp_path):
     for key in ('failed_attempts', 'model_tier'):
         state.pop(key)
     state.update(phase='recover', live_attempts=2, task_sessions=5)
-    assert workflow.session_model(state) == ('gpt-6-astra', 'high')
+    assert workflow.session_model(state) == ('gpt-6.1-sol', 'xhigh')
     result = reply()
     result.pop('progress')
     updated = workflow.accept_result(tmp_path, state, result, before)
@@ -374,7 +373,7 @@ def test_saved_handoff_names_promoted_coordinator_even_if_agent_recommends_old_m
                  handoff='Old recommendation: use Sol High.')
     workflow.save_handoff(tmp_path, state, 'session limit reached', display=False)
     saved = (tmp_path / 'handoff.txt').read_text()
-    assert 'Next coordinator and implementer: gpt-6-astra high.' in saved
+    assert 'Next coordinator and implementer: gpt-6.1-sol xhigh.' in saved
     assert state['handoff'] in saved
 
 
@@ -823,7 +822,7 @@ def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp
     consumer = selected['suspended_tasks']['001']
     assert consumer['phase'] == 'recover' and not consumer['in_flight']
     assert consumer['task_sessions'] == 3 and consumer['live_attempts'] == 2
-    assert workflow.session_model(consumer) == ('gpt-6-astra', 'xhigh')
+    assert workflow.session_model(consumer) == ('gpt-6.1-sol', 'max')
     assert consumer['progress'] == state['progress'] and consumer['failed_attempts'] == 2
     assert consumer['stage_candidates'] == ['partial.py']
     assert consumer['stage_baseline'] == {'unrelated.py': 'original'}
@@ -988,7 +987,7 @@ def test_restart_restores_suspended_consumer_after_authorized_exclusion(tmp_path
     assert selected['task_sessions'] == selected['total_sessions'] == 9
     assert selected['task_session_limit'] == 14
     assert selected['live_attempts'] == selected['failed_attempts'] == 2
-    assert workflow.session_model(selected) == ('gpt-6-astra', 'high')
+    assert workflow.session_model(selected) == ('gpt-6.1-sol', 'xhigh')
     assert selected['stage_candidates'] == ['consumer.py']
     assert selected['stage_baseline'] == {'unrelated.py': 'unchanged'}
     assert selected['protected_staged'] == ['unrelated.py']

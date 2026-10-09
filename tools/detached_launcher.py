@@ -131,8 +131,8 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
         # wait/close protocol keeps consultations sequential.
         command += ['-c', 'agents.max_concurrent_threads_per_session=1',
                     '-c', 'agents.max_depth=1',
-                    '-c', 'agents.default_subagent_model="gpt-6-astra"',
-                    '-c', 'agents.default_subagent_reasoning_effort="high"',
+                    '-c', 'agents.default_subagent_model="gpt-6.1-sol"',
+                    '-c', 'agents.default_subagent_reasoning_effort="max"',
                     '-c', 'agents.e2e_adviser.description="Bounded read-only diagnosis or review; no implementation or tests"',
                     '-c', 'agents.e2e_adviser.config_file=' + json.dumps(str(adviser_config))]
     if run is not None:

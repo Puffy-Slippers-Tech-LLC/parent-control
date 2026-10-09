@@ -688,15 +688,16 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
-        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-sol']
-    assert all('model_reasoning_effort="high"' in call['args'] for call in invocations)
-    assert 'You are the GPT-6-Astra High coordinator' in invocations[2]['prompt']
+        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
+    for call, effort in zip(invocations, ['high', 'high', 'xhigh', 'high'], strict=True):
+        assert f'model_reasoning_effort="{effort}"' in call['args']
+    assert 'You are the GPT-6.1-Sol Extra High coordinator' in invocations[2]['prompt']
     assert 'agents.enabled=false' in invocations[2]['args']
     assert 'You are the GPT-6.1-Sol High coordinator' in invocations[3]['prompt']
     records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
     assert [(row['session'], row['task_id'], row['model']) for row in records] == [
-        (3, '001', 'gpt-6-astra'), (4, '002', 'gpt-6.1-sol')]
-    assert [row['reasoning_effort'] for row in records] == ['high', 'high']
+        (3, '001', 'gpt-6.1-sol'), (4, '002', 'gpt-6.1-sol')]
+    assert [row['reasoning_effort'] for row in records] == ['xhigh', 'high']
     assert all(row['usage'] is None for row in records)  # Missing usage is never zero.
     assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
         'TA: Completed task 001', 'TA: Completed task 002']
@@ -704,11 +705,11 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
         workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh(
+def test_failed_sol_xhigh_repair_promotes_real_child_transport_and_restarts_at_max(
         checkout, tmp_path_factory):
     root, _ = checkout
     # The restarted task must finish close-out with a real, case-private push.
-    remote = tmp_path_factory.mktemp('write-e2e-xhigh-restart-remote')
+    remote = tmp_path_factory.mktemp('write-e2e-max-restart-remote')
     subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True)
     branch = workflow.git_output(root, 'symbolic-ref', '--short', 'HEAD').stdout.strip()
     subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=root, check=True)
@@ -726,12 +727,12 @@ def test_failed_astra_repair_promotes_real_child_transport_and_restarts_at_xhigh
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
     invocation = calls(root)[-1]
-    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6-astra'
-    assert 'model_reasoning_effort="xhigh"' in invocation['args']
-    assert 'You are the GPT-6-Astra Extra High coordinator' in invocation['prompt']
+    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6.1-sol'
+    assert 'model_reasoning_effort="max"' in invocation['args']
+    assert 'You are the GPT-6.1-Sol Max coordinator' in invocation['prompt']
     assert 'features.multi_agent=false' in invocation['args']
     usage = json.loads((second / 'agent-usage.jsonl').read_text())
-    assert (usage['model'], usage['reasoning_effort']) == ('gpt-6-astra', 'xhigh')
+    assert (usage['model'], usage['reasoning_effort']) == ('gpt-6.1-sol', 'max')
     assert workflow.queue_state(root)[0] == '002'
     assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
         'TA: Completed task 001']
@@ -747,9 +748,10 @@ def test_reasoning_stalls_promote_then_stop_at_final_tier_without_acceptance(che
     invocations = calls(root)
     assert len(invocations) == 3
     assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
-        'gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-astra']
-    assert 'model_reasoning_effort="xhigh"' in invocations[-1]['args']
-    assert 'reasoning stalled at Astra Extra High' in (run / 'handoff.txt').read_text()
+        'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
+    for call, effort in zip(invocations, ['high', 'xhigh', 'max'], strict=True):
+        assert f'model_reasoning_effort="{effort}"' in call['args']
+    assert 'reasoning stalled at GPT-6.1 Sol Max' in (run / 'handoff.txt').read_text()
     state = json.loads((run / 'checkpoint.json').read_text())
     assert state['failed_attempts'] == state['live_attempts'] == 0
     assert state['task_sessions'] == 3 and state['model_tier'] == 2

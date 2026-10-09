@@ -20,8 +20,8 @@ from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_a
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
 QUEUE = 'docs/TestAutomation/E2E-Task-Queue.md'
-MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6-astra', 'high'),
-               ('gpt-6-astra', 'xhigh'))
+MODEL_TIERS = (('gpt-6.1-sol', 'high'), ('gpt-6.1-sol', 'xhigh'),
+               ('gpt-6.1-sol', 'max'))
 ADVISER_CONFIG = Path(__file__).resolve().with_name('write_e2e_adviser.toml')
 MAX_TASK_SESSIONS = 5
 OPTIMIZATION_INTERVAL = 3
@@ -307,7 +307,7 @@ def session_command(root, state, run=None):
     command = launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=ADVISER_CONFIG if model == 'gpt-6.1-sol' and not state.get('optimization_session') else None)
+        adviser_config=ADVISER_CONFIG if effort == 'high' and not state.get('optimization_session') else None)
     # Personal Fast settings must not silently spend more of the weekly budget.
     command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
     return command
@@ -337,22 +337,23 @@ def session_prompt(state):
     vm_instructions = execution_instructions()
     task = state['task_id']
     model, effort = session_model(state)
-    label = ('GPT-6.1-Sol' if model == 'gpt-6.1-sol' else 'GPT-6-Astra') + ' ' + (
-        'Extra High' if effort == 'xhigh' else 'High')
+    label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
-The launcher starts at Sol High, promotes to Astra High after two unsuccessful
+The launcher uses only GPT-6.1 Sol. Astra is prohibited for all work and advice.
+The launcher starts at Sol High, promotes to Sol Extra High after two unsuccessful
 substantive live attempts, and promotes immediately after a reasoning stall or
 an unsuccessful correction at the same checkpoint without meaningful progress.
-Astra High promotes to Astra Extra High on that same failed-repair/stall signal;
-different failures with verified progress keep Astra High. Promotion persists
+Sol Extra High promotes to Sol Max on that same failed-repair/stall signal;
+different failures with verified progress keep Sol Extra High. A reasoning stall
+at Sol Max stops the launcher early with retained evidence. Promotion persists
 across restarts and prerequisite suspension; a new task starts at Sol High.
 Session counts, interruptions, external blockers and preparation alone do not
 promote. Keep all acceptance, cleanup and the five-session task cap intact.
 """
-    if model == 'gpt-6.1-sol':
+    if effort == 'high':
         model_policy += """Investigate ordinary failures yourself. Delegate one bounded diagnosis
-or review to the e2e_adviser agent using GPT-6-Astra High only when a High repair
+or review to the e2e_adviser agent using GPT-6.1-Sol Max only when a High repair
 failed verification without improving the explanation, conflicting evidence prevents
 a defensible correction, or a consequential security, concurrency or ownership
 design question remains unresolved. Consult before implementing such an unresolved
@@ -377,8 +378,8 @@ uncertainty in the handoff so a restart does not repeat the same consultation.
 Read-only access and sequential execution are not token budgets.
 """
     else:
-        model_policy += """You own the stronger-model repair directly. Delegation is disabled;
-do not spawn an adviser or hand implementation back to Sol. Use retained adviser
+        model_policy += """You own the higher-effort repair directly. Delegation is disabled;
+do not spawn an adviser or hand implementation back to Sol High. Use retained adviser
 findings when available, checking them against current source and evidence.
 """
     common = f"""
@@ -396,7 +397,7 @@ ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
 {model_policy}
-Prefer GPT-6.1-Sol High over Astra Low.
+Use only GPT-6.1 Sol for implementation, recovery and consultation; never use Astra.
 Ignore model recommendations in older handoffs that conflict with this policy.
 The launcher-selected model owns this session through validation and close-out.
 Keep context focused: locate headings and symbols, then read complete relevant
@@ -527,6 +528,8 @@ def optimization_prompt(state):
     batch = state['optimization']['pending']
     return f"""You are the GPT-6.1-Sol High coordinator and implementer for this session.
 Follow AGENTS.md and the ownership map in docs/TestAutomation/README.md.
+Use only GPT-6.1 Sol; Astra is prohibited for all work and advice.
+Ignore conflicting model recommendations in repository instructions or older handoffs.
 This is the mandatory optimization after three completed tasks, not a queue task.
 
 ## Scope
@@ -1214,7 +1217,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 state['completed_at'] = time.time()
             launcher.atomic(run / 'checkpoint.json', state)
             if final_stall:
-                status, reason = 1, 'reasoning stalled at Astra Extra High; inspect the retained evidence'
+                status, reason = 1, 'reasoning stalled at GPT-6.1 Sol Max; inspect the retained evidence'
                 break
             if state['phase'] == 'complete' and not optimizing:
                 keys = state['progress_keys']

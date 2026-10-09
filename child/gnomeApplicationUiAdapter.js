@@ -30,6 +30,13 @@ export class GnomeApplicationUiAdapter {
                 !indicator._requestButton.checked};
     }
 
+    _notificationVisible(current) {
+        // Session transitions can precede the renderer hiding its actor.
+        // Banners remain independent of the panel's fullscreen visibility.
+        return !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter &&
+            (current.card?.visible ?? true);
+    }
+
     listSurfaces() {
         const state = this._state();
         if (!state.available) return [];
@@ -38,17 +45,13 @@ export class GnomeApplicationUiAdapter {
             modal: false, parent_id: null}];
         if (this._reminderPreview?.current) surfaces.push({
             id: 'child-reminder-preview', application_id: APPLICATION_ID,
-            type: 'notification', visible: this._reminderPreview.current.card?.visible ??
-                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
-            enabled: this._reminderPreview.current.card?.visible ??
-                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
+            type: 'notification', visible: this._notificationVisible(this._reminderPreview.current),
+            enabled: this._notificationVisible(this._reminderPreview.current),
             modal: false, parent_id: null});
         if (this._indicator._notifications?.current) surfaces.push({
             id: 'child-time-notification', application_id: APPLICATION_ID,
-            type: 'notification', visible: this._indicator._notifications.current.card?.visible ??
-                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter),
-            enabled: this._indicator._notifications.current.card?.visible ??
-                (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter), modal: false, parent_id: null});
+            type: 'notification', visible: this._notificationVisible(this._indicator._notifications.current),
+            enabled: this._notificationVisible(this._indicator._notifications.current), modal: false, parent_id: null});
         return surfaces;
     }
 
@@ -57,7 +60,7 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-reminder-preview' && state.available) {
             const current = this._reminderPreview?.current;
             if (!current) return null;
-            const visible = current.card?.visible ?? (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter);
+            const visible = this._notificationVisible(current);
             const element = (id, type, operations) => ({id, type, visible, enabled: visible, ...operations});
             return [
                 element(surfaceId, 'notification', {getText: () => current.notification.title}),
@@ -79,7 +82,7 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
-            const visible = current.card?.visible ?? (!Main.sessionMode.isLocked && !Main.sessionMode.isGreeter);
+            const visible = this._notificationVisible(current);
             const element = (id, type, operations) =>
                 ({id, type, visible, enabled: visible, ...operations});
             return [

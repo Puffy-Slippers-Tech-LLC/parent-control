@@ -1133,7 +1133,8 @@ def owned_surface_id(identity):
     if fixture:
         return None if identity == fixture[1] else fixture[1]
     for prefix, surface in (('kiosk-system-notification', 'kiosk-system-notification'),
-                            ('child-reminder-preview', 'child-reminder-preview')):
+                            ('child-reminder-preview', 'child-reminder-preview'),
+                            ('child-time-notification', 'child-time-notification')):
         if identity == surface or identity.startswith(prefix + '-'):
             return None if identity == surface else surface
     if identity.startswith('child-'):
@@ -1218,7 +1219,8 @@ def owned_applications(identity):
         return (WATCH_APPLICATION,)
     if identity.startswith('kiosk-system-notification'):
         return ('com.puffyslippers.OhNoParentControl.KioskNotifications',)
-    if identity == 'child-reminder-preview' or identity.startswith('child-reminder-preview-'):
+    if identity in ('child-reminder-preview', 'child-time-notification') or identity.startswith(
+            ('child-reminder-preview-', 'child-time-notification-')):
         return (CHILD_PANEL_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)

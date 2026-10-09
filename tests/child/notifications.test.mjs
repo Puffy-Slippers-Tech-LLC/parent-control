@@ -805,7 +805,8 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     h.policyReply(false);
     const indicator = {_notifications: h.notifier,
         container: {visible: true}, _requestButton: {visible: true, reactive: true, get_parent: () => null}};
-    const adapter = new context.Adapter(indicator);
+    const preview = {current: h.notifier.current};
+    const adapter = new context.Adapter(indicator, preview);
     assert.equal(adapter.listSurfaces().at(-1).id, 'child-time-notification');
     const elements = adapter.elements('child-time-notification');
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getText(),
@@ -814,9 +815,31 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     assert.equal(elements.find(element => element.id === 'child-time-notification-urgency').getValue(), 'high');
     assert(elements.find(element => element.id === 'child-time-notification-close').activate);
     assert(elements.find(element => element.id === 'child-time-notification-preferences').activate);
-    Main.sessionMode.isLocked = true;
-    h.notifier.current.card.visible = false;
-    assert(adapter.elements('child-time-notification').every(element => !element.visible));
+    h.notifier.update(14, true);
+    assert.equal(adapter.elements('child-time-notification').find(
+        element => element.id === 'child-time-notification-message').getValue(), 14);
+    indicator.container.visible = false;
+    for (const surface of ['child-time-notification', 'child-reminder-preview']) {
+        assert(adapter.listSurfaces().find(item => item.id === surface).enabled,
+            'a hidden fullscreen panel must not disable its banner');
+        for (const sessionFlag of ['isLocked', 'isGreeter']) {
+            Main.sessionMode[sessionFlag] = true;
+            assert(h.notifier.current.card.visible, 'actor has not processed the session transition');
+            const metadata = adapter.listSurfaces().find(item => item.id === surface);
+            assert(!metadata.visible && !metadata.enabled);
+            assert(adapter.elements(surface).every(element => !element.visible && !element.enabled));
+            Main.sessionMode[sessionFlag] = false;
+        }
+        h.notifier.current.card.visible = false;
+        assert(!adapter.listSurfaces().find(item => item.id === surface).enabled);
+        assert(adapter.elements(surface).every(element => !element.visible && !element.enabled));
+        h.notifier.current.card.visible = true;
+    }
+    adapter.elements('child-time-notification').find(
+        element => element.id === 'child-time-notification-close').activate();
+    assert.equal(adapter.elements('child-time-notification'), null);
+    preview.current = null;
+    assert.equal(adapter.elements('child-reminder-preview'), null);
     h.notifier.clear();
     assert.equal(adapter.elements('child-time-notification'), null);
     adapter.close();

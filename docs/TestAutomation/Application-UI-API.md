@@ -206,9 +206,9 @@ screen-time control and absent accounts retain their existing restrictions.
 | `language-search` | Literal language search text in either frontend's `language-dialog` |
 | `language-list` | Get/set canonical catalogue language code; choices enumerate catalogue codes; filtered-out choices refuse until search is cleared |
 | `language-choice-<lowercase-code>` | Actual language radio; selection relabels the chooser |
-| `language-continue`, `language-cancel`, `language-error` | Save, Cancel and ordinary save error readback |
+| `language-continue`, `language-cancel`, `language-error` | Main preferences Save, Cancel and ordinary save error readback; Save commits reminder drafts, Cancel discards them |
 | `preferences-tab-language`, `preferences-tab-reminders`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
-| `preferences-tabs` | Get/set canonical active page `language` or `reminders`; `getChoices` enumerates both; setter uses the normal tab handler |
+| `preferences-tabs` | Get/set canonical active page, including `language` and `reminders`; `getChoices` enumerates current pages; setter uses the normal tab handler |
 | `reminder-list` | Sorted draft records via `getValue`; stable stored reminder IDs via `getChoices` |
 | `reminder-show-in-fullscreen` | Get/set the selected child's account-wide boolean fullscreen preference in the reminder draft |
 | `reminder-add`, `reminder-retry`, `reminder-<id>-edit`, `reminder-<id>-delete` | Normal reminder CRUD/read-retry handlers; backend remains authoritative |
@@ -221,20 +221,30 @@ screen-time control and absent accounts retain their existing restrictions.
 | `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit |
 | `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
 
+Bind preferences controls to `language-dialog` and editor controls to
+`reminder-editor-dialog`. Editor Save changes only the draft returned by
+`reminder-list`; use main `language-continue` to persist it. Dynamic row IDs use
+the stored IDs returned by `reminder-list.getChoices()`, including newly added
+draft records. The fullscreen switch refuses input while loading, saving or
+when the list is empty, preserving its existing value. An open editor blocks
+input to the underlying preferences surface; inactive tabs retain the API's
+logical visibility guards.
+
 The dedicated kiosk notification provider exports the same UI protocol at
 `com.puffyslippers.OhNoParentControl.KioskNotifications`, using its derived
 GApplication object path. Its `kiosk-system-notification` surface exposes
 `kiosk-system-notification-message` (plain body text and canonical urgency value)
 and `kiosk-system-notification-close` (normal dismissal), plus
 `kiosk-system-notification-preferences` (shared preferences action) and
-`kiosk-system-notification-countdown` (displayed auto-close seconds). The provider runs only
+`kiosk-system-notification-countdown` (displayed countdown text, including
+short persistent banners). The provider runs only
 with the dedicated kiosk session. The child overlay calls the extension's
 reminder-preview service, which shares the countdown's banner renderer. Its
 `child-reminder-preview` surface at the existing ChildUI endpoint exposes
 `child-reminder-preview-message` (literal body and canonical `critical` urgency)
 and `child-reminder-preview-close` (normal dismissal), plus
 `child-reminder-preview-preferences` and `child-reminder-preview-countdown`
-(canonical auto-close seconds, hidden for persistent banners). This repository-owned
+(canonical countdown seconds, hidden for legacy untimed previews). This repository-owned
 banner uses the Application UI API, not external-provider selectors.
 
 ## Shared information and feedback
@@ -295,16 +305,19 @@ configuration changes:
 | ID | Values and operations |
 | --- | --- |
 | `child-time-notification` | `getText`: actual notification title |
-| `child-time-notification-message` | `getText`: actual plain notification body; `getValue`: configured threshold in seconds |
+| `child-time-notification-message` | `getText`: actual plain notification body; `getValue`: current verified remaining seconds, refreshed with the countdown |
 | `child-time-notification-urgency` | `getValue`: `critical` or `high` |
 | `child-time-notification-close` | `activate`: dismiss the current banner |
-| `child-time-notification-preferences` | `activate`: open the shared overlay preferences |
-| `child-time-notification-countdown` | `getValue`: auto-close seconds, hidden for persistent banners |
+| `child-time-notification-preferences` | `activate`: dismiss the banner and open the shared overlay preferences on Reminders |
+| `child-time-notification-countdown` | `getValue`: remaining countdown segments; timed long reminders count down to auto-close, short persistent reminders follow verified remaining seconds |
 
 These observations expose the product-owned Shell banner, including current
 text after preference/language refresh. Logical visibility follows the unlocked
 desktop and fullscreen urgency. Actions invoke the banner's ordinary handlers;
 no alternate product input route is provided.
+The shared UI facade binds every `child-time-notification-*` control to this
+surface at the `child-panel` endpoint, independently of panel visibility. Both
+live reminders and previews refuse input during lock and greeter transitions.
 Installed banner/provider qualification remains pending. The reminder
 preferences dialog publishes its own guarded public IDs and normal handlers;
 these read-only observations provide no settings input or backend-edit bypass.

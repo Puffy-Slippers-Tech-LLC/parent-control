@@ -47,6 +47,10 @@ def test_child_preference_controls_bind_to_their_public_surface(identity, surfac
     ('child-reminder-preview', None, 'com.puffyslippers.OhNoParentControl.ChildUI'),
     ('child-reminder-preview-close', 'child-reminder-preview',
      'com.puffyslippers.OhNoParentControl.ChildUI'),
+    ('child-time-notification', None, 'com.puffyslippers.OhNoParentControl.ChildUI'),
+    *((f'child-time-notification-{suffix}', 'child-time-notification',
+       'com.puffyslippers.OhNoParentControl.ChildUI')
+      for suffix in ('message', 'urgency', 'close', 'preferences', 'countdown')),
 ))
 def test_reminder_banners_route_to_their_own_product_provider(identity, surface, application):
     assert accessible_ui.owned_surface_id(identity) == surface

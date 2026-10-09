@@ -86,6 +86,12 @@ the separate technical checks described in the system design.
   It uses the selected child's saved product language, defaulting to that child's desktop language when unset. The initial language chooser, request form and upgrade reboot notice use that default from their first presentation. Its standard authentication agent uses the selected language for system-owned buttons and text where system translations are installed; changing language preserves the normal authentication behavior.
 - [ONPC-CORE-REQUEST-003] Both forms explain when screen-time control is off for the selected child and disable submission. This is the installed forms' availability rule.
 - [ONPC-CORE-REQUEST-004] The duration choices are 5, 15 and 30 minutes; 1, 2 and 4 hours; Rest of the day; and Custom value. Custom values from 0.1 through 1440 minutes are accepted and rounded to whole seconds. Use a decimal point for fractional minutes. Empty, nonnumeric and out-of-range values show validation feedback. With accounts and enabled settings loaded, Request remains available; selecting it with invalid input keeps the form open and starts no authentication. A fresh child preference selects 30 minutes with soft apps excluded and 0.1 minutes in the custom field.
+  The backend supports persistent per-child creation, reading, updating and
+  deletion of the fixed-duration presets, initially using the shipped times
+  above. Presets automatically sort from smallest to largest. Deleting every
+  editable preset is allowed; Rest of the day and Custom value remain hardcoded
+  and cannot be customized. The backend is implemented; frontend customization
+  and loading of saved presets are deferred.
 - [ONPC-CORE-REQUEST-005] The requester selects an eligible parent and whether to allow soft blocked apps. The system authentication prompt identifies the child, duration and soft-app choice and requests authentication from that selected parent.
 - [ONPC-CORE-REQUEST-006] The parent enters credentials only in the system authentication prompt. Product request forms do not receive, store or display the password.
 - [ONPC-CORE-REQUEST-007] One successful authentication approves the complete request. It gives the requester no reusable administrator authorization.

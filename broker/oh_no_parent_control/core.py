@@ -23,13 +23,14 @@ from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
     MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
     blocked_patterns, blocked_targets, validate_preferences, validate_language, validate_notifications,
+    validate_time_grant_presets, MIN_TIME_GRANT_SECONDS, MAX_TIME_GRANT_SECONDS,
 )
 
 LOG = get_logger("core")
 _NO_ACKNOWLEDGEMENT = object()
 MAX_LOCAL_MIDNIGHT_SECONDS = 26 * 60 * 60
-MIN_REQUEST_SECONDS = 6
-MAX_REQUEST_SECONDS = 24 * 60 * 60
+MIN_REQUEST_SECONDS = MIN_TIME_GRANT_SECONDS
+MAX_REQUEST_SECONDS = MAX_TIME_GRANT_SECONDS
 MIN_MANAGED_UID = 1000
 DAILY_LIMIT_FLAG = 1 << 1
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
@@ -714,6 +715,42 @@ class Broker:
     def set_own_language(self, caller_uid: int, language: object) -> str:
         self._authorize_own_language(caller_uid)
         return self._save_language(caller_uid, language)
+
+    def get_own_time_grant_presets(self, caller_uid: int) -> list[int]:
+        self._target(self._load_config(), caller_uid)
+        return self._load_time_grant_presets(caller_uid)
+
+    def get_child_time_grant_presets(self, caller_uid: int, target_uid: int) -> list[int]:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._load_time_grant_presets(target_uid)
+
+    def _load_time_grant_presets(self, target_uid: int) -> list[int]:
+        if self._preferences is None:
+            raise BackendFailure("time grant preset store is unavailable")
+        try:
+            return self._preferences.load(target_uid)["personal"]["time_grant_presets"]
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("time grant presets are unavailable") from error
+
+    def set_own_time_grant_presets(self, caller_uid: int, presets: object) -> list[int]:
+        self._target(self._load_config(), caller_uid)
+        return self._save_time_grant_presets(caller_uid, presets)
+
+    def set_child_time_grant_presets(self, caller_uid: int, target_uid: int, presets: object) -> list[int]:
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        return self._save_time_grant_presets(target_uid, presets)
+
+    def _save_time_grant_presets(self, target_uid: int, presets: object) -> list[int]:
+        try:
+            presets = validate_time_grant_presets(presets)
+        except PreferencesError as error:
+            raise InvalidRequest("invalid time grant presets") from error
+        if self._preferences is None:
+            raise BackendFailure("time grant preset store is unavailable")
+        try:
+            return self._preferences.update_time_grant_presets(target_uid, presets)
+        except (PreferencesError, OSError) as error:
+            raise BackendFailure("could not save time grant presets") from error
 
     def get_own_notifications(self, caller_uid: int) -> dict:
         self._target(self._load_config(), caller_uid)

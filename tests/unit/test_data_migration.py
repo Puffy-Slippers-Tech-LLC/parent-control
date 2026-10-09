@@ -16,6 +16,19 @@ from oh_no_parent_control.preferences import FORMAT_VERSION, PreferenceStore, de
 
 
 class DataMigrationTests(unittest.TestCase):
+    def test_time_grant_presets_survive_upgrade_retries_including_empty_list(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "preferences"
+            store = PreferenceStore(directory)
+            for presets in ([123, 60], []):
+                store.update_time_grant_presets(1001, presets)
+                path = directory / "1001.json"
+                before = path.read_bytes()
+                self.assertEqual(migrate_preferences(directory), 0)
+                self.assertEqual(path.read_bytes(), before)
+                self.assertEqual(PreferenceStore(directory).load(1001)["personal"]["time_grant_presets"],
+                                 sorted(presets))
+
     def test_v3_to_v4_preserves_every_existing_choice_and_is_pure(self):
         legacy = default_preferences()
         legacy["version"] = 3

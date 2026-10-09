@@ -123,6 +123,10 @@ the broker resolves and revalidates it.
 | `SetOwnNotifications` | own | - | - |
 | `GetChildNotifications` | - | selected child | - |
 | `SetChildNotifications` | - | selected child | - |
+| `GetOwnTimeGrantPresets` | own | - | - |
+| `SetOwnTimeGrantPresets` | own | - | - |
+| `GetChildTimeGrantPresets` | - | selected child | - |
+| `SetChildTimeGrantPresets` | - | selected child | - |
 | `GetOwnSessionAllowsSoftApps` | own | - | - |
 | `GetChildLanguage` | - | selected child | - |
 | `GetChildLanguageContext` | - | selected child | - |
@@ -191,6 +195,11 @@ caller-supplied arithmetic operands and returns a calculation; it does not
 authorize or write a grant.
 
 ## Authorization and grant transactions
+
+Time grant preset customization uses the child-owned and kiosk-selected-child
+permissions described in the [preset backend](State.md#time-grant-preset-backend).
+These personal-setting APIs persist editable durations without changing active
+grants, AccountsService policy or the approval transaction.
 
 The kiosk's forked MATE agent can finish systemd startup before registering with
 PolicyKit. With interactive authorization enabled, an unfulfilled challenge

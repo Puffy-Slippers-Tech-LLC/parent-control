@@ -28,7 +28,7 @@ and atomically replaced. The current preference format is version 4 (`FORMAT_VER
 
 ```text
 version
-personal = { language, notifications = { show_in_fullscreen, reminders[] }, whats_new_seen[]? }
+personal = { language, notifications = { show_in_fullscreen, reminders[] }, time_grant_presets[], whats_new_seen[]? }
 parent_control_enabled
 daily_time_limit_minutes
 apps[desktop-id] = {
@@ -141,6 +141,47 @@ retains these records; purge removes them with the product state directory.
 The [language selectors](Frontends.md#personal-language-selection) use this API.
 [Localization](Localization.md) defines translation contexts and language
 application without changing persistence, authorization or policy ownership.
+
+## Time grant preset backend
+
+`personal.time_grant_presets` is an optional, compatible version-4 field.
+Absent means the shipped durations: 300, 900, 1800, 3600, 7200 and 14400
+seconds. A saved list replaces those defaults completely, including an empty
+list. Reads and writes normalize it into ascending numeric order. There may be
+at most 64 unique whole-second durations from 6 through 86400, derived from
+the shared Custom value range of 0.1 through 1440 minutes. Booleans, fractional seconds, duplicates and invalid
+values are rejected before persistence.
+
+`GetOwnTimeGrantPresets()` and `SetOwnTimeGrantPresets(presets_json)` address
+only the eligible child identified by bus credentials.
+`GetChildTimeGrantPresets(target_uid)` and
+`SetChildTimeGrantPresets(target_uid, presets_json)` require the configured
+kiosk caller and an eligible selected child. Each method returns the normalized
+JSON array of editable durations in seconds; setters accept that same array.
+Whole-list replacement supports create, read, update and delete. Transport is
+bounded at 512 KiB and rejects duplicate JSON keys and excessive nesting.
+
+Rest of the day (`"0"`) and Custom value (`"custom"`) are fixed selector
+choices outside the editable array. They cannot be inserted, edited or deleted
+through this API. The backend `time_grant_choices()` helper appends both to
+the sorted editable choices, including when the array is empty. Remembered
+`request.last_selected_duration` accepts either fixed choice or a canonical
+decimal string within the fixed-duration bounds. It remains valid if a preset
+is later deleted; preset edits do not rewrite remembered requests or change
+grant authorization or arithmetic.
+
+Writes use the existing locked read/modify/write and atomic mode-0600,
+file/directory-fsynced persistence. They preserve language, reminders, release
+acknowledgements, policy and request choices. Stale policy commits and rollback
+retain the latest preset list; personal-only records remain personal-only.
+Reads do not create files. Saved customizations and empty lists survive broker
+restarts and migration retries without merging defaults. Ordinary removal
+retains them; purge removes them with the preference directory.
+
+The backend and D-Bus contract are implemented. The request form continues to
+use its shipped choices until a future frontend session integrates these APIs.
+Broker changes activate on process restart; no schema increment or released
+migration edit is required.
 
 ## What's New backend
 

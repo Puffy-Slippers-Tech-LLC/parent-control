@@ -1,12 +1,96 @@
 import tempfile
 import unittest
+import json
+import pytest
 from pathlib import Path
 from unittest import mock
 
 from oh_no_parent_control.preferences import (
     PreferenceStore, PreferencesError, blocked_patterns, blocked_targets, default_preferences,
     validate_preferences, validate_language, validate_notifications, default_notifications,
+    DEFAULT_TIME_GRANT_PRESETS, validate_time_grant_presets, time_grant_choices,
 )
+
+
+def test_time_grant_preset_crud_sorting_and_preservation(tmp_path):
+    store = PreferenceStore(tmp_path)
+    assert store.load(1001)["personal"]["time_grant_presets"] == list(DEFAULT_TIME_GRANT_PRESETS)
+    assert not list(tmp_path.iterdir())
+    path = tmp_path / "1001.json"
+    path.write_text(json.dumps({"version": 4, "personal": {"language": "fr"}}))
+    assert store.load(1001)["personal"]["time_grant_presets"] == list(DEFAULT_TIME_GRANT_PRESETS)
+    assert store.update_time_grant_presets(1001, [7200, 6, 123, 86400]) == [6, 123, 7200, 86400]
+    assert set(json.loads(path.read_text())) == {"version", "personal"}
+    stale = store.load(1001)
+    store.update_time_grant_presets(1001, [123, 60])
+    stale["daily_time_limit_minutes"] = 42
+    store.save(1001, stale)
+    store.update_request(1001, "123", 0.1, True)
+    before = store.load(1001)
+    store.update_time_grant_presets(1001, [])
+    store.update_language(1001, "de")
+    store.update_notifications(1001, {"show_in_fullscreen": False, "reminders": []})
+    restarted = PreferenceStore(tmp_path)
+    saved = restarted.load(1001)
+    assert saved["personal"]["time_grant_presets"] == []
+    assert saved["daily_time_limit_minutes"] == 42
+    assert saved["request"] == before["request"]
+    assert saved["apps"] == before["apps"]
+    assert restarted.load(1002)["personal"]["time_grant_presets"] == list(DEFAULT_TIME_GRANT_PRESETS)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert time_grant_choices([]) == ("0", "custom")
+    assert time_grant_choices([7200, 6, 123]) == ("6", "123", "7200", "0", "custom")
+
+
+@pytest.mark.parametrize("presets", [
+    None, {}, "300", [0], ["custom"], [None], [True], [5], [86401],
+    [1.5], [300.0], ["300"], [60, 60], list(range(6, 71)), [[]],
+])
+def test_invalid_time_grant_presets_preserve_saved_bytes(tmp_path, presets):
+    store = PreferenceStore(tmp_path)
+    store.update_time_grant_presets(1001, [60])
+    path = tmp_path / "1001.json"
+    before = path.read_bytes()
+    with pytest.raises(PreferencesError):
+        store.update_time_grant_presets(1001, presets)
+    assert path.read_bytes() == before
+
+
+def test_time_grant_presets_atomic_failure_and_corrupt_data(tmp_path):
+    store = PreferenceStore(tmp_path)
+    store.update_time_grant_presets(1001, [60])
+    path = tmp_path / "1001.json"
+    before = path.read_bytes()
+    with mock.patch("oh_no_parent_control.preferences.os.replace", side_effect=OSError):
+        with pytest.raises(OSError):
+            store.update_time_grant_presets(1001, [])
+    assert path.read_bytes() == before
+    assert list(tmp_path.iterdir()) == [path]
+    for content in ('{', '{"version": 5, "personal": {"language": ""}}',
+                    '{"version": 4, "personal": {"language": "", "time_grant_presets": [0]}}'):
+        path.write_text(content)
+        with pytest.raises(PreferencesError):
+            store.update_time_grant_presets(1001, [])
+        assert path.read_text() == content
+
+
+def test_time_grant_presets_accept_exactly_64_and_reject_65(tmp_path):
+    store = PreferenceStore(tmp_path)
+    presets = list(range(6, 70))
+    assert store.update_time_grant_presets(1001, list(reversed(presets))) == presets
+    assert PreferenceStore(tmp_path).load(1001)["personal"]["time_grant_presets"] == presets
+    before = (tmp_path / "1001.json").read_bytes()
+    with pytest.raises(PreferencesError):
+        store.update_time_grant_presets(1001, [*presets, 70])
+    assert (tmp_path / "1001.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("selected", ["123", "6", "86400", "0", "custom"])
+def test_remembered_time_grant_duration_survives_preset_deletion(selected):
+    value = default_preferences()
+    value["personal"]["time_grant_presets"] = []
+    value["request"]["last_selected_duration"] = selected
+    assert validate_preferences(value)["request"]["last_selected_duration"] == selected
 
 
 class PreferenceTests(unittest.TestCase):
@@ -131,9 +215,9 @@ class PreferenceTests(unittest.TestCase):
             store.update_language(1001, "fr")
             path = Path(directory) / "1001.json"
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")),
-                             {"version": 4, "personal": {"language": "fr", "notifications": default_notifications()}})
+                             {"version": 4, "personal": {**default_preferences()["personal"], "language": "fr"}})
             self.assertEqual(store.load(1001),
-                             {**default_preferences(), "personal": {"language": "fr", "notifications": default_notifications()}})
+                             {**default_preferences(), "personal": {**default_preferences()["personal"], "language": "fr"}})
             store.save(1001, default_preferences())
             raw = json.loads(path.read_text(encoding="utf-8"))
             self.assertIn("parent_control_enabled", raw)
@@ -273,10 +357,11 @@ class PreferenceTests(unittest.TestCase):
         self.assertTrue(normalized["apps"]["game.desktop"]["user_saved_match_rule"])
 
     def test_invalid_request_value_is_rejected(self):
-        value = default_preferences()
-        value["request"]["last_selected_duration"] = "123"
-        with self.assertRaises(PreferencesError):
-            validate_preferences(value)
+        for selected in ("5", "86401", "0123", "12.3", "rest", "", None, [], True, 123):
+            with self.subTest(selected=selected), self.assertRaises(PreferencesError):
+                value = default_preferences()
+                value["request"]["last_selected_duration"] = selected
+                validate_preferences(value)
 
     def test_daily_time_limit_is_an_integer_from_zero_to_one_day(self):
         for minutes in (0, 1, 24 * 60):

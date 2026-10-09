@@ -286,7 +286,8 @@ def test_gc_runs_on_acknowledgement_preserves_other_components_and_personal_poli
     store.save(1001, stale)  # Also covers policy rollback with an obsolete snapshot.
     result = store.load(1001)
     assert result["personal"] == {"language": "fr", "notifications": {
-        "show_in_fullscreen": False, "reminders": []}, "whats_new_seen": ["1.5:Parent", "2.0:Child"]}
+        "show_in_fullscreen": False, "reminders": []}, "whats_new_seen": ["1.5:Parent", "2.0:Child"],
+        "time_grant_presets": default_preferences()["personal"]["time_grant_presets"]}
     assert result["parent_control_enabled"] is True
     assert result["daily_time_limit_minutes"] == 60
     assert result["apps"] == policy["apps"]

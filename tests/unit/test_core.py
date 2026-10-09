@@ -24,6 +24,110 @@ from tests.support.broker import (
 
 
 class CoreTests(unittest.TestCase):
+    def test_time_grant_presets_child_and_kiosk_crud_is_isolated_without_policy_effects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            accounts, authorizer = Accounts(), Authorizer()
+            store = PreferenceStore(Path(directory))
+            broker = make_broker(accounts=accounts, preferences=store, authorizer=authorizer)
+            before = store.load(1001)
+            self.assertEqual(broker.set_own_time_grant_presets(1001, [7200, 123, 6]), [6, 123, 7200])
+            self.assertEqual(broker.get_child_time_grant_presets(991, 1001), [6, 123, 7200])
+            broker.update_request_preferences(1001, 1001, "123", 0.1, False)
+            self.assertEqual(broker.set_child_time_grant_presets(991, 1001, []), [])
+            restarted = make_broker(preferences=PreferenceStore(Path(directory)))
+            self.assertEqual(restarted.get_own_time_grant_presets(1001), [])
+            self.assertEqual(restarted.get_child_time_grant_presets(991, 1002),
+                             before["personal"]["time_grant_presets"])
+            self.assertEqual(store.load(1001)["request"]["last_selected_duration"], "123")
+            self.assertEqual(accounts.events, [])
+            self.assertEqual(authorizer.calls, [])
+
+    def test_time_grant_preset_deletion_during_authorization_preserves_request(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            policy = default_preferences()
+            policy["parent_control_enabled"] = True
+            policy["daily_time_limit_minutes"] = 60
+            store.save(1001, policy)
+            store.update_time_grant_presets(1001, [123])
+            store.update_request(1001, "123", 0.1, True)
+            before = store.load(1001)
+            authorizer = Authorizer(callback=lambda: broker.set_own_time_grant_presets(1001, []))
+            accounts = Accounts()
+            broker = make_broker(preferences=store, authorizer=authorizer, accounts=accounts)
+            _correlation, result, duration = broker.request_own_access(1001, ":1.42", 1003, 123, True)
+            self.assertEqual((result, duration), ("approved", 3723))
+            self.assertEqual(store.load(1001), {**before, "personal": {
+                **before["personal"], "time_grant_presets": []}})
+            self.assertEqual(accounts.extension[1], duration)
+
+    def test_failed_policy_commit_keeps_presets_changed_after_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PreferenceStore(Path(directory))
+            accounts = Accounts()
+            broker = make_broker(accounts=accounts, preferences=store)
+            store.update_time_grant_presets(1001, [123])
+            before = store.load(1001)
+            requested = store.load(1001)
+            requested["daily_time_limit_minutes"] = 42
+            original = accounts.set_filter
+            calls = []
+
+            def fail_commit(uid, value):
+                calls.append(value)
+                if len(calls) == 1:
+                    broker.set_child_time_grant_presets(991, 1001, [])
+                    raise RuntimeError("filter write failed")
+                original(uid, value)
+
+            accounts.set_filter = fail_commit
+            with self.assertRaises(BackendFailure):
+                broker.set_preferences(1003, 1001, requested)
+            self.assertEqual(store.load(1001), {**before, "personal": {
+                **before["personal"], "time_grant_presets": []}})
+            self.assertEqual(accounts.filter, (False, ("old.App",)))
+
+    def test_time_grant_preset_authorization_validation_and_storage_failures(self):
+        store = mock.Mock()
+        accounts = Accounts()
+        accounts.users[0] = UserAccount(0, "root", "Root", True, True, True)
+        broker = make_broker(preferences=store, accounts=accounts)
+        for uid in (0, 991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_own_time_grant_presets(uid)
+            with self.assertRaises(AccessDenied):
+                broker.set_own_time_grant_presets(uid, [])
+        for caller in (0, 1001, 1003, True):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_time_grant_presets(caller, 1001)
+            with self.assertRaises(AccessDenied):
+                broker.set_child_time_grant_presets(caller, 1001, [])
+        for target in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_time_grant_presets(991, target)
+            with self.assertRaises(AccessDenied):
+                broker.set_child_time_grant_presets(991, target, [])
+        for uid in (True, -1, 12345):
+            with self.assertRaises(InvalidRequest):
+                broker.get_own_time_grant_presets(uid)
+        store.load.assert_not_called()
+        store.update_time_grant_presets.assert_not_called()
+        with self.assertRaises(InvalidRequest):
+            broker.set_own_time_grant_presets(1001, [0])
+        store.update_time_grant_presets.assert_not_called()
+        for error in (PreferencesError("future"), OSError("unavailable")):
+            store.load.side_effect = store.update_time_grant_presets.side_effect = error
+            with self.assertRaises(BackendFailure):
+                broker.get_own_time_grant_presets(1001)
+            with self.assertRaises(BackendFailure):
+                broker.set_own_time_grant_presets(1001, [])
+        broker._preferences = None
+        with self.assertRaises(BackendFailure):
+            broker.get_own_time_grant_presets(1001)
+        with self.assertRaises(BackendFailure):
+            broker.set_own_time_grant_presets(1001, [])
+        self.assertEqual(accounts.events, [])
+
     def test_running_soft_app_list_excludes_hard_allowed_and_stopped_apps(self):
         preferences = Preferences()
         soft = preferences.values[1001]["apps"]["soft.desktop"]

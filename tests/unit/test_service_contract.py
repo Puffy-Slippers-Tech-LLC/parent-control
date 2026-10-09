@@ -18,6 +18,77 @@ from common.oh_no_parent_control_ui.reboot import product_reboot_required
 from tests.support.paths import ROOT
 
 
+@pytest.mark.parametrize("scope,uid,target", [("Own", 1001, ()), ("Child", 991, (1001,))])
+def test_time_grant_presets_dispatch_and_json_guards(scope, uid, target):
+    from oh_no_parent_control.service import GLib
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = uid
+    service.broker = mock.Mock()
+    for verb in ("Get", "Set"):
+        method = f"{verb}{scope}TimeGrantPresets"
+        operation = getattr(service.broker, f"{verb.lower()}_{scope.lower()}_time_grant_presets")
+        operation.return_value = []
+        signature = "(" + ("u" if target else "") + ("s" if verb == "Set" else "") + ")"
+        values = (*target, "[]") if verb == "Set" else target
+        invocation = mock.Mock()
+        service._method_call(None, ":1.42", None, None, method, GLib.Variant(signature, values), invocation)
+        operation.assert_called_once_with(uid, *target, *([[]] if verb == "Set" else []))
+        assert json.loads(invocation.return_value.call_args.args[0].unpack()[0]) == []
+        invocation.return_dbus_error.assert_not_called()
+    setter = getattr(service.broker, f"set_{scope.lower()}_time_grant_presets")
+    setter.reset_mock()
+    for encoded in ('{', '{"x": 1, "x": 2}', ' ' * (512 * 1024 + 1)):
+        invocation = mock.Mock()
+        service._method_call(None, ":1.42", None, None, f"Set{scope}TimeGrantPresets",
+                             GLib.Variant(signature, (*target, encoded)), invocation)
+        assert invocation.return_dbus_error.call_args.args[0].endswith(".InvalidRequest")
+        invocation.return_value.assert_not_called()
+    with mock.patch("oh_no_parent_control.service.decode_preferences", side_effect=RecursionError):
+        invocation = mock.Mock()
+        service._method_call(None, ":1.42", None, None, f"Set{scope}TimeGrantPresets",
+                             GLib.Variant(signature, (*target, "[]")), invocation)
+        assert invocation.return_dbus_error.call_args.args[0].endswith(".InvalidRequest")
+    setter.assert_not_called()
+
+
+@pytest.mark.parametrize("scope,uid,target", [("Own", 1001, ()), ("Child", 991, (1001,))])
+def test_time_grant_preset_json_validation_preserves_storage(tmp_path, scope, uid, target):
+    from oh_no_parent_control.preferences import PreferenceStore
+    from oh_no_parent_control.service import GLib
+    from tests.support.broker import Accounts, make_broker
+
+    store = PreferenceStore(tmp_path)
+    store.update_time_grant_presets(1001, [123])
+    before = (tmp_path / "1001.json").read_bytes()
+    service = Service.__new__(Service)
+    service.credentials = mock.Mock()
+    service.credentials.uid.return_value = uid
+    accounts = Accounts()
+    service.broker = make_broker(preferences=store, accounts=accounts)
+    signature = "(us)" if target else "(s)"
+    for encoded in ('null', '{}', '[true]', '[300.0]', '[60, 60]', '[0]',
+                    '[' * 2000 + ']' * 2000):
+        invocation = mock.Mock()
+        service._method_call(None, ":1.42", None, None, f"Set{scope}TimeGrantPresets",
+                             GLib.Variant(signature, (*target, encoded)), invocation)
+        assert invocation.return_dbus_error.call_args.args[0].endswith(".InvalidRequest")
+        invocation.return_value.assert_not_called()
+        assert (tmp_path / "1001.json").read_bytes() == before
+    assert accounts.events == []
+
+
+def test_time_grant_preset_dbus_contract():
+    methods = signatures(INTROSPECTION_XML)
+    assert methods["GetOwnTimeGrantPresets"] == (("presets_json", "s", "out"),)
+    assert methods["SetOwnTimeGrantPresets"] == (
+        ("presets_json", "s", "in"), ("saved_presets_json", "s", "out"))
+    assert methods["GetChildTimeGrantPresets"] == (
+        ("target_uid", "u", "in"), ("presets_json", "s", "out"))
+    assert methods["SetChildTimeGrantPresets"] == (
+        ("target_uid", "u", "in"), ("presets_json", "s", "in"), ("saved_presets_json", "s", "out"))
+
+
 @pytest.mark.parametrize("method,signature,values,operation,arguments", [
     ("GetOwnWhatsNew", "()", (), "get_own_whats_new", (1001,)),
     ("GetChildWhatsNew", "(u)", (1002,), "get_child_whats_new", (1001, 1002)),

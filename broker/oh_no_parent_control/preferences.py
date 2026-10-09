@@ -21,7 +21,11 @@ MIN_DAILY_LIMIT_MINUTES = 0
 MAX_DAILY_LIMIT_MINUTES = 24 * 60
 MIN_CUSTOM_MINUTES = 0.1
 MAX_CUSTOM_MINUTES = 1440
-VALID_DURATIONS = {"custom", "0", "300", "900", "1800", "3600", "7200", "14400"}
+MIN_TIME_GRANT_SECONDS = int(MIN_CUSTOM_MINUTES * 60)
+MAX_TIME_GRANT_SECONDS = MAX_CUSTOM_MINUTES * 60
+MAX_TIME_GRANT_PRESETS = 64
+DEFAULT_TIME_GRANT_PRESETS = (300, 900, 1800, 3600, 7200, 14400)
+FIXED_TIME_GRANT_CHOICES = ("0", "custom")
 DESKTOP_ID_RE = re.compile(r"^[^/\x00]+\.desktop$")
 _UNSAFE_PATTERN_CHARACTERS = frozenset(",\"\\\x00\r\n")
 REQUIRED_REQUEST_KEYS = {
@@ -41,6 +45,23 @@ LANGUAGE_RE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
 REMINDER_ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 MAX_REMINDERS = 64
 MAX_REMINDER_TEXT = 4096
+
+
+def validate_time_grant_presets(raw: object) -> list[int]:
+    """Only editable durations belong in storage; fixed choices are separate."""
+    if not isinstance(raw, list) or len(raw) > MAX_TIME_GRANT_PRESETS:
+        raise PreferencesError("time grant presets must be an array of at most 64 durations")
+    if any(type(seconds) is not int or not
+           MIN_TIME_GRANT_SECONDS <= seconds <= MAX_TIME_GRANT_SECONDS for seconds in raw):
+        raise PreferencesError("time grant presets must be whole seconds from 6 to 86400")
+    if len(set(raw)) != len(raw):
+        raise PreferencesError("duplicate time grant preset")
+    return sorted(raw)
+
+
+def time_grant_choices(presets: object) -> tuple[str, ...]:
+    """Canonical selector values, with immutable choices even for an empty list."""
+    return tuple(str(seconds) for seconds in validate_time_grant_presets(presets)) + FIXED_TIME_GRANT_CHOICES
 
 
 def default_notifications() -> dict:
@@ -101,7 +122,8 @@ def validate_language(value: object) -> str:
 def default_preferences() -> dict:
     return {
         "version": FORMAT_VERSION,
-        "personal": {"language": "", "notifications": default_notifications()},
+        "personal": {"language": "", "notifications": default_notifications(),
+                     "time_grant_presets": list(DEFAULT_TIME_GRANT_PRESETS)},
         "parent_control_enabled": False,
         "daily_time_limit_minutes": MIN_DAILY_LIMIT_MINUTES,
         "apps": {},
@@ -132,10 +154,12 @@ def validate_preferences(raw: object) -> dict:
         raise PreferencesError("unsupported preference version")
     personal = raw["personal"]
     if (not isinstance(personal, dict) or "language" not in personal or
-            not set(personal) <= {"language", "notifications", "whats_new_seen"}):
+            not set(personal) <= {"language", "notifications", "whats_new_seen", "time_grant_presets"}):
         raise PreferencesError("invalid personal preferences")
     language = validate_language(personal["language"])
     notifications = validate_notifications(personal.get("notifications", default_notifications()))
+    time_grant_presets = validate_time_grant_presets(
+        personal.get("time_grant_presets", list(DEFAULT_TIME_GRANT_PRESETS)))
     try:
         whats_new_seen = validate_seen(personal.get("whats_new_seen", []))
     except WhatsNewError as error:
@@ -188,7 +212,11 @@ def validate_preferences(raw: object) -> dict:
             not set(request) <= REQUIRED_REQUEST_KEYS | OPTIONAL_REQUEST_KEYS):
         raise PreferencesError("invalid request preferences")
     selected = request["last_selected_duration"]
-    if selected not in VALID_DURATIONS:
+    # Remembered requests remain valid if their preset is subsequently deleted.
+    # This also permits new presets without changing the request wire format.
+    if (not isinstance(selected, str) or (selected not in FIXED_TIME_GRANT_CHOICES and
+            (not re.fullmatch(r"[1-9][0-9]{0,4}", selected) or not
+             MIN_TIME_GRANT_SECONDS <= int(selected) <= MAX_TIME_GRANT_SECONDS))):
         raise PreferencesError("invalid selected duration")
     custom = request["last_custom_minutes"]
     if (type(custom) not in (int, float) or not math.isfinite(custom) or
@@ -210,6 +238,7 @@ def validate_preferences(raw: object) -> dict:
         "version": FORMAT_VERSION,
         "parent_control_enabled": raw["parent_control_enabled"],
         "personal": {"language": language, "notifications": notifications,
+                     "time_grant_presets": time_grant_presets,
                      **({"whats_new_seen": whats_new_seen} if "whats_new_seen" in personal else {})},
         "daily_time_limit_minutes": daily_limit,
         "apps": apps,
@@ -325,6 +354,16 @@ class PreferenceStore:
             if set(raw) == {"version", "personal"}:
                 current = {"version": FORMAT_VERSION, "personal": current["personal"]}
             return self._write(uid, current)["personal"]["language"]
+
+    def update_time_grant_presets(self, uid: int, presets: object) -> list[int]:
+        presets = validate_time_grant_presets(presets)
+        with self._write_lock:
+            raw = self._load_record(uid)
+            current = validate_preferences(raw)
+            current["personal"]["time_grant_presets"] = presets
+            if set(raw) == {"version", "personal"}:
+                current = {"version": FORMAT_VERSION, "personal": current["personal"]}
+            return self._write(uid, current)["personal"]["time_grant_presets"]
 
     def update_notifications(self, uid: int, notifications: object) -> dict:
         notifications = validate_notifications(notifications)

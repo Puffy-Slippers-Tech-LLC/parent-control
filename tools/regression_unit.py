@@ -185,6 +185,8 @@ trees without real services, processes, sockets or privileged writes. Existing
 compatible preference, core, migration and uninstall classifications still apply.
 Notification preference/service checks use these same private records and
 process-local credential/account doubles; compatible overlap remains valid.
+Time grant preset boundary, approval and rollback checks use the same tiny
+private records and synchronous doubles, with no new shared resources.
 
 Guest-probe additions to VM-control, snapshot, configuration and transport tests
 use existing private pytest lease/scratch trees and process-local SSH/libvirt,

@@ -65,6 +65,22 @@ INTROSPECTION_XML = f"""
     <method name="GetOwnSessionAllowsSoftApps">
       <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
     </method>
+    <method name="GetOwnTimeGrantPresets">
+      <arg name="presets_json" type="s" direction="out"/>
+    </method>
+    <method name="GetChildTimeGrantPresets">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="presets_json" type="s" direction="out"/>
+    </method>
+    <method name="SetOwnTimeGrantPresets">
+      <arg name="presets_json" type="s" direction="in"/>
+      <arg name="saved_presets_json" type="s" direction="out"/>
+    </method>
+    <method name="SetChildTimeGrantPresets">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="presets_json" type="s" direction="in"/>
+      <arg name="saved_presets_json" type="s" direction="out"/>
+    </method>
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>
@@ -502,6 +518,26 @@ class Service:
             elif method == "GetOwnSessionAllowsSoftApps":
                 allowed = self.broker.get_own_session_allows_soft_apps(caller_uid)
                 invocation.return_value(GLib.Variant("(b)", (allowed,)))
+            elif method == "GetOwnTimeGrantPresets":
+                saved = self.broker.get_own_time_grant_presets(caller_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method == "GetChildTimeGrantPresets":
+                target_uid, = parameters.unpack()
+                saved = self.broker.get_child_time_grant_presets(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
+            elif method in ("SetOwnTimeGrantPresets", "SetChildTimeGrantPresets"):
+                values = parameters.unpack()
+                encoded = values[-1]
+                if len(encoded.encode("utf-8")) > 512 * 1024:
+                    raise InvalidRequest("time grant presets are too large")
+                try:
+                    presets = decode_preferences(encoded)
+                except (ValueError, RecursionError) as error:
+                    raise InvalidRequest("invalid time grant presets") from error
+                saved = (self.broker.set_own_time_grant_presets(caller_uid, presets)
+                         if method == "SetOwnTimeGrantPresets" else
+                         self.broker.set_child_time_grant_presets(caller_uid, values[0], presets))
+                invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
             elif method == "GetOwnNotifications":
                 saved = self.broker.get_own_notifications(caller_uid)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))

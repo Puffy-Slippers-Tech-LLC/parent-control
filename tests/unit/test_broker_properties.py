@@ -194,9 +194,10 @@ def test_preference_migrations_preserve_current_blocking_meaning(state, suffix):
 
     assert changed
     assert migrated["version"] == 4
-    # Current validation adds the specified reminder defaults to legacy records.
+    # Current validation adds the optional personal defaults to legacy records.
     assert migrated["personal"] == {
         "language": "",
+        "time_grant_presets": [300, 900, 1800, 3600, 7200, 14400],
         "notifications": {
             "show_in_fullscreen": True,
             "reminders": [

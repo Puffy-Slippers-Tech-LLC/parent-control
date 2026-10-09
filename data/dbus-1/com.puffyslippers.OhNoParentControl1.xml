@@ -19,6 +19,22 @@
     <method name="GetOwnSessionAllowsSoftApps">
       <arg name="allow_soft_blocked_apps" type="b" direction="out"/>
     </method>
+    <method name="GetOwnTimeGrantPresets">
+      <arg name="presets_json" type="s" direction="out"/>
+    </method>
+    <method name="GetChildTimeGrantPresets">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="presets_json" type="s" direction="out"/>
+    </method>
+    <method name="SetOwnTimeGrantPresets">
+      <arg name="presets_json" type="s" direction="in"/>
+      <arg name="saved_presets_json" type="s" direction="out"/>
+    </method>
+    <method name="SetChildTimeGrantPresets">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="presets_json" type="s" direction="in"/>
+      <arg name="saved_presets_json" type="s" direction="out"/>
+    </method>
     <method name="GetOwnNotifications">
       <arg name="notifications_json" type="s" direction="out"/>
     </method>

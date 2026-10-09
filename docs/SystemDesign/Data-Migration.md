@@ -26,6 +26,12 @@ functions are unchanged. Missing fields receive reminder defaults, while saved
 customizations and explicitly empty reminder lists survive migration retries
 and future package upgrades.
 
+The optional version-4 time grant preset field follows the same compatibility
+rule: absent receives shipped durations, while saved customizations and empty
+lists remain authoritative. Current validation sorts numeric durations without
+repopulating deleted presets. Released migration functions are unchanged; see
+the [backend contract](State.md#time-grant-preset-backend).
+
 ## Package lifecycle
 
 `debian/preinst` creates `/var/lib/oh-no-parent-control/migration-in-progress` before a new payload is unpacked. Both the broker launcher and its systemd unit refuse to start while that marker exists. `preinst` explicitly stops a running broker before package files or saved records can change.

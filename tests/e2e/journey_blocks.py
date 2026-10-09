@@ -245,6 +245,44 @@ def fresh_desktop(account, expected='success', *, product_free=False):
     }
 
 
+def desktop_entry(account, *, source, entry, expected='success', source_account=None):
+    """FLOW15 explicit fresh/retained/same/lock entry and independent result."""
+    require(account in ('parent', 'child', 'other-child'), 'journey:entry-account')
+    require(expected in ('success', 'time-denied') and
+            (expected == 'success' or account == 'child'), 'journey:entry-result')
+    require((entry == 'fresh' and source == 'gdm')
+            or (entry == 'retained' and source in ('gdm', 'desktop'))
+            or (entry == 'same' and source == 'desktop' and expected == 'success')
+            or (entry == 'lock' and source == 'locked' and account == 'child'),
+            'journey:entry-binding')
+    role = 'standard' if account == 'other-child' else account
+    screens = {}
+    if entry == 'retained' and source == 'desktop':
+        require(source_account in ('parent', 'child', 'other-child') and source_account != account,
+                'journey:entry-source-account')
+        source_role = 'standard' if source_account == 'other-child' else source_account
+        screens = {'source-desktop': fresh_desktop(source_account)['desktop'],
+                   'source-switch': 'system:' + source_role + '-switch-user',
+                   'source-greeter': 'ui:gdm-returned'}
+    else:
+        require(source_account is None, 'journey:entry-source-account')
+    screens['entry-guard'] = 'system:' + role + '-entry-' + entry
+    if entry in ('fresh', 'retained'):
+        screens.update(fresh_desktop(account, expected))
+    elif entry == 'same':
+        screens['desktop'] = fresh_desktop(account)['desktop']
+    else:
+        if expected == 'success':
+            screens.update(lock_challenge(account='child'))
+            screens.update(lock_recipient(account='child'))
+            screens['unlock-desktop'] = 'ui:fresh-child-desktop'
+        else:
+            screens.update({'curtain': 'ui:child-lock-curtain',
+                            'reveal-ready': 'ui:child-lock-reveal-ready',
+                            'time-denied': 'ui:child-lock-time-denied'})
+    return screens
+
+
 def rejected_gdm_return():
     """DESK11: reobserve the rejected child prompt before Escape and list readback."""
     return {'denied-return-ready': 'ui:gdm-child-denied-return-ready',

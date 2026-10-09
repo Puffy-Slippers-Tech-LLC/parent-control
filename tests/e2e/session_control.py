@@ -40,6 +40,10 @@ BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
 LABELS['desktop-identity'] = 'Verifying the preserved Parent desktop identity'
+for _role in ACCOUNTS:
+    for _mode in ('fresh', 'retained', 'same', 'lock', 'refusals'):
+        BINDINGS[_role + '-entry-' + _mode] = (_role, 'entry-' + _mode)
+        LABELS['entry-' + _mode] = 'Verifying the declared desktop entry ' + _mode
 LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
 
 
@@ -347,11 +351,48 @@ def enter_locked(account):
         time.sleep(.2)
 
 
+def entry_identity(current, uid, mode):
+    """Read-only FLOW15 guard; an entry declaration never repairs its source."""
+    require(mode in ('fresh', 'retained', 'same', 'lock'), 'entry-mode')
+    if mode in ('same', 'lock'):
+        source = source_session(current, uid, locked=mode == 'lock')
+        target = current[source]
+    else:
+        active = [item for item in current.values()
+                  if local_graphical(item) and item['Active'] == 'yes']
+        require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
+        owned = [(key, item) for key, item in current.items() if local_graphical(item)
+                 and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
+        if mode == 'fresh':
+            require(not owned, 'entry-not-fresh')
+            return None
+        source, target = locked_entry_source(current, uid)
+    identity = [source, *[target[key] for key in ('User', 'Remote', 'Class', 'Type', 'Seat')]]
+    return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+
+
 def execute(binding):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
+    if action.startswith('entry-'):
+        mode = action.removeprefix('entry-')
+        current = sessions()
+        if mode == 'refusals':
+            entry_identity(current, account.pw_uid, 'same')
+            for wrong in ('fresh', 'retained', 'lock'):
+                try:
+                    entry_identity(current, account.pw_uid, wrong)
+                except SessionError:
+                    continue
+                require(False, 'entry-wrong-mode-accepted')
+            identity = entry_identity(current, account.pw_uid, 'same')
+        else:
+            identity = entry_identity(current, account.pw_uid, mode)
+        require(sessions() == current, 'source-changed')
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'entry': mode, 'session_sha256': identity}
     if action == 'enter-locked':
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 **enter_locked(account)}
@@ -425,6 +466,16 @@ def observe(transport, binding):
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if action.startswith('entry-'):
+        mode = action.removeprefix('entry-')
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'entry', 'session_sha256'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session' and result['entry'] == mode
+            and (result['session_sha256'] is None if mode == 'fresh' else
+                 type(result['session_sha256']) is str
+                 and re.fullmatch('[0-9a-f]{64}', result['session_sha256'])), 'response')
+        return result
     if action == 'desktop-identity':
         require(type(result) is dict and set(result) == {
             'operation', 'outcome', 'interface', 'session_sha256', 'unlocked'}

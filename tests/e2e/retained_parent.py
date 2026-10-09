@@ -9,12 +9,12 @@ from window_switch import window_switch_entry
 
 def retained_parent_entry(*, source='desktop'):
     """Declared retained entry; no launch or child reselection is permitted."""
-    require(source in ('desktop', 'same-user'), 'retained-parent:source')
+    require(source in ('desktop', 'child-desktop', 'same-user'), 'retained-parent:source')
     return {
-        **({'source-desktop': 'ui:standard-desktop',
-            'source-switch': 'system:standard-switch-user',
+        **({'source-desktop': 'ui:fresh-child-desktop' if source == 'child-desktop' else 'ui:standard-desktop',
+            'source-switch': 'system:child-switch-user' if source == 'child-desktop' else 'system:standard-switch-user',
             'source-greeter': 'ui:gdm-returned',
-            **fresh_desktop('parent')} if source == 'desktop' else
+            **fresh_desktop('parent')} if source != 'same-user' else
            {'desktop': 'ui:desktop'}),
         'parent-retained': 'ui:retained-parent-read',
     }

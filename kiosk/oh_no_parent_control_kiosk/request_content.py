@@ -517,6 +517,11 @@ class RequestContent(MetalBoard):
         status_row.append(status_inner)
         self.append(status_row)
         self._custom_entry.connect("changed", self._emit_values_changed)
+        self._custom_entry.connect("activate", self._submit_custom_duration)
+
+    def _submit_custom_duration(self, _entry):
+        if self._request.is_sensitive():
+            self._request.emit("clicked")
 
     @staticmethod
     def _header():

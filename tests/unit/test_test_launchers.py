@@ -213,6 +213,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
     'check_e2e_feedback_formats', 'check_e2e_feedback_formats.py',
     'check_e2e_feedback_link_semantics', 'check_e2e_feedback_link_semantics.py',
     'check_e2e_window_switch', 'check_e2e_window_switch.py',
+    'check_e2e_retained_parent', 'check_e2e_retained_parent.py',
     'check_e2e_text', 'check_e2e_text.py',
     'check_e2e_files', 'check_e2e_files.py',
     'check_e2e_document_open', 'check_e2e_document_open.py',
@@ -281,7 +282,9 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
         'check_e2e_overlay_prompt', 'check_e2e_overlay_rejection', 'check_e2e_kiosk_approval',
         'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
     vm_source = selector.removesuffix('.py') in (
-        'check_e2e_challenges', 'check_e2e_unlock', 'check_e2e_fresh_child_allowed')
+        'check_e2e_challenges', 'check_e2e_unlock', 'check_e2e_fresh_child_allowed',
+        'check_e2e_window_switch', 'check_e2e_set_an_allowance_for_a_named_child',
+        'check_e2e_retained_parent')
     output = str(test_storage.named_input(package_source=current_package, vm_source=vm_source))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)

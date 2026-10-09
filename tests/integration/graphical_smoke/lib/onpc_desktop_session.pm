@@ -162,6 +162,44 @@ sub unlock_success {
     return $journey->seen('unlock-desktop');
 }
 
+sub qualify_retained_parent {
+    onpc_progress::operation('Returning to the same Parent desktop and existing window');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:retained-parent-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    require onpc_feedback_read;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-parent', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for qw(allowance-configured before session-before);
+    switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'away',
+        'away-installed-greeter', 'away-standard-focused', 'away-desktop');
+    $journey->consume_observation('return-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return'));
+    $journey->seen('session-returned');
+    onpc_feedback_read::prepare_window_switch($journey, 'focus-');
+    $journey->seen('second-before');
+    $journey->consume_observation('second-desktop', $journey->seen('second-desktop'));
+    $journey->seen($_) for qw(second-switch second-greeter);
+    onpc_gdm::sign_in_challenge($journey, 'again',
+        'again-installed-greeter', 'again-standard-focused', 'again-desktop');
+    $journey->consume_observation('independent-source', $journey->seen('independent-source'));
+    $journey->seen($_) for qw(independent-switch independent-greeter);
+    onpc_gdm::sign_in_challenge($journey, 'independent',
+        'independent-installed-greeter', 'independent-parent-focused', 'independent-desktop');
+    $journey->consume_observation('supplied-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'supplied'));
+    $journey->seen($_) for qw(session-supplied close absent-refused);
+    $journey->finish();
+}
+
 sub qualify_retained_unlock {
     onpc_progress::operation('Qualifying child unlock and preservation of original activity');
     my ($exchange, $retained, $declared, $challenges) = @_;

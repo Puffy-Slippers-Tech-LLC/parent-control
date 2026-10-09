@@ -353,7 +353,25 @@ sub enter_desktop {
 # FLOW01: fresh greeter or independently observed same-user desktop; new window.
 sub open_for_child {
     onpc_progress::operation('Opening Parent for [Child user]');
-    my ($journey, $source, $entry, $window, $child) = @_;
+    my ($journey, $source, $entry, $window, $child, $invocation) = @_;
+    if (defined($window) && $window eq 'retained') {
+        die 'parent:retained-binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+            && $source eq 'desktop' && ($entry eq 'retained' || $entry eq 'same-user')
+            && $child eq 'child' && defined($invocation) && $invocation =~ /\A[a-z][a-z0-9-]*\z/;
+        if ($entry eq 'retained') {
+            $journey->consume_observation("$invocation-source-desktop", $journey->seen("$invocation-source-desktop"));
+            $journey->seen("$invocation-source-switch");
+            $journey->seen("$invocation-source-greeter");
+            my $desktop = onpc_gdm::sign_in_challenge($journey, $invocation,
+                "$invocation-installed-greeter", "$invocation-parent-focused", "$invocation-desktop");
+            $journey->consume_observation("$invocation-desktop", $desktop);
+        } else {
+            $journey->consume_observation("$invocation-desktop", $journey->seen("$invocation-desktop"));
+        }
+        # DESK10's shared existing-window proof, then untouched child/page and
+        # explicit Screen Limits read. No launch or child-selection repair.
+        return $journey->seen("$invocation-parent-retained");
+    }
     die 'parent:flow-binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
         && (($source eq 'gdm' && $entry eq 'fresh')
             || ($source eq 'desktop' && $entry eq 'same-user'))

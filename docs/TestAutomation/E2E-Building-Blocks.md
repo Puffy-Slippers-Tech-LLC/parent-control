@@ -366,7 +366,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK06 | C | Observe the intended user's lock surface: password challenge or native time restriction. Input declares curtain or already-open challenge; reveal with one normal key only for curtain. | `journey_blocks.lock_challenge` / `onpc_desktop_session::observe_lock` and `AccessibleUI.shell_lock_snapshot` bind the sole local locked declared fixture session and its Shell-owned public window. Curtain requires the English unlock hint and fresh scoped focus before one Space; challenge reads the public intended-fixture identity and focused password role without contents or secret authority. Wrong-session, other-surface, ambiguity and replacement guards retain independent result readback. [Qualified scope](#parent-lock-surface-qualification); child curtain/reveal and challenge read passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). The child's native configured-zero restriction passed [retained denial qualification](#retained-child-time-restriction-and-greeter-return-qualification), through the same guarded curtain reveal. Recipient proofs are qualified separately. | Parent and child curtain/reveal and independent challenge read and child native zero-time restriction ready; other bindings pending |
 | DESK07 | A | Qualify the lock-screen recipient, masked empty focused field and intended identity independently of GDM. | `journey_blocks.lock_recipient` / `onpc_desktop_session::lock_recipient`, `AccessibleUI.lock_surface` and `UiObservations` bind two ordered fresh proofs to the same actual lock window and password field. `desktop_session.LOCK_RECIPIENT_PLAN` / `LockRecipientQualification` independently qualify the Parent command-lock binding. [Parent scope](#parent-lock-recipient-qualification); the shared `account='child'` proofs passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). | Parent and child command-lock recipient proofs ready; other retained-user bindings pending |
 | DESK08 | C | Attempt normal unlock with an explicit expected success or time-limit restriction on the observed surface. GNOME's configured-zero native lock restriction blocks authentication before password entry; retained GDM denial follows real authentication. | Actual lock success: DESK06 → DESK07 twice → UI19 → UI05(Enter) → GDM06/DESK01 through `onpc_desktop_session::unlock_success`. Native restriction: guarded curtain reveal through `onpc_desktop_session::reveal_lock` → `AccessibleUI.lock_surface('child-lock-time-denied')`, requiring the specific native explanation, absent password input and no desktop access. Never activate Ignore, which requests more time. Retained GDM: GDM02 → GDM03 twice → GDM05/UI19 → UI05(Enter) → independent success or authenticated time denial. Never interchange proofs. See [retained denial qualification](#retained-child-time-restriction-and-greeter-return-qualification) and [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). | pending; stated child lock-screen/retained-GDM success and configured-zero restriction/denial ready; other bindings pending |
-| DESK09 | C | From another usable desktop, visit a specified retained user's desktop without replacing it. Inputs include target account and expected unlock result. | DESK03 → GDM02 → the actual GDM reauthentication branch of DESK08 → DESK01. GDM selection does not directly enter the child's lock screen; actual lock entry needs independent DESK06 observation before that DESK08 branch. Fresh entry explicitly uses DESK03 → GDM07 instead. Task 043c qualifies only [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification); the complete visit from another user's desktop remains pending. | pending |
+| DESK09 | C | From another usable desktop, visit a specified retained user's desktop without replacing it. Inputs include target account and expected unlock result. | DESK03 → GDM02 → the actual GDM reauthentication branch of DESK08 → DESK01. GDM selection does not directly enter the child's lock screen; actual lock entry needs independent DESK06 observation before that DESK08 branch. Fresh entry explicitly uses DESK03 → GDM07 instead. Task 043c qualifies [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). `onpc_parent::open_for_child` additionally qualifies the fixed [Jordan → retained Jamie Parent desktop/window](#retained-parent-desktop-and-window-entry) visit; complete visits to both retained child desktops remain pending. | fixed retained Parent binding ready; child visits pending |
 | DESK10 | C | Activate a named existing window with the simplest reliable public focus action or bounded shortcut, then verify that window is active. | `AccessibleUI.window_switch_ready` → `onpc_feedback_read::activate_existing_window` (one Alt+Tab) → `window_switch_proof`; compare recorded public endpoint/PID and preserved synthetic draft. [Qualified scope](#same-desktop-window-activation). No logout or relaunch. | Parent, feedback and supporting GPL viewer ready; diagnostic exports use FILE08 without a viewer |
 | DESK11 | C | From an observed locked fixture session, use the shared greeter-return command; from an observed rejected GDM prompt, use Escape. Preserve the denial observation before leaving and independently require the usable account list. Select the route from the declared source; never try alternatives after uncertain input. | Locked desktop: `session_control.observe` with the bound `return-greeter` action preserves the locked session and invokes GDM's public API without another Lock. Rejected GDM: `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` compose fresh provider observation → UI05(Escape) → GDM01; [qualified child denial return](#fresh-child-time-denial-and-return-qualification). The pre-authentication locked-child command return passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification); Both native lock restriction and authenticated retained-GDM denial returns passed [retained denial qualification](#retained-child-time-restriction-and-greeter-return-qualification). No lock-screen Switch User button or menu navigation. | pending; fresh rejected-child GDM, pre-authentication locked-child and both retained time-denial returns ready; other bindings pending |
 | DESK12 | C | Resolve the product panel API surface from the observed unlocked child desktop, including a caller-declared fullscreen activity. Require the current session and logical control availability. | DESK01 → shared `child-panel` client → UI01/UI02. `AccessibleUI.overlay_panel_target` binds `child-request-button`; the adapter owns desktop/session details. See [overlay entry qualification](#overlay-entry-qualification). E2E-024 retains real gameplay and request/return outcomes without focus or pointer revelation. | normal request entry and open-overlay history retained; other bindings keep their existing scope |
@@ -533,13 +533,13 @@ shutdown, callback closure, owned
 cleanup, baseline restoration, finalization and host/source preservation passed.
 Both selected VMs were rechecked shut down after the complete selection.
 
-| VM | Actual GDM | Actual Shell | Actual locale / keyboard | Retained report |
+| VM | Actual GDM | Actual Shell | Actual locale / keyboard | Historical eight-check report |
 | --- | --- | --- | --- | --- |
-| Ubuntu 26.04 | `50.1-0ubuntu0.1` | `50.1-0ubuntu1.3` | `en_US.UTF-8` / `[["xkb", "us"]]` | [Eight selected checks](../../output/test-runs/host/reports/20261009T052638Z-dfbce8ad/report.md) |
-| Fedora 44 | `1:50.3-1.fc44` | `0:50.5-1.fc44` | `en_US.UTF-8` / `[["xkb", "us"]]` | [Eight selected checks](../../output/test-runs/host/reports/20261009T052638Z-53e9b9e6/report.md) |
+| Ubuntu 26.04 | `50.1-0ubuntu0.1` | `50.1-0ubuntu1.3` | `en_US.UTF-8` / `[["xkb", "us"]]` | `20261009T052638Z-dfbce8ad` (outside retention) |
+| Fedora 44 | `1:50.3-1.fc44` | `0:50.5-1.fc44` | `en_US.UTF-8` / `[["xkb", "us"]]` | `20261009T052638Z-53e9b9e6` (outside retention) |
 
-Each report retains both qualifications' sanitized steps/assertions, worker
-completion and cleanup results in `category-001.log`, plus all seven required
+Each historical report recorded both qualifications' sanitized steps/assertions,
+worker completion and cleanup results in `category-001.log`, plus all seven required
 regressions: `check_e2e_retained_unlock_success`, `check_e2e_lock_recipient`,
 `check_e2e_lock_surface`, `check_e2e_desktop_session`, `check_e2e_challenges`,
 `check_e2e_fresh_child_allowed` and `check_e2e_unlock`. Host ownership/credential
@@ -548,11 +548,13 @@ The exact configured-zero child bindings are qualified; natural exhaustion,
 other users/provider tuples and complete customer scenarios remain separate.
 
 The shared comparison extraction passed both independent routes again through
-`check_e2e_retained_unlock` on
-[Ubuntu 26.04](../../output/test-runs/host/reports/20261009T060915Z-31a3c2c3/report.md)
-and [Fedora 44](../../output/test-runs/host/reports/20261009T060915Z-10f4ba5c/report.md),
+`check_e2e_retained_unlock` on Ubuntu 26.04 in `20261009T060915Z-31a3c2c3`
+and Fedora 44 in `20261009T060915Z-10f4ba5c` (both outside retention),
 including collection, worker/callback shutdown, owned cleanup and restoration.
 Provider input and the seven regression routes above were unchanged.
+Both denial routes were subsequently rechecked on both VMs as task 044b
+regressions; their current retained reports are under
+[retained Parent entry](#retained-parent-desktop-and-window-entry).
 
 ### Same-desktop window activation
 
@@ -589,6 +591,48 @@ two-application same-desktop route; arbitrary switcher order, additional
 applications and other viewers remain unqualified. FEED08 export inspection
 uses FILE08 and same-dialog readback without activating a supporting viewer.
 DESK10 needs no Shell switcher GUI adapter.
+
+### Retained Parent desktop and window entry
+
+DESK09/FLOW01's [`retained_parent_entry` and `PLAN`](../../tests/e2e/retained_parent.py),
+`onpc_parent::open_for_child` retained/same-user branches and
+`onpc_desktop_session::qualify_retained_parent` passed
+`check_e2e_retained_parent` on both selected VMs. The fixed binding starts from
+Jordan's usable desktop and returns through Switch User, GDM's two ordered
+recipient proofs and legitimate Jamie authentication. The existing Parent window
+has Riley selected, App Limits displayed and enabled 15-minute settings.
+An independent supplied Parent entry qualifies the same-user/retained branch.
+
+`AccessibleUI.retained_parent_operation` captures the incoming page, verifies the
+selected child without reselection and reaches Screen Limits before reading
+settings. `RetainedParentJourney` compares an immutable before/after snapshot of
+the page, settings and DESK10 public endpoint/PID before replying to the worker.
+The read-only `session_control` Parent identity proof independently requires the
+same active unlocked desktop session. DESK10 foregrounds the same window after
+launching the supporting GPL viewer. Normal Parent closure then qualifies absent
+window refusal with no relaunch. Wrong child, page, settings, window or desktop,
+missing baseline and malformed observations retain host refusal regressions.
+
+| VM | Supporting viewer version / actual locale / keyboard | Qualification and session regressions | Window-switch, allowance and case 6 regressions |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `50.1-0ubuntu0.1` / `en_US.UTF-8` / `[["xkb", "us"]]` | [Preserved six-check report](../../output/test-runs/host/exports/onpc-artifact-export-diy3irj_/report.md) | [Three-check report](../../output/test-runs/host/reports/20261009T155056Z-67254e9a/report.md) |
+| Fedora 44 | `0:50.1-1.fc44` / `en_US.UTF-8` / `[["xkb", "us"]]` | [Preserved qualification/session report](../../output/test-runs/host/exports/onpc-artifact-export-6w2gr9qq/report.md) | [Three-check report](../../output/test-runs/host/reports/20261009T155056Z-a2e0f2a5/report.md) |
+
+The preserved reports retain qualification steps/assertions, public comparisons
+and cleanup, plus `check_e2e_desktop_session` and both independent
+`check_e2e_retained_unlock` denial routes. Fedora's first window-switch preparation
+stopped before creating a graphical worker because its generic input lacked an
+RPM package. The maintained selector and automatic builder now both use the
+selected VM's named inputs; valid existing inputs remain intact. The final
+three-check reports qualify `check_e2e_window_switch`'s existing Parent/feedback
+and viewer bindings on both tuples, `check_e2e_set_an_allowance_for_a_named_child`
+and Parent launch case `6`. All required attempts passed collection,
+worker/callback shutdown, owned cleanup, baseline restoration, finalization and
+host/source preservation. Both VMs were independently rechecked shut down.
+Scoped host guards, worker composition, source and close-out consistency passed;
+coverage was regenerated after the case regression. Other Parent/child bindings,
+complete retained-child visits and task 198's second-parent management remain
+separate. This capability slice supplies no complete-scenario credit.
 
 ### Personal-language selection
 
@@ -2802,7 +2846,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | --- | --- | --- | --- | --- |
 | FLOW00 | C | Run case 1's complete graphical/serial qualification within the unchanged harness envelope. Its step boundaries and terminal assertions are fixed below. | `controller_qualification.PLAN` and `Smoke._step` bind the graphical stages to `gdm_product_free_account()` / `gdm_product_free_navigation()` observations; `onpc_flow00::run` consumes the exact product-free prompt proof before Escape. The existing authenticated serial command, session/boot identity, single logout, return reconciliation, capture assertions, collection and owned cleanup passed in an earlier retained case 1 run. | ready; retained case 1 implementation |
 | FLOW15 | C | Reach an explicit user's desktop from the declared source surface. `entry=fresh` requires no retained session; `retained` requires an earlier observed desktop; `same` requires the current user already matches. Return the observed desktop or expected time-limit denial. | `journey_blocks.fresh_desktop('child', expected)` and `onpc_gdm::sign_in_challenge` supply the qualified fresh-child `success` and `time-denied` results from GDM; [success](#fresh-child-success-qualification), [zero-time denial](#fresh-child-time-denial-and-return-qualification). The preserved child's GDM reauthentication success passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). Configured-zero retained-child GDM denial and preserved locked-child native restriction/return passed [retained denial qualification](#retained-child-time-restriction-and-greeter-return-qualification). Full retained visits from another desktop and same-user routes remain with their separate tasks. | pending; fresh child success/zero-time denial and stated retained-child GDM success/denial slices ready |
-| FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. New launches always use PARENT01's direct command. | `onpc_parent::open_for_child(journey, source, entry, window, child)` composes fresh FLOW15 → PARENT01(management) → PARENT02, or `desktop/same-user/new` with independent window-absence and Parent-desktop observations before the direct launch and child selection. `check_e2e_set_an_allowance_for_a_named_child` qualified fresh and independently reopened same-user Parent/child entries, persisted settings and wrong-window refusal in run `20260925T064318Z-ac40f2a1`, including collection, owned cleanup and baseline restoration. Case 6's affected launch regression passed in `20260925T064705Z-37ca73c8`. Fresh Parent/Riley also passed in case 151; retained windows, second-parent and other bindings remain pending. | pending; fresh and same-user/new Parent/child bindings ready |
+| FLOW01 | C | Open or return to Parent for a named child and record displayed settings. Inputs declare source, parent entry and `window=new` or `retained`. Default first entry is GDM/fresh/new; a return uses retained entry and the existing window. New launches always use PARENT01's direct command. | `onpc_parent::open_for_child(journey, source, entry, window, child, invocation)` composes fresh FLOW15 → PARENT01(management) → PARENT02, or `desktop/same-user/new` with independent window-absence and Parent-desktop observations before the direct launch and child selection. Retained/same-user branches consume `retained_parent_entry` with explicit invocation and preserved child/page/settings; [exact retained qualification](#retained-parent-desktop-and-window-entry). `check_e2e_set_an_allowance_for_a_named_child` qualified fresh and independently reopened same-user Parent/child entries, persisted settings and wrong-window refusal in run `20260925T064318Z-ac40f2a1`, including collection, owned cleanup and baseline restoration. Case 6's affected launch regression passed in `20260925T064705Z-37ca73c8`. Fresh Parent/Riley also passed in case 151; second-parent and other bindings remain pending. | fresh and same-user/new bindings ready; fixed Jamie/Riley retained binding ready; other bindings pending |
 | FLOW02 | C | Configure the selected child's time controls, observing save and explanation. Inputs declare initial/final enablement and allowance. Enable first only when needed to make the allowance editor usable. | `AccessibleUI.configure_time_controls(child, initial_enabled=…, minutes=…, final_enabled=…)`: PARENT04(Screen Limits) → conditional UI17(true)/PARENT08 → PARENT05 preset commit/PARENT08 → UI17(final boolean)/PARENT08 → PARENT03 → PARENT09. Qualified inputs are 0/15-minute presets and explicit boolean enablement, plus disabled→enabled with 30 minutes through FLOW16's fresh binding; custom values remain with PARENT06 until separately composed. `check_e2e_time_explanation` qualified enabled→disabled, disabled→enabled and enabled→enabled paths, saved settings, positive/zero balances and wrong-child/initial-state refusal in run `20260925T062949Z-49d65b22`, with collection and owned cleanup. Disabling intentionally clears a grant; it is never navigation. | ready |
 | FLOW03 | C | Configure one app's matching and access choices through Parent and read the saved row. | `policy_edits.policy_edit` / `onpc_app_rows::edit_policy`: PARENT10 → PARENT11 if declared → PARENT13 → UI16(match draft) → PARENT15(save) → PARENT16 → PARENT12. Caller owns entry, finite inputs and exact comparisons; see [public app-policy edits](#public-app-policy-edits). | ready for Jordan/native fixture A's precise and `*.AppImage` match/access slice; other bindings pending |
 | FLOW04 | C | Open the selected request surface, or use an explicitly already-open form, then choose child/approver/duration/app access and read the estimate. | REQUEST01 or REQUEST02 only for `entry=new`; `entry=open` starts with REQUEST03 → REQUEST04(child only in kiosk, approver, duration) → REQUEST05 if custom → REQUEST06 → REQUEST08. `request_flow.prepared_request` / `onpc_request_flow::prepare` qualify the explicit kiosk child/parent, custom 1.25-minute, soft-included binding for independently open and new entry; see [prepared request qualification](#prepared-request-qualification). `prepared_request(surface='overlay')` / `prepare(..., 'overlay')` reuse the shared overlay entry/form leaves for the fixed child, Jamie approver, 75 seconds and included soft apps: open/default and new/remembered branches passed [overlay FLOW04 qualification](#overlay-flow04-invalid-submission-and-escape-qualification). | pending; declared kiosk and overlay open/new bindings ready; other choices pending |

@@ -406,6 +406,11 @@ WINDOW_SWITCH_TARGETS = {
 }
 WINDOW_SWITCH_OPERATIONS |= frozenset(stage + '-ready' for stage in WINDOW_SWITCH_TARGETS)
 OPERATIONS |= WINDOW_SWITCH_OPERATIONS
+RETAINED_PARENT_OPERATIONS = frozenset({
+    'retained-parent-read', 'retained-parent-leave', 'retained-parent-close',
+    'retained-parent-absent-refused',
+})
+OPERATIONS |= RETAINED_PARENT_OPERATIONS
 
 TEXT_OPERATIONS = {
     'text-' + binding + '-' + action: (binding, action)
@@ -5382,6 +5387,38 @@ class AccessibleUI:
         self.wait(lambda: self.existing_window_active(binding), 'switch-active',
                   prompt_in_predicate=True)
         return self.window_switch_proof(binding, projection=projection)
+
+    def retained_parent_operation(self, operation):
+        """FLOW01 existing window only; record the untouched child/page first."""
+        require(operation in RETAINED_PARENT_OPERATIONS, 'ui:retained-parent-operation')
+        self.desktop_result(PARENT, 'success')
+        if operation == 'retained-parent-absent-refused':
+            self.wait(self.parent_search_closed, 'retained-parent-closed', prompt_in_predicate=True)
+            try:
+                self.existing_window('parent')
+            except UiError as error:
+                require(str(error) == 'ui:switch-absent', 'ui:retained-parent-refusal')
+            else:
+                raise UiError('ui:retained-parent-refusal-missing')
+            require(self.parent_search_closed(), 'ui:retained-parent-relaunched')
+            return {'refused': True}
+        window = self.window_switch_proof('parent')
+        require(self.parent_initial_selection() == CHILD_IDENTITIES[CHILD],
+                'ui:retained-parent-child')
+        if operation == 'retained-parent-close':
+            self.close_id('parent-window')
+            return {}
+        page = self.get_value('parent-pages')
+        require(page in ('screen-limits', 'app-limits'), 'ui:retained-parent-page')
+        # Screen Limits controls are unavailable on App Limits. Never repair
+        # child selection; navigate explicitly before the immutable read.
+        settings = self.parent_page(CHILD, 'Screen Limits')
+        if operation == 'retained-parent-leave':
+            self.set_value('parent-pages', 'app-limits')
+            page = self.get_value('parent-pages')
+            require(page == 'app-limits', 'ui:retained-parent-page')
+        require(self.window_switch_proof('parent') == window, 'ui:retained-parent-replaced')
+        return {'retained_parent': {'window': window, 'page': page, 'settings': settings}}
 
     def license_content(self):
         """Read the ID-scoped registered viewer, without title discovery."""
@@ -11279,6 +11316,8 @@ class AccessibleUI:
             result.update(self.feedback_draft_operation(operation))
         elif operation in FILE_REVIEW_OPERATIONS:
             result.update(self.attachment_review_operation(operation))
+        elif operation in RETAINED_PARENT_OPERATIONS:
+            result.update(self.retained_parent_operation(operation))
         elif operation in WINDOW_SWITCH_OPERATIONS:
             result['window'] = self.window_switch_operation(operation)
             if operation == 'switch-viewer-launch':

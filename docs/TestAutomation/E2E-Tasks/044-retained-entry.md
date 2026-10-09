@@ -26,7 +26,7 @@ unlock/denial and DESK10 same-desktop window switching.
 
 ## Implementation
 
-Implement retained-user routing, reusing normal DESK10 window switching and the qualified fresh-child FLOW15 branch. Extend FLOW15 for explicit same/retained/lock/denied entry, and FLOW01 for retained Parent windows without reselection hiding state. Qualify the Parent and both child account/recipient bindings required for these entries. A retained Parent window may be on App Limits: reach Screen Limits with PARENT04 before reading PARENT03. The second administrator's management desktop/window remains the separate other-parent scope.
+Implement retained-user routing, reusing normal DESK10 window switching and the qualified fresh-child FLOW15 branch. Extend FLOW15 for explicit same/retained/lock/denied entry. Reuse [qualified retained Parent entry](../E2E-Building-Blocks.md#retained-parent-desktop-and-window-entry), `retained_parent_entry` and `onpc_parent::open_for_child`'s explicit retained/same-user branches; extend their finite account/child bindings as needed without reselection hiding state. Qualify the Parent and both child account/recipient bindings required for these entries. A retained Parent window may be on App Limits: reach Screen Limits with PARENT04 before reading PARENT03. The second administrator's management desktop/window remains the separate other-parent scope.
 
 ## Live VM acceptance
 

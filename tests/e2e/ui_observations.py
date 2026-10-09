@@ -337,6 +337,8 @@ OPERATION_LABELS.update({operation: 'Finishing and reading a declared synthetic 
                          for operation in accessible_ui.SUFFIX_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Returning to an existing window and reading its retained public state'
                          for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Reading the existing Parent window, child, page and saved settings'
+                         for operation in accessible_ui.RETAINED_PARENT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Qualifying kiosk approval and its explicit public result'
                          for operation in accessible_ui.MATE_APPROVAL_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Preparing and independently reading the Chinese Jordan request'
@@ -1879,6 +1881,26 @@ class UiObservations:
                 'synthetic-first' if operation in accessible_ui.FEEDBACK_PRIVACY_OPERATIONS
                 else 'initial-empty'), 'ui:feedback-response')
             expected['feedback'] = result['feedback']
+        if operation in accessible_ui.RETAINED_PARENT_OPERATIONS:
+            if operation == 'retained-parent-absent-refused':
+                require(result == {**expected, 'refused': True}, 'ui:retained-parent-response')
+                expected['refused'] = True
+            elif operation != 'retained-parent-close':
+                value = result.get('retained_parent')
+                require(type(value) is dict and set(value) == {'window', 'page', 'settings'}
+                        and value['page'] in ('screen-limits', 'app-limits'),
+                        'ui:retained-parent-response')
+                SettingsObservation.from_settings(value['settings'])
+                window = value['window']
+                require(type(window) is dict and set(window) == {'binding', 'pid', 'endpoint', 'available'}
+                        and window['binding'] == 'parent' and window['available'] is True
+                        and type(window['pid']) is int and window['pid'] > 0
+                        and type(window['endpoint']) is list and len(window['endpoint']) == 2
+                        and all(type(part) is str and 0 < len(part) <= 256 for part in window['endpoint'])
+                        and window['endpoint'][0].startswith(':') and window['endpoint'][1].startswith('/'),
+                        'ui:retained-parent-response')
+                require(set(result) == {*expected, 'retained_parent'}, 'ui:retained-parent-response')
+                expected['retained_parent'] = value
         if operation in accessible_ui.WINDOW_SWITCH_OPERATIONS or operation.startswith(('draft-switch-', 'files-switch-')):
             if operation == 'switch-viewer-launch':
                 expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))

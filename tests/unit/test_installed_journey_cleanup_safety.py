@@ -109,6 +109,7 @@ import feedback_formats_qualification
 import feedback_rejection
 import feedback_length
 import window_switch
+import retained_parent
 import text_qualification
 import named_child_custom_saves
 import allowance_presets
@@ -269,7 +270,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  feedback_formats_qualification.PLAN,
                                  feedback_formats_qualification.LINK_PLAN,
                                  feedback_rejection.PLAN, feedback_length.PLAN,
-                                 window_switch.PLAN,
+                                 window_switch.PLAN, retained_parent.PLAN,
                                  text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
@@ -296,7 +297,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
-                              'feedback-rejection', 'feedback-length', 'window-switch',
+                              'feedback-rejection', 'feedback-length', 'window-switch', 'retained-parent',
                               'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'kiosk-approved-case', 'mate-prompt', 'kiosk-approval',

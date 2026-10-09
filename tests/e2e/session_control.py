@@ -38,6 +38,8 @@ BINDINGS['child-enter-locked'] = ('child', 'enter-locked')
 LABELS['enter-locked'] = 'Entering the preserved locked child session'
 BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
+BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
+LABELS['desktop-identity'] = 'Verifying the preserved Parent desktop identity'
 LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
 
 
@@ -373,6 +375,13 @@ def execute(binding):
         require(False, 'wrong-entry-accepted')
     locked = action == 'return-greeter'
     source = source_session(sessions(), account.pw_uid, locked=locked)
+    if action == 'desktop-identity':
+        current = sessions()
+        require(source_session(current, account.pw_uid) == source, 'source-changed')
+        identity = [source, *[current[source][key] for key in ('User', 'Remote', 'Class', 'Type', 'Seat')]]
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'session_sha256': hashlib.sha256(json.dumps(identity).encode()).hexdigest(),
+                'unlocked': True}
     env = environment(account)
     administrator_gid = grp.getgrnam(administrator_group()).gr_gid if action == 'command-context' else None
     os.initgroups(account.pw_name, account.pw_gid)
@@ -416,6 +425,14 @@ def observe(transport, binding):
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if action == 'desktop-identity':
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'session_sha256', 'unlocked'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session' and result['unlocked'] is True
+            and type(result['session_sha256']) is str
+            and re.fullmatch('[0-9a-f]{64}', result['session_sha256']), 'response')
+        return result
     if action == 'retained-locked':
         require(type(result) is dict and set(result) == {
             'operation', 'outcome', 'interface', 'session_sha256', 'locked'}

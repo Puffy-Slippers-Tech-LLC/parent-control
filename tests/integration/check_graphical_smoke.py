@@ -681,7 +681,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
-         unrelated_reboot_request=False, lock_surface=None):
+         unrelated_reboot_request=False, lock_surface=None, parent_entry=None):
+    require(parent_entry in (None, 'retained') and (parent_entry is None or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials') and isinstance(value, bool)))),
+        'smoke:parent-entry-prerequisites')
     require(lock_surface in (None, 'command', 'supplied', 'recipient', 'child-success', 'retained-success',
                             'child-denied', 'retained-denied') and (lock_surface is None or (
         assets is not None and provision_credentials and fresh_desktop is None
@@ -1382,6 +1388,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-desktop-switch-qualification'
         if lock_surface is not None:
             result['scope'] = 'installed-lock-' + lock_surface + '-qualification'
+        if parent_entry is not None:
+            result['scope'] = 'installed-retained-parent-qualification'
         if gdm_navigation:
             result['scope'] = 'installed-gdm-navigation-qualification'
         if gdm_recipient:
@@ -1629,7 +1637,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         runner.stage_assets(runner.artifact_source(assets), staged, commands)
                     staged.chmod(0o700)
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
-                if (lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
+                if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or native_app or app_activity
                         or shell_search or parent_terminal_provider or license_viewer_provider
@@ -1656,6 +1664,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                                   if credentials is not None else []) as collector:
                 result['qualification_evidence'] = str(collector.path)
                 qualification_class = Qualification
+                if parent_entry is not None:
+                    from parent_setup_qualification import RetainedParentQualification
+                    qualification_class = RetainedParentQualification
                 if lock_surface is not None:
                     from parent_setup_qualification import (LockSurfaceQualification,
                         SuppliedLockSurfaceQualification, LockRecipientQualification,

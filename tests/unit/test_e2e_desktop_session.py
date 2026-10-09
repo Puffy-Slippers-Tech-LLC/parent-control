@@ -24,6 +24,215 @@ from tests.support.perl import run_perl
 PACKAGE_FORMAT = control.package_format
 
 
+def retained_parent_probe():
+    from retained_parent import PLAN
+    program, binding = unlock_probe(PLAN)
+    program = program.replace('onpc_desktop_session::qualify_retained_unlock',
+                              'onpc_desktop_session::qualify_retained_parent')
+    program = program.replace('$plan->{retained}, $plan->{invocations}', '$plan->{invocations}')
+    return program, binding
+
+
+def test_retained_parent_actual_worker_order_and_every_refusal_stop():
+    from retained_parent import PLAN
+    program, binding = retained_parent_probe()
+    result = json.loads(run_perl(program, '', binding).stdout)
+    assert result['ok'], result
+    events = result['events']
+    assert [row[1] for row in events if row[0] == 'stage'] == list(PLAN.screen_tags)
+    assert events.count(['secret']) == 5
+    assert events.count(['key', 'alt-tab']) == 1
+    assert events[-1] == ['power', 'off']
+    # Every refusal must stop before any later command, password or reply.
+    for stage in PLAN.screen_tags:
+        failure = json.loads(run_perl(program, stage, binding).stdout)
+        assert not failure['ok'], failure
+        assert failure['events'] == events[:events.index(['stage', stage]) + 1]
+    assert all(tag[3:] in OPERATIONS if tag.startswith('ui:') else tag[7:] in control.BINDINGS
+               for tag in PLAN.screen_tags.values())
+
+
+def test_retained_parent_recorder_startup_and_actual_worker_titles(tmp_path):
+    from unittest.mock import MagicMock
+    from installed_journey import record_installed_journey, matched_screens
+    from private_artifacts import EvidenceError
+    from retained_parent import PLAN, RetainedParentJourney
+    program, binding = retained_parent_probe()
+    program = program.replace('sub record_info { }',
+                              "sub record_info { push @main::events, ['title', $_[0]]; }")
+    events = json.loads(run_perl(program, '', binding).stdout)['events']
+    titles = [{'title': row[1], 'result': 'ok'} for row in events if row[0] == 'title']
+    observations = []
+    for stage, tag in PLAN.screen_tags.items():
+        item = {'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
+            'operation': tag.split(':', 1)[1], 'outcome': 'passed'}}
+        if PLAN.challenge_at(stage): item['challenge'] = PLAN.challenge_at(stage)
+        observations.append(item)
+    (tmp_path / 'testresults').mkdir()
+    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': titles}))
+    assert [item['stage'] for item in matched_screens(tmp_path, PLAN, observations)] == list(PLAN.screen_tags)
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+        verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
+    context.recorder = MagicMock(assertion=Mock())
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is RetainedParentJourney and journey.plan is PLAN
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(context.recorder, context, PLAN, journey_type=RetainedParentJourney)
+    context.run_worker.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['', 'window', 'child', 'page', 'settings', 'missing'])
+def test_retained_parent_real_step_compares_immutable_entry_before_reply(tmp_path, fault):
+    from retained_parent import PLAN, RetainedParentJourney
+    from private_artifacts import EvidenceError
+    value = {'window': {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'],
+                        'available': True}, 'page': 'app-limits',
+             'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}
+    journey = RetainedParentJourney(SimpleNamespace(directory=tmp_path), Mock())
+    if fault != 'missing': journey.check_settings('before', {'ui': {'retained_parent': value}})
+    current = json.loads(json.dumps(value))
+    value['settings']['allowance'].clear()
+    if fault == 'window': current['window']['pid'] += 1
+    if fault == 'child': current['settings']['child'] = 'existing-fixture-child'
+    if fault == 'page': current['page'] = 'screen-limits'
+    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
+    stage = 'return-parent-retained'
+    journey.steps = [{'stage': s} for s in PLAN.stages[:PLAN.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': 'retained-parent-read', 'retained_parent': current}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert journey.steps[-1]['comparison']['same_parent_window_child_page_settings']
+
+
+@pytest.mark.parametrize('fault', ['', 'locked', 'wrong-owner', 'replacement'])
+def test_parent_desktop_identity_is_read_only_and_refuses_wrong_entry(monkeypatch, fault):
+    current = {'7': props(locked='yes' if fault == 'locked' else 'no')}
+    if fault == 'wrong-owner': current['7']['User'] = '1001'
+    account = SimpleNamespace(pw_uid=1000)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: account)
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[current,
+        {'8': props()} if fault == 'replacement' else current]))
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    if fault:
+        with pytest.raises(control.SessionError): control.execute('parent-desktop-identity')
+    else:
+        result = control.execute('parent-desktop-identity')
+        assert result['unlocked'] is True and len(result['session_sha256']) == 64
+        transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+        assert control.observe(transport, 'parent-desktop-identity') == result
+    submit.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['retained-parent-read', 'retained-parent-leave'])
+@pytest.mark.parametrize('fault', ['', 'child', 'replaced', 'absent'])
+def test_retained_parent_adapter_never_repairs_selection_and_reads_screen_limits(operation, fault):
+    from accessible_ui import AccessibleUI, CHILD, CHILD_IDENTITIES
+    ui = AccessibleUI.__new__(AccessibleUI)
+    window = {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'], 'available': True}
+    ui.desktop_result = Mock()
+    ui.window_switch_proof = Mock(side_effect=UiError('ui:switch-absent') if fault == 'absent'
+        else [window, {**window, 'pid': 101} if fault == 'replaced' else window])
+    ui.parent_initial_selection = Mock(return_value='existing-fixture-child' if fault == 'child'
+                                       else CHILD_IDENTITIES[CHILD])
+    ui.get_value = Mock(return_value='app-limits')
+    ui.set_value = Mock()
+    ui.parent_page = Mock(return_value={'child': 'fixture-child', 'limit_enabled': True,
+                                      'allowance': ['15 minutes']})
+    if fault:
+        with pytest.raises(UiError): ui.retained_parent_operation(operation)
+    else:
+        result = ui.retained_parent_operation(operation)['retained_parent']
+        assert result['page'] == 'app-limits' and result['window'] == window
+        ui.parent_page.assert_called_once_with(CHILD, 'Screen Limits')
+        if operation.endswith('leave'): ui.set_value.assert_called_once_with('parent-pages', 'app-limits')
+        else: ui.set_value.assert_not_called()
+    if fault in ('child', 'absent'):
+        ui.parent_page.assert_not_called()
+        ui.set_value.assert_not_called()
+
+
+def test_retained_parent_absence_refuses_without_launch():
+    from accessible_ui import AccessibleUI
+    ui = AccessibleUI.__new__(AccessibleUI)
+    ui.desktop_result = Mock()
+    ui.parent_search_closed = Mock(return_value=True)
+    ui.wait = Mock(side_effect=lambda predicate, *args, **kwargs: predicate())
+    ui.existing_window = Mock(side_effect=UiError('ui:switch-absent'))
+    ui.parent_command_launch = Mock()
+    assert ui.retained_parent_operation('retained-parent-absent-refused') == {'refused': True}
+    assert ui.parent_search_closed.call_count == 2
+    ui.parent_command_launch.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'pid', 'endpoint', 'page', 'settings', 'extra', 'missing'])
+def test_retained_parent_controller_decodes_public_proof_and_refuses_malformed_reply(fault):
+    from ui_observations import UiObservations
+    from private_artifacts import EvidenceError
+    value = {'window': {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'],
+                        'available': True}, 'page': 'app-limits',
+             'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}
+    result = {'operation': 'retained-parent-read', 'outcome': 'passed',
+              'interface': 'ApplicationUI+external-provider', 'retained_parent': value}
+    if fault == 'pid': value['window']['pid'] = True
+    if fault == 'endpoint': value['window']['endpoint'][0] = 'foreign'
+    if fault == 'page': value['page'] = 'foreign'
+    if fault == 'settings': value['settings']['allowance'] = ['private text']
+    if fault == 'extra': result['extra'] = True
+    if fault == 'missing': value.pop('window')
+    reader = UiObservations(SimpleNamespace())
+    reader.call = Mock(return_value=(json.dumps(result).encode(), []))
+    if fault:
+        with pytest.raises(EvidenceError): reader.observe('retained-parent-read')
+    else:
+        assert reader.observe('retained-parent-read')['retained_parent'] == value
+
+
+def test_retained_parent_registration_uses_maintained_vm_inputs(monkeypatch):
+    import check_e2e_retained_parent as check
+    from retained_parent import PLAN
+    from parent_setup_qualification import RetainedParentQualification
+    from tools import test_commands
+    context = SimpleNamespace()
+    assert RetainedParentQualification.journey(context, Mock()).plan is PLAN
+    assert context.installed_snapshot.startswith('onpc-v')
+    smoke = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 0 and smoke.call_args.kwargs['parent_entry'] == 'retained'
+    monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(test_commands, 'allocate_artifact_output', Mock(return_value='prepared'))
+    command = test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_retained_parent'])
+    assert any(value.endswith('/vm_artifacts.py') for value in command)
+
+
+@pytest.mark.parametrize('selector,mode', [
+    ('check_e2e_window_switch', 'window_switch'),
+    ('check_e2e_set_an_allowance_for_a_named_child', 'set_allowance'),
+])
+def test_retained_parent_regressions_consume_selected_vm_packages(monkeypatch, selector, mode):
+    import importlib
+    check = importlib.import_module(selector)
+    inputs = Mock(return_value='selected-vm-inputs')
+    smoke = Mock(return_value=0)
+    monkeypatch.setattr(check, 'named_input', inputs)
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 0
+    inputs.assert_called_once_with(vm_source=True)
+    assert smoke.call_args.kwargs['assets'] == 'selected-vm-inputs'
+    assert smoke.call_args.kwargs[mode] is True
+
+
 @pytest.fixture(autouse=True)
 def platform(monkeypatch):
     monkeypatch.setattr(control, 'package_format', lambda: 'deb')

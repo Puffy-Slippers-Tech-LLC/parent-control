@@ -406,6 +406,16 @@ class LockRecipientQualification(KioskEntryQualification):
         return DesktopSessionJourney(context, progress, LOCK_RECIPIENT_PLAN)
 
 
+class RetainedParentQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from retained_parent import RetainedParentJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RetainedParentJourney(context, progress)
+
+
 class RetainedUnlockQualification(KioskEntryQualification):
     retained = True
 

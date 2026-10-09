@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **044b — [Return to an existing Parent desktop and window](E2E-Tasks/044b-retained-parent.md)**.
+Next task: **044 — [Visit both retained child desktops](E2E-Tasks/044-retained-entry.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

@@ -565,6 +565,7 @@ button.oh-no-parent-control-request-button:disabled {
 }
 
 button.oh-no-parent-control-cancel-button,
+button.kiosk-whats-new-dismiss,
 .oh-no-parent-control-language-dialog button.preferences-close {
   border: 3px solid #222922;
   border-top-color: #9aab91;
@@ -577,12 +578,15 @@ button.oh-no-parent-control-cancel-button,
 }
 button.oh-no-parent-control-cancel-button:hover,
 button.oh-no-parent-control-cancel-button:focus-visible,
+button.kiosk-whats-new-dismiss:hover,
+button.kiosk-whats-new-dismiss:focus-visible,
 .oh-no-parent-control-language-dialog button.preferences-close:hover,
 .oh-no-parent-control-language-dialog button.preferences-close:focus-visible {
   border-top-color: #c7dbbd;
   background-image: linear-gradient(to bottom, #626d5c, #475142);
 }
 button.oh-no-parent-control-cancel-button:active,
+button.kiosk-whats-new-dismiss:active,
 .oh-no-parent-control-language-dialog button.preferences-close:active {
   background-image: linear-gradient(to bottom, #30372c, #46503f);
   box-shadow: inset 0 2px #20261f;
@@ -619,16 +623,6 @@ window.kiosk-whats-new-dialog {
 .kiosk-whats-new-hint { color: #c7cdd9; font-size: 13px; }
 .kiosk-whats-new-info { color: #28ceff; }
 .kiosk-whats-new-content separator { background: #78838b; min-height: 1px; }
-button.kiosk-whats-new-dismiss {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 2px;
-  border-radius: 0;
-  background-image: linear-gradient(to bottom, #454456, #171724);
-  color: #fff;
-  font-size: 22px;
-  font-weight: 700;
-}
 button.kiosk-whats-new-continue {
   min-width: 138px;
   min-height: 38px;
@@ -679,6 +673,7 @@ window.kiosk-whats-new-dialog.onpc-readable-script button {
   background: rgba(17, 35, 43, 0.45);
 }
 .preferences-section-title { font-size: 18px; font-weight: bold; }
+button.kiosk-whats-new-dismiss,
 .oh-no-parent-control-language-dialog button.preferences-close {
   min-height: 36px;
   min-width: 36px;

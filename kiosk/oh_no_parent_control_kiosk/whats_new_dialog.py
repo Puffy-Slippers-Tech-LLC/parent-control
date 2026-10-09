@@ -52,7 +52,7 @@ class WhatsNewDialog(Gtk.Window):
         set_automation_id(subtitle, 'whats-new-subtitle')
         titles.append(subtitle)
         header.append(titles)
-        dismiss = ArmoredButton(label='×', armor_kind='hud', valign=Gtk.Align.START,
+        dismiss = ArmoredButton(label='×', armor_kind='cancel', valign=Gtk.Align.START,
                                 css_classes=['kiosk-whats-new-dismiss'])
         describe_control(dismiss, m.CLOSE, m.CLOSE, automation_id='whats-new-dismiss')
         dismiss.connect('clicked', self._dismiss)

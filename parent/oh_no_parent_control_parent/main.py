@@ -640,8 +640,17 @@ class ParentWindow(Adw.ApplicationWindow):
             spacing=16, valign=Gtk.Align.CENTER,
             css_classes=["revoke-grant-content"],
         )
+        revoke_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" '
+            'viewBox="0 0 32 40" fill="none" stroke="#ff2920" '
+            'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+            '<path d="M16 2C12 5 7 6 2 7v12c0 9 6 15 14 19'
+            ' 8-4 14-10 14-19V7c-5-1-10-2-14-5Z"/>'
+            '<path d="m11 15 10 10m0-10L11 25"/></svg>'
+        )
+        revoke_gicon = Gio.BytesIcon.new(GLib.Bytes.new(revoke_svg.encode("utf-8")))
         revoke_icon = Gtk.Image(
-            icon_name="action-unavailable-symbolic", pixel_size=40,
+            gicon=revoke_gicon, pixel_size=40,
             css_classes=["revoke-grant-icon"],
         )
         revoke_content.append(revoke_icon)
@@ -660,10 +669,15 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         revoke_labels.append(self._revoke_description)
         revoke_content.append(revoke_labels)
-        revoke_content.append(localized(Gtk.Label, 
-            label=m.REVOKE, valign=Gtk.Align.CENTER,
+        revoke_action = Gtk.Box(
+            spacing=10, valign=Gtk.Align.CENTER,
             css_classes=["revoke-grant-action"],
+        )
+        revoke_action.append(Gtk.Image(gicon=revoke_gicon, pixel_size=28))
+        revoke_action.append(localized(Gtk.Label,
+            label=m.REVOKE, valign=Gtk.Align.CENTER,
         ))
+        revoke_content.append(revoke_action)
         self._revoke = localized(Gtk.Button, 
             child=revoke_content, valign=Gtk.Align.FILL,
             width_request=320, css_classes=["revoke-grant-button"],

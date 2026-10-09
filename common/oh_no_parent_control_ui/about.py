@@ -34,7 +34,9 @@ _PRIVACY_URL = "https://tech.puffyslippers.com/oh-no-parent-control/privacy/"
 
 
 def _data_dir() -> Path:
-    return _INSTALLED_DATA_DIR if _INSTALLED_DATA_DIR.is_dir() else _SOURCE_DATA_DIR
+    # Source-run frontends must not mix checkout code with an older installation.
+    # Packaged modules have no adjacent data directory and use the installed assets.
+    return _SOURCE_DATA_DIR if _SOURCE_DATA_DIR.is_dir() else _INSTALLED_DATA_DIR
 
 
 def branding_asset_path(filename: str) -> Path:

@@ -1,5 +1,9 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Request-time estimate preview asset regressions use tiny pytest-private data
+trees and process-local path/presenter doubles. No display, bus, subprocess or
+shared mutable resource is added; the existing compatible unit bucket applies.
+
 Case 46 extends e2e_overlay_cancel and e2e_kiosk_valid_duration with private
 recorder/transport values, pytest-owned evidence and bounded waited Perl workers.
 No live VM, display, bus, socket, shared cache or new cleanup owner; both retain

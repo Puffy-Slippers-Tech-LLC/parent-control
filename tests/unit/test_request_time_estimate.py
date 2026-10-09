@@ -460,6 +460,53 @@ def release_reply(presenter, *, auto=True, version='1.4', audience='Child', erro
 
 
 @pytest.mark.parametrize('overlay', (False, True))
+def test_preview_release_notes_use_checkout_when_older_product_is_installed(
+        overlay, tmp_path, monkeypatch):
+    from common.oh_no_parent_control_ui import about
+    from common.oh_no_parent_control_ui.release_markdown import markdown_blocks
+    from common.oh_no_parent_control_ui.whats_new import load_whats_new_translations, translate_content
+
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'app.json').write_text('{"version": "1.5"}', encoding='utf-8')
+    (source / 'whats-new-child.toml').write_text(
+        "version = 1\n[[records]]\nProductVersion = '1.5'\nContent = '''\n"
+        "## New features\n- **Remaining time reminders:** Customize reminders.\n"
+        "- **Request Time Form**: Customize preset times.\n'''\n", encoding='utf-8')
+    installed = tmp_path / 'installed'
+    installed.mkdir()
+    (installed / 'app.json').write_text('{"version": "1.4"}', encoding='utf-8')
+    (installed / 'whats-new-child.toml').write_text(
+        "version = 1\n[[records]]\nProductVersion = '1.4'\n"
+        "Content = 'Older installed notes'\n", encoding='utf-8')
+    monkeypatch.setattr(about, '_INSTALLED_DATA_DIR', installed)
+    monkeypatch.setattr(about, '_SOURCE_DATA_DIR', source)
+    presenter = release_presenter(overlay)
+    presenter.window._preview = True
+    presenter.window._interactive_preview = False
+    presenter.select_child(1001)
+
+    assert presenter.record is not None
+    assert presenter.record['ProductVersion'] == '1.5'
+    translations = load_whats_new_translations('1.5', 'en')
+    blocks = markdown_blocks(translate_content(presenter.record, translations))
+    notes = '\n'.join(markup for kind, markup in blocks if kind == 'list')
+    assert 'Remaining time reminders:' in notes
+    assert 'Request Time Form' in notes
+    presenter.window._bus_call.assert_not_called()
+
+
+def test_branding_uses_installed_assets_when_checkout_data_is_absent(tmp_path, monkeypatch):
+    from common.oh_no_parent_control_ui import about
+
+    installed = tmp_path / 'installed'
+    installed.mkdir()
+    monkeypatch.setattr(about, '_INSTALLED_DATA_DIR', installed)
+    monkeypatch.setattr(about, '_SOURCE_DATA_DIR', tmp_path / 'absent')
+    assert about.branding_asset_path('app.json') == installed / 'app.json'
+
+
+@pytest.mark.parametrize('overlay', (False, True))
 def test_child_release_notes_acknowledge_only_displayed_close_on_matching_api(overlay):
     presenter = release_presenter(overlay)
     with patch('oh_no_parent_control_kiosk.whats_new.WhatsNewDialog') as dialog:

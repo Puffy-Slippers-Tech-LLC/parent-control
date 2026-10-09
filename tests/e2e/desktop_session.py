@@ -2,7 +2,7 @@
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
-                            parent_management, native_activity_entry)
+                            parent_management, native_activity_entry, rejected_gdm_return)
 from journey_checks import AllowanceJourney
 
 ENTRY = fresh_desktop('parent')
@@ -109,6 +109,79 @@ def retained_unlock_plan(retained=False):
 
 CHILD_UNLOCK_PLAN = retained_unlock_plan()
 RETAINED_UNLOCK_PLAN = retained_unlock_plan(True)
+
+
+def retained_denial_plan(retained=False):
+    """Configured zero denial on independent GDM and actual lock surfaces."""
+    entry = fresh_desktop('parent')
+    child_entry = {'fresh-' + stage: tag for stage, tag in fresh_desktop('child').items()}
+    parent_entry = {'return-' + stage: tag for stage, tag in entry.items()}
+    management = parent_management()
+    screens = {
+        **entry, **management,
+        'allowance-configured': 'ui:time-explanation-positive-read',
+        'logout-ready': 'ui:desktop', 'logout': 'system:parent-logout',
+        'gdm-logged-out': 'ui:gdm-returned', **child_entry,
+        'child-switch-ready': 'ui:fresh-child-desktop',
+        'child-switch': 'system:child-switch-user', 'child-greeter': 'ui:gdm-returned',
+        'retained-before': 'system:child-retained-locked', **parent_entry,
+        **{'return-' + stage: tag for stage, tag in management.items()},
+        'zero-configured': 'ui:time-explanation-zero-read',
+        'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+        **({'retained-list': 'ui:gdm-child-list', 'retained-focused': 'ui:gdm-child-focused',
+            'retained-recipient-qualified': 'ui:gdm-child-recipient',
+            'retained-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
+            'time-denied': 'ui:gdm-child-time-denied', **rejected_gdm_return()}
+           if retained else {
+               'enter-locked': 'system:child-enter-locked',
+               'curtain': 'ui:child-lock-curtain', 'reveal-ready': 'ui:child-lock-reveal-ready',
+               'time-denied': 'ui:child-lock-time-denied',
+               'return-greeter': 'system:child-return-greeter', 'denied-returned': 'ui:gdm-returned'}),
+        'retained-after': 'system:child-retained-locked',
+    }
+    invocation = set(entry) | set(child_entry) | set(parent_entry)
+    if retained:
+        invocation |= {'retained-list', 'retained-focused', 'retained-recipient-qualified',
+                       'retained-recipient-rechecked', 'time-denied', *rejected_gdm_return()}
+    return JourneyPlan(
+        prefix='retained-denial' if retained else 'lock-denial',
+        worker_mode='retained_unlock_denied' if retained else 'child_unlock_denied',
+        screen_tags=screens,
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                **{stage: 'step-1' for stage in screens}, 'installed-greeter': 'start'},
+        invocations=tuple(stage for stage in screens if stage in invocation),
+        challenges={'parent-login': ('parent', 'recipient-qualified', 'recipient-rechecked'),
+            'child-login': ('child', 'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked'),
+            'renewed-login': ('parent', 'return-recipient-qualified', 'return-recipient-rechecked'),
+            **({'retained-login': ('child', 'retained-recipient-qualified',
+                                  'retained-recipient-rechecked')} if retained else {})},
+        balance_checks={'allowance-configured': 900, 'zero-configured': 0},
+        assertions_after={'allowance-configured': 'positive-daily-time',
+                          'zero-configured': 'zero-daily-and-grant-time',
+                          'time-denied': 'specific-time-denial-no-desktop',
+                          'denied-returned': 'usable-account-list',
+                          'retained-after': 'same-retained-locked-child'},
+    )
+
+
+CHILD_DENIAL_PLAN = retained_denial_plan()
+RETAINED_DENIAL_PLAN = retained_denial_plan(True)
+
+
+class RetainedDenialJourney(AllowanceJourney):
+    def __init__(self, context, progress, plan=RETAINED_DENIAL_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage == 'retained-before':
+            self.retained_session = observed['system']['session_sha256']
+        elif stage == 'retained-after':
+            from private_artifacts import require
+            require(observed['system']['session_sha256'] == getattr(self, 'retained_session', None),
+                    'retained-denial:session-replaced')
+            observed['comparison'] = {'same_retained_locked_child': True}
 
 
 class RetainedUnlockJourney(AllowanceJourney):

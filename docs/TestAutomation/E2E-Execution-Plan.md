@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **043a — [Observe retained-child time denial and return](E2E-Tasks/043a-retained-unlock.md)**.
+Next task: **044b — [Return to an existing Parent desktop and window](E2E-Tasks/044b-retained-parent.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

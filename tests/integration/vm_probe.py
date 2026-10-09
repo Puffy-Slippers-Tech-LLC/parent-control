@@ -25,14 +25,26 @@ def reproduce_gdm_denial(lease):
     must inspect with exec and finish with test-vm stop.
     """
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from fixture_credentials import FixtureCredentials
     from fresh_child_denied import FreshChildDeniedJourney
+    return reproduce_denial(lease, FreshChildDeniedJourney, None, 'denied-returned', 'gdm')
+
+
+def reproduce_lock_denial(lease):
+    """Retain the actual child's lock scene immediately after guarded reveal."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from desktop_session import RetainedDenialJourney, CHILD_DENIAL_PLAN
+    return reproduce_denial(lease, RetainedDenialJourney, CHILD_DENIAL_PLAN, 'time-denied', 'lock')
+
+
+def reproduce_denial(lease, journey_type, plan, boundary, surface):
+    """Shared maintenance envelope; fixed callers own the finite history/boundary."""
+    from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
     import e2e_worker
     from qualification_storage import recovery_session, allocate
 
-    with operation('Reproducing the rejected child prompt for live diagnosis'), recovery_session():
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-gdm-diagnosis-'))
+    with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + surface + '-diagnosis-'))
         private = directory / 'private'
         private.mkdir(mode=0o700)
         lease.commands.directory = private
@@ -40,7 +52,7 @@ def reproduce_gdm_denial(lease):
         credentials = FixtureCredentials()
         credentials.provision_online(lease, transport)
 
-        class Reproduction(FreshChildDeniedJourney):
+        class Reproduction(journey_type):
             def _step(self, guard):
                 stage = self.plan.stages[len(self.steps)]
                 if stage != 'setup-detached':
@@ -72,20 +84,16 @@ def reproduce_gdm_denial(lease):
             # Fixed stage names and the shared sanitized observation only.
             with (directory / 'observations.jsonl').open('a') as stream:
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
-            print('gdm-diagnosis: ' + stage, file=sys.stderr, flush=True)
+            print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
-        journey = Reproduction(SimpleNamespace(directory=directory, lease=lease), progress)
+        journey = Reproduction(SimpleNamespace(directory=directory, lease=lease), progress,
+                               **({'plan': plan} if plan is not None else {}))
 
         def validate():
-            system.require(not journey.failed and [s['stage'] for s in journey.steps]
-                           == list(journey.plan.stages[:-1]), 'diagnosis:incomplete-history')
-            request = directory / 'denied-returned.request.json'
-            system.require(not request.is_symlink() and request.stat().st_size <= 1024
-                and json.loads(request.read_bytes()) ==
-                {'stage': 'denied-returned', 'screenshot': None}, 'diagnosis:boundary-request')
+            validate_boundary(journey, directory, boundary)
 
         def observe(guard):
-            if (directory / 'denied-returned.request.json').exists():
+            if (directory / (boundary + '.request.json')).exists():
                 guard()
                 validate()
                 return True
@@ -98,7 +106,18 @@ def reproduce_gdm_denial(lease):
         system.require(result['worker_stopped'] and result['callback_closed'],
                        'diagnosis:cleanup-incomplete')
         lease.guard()
-        print('gdm-diagnosis: scene retained; evidence=' + str(directory), flush=True)
+        print(surface + '-diagnosis: scene retained; evidence=' + str(directory), flush=True)
+
+
+def validate_boundary(journey, directory, boundary):
+    """Retain only a complete verified prefix, never a failed or advanced scene."""
+    system.require(not journey.failed and [s['stage'] for s in journey.steps]
+                   == list(journey.plan.stages[:journey.plan.stages.index(boundary)]),
+                   'diagnosis:incomplete-history')
+    request = directory / (boundary + '.request.json')
+    system.require(not request.is_symlink() and request.stat().st_size <= 1024
+        and json.loads(request.read_bytes()) ==
+        {'stage': boundary, 'screenshot': None}, 'diagnosis:boundary-request')
 
 
 def connect(lease):

@@ -34,6 +34,10 @@ LABELS = {'switch-user': 'Switching to the greeter',
 LABELS.update({'command-context': 'Verifying the administrator package command context',
                'command-refused': 'Checking command refusal outside the fixture desktop',
                'continuous-activity': 'Preparing the Parent desktop for continuous accessibility input'})
+BINDINGS['child-enter-locked'] = ('child', 'enter-locked')
+LABELS['enter-locked'] = 'Entering the preserved locked child session'
+BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
+LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
 
 
@@ -300,11 +304,61 @@ def prepare_continuous_activity():
     return seconds
 
 
+def locked_entry_source(current, uid):
+    """One retained locked target, entered from the sole active greeter."""
+    active = [item for item in current.values()
+              if local_graphical(item) and item['Active'] == 'yes']
+    require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
+    owned = [(key, item) for key, item in current.items() if local_graphical(item)
+             and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
+    require(len(owned) == 1, 'entry-target')
+    identity, target = owned[0]
+    require(target['Active'] == 'no' and target['LockedHint'] == 'yes', 'entry-locked')
+    return identity, target
+
+
+def enter_locked(account):
+    """Activate once through logind; never authenticate, unlock or relock."""
+    before = sessions()
+    source, target = locked_entry_source(before, account.pw_uid)
+    require(locked_entry_source(sessions(), account.pw_uid) == (source, target), 'source-changed')
+    call(['/usr/bin/loginctl', 'activate', source])
+    deadline = time.monotonic() + 45
+    while True:
+        current = sessions()
+        original = current.get(source)
+        require(original is not None and all(original[key] == target[key]
+                for key in ('User', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint')), 'entry-replaced')
+        owned = [key for key, item in current.items() if local_graphical(item)
+                 and item['User'] == str(account.pw_uid) and item['Class'] in ('user', 'user-early')]
+        require(owned == [source], 'entry-target')
+        for key, item in before.items():
+            if key != source and local_graphical(item) and item['Class'] in ('user', 'user-early'):
+                require(key in current and all(current[key][field] == item[field]
+                        for field in ('User', 'Remote', 'Class', 'Type', 'Seat', 'LockedHint')),
+                        'entry-other-session-changed')
+        active = [key for key, item in current.items() if local_graphical(item) and item['Active'] == 'yes']
+        require(len(active) <= 1, 'ambiguous-destination')
+        if active == [source]:
+            return {'source_retained': True, 'destination': 'locked'}
+        require(time.monotonic() < deadline, 'destination-timeout')
+        time.sleep(.2)
+
+
 def execute(binding):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
+    if action == 'enter-locked':
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                **enter_locked(account)}
+    if action == 'retained-locked':
+        source, target = locked_entry_source(sessions(), account.pw_uid)
+        identity = [source, *[target[key] for key in ('User', 'Remote', 'Class', 'Type', 'Seat')]]
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'session_sha256': hashlib.sha256(json.dumps(identity).encode()).hexdigest(),
+                'locked': True}
     if action == 'command-refused':
         current = sessions()
         active = [props for props in current.values()
@@ -362,6 +416,14 @@ def observe(transport, binding):
                              input=Path(__file__).read_bytes(), timeout=90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if action == 'retained-locked':
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'session_sha256', 'locked'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session' and result['locked'] is True
+            and type(result['session_sha256']) is str
+            and re.fullmatch('[0-9a-f]{64}', result['session_sha256']), 'response')
+        return result
     if action == 'continuous-activity':
         require(type(result) is dict and set(result) == {
             'operation', 'outcome', 'interface', 'idle_delay_seconds', 'previous_idle_delay_seconds'}
@@ -385,7 +447,7 @@ def observe(transport, binding):
         return result
     require(result == {'operation': binding, 'outcome': 'passed',
                        'interface': 'system session', 'source_retained': action != 'logout',
-                       'destination': 'locked' if action == 'lock' else 'greeter'}, 'response')
+                       'destination': 'locked' if action in ('lock', 'enter-locked') else 'greeter'}, 'response')
     return result
 
 

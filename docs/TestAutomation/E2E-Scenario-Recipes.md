@@ -327,7 +327,7 @@ results remain intermediate checks in case 22, and its ID must not be reused.
 
 1. FLOW13(short daily-only) → C(fresh) → PANEL02(on) → PANEL01(on) → TIME01 → FLOW08(allowed). The preference must preserve the prepared allowance and app access, allowing actual elapsed use.
 2. TIME04(natural daily exhaustion with animation enabled, lock owns normal input). This existing wait owns the animation-enforcement check; no additional wait or effect-rendering assertion is required.
-3. DESK08(correct-password time denial, no desktop access) → DESK11 → FLOW06(temporary time) → C(retained,successful and usable) → DESK04(normal logout, sign-in observed) → P → PARENT17 → PARENT18(confirm) → PARENT09(D=G=0) → G → C(fresh,correct-password time denial and no desktop access).
+3. DESK08(native pre-authentication time restriction, no desktop access) → DESK11 → FLOW06(temporary time) → C(retained,successful and usable) → DESK04(normal logout, sign-in observed) → P → PARENT17 → PARENT18(confirm) → PARENT09(D=G=0) → G → C(fresh,correct-password time denial and no desktop access).
 
 Keep every result along this route in one attempt; final sign-in denial alone
 does not establish natural locking, refused unlock or successful approved recovery.

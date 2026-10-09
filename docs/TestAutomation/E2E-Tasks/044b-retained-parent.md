@@ -12,7 +12,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **043a** — GDM02 retained-child lock entry; DESK08/11.
+- **043a** — GDM02 retained-child authenticated time denial and DESK08/11 native lock restriction/return; [qualified child scope](../E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification). GDM selection opens reauthentication; actual lock entry is distinct. Parent retained-window entry remains this task's work.
 - **044a** — DESK10 same-desktop window switching.
 
 ## Implementation

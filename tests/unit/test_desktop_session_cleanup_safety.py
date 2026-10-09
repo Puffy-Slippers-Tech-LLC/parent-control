@@ -51,8 +51,9 @@ def test_input_preflight_failure_is_retained_before_cleanup(tmp_path, monkeypatc
 
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,
                                  desktop_session.LOCK_PLAN, desktop_session.SUPPLIED_LOCK_PLAN,
-                                 desktop_session.LOCK_RECIPIENT_PLAN],
-                         ids=['logout', 'switch', 'lock', 'supplied-lock', 'lock-recipient'])
+                                 desktop_session.LOCK_RECIPIENT_PLAN,
+                                 desktop_session.CHILD_DENIAL_PLAN, desktop_session.RETAINED_DENIAL_PLAN],
+                         ids=['logout', 'switch', 'lock', 'supplied-lock', 'lock-recipient', 'child-denial', 'gdm-denial'])
 @pytest.mark.parametrize('failure', [None, 'checkpoint', 'worker-loss'])
 def test_next_input_requires_persisted_observation_and_current_worker(tmp_path, plan, failure):
     reply = tmp_path / 'ready.reply.json'
@@ -81,7 +82,43 @@ def test_next_input_requires_persisted_observation_and_current_worker(tmp_path, 
     else:
         journey.step(guard)
         assert recorded == ['ready']
-        assert json.loads(reply.read_text()) == {plan.worker_mode: True}
+        assert json.loads(reply.read_text()) == {plan.worker_mode: True,
+            **({'invocations': list(plan.invocations)} if plan.invocations else {}),
+            **({'challenge_bindings': {key: list(value) for key, value in plan.challenges.items()}}
+               if plan.challenges else {})}
+
+
+@pytest.mark.parametrize('failure', ['', 'replaced', 'checkpoint', 'worker-loss'])
+def test_retained_child_comparison_precedes_durable_return_reply(tmp_path, monkeypatch, failure):
+    import session_control
+    plan = desktop_session.CHILD_DENIAL_PLAN
+    stage = 'retained-after'
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    reply = tmp_path / (stage + '.reply.json')
+    def progress(current, observed):
+        assert not reply.exists()
+        assert observed['comparison'] == {'same_retained_locked_child': True}
+        if failure == 'checkpoint': raise OSError('checkpoint')
+    journey = desktop_session.RetainedDenialJourney(SimpleNamespace(directory=tmp_path), progress, plan)
+    journey.steps = [{'stage': s} for s in plan.stages[:plan.stages.index(stage)]]
+    journey.retained_session = 'a' * 64
+    journey.boot = 'b' * 64
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
+    monkeypatch.setattr(session_control, 'observe', Mock(return_value={
+        'operation': 'child-retained-locked', 'outcome': 'passed', 'interface': 'system session',
+        'locked': True, 'session_sha256': ('c' if failure == 'replaced' else 'a') * 64}))
+    guards = 0
+    def guard():
+        nonlocal guards
+        guards += 1
+        if failure == 'worker-loss' and guards > 1: raise RuntimeError('worker lost')
+    if failure:
+        with pytest.raises((EvidenceError, OSError, RuntimeError)): journey.step(guard)
+        assert not reply.exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(guard)
+        assert json.loads(reply.read_text()) == {'observed': stage}
 
 
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,

@@ -1125,7 +1125,7 @@ def test_child_lock_identity_survives_every_adapter_layer(monkeypatch, fault):
     field.action.do_action.assert_not_called()
 
 
-def unlock_probe(plan):
+def unlock_probe(plan, *, denied=False):
     program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
 my $plan = decode_json($ARGV[1]);
 my $ok = eval {
@@ -1149,7 +1149,11 @@ my $ok = eval {
 };
 print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 '''
-    return program, json.dumps({'retained': int(plan.worker_mode == 'retained_unlock_success'),
+    if denied:
+        program = program.replace('qualify_retained_unlock', 'qualify_retained_denial')
+        program = program.replace('return {observed => $stage};',
+            "return {observed => $stage, gdm_return_state => 'account-list'} if $stage eq 'denied-return-state'; return {observed => $stage};")
+    return program, json.dumps({'retained': int(plan.worker_mode in ('retained_unlock_success', 'retained_unlock_denied')),
                                'invocations': plan.invocations, 'challenges': plan.challenges})
 
 
@@ -1186,13 +1190,17 @@ def test_unlock_actual_worker_order_and_every_refusal_stop(retained):
 
 
 @pytest.mark.parametrize('retained', [False, True])
-def test_unlock_recorder_constructor_and_worker_titles(tmp_path, monkeypatch, retained):
+@pytest.mark.parametrize('denied', [False, True])
+def test_unlock_recorder_constructor_and_worker_titles(tmp_path, monkeypatch, retained, denied):
     from unittest.mock import MagicMock
     from installed_journey import record_installed_journey, matched_screens
     from private_artifacts import EvidenceError
-    from desktop_session import RetainedUnlockJourney, CHILD_UNLOCK_PLAN, RETAINED_UNLOCK_PLAN
-    plan = RETAINED_UNLOCK_PLAN if retained else CHILD_UNLOCK_PLAN
-    program, binding = unlock_probe(plan)
+    from desktop_session import (RetainedUnlockJourney, CHILD_UNLOCK_PLAN, RETAINED_UNLOCK_PLAN,
+                                 RetainedDenialJourney, CHILD_DENIAL_PLAN, RETAINED_DENIAL_PLAN)
+    plan = (RETAINED_DENIAL_PLAN if retained else CHILD_DENIAL_PLAN) if denied else (
+        RETAINED_UNLOCK_PLAN if retained else CHILD_UNLOCK_PLAN)
+    journey_type = RetainedDenialJourney if denied else RetainedUnlockJourney
+    program, binding = unlock_probe(plan, denied=denied)
     program = program.replace('sub record_info { }',
                               "sub record_info { push @main::events, ['title', $_[0]]; }")
     events = json.loads(run_perl(program, '', binding).stdout)['events']
@@ -1212,12 +1220,12 @@ def test_unlock_recorder_constructor_and_worker_titles(tmp_path, monkeypatch, re
     context.recorder = recorder
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert type(journey) is RetainedUnlockJourney and journey.plan is plan
+        assert type(journey) is journey_type and journey.plan is plan
         assert options['validate'].__self__ is journey and options['authenticate'] is True
         raise EvidenceError('synthetic-worker-stop')
     context.run_worker = Mock(side_effect=worker)
     with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
-        record_installed_journey(recorder, context, plan, journey_type=RetainedUnlockJourney)
+        record_installed_journey(recorder, context, plan, journey_type=journey_type)
     context.run_worker.assert_called_once()
     recorder.assertion.assert_not_called()
 
@@ -1302,3 +1310,166 @@ def test_unlock_registration_prepares_vm_bound_inputs_and_stops_second_attempt(m
     monkeypatch.setattr(test_commands, 'allocate_artifact_output', Mock(return_value='prepared'))
     command = test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_retained_unlock_success'])
     assert any(value.endswith('/vm_artifacts.py') for value in command)
+
+
+@pytest.mark.parametrize('retained', [False, True])
+def test_retained_denial_actual_worker_order_and_every_refusal_stop(retained):
+    from desktop_session import CHILD_DENIAL_PLAN, RETAINED_DENIAL_PLAN
+    plan = RETAINED_DENIAL_PLAN if retained else CHILD_DENIAL_PLAN
+    program, binding = unlock_probe(plan, denied=True)
+    result = json.loads(run_perl(program, '', binding).stdout)
+    assert result['ok'], result
+    events = result['events']
+    assert [row[1] for row in events if row[0] == 'stage'] == list(plan.screen_tags)
+    assert events.count(['secret']) == (4 if retained else 3)
+    assert events.count(['key', 'spc']) == int(not retained)
+    assert events.count(['key', 'esc']) == int(retained)
+    assert events[-1] == ['power', 'off']
+    for stage in plan.screen_tags:
+        failure = json.loads(run_perl(program, stage, binding).stdout)
+        assert not failure['ok']
+        assert failure['events'] == events[:events.index(['stage', stage]) + 1]
+    assert all(tag[3:] in OPERATIONS if tag.startswith('ui:') else tag[7:] in control.BINDINGS
+               for tag in plan.screen_tags.values())
+    stages = list(plan.screen_tags)
+    assert stages.index('logout') < stages.index('fresh-desktop') < stages.index('zero-configured')
+    assert stages.index('time-denied') < stages.index('denied-returned') < stages.index('retained-after')
+
+
+@pytest.mark.parametrize('fault', ['', 'not-greeter', 'unlocked', 'active', 'missing', 'duplicate',
+                                  'changed', 'unlocked-result', 'lost-other', 'uncertain'])
+def test_enter_locked_activates_only_the_preserved_locked_child_once(monkeypatch, fault):
+    before = {'7': props('1002', active='no', locked='yes'),
+              '8': props('120', kind='greeter'), '9': props('1000', active='no', locked='yes')}
+    after = {**before, '7': props('1002', locked='yes'), '8': props('120', active='no', kind='greeter')}
+    if fault == 'not-greeter': before['8'] = props('1000')
+    if fault == 'unlocked': before['7']['LockedHint'] = 'no'
+    if fault == 'active': before['7']['Active'] = 'yes'
+    if fault == 'missing': del before['7']
+    if fault == 'duplicate': before['10'] = props('1002', active='no', locked='yes')
+    rechecked = {key: dict(value) for key, value in before.items()}
+    if fault == 'changed': rechecked['7']['Type'] = 'x11'
+    if fault == 'unlocked-result': after['7']['LockedHint'] = 'no'
+    if fault == 'lost-other': del after['9']
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[before, rechecked, after]))
+    command = Mock(side_effect=RuntimeError('uncertain') if fault == 'uncertain' else None)
+    monkeypatch.setattr(control, 'call', command)
+    if fault:
+        with pytest.raises((control.SessionError, RuntimeError)):
+            control.enter_locked(SimpleNamespace(pw_uid=1002))
+    else:
+        assert control.enter_locked(SimpleNamespace(pw_uid=1002)) == {
+            'source_retained': True, 'destination': 'locked'}
+    assert command.call_count == int(fault in ('', 'unlocked-result', 'lost-other', 'uncertain'))
+    if command.called: command.assert_called_once_with(['/usr/bin/loginctl', 'activate', '7'])
+
+
+@pytest.mark.parametrize('fault', ['', 'generic', 'missing', 'duplicate', 'wrong-recipient',
+    'replacement', 'order', 'password', 'unlocked', 'wrong-session', 'wrong-owner',
+    'incomplete', 'defunct', 'foreign-dialog', 'ambiguous', 'wrapper', 'unfocused',
+    'missing-title', 'duplicate-title'])
+def test_actual_lock_time_denial_requires_specific_message_and_same_surface(monkeypatch, fault):
+    import accessible_ui as a
+    from ui_observations import UiObservations
+    from private_artifacts import EvidenceError
+    ui, root, shell, window, recipient, field = lock_tree(monkeypatch, 'challenge')
+    recipient.name = a.PARENT if fault == 'wrong-recipient' else a.CHILD
+    monkeypatch.setattr(a.os, 'getuid', lambda: 1002)
+    monkeypatch.setattr(a.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1002))
+    monkeypatch.setattr(a, 'Path', lambda _: SimpleNamespace(stat=lambda: SimpleNamespace(st_uid=1002)))
+    current = {'7': props('1002', locked='yes')}
+    if fault == 'unlocked': current['7']['LockedHint'] = 'no'
+    if fault == 'wrong-session': current['7']['User'] = '1001'
+    monkeypatch.setattr(control, 'sessions', lambda: current)
+    window.children = [recipient]
+    message = ('Sorry, that didn’t work. Please try again.' if fault == 'generic' else
+               'Daily limit for screen time on this device has been reached. Resume tomorrow.')
+    if fault != 'unfocused': window.states.add('focused')
+    if fault != 'missing-title': window.children.append(Node('Screen Time Limit Reached', 'label'))
+    if fault == 'duplicate-title': window.children.append(Node('Screen Time Limit Reached', 'label'))
+    if fault != 'missing':
+        label = Node(message, 'label')
+        label.parent = window
+        window.children.append(label)
+    for node in window.children: node.parent = window
+    if fault == 'password':
+        window.children.append(field)
+    elif fault == 'wrong-owner': shell.get_process_id = lambda: 200
+    elif fault == 'incomplete': window.children.append(None)
+    elif fault == 'defunct': recipient.states.add('defunct')
+    elif fault == 'foreign-dialog': root.children.append(Node('other', 'application', children=[Node(role='dialog')]))
+    elif fault == 'ambiguous': shell.children.append(Node(role='window'))
+    elif fault == 'wrapper':
+        wrapper = Node(role='window', children=[window])
+        wrapper.parent = shell
+        shell.children = [wrapper]
+    if fault == 'duplicate':
+        label = Node(message, 'label')
+        label.parent = window
+        window.children.append(label)
+    reader = UiObservations(SimpleNamespace())
+    reader.lock_surface_id = ('b' if fault == 'replacement' else 'a') * 64
+    reader.last_operation = 'child-lock-challenge' if fault == 'order' else 'child-lock-reveal-ready'
+    reader.call = Mock(side_effect=lambda argv, *args, **kwargs:
+        (json.dumps(ui.run(argv[3], '')).encode(), []))
+    if fault not in ('', 'wrapper', 'unfocused'):
+        with pytest.raises((UiError, RuntimeError, EvidenceError)): reader.observe('child-lock-time-denied')
+    else:
+        result = reader.observe('child-lock-time-denied')['lock']
+        assert result['reason'] == 'time-limit' and result['desktop_input_available'] is False
+        assert result['entry'] == 'restriction' and result['authentication_blocked'] is True
+        assert result['recipient'] is None
+    field.getText.assert_not_called()
+    field.action.do_action.assert_not_called()
+    for node in window.children:
+        if node is not None: node.action.do_action.assert_not_called()
+
+
+def test_denial_registration_prepares_vm_inputs_and_stops_after_failure(monkeypatch):
+    import check_e2e_retained_unlock as check
+    from desktop_session import CHILD_DENIAL_PLAN, RETAINED_DENIAL_PLAN
+    from parent_setup_qualification import ChildDenialQualification, RetainedDenialQualification
+    from tools import test_commands
+    for cls, plan in ((ChildDenialQualification, CHILD_DENIAL_PLAN),
+                      (RetainedDenialQualification, RETAINED_DENIAL_PLAN)):
+        context = SimpleNamespace()
+        assert cls.journey(context, Mock()).plan is plan
+        assert context.installed_snapshot.startswith('onpc-v')
+    smoke = Mock(side_effect=[0, 0])
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 0
+    assert [call.kwargs['lock_surface'] for call in smoke.call_args_list] == ['retained-denied', 'child-denied']
+    smoke = Mock(return_value=1)
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 1 and smoke.call_count == 1
+    monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(test_commands, 'allocate_artifact_output', Mock(return_value='prepared'))
+    command = test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_retained_unlock'])
+    assert any(value.endswith('/vm_artifacts.py') for value in command)
+
+
+@pytest.mark.parametrize('fault', ['', 'wrong-owner', 'unlocked', 'not-greeter', 'extra', 'bad-hash'])
+def test_retained_locked_read_and_controller_decoder_preserve_identity(monkeypatch, fault):
+    current = {'7': props('1000' if fault == 'wrong-owner' else '1002', active='no',
+                          locked='no' if fault == 'unlocked' else 'yes'),
+               '8': props('120', kind='user' if fault == 'not-greeter' else 'greeter')}
+    monkeypatch.setattr(control, 'sessions', lambda: current)
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1002))
+    submit = Mock()
+    monkeypatch.setattr(control, 'call', submit)
+    if fault in ('wrong-owner', 'unlocked', 'not-greeter'):
+        with pytest.raises(control.SessionError): control.execute('child-retained-locked')
+    else:
+        result = control.execute('child-retained-locked')
+        assert result['locked'] is True
+        if fault == 'extra': result['private'] = 'canary'
+        if fault == 'bad-hash': result['session_sha256'] = 'bad'
+        transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+        if fault:
+            with pytest.raises(control.SessionError): control.observe(transport, 'child-retained-locked')
+        else:
+            assert control.observe(transport, 'child-retained-locked') == result
+            current['7']['Type'] = 'x11'
+            assert control.execute('child-retained-locked')['session_sha256'] != result['session_sha256']
+    submit.assert_not_called()

@@ -39,10 +39,19 @@ sub observe_lock {
     die 'desk:lock-binding' unless (@_ == 1 || @_ == 2) && ref($journey) eq 'onpc_journey'
         && ($entry eq 'curtain' || $entry eq 'challenge');
     return $journey->seen('challenge') if $entry eq 'challenge';
+    return reveal_lock($journey, 'challenge');
+}
+
+# A fresh curtain proof guards one Space; callers own the resulting surface.
+sub reveal_lock {
+    onpc_progress::operation('Revealing the bound locked surface');
+    my ($journey, $result) = @_;
+    die 'desk:lock-reveal-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ($result eq 'challenge' || $result eq 'time-denied');
     $journey->consume_observation('curtain', $journey->seen('curtain'));
     $journey->consume_observation('reveal-ready', $journey->seen('reveal-ready'));
     testapi::send_key('spc');
-    return $journey->seen('challenge');
+    return $journey->seen($result);
 }
 
 # DESK05: one public session command; callers independently observe DESK06.
@@ -189,6 +198,59 @@ sub qualify_retained_unlock {
     onpc_app_rows::native_read_activity($journey, 'returned-activity');
     onpc_app_rows::native_activity_resume($journey, 'resume');
     onpc_app_rows::native_read_activity($journey, 'usable-activity');
+    $journey->finish();
+}
+
+# Configured-zero qualification uses a fresh Parent session to change time,
+# then observes native lock restriction or authenticates GDM once. These are
+# distinct results; the zero-time Shell shield has no password recipient.
+sub qualify_retained_denial {
+    onpc_progress::operation('Qualifying retained-child time denial and return');
+    my ($exchange, $retained, $declared, $challenges) = @_;
+    die 'desk:denial-plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ($retained == 0 || $retained == 1);
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $retained ? 'retained-denial' : 'lock-denial', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->consume_observation('logout-ready', $journey->seen('logout-ready'));
+    $journey->seen('logout');
+    $journey->seen('gdm-logged-out');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->consume_observation('child-switch-ready', $journey->seen('child-switch-ready'));
+    $journey->seen('child-switch');
+    $journey->seen('child-greeter');
+    $journey->seen('retained-before');
+    $desktop = onpc_gdm::sign_in_challenge($journey, 'renewed-login',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    onpc_parent::launch($journey, $desktop, 'management', 'return-desktop');
+    $selected = onpc_parent::select_child($journey, 'child', $journey->seen('return-child-picker-opened'),
+        'return-child-picker-opened', 'return-child-choice-highlighted', 'return-parent-selected');
+    $journey->consume_observation('return-parent-selected', $selected);
+    $journey->seen('zero-configured');
+    switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    if ($retained) {
+        onpc_gdm::sign_in_challenge($journey, 'retained-login',
+            'retained-list', 'retained-focused', 'time-denied');
+        onpc_gdm::return_from_time_denial($journey,
+            'denied-return-ready', 'denied-return-state', 'denied-returned');
+    } else {
+        $journey->seen('enter-locked');
+        my $denied = reveal_lock($journey, 'time-denied');
+        $journey->consume_observation('time-denied', $denied);
+        $journey->seen('return-greeter');
+        $journey->seen('denied-returned');
+    }
+    $journey->seen('retained-after');
     $journey->finish();
 }
 

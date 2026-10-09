@@ -1277,10 +1277,13 @@ class UiObservations:
                     'ui:lock-refusal-response')
             else:
                 recipient = operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS
-                entry = 'challenge' if lock_operation == 'parent-lock-challenge' or recipient else 'curtain'
+                denial = lock_operation == 'parent-lock-time-denied'
+                entry = ('restriction' if denial else
+                         'challenge' if lock_operation == 'parent-lock-challenge' or recipient else 'curtain')
                 require(type(value) is dict and set(value) == {
                     'entry', 'owner', 'locked', 'desktop_input_available', 'recipient', 'surface_id', 'provider'}
                     | ({'empty', 'masked', 'focused', 'challenge_id'} if recipient else set())
+                    | ({'reason', 'authentication_blocked'} if denial else set())
                     and value['entry'] == entry and value['owner'] == identity
                     and value['locked'] is True and value['desktop_input_available'] is False
                     and value['recipient'] == (identity if entry == 'challenge' else None)
@@ -1292,6 +1295,10 @@ class UiObservations:
                             and re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']),
                             'ui:lock-recipient-response')
                 accessible_ui.validate_shell_metadata(value['provider'])
+                if denial:
+                    require(value['reason'] == 'time-limit'
+                            and value['authentication_blocked'] is True
+                            and self.last_operation == 'child-lock-reveal-ready', 'ui:lock-denial')
                 if lock_operation == 'parent-lock-curtain' or (
                         lock_operation == 'parent-lock-challenge' and not hasattr(self, 'lock_surface_id')):
                     self.lock_surface_id = value['surface_id']

@@ -1066,6 +1066,8 @@ CHILD_LOCK_OPERATIONS = frozenset(operation.replace('parent-', 'child-', 1)
 LOCK_RECIPIENT_OPERATIONS |= frozenset(operation.replace('parent-', 'child-', 1)
     for operation in LOCK_RECIPIENT_OPERATIONS)
 LOCK_SURFACE_OPERATIONS |= CHILD_LOCK_OPERATIONS
+LOCK_SURFACE_OPERATIONS |= frozenset(('child-lock-time-denied',))
+CHILD_LOCK_OPERATIONS |= frozenset(('child-lock-time-denied',))
 CHILD_DESKTOP_OPERATIONS |= CHILD_LOCK_OPERATIONS
 OPERATIONS |= LOCK_SURFACE_OPERATIONS
 
@@ -7342,7 +7344,7 @@ class AccessibleUI:
             return facts[node]['showing'] and (
                 facts[node]['role'] == 'password text'
                 or (facts[node]['role'] == 'label' and facts[node]['name'] in (
-                    'Click or press a key to unlock', *GREETER_IDENTITIES)))
+                    'Click or press a key to unlock', 'Screen Time Limit Reached', *GREETER_IDENTITIES)))
 
         candidates = []
         for window, scope in scopes.items():
@@ -7387,7 +7389,9 @@ class AccessibleUI:
         branch can guard a single nonprinting normal-key reveal in the worker.
         https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/unlockDialog.js
         """
-        require(entry in ('curtain', 'challenge'), 'ui:lock-entry')
+        require(entry in ('curtain', 'challenge', 'restriction'), 'ui:lock-entry')
+        require(entry != 'restriction' or getattr(self, 'lock_role', 'parent') == 'child',
+                'ui:lock-restriction-owner')
         session = self.require_lock_session(uid)
         if observation is None:
             self.invalidate_observation()
@@ -7431,11 +7435,27 @@ class AccessibleUI:
         focused = [node for node in controls if facts[node]['showing']
                    and self.has_state(node, self.api.StateType.FOCUSED)]
         require(len(focused) <= 1, 'ui:lock-focus-ambiguous')
-        if not focused:
+        if not focused and entry != 'restriction':
             return None
         fields = [node for node in controls if facts[node]['role'] == 'password text'
                   and facts[node]['showing']]
         require(len(fields) <= 1, 'ui:lock-field-ambiguous')
+        if entry == 'restriction':
+            # Shell 50's native parental-control shield replaces the password
+            # input at zero time. Observe it; Ignore requests an extension and
+            # must never be activated as a dismissal or authentication route.
+            require(not fields, 'ui:lock-restriction-password')
+            texts = [facts[node]['name'] for node in controls
+                     if facts[node]['role'] == 'label' and facts[node]['showing']]
+            for message in ('Screen Time Limit Reached',
+                    'Daily limit for screen time on this device has been reached. Resume tomorrow.'):
+                require(texts.count(message) <= 1, 'ui:lock-denial-ambiguous')
+                if message not in texts:
+                    return None
+            identities = [text for text in texts if text in GREETER_IDENTITIES]
+            require(not identities or identities == [CHILD], 'ui:lock-recipient')
+            require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
+            return owner, window, None, observation
         if entry == 'curtain':
             require(not fields, 'ui:lock-not-curtain')
             hints = [node for node in controls if facts[node]['role'] == 'label'
@@ -7482,7 +7502,8 @@ class AccessibleUI:
             else:
                 raise UiError('ui:lock-unlocked-accepted')
             return {'refused': ['unlocked-session']}
-        entry = 'curtain' if operation in ('parent-lock-curtain', 'parent-lock-reveal-ready') else 'challenge'
+        entry = ('restriction' if operation == 'parent-lock-time-denied' else
+                 'curtain' if operation in ('parent-lock-curtain', 'parent-lock-reveal-ready') else 'challenge')
         value = self.shell_lock_snapshot(uid, entry)
         if value is None:
             return None
@@ -7554,6 +7575,9 @@ class AccessibleUI:
                   'recipient': identity if field is not None else None,
                   'surface_id': self.mate_challenge_identity(owner.get_process_id(), (owner, window)),
                   'provider': self._shell_provider_metadata(owner)}
+        if operation == 'parent-lock-time-denied':
+            result['reason'] = 'time-limit'
+            result['authentication_blocked'] = True
         if operation in LOCK_RECIPIENT_OPERATIONS:
             result.update(empty=True, masked=True, focused=True,
                 challenge_id=self.mate_challenge_identity(owner.get_process_id(), (owner, window, field)))

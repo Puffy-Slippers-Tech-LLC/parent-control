@@ -363,10 +363,11 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
-    command = select(root, ['vm', 'reproduce-gdm-denial', *VM_ARGS])
-    assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'reproduce-gdm-denial']
-    with pytest.raises(ValueError):
-        select(root, ['vm', 'reproduce-gdm-denial', '1', *VM_ARGS])
+    for action in ('reproduce-gdm-denial', 'reproduce-lock-denial'):
+        command = select(root, ['vm', action, *VM_ARGS])
+        assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
+        with pytest.raises(ValueError):
+            select(root, ['vm', action, '1', *VM_ARGS])
 
 
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
@@ -407,6 +408,36 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
                        *VM_ARGS, '--expected-uuid', UUID, 'exec', '--timeout', '600', '--', *guest]
     with pytest.raises(ValueError, match='--vm'):
         dispatch(root, ['vm', 'exec', '--', *guest])
+
+
+@pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
+                                   'wrong-stage', 'screenshot', 'symlink', 'oversized'])
+def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault):
+    from vm_probe import validate_boundary
+    from desktop_session import CHILD_DENIAL_PLAN
+    stages = list(CHILD_DENIAL_PLAN.stages)
+    prefix = stages[:stages.index('time-denied')]
+    assert prefix[-1] == 'reveal-ready'
+    assert 'lock-recipient-qualified' not in prefix
+    if fault == 'missing-history':
+        prefix.remove('zero-configured')
+    elif fault == 'advanced':
+        prefix.append('time-denied')
+    journey = SimpleNamespace(plan=CHILD_DENIAL_PLAN, failed=fault == 'failed',
+                              steps=[{'stage': stage} for stage in prefix])
+    request = tmp_path / 'time-denied.request.json'
+    request.write_text(json.dumps({'stage': 'curtain' if fault == 'wrong-stage' else 'time-denied',
+                                  'screenshot': 'private' if fault == 'screenshot' else None}))
+    if fault == 'symlink':
+        request.rename(tmp_path / 'original')
+        request.symlink_to(tmp_path / 'original')
+    elif fault == 'oversized':
+        request.write_text(' ' * 1025)
+    if fault:
+        with pytest.raises(runner.Error, match='diagnosis:'):
+            validate_boundary(journey, tmp_path, 'time-denied')
+    else:
+        validate_boundary(journey, tmp_path, 'time-denied')
 
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):

@@ -106,6 +106,14 @@ The `return-greeter` binding instead requires an already locked active fixture
 session and invokes the same GDM API without another Lock or an unlock. It
 rechecks that source before input and requires it retained and locked after the
 transition. The caller observes any tested lock/denial before leaving it.
+`child-enter-locked` enters the sole inactive locked child from the active
+greeter with one public `loginctl activate` operation. It rechecks identity and
+lock state before input and independently requires the same active locked
+session afterward, preserving other desktops. It never authenticates, unlocks
+or relocks. `child-retained-locked` independently reads a sanitized logind
+session identity from GDM; the denial journey compares it before and after the
+two restriction/return routes. Both bindings passed Task 043a's configured-zero
+Ubuntu/Fedora qualification; see the [exact scope and reports](../../docs/TestAutomation/E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification).
 `InstalledJourney` records these as `system:` stages. A subsequent GDM/app
 observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
@@ -1531,6 +1539,15 @@ the worker and callback close while the VM and shared watch remain owned for
 `tools/test-vm exec` probes. Finish with `tools/test-vm stop`. Its
 `scene-retained` result is diagnostic only, never successful shutdown or E2E
 acceptance. Evidence uses the existing recovery-diagnostics retention journal.
+
+`tools/test-vm --vm NAME reproduce-lock-denial` uses that same envelope with
+`RetainedDenialJourney` / `CHILD_DENIAL_PLAN`. It stops at the `time-denied`
+request after the child's guarded curtain reveal, before native restriction
+observation. This zero-time route has no password input; GNOME's parental-control
+shield blocks authentication. Never activate Ignore: it requests a time extension.
+The zero-time Parent setup and retained session
+entry use the real shared journey; the running child's session remains available
+for diagnostic probes until the owner calls `tools/test-vm stop`.
 
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256

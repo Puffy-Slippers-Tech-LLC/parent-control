@@ -423,6 +423,23 @@ class ChildUnlockQualification(RetainedUnlockQualification):
     retained = False
 
 
+class RetainedDenialQualification(KioskEntryQualification):
+    retained = True
+
+    @classmethod
+    def journey(cls, context, progress):
+        from app_snapshot import snapshot_name
+        from desktop_session import RetainedDenialJourney, CHILD_DENIAL_PLAN, RETAINED_DENIAL_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RetainedDenialJourney(context, progress,
+                                    RETAINED_DENIAL_PLAN if cls.retained else CHILD_DENIAL_PLAN)
+
+
+class ChildDenialQualification(RetainedDenialQualification):
+    retained = False
+
+
 class DesktopLogoutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

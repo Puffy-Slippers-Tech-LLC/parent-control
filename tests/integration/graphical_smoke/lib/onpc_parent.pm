@@ -403,7 +403,7 @@ sub select_child {
         && (join('/', $list_stage, $highlight_stage, $selected_stage) eq $bindings{$child}
             || ($child eq 'child' || $child eq 'existing')
             && join('/', $list_stage, $highlight_stage, $selected_stage)
-                eq 'same-child-picker-opened/same-child-choice-highlighted/same-parent-selected');
+                =~ /\A(?:same-child-picker-opened\/same-child-choice-highlighted\/same-parent-selected|return-child-picker-opened\/return-child-choice-highlighted\/return-parent-selected)\z/);
     $journey->consume_observation($list_stage, $opened);
     my $highlighted = $journey->seen($highlight_stage);
     $journey->consume_observation($highlight_stage, $highlighted);

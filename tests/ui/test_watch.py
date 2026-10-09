@@ -267,7 +267,10 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
          'the VM being renamed is selected before its registry changes')
     control.write_text('rename-vm')
     renamed_key = 'vm-' + 'Renamed-Fixture-VM'.encode('ascii').hex()
-    wait(lambda: ui.text('watch-tab-' + renamed_key) == 'Renamed-Fixture-VM',
+    # Registry updates arrive on a later viewer tick. A complete tree can
+    # legitimately lack the new tab until then; keep that read pending.
+    wait(lambda: (tab := ui.find('watch-tab-' + renamed_key)) is not None
+         and tab.get_name() == 'Renamed-Fixture-VM',
          'a registry rename creates the current VM tab without restarting the viewer')
     try:
         wait(lambda: vm_name not in evidence().get('top_tabs', []) and evidence().get('selected') == 'all',

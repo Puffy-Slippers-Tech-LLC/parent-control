@@ -118,6 +118,7 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     snap.getXMLDesc.return_value = ('<domainsnapshot><memory snapshot="' +
         ('internal' if online else 'no') + '"/></domainsnapshot>')
     lease = Mock()
+    lease.capture.state = {'guest': {'ubuntu_version': '26.04'}}
     lease.source.domain.snapshotLookupByName.return_value = snap
     lease.source.api.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE = 4
     lease.state = {'run': 'a' * 32}

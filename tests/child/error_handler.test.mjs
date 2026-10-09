@@ -96,7 +96,7 @@ test('production extension uses live state while the separate preview supplies f
         ChildApplicationUi: class { close() {} },
         ReminderPreview: class { close() {} },
         WellbeingSuppression: class { close() {} },
-        Main: {timeLimitsManager: {}, sessionMode: {}},
+        Main: {timeLimitsManager: {}, sessionMode: {}, layoutManager: {connectObject() {}}},
         TranslationContext: class {
             constructor(directory) {
                 this.directory = directory;
@@ -179,7 +179,7 @@ test('suppression startup/reporting and shutdown failures cannot disable the enf
     let destroyed = false;
     const context = vm.createContext({
         Extension: class { getSettings() { return {}; } },
-        Main: {timeLimitsManager: {}, sessionMode: {}},
+        Main: {timeLimitsManager: {}, sessionMode: {}, layoutManager: {connectObject() {}}},
         ChildErrorHandler: class { report() { throw Error('report unavailable'); } close() {} },
         WellbeingSuppression: class { constructor() { throw Error('helper unavailable'); } },
         ReminderPreview: class { close() {} },

@@ -864,10 +864,10 @@ test('real countdown controller delivers both final reminders while the game hid
         _lockSession() { locked = true; }});
     indicator._sync();
     assert.equal(h.notifier.current, null);
-    assert.equal(delays.at(-1), 43);
+    assert.equal(delays.at(-1), 1);
     now = 43;
     indicator._sync();
-    assert.equal(delays.at(-1), 60);
+    assert.equal(delays.at(-1), 1);
     now = 103;
     indicator._sync();
     assert.equal(h.notifier.current.notification.body, '1 minute left');

@@ -45,14 +45,20 @@ class ScriptedParentBroker:
         self._whats_new_seen = False
 
     def get_own_whats_new(self):
-        from broker.oh_no_parent_control.whats_new import read_history
         from tests.support.paths import ROOT
-        # Finite upcoming-release fixture, independent of the checkout's
-        # currently declared installed version. Never change product metadata.
-        records = read_history(ROOT / 'docs/VersionHistory.md')
-        value = {'product_version': '1.4', 'records': [dict(record)
-                 for record in records if record['ProductVersion'] == '1.4'
-                 and self._mode.startswith('whats-new')]}
+        from tools.whats_new_catalogs import read_catalog
+        # Exercise language ordering with the English source that the release
+        # catalogue translates. The live draft history can change independently
+        # of explicitly requested translation syncs, invalidating exact lookup.
+        # Keep the German text oracle in the case and use the real translator.
+        records = []
+        if self._mode.startswith('whats-new'):
+            entries = read_catalog(ROOT / 'po/whats-new/1.4/whats-new.pot')
+            source, = (entry['msgid'] for entry in entries
+                       if entry.get('msgctxt') == 'whats-new:1.4:Parent')
+            records.append({'ProductVersion': '1.4', 'record_id': '1.4:Parent',
+                            'Content': source})
+        value = {'product_version': '1.4', 'records': records}
         for record in value['records']:
             record['auto_show'] = self._mode != 'whats-new-manual' and not self._whats_new_seen
             record['SeeMore'] = 'https://example.com/releases/' + value['product_version']

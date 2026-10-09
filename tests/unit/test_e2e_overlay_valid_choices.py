@@ -126,6 +126,46 @@ def test_valid_choices_round_trip_through_real_decoder_and_diagnostics(monkeypat
     child.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('completion', ['resolved', 'pending', 'denied', 'malformed'])
+def test_fraction_estimate_waits_for_value_without_replaying_input(monkeypatch, completion):
+    ui, _, _, status, custom = overlay(monkeypatch)
+    ui.run('overlay-valid-custom-open', '')
+    status.name = 'Estimated remaining time: '
+    now = [0.0]
+    sleeps = []
+    ui.timeout = .4
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+        if completion != 'pending':
+            status.name = {
+                'resolved': 'Estimated remaining time: 16m 15s',
+                'denied': 'Request denied',
+                'malformed': 'Estimated remaining time: invalid',
+            }[completion]
+
+    monkeypatch.setattr(a, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], monotonic_ns=lambda: int(now[0] * 1e9), sleep=sleep))
+    if completion == 'resolved':
+        result = ui.run('overlay-valid-fraction-read', '')['valid_choice']
+        assert result['request']['duration_seconds'] == 75
+        assert result['request']['custom_text'] == '1.25'
+        assert result['estimate'] == {
+            'kind': 'fixed', 'text': '16m 15s', 'seconds': 975, 'precision_seconds': 1}
+        assert not ui.input_uncertain
+    else:
+        code = ('ui:timeout:kiosk-estimate' if completion == 'pending' else
+                'ui:kiosk-estimate:request-denied' if completion == 'denied' else 'ui:time-duration')
+        with pytest.raises(a.UiError, match=code):
+            ui.run('overlay-valid-fraction-read', '')
+        assert ui.input_uncertain
+    assert sleeps and now[0] <= ui.timeout
+    ui.find_id('kiosk-duration-custom').action.do_action.assert_called_once()
+    custom.setText.assert_not_called()
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['', 'selection', 'duration', 'soft'])
 def test_restored_shared_choices_select_local_approver_without_rewriting_choices(monkeypatch, fault):
     ui, _, child, _, custom = overlay(monkeypatch)

@@ -958,7 +958,14 @@ Recorded `cleanup-requested` recovery can audit a powered-off domain whose
 inactive XML exactly matches the saved original configuration. It checks snapshot
 metadata, targeted guest contents and configuration before completing the journal.
 This branch never starts, stops, restores or redefines a domain, and leaves the
-original attempt failed. Other off-state configurations still refuse recovery.
+original attempt failed. Unproven off-state configurations still refuse recovery.
+An off isolated attempt instead restores its recorded outer baseline after
+proving its run tag and unchanged storage/snapshot identities. Interrupted online
+startup with no recorded instance may retain the saved app snapshot's tag;
+graphical cleanup requires the exact private snapshot record and safe isolation
+through `online_snapshot.recover_identity` before restoration. It never starts
+or adopts an unrecorded running guest. Shared SPICE/VNC/observer layouts select
+the graphical recovery route; SPICE remains the read-only viewer endpoint.
 
 The policy trusts accepted snapshot contents. Same-inode content corruption is
 outside its assurance. Update activation is `none`: this test-only change takes
@@ -1513,6 +1520,17 @@ provisioned. The credential qualification supplies the same frozen registry to
 the outer collector, worker collector and variable staging.
 
 ### Credential staging and password capture boundary
+
+The fixed `tools/test-vm --vm NAME reproduce-gdm-denial` diagnostic reuses
+`FreshChildDeniedJourney` and the same sealed worker in an already owned online
+maintenance snapshot. `FixtureCredentials.provision_online` reuses the snapshot's
+live identity/hash verifier and binds secrets to that running lease; offline
+acceptance credentials remain disjoint. Maintenance backend power callbacks
+only detach/attach the worker's display. At the declared pre-result boundary,
+the worker and callback close while the VM and shared watch remain owned for
+`tools/test-vm exec` probes. Finish with `tools/test-vm stop`. Its
+`scene-retained` result is diagnostic only, never successful shutdown or E2E
+acceptance. Evidence uses the existing recovery-diagnostics retention journal.
 
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256

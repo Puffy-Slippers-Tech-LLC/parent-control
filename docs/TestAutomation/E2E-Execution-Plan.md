@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **043c — [Unlock the intended retained child successfully](E2E-Tasks/043c-retained-unlock-success.md)**.
+Next task: **043a — [Observe retained-child time denial and return](E2E-Tasks/043a-retained-unlock.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

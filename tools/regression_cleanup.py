@@ -69,6 +69,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,
 # stdin and SSH doubles, without touching a live VM, host stdin or shared state.
 # vm_control_cleanup_safety retains its existing compatible cleanup classification.
+# Maintenance denial reproduction uses the same private worker/lease/credential
+# fixtures and mocked VM calls. Its failure and detach checks add no shared
+# resource; those existing compatible classifications remain applicable.
 # Restored-off maintenance audits use the same private lease/disk fixtures and
 # mocked VM/guest inspection, with no live VM, socket or shared state. Existing
 # VM-control compatible scheduling remains appropriate in both inventories.
@@ -87,6 +90,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Never-started recovery in graphical_smoke_cleanup_safety uses private rig
 # journals and mocked VM APIs, without live processes, displays or shared paths.
 # Its existing compatible cleanup classification remains appropriate.
+# Interrupted snapshot cleanup reuses that rig with private synthetic snapshot
+# records and off-domain API doubles; no new resource or cleanup lifetime.
 # Sandbox address-family refusal/netlink checks use process-local socket and guest
 # doubles only. Existing private staging/drop-in fixtures and descriptor cleanup
 # are unchanged; system_probe_sandbox remains compatible with unit and cleanup.

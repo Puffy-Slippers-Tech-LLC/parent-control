@@ -949,6 +949,16 @@ class Lease:
             self.view.run = None if restored_off else state['run']
             self.view.domain_id = None if off else state['domain_id']
             self.snapshot_xml = self.source.baseline()
+            if (off_isolated and state['domain_id'] is None and
+                    ET.fromstring(active_xml).findtext('description') != TAG + state['run']):
+                # Interrupted online startup can restore the saved snapshot's
+                # tag before recording the new attempt. Only an off graphical
+                # guest with its exact private snapshot/isolation proof may be
+                # restored here. Never adopt or stop an unrecorded live instance.
+                require(self.view.graphics_type == 'vnc' and
+                        state['phase'] == 'cleanup-requested', 'guard:run-identity')
+                from online_snapshot import recover_identity
+                self.view.run = recover_identity(self)
             if off:
                 self.guard(off=True)
             else:

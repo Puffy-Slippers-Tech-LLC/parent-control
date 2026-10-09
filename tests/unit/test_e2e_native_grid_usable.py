@@ -159,8 +159,15 @@ def test_submit_reacquires_complete_preflight_and_preserves_refusals(monkeypatch
     assert len(reads) >= 2
 
 
-def test_overlay_resume_reads_already_submitted_activity_through_real_decoder():
+@pytest.mark.parametrize('binding', ['overlay-cancel', 'direct-unlock', 'retained-unlock'])
+def test_resume_reads_already_submitted_activity_through_real_decoder(binding):
     from overlay_cancel import PLAN as cancel_plan
+    from desktop_session import CHILD_UNLOCK_PLAN, RETAINED_UNLOCK_PLAN
+    plan, stage = {
+        'overlay-cancel': (cancel_plan, 'resumed-opened'),
+        'direct-unlock': (CHILD_UNLOCK_PLAN, 'resume-opened'),
+        'retained-unlock': (RETAINED_UNLOCK_PLAN, 'resume-opened'),
+    }[binding]
     ui, _root, surface, nodes = native_tree()
     surface.bus, surface.path = ':1.50', '/accessible/1'
     surface.get_process_id = lambda: 123
@@ -171,7 +178,7 @@ def test_overlay_resume_reads_already_submitted_activity_through_real_decoder():
     def call(argv, **_kwargs):
         return json.dumps(ui.run(argv[3], '')).encode()
     observer = UiObservations(SimpleNamespace(call=call))
-    result = observer.observe(cancel_plan.screen_tags['resumed-opened'][3:])
+    result = observer.observe(plan.screen_tags[stage][3:])
     assert result['activity']['state']['submitted'] == 'ONPC fixture draft'
     nodes['submit'].action.do_action.assert_not_called()
 

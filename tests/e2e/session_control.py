@@ -21,7 +21,7 @@ import time
 ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan',
             'child': 'onpc-child-riley'}
 BINDINGS = {role + '-' + action: (role, action)
-            for role in ('parent', 'standard')
+            for role in ('parent', 'standard', 'child')
             for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 BINDINGS.update({'child-switch-user': ('child', 'switch-user'),
                  'child-logout': ('child', 'logout'),

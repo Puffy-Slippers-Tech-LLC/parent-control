@@ -682,7 +682,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None):
-    require(lock_surface in (None, 'command', 'supplied', 'recipient') and (lock_surface is None or (
+    require(lock_surface in (None, 'command', 'supplied', 'recipient', 'child-success', 'retained-success') and (lock_surface is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials') and isinstance(value, bool)))),
@@ -1657,8 +1657,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 qualification_class = Qualification
                 if lock_surface is not None:
                     from parent_setup_qualification import (LockSurfaceQualification,
-                        SuppliedLockSurfaceQualification, LockRecipientQualification)
-                    qualification_class = (LockRecipientQualification if lock_surface == 'recipient' else
+                        SuppliedLockSurfaceQualification, LockRecipientQualification,
+                        RetainedUnlockQualification, ChildUnlockQualification)
+                    qualification_class = (RetainedUnlockQualification if lock_surface == 'retained-success' else
+                                           ChildUnlockQualification if lock_surface == 'child-success' else
+                                           LockRecipientQualification if lock_surface == 'recipient' else
                                            SuppliedLockSurfaceQualification if lock_surface == 'supplied'
                                            else LockSurfaceQualification)
                 if parent_setup:

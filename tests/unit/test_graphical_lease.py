@@ -46,6 +46,28 @@ def test_vnc_isolation_removes_all_host_listeners():
     runner.validate_host_sharing(root)
 
 
+def test_maintenance_worker_power_callbacks_preserve_running_scene(prepared):
+    lease, _current = prepared
+    lease.start()
+    adapter = graphical.Adapter(lease, running=True, maintenance=True)
+    with patch.object(lease, 'stop_by_restore') as stop, patch.object(lease, 'start') as start:
+        assert adapter.request('off', adapter.run) == 'ok'
+        assert adapter.request('on', adapter.run) == 'ok'
+        assert adapter.request('status', adapter.run) == 'on'
+        assert adapter.request('off', adapter.run) == 'ok'
+        stop.assert_not_called()
+        start.assert_not_called()
+        assert adapter.phase == 'running'
+        with pytest.raises(RuntimeError, match='wrong-run'):
+            adapter.request('off', 'b' * 32)
+
+
+def test_maintenance_worker_refuses_offline_lease(prepared):
+    lease, _current = prepared
+    with pytest.raises(RuntimeError, match='unprepared-lease'):
+        graphical.Adapter(lease, running=True, maintenance=True)
+
+
 @pytest.mark.parametrize('graphics_type', ['spice', 'vnc'])
 def test_clipboard_opt_in_survives_isolation_without_other_host_transfers(monkeypatch, graphics_type):
     config = runner.baseline.guest_contract.vm_config

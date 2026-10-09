@@ -601,8 +601,10 @@ class InstalledJourney:
                 observed['desktop_preparation'] = session_control.observe(
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
+            if tag == 'ui:gdm-child-denied-return-state':
+                reply['gdm_return_state'] = observed['ui']['return_state']
             if tag[3:] in accessible_ui.LOCK_RECIPIENT_OPERATIONS and tag.startswith('ui:'):
-                reply['lock_recipient'] = {'surface': 'lock', 'role': 'parent',
+                reply['lock_recipient'] = {'surface': 'lock', 'role': tag[3:].split('-', 1)[0],
                     'challenge_id': observed['ui']['lock']['challenge_id']}
             if plan.challenge_at(stage):
                 reply['challenge'] = observed['challenge']

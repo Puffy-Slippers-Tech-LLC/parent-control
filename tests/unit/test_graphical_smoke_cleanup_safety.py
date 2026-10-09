@@ -24,6 +24,13 @@ def test_recovery_detects_primary_display_with_private_observer(primary):
     assert recovery.recorded_graphics_type(xml) == primary
 
 
+def test_recovery_selects_graphical_worker_with_spice_viewer():
+    xml = ('<domain><devices><graphics type="spice"/><graphics type="vnc"/>'
+           '<graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>'
+           '</devices></domain>')
+    assert recovery.recorded_graphics_type(xml) == 'vnc'
+
+
 @pytest.mark.parametrize('displays', [
     '<graphics type="vnc"/><graphics type="spice"/>',
     '<graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>',
@@ -367,6 +374,70 @@ def test_recovery_closes_never_started_cleanup_without_booting(lease_rig, rig, g
     assert lease.source.domain.revertToSnapshot.call_count == restored + (not already_restored)
     lease.source.domain.create.assert_not_called()
     assert lease.source.shutdown_calls == shutdowns
+    assert reopened.fd is None
+
+
+@pytest.mark.parametrize('fault', [None, 'running', 'record', 'baseline', 'sharing',
+                                  'ambiguous', 'recorded-instance', 'split-configuration'])
+def test_off_interrupted_snapshot_cleanup_requires_private_proof_without_booting(
+        lease_rig, rig, monkeypatch, fault):
+    import xml.etree.ElementTree as ET
+    import online_snapshot
+    runner = smoke.runner
+    lease, current = lease_rig
+    lease.view.graphics_type = 'vnc'
+    lease.__enter__()
+    lease.prepare()
+    lease.save('cleanup-requested')
+    original = lease.original_xml
+    saved_run = 'e' * 32
+    tree = ET.fromstring(current['xml'])
+    tree.find('description').text = runner.TAG + saved_run
+    saved_xml = ET.tostring(tree, encoding='unicode')
+    snapshot_xml = ET.Element('domainsnapshot')
+    ET.SubElement(snapshot_xml, 'state').text = 'running'
+    ET.SubElement(snapshot_xml, 'memory', snapshot='internal')
+    ET.SubElement(snapshot_xml, 'description').text = json.dumps({
+        'baseline_sha256': 'f' * 64 if fault == 'baseline' else lease.state['baseline_sha256']})
+    snapshot_xml.append(ET.fromstring(saved_xml))
+    snapshot = Mock()
+    snapshot.getName.return_value = 'onpc-v9.8.7'
+    snapshot.getXMLDesc.return_value = ET.tostring(snapshot_xml, encoding='unicode')
+    lease.source.domain.listAllSnapshots.return_value = (
+        [snapshot, snapshot] if fault == 'ambiguous' else [snapshot])
+    monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=(
+        None if fault == 'record' else {'run': saved_run})))
+    current['xml'] = saved_xml
+    if fault == 'running':
+        current['id'], lease.source.off = 72, False
+    elif fault == 'sharing':
+        current['xml'] = saved_xml.replace('</devices>', '<channel/></devices>')
+    elif fault == 'recorded-instance':
+        lease.state['domain_id'] = 71
+        lease.save('cleanup-requested')
+    elif fault == 'split-configuration':
+        lease.source.domain.XMLDesc.side_effect = lambda flags: saved_xml + ('\n' if flags else '')
+    saved_journal = lease.journal.read_bytes()
+    lease.release()
+    restores = lease.source.domain.revertToSnapshot.call_count
+    definitions = lease.source.connection.defineXML.call_count
+    shutdowns = lease.source.shutdown_calls
+    reopened = runner.Lease(lease.source, rig.commands, rig.inspect,
+        directory=rig.directory, anchor=rig.anchor, graphics_type='vnc')
+    if fault:
+        with pytest.raises(RuntimeError):
+            reopened.recover_graphical_cleanup()
+        assert lease.journal.read_bytes() == saved_journal
+        assert lease.source.domain.revertToSnapshot.call_count == restores
+        assert lease.source.connection.defineXML.call_count == definitions
+    else:
+        reopened.recover_graphical_cleanup()
+        assert current == {'xml': original, 'id': -1}
+        assert json.loads(lease.journal.read_bytes())['phase'] == 'complete'
+        assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+    assert lease.source.shutdown_calls == shutdowns
+    lease.source.domain.create.assert_not_called()
+    lease.source.domain.destroyFlags.assert_not_called()
     assert reopened.fd is None
 
 

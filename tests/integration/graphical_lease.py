@@ -91,7 +91,9 @@ def open_display(source, domain_id, revalidate, *, index=0):
 class Adapter:
     """Accept one generalhw off/on/off attempt; restore at its final off callback."""
 
-    def __init__(self, lease, *, running=False):
+    def __init__(self, lease, *, running=False, maintenance=False):
+        require(type(maintenance) is bool and (not maintenance or running),
+                'graphics:maintenance-binding')
         require(lease.fd is not None and lease.state['phase'] == ('running' if running else 'isolated') and
                 lease.view.run == lease.state['run'] and
                 lease.view.graphics_type == 'vnc', 'graphics:unprepared-lease')
@@ -102,6 +104,7 @@ class Adapter:
         self.events = []
         self.display = None
         self.serial = None
+        self.maintenance = maintenance
 
     @property
     def observer(self):
@@ -160,6 +163,15 @@ class Adapter:
         require(run == self.run, 'graphics:wrong-run')
         require(action in ('on', 'off', 'status', 'graphics'), 'graphics:unknown-action')
         self.revalidate()
+        if self.maintenance and action in ('on', 'off'):
+            # A diagnostic worker attaches to an already owned running scene.
+            # Backend power callbacks only attach/detach its display; the
+            # maintenance owner alone may stop/restore this guest later.
+            require(self.phase == 'running' and not self.lease.view.snapshot()[1],
+                    'graphics:not-running')
+            self.close_display()
+            self.events.append('maintenance-' + action)
+            return 'ok'
         if action == 'status':
             state = 'off' if self.lease.view.snapshot()[1] else 'on'
             self.events.append('status-' + state)

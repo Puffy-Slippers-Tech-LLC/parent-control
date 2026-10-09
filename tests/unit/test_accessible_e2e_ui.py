@@ -2582,11 +2582,92 @@ def test_time_denial_and_return_cross_the_real_controller_decoder(fault):
         with pytest.raises(EvidenceError): ui.observe('gdm-child-time-denied')
     else:
         assert ui.observe('gdm-child-time-denied') == result
-        for operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-returned'):
+        for operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-return-state',
+                          'gdm-child-denied-returned'):
             result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
             if operation.endswith('ready'): result['denial'] = denial
+            if operation.endswith('state'): result['return_state'] = 'child-prompt'
             transport.call.return_value = json.dumps(result).encode()
             assert ui.observe(operation) == result
+
+
+@pytest.mark.parametrize('outcome', ['immediate', 'delayed', 'persistent', 'wrong-child', 'overlap',
+                                    'duplicate-owner', 'duplicate-field'])
+def test_denied_return_waits_for_complete_account_list_without_replaying_input(monkeypatch, outcome):
+    field = Node('Password', 'password text')
+    field.get_child_count = Mock(side_effect=AssertionError('password traversed'))
+    field.get_text_iface = Mock(side_effect=AssertionError('password read'))
+    recipient = Node(accessible_ui.CHILD, 'label')
+    ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
+    parent, station = semantic_gdm_rows()
+    child = Node(accessible_ui.CHILD, 'push button')
+    rows = [parent, station, child]
+    for node in rows:
+        node.parent = shell
+    if outcome == 'immediate': shell.children = rows
+    if outcome == 'wrong-child': recipient.name = accessible_ui.EXISTING_CHILD
+    if outcome == 'overlap': shell.children.extend(rows)
+    if outcome == 'duplicate-field':
+        duplicate = Node('Password', 'password text')
+        duplicate.parent = shell
+        shell.children.append(duplicate)
+    if outcome == 'duplicate-owner':
+        duplicate = Node('gnome-shell', 'application')
+        duplicate.parent = shell.parent
+        shell.parent.children.append(duplicate)
+    ui.timeout = 2
+    ticks = iter(range(1000))
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: next(ticks) / 10)
+    retries = []
+    def transition(_seconds):
+        retries.append(1)
+        if outcome == 'delayed': shell.children = rows
+    monkeypatch.setattr(accessible_ui.time, 'sleep', transition)
+    if outcome in ('immediate', 'delayed'):
+        assert ui.run('gdm-child-denied-returned', '')['outcome'] == 'passed'
+        assert bool(retries) == (outcome == 'delayed')
+    else:
+        with pytest.raises(UiError):
+            ui.run('gdm-child-denied-returned', '')
+    for node in (field, recipient, *rows):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+    field.get_child_count.assert_not_called()
+    field.get_text_iface.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'list', 'wrong-child', 'nonempty', 'unfocused',
+                                 'disabled', 'overlap', 'duplicate', 'uncertain'])
+def test_remaining_denied_prompt_requires_fresh_empty_child_before_one_more_cancel(fault):
+    recipient = Node(accessible_ui.CHILD, 'label')
+    field = Node('Password', 'password text', states=('showing', 'visible', 'sensitive', 'focused'))
+    field.get_text_iface = lambda: field
+    field.get_child_count = Mock(side_effect=AssertionError('protected children'))
+    ui, shell = semantic_gdm_ui(recipient=recipient, field=field)
+    ui.api.Text.get_character_count = Mock(return_value=1 if fault == 'nonempty' else 0)
+    rows = [*semantic_gdm_rows(), Node(accessible_ui.CHILD, 'push button')]
+    for node in rows:
+        node.parent = shell
+    if fault == 'list': shell.children = rows
+    if fault == 'overlap': shell.children.extend(rows)
+    if fault == 'wrong-child': recipient.name = accessible_ui.EXISTING_CHILD
+    if fault in ('unfocused', 'disabled'):
+        field.states.remove('focused' if fault == 'unfocused' else 'sensitive')
+    if fault == 'duplicate':
+        duplicate = Node('Password', 'password text')
+        duplicate.parent = shell
+        shell.children.append(duplicate)
+    if fault == 'uncertain': ui.input_uncertain = True
+    if fault in ('', 'list'):
+        assert ui.gdm_denied_return_state() == ('account-list' if fault == 'list' else 'child-prompt')
+    else:
+        with pytest.raises(UiError): ui.gdm_denied_return_state()
+    field.get_child_count.assert_not_called()
+    ui.api.Text.get_text.assert_not_called()
+    for node in (field, recipient, *rows):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
 
 
 @pytest.mark.parametrize('operation', ['gdm-child-list', 'fresh-child-desktop'])

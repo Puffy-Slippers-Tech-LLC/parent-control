@@ -73,6 +73,36 @@ sub enter_parent_gdm_password {
     return _enter_functional_gdm_password('parent', @_);
 }
 
+# Lock authority is independent of every GDM receipt. The opaque lock window
+# and field must agree in two ordered durable acknowledgements before UI19.
+sub enter_lock_password {
+    onpc_progress::operation('Qualifying and consuming the intended lock credential');
+    my ($journey, $role) = @_;
+    die "secret:input-refused\n" if $failed;
+    my $ok = eval {
+        die 'secret:lock-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+            && !$journey->{review} && ($role eq 'child' || $role eq 'parent');
+        my $id = 'lock-' . $role;
+        die 'secret:challenge-replay' if $challenges_used{$id};
+        $challenges_used{$id} = 1;
+        $authentication_started = $functional_started = $functional_input_started = 1;
+        die 'secret:console' unless testapi::current_console() eq 'sut';
+        die 'secret:video-policy' unless testapi::get_var('NOVIDEO', 0) eq '1';
+        require onpc_desktop_session;
+        my $proof = onpc_desktop_session::lock_recipient($journey, '', $role);
+        $active_challenge = {journey => $journey, id => $id, role => $role,
+                             stage => 'lock-recipient-rechecked', proof => $proof};
+        type_fixture_secret($role, $journey, $proof, $id);
+        1;
+    };
+    unless ($ok) {
+        $failed = 1;
+        undef $active_challenge;
+        die "secret:input-failed\n";
+    }
+    return 1;
+}
+
 # Fixed MATE binding: controller checks opaque same-challenge identity and the
 # exact administrator/child/request at both durable checkpoints. Any failure
 # poisons all subsequent secret routes, including uncertain type_password.

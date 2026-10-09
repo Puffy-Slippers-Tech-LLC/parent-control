@@ -106,7 +106,8 @@ def test_fresh_child_denial_fragments_support_independent_named_invocations():
     second = {f'return-{stage}': operation for stage, operation in rejected_gdm_return().items()}
     assert list(first.values()) == ['ui:gdm-child-list', 'ui:gdm-child-focused',
         'ui:gdm-child-recipient', 'ui:gdm-child-recipient-rechecked', 'ui:gdm-child-time-denied']
-    assert list(second.values()) == ['ui:gdm-child-denied-return-ready', 'ui:gdm-child-denied-returned']
+    assert list(second.values()) == ['ui:gdm-child-denied-return-ready',
+        'ui:gdm-child-denied-return-state', 'ui:gdm-child-denied-returned']
     first.clear()
     assert fresh_desktop('child', 'time-denied')['denied'] == 'ui:gdm-child-time-denied'
     for binding in (('parent', 'time-denied'), ('other-child', 'time-denied'), ('child', 'anything')):

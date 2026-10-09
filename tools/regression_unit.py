@@ -490,6 +490,9 @@ from regression_ui import Bucket
 # Hour-budget worker admission/expiry checks retain private evidence files and
 # process-local clocks/worker doubles, without real waits or additional owners;
 # e2e_worker_cleanup_safety remains compatible in unit and cleanup inventories.
+# Maintenance denial reproduction extends the existing worker, graphical lease,
+# credential and VM-control tests with mocked guests, private evidence and the
+# same owned sockets/children; no live VM, shared bus or resource owner is added.
 # Distribution admission boundaries create at most 257 tiny private pytest
 # files and use an injected small byte ceiling. e2e_needle_inputs adds no shared
 # cache, process, socket or live VM; its existing compatible classification holds.
@@ -833,6 +836,8 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # is touched; prepare_baseline remains compatible and needs no build admission.
 # Never-started graphical cleanup uses private rig journals and mocked libvirt
 # APIs only; graphical_smoke_cleanup_safety stays compatible in both schedulers.
+# Interrupted snapshot cleanup adds private synthetic snapshot/record proofs
+# and mocked off-domain APIs to that rig; no live VM or new resource owner.
 # Parent custom-save ordering tests hold callbacks in memory and use mocked
 # widgets only; they add no timers, threads, filesystem or display resources.
 # Public AT-SPI transport tests use in-memory RPC/connection doubles only;

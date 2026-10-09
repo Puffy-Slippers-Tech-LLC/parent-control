@@ -68,6 +68,7 @@ OPERATION_LABELS = {
     'child-countdown-wrong-account-refused': 'Refusing countdown observation on another account',
     'gdm-child-time-denied': 'Observing the intended child’s specific time-limit rejection',
     'gdm-child-denied-return-ready': 'Reobserving the rejected child prompt before normal return',
+    'gdm-child-denied-return-state': 'Checking the account list or a fresh empty child prompt after Cancel',
     'gdm-child-denied-returned': 'Observing the usable account list after rejection',
     **{operation: 'Reviewing the automatic Parent error report without sending it'
        for operation in accessible_ui.PARENT_REPORT_OPERATIONS},
@@ -1008,9 +1009,10 @@ class UiObservations:
                 if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
                     require(not getattr(self, 'lock_recipient_failed', False),
                             'ui:lock-recipient-previous-failure')
-                    first = operation == 'parent-lock-recipient-qualified'
-                    require(self.last_operation == ('parent-lock-challenge' if first else
-                            'parent-lock-recipient-qualified'), 'ui:lock-recipient-order')
+                    role = operation.split('-', 1)[0]
+                    first = operation.endswith('-qualified')
+                    require(self.last_operation == (role + '-lock-challenge' if first else
+                            role + '-lock-recipient-qualified'), 'ui:lock-recipient-order')
                     if not first:
                         require(time.monotonic() - self.lock_recipient_checked < 30,
                                 'ui:lock-recipient-stale-proof')
@@ -1265,21 +1267,23 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in accessible_ui.LOCK_SURFACE_OPERATIONS:
             value = result.get('lock')
-            if operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals',
+            lock_operation = operation.replace('child-', 'parent-', 1)
+            identity = 'fixture-' + operation.split('-', 1)[0]
+            if lock_operation in ('parent-lock-unlocked-refused', 'parent-lock-refusals',
                              'parent-lock-recipient-refusals'):
                 require(value == {'refused': ['unlocked-session'] if operation.endswith('unlocked-refused')
-                    else list(accessible_ui.LOCK_RECIPIENT_REFUSALS) if operation == 'parent-lock-recipient-refusals'
+                    else list(accessible_ui.LOCK_RECIPIENT_REFUSALS) if lock_operation == 'parent-lock-recipient-refusals'
                     else ['session', 'surface-ambiguous', 'field-ambiguous', 'recipient']},
                     'ui:lock-refusal-response')
             else:
                 recipient = operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS
-                entry = 'challenge' if operation == 'parent-lock-challenge' or recipient else 'curtain'
+                entry = 'challenge' if lock_operation == 'parent-lock-challenge' or recipient else 'curtain'
                 require(type(value) is dict and set(value) == {
                     'entry', 'owner', 'locked', 'desktop_input_available', 'recipient', 'surface_id', 'provider'}
                     | ({'empty', 'masked', 'focused', 'challenge_id'} if recipient else set())
-                    and value['entry'] == entry and value['owner'] == 'fixture-parent'
+                    and value['entry'] == entry and value['owner'] == identity
                     and value['locked'] is True and value['desktop_input_available'] is False
-                    and value['recipient'] == ('fixture-parent' if entry == 'challenge' else None)
+                    and value['recipient'] == (identity if entry == 'challenge' else None)
                     and type(value['surface_id']) is str and re.fullmatch(r'[0-9a-f]{64}', value['surface_id']),
                     'ui:lock-response')
                 if recipient:
@@ -1288,8 +1292,8 @@ class UiObservations:
                             and re.fullmatch(r'[0-9a-f]{64}', value['challenge_id']),
                             'ui:lock-recipient-response')
                 accessible_ui.validate_shell_metadata(value['provider'])
-                if operation == 'parent-lock-curtain' or (
-                        operation == 'parent-lock-challenge' and not hasattr(self, 'lock_surface_id')):
+                if lock_operation == 'parent-lock-curtain' or (
+                        lock_operation == 'parent-lock-challenge' and not hasattr(self, 'lock_surface_id')):
                     self.lock_surface_id = value['surface_id']
                 else:
                     require(value['surface_id'] == getattr(self, 'lock_surface_id', None),
@@ -2117,8 +2121,12 @@ class UiObservations:
             require(self.last_operation == ('gdm-child-recipient-rechecked'
                     if operation == 'gdm-child-time-denied' else 'gdm-child-time-denied'),
                     'ui:denial-order')
-        if operation == 'gdm-child-denied-returned':
+        if operation == 'gdm-child-denied-return-state':
             require(self.last_operation == 'gdm-child-denied-return-ready', 'ui:denial-order')
+            require(result.get('return_state') in ('account-list', 'child-prompt'), 'ui:denial-return-state')
+            expected['return_state'] = result['return_state']
+        if operation == 'gdm-child-denied-returned':
+            require(self.last_operation == 'gdm-child-denied-return-state', 'ui:denial-order')
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')

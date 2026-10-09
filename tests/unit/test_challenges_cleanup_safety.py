@@ -52,7 +52,7 @@ def test_fresh_child_dispatch_and_nondefault_identity(monkeypatch):
     calls = []
     monkeypatch.setattr(child_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert child_check.main() == 0
-    assert calls == [{'assets': child_check.named_input(), 'provision_credentials': True,
+    assert calls == [{'assets': child_check.named_input(vm_source=True), 'provision_credentials': True,
                      'challenges': True, 'challenge_profile': 'fresh-child'}]
     assert CHILD_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
     for tag in CHILD_PLAN.screen_tags.values():
@@ -71,7 +71,7 @@ def test_denied_child_dispatch_and_declared_result(monkeypatch):
     calls = []
     monkeypatch.setattr(denied_check, 'smoke', lambda **kwargs: calls.append(kwargs) or 0)
     assert denied_check.main() == 0
-    assert calls == [{'assets': denied_check.named_input(), 'provision_credentials': True,
+    assert calls == [{'assets': denied_check.named_input(vm_source=True), 'provision_credentials': True,
                      'challenges': True, 'challenge_profile': 'fresh-child-denied'}]
     assert DENIED_PLAN.challenge_at('fresh-child-recipient-rechecked')['role'] == 'child'
     for tag in DENIED_PLAN.screen_tags.values():
@@ -81,11 +81,15 @@ def test_denied_child_dispatch_and_declared_result(monkeypatch):
 
 @pytest.mark.parametrize('fault', ['', 'allowance-configured', 'switch-user', 'gdm-switched',
     'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked', 'fresh-denied',
-    'denied-return-ready', 'denied-returned'])
-def test_actual_denied_child_worker_preserves_denial_and_stops_before_escape(fault):
+    'denied-return-ready', 'denied-return-state', 'denied-returned'])
+@pytest.mark.parametrize('destination', ['account-list', 'child-prompt'])
+def test_actual_denied_child_worker_preserves_denial_and_stops_before_escape(fault, destination):
     program = (PERL.replace('onpc_challenges::run(', 'onpc_challenges::fresh_child_denied(')
         .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
-        .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
+        .replace('first-login', 'parent-login').replace('third-login', 'new-login')
+        .replace('my $reply = {observed => $stage};',
+                 'my $reply = {observed => $stage}; $reply->{gdm_return_state} = "' + destination
+                 + '" if $stage eq "denied-return-state";'))
     raw = run_perl(program, fault, json.dumps(DENIED_PLAN.invocations),
                    json.dumps(DENIED_PLAN.challenges)).stdout
     assert 'fixture-only-canary' not in raw
@@ -101,7 +105,7 @@ def test_actual_denied_child_worker_preserves_denial_and_stops_before_escape(fau
         assert result['events'].count(['key', 'esc']) == 1  # wrong-recipient harness only
     if not fault:
         assert result['events'].count(['password']) == 2
-        assert result['events'].count(['key', 'esc']) == 2
+        assert result['events'].count(['key', 'esc']) == (3 if destination == 'child-prompt' else 2)
         assert result['events'][-1] == ['off']
 
 

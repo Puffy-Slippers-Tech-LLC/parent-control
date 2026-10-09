@@ -20,7 +20,9 @@ def recorded_graphics_type(xml):
     runner.validate_observer(displays)
     runner.require(displays[0].get('type') in ('vnc', 'spice'),
                    'recovery:invalid-graphics')
-    return displays[0].get('type')
+    # The shared viewer's SPICE endpoint precedes the graphical worker's VNC.
+    # A three-display layout belongs to graphical cleanup, not system cleanup.
+    return 'vnc' if len(displays) == 3 else displays[0].get('type')
 
 
 def main(*, graphics_type='vnc', maintenance=False):

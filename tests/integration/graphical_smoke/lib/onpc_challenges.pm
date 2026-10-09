@@ -117,7 +117,7 @@ sub _fresh_child_entry {
         fresh-installed-greeter fresh-child-focused fresh-child-recipient-qualified
         fresh-child-recipient-rechecked);
     push @stages, $result_stage;
-    push @stages, qw(denied-return-ready denied-returned) if $expected eq 'time-denied';
+    push @stages, qw(denied-return-ready denied-return-state denied-returned) if $expected eq 'time-denied';
     die 'fresh-child:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
         && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
@@ -149,7 +149,7 @@ sub _fresh_child_entry {
     $journey->invoke('wrong-returned');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', $result_stage);
-    onpc_gdm::return_from_time_denial($journey, 'denied-return-ready', 'denied-returned')
+    onpc_gdm::return_from_time_denial($journey, 'denied-return-ready', 'denied-return-state', 'denied-returned')
         if $expected eq 'time-denied';
     $journey->finish();
 }

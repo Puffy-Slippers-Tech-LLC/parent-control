@@ -363,6 +363,10 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
+    command = select(root, ['vm', 'reproduce-gdm-denial', *VM_ARGS])
+    assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'reproduce-gdm-denial']
+    with pytest.raises(ValueError):
+        select(root, ['vm', 'reproduce-gdm-denial', '1', *VM_ARGS])
 
 
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])

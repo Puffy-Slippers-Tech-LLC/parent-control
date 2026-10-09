@@ -6,6 +6,31 @@ import fixture_credentials as credentials
 from private_artifacts import PrivateCollector
 from tests.support.e2e_credentials import CANARY, HASH, attempt
 
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_online_credentials_bind_running_maintenance_and_latch_failure(attempt, monkeypatch, fails):
+    import online_snapshot
+    attempt.lease.state.update(phase='running', domain_id=7)
+    verifier = Mock(side_effect=RuntimeError('verification-refused') if fails else None)
+    monkeypatch.setattr(online_snapshot, 'verify_credentials', verifier)
+    transport = Mock()
+    if fails:
+        with pytest.raises(RuntimeError, match='verification-refused'):
+            attempt.fixture.provision_online(attempt.lease, transport)
+        with pytest.raises(credentials.EvidenceError, match='provisioning-required'):
+            attempt.fixture.worker_secrets(attempt.lease, online=True)
+    else:
+        attempt.fixture.provision_online(attempt.lease, transport)
+        assert attempt.fixture.worker_secrets(attempt.lease, online=True) is attempt.fixture.variables
+        for lease, online in ((attempt.lease, False), (Mock(), True)):
+            with pytest.raises(credentials.EvidenceError, match='provisioning-required'):
+                attempt.fixture.worker_secrets(lease, online=online)
+    verifier.assert_called_once_with(transport, attempt.lease)
+    with pytest.raises(credentials.EvidenceError, match='already-attempted'):
+        attempt.fixture.provision_online(attempt.lease, transport)
+    attempt.lease.stop.assert_not_called()
+    attempt.lease.finish.assert_not_called()
+
 def test_shared_password_verification_preserves_every_guest_byte(attempt, capsys):
     receipt = attempt.run()
     assert receipt == {'accounts': 4, 'passwords_verified': True,

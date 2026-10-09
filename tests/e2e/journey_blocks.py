@@ -15,24 +15,26 @@ def prefixed_stages(prefix, screens):
     return {prefix + '-' + stage: tag for stage, tag in screens.items()}
 
 
-def lock_challenge(prefix='', *, entry='curtain'):
+def lock_challenge(prefix='', *, entry='curtain', account='parent'):
     """DESK06 declared curtain, fresh reveal guard and independent challenge."""
     import re
     require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
             'journey:lock-prefix')
     require(entry in ('curtain', 'challenge'), 'journey:lock-entry')
+    require(account in ('parent', 'child'), 'journey:lock-account')
     if entry == 'challenge':
-        return {prefix + 'challenge': 'ui:parent-lock-challenge'}
-    return {prefix + stage: 'ui:parent-lock-' + operation for stage, operation in (
+        return {prefix + 'challenge': 'ui:' + account + '-lock-challenge'}
+    return {prefix + stage: 'ui:' + account + '-lock-' + operation for stage, operation in (
         ('curtain', 'curtain'), ('reveal-ready', 'reveal-ready'), ('challenge', 'challenge'))}
 
 
-def lock_recipient(prefix=''):
+def lock_recipient(prefix='', *, account='parent'):
     """DESK07: two independent empty masked focused lock-recipient reads."""
     import re
     require(type(prefix) is str and re.fullmatch(r'(?:[a-z][a-z0-9-]*-)?', prefix),
             'journey:lock-prefix')
-    return {prefix + 'lock-recipient-' + check: 'ui:parent-lock-recipient-' + check
+    require(account in ('parent', 'child'), 'journey:lock-account')
+    return {prefix + 'lock-recipient-' + check: 'ui:' + account + '-lock-recipient-' + check
             for check in ('qualified', 'rechecked')}
 
 
@@ -246,6 +248,7 @@ def fresh_desktop(account, expected='success', *, product_free=False):
 def rejected_gdm_return():
     """DESK11: reobserve the rejected child prompt before Escape and list readback."""
     return {'denied-return-ready': 'ui:gdm-child-denied-return-ready',
+            'denied-return-state': 'ui:gdm-child-denied-return-state',
             'denied-returned': 'ui:gdm-child-denied-returned'}
 
 

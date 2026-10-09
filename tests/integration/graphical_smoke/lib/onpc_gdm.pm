@@ -54,18 +54,25 @@ sub choose_account {
     testapi::send_key('ret');
 }
 
-# DESK11's rejected-GDM source. Fresh denial readback authorizes one Escape;
-# the controller independently observes the account list before completion.
+# DESK11: Cancel the rejected verification, then inspect its public destination.
+# GNOME 50 may renew the child challenge. Only a fresh empty intended prompt
+# authorizes one additional Cancel; the final account-list result is unchanged.
 sub return_from_time_denial {
     onpc_progress::operation('Returning normally from the rejected child prompt');
-    my ($journey, $ready_stage, $returned_stage) = @_;
-    die 'gdm:denial-return-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && defined($ready_stage) && defined($returned_stage)
+    my ($journey, $ready_stage, $state_stage, $returned_stage) = @_;
+    die 'gdm:denial-return-binding' unless @_ == 4 && ref($journey) eq 'onpc_journey'
+        && defined($ready_stage) && defined($state_stage) && defined($returned_stage)
+        && $ready_stage ne $state_stage && $state_stage ne $returned_stage
         && $ready_stage ne $returned_stage;
     die 'gdm:console' unless testapi::current_console() eq 'sut';
     my $ready = $journey->invoke($ready_stage);
     $journey->consume_observation($ready_stage, $ready);
     testapi::send_key('esc');
+    my $state = $journey->invoke($state_stage);
+    die 'gdm:denial-return-state' unless ($state->{gdm_return_state} // '') eq 'account-list'
+        || ($state->{gdm_return_state} // '') eq 'child-prompt';
+    $journey->consume_observation($state_stage, $state);
+    testapi::send_key('esc') if $state->{gdm_return_state} eq 'child-prompt';
     return $journey->invoke($returned_stage);
 }
 

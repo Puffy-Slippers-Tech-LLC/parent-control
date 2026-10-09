@@ -513,6 +513,8 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
         if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
             result['denial'] = {'recipient': 'fixture-child', 'reason': 'time-limit',
                                 'desktop_access': False}
+        if operation == 'gdm-child-denied-return-state':
+            result['return_state'] = 'child-prompt'
         if operation in ('gdm-child-list', 'fresh-child-desktop'):
             shell = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
             result['provider'] = {'shell': shell, 'gdm_version': '50.1'} if operation == 'gdm-child-list' else shell

@@ -68,16 +68,33 @@ class FixtureCredentials:
         self._attempted = False
         self._lease = None
         self._ready = False
+        self._online = False
 
     def __repr__(self):
         return '<FixtureCredentials [redacted]>'
 
-    def worker_secrets(self, lease):
+    def worker_secrets(self, lease, *, online=False):
         require(self._ready and lease is self._lease and lease.fd is not None
-                and lease.state['phase'] == 'isolated'
-                and lease.state['domain_id'] is None, 'credential:provisioning-required')
-        lease.guard(off=True)
+                and online is self._online
+                and lease.state['phase'] == ('running' if online else 'isolated')
+                and (lease.state['domain_id'] is not None if online else
+                     lease.state['domain_id'] is None), 'credential:provisioning-required')
+        lease.guard(off=not online)
         return self.variables
+
+    def provision_online(self, lease, transport):
+        """Diagnostic workers reuse the snapshot's live credential verifier."""
+        from online_snapshot import verify_credentials
+        require(not self._attempted, 'credential:already-attempted')
+        self._attempted = True
+        require(lease.fd is not None and lease.state['phase'] == 'running'
+                and lease.state['domain_id'] is not None, 'credential:outside-provisioning')
+        lease.guard()
+        require(all(value == read_password() for value in self.__passwords.values()),
+                'credential:configuration-changed')
+        verify_credentials(transport, lease)
+        lease.guard()
+        self._lease, self._ready, self._online = lease, True, True
 
     def provision(self, lease, verified, directory, guestfs, commands):
         """Verify the prepared accounts. Never change a password or keyring."""

@@ -57,6 +57,36 @@ def report(attempt, name='worker-result'):
     return json.loads((attempt.collector.path / (name + '.json')).read_text())
 
 
+@pytest.mark.parametrize('boundary', ['retained', 'refused', 'early-exit'])
+def test_maintenance_worker_retains_only_verified_boundary_and_closes_owners(attempt, monkeypatch, boundary):
+    from fixture_credentials import FixtureCredentials
+    from secret_variables import SecretVariables
+    credentials = object.__new__(FixtureCredentials)
+    secrets = Mock(return_value=SecretVariables())
+    monkeypatch.setattr(credentials, 'worker_secrets', secrets)
+    attempt.worker.poll.return_value = 0 if boundary == 'early-exit' else None
+    attempt.worker.ready, attempt.worker.result = True, None
+    observer = Mock(return_value=True)
+    if boundary == 'refused':
+        observer.side_effect = RuntimeError('recipient-refused')
+    if boundary == 'retained':
+        result = attempt.run(credentials=credentials, maintenance=True, guarded_observe=observer)
+        assert result['outcome'] == 'scene-retained'
+        assert result['scope'] == 'maintenance-diagnostic-not-acceptance'
+        assert not result['shutdown_verified']
+        attempt.options['validate'].assert_called_once_with()
+    else:
+        with pytest.raises(RuntimeError, match='recipient-refused|diagnostic-ended-before-boundary'):
+            attempt.run(credentials=credentials, maintenance=True, guarded_observe=observer)
+        attempt.options['validate'].assert_not_called()
+    secrets.assert_called_once_with(attempt.lease, online=True)
+    runtime.Adapter.assert_called_once_with(attempt.lease, running=True, maintenance=True)
+    attempt.worker.close.assert_called_once()
+    attempt.server.close.assert_called_once()
+    attempt.lease.finish.assert_not_called()
+    attempt.lease.stop_by_restore.assert_not_called()
+
+
 def test_completed_worker_requires_controller_validation_and_owned_cleanup(attempt):
     result = attempt.run()
     attempt.options['validate'].assert_called_once_with()

@@ -280,7 +280,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
         'check_e2e_text', 'check_e2e_feedback_privacy',
         'check_e2e_overlay_prompt', 'check_e2e_overlay_rejection', 'check_e2e_kiosk_approval',
         'check_e2e_kiosk_approved_flow', 'check_e2e_chinese_native_auth')
-    vm_source = selector.removesuffix('.py') == 'check_e2e_challenges'
+    vm_source = selector.removesuffix('.py') in (
+        'check_e2e_challenges', 'check_e2e_unlock', 'check_e2e_fresh_child_allowed')
     output = str(test_storage.named_input(package_source=current_package, vm_source=vm_source))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)

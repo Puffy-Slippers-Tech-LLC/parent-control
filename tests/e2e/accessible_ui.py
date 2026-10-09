@@ -191,7 +191,8 @@ OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
 CHILD_GREETER_OPERATIONS = frozenset({
     'gdm-child-list', 'gdm-child-focused', 'gdm-child-wrong-recipient-refused',
     'gdm-child-recipient', 'gdm-child-recipient-rechecked',
-    'gdm-child-time-denied', 'gdm-child-denied-return-ready', 'gdm-child-denied-returned',
+    'gdm-child-time-denied', 'gdm-child-denied-return-ready', 'gdm-child-denied-return-state',
+    'gdm-child-denied-returned',
 })
 OPERATIONS |= CHILD_DESKTOP_OPERATIONS | CHILD_GREETER_OPERATIONS
 OPERATIONS |= frozenset({'child-countdown-wrong-account-refused'})
@@ -1060,6 +1061,12 @@ LOCK_RECIPIENT_REFUSALS = ('session', 'recipient', 'field-state', 'field-not-emp
 LOCK_SURFACE_OPERATIONS = LOCK_RECIPIENT_OPERATIONS | frozenset((
     'parent-lock-curtain', 'parent-lock-reveal-ready', 'parent-lock-challenge',
     'parent-lock-refusals', 'parent-lock-unlocked-refused', 'parent-lock-recipient-refusals'))
+CHILD_LOCK_OPERATIONS = frozenset(operation.replace('parent-', 'child-', 1)
+                                 for operation in LOCK_SURFACE_OPERATIONS)
+LOCK_RECIPIENT_OPERATIONS |= frozenset(operation.replace('parent-', 'child-', 1)
+    for operation in LOCK_RECIPIENT_OPERATIONS)
+LOCK_SURFACE_OPERATIONS |= CHILD_LOCK_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= CHILD_LOCK_OPERATIONS
 OPERATIONS |= LOCK_SURFACE_OPERATIONS
 
 
@@ -7278,7 +7285,9 @@ class AccessibleUI:
 
     def require_lock_session(self, uid):
         """Bind a lock read to the sole active, local, locked fixture desktop."""
-        require(uid == os.getuid() == pwd.getpwnam('onpc-parent-jamie').pw_uid,
+        role = getattr(self, 'lock_role', 'parent')
+        require(role in ('parent', 'child') and uid == os.getuid()
+                == pwd.getpwnam(session_control.ACCOUNTS[role]).pw_uid,
                 'ui:lock-session')
         try:
             return session_control.source_session(session_control.sessions(), uid, locked=True)
@@ -7442,7 +7451,8 @@ class AccessibleUI:
         field = fields[0]
         labels = [facts[node]['name'] for node in controls if facts[node]['role'] == 'label'
                   and facts[node]['showing'] and facts[node]['name'] in GREETER_IDENTITIES]
-        require(labels == [PARENT], 'ui:lock-recipient')
+        require(labels == [CHILD if getattr(self, 'lock_role', 'parent') == 'child' else PARENT],
+                'ui:lock-recipient')
         require(focused == [field] and self.has_state(field, self.api.StateType.SENSITIVE)
                 and self.has_state(field, self.api.StateType.EDITABLE), 'ui:lock-field')
         require(self.require_lock_session(uid) == session, 'ui:lock-session-changed')
@@ -7450,6 +7460,17 @@ class AccessibleUI:
 
     def lock_surface(self, operation):
         require(operation in LOCK_SURFACE_OPERATIONS, 'ui:lock-operation')
+        # Refusal projections, protected-field proofs and the final independent
+        # read can also encounter retired AT-SPI objects. Reacquire the entire
+        # read-only operation within one deadline, never just its initial tree.
+        return self.wait(lambda: self._lock_surface(operation), 'lock-surface',
+                         prompt_in_predicate=True)
+
+    def _lock_surface(self, operation):
+        self.lock_role = 'child' if operation in CHILD_LOCK_OPERATIONS else 'parent'
+        name = CHILD if self.lock_role == 'child' else PARENT
+        identity = 'fixture-' + self.lock_role
+        operation = operation.replace('child-', 'parent-', 1)
         uid = os.getuid()
         if operation == 'parent-lock-unlocked-refused':
             require_active_launch_session()
@@ -7462,8 +7483,9 @@ class AccessibleUI:
                 raise UiError('ui:lock-unlocked-accepted')
             return {'refused': ['unlocked-session']}
         entry = 'curtain' if operation in ('parent-lock-curtain', 'parent-lock-reveal-ready') else 'challenge'
-        value = self.wait(lambda: self.shell_lock_snapshot(uid, entry), 'lock-' + entry,
-                          prompt_in_predicate=True)
+        value = self.shell_lock_snapshot(uid, entry)
+        if value is None:
+            return None
         owner, window, field, observation = value
         if operation in LOCK_RECIPIENT_OPERATIONS or operation == 'parent-lock-recipient-refusals':
             # DESK07 is distinct from DESK06: access the protected field's count
@@ -7474,7 +7496,7 @@ class AccessibleUI:
             if operation == 'parent-lock-recipient-refusals':
                 nodes, edges, identities, facts = observation
                 projected = {node: {**facts[node], **({'name': OTHER_PARENT}
-                    if facts[node]['role'] == 'label' and facts[node]['name'] == PARENT else {})}
+                    if facts[node]['role'] == 'label' and facts[node]['name'] == name else {})}
                     for node in nodes}
                 for expected_uid, tree, code in (
                         (uid + 1, observation, 'ui:lock-session'),
@@ -7509,10 +7531,10 @@ class AccessibleUI:
                     ('ui:lock-surface-ambiguous', {field: {'role': 'window'}}),
                     ('ui:lock-field-ambiguous', {node: {'role': 'password text'}
                         for node in nodes if facts[node]['role'] == 'label'
-                        and facts[node]['name'] == PARENT}),
+                        and facts[node]['name'] == name}),
                     ('ui:lock-recipient', {node: {'name': OTHER_PARENT}
                         for node in nodes if facts[node]['role'] == 'label'
-                        and facts[node]['name'] == PARENT})):
+                        and facts[node]['name'] == name})):
                 projected = {node: {**facts[node], **changes.get(node, {})} for node in nodes}
                 variants.append((uid, (nodes, edges, identities, projected), code))
             refused = []
@@ -7527,9 +7549,9 @@ class AccessibleUI:
             fresh = self.shell_lock_snapshot(uid, 'challenge')
             require(fresh is not None and fresh[:3] == value[:3], 'ui:lock-surface-changed')
             return {'refused': refused}
-        result = {'entry': entry, 'owner': 'fixture-parent', 'locked': True,
+        result = {'entry': entry, 'owner': identity, 'locked': True,
                   'desktop_input_available': False,
-                  'recipient': 'fixture-parent' if field is not None else None,
+                  'recipient': identity if field is not None else None,
                   'surface_id': self.mate_challenge_identity(owner.get_process_id(), (owner, window)),
                   'provider': self._shell_provider_metadata(owner)}
         if operation in LOCK_RECIPIENT_OPERATIONS:
@@ -7758,7 +7780,7 @@ class AccessibleUI:
             },
         }
 
-    def gdm_semantic_rows(self, expected, *, excluded=()):
+    def gdm_semantic_rows(self, expected, *, excluded=(), pending_child_prompt=False):
         """Return declared fixture rows from one complete account-list snapshot."""
         require(type(expected) is tuple and expected
                 and len(set(expected)) == len(expected)
@@ -7768,10 +7790,23 @@ class AccessibleUI:
                 and set(excluded) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
                 and not set(expected) & set(excluded),
                 'ui:gdm-account-binding')
-        owner, nodes = self.gdm_semantic_nodes()
+        require(type(pending_child_prompt) is bool and (not pending_child_prompt
+                or expected == (PARENT, KIOSK, CHILD) and not excluded), 'ui:gdm-account-binding')
+        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
         showing = [node for node in nodes if self.showing(node)]
-        require(not any(node.get_role_name() == 'password text' for node in showing),
-                'ui:gdm-list-prompt-overlap')
+        fields = [node for node in showing if node.get_role_name() == 'password text']
+        if fields and pending_child_prompt:
+            # After guarded cancellation, the rejected child's prompt may
+            # still be present. It is pending, never a successful list result.
+            # Mixed list/prompt, wrong recipient and ambiguity still refuse.
+            require(not self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)),
+                    'ui:gdm-list-prompt-overlap')
+            recipients = [self.gdm_semantic_name(node) for node in showing
+                          if node.get_role_name() == 'label'
+                          and self.gdm_semantic_name(node) in GREETER_IDENTITIES]
+            require(recipients == [CHILD] and len(fields) == 1, 'ui:gdm-denial-recipient')
+            return None
+        require(not fields, 'ui:gdm-list-prompt-overlap')
 
         bindings = {
             PARENT: (PARENT,),
@@ -7922,6 +7957,20 @@ class AccessibleUI:
 
         self.wait(denied, 'gdm-child-time-denied', prompt_in_predicate=True)
         return {'recipient': 'fixture-child', 'reason': 'time-limit', 'desktop_access': False}
+
+    def gdm_denied_return_state(self):
+        """Observe the list or guard the remaining empty child challenge.
+
+        GNOME can cancel in-progress verification by beginning a new challenge
+        for the same user. This is a separate, bounded navigation decision,
+        never permission to retry a credential or accept the prompt as a list.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        rows = self.gdm_semantic_rows((PARENT, KIOSK, CHILD), pending_child_prompt=True)
+        if rows is not None:
+            return 'account-list'
+        require(self.password_recipient(CHILD), 'ui:gdm-return-password-recipient')
+        return 'child-prompt'
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""
@@ -10733,8 +10782,13 @@ class AccessibleUI:
         elif operation in GREETER_OPERATIONS:
             if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
                 result['denial'] = self.gdm_child_time_denied()
+            elif operation == 'gdm-child-denied-return-state':
+                result['return_state'] = self.wait(self.gdm_denied_return_state,
+                    'gdm-child-denied-return-state', prompt_in_predicate=True)
             elif operation == 'gdm-child-denied-returned':
-                self.gdm_nonsecret_account(CHILD)
+                self.wait(lambda: self.greeter_list(CHILD) if self.gdm_nonsecret_has_id_route()
+                          else self.gdm_semantic_rows((PARENT, KIOSK, CHILD), pending_child_prompt=True),
+                          'gdm-child-denied-returned', prompt_in_predicate=True)
             elif operation == 'gdm-installed-accounts':
                 self.gdm_semantic_rows((PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK))
             elif operation == 'gdm-product-free-provider':

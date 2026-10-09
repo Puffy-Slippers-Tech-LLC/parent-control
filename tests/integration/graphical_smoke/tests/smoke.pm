@@ -416,6 +416,13 @@ sub run {
         onpc_command_help::run(\&exchange);
         return;
     }
+    if ($ready->{retained_unlock_success} || $ready->{child_unlock_success}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::qualify_retained_unlock(\&exchange,
+            $ready->{retained_unlock_success} ? 1 : 0, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{lock_recipient}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

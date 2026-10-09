@@ -5,6 +5,9 @@ use testapi ();
 use onpc_progress ();
 use onpc_journey ();
 use onpc_parent ();
+use onpc_gdm ();
+use onpc_password ();
+use onpc_app_rows ();
 
 # DESK03: shared system lock/switch command, then independent GDM observation.
 sub switch_user {
@@ -80,9 +83,11 @@ sub qualify_lock {
 # controller proofs on the same lock challenge; input/submission are separate.
 sub lock_recipient {
     onpc_progress::operation('Qualifying the intended lock-screen recipient');
-    my ($journey, $prefix) = @_;
+    my ($journey, $prefix, $role) = @_;
     $prefix //= '';
-    die 'desk:lock-recipient-binding' unless (@_ == 1 || @_ == 2)
+    $role //= 'parent';
+    die 'desk:lock-recipient-binding' unless (@_ == 1 || @_ == 2 || @_ == 3)
+        && ($role eq 'parent' || $role eq 'child')
         && $prefix =~ /\A(?:[a-z][a-z0-9-]*-)?\z/ && ref($journey) eq 'onpc_journey'
         && !$journey->{review} && !$journey->{lock_recipient_failed};
     my ($identity, $reply);
@@ -94,7 +99,7 @@ sub lock_recipient {
             my $proof = $reply->{lock_recipient};
             die 'desk:lock-recipient-proof' unless ($reply->{observed} // '') eq $stage && ref($proof) eq 'HASH'
                 && keys(%$proof) == 3 && ($proof->{surface} // '') eq 'lock'
-                && ($proof->{role} // '') eq 'parent'
+                && ($proof->{role} // '') eq $role
                 && ($proof->{challenge_id} // '') =~ /\A[0-9a-f]{64}\z/;
             die 'desk:lock-recipient-replaced' if defined($identity) && $identity ne $proof->{challenge_id};
             $identity = $proof->{challenge_id};
@@ -123,6 +128,67 @@ sub qualify_lock_recipient {
     $journey->seen('independent-challenge');
     lock_recipient($journey);
     $journey->seen('final-challenge');
+    $journey->finish();
+}
+
+# GDM reauthenticates a retained session on the greeter before activating it.
+# Reuse the GDM proof/input path, never treat it as child lock-screen authority.
+sub retained_gdm_unlock {
+    onpc_progress::operation('Authenticating the retained child through the greeter');
+    my ($journey) = @_;
+    die 'desk:retained-entry' unless @_ == 1 && ref($journey) eq 'onpc_journey'
+        && !$journey->{review} && testapi::current_console() eq 'sut';
+    return onpc_gdm::sign_in_challenge($journey, 'retained-login',
+        'retained-list', 'retained-focused', 'unlock-desktop');
+}
+
+# DESK08 success: the sealed helper owns both fresh lock proofs; Enter and
+# the independently observed unlocked desktop are separate from secret input.
+sub unlock_success {
+    onpc_progress::operation('Unlocking the intended child desktop');
+    my ($journey) = @_;
+    die 'desk:unlock-binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    onpc_password::enter_lock_password($journey, 'child');
+    testapi::send_key('ret');
+    return $journey->seen('unlock-desktop');
+}
+
+sub qualify_retained_unlock {
+    onpc_progress::operation('Qualifying child unlock and preservation of original activity');
+    my ($exchange, $retained, $declared, $challenges) = @_;
+    die 'desk:unlock-plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ($retained == 0 || $retained == 1);
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $retained ? 'retained-unlock' : 'child-unlock', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command');
+    $journey->seen('unlocked-refused');
+    lock($journey, $journey->seen('lock-ready'), 'lock-ready');
+    $journey->seen('lock-recipient-refusals');
+    my $challenge = $journey->seen('independent-challenge');
+    if ($retained) {
+        $journey->consume_observation('independent-challenge', $challenge);
+        $journey->seen('return-greeter');
+        $journey->seen('retained-greeter');
+        retained_gdm_unlock($journey);
+    } else {
+        unlock_success($journey);
+    }
+    onpc_app_rows::native_read_activity($journey, 'returned-activity');
+    onpc_app_rows::native_activity_resume($journey, 'resume');
+    onpc_app_rows::native_read_activity($journey, 'usable-activity');
     $journey->finish();
 }
 

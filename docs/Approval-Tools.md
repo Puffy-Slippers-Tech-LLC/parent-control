@@ -432,6 +432,11 @@ Host-only startup and `tools/cleanup-e2e --host-only` reconcile interrupted host
 retention under its activity and storage owner locks, without VM configuration
 or privileged dispatch. Recovery validates recorded identities and preserves
 evidence in bounded retention; active owners and replaced resources still refuse.
+For interrupted online startup, an off graphical guest whose attempt never
+recorded an instance may still carry its saved app snapshot's run tag. Serial
+cleanup requires the exact private snapshot record, unchanged baseline/storage
+and safe isolated domain before restoring it. This permits no live-instance
+adoption, startup or shutdown; unproven identities still refuse.
 
 ## The configured test VMs
 
@@ -465,6 +470,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME status` / `xml` | Inspect only the pinned guest using a read-only connection |
 | `tools/test-vm --vm NAME snapshots` | Read snapshot names and saved XML for only that pinned guest; never restore or change a snapshot |
 | `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
+| `tools/test-vm --vm NAME reproduce-gdm-denial` | Diagnostic-only replay of the shared fresh-child zero-time journey through its bounded Cancel sequence; close the graphical worker and retain the owned online guest before final account-list observation, for `exec` probes followed by `stop`. No acceptance credit. |
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |

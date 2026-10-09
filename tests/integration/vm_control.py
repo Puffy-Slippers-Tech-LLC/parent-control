@@ -370,7 +370,8 @@ def main(argv=None):
     parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
-                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec'))
+                                          'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
+                                          'reproduce-gdm-denial'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -426,6 +427,10 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
+        elif args.action == 'reproduce-gdm-denial':
+            from vm_probe import reproduce_gdm_denial
+            resume(lease)
+            reproduce_gdm_denial(lease)
         elif args.action == 'exec':
             from vm_probe import execute
             with operation('Probing the owned guest as root'):

@@ -368,21 +368,28 @@ or `tools/fix-tests vm --vm NAME --stop`. No categories select the VM namespace.
 
 The launcher itself is Python scripting. New runs validate the selected model
 and effort against the Codex CLI catalog before testing. Classification and
-proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session.
+proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session,
+or **GPT-6.1 Sol Low** for unit failures.
 App issues, uncertainty and unresolved security, concurrency, ownership or
 difficult diagnosis end that session without edits and transfer to a fresh
-**GPT-6.1 Sol High** session to recheck and repair. This raises reasoning effort
+**GPT-6.1 Sol High** session to recheck and repair, or **GPT-6.1 Sol Medium**
+for unit failures. This raises reasoning effort
 at the judgment boundary without paying for an additional adviser and a second
 implementation context. Delegation stays disabled; classification is not an
 extra read-only agent before every mechanical repair.
 
 If verification still reports the same case, its next repair escalates from
-Sol Medium to **Sol High**, from Sol High to **GPT-6 Astra High**, and from
-Astra High to **Astra Extra High**. A stall uses the same immediate escalation
-ladder. The latest evidence and that case's previous repair summary accompany
+**GPT-6.1 Sol Medium** to **GPT-6.1 Sol High**, from High to **GPT-6.1 Sol xHigh**,
+and from xHigh to **GPT-6.1 Sol Max**. A stall uses the same immediate escalation
+ladder. Unit failures use a ladder one tier lower throughout:
+**GPT-6.1 Sol Low → Medium → High → xHigh**, stopping at xHigh.
+The runner-reported failure category selects the ladder, including unit failures
+within mixed selections, expanded aggregates and aggregate verification.
+The latest evidence and that case's previous repair summary accompany
 each fresh session. Selected tiers survive blocker answers and returns to an
 unresolved case; neither a blocker nor a diagnostic experiment is a failed repair.
-A newly exposed case starts with Medium classification, even in the same category.
+A newly exposed case starts with Low classification for unit failures and Medium
+otherwise, even in the same category.
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each
@@ -394,7 +401,7 @@ reruns the original category selectors. A passing category clears its repair
 handoffs.
 
 Each case has at most **five agent sessions per launcher run**, including
-classification, High repair and answered-blocker continuations. Counts survive
+classification, escalated repair and answered-blocker continuations. Counts survive
 switching cases and later verification rounds; another case or VM has its own
 budget. Non-case failures and legacy handoffs without case IDs share a category
 infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
@@ -422,10 +429,12 @@ normal cleanup failure handoff enters the same repair policy, while refusal
 without a handoff still stops. No model performs routine ownership recovery.
 
 `--model` and `--effort` override the initial agent for a new run. Explicit
-stronger model/effort choices are never downgraded: Sol Extra High moves to
-Astra Extra High, and Astra Extra High remains there. An unrecognized model
-has no automatic replacement; its stall stops rather than guessing a ranking.
-Sol must be `gpt-6.1-sol`; other Sol versions are refused, with no silent fallback.
+stronger effort choices are never downgraded: Sol xHigh moves to Sol Max for
+non-unit failures and remains xHigh for unit failures. An explicit Sol Max
+override remains there for either category. Omitting `--effort` selects each
+failure category's initial tier; an explicit effort applies to both ladders.
+Every tier uses `gpt-6.1-sol`; other models,
+including other Sol versions, are refused with no silent fallback.
 The selected pair, automatic escalation tiers and any override-specific reachable
 pairs must be listed in the existing CLI catalog before testing begins.
 All agent sessions pin **Standard speed**,

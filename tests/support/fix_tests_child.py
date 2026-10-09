@@ -17,11 +17,10 @@ def main():
             print((root / 'catalog.json').read_text())
             return 0
         print(json.dumps({'models': [
-            {'slug': 'gpt-6-astra', 'visibility': 'list', 'priority': 1,
-             'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'high'}, {'effort': 'xhigh'}]},
             {'slug': 'gpt-6.1-sol', 'visibility': 'list', 'priority': 2,
-             'supported_reasoning_levels': [{'effort': 'medium'}, {'effort': 'high'},
-                                            {'effort': 'xhigh'}]},
+             'supported_reasoning_levels': [{'effort': 'low'}, {'effort': 'medium'},
+                                            {'effort': 'high'}, {'effort': 'xhigh'},
+                                            {'effort': 'max'}]},
         ]}))
         return 0
     if kind == 'test' and args == ['--list']:
@@ -72,7 +71,7 @@ def main():
             target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
             handoff = root / 'failure.json'
             handoff.write_text(json.dumps({'prompt': 'LATEST FAILURE ONLY',
-                'categories': [category], 'failures': [target]}))
+                'categories': [target['category']], 'failures': [target]}))
             print(f'Failure handoff: {handoff}', flush=True)
             return 1
         if mode in ('retention-once', 'recovery-wait'):

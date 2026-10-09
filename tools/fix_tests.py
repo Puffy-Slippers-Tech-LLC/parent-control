@@ -33,7 +33,8 @@ DEFAULT_EFFORT = 'medium'
 APP_MODEL = 'gpt-6.1-sol'
 APP_EFFORT = 'high'
 REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
-                ('gpt-6-astra', 'high'), ('gpt-6-astra', 'xhigh'))
+                (DEFAULT_MODEL, 'xhigh'), (DEFAULT_MODEL, 'max'))
+UNIT_REPAIR_TIERS = tuple((DEFAULT_MODEL, effort) for effort in ('low', 'medium', 'high', 'xhigh'))
 MAX_REPAIR_SESSIONS = 5
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
 
@@ -48,15 +49,19 @@ def reattach_label(run):
     return label + (' --vm ' + shlex.quote(vm) if isinstance(vm, str) else '')
 
 
-def initial_model(model=None, effort=DEFAULT_EFFORT):
+def repair_tiers(category=''):
+    return UNIT_REPAIR_TIERS if category == 'unit' else REPAIR_TIERS
+
+
+def initial_model(model=None, effort=None, *, category=''):
     model = model or DEFAULT_MODEL
-    if model.endswith('-sol') and model != DEFAULT_MODEL:
-        raise ValueError('Sol must be gpt-6.1-sol')
-    return model, effort
+    if model != DEFAULT_MODEL:
+        raise ValueError('fix-tests model must be gpt-6.1-sol')
+    return model, effort or repair_tiers(category)[0][1]
 
 
-def available_models(model=None, effort=DEFAULT_EFFORT):
-    model, effort = initial_model(model, effort)
+def available_models(model=None, effort=None, *, categories=('',)):
+    model, _ = initial_model(model, effort)
     codex = shutil.which('codex')
     if codex is None:
         raise ValueError('Codex CLI is missing; install and authenticate it before running fix-tests')
@@ -70,11 +75,13 @@ def available_models(model=None, effort=DEFAULT_EFFORT):
               and entry.get('visibility') == 'list'
               and isinstance(entry.get('slug'), str)
               and isinstance(entry.get('supported_reasoning_levels'), list)]
-    required = [(model, effort), *REPAIR_TIERS[1:]]
-    candidate = (model, effort)
-    while next_tier(*candidate) != candidate:
-        candidate = next_tier(*candidate)
-        required.append(candidate)
+    required = []
+    for category in categories:
+        candidate = initial_model(model, effort, category=category)
+        required.extend([candidate, *repair_tiers(category)[1:]])
+        while next_tier(*candidate, category=category) != candidate:
+            candidate = next_tier(*candidate, category=category)
+            required.append(candidate)
     for required_model, required_effort in dict.fromkeys(required):
         if not any(entry['slug'] == required_model and any(
                 isinstance(level, dict) and level.get('effort') == required_effort
@@ -84,15 +91,13 @@ def available_models(model=None, effort=DEFAULT_EFFORT):
     return model, APP_MODEL
 
 
-def next_tier(model, effort):
+def next_tier(model, effort, *, category=''):
     """Raise capability without lowering an explicit model or reasoning override."""
     efforts = ('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra')
     if model == DEFAULT_MODEL:
-        if efforts.index(effort) < efforts.index('high'):
-            return APP_MODEL, APP_EFFORT
-        return 'gpt-6-astra', effort
-    if model == 'gpt-6-astra' and efforts.index(effort) < efforts.index('xhigh'):
-        return model, 'high' if efforts.index(effort) < efforts.index('high') else 'xhigh'
+        for tier in repair_tiers(category)[1:]:
+            if efforts.index(effort) < efforts.index(tier[1]):
+                return tier
     return model, effort
 
 
@@ -120,9 +125,11 @@ def record_usage(run, metadata, usage=None, *, event='turn'):
         print(f'fix-tests: could not retain usage: {error}', file=sys.stderr, flush=True)
 
 
-def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None):
+def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summary=None, category=''):
     from vm_selection import execution_instructions
     prompt += '\n' + execution_instructions()
+    ladder = ('Low to Medium, then High, then xHigh' if category == 'unit'
+              else 'Medium to High, then xHigh, then Max')
     instructions = (
         'Classify the failure from the evidence as a test issue, an app issue, or '
         'uncertain before editing. If it is a test issue, fix it in this session '
@@ -169,7 +176,7 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'contract sections and complete relevant functions with their callers/shared state; '
             'expand when evidence requires it. Reuse unchanged context within this session. '
             'Keep searches and diagnostic output scoped, without reducing required checks '
-            'or understanding. Prefer GPT-6.1 Sol High over Astra Low for difficult repairs. '
+            'or understanding. All repair tiers use GPT-6.1 Sol. '
             'When evidence is insufficient for a correction but a useful authorized experiment '
             'exists, you may add bounded, relevant instrumentation that preserves behavior, '
             'assertions, validation guards and privacy. Return status "diagnostic_ready", not '
@@ -180,8 +187,8 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'nested launchers or uncontrolled retries. Diagnostic edits are allowed before '
             'a proven corrective edit; uncertainty alone must not close this evidence-gathering path. '
             'Return "stalled" only when no useful authorized next step exists at this tier. '
-            'Stalls and same-case failed repairs escalate Sol Medium to Sol High, then Astra '
-            'High, then Astra Extra High; a final-tier stall stops early. Blockers are never '
+            f'Stalls and same-case failed repairs escalate GPT-6.1 Sol {ladder}; '
+            'a final-tier stall stops early. Blockers are never '
             'bypassed by escalation. The script owns test execution: finish after classification, diagnostics or repair; '
             'do not launch tests, fix-tests, background jobs or other agent sessions. '
             'Include in summary the concrete new evidence supporting this correction or newly '
@@ -449,7 +456,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         check_stop()
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--supervise', str(root), str(run), str(owner), kind, category,
-                   agent_model or model, agent_effort or effort,
+                   agent_model or model, agent_effort or effort or DEFAULT_EFFORT,
                    json.dumps(options)]
         # The supervisor inherits ownership, but the test/agent does not. Its
         # stdin pipe is a liveness lease, not an interactive agent conversation.
@@ -536,6 +543,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
         target = dict(zip(('category', 'case', 'vm'), failure_key))
+        category = target['category']
+        initial = initial_model(model, effort or None, category=category)
         if diagnostic:
             prompt += ('\nLauncher-owned diagnostic execution outcome: '
                        + json.dumps(dict(passed=previous.get('verification'),
@@ -564,11 +573,13 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                                  'case handoff: repair-stop.json.')
 
         def escalate(reason, *, classification_only=False):
-            current = case_tiers.get(failure_key, (model, effort))
-            # Classification needs at least High, but an explicit stronger
-            # initial selection already meets that boundary.
-            following = (current if classification_only and current[1] in ('high', 'xhigh')
-                         else next_tier(*current))
+            current = case_tiers.get(failure_key, initial)
+            # Classification transfers to at least the category's second tier;
+            # an explicit stronger initial selection already meets that boundary.
+            boundary = repair_tiers(category)[1][1]
+            stronger = ('medium', 'high', 'xhigh', 'max', 'ultra')
+            following = (current if classification_only and current[1] in stronger[stronger.index(boundary):]
+                         else next_tier(*current, category=category))
             if following == current:
                 return False
             case_tiers[failure_key] = following
@@ -585,7 +596,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             check_stop()
             check_budget()
             sessions = case_sessions.get(failure_key, 0) + 1
-            agent_model, agent_effort = case_tiers.setdefault(failure_key, (model, effort))
+            agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
             progress('', 'fixing errors', model=agent_model, effort=agent_effort)
             phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
@@ -596,7 +607,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                               'A diagnostic execution after the last session can retain evidence, '
                               'but cannot start another interpretation session in this run.\n',
                               app_issue=classification, developer_answers=developer_answers,
-                              blocker_summary=blocker_summary), encoding='utf-8')
+                              blocker_summary=blocker_summary, category=category), encoding='utf-8')
             # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
             case_sessions[failure_key] = sessions
@@ -660,7 +671,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             from launcher_render import AgentRenderer  # Check before expensive tests.
         except ImportError as error:
             raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
-        repair_command(root, model, effort)  # Fail before running expensive tests.
+        repair_command(root, model, effort or DEFAULT_EFFORT)  # Fail before running expensive tests.
         listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
                                  env=environment(), capture_output=True, text=True, check=True)
         requested = json.loads(requested)
@@ -702,7 +713,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     return status
 
 
-def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=(), rounds=1, resume=False):
+def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
     name = execution_binding()
@@ -718,11 +729,14 @@ def select(root, *, stop=False, model=None, effort=DEFAULT_EFFORT, categories=()
                     (run / 'cancel').touch(mode=0o600)
                 return run, False
     def command(run, owner):
-        selected_model, selected_effort = initial_model(model, effort)
-        default_model, app_model = available_models(selected_model, selected_effort)
+        selected_model, _ = initial_model(model, effort)
+        listing = subprocess.run([str(root / 'tools/run-tests'), '--list'], cwd=root,
+                                 env=environment(), capture_output=True, text=True, check=True)
+        inventory = requested_inventory(root, categories, inventory=category_inventory(listing.stdout))
+        default_model, app_model = available_models(selected_model, effort, categories=inventory)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                 '--worker', str(root), str(run), str(owner), default_model,
-                selected_effort, app_model, json.dumps(categories), str(rounds), *(['true'] if resume else [])]
+                effort or '', app_model, json.dumps(categories), str(rounds), *(['true'] if resume else [])]
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
@@ -746,11 +760,11 @@ def main(argv=None):
     parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
     parser.add_argument('--resume', action='store_true',
                         help='resume passed categories and the failed/interrupted test checkpoint')
-    parser.add_argument('--model', help='initial repair model (default: gpt-6.1-sol)')
+    parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
     parser.add_argument('--rounds', type=int, metavar='X',
                         help='run round 1 once, then round 2 X-1 times (default: 1)')
-    parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
-                        default=DEFAULT_EFFORT, help='initial reasoning effort (default: medium; escalates through Sol high and Astra high/xhigh)')
+    parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
+                        help='initial reasoning effort (default: low for unit, medium otherwise; unit escalates through medium, high and xhigh; other categories through high, xhigh and max)')
     parser.epilog = ('Pass categories and arguments as for run-tests, e.g. e2e --id 6 '
                      'or unit tests/unit/test_fix_tests.py -q. Launcher options are recognized '
                      'anywhere and removed from the forwarded arguments. '

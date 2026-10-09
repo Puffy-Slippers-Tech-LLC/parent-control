@@ -99,6 +99,7 @@ def test_cli_forwards_category_arguments(monkeypatch, options, expected):
     assert fix_tests.main(['unit', 'ui', *options]) == 0
     assert select.call_args.kwargs['categories'] == ['unit', 'ui']
     assert select.call_args.kwargs['rounds'] == expected
+    assert select.call_args.kwargs['effort'] is None  # Keep per-category defaults until a failure is known.
 
 
 @pytest.mark.parametrize('requested', [
@@ -266,7 +267,7 @@ def test_agent_is_ephemeral_sol_medium_standard_without_parent_context(monkeypat
     assert 'status "uncertain"' in fix_tests.repair_prompt('LATEST FAILURE')
 
 
-def test_model_catalog_requires_exact_sol_medium_and_high_efforts(monkeypatch):
+def test_model_catalog_requires_all_sol_escalation_efforts(monkeypatch):
     monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
 
     def entry(slug, priority, *, visibility='list', effort='low'):
@@ -274,10 +275,8 @@ def test_model_catalog_requires_exact_sol_medium_and_high_efforts(monkeypatch):
                 'supported_reasoning_levels': [{'effort': effort}]}
 
     sol = entry('gpt-6.1-sol', 4, effort='medium')
-    sol['supported_reasoning_levels'].append({'effort': 'high'})
-    astra = entry('gpt-6-astra', 1, effort='high')
-    astra['supported_reasoning_levels'].append({'effort': 'xhigh'})
-    catalog = {'models': [sol, astra, entry('gpt-6-sol', 3),
+    sol['supported_reasoning_levels'].extend({'effort': effort} for effort in ('high', 'xhigh', 'max'))
+    catalog = {'models': [sol, entry('gpt-6-sol', 3),
                           entry('gpt-7-sol', 1, visibility='hide')]}
     run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
     monkeypatch.setattr(fix_tests.subprocess, 'run', run)
@@ -289,28 +288,55 @@ def test_model_catalog_requires_exact_sol_medium_and_high_efforts(monkeypatch):
         run.return_value.stdout = json.dumps(catalog)
         with pytest.raises(ValueError, match='gpt-6.1-sol with (medium|high) reasoning'):
             fix_tests.available_models()
-    catalog['models'][0] = entry('gpt-6.1-sol', 4, effort='high')
+    without_medium = [level for level in sol['supported_reasoning_levels'] if level['effort'] != 'medium']
+    catalog['models'][0] = dict(sol, supported_reasoning_levels=without_medium)
     run.return_value.stdout = json.dumps(catalog)
     with pytest.raises(ValueError, match='gpt-6.1-sol with medium reasoning'):
         fix_tests.available_models()
     # An explicit High initial agent does not require Medium availability.
     assert fix_tests.available_models(effort='high') == ('gpt-6.1-sol', 'gpt-6.1-sol')
-    for levels in ([], [{'effort': 'high'}], [{'effort': 'xhigh'}]):
-        catalog['models'][1] = dict(astra, supported_reasoning_levels=levels)
+    for missing in ('high', 'xhigh', 'max'):
+        levels = [level for level in without_medium if level['effort'] != missing]
+        catalog['models'][0] = dict(sol, supported_reasoning_levels=levels)
         run.return_value.stdout = json.dumps(catalog)
-        with pytest.raises(ValueError, match='gpt-6-astra'):
+        with pytest.raises(ValueError, match=f'gpt-6.1-sol with {missing} reasoning'):
             fix_tests.available_models(effort='high')
 
 
-@pytest.mark.parametrize('effort', ['high', 'xhigh'])
-def test_sol_high_and_extra_high_preserve_requested_effort(effort):
+@pytest.mark.parametrize('categories, required', [
+    (('unit',), ('low', 'medium', 'high', 'xhigh')),
+    (('unit', 'ui'), ('low', 'medium', 'high', 'xhigh', 'max')),
+])
+def test_model_catalog_validates_category_specific_ladders(monkeypatch, categories, required):
+    monkeypatch.setattr(fix_tests.shutil, 'which', lambda _: '/opt/codex')
+    entry = {'slug': 'gpt-6.1-sol', 'visibility': 'list',
+             'supported_reasoning_levels': [{'effort': effort} for effort in required]}
+    catalog = {'models': [entry]}
+    run = Mock(return_value=Mock(stdout=json.dumps(catalog)))
+    monkeypatch.setattr(fix_tests.subprocess, 'run', run)
+    assert fix_tests.available_models(categories=categories) == ('gpt-6.1-sol', 'gpt-6.1-sol')
+    for missing in required:
+        entry['supported_reasoning_levels'] = [{'effort': effort} for effort in required if effort != missing]
+        run.return_value.stdout = json.dumps(catalog)
+        with pytest.raises(ValueError, match=f'gpt-6.1-sol with {missing} reasoning'):
+            fix_tests.available_models(categories=categories)
+
+
+def test_unit_repair_prompt_describes_lower_ladder():
+    prompt = fix_tests.repair_prompt('LATEST FAILURE', category='unit')
+    assert 'GPT-6.1 Sol Low to Medium, then High, then xHigh' in prompt
+    assert 'then Max' not in prompt
+
+
+@pytest.mark.parametrize('effort', ['high', 'xhigh', 'max'])
+def test_sol_stronger_overrides_preserve_requested_effort(effort):
     assert fix_tests.initial_model('gpt-6.1-sol', effort) == ('gpt-6.1-sol', effort)
     assert fix_tests.initial_model(None, effort) == ('gpt-6.1-sol', effort)
 
 
-@pytest.mark.parametrize('model', ['gpt-6-sol', 'gpt-5.6-sol', 'gpt-7-sol'])
-def test_other_sol_versions_are_refused(model):
-    with pytest.raises(ValueError, match='Sol must be gpt-6.1-sol'):
+@pytest.mark.parametrize('model', ['gpt-6-sol', 'gpt-5.6-sol', 'gpt-7-sol', 'gpt-6-astra', 'unknown'])
+def test_other_models_are_refused(model):
+    with pytest.raises(ValueError, match='model must be gpt-6.1-sol'):
         fix_tests.initial_model(model)
 
 
@@ -383,7 +409,8 @@ def test_every_repair_phase_preserves_the_behavior_confirmation_mandate(classifi
         'original evidence', app_issue=classification,
         developer_answers=[{'question': 'Which behavior?', 'answer': 'Restore the specified behavior.'}],
         blocker_summary='Retained evidence: failure.json')
-    assert 'Prefer GPT-6.1 Sol High over Astra Low' in prompt
+    assert 'All repair tiers use GPT-6.1 Sol' in prompt
+    assert 'GPT-6.1 Sol Medium to High, then xHigh, then Max' in prompt
     assert 'Never use Sol High' not in prompt
     if classification is None:
         assert 'before editing' in prompt

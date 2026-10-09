@@ -484,3 +484,6 @@ def buckets(nodeids):
 # Oversized execution recovery uses tiny pytest-private journals, real local
 # locks and process-local VM-lease/reference doubles. No live VM, shared path
 # or new subprocess is used; retention remains compatible in both inventories.
+# Empty named-input recovery uses pytest-private directories, local retention
+# journals and pinned read-only descriptors. No shared path, build, process or
+# new cleanup owner is added; test_test_storage remains compatible in both inventories.

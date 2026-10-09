@@ -98,7 +98,32 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
         else:
             from vm_selection import selected
         prefix += selected().name + '-'
-    return BASE / ('host/allocations/' + prefix + identity)
+    return named_input_slot(BASE / ('host/allocations/' + prefix + identity))
+
+
+def named_input_slot(path):
+    """Preserve empty reservations; select a fresh, independently registered slot.
+
+    The execution activity lock serializes producers and consumers. Never adopt
+    or delete an existing directory: even an empty one can be unregistered.
+    Nonempty inputs still undergo the consumer's complete manifest/tree checks.
+    """
+    if __package__:
+        from .test_retention import directory as open_directory
+    else:
+        from test_retention import directory as open_directory
+    for generation in range(32):
+        candidate = path if generation == 0 else path.with_name(path.name + f'-{generation}')
+        try:
+            fd = open_directory(candidate)
+        except FileNotFoundError:
+            return candidate
+        try:
+            if os.listdir(fd):
+                return candidate
+        finally:
+            os.close(fd)
+    raise ValueError('named input has too many empty reservations')
 
 
 def privileged_state(uid):

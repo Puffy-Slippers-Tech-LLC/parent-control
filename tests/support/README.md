@@ -420,10 +420,26 @@ never repairs a mismatched mode. GDM and lock-screen proofs remain separate.
 Named worker scopes retain the exact controller acknowledgement prefix, so
 lock recipient proofs cannot be borrowed from an unscoped or other invocation.
 `retained_entry` supplies Task 044's finite two-child/Parent history and immutable
-session/activity comparisons. Qualification remains pending until its selected
-live run passes. Host checks use existing private values/recorder files and
+session/activity comparisons. The [catalogue's both-child scope](../../docs/TestAutomation/E2E-Building-Blocks.md#both-retained-child-desktops-and-explicit-entry-modes)
+owns its qualified bindings. Host checks use existing private values/recorder files and
 bounded waited Perl children; unit/cleanup classifications remain compatible,
 with no new storage, display, bus or VM cleanup owner.
+
+Retained Parent declarations use `journey_blocks.retained_parent_entry`, and
+retained activity input/readback uses `journey_blocks.native_activity_resume`
+with the existing worker pairs. `journey_checks.RetainedDesktopJourney` owns
+immutable Parent page/settings/window and session comparisons. Callers declare
+`parent_expected`, `parent_checks`, `window_checks` and `session_checks` endpoints;
+the shared engine validates order and account-compatible session operations,
+rejects missing/replayed captures and compares before the durable reply.
+Keep expected values and comparison endpoints in each recipe, rather than
+inheriting another qualifier's checkpoint names. Capture the incoming Parent
+page and child before the explicit Screen Limits read; returning to an existing
+window must not reselect the child to repair a mismatch. Desktop identity and
+window endpoint/PID are independent preservation results. The
+[desktop/session regressions](../unit/test_e2e_desktop_session.py) exercise renamed
+callers, nested capture mutation, changed results and refusal before replies.
+These checks retain the existing private-file/process resource classification.
 
 Retained-child histories use `journey_checks.RetainedSessionJourney` with
 caller-declared `session_checks={later: earlier}` endpoints on the existing

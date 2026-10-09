@@ -24,6 +24,127 @@ from tests.support.perl import run_perl
 PACKAGE_FORMAT = control.package_format
 
 
+def test_retained_declarations_are_independent_shared_fragments():
+    from journey_blocks import retained_parent_entry, native_activity_resume, prefixed_stages
+    from retained_entry import SCREENS
+    from private_artifacts import EvidenceError
+    for source in ('desktop', 'child-desktop', 'same-user'):
+        expected = retained_parent_entry(source=source)
+        retained_parent_entry(source=source).clear()
+        assert retained_parent_entry(source=source) == expected
+        assert prefixed_stages('unrelated-return', expected)['unrelated-return-parent-retained'] == 'ui:retained-parent-read'
+    for prefix, child in (('riley-resume', 'child'), ('jordan-resume', 'other-child')):
+        fragment = native_activity_resume(prefix, child=child)
+        assert all(SCREENS[stage] == operation for stage, operation in fragment.items())
+        assert list(fragment.values()) == list(native_activity_resume('independent', child=child).values())
+    with pytest.raises(EvidenceError): retained_parent_entry(source='locked')
+    with pytest.raises(EvidenceError): native_activity_resume('independent', child='parent')
+
+
+@pytest.mark.parametrize('fault', ['', 'window', 'page', 'settings', 'missing', 'replay'])
+def test_shared_retained_engine_renamed_capture_and_real_reply(tmp_path, fault):
+    from installed_journey import JourneyPlan
+    from journey_checks import RetainedDesktopJourney
+    from private_artifacts import EvidenceError
+    screens = {'original': 'ui:retained-parent-leave', 'later': 'ui:retained-parent-read'}
+    plan = JourneyPlan(prefix='independent-retention', worker_mode='unused', screen_tags=screens,
+                       phases={'ready': 'setup', 'setup-detached': 'setup', 'original': 'start', 'later': 'start'})
+    value = {'window': {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'], 'available': True},
+             'page': 'app-limits', 'settings': {'child': 'fixture-child', 'limit_enabled': True,
+                                             'allowance': ['15 minutes']}}
+    journey = RetainedDesktopJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
+        parent_expected={'original': {key: value[key] for key in ('page', 'settings')}},
+        parent_checks={'later': 'original'}, window_checks={}, session_checks={})
+    if fault != 'missing': journey.check_settings('original', {'ui': {'retained_parent': value}})
+    current = json.loads(json.dumps(value))
+    # Mutating nested decoder and caller-oracle values cannot rewrite the capture.
+    value['window']['endpoint'].clear()
+    value['settings']['allowance'].clear()
+    if fault == 'window': current['window']['endpoint'] = [':1.20', '/replacement']
+    if fault == 'page': current['page'] = 'screen-limits'
+    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
+    if fault == 'replay': journey.check_settings('later', {'ui': {'retained_parent': current}})
+    journey.steps = [{'stage': s} for s in plan.stages[:-1]]
+    journey.boot = 'b' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': 'retained-parent-read', 'retained_parent': current}))
+    (tmp_path / 'later.request.json').write_text(json.dumps({'stage': 'later', 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert journey.failed and not (tmp_path / 'later.reply.json').exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / 'later.reply.json').exists()
+        assert journey.steps[-1]['comparison']['same_parent_window_child_page_settings']
+
+
+@pytest.mark.parametrize('fault', ['', 'changed', 'missing', 'replay', 'wrong-operation', 'cross-account'])
+def test_shared_retained_session_endpoints_are_explicit_and_immutable(tmp_path, fault):
+    from installed_journey import JourneyPlan
+    from journey_checks import RetainedDesktopJourney
+    from private_artifacts import EvidenceError
+    screens = {'parent': 'ui:retained-parent-leave', 'initial-session': 'system:child-entry-same',
+               'returned-session': 'system:standard-entry-retained' if fault == 'cross-account'
+                                   else 'system:child-entry-retained'}
+    plan = JourneyPlan(prefix='independent-session', worker_mode='unused', screen_tags=screens,
+                       phases={stage: 'start' for stage in ('ready', 'setup-detached', *screens)})
+    options = dict(parent_expected={'parent': {}}, parent_checks={}, window_checks={},
+                   session_checks={'returned-session': 'initial-session'})
+    if fault == 'cross-account':
+        with pytest.raises(EvidenceError): RetainedDesktopJourney(SimpleNamespace(), Mock(), plan, **options)
+        return
+    journey = RetainedDesktopJourney(SimpleNamespace(), Mock(), plan, **options)
+    value = {'operation': 'child-entry-same', 'outcome': 'passed', 'session_sha256': 'a' * 64}
+    if fault != 'missing': journey.check_settings('initial-session', {'system': value})
+    value.update(operation='child-entry-retained', session_sha256='b' * 64 if fault == 'changed' else 'a' * 64)
+    if fault == 'wrong-operation': value['operation'] = 'standard-entry-retained'
+    if fault == 'replay': journey.check_settings('returned-session', {'system': value})
+    observed = {'system': value}
+    if fault:
+        with pytest.raises(EvidenceError): journey.check_settings('returned-session', observed)
+    else:
+        journey.check_settings('returned-session', observed)
+        assert observed['comparison']['same_retained_child_desktop']
+
+
+@pytest.mark.parametrize('fault', ['', 'changed', 'missing', 'replay'])
+def test_shared_retained_window_proof_has_its_own_capture_boundary(fault):
+    from installed_journey import JourneyPlan
+    from journey_checks import RetainedDesktopJourney
+    from private_artifacts import EvidenceError
+    screens = {'original': 'ui:retained-parent-leave', 'foreground': 'ui:switch-parent'}
+    plan = JourneyPlan(prefix='independent-window', worker_mode='unused', screen_tags=screens,
+                       phases={stage: 'start' for stage in ('ready', 'setup-detached', *screens)})
+    value = {'window': {'binding': 'parent', 'pid': 100, 'endpoint': [':1.10', '/window'], 'available': True},
+             'page': 'app-limits', 'settings': {'child': 'fixture-child', 'limit_enabled': True,
+                                             'allowance': ['15 minutes']}}
+    journey = RetainedDesktopJourney(SimpleNamespace(), Mock(), plan,
+        parent_expected={'original': {key: value[key] for key in ('page', 'settings')}},
+        parent_checks={}, window_checks={'foreground': 'original'}, session_checks={})
+    if fault != 'missing': journey.check_settings('original', {'ui': {'retained_parent': value}})
+    current = json.loads(json.dumps(value['window']))
+    value['window']['endpoint'].clear()
+    if fault == 'changed': current['pid'] += 1
+    if fault == 'replay': journey.check_settings('foreground', {'ui': {'window': current}})
+    if fault:
+        with pytest.raises(EvidenceError): journey.check_settings('foreground', {'ui': {'window': current}})
+    else:
+        journey.check_settings('foreground', {'ui': {'window': current}})
+
+
+@pytest.mark.parametrize('checks', [{'later': 'later'}, {'original': 'later'}, {'later': 'absent'}])
+def test_shared_retained_engine_refuses_missing_reversed_and_overlapping_endpoints(checks):
+    from installed_journey import JourneyPlan
+    from journey_checks import RetainedDesktopJourney
+    from private_artifacts import EvidenceError
+    screens = {'original': 'ui:retained-parent-leave', 'later': 'ui:retained-parent-read'}
+    plan = JourneyPlan(prefix='invalid-retention', worker_mode='unused', screen_tags=screens,
+                       phases={stage: 'start' for stage in ('ready', 'setup-detached', *screens)})
+    with pytest.raises(EvidenceError):
+        RetainedDesktopJourney(SimpleNamespace(), Mock(), plan,
+            parent_expected={'original': {}}, parent_checks=checks, window_checks={}, session_checks={})
+
+
 def retained_parent_probe():
     from retained_parent import PLAN
     program, binding = unlock_probe(PLAN)

@@ -68,6 +68,81 @@ class RetainedSessionJourney(AllowanceJourney):
         self.session_observations[stage] = identity
 
 
+class RetainedDesktopJourney(InstalledJourney):
+    """Caller-declared Parent/window/session comparisons before durable replies."""
+
+    def __init__(self, context, progress, plan, *, parent_expected, parent_checks,
+                 window_checks, session_checks, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        stages = list(plan.screen_tags)
+        parents = set(parent_expected) | set(parent_checks)
+        require(bool(parent_expected) and not set(parent_expected) & set(parent_checks)
+                and all(stage in stages and
+                plan.screen_tags[stage] in ('ui:retained-parent-leave', 'ui:retained-parent-read')
+                for stage in parents), 'retained-parent:comparison-plan')
+        for checks in (parent_checks, window_checks, session_checks):
+            for later, earlier in checks.items():
+                require(earlier in stages and later in stages and
+                        stages.index(earlier) < stages.index(later), 'retained-desktop:comparison-plan')
+        require(all(earlier in parent_expected for earlier in parent_checks.values())
+                and all(earlier in parent_expected and plan.screen_tags[later] in (
+                    'ui:switch-parent-before', 'ui:switch-parent-ready', 'ui:switch-parent')
+                    for later, earlier in window_checks.items()), 'retained-parent:comparison-plan')
+        session_roles = {'system:parent-desktop-identity': 'parent',
+                         'system:child-retained-locked': 'child',
+                         **{'system:' + role + '-entry-' + mode: role
+                            for role in ('parent', 'child', 'standard')
+                            for mode in ('same', 'retained', 'lock', 'refusals')}}
+        require(all(plan.screen_tags[stage] in session_roles for stage in
+                    set(session_checks) | set(session_checks.values()))
+                and all(session_roles[plan.screen_tags[later]] == session_roles[plan.screen_tags[earlier]]
+                        for later, earlier in session_checks.items()), 'retained-session:comparison-plan')
+        self.parent_expected = deepcopy(parent_expected)
+        self.parent_checks = dict(parent_checks)
+        self.window_checks = dict(window_checks)
+        self.session_checks = dict(session_checks)
+        self.parents = {}
+        self.sessions = {}
+        self.compared = set()
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in (set(self.parent_expected) | set(self.parent_checks) |
+                     set(self.window_checks) | set(self.session_checks) | set(self.session_checks.values())):
+            require(stage not in self.compared, 'retained-desktop:observation-replay')
+            self.compared.add(stage)
+        if stage in self.parent_expected:
+            value = observed['ui']['retained_parent']
+            require({key: value[key] for key in ('page', 'settings')} == self.parent_expected[stage],
+                    'retained-parent:initial-settings')
+            self.parents[stage] = deepcopy(value)
+        elif stage in self.parent_checks:
+            earlier = self.parent_checks[stage]
+            require(earlier in self.parents and observed['ui']['retained_parent'] == self.parents[earlier],
+                    'retained-parent:window-child-page-settings-changed')
+            observed.setdefault('comparison', {})['same_parent_window_child_page_settings'] = True
+        elif stage in self.window_checks:
+            earlier = self.window_checks[stage]
+            require(earlier in self.parents and observed['ui']['window'] == self.parents[earlier]['window'],
+                    'retained-parent:foreground-window-replaced')
+        if stage in self.session_checks or stage in self.session_checks.values():
+            import re
+            value = observed.get('system', {})
+            identity = value.get('session_sha256')
+            require(value.get('operation') == self.plan.screen_tags[stage][7:]
+                    and value.get('outcome') == 'passed' and type(identity) is str
+                    and re.fullmatch(r'[0-9a-f]{64}', identity), 'retained-session:observation')
+            if stage in self.session_checks:
+                earlier = self.session_checks[stage]
+                require(earlier in self.sessions and identity == self.sessions[earlier],
+                        'retained-desktop:session-replaced')
+                result = ('same_parent_desktop' if value['operation'] == 'parent-desktop-identity' else
+                          'same_retained_locked_child' if value['operation'] == 'child-retained-locked' else
+                          'same_retained_child_desktop')
+                observed.setdefault('comparison', {})[result] = True
+            self.sessions[stage] = identity
+
+
 def allowed_app_rows(journey, observed):
     """Require a complete nonempty Allowed collection; return immutable rows."""
     rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])

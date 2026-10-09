@@ -96,6 +96,11 @@ tiny private files and process-local registry/package/lease doubles. Launcher
 and challenges checks retain their existing doubles and waited Perl children.
 No live VM, package build, shared cache, bus, display or new owner is introduced;
 all four modules retain their compatible unit classifications.
+Empty named-input recovery in test_test_storage_cleanup_safety uses tiny private
+directories, real fixture-local retention journals and read-only descriptor
+checks. It preserves existing identities and registers only new slots before
+payloads. No shared cache, build, process, bus or display is added; its compatible
+unit and cleanup classifications remain applicable.
 
 Kiosk locale cases in request_time_estimate, adapters, core, service_contract
 and systemd_unit use process-local D-Bus/systemd doubles and tiny tmp_path
@@ -832,6 +837,11 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # and vm_config retain compatible scheduling in unit and cleanup inventories.
 # Retained-entry reproduction guards reuse vm_control_cleanup_safety's private
 # request files and process-local plans; the compatible resource scope holds.
+# RetainedDesktopJourney extraction adds renamed comparison/capture regressions
+# to e2e_desktop_session using only tiny private recorder files and in-memory
+# values. Existing waited Perl probes are unchanged; no bus/display/VM, shared
+# path/cache or new process/cleanup owner. Its compatible classification holds;
+# cleanup and UI inventories gain no new module or resource lifetime.
 # Restored-off maintenance recovery uses private lease journals, tiny fixture
 # disks and mocked VM/inspection calls, including a simulated restart during
 # audit. It adds no live VM or shared resource; vm_control remains compatible.

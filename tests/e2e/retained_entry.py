@@ -1,9 +1,8 @@
 """DESK09/FLOW15 finite retained-child visits, with explicit entry modes."""
-from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
-                            parent_management, prefixed_stages, rejected_gdm_return)
-from retained_parent import RetainedParentJourney, retained_parent_entry
+from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry, native_activity_resume,
+                            parent_management, prefixed_stages, rejected_gdm_return, retained_parent_entry)
+from journey_checks import RetainedDesktopJourney
 from installed_journey import JourneyPlan
-from private_artifacts import require
 from window_switch import window_switch_entry
 
 
@@ -27,12 +26,6 @@ def entry(prefix):
                             expected=expected, source_account=source_account))
 
 
-def resume(prefix, child):
-    operation = 'overlay-native-' if child == 'child' else 'native-'
-    return prefixed_stages(prefix, {key: 'ui:' + operation + value for key, value in (
-        ('opened', 'activity'), ('submit', 'resubmit'), ('submitted', 'submitted'))})
-
-
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
     'allowance-configured': 'ui:time-explanation-positive-read',
@@ -49,10 +42,10 @@ SCREENS = {
     'riley-return-activity': 'ui:overlay-native-activity',
     'riley-lock-ready': 'ui:fresh-child-desktop', 'riley-lock': 'system:child-lock',
     **entry('riley-unlock'), 'riley-unlock-identity': 'system:child-entry-same',
-    'riley-unlock-activity': 'ui:overlay-native-activity', **resume('riley-resume', 'child'),
+    'riley-unlock-activity': 'ui:overlay-native-activity', **native_activity_resume('riley-resume', child='child'),
     'riley-usable-activity': 'ui:overlay-native-activity',
     **entry('jordan-return'), 'jordan-return-identity': 'system:standard-entry-same',
-    'jordan-return-activity': 'ui:native-activity', **resume('jordan-resume', 'other-child'),
+    'jordan-return-activity': 'ui:native-activity', **native_activity_resume('jordan-resume', child='other-child'),
     'jordan-usable-activity': 'ui:native-activity',
     **entry('riley-again'), 'riley-again-identity': 'system:child-entry-same',
     'riley-again-activity': 'ui:overlay-native-activity',
@@ -109,26 +102,18 @@ PLAN = JourneyPlan(
 )
 
 
-class RetainedEntryJourney(RetainedParentJourney):
+class RetainedEntryJourney(RetainedDesktopJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
-        self.child_sessions = {}
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        value = observed.get('system', {})
-        operation = value.get('operation', '')
-        if '-entry-' in operation and value.get('entry') != 'fresh':
-            role = operation.split('-', 1)[0]
-            identity = value['session_sha256']
-            if stage in ('riley-same-entry-guard', 'jordan-same-entry-guard'):
-                require(role not in self.child_sessions, 'retained-entry:session-replay')
-                self.child_sessions[role] = identity
-            else:
-                require(role in self.child_sessions and identity == self.child_sessions[role],
-                        'retained-entry:child-desktop-replaced')
-                observed['comparison'] = {'same_retained_child_desktop': True}
-        if stage in ('retained-before', 'retained-after'):
-            identity = value['session_sha256']
-            require(identity == self.child_sessions.get('child'), 'retained-entry:denied-desktop-replaced')
-            observed['comparison'] = {'same_retained_locked_child': True}
+        super().__init__(context, progress, plan, actions=actions,
+            parent_expected={'before': {'page': 'app-limits', 'settings': {
+                'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}},
+            parent_checks={'return-parent-retained': 'before'},
+            window_checks={stage: 'before' for stage in
+                           ('focus-switch-parent-before', 'focus-switch-parent-ready', 'focus-switch-parent')},
+            session_checks={'session-returned': 'session-before',
+                **{stage: ('riley' if operation.startswith('system:child-') else 'jordan') + '-same-entry-guard'
+                   for stage, operation in SCREENS.items()
+                   if '-entry-' in operation and not operation.endswith('-entry-fresh')
+                   and stage not in ('riley-same-entry-guard', 'jordan-same-entry-guard')},
+                'retained-before': 'riley-same-entry-guard',
+                'retained-after': 'riley-same-entry-guard'})

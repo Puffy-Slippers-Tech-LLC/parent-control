@@ -81,6 +81,24 @@ def test_overlay_valid_choices_only_composes_shared_apis():
     assert not composition_errors((ROOT / 'tests/e2e/overlay_license.py').read_text(), CASE_MODULES)
 
 
+def test_retained_qualifiers_share_comparisons_without_recipe_inheritance():
+    import ast
+    from retained_parent import RetainedParentJourney
+    from retained_entry import RetainedEntryJourney
+    from journey_checks import RetainedDesktopJourney
+    assert RetainedParentJourney.__bases__ == RetainedEntryJourney.__bases__ == (RetainedDesktopJourney,)
+    for module in ('retained_parent', 'retained_entry'):
+        tree = ast.parse((ROOT / 'tests/e2e' / (module + '.py')).read_text())
+        classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
+        assert len(classes) == 1
+        assert [node.name for node in classes[0].body if isinstance(node, ast.FunctionDef)] == ['__init__']
+        assert all(node.module not in ('retained_parent', 'retained_entry')
+                   for node in ast.walk(tree) if isinstance(node, ast.ImportFrom))
+        assert any(node.module == 'journey_blocks' and
+                   'retained_parent_entry' in {item.name for item in node.names}
+                   for node in tree.body if isinstance(node, ast.ImportFrom))
+
+
 def test_accessibility_trace_qualification_declares_shared_input_binding():
     assert not composition_errors(
         (ROOT / 'tests/e2e/accessibility_input_trace.py').read_text(), CASE_MODULES)

@@ -102,6 +102,80 @@ def test_native_named_input_tracks_fixture_bytes_and_preserves_existing_output(t
     assert (first / 'preserved').read_text() == 'existing'
 
 
+@pytest.mark.parametrize('registered', [False, True])
+def test_empty_named_input_is_preserved_and_new_slot_registered_before_payload(
+        tmp_path, registered):
+    original = tmp_path / 'onpc-input'
+    store = retention.Store(tmp_path / 'state')
+    if registered:
+        with store.session():
+            retention.allocate(lambda: (original.mkdir(mode=0o700), original)[1])
+    else:
+        original.mkdir(mode=0o700)
+    identity = original.stat()
+    with store.session():
+        selected = storage.named_input_slot(original)
+        assert selected == original.with_name(original.name + '-1')
+        assert not selected.exists()
+        retention.allocate(lambda: (selected.mkdir(mode=0o700), selected)[1])
+        state = json.loads((store.path / 'current.json').read_text())
+        assert state['paths'] == [dict(path=str(selected), device=selected.stat().st_dev,
+                                      inode=selected.stat().st_ino, mode=0o700)]
+        (selected / 'artifact-manifest.json').write_text('bundle for consumer verification')
+        assert storage.named_input_slot(original) == selected
+    assert (original.stat().st_dev, original.stat().st_ino) == (identity.st_dev, identity.st_ino)
+    assert not list(original.iterdir())
+
+
+def test_interrupted_empty_named_inputs_choose_same_slot_for_both_import_routes(tmp_path):
+    import test_storage
+    original = tmp_path / 'onpc-input'
+    original.mkdir()
+    original.with_name(original.name + '-1').mkdir()
+    selected = original.with_name(original.name + '-2')
+    assert storage.named_input_slot(original) == selected
+    assert test_storage.named_input_slot(original) == selected
+    assert not selected.exists()
+
+
+@pytest.mark.parametrize('contents', ['artifact-manifest.json', 'unknown-partial-input'])
+def test_nonempty_named_input_is_not_skipped_replaced_or_repaired(tmp_path, contents):
+    original = tmp_path / 'onpc-input'
+    original.mkdir()
+    (original / contents).write_text('preserve for normal verification/refusal')
+    assert storage.named_input_slot(original) == original
+    assert list(original.iterdir()) == [original / contents]
+    assert not original.with_name(original.name + '-1').exists()
+
+
+@pytest.mark.parametrize('kind', ['symlink', 'dangling', 'parent-symlink', 'file'])
+def test_named_input_slot_refuses_unsafe_paths_without_using_another_slot(tmp_path, kind):
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    original = tmp_path / 'onpc-input'
+    if kind in ('symlink', 'dangling'):
+        original.symlink_to(outside if kind == 'symlink' else tmp_path / 'missing')
+    elif kind == 'parent-symlink':
+        original.symlink_to(outside)
+        original = original / 'onpc-child'
+    else:
+        original.write_text('unrelated')
+    with pytest.raises(OSError):
+        storage.named_input_slot(original)
+    assert not list(outside.iterdir())
+    assert not original.with_name(original.name + '-1').exists()
+
+
+def test_named_input_slot_bounds_empty_reservations_without_mutation(tmp_path):
+    original = tmp_path / 'onpc-input'
+    for index in range(32):
+        (original if not index else original.with_name(original.name + f'-{index}')).mkdir()
+    before = {path: path.stat().st_ino for path in tmp_path.iterdir()}
+    with pytest.raises(ValueError, match='too many empty reservations'):
+        storage.named_input_slot(original)
+    assert {path: path.stat().st_ino for path in tmp_path.iterdir()} == before
+
+
 def test_storage_refuses_linked_parent_before_creating_outside(tmp_path):
     outside = tmp_path / 'outside'
     outside.mkdir()

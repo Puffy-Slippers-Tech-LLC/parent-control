@@ -129,6 +129,14 @@ def native_activity_entry(prefix, *, route='command', child='child'):
             else 'ui:native-activity'}
 
 
+def native_activity_resume(prefix, *, child):
+    """APP04 existing-window input/readback; callers compare their own captures."""
+    require(child in ('child', 'other-child'), 'journey:native-child-binding')
+    operation = 'overlay-native-' if child == 'child' else 'native-'
+    return prefixed_stages(prefix, {stage: 'ui:' + operation + action for stage, action in (
+        ('opened', 'activity'), ('submit', 'resubmit'), ('submitted', 'submitted'))})
+
+
 def filter_screens(kind, mask, prefix):
     """PARENT11 finite input stages; callers check the resulting catalogue."""
     import re
@@ -281,6 +289,19 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
                             'reveal-ready': 'ui:child-lock-reveal-ready',
                             'time-denied': 'ui:child-lock-time-denied'})
     return screens
+
+
+def retained_parent_entry(*, source='desktop'):
+    """FLOW01 retained window read without launch or child reselection."""
+    require(source in ('desktop', 'child-desktop', 'same-user'), 'retained-parent:source')
+    return {
+        **({'source-desktop': 'ui:fresh-child-desktop' if source == 'child-desktop' else 'ui:standard-desktop',
+            'source-switch': 'system:child-switch-user' if source == 'child-desktop' else 'system:standard-switch-user',
+            'source-greeter': 'ui:gdm-returned',
+            **fresh_desktop('parent')} if source != 'same-user' else
+           {'desktop': 'ui:desktop'}),
+        'parent-retained': 'ui:retained-parent-read',
+    }
 
 
 def rejected_gdm_return():

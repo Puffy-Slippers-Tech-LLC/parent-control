@@ -1,23 +1,8 @@
 """DESK09/FLOW01 retained Parent entry, using public session/window proofs."""
-from copy import deepcopy
-
-from installed_journey import InstalledJourney, JourneyPlan
-from journey_blocks import fresh_desktop, parent_management, prefixed_stages
-from private_artifacts import require
+from installed_journey import JourneyPlan
+from journey_blocks import fresh_desktop, parent_management, prefixed_stages, retained_parent_entry
+from journey_checks import RetainedDesktopJourney
 from window_switch import window_switch_entry
-
-
-def retained_parent_entry(*, source='desktop'):
-    """Declared retained entry; no launch or child reselection is permitted."""
-    require(source in ('desktop', 'child-desktop', 'same-user'), 'retained-parent:source')
-    return {
-        **({'source-desktop': 'ui:fresh-child-desktop' if source == 'child-desktop' else 'ui:standard-desktop',
-            'source-switch': 'system:child-switch-user' if source == 'child-desktop' else 'system:standard-switch-user',
-            'source-greeter': 'ui:gdm-returned',
-            **fresh_desktop('parent')} if source != 'same-user' else
-           {'desktop': 'ui:desktop'}),
-        'parent-retained': 'ui:retained-parent-read',
-    }
 
 
 ENTRY = fresh_desktop('parent')
@@ -65,33 +50,13 @@ PLAN = JourneyPlan(
 )
 
 
-class RetainedParentJourney(InstalledJourney):
+class RetainedParentJourney(RetainedDesktopJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
-        self.retained = None
-        self.session_identity = None
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'before':
-            require(self.retained is None, 'retained-parent:entry-replay')
-            value = observed['ui']['retained_parent']
-            require(value['page'] == 'app-limits' and value['settings'] == {
-                'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
-                'retained-parent:initial-settings')
-            self.retained = deepcopy(value)
-        elif stage in ('return-parent-retained', 'second-before', 'supplied-parent-retained'):
-            require(self.retained is not None and observed['ui']['retained_parent'] == self.retained,
-                    'retained-parent:window-child-page-settings-changed')
-            observed['comparison'] = {'same_parent_window_child_page_settings': True}
-        elif stage in ('focus-switch-parent-before', 'focus-switch-parent-ready', 'focus-switch-parent'):
-            require(self.retained is not None and observed['ui']['window'] == self.retained['window'],
-                    'retained-parent:foreground-window-replaced')
-        elif stage == 'session-before':
-            require(self.session_identity is None, 'retained-parent:session-replay')
-            self.session_identity = observed['system']['session_sha256']
-        elif stage in ('session-returned', 'session-supplied'):
-            require(self.session_identity is not None
-                    and observed['system']['session_sha256'] == self.session_identity,
-                    'retained-parent:desktop-replaced')
-            observed['comparison'] = {'same_parent_desktop': True}
+        super().__init__(context, progress, plan, actions=actions,
+            parent_expected={'before': {'page': 'app-limits', 'settings': {
+                'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}},
+            parent_checks={stage: 'before' for stage in
+                           ('return-parent-retained', 'second-before', 'supplied-parent-retained')},
+            window_checks={stage: 'before' for stage in
+                           ('focus-switch-parent-before', 'focus-switch-parent-ready', 'focus-switch-parent')},
+            session_checks={'session-returned': 'session-before', 'session-supplied': 'session-before'})

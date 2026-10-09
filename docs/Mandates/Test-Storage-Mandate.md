@@ -34,6 +34,12 @@ session rather than open a second run.
 Keep the recorded allocation root private and stable through cleanup; use child
 directories for fixtures that intentionally change permissions or replace paths.
 
+An empty named input is a reservation, not a verified bundle or permission to
+adopt its directory. `named_input()` preserves empty slots and selects a bounded
+fresh generation; the launcher registers that new allocation before building.
+Nonempty inputs retain normal manifest/tree verification and refusal, even when
+incomplete. Do not reclaim an empty slot without its recorded identity.
+
 ## Prohibited storage choices
 
 - Test producers must not choose `/tmp`, `/var/tmp`, a caller-supplied `TMPDIR`

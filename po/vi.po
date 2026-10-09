@@ -1705,6 +1705,10 @@ msgstr "Thời gian đặt sẵn này đã tồn tại."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Nhập thời lượng từ %(minimum)s đến %(maximum)s giây, theo số giây nguyên."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Chỉ có thể quản lý các tài khoản không có quyền quản trị viên."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Nhập một số hợp lệ."

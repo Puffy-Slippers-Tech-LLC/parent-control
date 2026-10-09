@@ -1711,6 +1711,10 @@ msgstr "यह पूर्वनिर्धारित समय पहले
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "पूरे सेकंड में %(minimum)s से %(maximum)s सेकंड की अवधि दर्ज करें।"
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "केवल गैर-व्यवस्थापक खातों को प्रबंधित किया जा सकता है।"
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "कोई मान्य संख्या दर्ज करें।"

@@ -1706,6 +1706,10 @@ msgstr "此預設時長已存在。"
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "請輸入 %(minimum)s 至 %(maximum)s 秒之間的時長，秒數必須為整數。"
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "只能管理非管理員帳戶。"
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "請輸入有效數字。"

@@ -1717,6 +1717,10 @@ msgstr "Такі варыянт часу ўжо існуе."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Увядзіце працягласць ад %(minimum)s да %(maximum)s секунд у цэлых секундах."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Кіраваць можна толькі ўліковымі запісамі без правоў адміністратара."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Увядзіце карэктны лік."

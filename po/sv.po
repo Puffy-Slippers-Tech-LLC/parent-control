@@ -1711,6 +1711,10 @@ msgstr "Den här förinställda tiden finns redan."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Ange en varaktighet från %(minimum)s till %(maximum)s sekunder, i hela sekunder."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Endast konton utan administratörsrättigheter kan hanteras."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Ange ett giltigt tal."

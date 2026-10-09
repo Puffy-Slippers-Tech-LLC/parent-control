@@ -1717,6 +1717,10 @@ msgstr "Toks iš anksto nustatytas laikas jau yra."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Įveskite trukmę nuo %(minimum)s iki %(maximum)s sekundžių sveikomis sekundėmis."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Galima valdyti tik paskyras be administratoriaus teisių."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Įveskite tinkamą skaičių."

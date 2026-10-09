@@ -1705,6 +1705,10 @@ msgstr "Waktu prasetel ini sudah ada."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Masukkan durasi dari %(minimum)s hingga %(maximum)s detik, dalam detik bulat."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Hanya akun non-administrator yang dapat dikelola."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Masukkan angka yang valid."

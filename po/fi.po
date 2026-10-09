@@ -1711,6 +1711,10 @@ msgstr "Tämä esiasetettu aika on jo olemassa."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Anna kesto %(minimum)s–%(maximum)s sekuntia kokonaisina sekunteina."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Vain tilejä, joilla ei ole ylläpitäjän oikeuksia, voi hallita."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Anna kelvollinen luku."

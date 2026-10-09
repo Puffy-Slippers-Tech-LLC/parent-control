@@ -1717,6 +1717,10 @@ msgstr "Această durată presetată există deja."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Introdu o durată de la %(minimum)s la %(maximum)s secunde, în secunde întregi."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Pot fi gestionate doar conturile fără drepturi de administrator."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Introduceți un număr valid."

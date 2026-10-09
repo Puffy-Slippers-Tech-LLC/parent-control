@@ -1710,6 +1710,10 @@ msgstr ""
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr ""
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr ""
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr ""

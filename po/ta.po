@@ -1711,6 +1711,10 @@ msgstr "இந்த முன்னமைக்கப்பட்ட நேர�
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "முழு நொடிகளில் %(minimum)s முதல் %(maximum)s நொடிகள் வரையிலான நேர அளவை உள்ளிடவும்."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "நிர்வாகி உரிமைகள் இல்லாத கணக்குகளை மட்டுமே நிர்வகிக்க முடியும்."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "செல்லுபடியாகும் எண்ணை உள்ளிடவும்."

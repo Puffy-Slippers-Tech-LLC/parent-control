@@ -1711,6 +1711,10 @@ msgstr "ఈ ముందుగా నిర్ణయించిన సమయం
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "పూర్తి సెకన్లలో %(minimum)s నుండి %(maximum)s సెకన్ల వ్యవధిని నమోదు చేయండి."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "నిర్వాహక హక్కులు లేని ఖాతాలను మాత్రమే నిర్వహించవచ్చు."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "చెల్లుబాటు అయ్యే సంఖ్యను నమోదు చేయండి."

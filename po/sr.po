@@ -1723,6 +1723,10 @@ msgstr "Ово унапред подешено време већ постоји.
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Унесите трајање од %(minimum)s до %(maximum)s секунди, у целим секундама."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Могуће је управљати само налозима без администраторских права."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Унесите исправан број."

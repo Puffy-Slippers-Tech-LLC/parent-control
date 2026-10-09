@@ -1709,6 +1709,10 @@ msgstr "Questa durata predefinita esiste già."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Inserisci una durata da %(minimum)s a %(maximum)s secondi, in secondi interi."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "È possibile gestire solo gli account senza privilegi di amministratore."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Inserisci un numero valido."

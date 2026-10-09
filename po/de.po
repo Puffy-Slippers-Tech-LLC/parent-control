@@ -1709,6 +1709,10 @@ msgstr "Diese Zeitvorgabe ist bereits vorhanden."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Geben Sie eine Dauer von %(minimum)s bis %(maximum)s Sekunden in ganzen Sekunden ein."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Nur Konten ohne Administratorrechte können verwaltet werden."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Geben Sie eine gültige Zahl ein."

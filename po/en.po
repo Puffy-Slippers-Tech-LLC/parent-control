@@ -172,6 +172,10 @@ msgstr "This preset time already exists."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Only non-admin accounts can be managed."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Enter a valid number."

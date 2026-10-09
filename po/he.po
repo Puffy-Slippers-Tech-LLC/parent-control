@@ -1711,6 +1711,10 @@ msgstr "הזמן המוגדר מראש כבר קיים."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "הזינו משך בין %(minimum)s ל־%(maximum)s שניות, בשניות שלמות."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "ניתן לנהל רק חשבונות ללא הרשאות מנהל."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "יש להזין מספר תקין."

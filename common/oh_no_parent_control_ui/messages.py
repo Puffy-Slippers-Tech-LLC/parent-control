@@ -18,6 +18,7 @@ SOME_APP_LIMITS_COULD_NOT_BE_APPLIED_AFFECTED_APPS_OR_UPDATED_VE = gettext('Some
 SELECTED_CHILD_LABEL_S = gettext('Selected child: %(label)s.')
 NO_CHILD_ACCOUNT_IS_SELECTED = gettext('No child account is selected.')
 SELECTED_CHILD = gettext('Selected child')
+ONLY_NON_ADMIN_ACCOUNTS_CAN_BE_MANAGED = gettext('Only non-admin accounts can be managed.')
 PARENT_APP_MENU = gettext('Parent app menu')
 OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION = gettext('Open preferences, help and product information.')
 FEEDBACK = gettext('Feedback')

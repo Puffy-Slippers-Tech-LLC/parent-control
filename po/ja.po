@@ -1703,6 +1703,10 @@ msgstr "このプリセット時間はすでに存在します。"
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "%(minimum)s～%(maximum)s 秒の範囲で、整数の秒数となる時間を入力してください。"
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "管理者権限のないアカウントのみ管理できます。"
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "有効な数値を入力してください。"

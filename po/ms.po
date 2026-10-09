@@ -1705,6 +1705,10 @@ msgstr "Masa praset ini sudah wujud."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Masukkan tempoh dari %(minimum)s hingga %(maximum)s saat, dalam saat penuh."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Hanya akaun bukan pentadbir boleh diurus."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Masukkan nombor yang sah."

@@ -1705,6 +1705,10 @@ msgstr "Bu ön ayarlı süre zaten var."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Tam saniye olarak %(minimum)s ile %(maximum)s saniye arasında bir süre girin."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Yalnızca yönetici olmayan hesaplar yönetilebilir."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Geçerli bir sayı girin."

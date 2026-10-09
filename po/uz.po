@@ -1706,6 +1706,10 @@ msgstr "Bu oldindan belgilangan vaqt allaqachon mavjud."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Butun sonli soniyalarda %(minimum)s dan %(maximum)s soniyagacha davomiylik kiriting."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Faqat administrator huquqlariga ega bo‘lmagan hisoblarni boshqarish mumkin."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Yaroqli raqam kiriting."

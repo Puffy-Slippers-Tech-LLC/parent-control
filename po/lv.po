@@ -1717,6 +1717,10 @@ msgstr "Šis iepriekš iestatītais laiks jau pastāv."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Ievadiet ilgumu no %(minimum)s līdz %(maximum)s sekundēm veselās sekundēs."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Var pārvaldīt tikai kontus bez administratora tiesībām."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Ievadiet derīgu skaitli."

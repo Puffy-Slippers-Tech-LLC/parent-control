@@ -1711,6 +1711,10 @@ msgstr "Αυτός ο προκαθορισμένος χρόνος υπάρχει
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Εισαγάγετε διάρκεια από %(minimum)s έως %(maximum)s δευτερόλεπτα, σε ακέραια δευτερόλεπτα."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Μπορείτε να διαχειριστείτε μόνο λογαριασμούς χωρίς δικαιώματα διαχειριστή."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Εισαγάγετε έναν έγκυρο αριθμό."

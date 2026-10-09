@@ -584,7 +584,38 @@ class ParentWindow(Adw.ApplicationWindow):
         account_label = localized(Gtk.Label, 
             label=m.CHILD_ACCOUNT, xalign=0, css_classes=["section-title"],
         )
-        account_section.append(account_label)
+        account_heading = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
+        account_heading.append(account_label)
+        account_info = Gtk.ToggleButton(
+            icon_name="dialog-information-symbolic",
+            valign=Gtk.Align.CENTER,
+            css_classes=["flat", "circular", "account-info-button"],
+        )
+        describe_control(
+            account_info, m.CHILD_ACCOUNT,
+            m.ONLY_NON_ADMIN_ACCOUNTS_CAN_BE_MANAGED,
+            automation_id="parent-child-account-info",
+        )
+        account_info_text = localized(
+            Gtk.Label, label=m.ONLY_NON_ADMIN_ACCOUNTS_CAN_BE_MANAGED,
+            xalign=0, wrap=True, max_width_chars=28,
+            margin_top=8, margin_bottom=8, margin_start=10, margin_end=10,
+        )
+        set_automation_id(account_info_text, "parent-child-account-info-text")
+        account_info_popover = Gtk.Popover(
+            child=account_info_text, position=Gtk.PositionType.RIGHT,
+        )
+        set_automation_id(account_info_popover, "parent-child-account-info-popover")
+        account_info_popover.set_parent(account_info)
+        account_info.connect(
+            "toggled", lambda button: (
+                account_info_popover.popup() if button.get_active()
+                else account_info_popover.popdown()
+            ),
+        )
+        account_info_popover.connect("closed", lambda *_: account_info.set_active(False))
+        account_heading.append(account_info)
+        account_section.append(account_heading)
         account_actions = Gtk.Box(
             hexpand=True,
             css_classes=["account-actions"],

@@ -1717,6 +1717,10 @@ msgstr "Tento prednastavený čas už existuje."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Zadajte trvanie od %(minimum)s do %(maximum)s sekúnd v celých sekundách."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Spravovať možno iba účty bez oprávnení správcu."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Zadajte platné číslo."

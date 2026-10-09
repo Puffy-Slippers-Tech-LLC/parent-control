@@ -1711,6 +1711,10 @@ msgstr "یہ پہلے سے مقررہ وقت پہلے ہی موجود ہے۔"
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "پورے سیکنڈز میں %(minimum)s سے %(maximum)s سیکنڈ کا دورانیہ درج کریں۔"
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "صرف غیر منتظم اکاؤنٹس کا انتظام کیا جا سکتا ہے۔"
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "درست عدد درج کریں۔"

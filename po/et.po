@@ -1711,6 +1711,10 @@ msgstr "See eelseadistatud aeg on juba olemas."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Sisesta kestus %(minimum)s kuni %(maximum)s sekundit täissekundites."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Hallata saab ainult administraatoriõigusteta kontosid."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sisesta sobiv arv."

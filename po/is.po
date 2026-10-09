@@ -1711,6 +1711,10 @@ msgstr "Þessi forstillti tími er þegar til."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Sláðu inn lengd frá %(minimum)s til %(maximum)s sekúndum, í heilum sekúndum."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Aðeins er hægt að stjórna reikningum án stjórnandaréttinda."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sláðu inn gilda tölu."

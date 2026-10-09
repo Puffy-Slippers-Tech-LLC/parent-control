@@ -1723,6 +1723,10 @@ msgstr "Такий варіант часу вже існує."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Введіть тривалість від %(minimum)s до %(maximum)s секунд у цілих секундах."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Керувати можна лише обліковими записами без прав адміністратора."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Введіть коректне число."

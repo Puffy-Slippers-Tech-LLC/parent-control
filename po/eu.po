@@ -1711,6 +1711,10 @@ msgstr "Aurrez ezarritako denbora hori badago jada."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Sartu %(minimum)s eta %(maximum)s segundo arteko iraupena, segundo osoetan."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Administratzaile-baimenik gabeko kontuak soilik kudea daitezke."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sartu baliozko zenbaki bat."

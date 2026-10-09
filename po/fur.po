@@ -1711,6 +1711,10 @@ msgstr "Chest timp predefinît al esist za."
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Inserìs une durade di %(minimum)s a %(maximum)s seconts, in seconts intîrs."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Si puedin gjestî dome i accounts cence dirits di aministradôr."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Inserìs un numar valit."

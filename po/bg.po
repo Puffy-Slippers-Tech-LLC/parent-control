@@ -1711,6 +1711,10 @@ msgstr "Това предварително зададено време вече
 msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
 msgstr "Въведете продължителност от %(minimum)s до %(maximum)s секунди в цели секунди."
 
+#. Parent child-account eligibility bubble.
+msgid "Only non-admin accounts can be managed."
+msgstr "Могат да се управляват само акаунти без администраторски права."
+
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Въведете валидно число."

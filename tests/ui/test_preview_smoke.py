@@ -90,6 +90,32 @@ def test_parent_preview_publishes_and_loads_management_controls(
 
 
 
+@pytest.mark.parametrize("scenario", ("normal", "no-users"))
+def test_parent_child_account_info_bubble(
+        launch_ui, automation, wait_for_accessible_state, scenario):
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state, scenario=scenario)
+    wait_for_accessible_state(lambda: ui.showing("parent-language-ready"),
+                              "Parent finishes language setup")
+    assert not ui.showing("parent-child-account-info-popover")
+    ui.activate("parent-child-account-info")
+    wait_for_accessible_state(lambda: ui.showing("parent-child-account-info-text"),
+                              "account eligibility bubble opens")
+    assert ui.text("parent-child-account-info-text") == (
+        "Only non-admin accounts can be managed."
+    )
+    assert ui.getValue("parent-child-account-info") is True
+    ui.setValue("parent-child-account-info", False)
+    wait_for_accessible_state(lambda: not ui.showing("parent-child-account-info-popover"),
+                              "account eligibility bubble closes")
+    ui.setValue("parent-child-account-info", True)
+    wait_for_accessible_state(lambda: ui.showing("parent-child-account-info-text"),
+                              "API reopens the account eligibility bubble")
+    ui.activate("parent-child-account-info")
+    wait_for_accessible_state(lambda: not ui.showing("parent-child-account-info-popover"),
+                              "a second activation dismisses the bubble")
+    assert ui.getValue("parent-child-account-info") is False
+
+
 def test_parent_daily_allowance_custom_then_preset_saves(
         launch_ui, automation, wait_for_accessible_state, tmp_path):
     events = tmp_path / "allowance-events.jsonl"

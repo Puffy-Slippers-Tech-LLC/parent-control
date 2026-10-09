@@ -151,6 +151,8 @@ injects attachments into application state.
 | ID or family | Values and operations |
 | --- | --- |
 | `parent-child-selector` | Get/set eligible UID string; choices are current eligible UIDs |
+| `parent-child-account-info` | Activate to toggle the account eligibility bubble; boolean get/set opens or dismisses it, including when there are no eligible accounts |
+| `parent-child-account-info-popover`, `parent-child-account-info-text` | Bubble availability and translated explanation text; shown while the info toggle is open |
 | `parent-child-choice-<uid>` | Actual choice buttons; use the selector setter for a closed popup |
 | `parent-child-selected-<uid>` | Selected-child identity; `getText` reads the actual account-name label, excluding decorative avatar initials |
 | `parent-pages` | Get/set `screen-limits` or `app-limits` |

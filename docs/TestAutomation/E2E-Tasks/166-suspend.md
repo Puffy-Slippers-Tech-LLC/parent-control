@@ -19,21 +19,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **052a** — TIME02 minute/final-second ticks.
-- **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
-- **043a** — GDM02 retained-child lock entry; DESK08/11.
-- **052c** — TIME03.
 - **166a** — LIFE03 normal suspend/wake with active grant.
 
 ## Implementation
 
-Compose system controls, guarded real wait, supported wake input and observed actual return surface. Keep subsequent unlock separate; retained activity comparisons require successful legitimate access.
-
-Use the shared LIFE03 supported system suspend command, guarded real wait and supported wake input. Record the displayed return/lock state independently; backend service state cannot establish the customer result. Task 043a owns subsequent unlock and task 052c owns the bounded real wait.
+Reuse 166a's shared LIFE03 suspend/wake route and add the post-deadline result. Use the guarded real wait from 052c and the retained-child authentication/result operations from 043a. Record the displayed return/lock state independently, then observe the specific time-limit denial; backend service state cannot establish the customer result. Preserve the same attempt and retained session across the expected guest transport loss.
 
 ## Live VM acceptance
 
-In separate VM attempts, use FLOW13 to prepare a real active grant with zero daily allowance. Suspend normally and wake through supported input, once before and once after that grant's elapsed deadline. Observe the actual lock/desktop and use DESK08 to require successful access or specific time-limit denial. Suspended daily usage alone cannot prepare elapsed-time denial.
+In a fresh guarded VM attempt, use FLOW13 to prepare a real active grant with zero daily allowance. Suspend normally and wake through the qualified supported input after that grant's real elapsed deadline. Independently observe the actual return/lock surface and use DESK08 to require specific time-limit denial after the intended correct credential. Qualify independent valid entry, wrong-owner refusal and retained-session continuity. Reuse 166a's unchanged exact pre-deadline wake/successful-access qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Suspended daily usage alone cannot prepare elapsed-time denial.
 
 Qualification selector (implement and register before use):
 

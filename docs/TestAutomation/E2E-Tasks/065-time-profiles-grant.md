@@ -19,17 +19,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **051** — FLOW13 daily-only, fresh/same Parent entry with observed G=0.
-- **050** — PARENT17, PARENT18.
 - **065a** — FLOW13 grant-only profile and explicit revoke preparation.
 
 ## Implementation
 
-Extend FLOW13 to grant-only and combined/grant-dominant using real kiosk approval followed by retained Parent readback. Keep D/G meanings and elapsed/rounding margins explicit.
+Extend FLOW13 to combined/grant-dominant using 065a's real kiosk approval and retained Parent readback operations. Reuse its grant-only and explicit-revoke branches. Keep D/G meanings and elapsed/rounding margins explicit.
 
 ## Live VM acceptance
 
-On independent VM attempts, observe D=0/G>0 for grant-only and G>D>0 for the declared combined/grant-dominant preparation. Finish at GDM each time without changing the clock or disabling a live grant. Qualify the explicitly requested revoke-first preparation with PARENT17/18 and fresh PARENT09 readback; an unexpected existing grant without that declared action refuses instead of clearing it silently.
+In a fresh guarded VM attempt, observe G>D>0 for the declared combined/grant-dominant preparation after real kiosk approval and retained Parent readback. Finish at GDM without changing the clock or disabling a live grant. Qualify independent valid entry and wrong-entry refusal; an unexpected existing grant without an explicit revoke-first action refuses instead of clearing it silently. When revoke-first is declared, reuse PARENT17/18 and fresh PARENT09 readback. Reuse 065a's unchanged exact grant-only and revoke-first qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state.
 
 Qualification selector (implement and register before use):
 

@@ -21,17 +21,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#about-feedback-and-cu
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **150k** — FEED11, FEED09 success and FEED14 kiosk; gate in brief.
-- **152** — FEED09 Parent retry/recovery over qualified LIFE06; gate in brief.
 - **190b** — FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief.
 
 ## Implementation
 
-Bind retry on the kiosk report after LIFE06 removes the VM's Internet access, then implement FEED17 before FEED18. Declare stay-open and Stop sending and close responses and their exact destinations; stopping cannot recall an already accepted request.
+Reuse 190b's authorized retry-entry and FEED17 warning operations, then add FEED18 Stop sending and close with its exact GDM destination. Preserve the warning that stopping cannot recall an already accepted request.
 
 ## Live VM acceptance
 
-On the VM with an authorized synthetic report, use LIFE06 to remove Internet access, Send once and observe retry. Attempt Close, read the warning and choose stay; require the report still open. Close again and explicitly Stop; require report disappearance and GDM. Restore Internet access through the same LIFE06 VM helper from the observed GDM surface; no Parent login is needed.
+In a fresh guarded VM attempt with an authorized synthetic report reached through its public error, use LIFE06 to remove Internet access, Send once and observe retry. Attempt Close, read the warning and explicitly Stop; independently require report disappearance and GDM. Qualify independent valid retry entry and wrong-surface/owner refusal without replaying Send. Restore Internet access through the same LIFE06 VM helper from the observed GDM surface; no Parent login is needed. Reuse 190b's unchanged exact stay-open qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Case 219 retains the complete stay-open followed by Stop history.
 
 Qualification selector (implement and register before use):
 

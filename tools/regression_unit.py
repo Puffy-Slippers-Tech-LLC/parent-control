@@ -632,6 +632,13 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # libvirt/launcher doubles, plus tiny QCOW2 images and finite, waited qemu-img
 # children. No live VM, privilege or shared storage; compatible overlap is
 # reviewed in unit and cleanup inventories.
+# Atomic backup directory exchanges, setgid inheritance and interrupted
+# identity-bound retirement use only that module's pytest-private filesystem;
+# red failure reporting uses process-local launcher doubles. Compatible overlap
+# remains valid; no shared host paths, VM operations or extra subprocesses.
+# Watch registry refresh uses the existing bounded discovery thread with private
+# JSON and finite Git doubles; per-VM activity rebinding uses publication doubles.
+# Neither adds a live host/VM resource or changes compatible unit scheduling.
 # Missing foreign disk chains and network interruption/ownership checks add
 # only private fixture files and process-local libvirt doubles; no new owner,
 # service, cache or resource demand changes this compatible classification.

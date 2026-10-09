@@ -1,14 +1,13 @@
 # 312 — Child reminder preferences persist across request surfaces
 
-Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract),
-[capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
+Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 This is a planned complete case; its inventory ID and executable are unassigned.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **300i** — Installed child-overlay preferences and language selection.
-- **300j** — Installed kiosk selected-child preferences and language selection.
+- **312a** — Installed overlay reminder editing, main Save/Cancel and empty-list readback.
+- **312b** — Installed kiosk selected-child reminder binding and shared saved readback.
 - **007** — Owned reboot and independent new-boot observation.
 
 Estimate: 35–55 minutes.
@@ -22,9 +21,10 @@ when moving between the child overlay and kiosk. Use the
 [child requirement](../../Specification.md) and
 [preferences contract](../../SystemDesign/Frontends.md#child-reminder-preferences).
 
-Gate: qualify the installed reminder list/editor public controls through the
-shared Application UI API facade before composing this case. Extract independent
-capability work if required by the shared sizing contract. Host UI coverage does
+Gate: complete the explicit installed reminder qualifications 312a and 312b
+through the shared Application UI API facade before composing this case.
+Reuse their shared operations; this complete case absorbs no independent
+capability work. Host UI coverage does
 not qualify an installed route. No E2E implementation or execution is authorized
 by this documentation addition; the current next-task pointer stays unchanged.
 

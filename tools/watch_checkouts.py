@@ -48,6 +48,7 @@ class Discovery:
     def __init__(self, root=ROOT):
         self.roots = queue.Queue()
         self.updates = queue.Queue(maxsize=1)
+        self.vm_updates = queue.Queue(maxsize=1)
         self.stop = threading.Event()
         self.add(root)
         self.thread = threading.Thread(target=self.run, name='watch-checkouts', daemon=True)
@@ -78,6 +79,19 @@ class Discovery:
             except queue.Empty:
                 pass
             self.updates.put_nowait(dict(known))
+            from vm_selection import registry
+            configured = {}
+            for root in known:
+                try:
+                    configured[root] = registry(root / 'config/test-vm.json')
+                except (OSError, ValueError):
+                    # An invalid registry must not keep stale VM tabs alive.
+                    configured[root] = {}
+            try:
+                self.vm_updates.get_nowait()
+            except queue.Empty:
+                pass
+            self.vm_updates.put_nowait(configured)
             self.stop.wait(1)
 
     def poll(self):
@@ -88,3 +102,9 @@ class Discovery:
 
     def close(self):
         self.stop.set()
+
+    def poll_vms(self):
+        try:
+            return self.vm_updates.get_nowait()
+        except queue.Empty:
+            return None

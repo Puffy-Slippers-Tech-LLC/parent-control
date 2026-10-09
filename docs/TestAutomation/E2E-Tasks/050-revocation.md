@@ -19,17 +19,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#app-grid-search-and-p
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **021** — FLOW05/06/07 kiosk.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **050a** — PARENT17/18 revocation target, warning and Cancel.
 
 ## Implementation
 
-Implement the warning/target observation and explicit Cancel/Confirm, then independently verify saved time and settings. Warning dismissal is shared navigation, not a separate acceptance result. Obtain the grant through kiosk approval.
+Reuse 050a's warning/target operation and add explicit Confirm, then independently verify saved time and settings. Warning dismissal is shared navigation, not a separate acceptance result. Obtain the grant through kiosk approval.
 
 ## Live VM acceptance
 
-On the VM with a real grant, Cancel preserves displayed settings/balance within elapsed-time bounds. Reopen, Confirm, and independently read the new daily/one-time explanation. Child effects remain separate later observations.
+In a fresh guarded VM attempt with a real kiosk-approved grant, open the owned warning, verify its child target, Confirm once and independently read the new daily/one-time explanation and saved settings. Qualify independent valid entry and wrong-child/confirmation refusal. Reuse 050a's unchanged exact warning/Cancel qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Child effects remain separate later observations.
 
 Qualification selector (implement and register before use):
 

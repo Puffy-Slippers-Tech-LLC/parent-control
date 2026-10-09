@@ -62,6 +62,12 @@ choices remain pending local assertions; this allocation claims no new test pass
 These details need no additional two-child journey or restart. Actual countdown
 warning delivery remains with [task 311](E2E-Tasks/311-remaining-time-notifications.md).
 
+The [installed reminder qualification slices](E2E-Building-Blocks.md#reminder-controls-and-notification-qualification)
+312a/312b and 311a–311c precede those complete cases. They reuse the same public
+editing and observation helpers; the local matrices above remain with UI tests.
+Neither capability qualification nor a saved fullscreen boolean supplies
+complete warning-delivery, persistence or customer-case acceptance.
+
 Parent's inherited About/feedback matrix is owned by
 `test_language_settings.py::test_parent_dialog_inherited_text_and_retained_hebrew_draft`:
 English → Hebrew → English, one visit per dialog/language, public logical text

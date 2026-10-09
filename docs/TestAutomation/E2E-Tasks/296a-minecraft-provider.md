@@ -18,15 +18,15 @@ Deliver **APP01/02/03 and UI18 Minecraft local-world binding**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **296** — APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings.
 - **296e** — APP01/02/UI18 Lunar-to-Minecraft entry and return.
 
 ## Implementation
 
 Use the already restored FIX05 profile and qualified Lunar launch surface.
-Bind Lunar's real game-launch action, the intended Minecraft owner/window, one
-fixed local-world action and its independent visible effect. Qualify normal game
-exit and return to the same Lunar surface. Apply the approved provider exception
+Reuse 296e's real game-launch/normal-exit operations and intended Minecraft
+owner/window binding. Add one fixed local-world action and its independent
+visible effect, then independently observe return to the same Lunar surface.
+Apply the approved provider exception
 only inside explicit external adapters; no inner Java launch, download, sign-in
 fallback or generic title/coordinate targeting.
 

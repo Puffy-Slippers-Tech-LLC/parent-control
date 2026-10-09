@@ -1,6 +1,6 @@
 {
   "concurrency": 2,
-  "backup_root": "/Data/virt-manager/backups",
+  "backup_root": "/Data/virt-manager/backups/onpc",
   "vms": [
     {
       "id": "1",

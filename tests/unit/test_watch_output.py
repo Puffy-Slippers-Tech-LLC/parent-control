@@ -48,6 +48,15 @@ def test_viewer_legacy_vm_order_is_stable_when_all_sources_are_idle():
     assert list(viewer_entries(entries)) == [('worktree', 'vm-z'), ('main', 'vm-a')]
 
 
+def test_combined_view_omits_idle_retired_worktree_vm_but_keeps_live_controllers():
+    entries = {('main', 'vm-new'): ('new', 'Renamed-VM', False, False),
+               ('worktree', 'vm-old'): ('old', 'Retired-VM', False, False)}
+    assert list(viewer_entries(entries, current_vms={'vm-new'})) == [('main', 'vm-new')]
+    assert list(viewer_entries(entries, scope='worktree', current_vms={'vm-new'})) == [('worktree', 'vm-old')]
+    entries['worktree', 'vm-old'] = ('live', 'Retired-VM', True, True)
+    assert list(viewer_entries(entries, current_vms={'vm-new'})) == [('main', 'vm-new'), ('worktree', 'vm-old')]
+
+
 @contextmanager
 def running(root, kind, text=b'first\n'):
     base = directory(kind, root=root)
@@ -191,6 +200,41 @@ def test_checkout_discovery_is_bounded_off_the_renderer_and_stops(tmp_path, monk
         assert discovery.updates.maxsize == 1
     finally:
         release.set()
+        discovery.close()
+        discovery.thread.join(3)
+    assert not discovery.thread.is_alive()
+
+
+def test_checkout_discovery_refreshes_vm_names_and_ids_off_the_renderer(tmp_path, monkeypatch):
+    import threading
+    import time
+    import watch_checkouts as watcher
+    root = tmp_path / 'checkout'
+    (root / 'tools').mkdir(parents=True)
+    (root / 'tools/watch').touch()
+    (root / '.git').mkdir()
+    (root / 'config').mkdir()
+    config = root / 'config/test-vm.json'
+    def write(name, identifier):
+        config.write_text(json.dumps({'vms': [{'name': name, 'id': identifier,
+                                             'disk_anchor': '/unused/disk.qcow2'}]}))
+    write('Old-VM', '2')
+    monkeypatch.setattr(watcher, 'worktrees', lambda _: {root: 'main'})
+    discovery = watcher.Discovery(root)
+    def wait_for(name):
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            values = discovery.poll_vms()
+            if values is not None and set(values[root]) == {name}:
+                return values[root][name]
+            time.sleep(.01)
+        pytest.fail('registry refresh did not reach the current VM name')
+    try:
+        assert wait_for('Old-VM').id == '2'
+        write('New-VM', '7')
+        assert wait_for('New-VM').id == '7'
+        assert discovery.vm_updates.maxsize == 1
+    finally:
         discovery.close()
         discovery.thread.join(3)
     assert not discovery.thread.is_alive()

@@ -19,21 +19,21 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
 - **036f** — APP01/02/03 native file-manager usable/new-window route.
 
 ## Implementation
 
-Bind the file manager's offered launch action to the declared native fixture and independently observe its usable or blocked result. Register a supported separate-window launch for later retained-activity comparisons. Reuse the prepared standard fixture; special-path and AppImage copying stay with their own consumers.
+Reuse 036f's qualified file-manager activation, usable activity and supported separate-window operations for the declared native fixture. Add Hard/Soft denied-launch and prior-window-closure observations for this route. Reuse the prepared standard fixture; special-path and AppImage copying stay with their own consumers.
 
 ## Live VM acceptance
 
 On the live VM, capture the required activity through 036f's qualified Files
 launch, save Hard and Soft rules in Parent, and require the declared denied
 launch and prior-window closure for each distinct policy result. Reuse unchanged
-usable/new-window qualification from 036f; rerun it only when affected. No
-alternative launch route substitutes for the tested Files action.
+exact usable/new-window qualification from 036f; rerun it only when affected.
+Its evidence supplies no saved VM state: use a fresh guarded attempt for the new
+policy-result composition, independent valid entry and wrong-file/owner refusal.
+No alternative launch route substitutes for the tested Files action.
 
 Qualification selector (implement and register before use):
 

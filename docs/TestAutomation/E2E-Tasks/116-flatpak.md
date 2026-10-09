@@ -19,26 +19,27 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **116p** — Flatpak baseline assets and FIX06 verification.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
 - **116b** — APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route.
 
 ## Implementation
 
 Verify the qualified Flatpak baseline profile from task 116p in a fresh attempt.
-Qualify APP01/02/03 for the fixed Flatpak command route, then APP04 activity identity
-and FLOW08. Register the supported new-window command so presenting an existing
-window cannot pass a new launch. Use repository-owned fixture IDs. Preserve the
-qualified installation scope; do not add package installation to this slice.
+Reuse 116b's fixed Flatpak command, supported new-window, APP03 usability and
+APP04 activity operations. Add APP02 Hard/Soft denial and prior-window closure
+to FLOW08 while preserving the unaffected usable A. Use repository-owned fixture
+IDs; an existing window cannot pass a new launch. Preserve the qualified
+installation scope; do not add package installation to this slice.
 
 ## Live VM acceptance
 
 On the VM, capture the required activity through 116b's qualified Flatpak command
 route. Apply the declared Hard and Soft blocks through Parent and require
 explicit command denial and the expected prior-window closure, with A still
-usable. Reuse unchanged launch/use and separate-window evidence from 116b;
-rerun affected branches when necessary. Missing supported assets or independent
-public policy observations block the affected consumer.
+usable. Reuse unchanged exact launch/use and separate-window qualification from
+116b; rerun affected branches when necessary. Its evidence supplies no saved VM
+state: qualify the new policy composition in a fresh guarded attempt with
+independent valid entry and wrong-fixture/owner refusal. Missing supported assets
+or independent public policy observations block the affected consumer.
 
 Qualification selector (implement and register before use):
 

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add review-report entry, Privacy and normal report-close destination. Reuse 187a's actual cooldown trigger and decline result; preserve independent attempts for both outcomes.
+Add review-report entry, Privacy and normal report-close destination. Reuse 187a's actual cooldown trigger and unchanged independently qualified decline result.
 
 Reuse the delivered scope of tasks **187a** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -21,19 +21,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-a
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
-- **030** — FEED05; FEED10 dialog persistence.
 - **187a** — REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief.
 
 ## Implementation
 
-Qualify the public reopen/Request route within the actual five-second cooldown, then report-review/decline bindings and their overlay destinations. Reuse selected-parent approval; never extend product timing.
+Reuse 187a's public reopen/Request and selected-parent approval operations to reach the actual five-second cooldown error. Add report-review, Privacy and normal report-close bindings with their overlay destinations; never extend product timing.
 
 ## Live VM acceptance
 
-On the VM, approve once, reopen and Request before five seconds from success, and read the actual too-soon result. In independent attempts review and decline reporting, checking form/report destinations and original balance before any new approval.
+In a fresh guarded VM attempt, approve once, reopen and Request before five seconds from success, and read the actual too-soon result. Review the report, visit Privacy and close normally; independently check the report/form destination and original balance before any new approval. Qualify independent valid entry and wrong-surface/owner refusal. Reuse 187a's unchanged exact decline qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. An unreachable public trigger remains pending.
 
 Qualification selector (implement and register before use):
 

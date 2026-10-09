@@ -4,6 +4,7 @@ import hashlib
 import os
 import runpy
 import shutil
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -633,8 +634,117 @@ def test_failed_backup_preserves_previous_complete_generation(backup_rig, monkey
     monkeypatch.setattr(recovery, 'copy_file', interrupted)
     with pytest.raises(KeyboardInterrupt):
         save(rig)
-    assert recovery.read_json(rig.root / rig.vm.name / 'latest.json') == latest
+    assert recovery.load_archive(rig.vm, rig.root)[2] == latest
     assert archive.exists()
+    assert {path.name for path in rig.root.iterdir()} == {rig.vm.name}
+
+
+def test_backup_replaces_one_vm_folder_without_staging_garbage(backup_rig):
+    rig = backup_rig
+    old, _, _ = save(rig)
+    old_inode = old.stat().st_ino
+    rig.top.write_bytes(b'new VM disk bytes')
+    archive, manifest, _ = save(rig)
+    assert archive == rig.root / rig.vm.name
+    assert archive.stat().st_ino != old_inode
+    disk = next(item for item in manifest['files'] if item['original'] == str(rig.top))
+    assert (archive / disk['payload']).read_bytes() == rig.top.read_bytes()
+    assert {path.name for path in rig.root.iterdir()} == {rig.vm.name}
+    assert {path.name for path in archive.iterdir()} == (
+        {'manifest.json', 'complete.json'} | {item['payload'] for item in manifest['files']})
+
+
+@pytest.mark.parametrize('boundary', ['before-exchange', 'after-exchange', 'during-delete'])
+def test_backup_publication_interruption_resumes_and_removes_staging(backup_rig, monkeypatch, boundary):
+    rig = backup_rig
+    old, _, latest = save(rig)
+    rig.top.write_bytes(b'replacement disk bytes')
+    rename, unlink = recovery.rename_archive, recovery.os.unlink
+    stopped = False
+    def interrupt_once():
+        nonlocal stopped
+        if not stopped:
+            stopped = True
+            raise KeyboardInterrupt
+    def renamed(root, source, destination, **kwargs):
+        if boundary == 'before-exchange':
+            interrupt_once()
+        rename(root, source, destination, **kwargs)
+        if boundary == 'after-exchange':
+            interrupt_once()
+    def unlinked(path, **kwargs):
+        unlink(path, **kwargs)
+        if boundary == 'during-delete' and 'dir_fd' in kwargs:
+            interrupt_once()
+    monkeypatch.setattr(recovery, 'rename_archive', renamed)
+    monkeypatch.setattr(recovery.os, 'unlink', unlinked)
+    with pytest.raises(KeyboardInterrupt):
+        save(rig)
+    # A complete archive is always usable across the atomic exchange.
+    available, manifest, _ = recovery.load_archive(rig.vm, rig.root)
+    assert available == old
+    assert manifest['files']
+    save(rig)
+    assert {path.name for path in rig.root.iterdir()} == {rig.vm.name}
+
+
+@pytest.mark.parametrize('kind', ['foreign-file', 'replaced-file', 'symlink', 'replaced-directory', 'changed-bytes'])
+def test_backup_retirement_refuses_changed_or_unknown_entries(backup_rig, monkeypatch, kind):
+    rig = backup_rig
+    save(rig)
+    rename = recovery.rename_archive
+    def renamed(root, source, destination, **kwargs):
+        rename(root, source, destination, **kwargs)
+        raise KeyboardInterrupt
+    monkeypatch.setattr(recovery, 'rename_archive', renamed)
+    with pytest.raises(KeyboardInterrupt):
+        save(rig)
+    journal = recovery.read_json(recovery.publication_journal(rig.vm, rig.root))
+    staged = rig.root / journal['staging']
+    if kind == 'foreign-file':
+        preserve = staged / 'foreign'
+        preserve.write_bytes(b'preserve')
+    elif kind == 'changed-bytes':
+        preserve = staged / next(iter(journal['files']))
+        preserve.write_bytes(b'changed old archive')
+    elif kind == 'replaced-directory':
+        staged.rename(rig.root / 'preserved-original')
+        recovery.private_directory(staged, create=True)
+        preserve = staged / 'foreign'
+        preserve.write_bytes(b'preserve')
+    else:
+        preserve = staged / next(iter(journal['files']))
+        preserve.rename(staged / 'preserved-original')
+        if kind == 'symlink':
+            preserve.symlink_to(staged / 'preserved-original')
+        else:
+            preserve.write_bytes(b'preserve')
+            preserve.chmod(0o600)
+        # Keep the entry set unchanged to exercise the identity/type guard.
+        (staged / 'preserved-original').rename(rig.root / 'preserved-original')
+    with pytest.raises(base.CaptureError):
+        recovery.finish_publication(rig.vm, rig.root)
+    assert os.path.lexists(preserve)
+    recovery.load_archive(rig.vm, rig.root)
+
+
+@pytest.mark.parametrize('which', ['previous', 'replacement'])
+def test_interrupted_publication_refuses_modified_bytes_before_exchange(backup_rig, monkeypatch, which):
+    rig = backup_rig
+    save(rig)
+    rename = recovery.rename_archive
+    monkeypatch.setattr(recovery, 'rename_archive', Mock(side_effect=KeyboardInterrupt))
+    with pytest.raises(KeyboardInterrupt):
+        save(rig)
+    journal = recovery.read_json(recovery.publication_journal(rig.vm, rig.root))
+    archive = rig.root / (rig.vm.name if which == 'previous' else journal['staging'])
+    preserve = archive / 'file-00000'
+    preserve.write_bytes(b'changed bytes')
+    monkeypatch.setattr(recovery, 'rename_archive', rename)
+    with pytest.raises(base.CaptureError, match='publication-file-changed'):
+        recovery.finish_publication(rig.vm, rig.root)
+    assert preserve.read_bytes() == b'changed bytes'
+    assert recovery.private_directory(rig.root / rig.vm.name) == journal['previous']
 
 
 @pytest.mark.parametrize('boundary', ['copied', 'displaced', 'published', 'metadata'])
@@ -736,12 +846,74 @@ def test_backup_prepares_whole_queue_before_serial_backup(backup_rig, monkeypatc
     assert run.call_args_list[1].args[0][-3:] == ['backupvms', '--vm', names]
 
 
-def test_preparation_failure_never_starts_backup(backup_rig, monkeypatch):
+def test_preparation_failure_never_starts_backup(backup_rig, monkeypatch, capsys):
     monkeypatch.setattr(launcher, 'check', Mock())
     run = Mock(return_value=SimpleNamespace(returncode=7))
     monkeypatch.setattr(launcher.subprocess, 'run', run)
     assert launcher.main('backup', []) == 7
     assert run.call_count == 1
+    assert '\033[31mbackupvms: FAILED: baseline preparation failed' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('action', ['backup', 'restore'])
+def test_archive_failure_is_red_and_never_reports_success(backup_rig, monkeypatch, capsys, action):
+    monkeypatch.setattr(launcher, 'check', Mock())
+    statuses = [0, 1] if action == 'backup' else [1]
+    monkeypatch.setattr(launcher.subprocess, 'run', Mock(
+        side_effect=[SimpleNamespace(returncode=status) for status in statuses]))
+    assert launcher.main(action, []) == 1
+    output = capsys.readouterr()
+    assert f'\033[31m{action}vms: FAILED:' in output.err
+    assert '\033[0m' in output.err
+    assert 'SUCCESS' not in output.out
+
+
+def test_invalid_backup_selection_reports_failure_in_red(backup_rig, capsys):
+    assert launcher.main('backup', ['--vm', 'Unknown']) == 2
+    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+
+
+def test_invalid_backup_arguments_report_failure_in_red(capsys):
+    with pytest.raises(SystemExit) as error:
+        launcher.main('backup', ['--invalid'])
+    assert error.value.code == 2
+    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+
+
+def test_privileged_backup_refusal_reports_failure_in_red(monkeypatch, capsys):
+    # Fail before importing libvirt or accessing any real VM/storage path.
+    monkeypatch.setattr(recovery.os, 'geteuid', lambda: 12345)
+    assert recovery.main(['backup']) == 1
+    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+
+
+def test_private_backup_directory_under_setgid_parent(tmp_path):
+    parent = tmp_path / 'shared-backups'
+    parent.mkdir()
+    parent.chmod(0o2775)
+    # Exercise inherited group ownership as well when the local user has one.
+    group = next((gid for gid in os.getgroups() if gid != os.getegid()), os.getegid())
+    os.chown(parent, -1, group)
+    unrelated = parent / 'unrelated'
+    unrelated.write_bytes(b'other backups')
+    private = parent / 'onpc'
+    recovery.private_directory(private, create=True)
+    assert stat.S_IMODE(private.stat().st_mode) == 0o700
+    assert (private.stat().st_uid, private.stat().st_gid) == (os.geteuid(), os.getegid())
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o2775
+    assert unrelated.read_bytes() == b'other backups'
+
+
+@pytest.mark.parametrize('mode', [0o755, 0o2775, 0o2700])
+def test_existing_shared_backup_directory_is_refused_without_adoption(tmp_path, mode):
+    parent = tmp_path / 'shared'
+    parent.mkdir()
+    parent.chmod(mode)
+    (parent / 'unrelated').write_bytes(b'preserve')
+    with pytest.raises(base.CaptureError, match='private-directory'):
+        recovery.private_directory(parent, create=True)
+    assert stat.S_IMODE(parent.stat().st_mode) == mode
+    assert (parent / 'unrelated').read_bytes() == b'preserve'
 
 
 def test_restore_refreshes_helper_pins_only_after_success(backup_rig, monkeypatch):
@@ -921,7 +1093,7 @@ def test_archive_traversal_cannot_write_outside_registered_destinations(backup_r
     record['relative'] = '../outside'
     recovery.atomic(archive / 'manifest.json', manifest)
     latest['sha256'] = recovery.checksum(archive / 'manifest.json')
-    recovery.atomic(rig.root / rig.vm.name / 'latest.json', latest)
+    recovery.atomic(archive / 'complete.json', latest)
     before = rig.top.read_bytes()
     with pytest.raises(base.CaptureError, match='archive-path'):
         restore(rig)

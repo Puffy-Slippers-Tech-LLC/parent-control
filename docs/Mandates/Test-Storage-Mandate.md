@@ -72,8 +72,12 @@ Explicit VM disaster archives use `backup_root` in
 [`tools/restorevms`](../../tools/restorevms). This operator-owned durable storage
 is an exception to disposable test-output allocation, not a new test scratch
 route. The archive root, VM directories and generations are root-private;
-generation publication is atomic and checksummed. Partial/older generations
-are retained, never swept or rotated by test retention. File copies preserve
+publication is atomic and checksummed. Each VM has one folder named exactly
+after the VM. A verified temporary replacement overwrites the previous copy;
+recorded temporary and superseded files are removed after publication. Failed
+copying cleans its recorded scratch; interrupted publication/deletion resumes
+from private journals. Unknown or replaced entries are preserved and refused.
+These archives are never swept or rotated by test retention. File copies preserve
 sparse holes and use independent bytes rather than reflinks.
 
 Restore staging files and displaced originals stay beside their exact registered

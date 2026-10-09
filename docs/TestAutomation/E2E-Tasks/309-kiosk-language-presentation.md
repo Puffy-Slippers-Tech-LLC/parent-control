@@ -1,8 +1,7 @@
 # 309 — Kiosk Hebrew request and child-language ownership
 
 Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Also apply [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
+and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **309a** — Restricted station Hebrew/restored-English request and child-language ownership across approver changes.

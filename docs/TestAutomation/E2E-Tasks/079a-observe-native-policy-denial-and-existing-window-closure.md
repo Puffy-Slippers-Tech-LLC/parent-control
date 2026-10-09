@@ -19,18 +19,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **079** — PARENT16 and FLOW03 public app-policy editing.
-- **047** — APP04; FLOW08 native usable-app scope.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **079d** — APP02 and FLOW08 native grid/command blocked-launch results.
 
 ## Implementation
 
-Qualify native grid/command usable, hidden-launcher, explicit denial and prior-window closure projections. Extend FLOW08 only after APP02 is qualified. A hidden grid entry uses a separately declared command attempt to prove denied execution. APP03 runs only for usable access.
+Reuse 079d's native grid/command usable, hidden-launcher and explicit-denial projections. Add the prior-window-closure result to APP02/FLOW08. A hidden grid entry retains its separately declared command attempt to prove denied execution. APP03 runs only for usable access.
 
 ## Live VM acceptance
 
-On the installed VM, open a native activity permissively and capture its public window. Save a block in Parent, return normally and require that earlier window's closure and a denied new launch. Check Allowed, Hard and Soft with no soft exception, plus an unaffected allowed target. Reapplying a block cannot be hidden by relaunching the old activity.
+In a fresh guarded VM attempt, open a native activity permissively and capture its public window. Save each declared Hard and Soft block with no soft exception in Parent, return normally and require that earlier window's closure and a denied new launch, plus an unaffected Allowed target. Qualify independent valid entry and wrong-activity/owner refusal. Reapplying a block cannot be hidden by relaunching the old activity. Reuse 079d's unchanged exact no-prior-window launch-result qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state.
 
 Qualification selector (implement and register before use):
 

@@ -19,9 +19,10 @@ Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **043a** — GDM02 retained-child lock entry; DESK08/11.
-- **044a** — DESK10 same-desktop window switching.
 - **044b** — DESK09 and FLOW01 retained Parent entry.
+
+Its transitive prerequisites retain GDM02 retained-child lock entry, DESK08/11
+unlock/denial and DESK10 same-desktop window switching.
 
 ## Implementation
 

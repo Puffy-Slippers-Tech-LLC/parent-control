@@ -21,15 +21,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **007** — LIFE02.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
-- **014** — FLOW04 kiosk.
 - **141b** — LIFE04 remove and LIFE05 removal activation.
+
+Its transitive prerequisites retain customer reboot, native policy-result
+observations and prepared kiosk request entry.
 
 ## Implementation
 
-Bind the exact verified remove and reinstall commands, permitted prompts and
-completion/reboot notices. Compose the corresponding LIFE05 notice/reboot path from the qualified LIFE02/GDM07 operations, and keep mechanical file,
+Reuse 141b's verified remove/reboot operation and bind the exact reinstall
+command, permitted prompts and completion/reboot notices. Compose the reinstall LIFE05 notice/reboot path from the qualified LIFE02/GDM07 operations, and keep mechanical file,
 account and migration checks under their existing system owners. Purge and
 fresh-default observation are a separate capability.
 

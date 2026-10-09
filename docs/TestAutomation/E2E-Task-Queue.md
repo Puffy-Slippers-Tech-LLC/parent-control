@@ -135,14 +135,16 @@ this allocation supplies no installed acceptance credit.
 
 ## Ordered task queue
 
-Requires lists **task IDs**, not block IDs; prerequisites apply transitively.
+Requires lists direct **task IDs**, not block IDs; prerequisites apply transitively.
 `Baseline` means existing qualified source and the standard guarded envelope,
 not an exemption for an unqualified route. Delivered scope is cumulative when
 a capability was split; its brief's Session boundary names the remaining work.
 Each unfinished row has one brief; completed rows retain plain titles.
 
 Preserve the structured scope prefixes `Cases N;`, `Retained regression N;`,
-`System obligation N` and `UI obligation;`. UI obligations retain their queue
+`System obligation N`, `UI obligation;` and `Planned scenario;`. The last prefix
+keeps an unassigned complete case under scenario acceptance while its numeric
+inventory binding remains pending. UI obligations retain their queue
 IDs and pending status but use the shared UI acceptance branch and supply no
 installed customer-case prerequisite. Each scenario task owns one numeric case with its
 complete recipe, independent of other scenario runs. Capabilities precede
@@ -335,23 +337,23 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 048b | Complete overlay exits and approval compositions | 048a, 021, 048c, 048d, 048f | Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07 passed on every selected VM (Ubuntu 26.04) in `20261008T192839Z-50210847`: fresh immediate exit, rejection/preserved form/new automatic approval and password-free Cancel/preserved form/new immediate approval, each returning to the exact original usable activity. Shell tuple: `50.1-0ubuntu1.3`, `en_US.UTF-8`, `xkb/us`. Complete observation reacquisition includes deferred labels while preserving owner pins and all input refusals. Required automatic-exit, rejection/Cancel and kiosk-approval regressions passed in `20261008T194256Z-987c8208`, `20261008T194714Z-14858d96` and `20261008T195522Z-2e720591`; retained reports in the catalogue. Host guards/source, collection, worker shutdown, callback closure, owned cleanup, baseline restoration, finalization and preservation passed. Fixed capability only; no complete-scenario credit | 20–30 |
 | [x] | 060 | E2E-015: child-overlay-approved | 180, 048b, 052 | Cases 46; `overlay_approved.PLAN` / shared `onpc_kiosk_cancel::run` approved-overlay branch passed on the selected Ubuntu 26.04 VM in [`20261008T202930Z-38024a17`](../../output/test-runs/host/exports/onpc-artifact-export-lvblymfq/report.md): public 900-second daily/no-grant preparation, fresh child/native activity capture, Jamie/custom 75-second/soft-included request, real Shell approval, explicit success and one offered immediate exit, absent form/original usable desktop, immutable same-window/draft comparison, resumed submission and TIME01 comparison with the bounded public estimate. Affected Cancel case 44, surface-close case 45 and exact 975-second kiosk-approved case 49 passed in `20261008T203608Z-8437d9c7`, `20261008T201903Z-8416382e` and `20261008T202314Z-6f3b7daa` (these three historical regression reports are now outside retention). Scoped host composition, guards, worker bundle, recorder, resource inventory and source checks passed; all attempts passed collection, worker shutdown, owned cleanup and baseline restoration. Coverage regenerated after each case. Only case 46 and Cancel were repeated to retain their required reports after rotation; no live attempt failed. | 20–30 |
 | [x] | 042a | Lock a desktop and observe its challenge surface | 003d | DESK05/06 fresh Parent command Lock and independently supplied Super+L, curtain/fresh reveal/challenge, refusal projections and independent challenge read passed on every selected VM (Ubuntu 26.04) in `20261008T212721Z-70cc7575`; DESK03/04 regression passed in `20261008T213017Z-fc39a92b`. [Qualified scope and reports](E2E-Building-Blocks.md#parent-lock-surface-qualification). Scoped host guards/source, collection, worker shutdown, callback closure, cleanup, baseline restoration and preservation passed. No secret authority, unlock or complete-scenario credit | 20–30 |
-| [ ] | 042 | [Prove the intended lock-screen recipient](E2E-Tasks/042-lock-recipient.md) | 003d, 042a | DESK05, DESK06, DESK07. Blocker: unrelated VM registry edits now refuse host collection and preparation, and the requested Fedora name is absent; resume when the registry is valid and the developer confirms the Fedora target | 20–30 |
+| [ ] | 042 | [Prove the intended lock-screen recipient](E2E-Tasks/042-lock-recipient.md) | 042a | DESK05, DESK06, DESK07. Blocker: unrelated VM registry edits now refuse host collection and preparation, and the requested Fedora name is absent; resume when the registry is valid and the developer confirms the Fedora target | 20–30 |
 | [ ] | 043c | [Unlock the intended retained child successfully](E2E-Tasks/043c-retained-unlock-success.md) | 043, 042 | GDM02 retained lock entry and DESK08 successful unlock | 20–30 |
-| [ ] | 043a | [Observe retained-child time denial and return](E2E-Tasks/043a-retained-unlock.md) | 043, 042, 043c | GDM02 retained-child lock entry; DESK08/11 | 20–30 |
+| [ ] | 043a | [Observe retained-child time denial and return](E2E-Tasks/043a-retained-unlock.md) | 043c | GDM02 retained-child lock entry; DESK08/11 | 20–30 |
 | [ ] | 044b | [Return to an existing Parent desktop and window](E2E-Tasks/044b-retained-parent.md) | 043a, 044a | DESK09 and FLOW01 retained Parent entry | 20–30 |
-| [ ] | 044 | [Visit both retained child desktops](E2E-Tasks/044-retained-entry.md) | 043a, 044a, 044b | DESK09; FLOW15 and FLOW01 retained scopes | 20–30 |
+| [ ] | 044 | [Visit both retained child desktops](E2E-Tasks/044-retained-entry.md) | 044b | DESK09; FLOW15 and FLOW01 retained scopes | 20–30 |
 | [ ] | 155a | [Compare overlay choices at the kiosk](E2E-Tasks/155a-choices-overlay-to-kiosk.md) | 048a, 044, 180 | FLOW12 overlay-to-kiosk choices for both children | 20–30 |
 | [ ] | 156 | [E2E-018: overlay-to-kiosk-first](E2E-Tasks/156-case-58.md) | 155a | Cases 58 | 20–30 |
 | [ ] | 156b | [E2E-018: overlay-to-kiosk-second](E2E-Tasks/156b-case-59.md) | 155a | Cases 59 | 20–30 |
-| [ ] | 155 | [Compare kiosk choices at each child overlay](E2E-Tasks/155-cross-surface.md) | 048a, 044, 180, 155a | FLOW12 current choices | 20–30 |
+| [ ] | 155 | [Compare kiosk choices at each child overlay](E2E-Tasks/155-cross-surface.md) | 155a | FLOW12 current choices | 20–30 |
 | [ ] | 157 | [E2E-018: kiosk-to-overlay-first](E2E-Tasks/157-case-60.md) | 155 | Cases 60 | 20–30 |
 | [ ] | 157b | [E2E-018: kiosk-to-overlay-second](E2E-Tasks/157b-case-61.md) | 155 | Cases 61 | 20–30 |
 | [ ] | 047a | [Compose retained app visits for distinct users](E2E-Tasks/047a-retained-app-visits.md) | 047, 044 | FLOW09 and FLOW14 distinct-user retention | 20–30 |
 | [ ] | 050a | [Read a revocation warning and Cancel](E2E-Tasks/050a-revoke-cancel.md) | 021, 044 | PARENT17/18 revocation target, warning and Cancel | 20–30 |
-| [ ] | 050 | [Confirm grant revocation and read balances](E2E-Tasks/050-revocation.md) | 021, 044, 050a | PARENT17, PARENT18 | 20–30 |
+| [ ] | 050 | [Confirm grant revocation and read balances](E2E-Tasks/050-revocation.md) | 050a | PARENT17, PARENT18 | 20–30 |
 | [ ] | 051 | [Compose the daily-only time profile](E2E-Tasks/051-time-profiles-daily.md) | 180, 003d | FLOW13 daily-only, fresh/same Parent entry with observed G=0 | 20–30 |
 | [ ] | 052d | [Measure the displayed countdown's minute ticks](E2E-Tasks/052d-countdown-minutes.md) | 052, 051, 052c | TIME02 minute-precision sampling | 20–30 |
-| [ ] | 052a | [Measure final-second countdown ticks](E2E-Tasks/052a-countdown-ticks.md) | 052, 051, 052c, 052d | TIME02 minute/final-second ticks | 20–30 |
+| [ ] | 052a | [Measure final-second countdown ticks](E2E-Tasks/052a-countdown-ticks.md) | 052d | TIME02 minute/final-second ticks | 20–30 |
 | [ ] | 181m | [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md) | 052 | UI28 and PANEL01/02 | 20–30 |
 | [ ] | 062 | [Use an app until a natural enforced lock](E2E-Tasks/062-natural-expiry.md) | 052a, 047 | TIME04 | 20–30 |
 | [ ] | 064 | [E2E-008: fresh-login](E2E-Tasks/064-case-22.md) | 062, 043a, 050, 181m | Cases 22; animation enabled during existing natural exhaustion | 40–60 (exception) |
@@ -359,23 +361,27 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
 | [ ] | 181h | [Read the countdown explanation in UI tests](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | UI obligation; readable countdown explanation | 20–30 |
 | [ ] | 065a | [Prepare grant-only time and explicit revoke-first entry](E2E-Tasks/065a-grant-only-profile.md) | 051, 050 | FLOW13 grant-only profile and explicit revoke preparation | 20–30 |
-| [ ] | 065 | [Compose the combined grant-dominant profile](E2E-Tasks/065-time-profiles-grant.md) | 051, 050, 065a | FLOW13 grant-only/combined; retained entry and explicit revoke preparation | 20–30 |
+| [ ] | 065 | [Compose the combined grant-dominant profile](E2E-Tasks/065-time-profiles-grant.md) | 065a | FLOW13 grant-only/combined; retained entry and explicit revoke preparation | 20–30 |
 | [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065, 052a, 047a | Cases 25 | 35–55 (exception) |
 | [ ] | 067 | [E2E-010: other-child](E2E-Tasks/067-case-26.md) | 065, 052a, 047a | Cases 26 | 35–55 (exception) |
 | [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 065, 052a, 062 | Cases 28 | 35–55 (exception) |
 | [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 065, 052a, 062 | Cases 29 | 35–55 (exception) |
+| [ ] | 308b | [Qualify translated overlay approval and return](E2E-Tasks/308b-overlay-translated-approval.md) | 048d, 300i | Qualify translated overlay approval and return; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
+| [ ] | 308a | [Qualify overlay Hebrew request presentation](E2E-Tasks/308a-overlay-dialog-language.md) | 300i, 307a | Qualify Hebrew/restored-English overlay requests with unchanged choices and original activity; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
+| [ ] | 308 | [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md) | 308b, 308a | Planned scenario; Hebrew/restored-English request, genuine translated approval and return to unchanged activity; exact binding and installed acceptance pending; gates and finite scope in brief | 30–45 (exception) |
+| [ ] | 309a | [Qualify kiosk Hebrew request presentation](E2E-Tasks/309a-kiosk-dialog-language.md) | 300j, 307a | Qualify Hebrew/restored-English station requests and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
+| [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 309a | Planned scenario; Hebrew/restored-English requests with unchanged choices and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
 | [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 300i, 307a | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
-| [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | One planned case: Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
-| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i | One planned case: read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and reboot/upgrade persistence; fullscreen preference GUI/API implementation, installed public reminder-management UI and native banner qualification are gates; no executable or acceptance | 40–60 (exception) |
+| [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | Planned scenario; Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
 | [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 044, 052 | FLOW20 overlay new/open form | 20–30 |
 | [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 20–30 |
 | [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065 | Cases 225; gate in brief | 20–30 |
 | [ ] | 197a | [Compose kiosk approval and fresh child entry](E2E-Tasks/197a-kiosk-fresh-return.md) | 021, 044, 052 | FLOW20 kiosk new/open form with fresh-child destination | 20–30 |
-| [ ] | 197k | [Compose kiosk approval and retained child entry](E2E-Tasks/197k-kiosk-approval-return.md) | 021, 044, 052, 197a | FLOW20 kiosk new/open form and fresh/retained child | 20–30 |
+| [ ] | 197k | [Compose kiosk approval and retained child entry](E2E-Tasks/197k-kiosk-approval-return.md) | 197a | FLOW20 kiosk new/open form and fresh/retained child | 20–30 |
 | [ ] | 266 | [E2E-048: daily-only-kiosk](E2E-Tasks/266-case-224.md) | 197k, 052c, 051 | Cases 224; gate in brief | 20–30 |
 | [ ] | 272 | [E2E-048: grant-dominant-kiosk](E2E-Tasks/272-case-230.md) | 197k, 052c, 065 | Cases 230; gate in brief | 20–30 |
 | [ ] | 079d | [Observe native launch denial without a prior window](E2E-Tasks/079d-native-denial.md) | 079, 047, 044 | APP02 and FLOW08 native grid/command blocked-launch results | 20–30 |
-| [ ] | 079a | [Observe closure of an already-open native app](E2E-Tasks/079a-observe-native-policy-denial-and-existing-window-closure.md) | 079, 047, 044, 079d | APP02 and FLOW08 native grid/command policy results | 20–30 |
+| [ ] | 079a | [Observe closure of an already-open native app](E2E-Tasks/079a-observe-native-policy-denial-and-existing-window-closure.md) | 079d | APP02 and FLOW08 native grid/command policy results | 20–30 |
 | [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 079a, 180, 052 | Cases 7 | 40–60 (exception) |
 | [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 079a, 180, 052 | Cases 8 | 40–60 (exception) |
 | [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 079a, 180, 052, 021 | Cases 9 | 40–60 (exception) |
@@ -422,26 +428,26 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md) | 197k, 079b, 079a, 180 | Cases 232 | 20–30 |
 | [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md) | 197k, 079b, 079a, 180 | Cases 238 | 20–30 |
 | [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079a | FIX06 space-path readiness; FILE05 copy and command-policy result | 20–30 |
-| [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 036, 079a, 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
+| [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 20–30 |
 | [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079a, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
 | [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180 | Cases 189 | 20–30 |
 | [ ] | 036f | [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md) | 036, 079a | APP01/02/03 native file-manager usable/new-window route | 20–30 |
-| [ ] | 036a | [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md) | 036, 079a, 036f | APP01/02/03 native file-manager route | 20–30 |
+| [ ] | 036a | [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md) | 036f | APP01/02/03 native file-manager route | 20–30 |
 | [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md) | 180, 036a | Cases 74 | 20–30 |
 | [ ] | 097 | [E2E-019: native-file-manager-hard-blocked-enabled](E2E-Tasks/097-case-76.md) | 180, 036a | Cases 76 | 20–30 |
 | [ ] | 098 | [E2E-019: native-file-manager-soft-blocked-enabled](E2E-Tasks/098-case-78.md) | 180, 036a | Cases 78 | 20–30 |
 | [ ] | 278 | [E2E-049: native-file-manager-kiosk](E2E-Tasks/278-case-236.md) | 197k, 079b, 180, 036a | Cases 236 | 20–30 |
 | [ ] | 036g | [Place and launch a native desktop entry](E2E-Tasks/036g-native-desktop-usable.md) | 036, 079a, 035p | APP01/02/03 DING desktop entry and usable launch | 20–30 |
 | [ ] | 036h | [Open a second native window from the desktop](E2E-Tasks/036h-native-desktop-new-window.md) | 036g | APP01/02 desktop separate-window route | 20–30 |
-| [ ] | 036b | [Observe policy results for desktop launches](E2E-Tasks/036b-native-desktop-route.md) | 036, 079a, 035p, 036h | APP01/02/03 native desktop route | 20–30 |
+| [ ] | 036b | [Observe policy results for desktop launches](E2E-Tasks/036b-native-desktop-route.md) | 036h | APP01/02/03 native desktop route | 20–30 |
 | [ ] | 093 | [E2E-019: native-desktop-allowed-enabled](E2E-Tasks/093-case-68.md) | 180, 036b | Cases 68 | 20–30 |
 | [ ] | 094 | [E2E-019: native-desktop-hard-blocked-enabled](E2E-Tasks/094-case-70.md) | 180, 036b | Cases 70 | 20–30 |
 | [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled](E2E-Tasks/095-case-72.md) | 180, 036b | Cases 72 | 20–30 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 20–30 |
 | [ ] | 109p | [Prepare the declared Snap fixtures in the baseline](E2E-Tasks/109p-snap-fixtures.md) | 006, 077a | Snap baseline assets and FIX06 verification | 20–30 |
 | [ ] | 109b | [Launch and use Snap fixtures by command](E2E-Tasks/109b-snap-command-usable.md) | 109p, 079a | APP01/02/03/04 and FLOW08 Snap command usable/new-window route | 20–30 |
-| [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109p, 079a, 109b | APP01/02/03/04 and FLOW08 Snap command route | 20–30 |
+| [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109b | APP01/02/03/04 and FLOW08 Snap command route | 20–30 |
 | [ ] | 113 | [E2E-019: snap-command-allowed-enabled](E2E-Tasks/113-case-92.md) | 180, 109 | Cases 92 | 20–30 |
 | [ ] | 113b | [E2E-019: snap-command-allowed-disabled](E2E-Tasks/113b-case-93.md) | 180, 109 | Cases 93 | 20–30 |
 | [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled](E2E-Tasks/114-case-94.md) | 180, 109 | Cases 94 | 20–30 |
@@ -456,7 +462,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109a | Cases 239 | 20–30 |
 | [ ] | 116p | [Prepare the declared Flatpak fixtures in the baseline](E2E-Tasks/116p-flatpak-fixtures.md) | 006, 077a | Flatpak baseline assets and FIX06 verification | 20–30 |
 | [ ] | 116b | [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md) | 116p, 079a | APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route | 20–30 |
-| [ ] | 116 | [Observe Flatpak command denial and closure](E2E-Tasks/116-flatpak.md) | 116p, 079a, 116b | APP01/02/03/04 and FLOW08 Flatpak command route | 20–30 |
+| [ ] | 116 | [Observe Flatpak command denial and closure](E2E-Tasks/116-flatpak.md) | 116b | APP01/02/03/04 and FLOW08 Flatpak command route | 20–30 |
 | [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md) | 180, 116 | Cases 104 | 20–30 |
 | [ ] | 120b | [E2E-019: flatpak-command-allowed-disabled](E2E-Tasks/120b-case-105.md) | 180, 116 | Cases 105 | 20–30 |
 | [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled](E2E-Tasks/121-case-106.md) | 180, 116 | Cases 106 | 20–30 |
@@ -493,18 +499,18 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 198 | [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md) | 044, 079 | FLOW15/FLOW01 other-parent management entry | 20–30 |
 | [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 197k, 198, 196, 079b, 079a, 155, 126, 047a | Cases 251; two recomposed rounds; gate in brief | 20–30 + ≤90 live (exception) |
 | [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052a, 065, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
-| [ ] | 166 | [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md) | 052a, 065, 043a, 052c, 166a | LIFE03 | 20–30 |
+| [ ] | 166 | [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md) | 166a | LIFE03 | 20–30 |
 | [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079a, 065, 166 | Cases 124 | 40–60 (exception) |
 | [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 155, 079b, 079a, 065, 166 | Cases 125 | 40–60 (exception) |
 | [ ] | 135a | [Qualify a real update requiring no activation](E2E-Tasks/135a-update-no-action.md) | 028, 044, 007, 079, 048a | LIFE04 update and LIFE05 no-action notice | 20–30 |
-| [ ] | 135 | [Follow a real process-activation update](E2E-Tasks/135-activation-process.md) | 028, 044, 007, 079, 048a, 135a | LIFE04 update; LIFE05 process/none scope | 30–50 (exception) |
+| [ ] | 135 | [Follow a real process-activation update](E2E-Tasks/135-activation-process.md) | 135a | LIFE04 update; LIFE05 process/none scope | 30–50 (exception) |
 | [ ] | 136 | [E2E-026: process](E2E-Tasks/136-case-136.md) | 135, 155, 079a, 079b, 065, 052 | Cases 136 | 40–60 (exception) |
 | [ ] | 137 | [Follow session activation after a real update](E2E-Tasks/137-activation-session.md) | 044, 007, 079, 048a | LIFE04 update; LIFE05 session scope | 30–50 (exception) |
 | [ ] | 138 | [E2E-026: session](E2E-Tasks/138-case-137.md) | 137, 155, 079a, 079b, 065, 052 | Cases 137 | 40–60 (exception) |
 | [ ] | 139 | [Follow reboot activation after a real update](E2E-Tasks/139-activation-reboot.md) | 007, 044, 079, 048a | LIFE04 update; LIFE05 reboot scope | 30–50 (exception) |
 | [ ] | 140 | [E2E-026: reboot](E2E-Tasks/140-case-138.md) | 139, 155, 079a, 079b, 065, 052 | Cases 138 | 40–60 (exception) |
 | [ ] | 141b | [Remove the product and follow its reboot notice](E2E-Tasks/141b-product-remove.md) | 007, 079a, 014 | LIFE04 remove and LIFE05 removal activation | 40–60 (exception) |
-| [ ] | 141 | [Reinstall after removal and follow activation](E2E-Tasks/141-product-removal.md) | 007, 079a, 014, 141b | LIFE04 product remove/reinstall; LIFE05 corresponding notices/activation | 30–50 (exception) |
+| [ ] | 141 | [Reinstall after removal and follow activation](E2E-Tasks/141-product-removal.md) | 141b | LIFE04 product remove/reinstall; LIFE05 corresponding notices/activation | 30–50 (exception) |
 | [ ] | 141a | [Qualify purge and reinstall to visible defaults](E2E-Tasks/141a-product-purge.md) | 141 | LIFE04 purge; LIFE05 notice and reinstall/defaults | 30–50 (exception) |
 | [ ] | 142 | [E2E-027: continuous](E2E-Tasks/142-case-139.md) | 141a, 155, 065, 079b | Cases 139 | 20–30 + continuous run (exception) |
 | [ ] | 182 | [Prepare a daily balance that outlasts a soft exception](E2E-Tasks/182-prepare-a-daily-balance-that-outlasts-a-soft-exception.md) | 065, 079b, 079a, 052a | FLOW18 | 20–30 |
@@ -521,6 +527,13 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017, 044a | Cases 181 | 20–30 |
 | [ ] | 184c | [Change a spare approver role through shared account helpers](E2E-Tasks/184c-change-spare-account-role.md) | 184 | ACCOUNT02 change-role | 20–30 |
 | [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184c, 155 | Cases 182 | 20–30 |
+| [ ] | 312a | [Qualify overlay reminder editing and persistence](E2E-Tasks/312a-overlay-reminder-editing.md) | 300i | Installed overlay reminder CRUD, main Save/Cancel and empty-list readback; qualification pending | 20–30 |
+| [ ] | 312b | [Qualify kiosk reminder ownership and persistence](E2E-Tasks/312b-kiosk-reminder-binding.md) | 312a, 300j | Installed selected-child kiosk reminder Save/readback and account isolation; qualification pending | 20–30 |
+| [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 312a, 312b, 007 | Planned scenario; create/edit/save custom text, exact station readback, one Cancel, delete/save empty list, then reboot and check both screens and the other child's unchanged reminders/language. Duplicate times, sorting and detailed translations belong to smaller local editing checks; installed public-control qualification pending; no implementation or acceptance | 35–55 (exception) |
+| [ ] | 311a | [Qualify the saved fullscreen reminder preference](E2E-Tasks/311a-reminder-fullscreen-preference.md) | 312a | Installed fullscreen boolean Save/Cancel and unchanged reminder/time/policy readback; qualification pending | 20–30 |
+| [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, threshold binding and urgency. Blocker: declared threshold value differs from live-balance mapping; resume when the public contract and maintained reader distinguish the two consistently | 20–30 |
+| [ ] | 311c | [Qualify owned reminder banners during fullscreen play](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | 311b, 129 | Public owned-banner visibility/suppression during genuine fullscreen play; qualification pending | 20–30 |
+| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i, 312b, 311c, 135a | Planned scenario; read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and reboot/upgrade persistence; installed reminder-control, natural notification and owned fullscreen-banner qualifications are gates; no executable or acceptance | 40–60 (exception) |
 | [ ] | 169 | [Preserve and qualify system obligation 140: startup enforcement](E2E-Tasks/169-system-140.md) | Baseline | System obligation 140 | 30–60 (exception) |
 | [ ] | 170 | [Preserve and qualify system obligation 141: broker startup](E2E-Tasks/170-system-141.md) | Baseline | System obligation 141 | 30–60 (exception) |
 | [ ] | 171 | [Preserve and qualify system obligation 142: zero-time exposure](E2E-Tasks/171-system-142.md) | Baseline | System obligation 142 | 30–60 (exception) |
@@ -541,11 +554,11 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006, 036 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
 | [ ] | 296c | [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md) | 295, 079a, 052c | APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit | 20–30 |
 | [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore | 20–30 |
-| [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 295, 079a, 052c, 296d | APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings | 20–30 |
+| [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 296d | APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings | 20–30 |
 | [ ] | 296e | [Launch Minecraft to its menu and exit normally](E2E-Tasks/296e-minecraft-entry-exit.md) | 296 | APP01/02/UI18 Lunar-to-Minecraft entry and return | 20–30 |
-| [ ] | 296a | [Play the prepared Minecraft local world](E2E-Tasks/296a-minecraft-provider.md) | 296, 296e | APP01/02/03 and UI18 Minecraft local-world binding | 20–30 |
+| [ ] | 296a | [Play the prepared Minecraft local world](E2E-Tasks/296a-minecraft-provider.md) | 296e | APP01/02/03 and UI18 Minecraft local-world binding | 20–30 |
 | [ ] | 296f | [Observe allowed Lunar autostart across login](E2E-Tasks/296f-lunar-autostart-positive.md) | 296a, 007, 016a, 004, 052c, 180 | APP06/UI22 allowed continuous login interval | 40–60 (exception) |
-| [ ] | 296b | [Prove the denied Lunar login interval](E2E-Tasks/296b-lunar-login-observer.md) | 296a, 007, 016a, 004, 052c, 180, 296f | APP06/UI22 continuous login interval and Lunar autostart binding | 40–60 (exception) |
+| [ ] | 296b | [Prove the denied Lunar login interval](E2E-Tasks/296b-lunar-login-observer.md) | 296f | APP06/UI22 continuous login interval and Lunar autostart binding | 40–60 (exception) |
 | [ ] | 297 | [E2E-052: appimagelauncher-login-autostart](E2E-Tasks/297-case-253.md) | 296b, 180, 197 | Cases 253; pending metadata only. Blocker: complete public journey unimplemented; resume when required blocks are qualified. | 20–30 + ≤30 live (exception) |
 | [ ] | 183a | [Lock during pending overlay approval](E2E-Tasks/183a-lock-during-pending-overlay-approval.md) | 048b, 044, 052c | FLOW17 overlay lock; gate in brief | 20–30 |
 | [ ] | 213 | [E2E-039: overlay-lock](E2E-Tasks/213-case-171.md) | 183a, 180, 079b, 079a | Cases 171; gate in brief | 20–30 |
@@ -558,18 +571,13 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 183e | [Close the station during pending approval](E2E-Tasks/183e-close-the-station-during-pending-approval.md) | 020, 014, 180, 044, 052c | FLOW17 kiosk app-close; gate in brief | 20–30 |
 | [ ] | 217 | [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md) | 183e, 079b, 079a, 021 | Cases 175; gate in brief | 20–30 |
 | [ ] | 187a | [Observe and decline a overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048b, 044, 052c, 030 | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
-| [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 048b, 044, 052c, 030, 187a | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
+| [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 187a | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
 | [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079a | Cases 176; includes report review/decline (former 206); gate in brief | 20–30 |
-| [ ] | 308b | [Qualify translated overlay approval and return](E2E-Tasks/308b-overlay-translated-approval.md) | 048d, 300i | Qualify translated overlay approval and return; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 308a | [Qualify overlay Hebrew request presentation](E2E-Tasks/308a-overlay-dialog-language.md) | 300i, 307a | Qualify Hebrew/restored-English overlay requests with unchanged choices and original activity; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 308 | [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md) | 308b, 308a | One planned case: Hebrew/restored-English request, genuine translated approval and return to unchanged activity; exact binding and installed acceptance pending; gates and finite scope in brief | 30–45 (exception) |
 | [ ] | 150o | [Send an authorized overlay error report](E2E-Tasks/150o-send-an-authorized-overlay-error-report.md) | 150, 187o | FEED11, FEED09 success and FEED14 overlay; gate in brief | 20–30 |
 | [ ] | 262 | [E2E-047: overlay-success](E2E-Tasks/262-case-220.md) | 150o | Cases 220; gate in brief | 20–30 |
 | [ ] | 187b | [Observe and decline a kiosk cooldown error](E2E-Tasks/187b-kiosk-cooldown-error.md) | 021, 044, 052c, 030 | REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief | 20–30 |
-| [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 021, 044, 052c, 030, 187b | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
+| [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 187b | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
 | [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079a, 024a | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
-| [ ] | 309a | [Qualify kiosk Hebrew request presentation](E2E-Tasks/309a-kiosk-dialog-language.md) | 300j, 307a | Qualify Hebrew/restored-English station requests and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 309a | One planned case: Hebrew/restored-English requests with unchanged choices and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
 | [ ] | 150k | [Send an authorized kiosk error report](E2E-Tasks/150k-send-an-authorized-kiosk-error-report.md) | 150, 187k | FEED11, FEED09 success and FEED14 kiosk; gate in brief | 20–30 |
 | [ ] | 263 | [E2E-047: kiosk-success](E2E-Tasks/263-case-221.md) | 150k | Cases 221; gate in brief | 20–30 |
 | [ ] | 188p | [Observe failed Parent diagnostic collection](E2E-Tasks/188p-retry-failed-parent-diagnostic-collection.md) | 031a | FEED09 Parent collection failure and usable controls; gate in brief | 20–30 |
@@ -579,10 +587,10 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 189k | [Send a kiosk report without unavailable logs](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 188k, 150 | FEED11 without-logs and FEED09/14 kiosk result; gate in brief | 20–30 |
 | [ ] | 255 | [E2E-046: kiosk-without-logs](E2E-Tasks/255-case-213.md) | 189k | Cases 213; gate in brief | 20–30 |
 | [ ] | 190a | [Keep a sending overlay report open after Close](E2E-Tasks/190a-overlay-sending-stay.md) | 150o, 152 | FEED09 retry and FEED17/18 overlay stay-open branch; gate in brief | 20–30 |
-| [ ] | 190o | [Stop a sending overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 150o, 152, 190a | FEED09 retry and FEED17/18 overlay; gate in brief | 20–30 |
+| [ ] | 190o | [Stop a sending overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | FEED09 retry and FEED17/18 overlay; gate in brief | 20–30 |
 | [ ] | 260 | [E2E-047: overlay-stop](E2E-Tasks/260-case-218.md) | 190o | Cases 218; gate in brief | 20–30 |
 | [ ] | 190b | [Keep a sending kiosk report open after Close](E2E-Tasks/190b-kiosk-sending-stay.md) | 150k, 152 | FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief | 20–30 |
-| [ ] | 190k | [Stop a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 150k, 152, 190b | FEED09 retry and FEED17/18 kiosk; gate in brief | 20–30 |
+| [ ] | 190k | [Stop a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | FEED09 retry and FEED17/18 kiosk; gate in brief | 20–30 |
 | [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219; gate in brief | 20–30 |
 | [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a, 079a, 050, 048b | FLOW14 same-child multi-desktop scope; gate in brief | 20–30 |
 | [ ] | 144 | [E2E-007: zero-multiple](E2E-Tasks/144-case-18.md) | 079b, 065, 143 | Cases 18; gate in brief | 40–60 (exception) |
@@ -597,7 +605,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 240 | [E2E-044: ordinary-fixed-grant](E2E-Tasks/240-case-198.md) | 191, 065, 062 | Cases 198; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 242 | [E2E-044: spring-forward-paired-grants](E2E-Tasks/242-case-200.md) | 191, 065, 062 | Cases 200; two children, both grant types; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 245 | [E2E-044: fall-back-paired-grants](E2E-Tasks/245-case-203.md) | 191, 065, 062 | Cases 203; two children, both grant types; gate in brief | Scheduled window; ≤60 (exception) |
-| [ ] | 312 | [Child reminder preferences persist across request surfaces](E2E-Tasks/312-child-reminder-preferences.md) | 300i, 300j, 007 | One planned saved-reminder journey: create/edit/save custom text, exact station readback, one Cancel, delete/save empty list, then reboot and check both screens and the other child's unchanged reminders/language. Duplicate times, sorting and detailed translations belong to smaller local editing checks; installed public-control qualification pending; no implementation or acceptance | 35–55 (exception) |
 
 ## Fresh-install restart regression scope
 

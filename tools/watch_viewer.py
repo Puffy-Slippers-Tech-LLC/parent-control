@@ -12,7 +12,7 @@ APPLICATION_ID = 'org.onpc.E2EWatch'
 TITLE = 'Test watch'
 
 
-def viewer_entries(entries, *, scope='all', vm_ids=None):
+def viewer_entries(entries, *, scope='all', vm_ids=None, current_vms=None):
     """Keep checkout UI workers, followed by one source per VM in ID order."""
     result, vms = {}, {}
     for entry, value in entries.items():
@@ -20,6 +20,11 @@ def viewer_entries(entries, *, scope='all', vm_ids=None):
             continue
         if entry[1].startswith('ui-'):
             result[entry] = value
+            continue
+        if (scope == 'all' and current_vms is not None and entry[1] not in current_vms
+                and not (value[2] or value[3])):
+            # Other worktrees can retain a retired VM name/layout. Keep their
+            # live controllers observable, without adding stale idle global tabs.
             continue
         previous = vms.get(entry[1])
         # Prefer the current controller, then a running unlocked display, over
@@ -72,6 +77,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             self.next_ui = self.next_discovery = self.next_output = 0
             self.next_vm = {}
             self.output_active = False
+            self.dynamic_vms = asynchronous
+            self.configured_vms = configured
             self.output_status = Gtk.Label(label='Terminal Outputs — Waiting for tests',
                 xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                 margin_start=8, margin_end=8, margin_top=8, margin_bottom=8)
@@ -126,6 +133,25 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
             # A single-feed fixture can exercise the shared panel in isolation.
             if feed is not None:
                 self.vm = next(iter(self.vms.values()))
+
+        def refresh_vms(self, configured):
+            if not self.dynamic_vms or configured == self.configured_vms:
+                return
+            for name in tuple(self.vm_keys):
+                if name not in configured:
+                    key = self.vm_keys.pop(name)
+                    self.vms.pop(key).close()
+                    self.next_vm.pop(key)
+            for name in configured:
+                if name not in self.vm_keys:
+                    key = 'vm-' + name.encode('ascii').hex()
+                    self.vm_keys[name] = key
+                    source = AsyncFeed(Feed(name, root=self.root))
+                    self.vms[key] = vm_panel(source, vm_name=name,
+                        identity_prefix=prefix + 'e2e-watch-' + key)
+                    self.next_vm[key] = 0
+            self.vm_ids = {self.vm_keys[name]: vm.id for name, vm in configured.items()}
+            self.configured_vms = configured
 
         def copy_selection(self):
             if self.terminal.get_has_selection():
@@ -412,7 +438,9 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
         def scoped_entries(self, scope_name, entries):
             ids = {(name, key): identifier for name, view in self.checkouts.items()
                    for key, identifier in view.vm_ids.items()}
-            return viewer_entries(entries, scope=scope_name, vm_ids=ids)
+            primary = self.__dict__.get('primary')
+            return viewer_entries(entries, scope=scope_name, vm_ids=ids,
+                                  current_vms=set(primary.vm_keys.values()) if primary else set())
 
         def entries(self):
             result = {}
@@ -458,6 +486,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 for key in tuple(scope['bodies']):
                     if key not in wanted:
                         if scope['selected'] == key:
+                            scope['selected'] = 'all'
                             scope['buttons']['all'].set_active(True)
                         scope['bar'].remove(scope['buttons'].pop(key))
                         scope['pages'].remove(scope['bodies'].pop(key))
@@ -540,6 +569,12 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 discovered = self.discovery.poll()
                 for root, label in (discovered or {}).items():
                     self.add_checkout(root, label)
+                poll_vms = getattr(self.discovery, 'poll_vms', None)
+                if poll_vms is not None:
+                    for root, configured in (poll_vms() or {}).items():
+                        view = self.checkouts.get(str(root))
+                        if view is not None:
+                            view.refresh_vms(configured)
             for name, view in self.checkouts.items():
                 was_active = view.output_active
                 scope = self.scopes[self.selected_checkout]

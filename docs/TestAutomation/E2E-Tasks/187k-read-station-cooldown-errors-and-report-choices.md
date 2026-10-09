@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add review-report entry, Privacy and normal report-close destination. Reuse 187b's actual cooldown trigger and decline result; preserve independent attempts for both outcomes.
+Add review-report entry, Privacy and normal report-close destination. Reuse 187b's actual cooldown trigger and unchanged independently qualified decline result.
 
 Reuse the delivered scope of tasks **187b** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -21,22 +21,23 @@ Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-a
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **021** — FLOW05/06/07 kiosk.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
-- **030** — FEED05; FEED10 dialog persistence.
 - **187b** — REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief.
 
 ## Implementation
 
-Qualify station re-entry and Request within the real five-second cooldown, then review/decline bindings with the correct station/GDM destination. Do not change timing or force an error.
+Reuse 187b's station re-entry, Request and approval operations to reach the real five-second cooldown error. Add report-review, Privacy and normal report-close bindings with the correct station/GDM destination. Do not change timing or force an error.
 
 ## Live VM acceptance
 
-On the VM, approve once, re-enter and select the other child, then Request before
-five seconds from success and read the too-soon result. Independently review and
-decline its report; read both children's original balances before later approval.
-Case 178 composes these bindings into one journey with separate cooldown errors.
+In a fresh guarded VM attempt, approve once, re-enter and select the other child,
+then Request before five seconds from success and read the too-soon result.
+Review its report, visit Privacy and close normally; independently check the
+station/GDM destination and both children's original balances before later
+approval. Qualify independent valid entry and wrong-child/surface/owner refusal.
+Reuse 187b's unchanged exact decline qualification, rerunning affected branches
+when necessary; its evidence supplies no saved VM state. An unreachable public
+trigger remains pending. Case 178 retains review and decline in its complete
+journey with separate cooldown errors.
 
 Qualification selector (implement and register before use):
 

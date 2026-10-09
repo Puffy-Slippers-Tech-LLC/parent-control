@@ -19,8 +19,9 @@ Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **003d** — DESK04 direct logout command and independent GDM result.
 - **042a** — DESK05/06 explicit Lock, curtain and challenge reveal.
+
+Its transitive prerequisites retain DESK04 direct logout and independent GDM observation.
 
 ## Implementation
 

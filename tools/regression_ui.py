@@ -205,6 +205,8 @@ GROUPS = (
 # checks only read a running E2E feed and are excluded from host aggregates.
 # The combined watcher has private memfds, runtime sockets and tmp_path launcher
 # locks/logs, on this same private display/bus; it starts no real runner or VM.
+# Registry refresh/retired-worktree checks keep those same private resources;
+# replaced asynchronous feeds are closed and joined by their owning fixture.
 # The multi-VM grid uses up to five private synthetic memfds in this fixture;
 # cells share only its private display/bus and add no libvirt or host resources.
 # The stalled-VM check parks only a private transport thread; its event is

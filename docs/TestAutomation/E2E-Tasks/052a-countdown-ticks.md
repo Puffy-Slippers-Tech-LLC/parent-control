@@ -19,18 +19,15 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **052** — TIME01 child-desktop presence and limits-off absence.
-- **051** — FLOW13 daily-only, fresh/same Parent entry with observed G=0.
-- **052c** — TIME03.
 - **052d** — TIME02 minute-precision sampling.
 
 ## Implementation
 
-Compose TIME02 from TIME01, guarded TIME03 intervals and explicit UI12 elapsed-time comparisons. Declare public precision, formatting and tolerances before execution. Keep elapsed time distinct from an enforcement result.
+Extend 052d's TIME02 sampling with final-second formatting and ticks, using TIME01, guarded TIME03 intervals and explicit UI12 elapsed-time comparisons. Declare public precision, formatting and tolerances before execution. Keep elapsed time distinct from an enforcement result.
 
 ## Live VM acceptance
 
-On the live VM, publicly establish short daily-only time, enter the child and observe minute ticks and final-second changes over real measured intervals. Require the declared sample order and tolerances. No guest clock adjustment or usage probe is allowed.
+In a fresh guarded VM attempt, publicly establish short daily-only time, enter the child and observe final-second formatting and successive changes over real measured intervals. Include a minute-format sample only when needed to establish the transition into the new branch. Require the declared sample order and tolerances, independent valid entry and stale/reversed/wrong-owner sample refusal. Reuse 052d's unchanged exact minute-tick qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. No guest clock adjustment or usage probe is allowed.
 
 Qualification selector (implement and register before use):
 

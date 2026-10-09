@@ -20,13 +20,11 @@ Deliver **APP06/UI22 continuous login interval and Lunar autostart binding**.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **296a** — APP01/02/03 and UI18 Minecraft local-world binding.
-- **007** — LIFE02.
-- **016a** — UI22.
-- **004** — UI19/GDM05 distinct single-use authentication challenges.
-- **052c** — TIME03.
-- **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
 - **296f** — APP06/UI22 allowed continuous login interval.
+
+Its transitive prerequisites retain Minecraft local-world activity, customer
+reboot, the UI22 observer, distinct single-use login challenges, guarded TIME03
+intervals and public Parent allowance preparation.
 
 ## Implementation
 

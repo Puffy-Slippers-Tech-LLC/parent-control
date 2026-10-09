@@ -1,8 +1,7 @@
 # 310 — Language changes preserve countdown and natural expiry
 
 Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Also apply [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
+and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **043c** — Retained child unlock/resume through the correct recipient.

@@ -21,16 +21,14 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **028** — LIFE01.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **007** — LIFE02.
-- **079** — PARENT16 and FLOW03 public app-policy editing.
-- **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
 - **135a** — LIFE04 update and LIFE05 no-action notice.
+
+Its transitive prerequisites retain normal app restart, retained-desktop routing,
+customer reboot, public app-policy editing and overlay request entry/results/exits.
 
 ## Implementation
 
-Bind a verified old/new package profile requiring process activation. Extend LIFE04(update) and LIFE05 only for this route and the explicit no-action notice branch. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
+Bind a verified old/new package profile requiring process activation. Extend LIFE04(update) and LIFE05 only for this process route; reuse 135a's unchanged no-action branch. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
 
 ## Live VM acceptance
 

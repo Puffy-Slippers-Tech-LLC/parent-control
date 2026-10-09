@@ -1,12 +1,11 @@
 """Private, leased VM disaster recovery dispatched by onpc-setup.
 
-Archives are immutable generations, with a checksummed atomic latest pointer.
+Each VM has one checksummed archive, atomically replaced after verification.
 Restoration publishes files individually under a durable, identity-bound journal;
 it never deletes a backup, displaced file, or unfinished controller evidence.
 """
 from contextlib import contextmanager
-from datetime import datetime, timezone
-import argparse
+import ctypes
 import errno
 import fcntl
 import grp
@@ -41,9 +40,31 @@ def require(condition, category):
 def private_directory(path, *, create=False):
     if create:
         base.canonical(path.parent)
-        path.mkdir(mode=0o700, exist_ok=True)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        else:
+            # A setgid storage parent otherwise supplies its group and setgid
+            # bit even with mkdir(0700). Normalize only our newly created inode.
+            info = path.lstat()
+            fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                opened = os.fstat(fd)
+                require((opened.st_dev, opened.st_ino) == (info.st_dev, info.st_ino) and
+                        opened.st_uid == os.geteuid(), 'directory-changed')
+                os.fchown(fd, os.geteuid(), os.getegid())
+                os.fchmod(fd, 0o700)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         base.sync_directory(path.parent)
-    return base.private_baseline_directory(path)
+    base.canonical(path)
+    info = path.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and
+            info.st_gid == os.getegid() and stat.S_IMODE(info.st_mode) == 0o700,
+            'private-directory; use a dedicated root-owned 0700 backup_root')
+    return {'device': info.st_dev, 'inode': info.st_ino}
 
 
 def ensure_parents(path):
@@ -89,7 +110,7 @@ def stamp(path):
     return dict(item, size=info.st_size, mtime=info.st_mtime_ns, ctime=info.st_ctime_ns)
 
 
-def copy_file(source, destination, *, expected=None, guard=lambda: None):
+def copy_file(source, destination, *, expected=None, guard=lambda: None, created=lambda path: None):
     """Copy a descriptor-pinned regular file, preserving sparse QCOW2 holes.
 
     Exclusive creation and no reflinks give the generation independent bytes.
@@ -105,6 +126,7 @@ def copy_file(source, destination, *, expected=None, guard=lambda: None):
         info = os.fstat(source_fd)
         require((info.st_dev, info.st_ino) == (before['device'], before['inode']), 'source-changed')
         destination_fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        created(destination)
         offset, size = 0, info.st_size
         sparse = True
         while offset < size:
@@ -319,14 +341,155 @@ def archive_preflight(api, vm, commands):
         raise
 
 
+def rename_archive(root, source, destination, *, exchange=False):
+    """Linux's atomic directory exchange keeps the complete old copy available."""
+    private_directory(root)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        rename = ctypes.CDLL(None, use_errno=True).renameat2
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                           ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        # RENAME_EXCHANGE=2; first publication uses RENAME_NOREPLACE=1.
+        if rename(fd, os.fsencode(source), fd, os.fsencode(destination), 2 if exchange else 1):
+            raise OSError(ctypes.get_errno(), 'atomic archive publication failed')
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def publication_journal(vm, root):
+    return root / ('.backup-publication-' + vm.name + '.json')
+
+
+def verify_archive_file(path, name, expected):
+    candidate = path / name
+    require(not candidate.is_symlink(), 'publication-file-changed')
+    identity = base.identity(candidate, private=True, mode=0o600)
+    actual = stamp(candidate) if 'ctime' in expected else identity
+    require(actual == dict(expected, path=str(candidate)), 'publication-file-changed')
+
+
+def verify_archive_files(path, files, *, partial=False):
+    require(isinstance(files, dict) and all(len(relative_path(name).parts) == 1 for name in files),
+            'publication-record')
+    remaining = {item.name for item in path.iterdir()}
+    require(remaining <= set(files) if partial else remaining == set(files), 'publication-unknown-file')
+    for name in remaining:
+        verify_archive_file(path, name, files[name])
+    return remaining
+
+
+def remove_recorded_archive(root, path, directory_identity, files):
+    """Delete only a recorded private allocation and its unchanged files."""
+    require(path.parent == root and private_directory(path) == directory_identity,
+            'publication-directory-changed')
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(descriptor)
+        require({'device': info.st_dev, 'inode': info.st_ino} == directory_identity,
+                'publication-directory-changed')
+        remaining = verify_archive_files(path, files, partial=True)
+        for name in sorted(remaining):
+            verify_archive_file(path, name, files[name])
+            os.unlink(name, dir_fd=descriptor)
+            os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    require(private_directory(path) == directory_identity, 'publication-directory-changed')
+    path.rmdir()
+    base.sync_directory(root)
+
+
+def staging_journal(vm, root):
+    return root / ('.backup-staging-' + vm.name + '.json')
+
+
+def cleanup_staging(vm, root):
+    path = staging_journal(vm, root)
+    if not os.path.lexists(path):
+        return
+    record = read_json(path)
+    journal_identity = base.identity(path, private=True, mode=0o600)
+    require(record.get('name') == vm.name and isinstance(record.get('staging'), str) and
+            record['staging'].startswith('.backup-' + vm.name + '-') and
+            len(relative_path(record['staging']).parts) == 1, 'staging-record')
+    staged = root / record['staging']
+    if os.path.lexists(staged):
+        remove_recorded_archive(root, staged, record['directory'], record['files'])
+    # Missing staging means publication or an interrupted deletion completed.
+    require(base.identity(path, private=True, mode=0o600) == journal_identity, 'staging-record-changed')
+    path.unlink()
+    base.sync_directory(root)
+
+
+def finish_publication(vm, root):
+    """Resume publication/deletion only with the exact recorded inode identities."""
+    journal_path = publication_journal(vm, root)
+    if not os.path.lexists(journal_path):
+        return
+    journal = read_json(journal_path)
+    journal_identity = base.identity(journal_path, private=True, mode=0o600)
+    require(journal.get('name') == vm.name and isinstance(journal.get('staging'), str) and
+            journal['staging'].startswith('.backup-' + vm.name + '-') and
+            len(relative_path(journal['staging']).parts) == 1, 'publication-record')
+    current, staged = root / vm.name, root / journal['staging']
+    current_identity = private_directory(current)
+    if current_identity == journal['previous']:
+        require(private_directory(staged) == journal['replacement'], 'publication-directory-changed')
+        verify_archive_files(current, journal['files'])
+        verify_archive_files(staged, journal['replacement_files'])
+        rename_archive(root, staged.name, current.name, exchange=True)
+    require(private_directory(current) == journal['replacement'], 'publication-directory-changed')
+    verify_archive_files(current, journal['replacement_files'])
+    if os.path.lexists(staged):
+        remove_recorded_archive(root, staged, journal['previous'], journal['files'])
+    require(base.identity(journal_path, private=True, mode=0o600) == journal_identity,
+            'publication-record-changed')
+    journal_path.unlink()
+    base.sync_directory(root)
+
+
+def publish_archive(vm, root, archive):
+    current = root / vm.name
+    if not os.path.lexists(current):
+        rename_archive(root, archive.name, current.name)
+        return
+    previous, manifest, _ = load_archive(vm, root)
+    require(previous == current, 'legacy-generations; select a new dedicated backup_root')
+    names = {'manifest.json', 'complete.json'} | {item['payload'] for item in manifest['files']}
+    require({path.name for path in current.iterdir()} == names, 'publication-unknown-file')
+    journal = dict(name=vm.name, staging=archive.name, previous=private_directory(current),
+                   replacement=private_directory(archive),
+                   files={name: stamp(current / name) for name in names},
+                   replacement_files={item.name: stamp(item) for item in archive.iterdir()})
+    atomic(publication_journal(vm, root), journal)
+    finish_publication(vm, root)
+
+
 def backup(api, vm, root, commands):
-    private_directory(root / vm.name, create=True)
     with operation('Backing up registered VM disks, snapshots and provenance'):
+        finish_publication(vm, root)
+        cleanup_staging(vm, root)
         source, inventory, xml, snapshots, current, networks, files = archive_preflight(api, vm, commands)
         try:
-            generation = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex
-            archive = root / vm.name / generation
+            archive = root / ('.backup-' + vm.name + '-' + uuid.uuid4().hex)
             private_directory(archive, create=True)
+            staging = dict(name=vm.name, staging=archive.name,
+                           directory=private_directory(archive), files={})
+            atomic(staging_journal(vm, root), staging)
+            def created(path):
+                staging['files'][path.name] = base.identity(path, private=True, mode=0o600)
+                atomic(staging_journal(vm, root), staging)
+            def write_record(name, value):
+                path = archive / name
+                with path.open('xb') as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    created(path)
+                    stream.write(base.encode(value))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                base.sync_directory(archive)
             records = []
             stamps = {path: stamp(path) for _, _, path in files}
             for index, (area, relative, path) in enumerate(files):
@@ -335,7 +498,7 @@ def backup(api, vm, root, commands):
                 info = path.stat()
                 payload = f'file-{index:05d}'
                 copy_file(path, archive / payload, expected=before,
-                          guard=lambda: guard_domain(source.connection, api, vm, source.uuid))
+                          guard=lambda: guard_domain(source.connection, api, vm, source.uuid), created=created)
                 records.append(dict(area=area, relative=relative, original=str(path), payload=payload,
                     sha256=checksum(archive / payload), size=info.st_size,
                     owner=pwd.getpwuid(info.st_uid).pw_name, group=grp.getgrgid(info.st_gid).gr_name,
@@ -355,10 +518,18 @@ def backup(api, vm, root, commands):
             if (vm.baseline_directory / 'phase.json').exists():
                 manifest['baseline_sha256'] = base.baseline_sha256(
                     read_json(vm.baseline_directory / 'phase.json'), vm.baseline_directory)
-            atomic(archive / 'manifest.json', manifest)
-            atomic(root / vm.name / 'latest.json', dict(generation=generation,
+            write_record('manifest.json', manifest)
+            write_record('complete.json', dict(generation=vm.name,
                 sha256=checksum(archive / 'manifest.json')))
-            print(f'backupvms: {vm.name}: complete generation {generation}', flush=True)
+            publish_archive(vm, root, archive)
+            cleanup_staging(vm, root)
+            print(f'backupvms: {vm.name}: backup complete: {root / vm.name}', flush=True)
+        except BaseException:
+            # Publication recovery owns the displaced old directory after the
+            # exchange. Otherwise remove only this attempt's recorded scratch.
+            if not os.path.lexists(publication_journal(vm, root)):
+                cleanup_staging(vm, root)
+            raise
         finally:
             source.close()
 
@@ -386,10 +557,12 @@ def target(vm, manifest, record):
 
 def load_archive(vm, root):
     private_directory(root / vm.name)
-    latest = read_json(root / vm.name / 'latest.json')
+    direct = os.path.lexists(root / vm.name / 'complete.json')
+    latest = read_json(root / vm.name / ('complete.json' if direct else 'latest.json'))
     require(set(latest) == {'generation', 'sha256'} and isinstance(latest['generation'], str) and
             len(relative_path(latest['generation']).parts) == 1, 'latest-record')
-    archive = root / vm.name / latest['generation']
+    require(not direct or latest['generation'] == vm.name, 'latest-record')
+    archive = root / vm.name if direct else root / vm.name / latest['generation']
     private_directory(archive)
     require(checksum(archive / 'manifest.json') == latest['sha256'], 'manifest-checksum')
     manifest = read_json(archive / 'manifest.json')
@@ -842,7 +1015,8 @@ def restore(connection, api, vm, root, commands):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    from vm_backup_launcher import FailureParser, failure
+    parser = FailureParser(prog='VM disaster recovery', description=__doc__, allow_abbrev=False)
     parser.add_argument('action', choices=('backup', 'restore'))
     parser.add_argument('--vm', default='all')
     args = parser.parse_args(argv)
@@ -900,8 +1074,8 @@ def main(argv=None):
         return 0
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, (base.CaptureError, ValueError)) else type(error).__name__
-        print(f'{args.action}vms: {category}; preserve backups, displaced files and restore journals. '
-              'Resolve the condition and rerun the same selection.', file=sys.stderr)
+        failure(f'{args.action}vms', f'{category}; preserve backups, displaced files and restore journals. '
+                'Resolve the condition and rerun the same selection.')
         return 1
 
 

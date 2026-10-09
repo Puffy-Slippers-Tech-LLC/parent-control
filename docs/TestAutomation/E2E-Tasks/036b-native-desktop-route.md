@@ -19,10 +19,10 @@ Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-fil
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
-- **035p** — native baseline assets and launchers; guarded read-only verification.
 - **036h** — APP01/02 desktop separate-window route.
+
+Its transitive prerequisites retain bounded shared file preparation, verified
+native baseline assets/launchers and native policy-result observations.
 
 ## Implementation
 

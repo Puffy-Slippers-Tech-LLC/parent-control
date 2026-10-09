@@ -22,6 +22,36 @@ def intent(transcript):
     return json.loads(transcript.packet('a' * 32))['operation']
 
 
+def test_serial_vm_selection_publishes_to_each_vm_after_queue_validation(monkeypatch):
+    import vm_config
+    selected = None
+    monkeypatch.setattr(vm_config, 'selected', lambda **_: selected)
+    monkeypatch.setattr(activity.os, 'geteuid', lambda: 0)
+    monkeypatch.setenv('PKEXEC_UID', '12345')
+    monkeypatch.setattr(activity, '_instance', None)
+    monkeypatch.setattr(activity, '_attempted', False)
+    monkeypatch.setattr(activity, '_attempted_vm', None)
+    monkeypatch.setattr(activity.atexit, 'register', Mock())
+    publishers = []
+    def publish(uid):
+        assert uid == 12345
+        value = SimpleNamespace(registry=SimpleNamespace(vm_name=selected.name),
+                                transcript=activity.Transcript(), close=Mock())
+        publishers.append(value)
+        return value
+    monkeypatch.setattr(activity, 'Publication', publish)
+    with activity.operation('Validating the backup queue'):
+        assert not publishers and activity.current() is None
+    for name in ('First-VM', 'Second-VM'):
+        selected = SimpleNamespace(name=name)
+        with activity.operation('Backing up registered VM disks'):
+            assert publishers[-1].registry.vm_name == name
+            assert intent(publishers[-1].transcript) == 'Backing up registered VM disks'
+    assert len(publishers) == 2
+    publishers[0].close.assert_called_once_with()
+    publishers[1].close.assert_not_called()
+
+
 def test_intent_precedes_action_and_nested_work_restores_it(transcript):
     activity.event('Waiting for an experiment')
     with activity.operation('Restoring the VM snapshot'):

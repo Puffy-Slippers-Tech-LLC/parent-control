@@ -21,6 +21,7 @@ import uuid
 
 _instance = None
 _attempted = False
+_attempted_vm = None
 _secrets = set()
 CSI = re.compile(r'\x1b\[[0-9;:?]*[ABCDGHJKSTfhlmsu]')
 
@@ -167,8 +168,23 @@ class Publication:
 
 
 def current():
-    global _instance, _attempted
+    global _instance, _attempted, _attempted_vm
     uid = os.environ.get('PKEXEC_UID', '')
+    if os.geteuid() == 0 and uid.isdecimal() and int(uid) > 0:
+        from vm_config import selected
+        try:
+            vm = selected(required=False)
+        except (OSError, ValueError):
+            return None
+        # Queue-wide validation has no selected VM yet. Do not permanently
+        # disable viewing before the serial controller binds its first VM.
+        if vm is None:
+            return None
+        if _attempted_vm != vm.name:
+            if _instance is not None:
+                _instance.close()
+                _instance = None
+            _attempted, _attempted_vm = False, vm.name
     if not _attempted and os.geteuid() == 0 and uid.isdecimal() and int(uid) > 0:
         _attempted = True
         try:

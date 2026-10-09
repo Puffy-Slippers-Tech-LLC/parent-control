@@ -754,6 +754,37 @@ minute/final-second progression or natural expiry; retain those earlier queued
 capabilities before composing 310. No future selector listed in these briefs is
 registered merely by this table.
 
+### Reminder controls and notification qualification
+
+The shared request Preferences controls and repository-owned reminder banners
+use the [Application UI API](Application-UI-API.md#shared-request-form-and-language-chooser), including the
+[ChildUI notification surface](Application-UI-API.md#child-panel). Their
+installed operations remain **pending**; implemented product controls and host
+UI checks do not establish qualification. The queue extracts these bounded
+bindings before the complete reminder cases:
+
+| Task | Exact qualification slice |
+| --- | --- |
+| [312a](E2E-Tasks/312a-overlay-reminder-editing.md) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback |
+| [312b](E2E-Tasks/312b-kiosk-reminder-binding.md) | Selected-child kiosk reminder save/readback, overlay continuity and account isolation |
+| [311a](E2E-Tasks/311a-reminder-fullscreen-preference.md) | Saved account-wide `reminder-show-in-fullscreen` boolean; no notification-delivery credit |
+| [311b](E2E-Tasks/311b-natural-reminder-observation.md) | Naturally emitted ChildUI body, canonical seconds, urgency and natural-lock removal; public-value contract gate remains explicit in the brief |
+| [311c](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | Owned banner visibility/suppression with task 129's genuine fullscreen game; independent of urgency |
+
+`PreferencesDialog` implements reminder editing and the fullscreen switch in
+`kiosk/oh_no_parent_control_kiosk/preference_dialog.py`. Child notification
+content and surface flags are mapped by `GnomeApplicationUiAdapter` in
+`child/gnomeApplicationUiAdapter.js`; `child/reminderBanner.js` owns the banner,
+outside Shell's generic message tray. Qualify these public mappings through
+shared facade operations; no generic Shell notification adapter is a prerequisite.
+Missing independent public identity or visibility remains a qualification gate.
+
+The [saved-reminder case 312](E2E-Tasks/312-child-reminder-preferences.md) and
+[warning case 311](E2E-Tasks/311-remaining-time-notifications.md) retain their
+separate complete histories. Case 311 reuses task 135a's real verified upgrade
+and task 129's fullscreen game. No selector, numeric inventory binding,
+installed qualification or acceptance is supplied by this planning record.
+
 ### Daily allowance selection
 
 PARENT06 uses one Application UI API sequence in every UI/E2E consumer:

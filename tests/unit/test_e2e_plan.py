@@ -146,10 +146,13 @@ def test_unfinished_briefs_select_their_shared_contract_and_acceptance(rows, bri
         assert '(../E2E-Execution-Contracts.md#task-brief-contract)' in entry, row['id']
         if row['deferred']:
             continue
-        kind = ('scenario' if is_case(row) else
+        kind = ('scenario' if (is_case(row) or
+                               row['scope'].startswith('Planned scenario;')) else
                 'system' if row['scope'].startswith('System obligation ') else
                 'ui' if row['scope'].startswith('UI obligation;') else 'capability')
         assert f'(../E2E-Execution-Contracts.md#{kind}-acceptance)' in entry, row['id']
+        if kind == 'scenario':
+            assert '#capability-acceptance)' not in entry, row['id']
 
 
 def test_case_assignments_preserve_inventory_and_one_case_per_task(rows, variants):

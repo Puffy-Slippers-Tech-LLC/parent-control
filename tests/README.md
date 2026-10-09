@@ -1654,6 +1654,12 @@ flat tab row: **All**, **UI - category** for each active UI worker category,
 and each registered VM's name. In the bottom **All** scope, category
 tabs are prefixed with **[branch]:**. Each VM has one tab in the bottom
 **All** scope, using the checkout with its current controller or running display.
+Idle VM tabs in the combined scope come from the watcher's initial checkout's
+current registry. Other worktrees' retired names remain available in their own
+branch scope and appear globally only while they have live activity. Registry
+name/ID changes update the existing viewer without restarting it; a removed
+selected VM tab returns to **All**. Registry reads share the background checkout
+discovery worker and never block GTK rendering.
 Its viewer **All** tab puts active viewers in one flat grid ordered by bottom
 branch and UI category name, followed by VMs in ascending numeric configured ID
 order. Legacy VMs without IDs follow in registration order. VM tabs use that
@@ -1672,6 +1678,9 @@ The lease keeps one authenticated display feed connected through guest shutdown,
 snapshot restoration, offline inspection and gaps between steps. It shows the
 current operation while no guest display exists and attaches each newly guarded
 display to the same feed. The feed ends after the exclusive VM lock is released.
+The viewer clears the screen when the VM is off. Serial archive controllers
+publish their operation to each selected VM, including after queue-wide
+validation before the first VM is bound.
 
 Each VM's transport runs in its own worker with bounded latest-frame queues.
 Socket waits and shared-memory reads stay outside GTK and cannot block another

@@ -17,6 +17,7 @@ from e2e_watch_viewer import Feed
 from ui_watch_transport import Feeds, Publication
 from watch_output import Output
 from watch_viewer import application
+from vm_selection import registry
 from test_storage import directory, runtime_directory
 
 root = Path(os.environ['ONPC_WATCH_FIXTURE'])
@@ -29,6 +30,7 @@ runtime = stack.enter_context(runtime_directory(prefix='onpc-watch-test-'))
 ui_source = None
 vm_source = None
 extra_sources = {}
+retired_feeds = []
 locks = {}
 stage = ''
 result = {}
@@ -85,6 +87,21 @@ vm_ids = dict(zip(vm_names, ('10', 2, '30', 4, '1')))
 # Synthetic memfds have no privileged host registration to bind to a checkout.
 stack.enter_context(patch('e2e_watch_viewer.Feed', lambda name, *, root: VM(name)))
 app = application(feeds=Feeds(runtime), output=Output(root), checkouts={root: 'Fixture'})
+class RegistryUpdates:
+    pending = None
+
+    def poll(self):
+        return None
+
+    def poll_vms(self):
+        value, self.pending = self.pending, None
+        return value
+
+    def close(self):
+        pass
+
+registry_updates = RegistryUpdates()
+app.discovery = registry_updates
 import gi
 gi.require_version('Vte', '3.91')
 from gi.repository import GLib, Gtk, Vte
@@ -99,6 +116,21 @@ def tick():
         requested = control.read_text() if control.exists() else ''
         if requested != stage:
             stage = requested
+            if stage == 'rename-vm':
+                retired_feeds.append(app.vm.feed)
+                old = vm_names[0]
+                vm_names[0] = 'Renamed-Fixture-VM'
+                vm_ids.pop(old)
+                vm_ids[vm_names[0]] = '7'
+                config = root / 'config/test-vm.json'
+                document = json.loads(config.read_text())
+                for vm in document['vms']:
+                    if vm['name'] == old:
+                        vm.update(name=vm_names[0], id='7')
+                config.write_text(json.dumps(document))
+                registry_updates.pending = {root: registry(config)}
+                # Layout evidence is sampled after the application's next tick.
+                return True
             if stage == 'ui':
                 result['columns_ratio'] = app.pane.get_position() / app.pane.get_width()
                 result['icon'] = app.window.get_icon_name()
@@ -239,8 +271,7 @@ finally:
         vm_source.close()
     for source in extra_sources.values():
         source.close()
-    for view in app.vms.values():
-        feed = view.feed
+    for feed in [*retired_feeds, *(view.feed for view in app.vms.values())]:
         feed.close()
         feed.thread.join(2)
         assert not feed.thread.is_alive()

@@ -347,15 +347,30 @@ VMs completely before invocation; disable their libvirt autostart and finish any
 owned maintenance/test attempt. Preparation itself still applies all its usual
 authorization, baseline and guest-prerequisite checks.
 
-After successful preparation, archive copying is strictly serial. Each VM gets
-a new complete generation below `backup_root/NAME/`, with independent sparse
+After successful preparation, archive copying is strictly serial. Each VM has
+one complete backup directly in `backup_root/NAME/`, with independent sparse
 disk-chain copies, inactive domain XML, snapshot hierarchy/current snapshot,
 referenced persistent network definitions, private baseline provenance and any
-saved-memory credential record. A checksummed `latest.json` pointer selects the
-last successful generation. Copies are checked against their source hashes before
+saved-memory credential record. `complete.json` binds the manifest checksum.
+Copies are checked against their source hashes before
 publication. Full payload checksums are specific to disaster
-archives; ordinary test disk verification remains metadata-only. Partial copies
-never replace the previous complete generation. Older backups are retained.
+archives; ordinary test disk verification remains metadata-only. A replacement
+is built in a private temporary folder directly under `backup_root`, then
+atomically exchanged with the VM folder. Partial copies never replace the
+previous complete backup. The superseded copy and temporary folder are removed
+using recorded filesystem identities; interrupted publication/cleanup resumes
+on retry. There are no date/version folders or retained successful generations.
+Failed copying cleans its recorded temporary files. Unknown or replaced entries
+are preserved and reported as a failure in red, with a nonzero exit status.
+Success is reported only after every selected VM completes.
+
+`backup_root` must be a dedicated root-private directory, not a shared folder
+containing unrelated backups. The configured default is
+`/Data/virt-manager/backups/onpc`; the tool creates it with owner/group root and
+mode `0700`, including beneath a setgid parent. Existing shared folders are
+refused without changing their ownership, permissions or contents.
+Legacy generation archives remain readable by restore; backup refuses to
+discard an untracked legacy hierarchy and requires a new dedicated root.
 
 Restore processes selected VMs serially, validating each archive before changing
 its VM. Missing libvirt domains and disks are recreated; an existing domain must

@@ -51,6 +51,9 @@ def run(root):
     sources = {path: dict(feeds=Feeds(runtime), output=Output(path),
                          vm_feeds={'Fixture-VM': VM(index)})
                for index, (path, runtime) in enumerate(zip(roots, runtimes))}
+    retired = VM(99)  # This worktree-only registration never has a live feed.
+    retired.vm_name = 'Retired-VM'
+    sources[roots[1]]['vm_feeds']['Retired-VM'] = retired
     class Discovery:
         def __init__(self):
             self.received = []

@@ -62,6 +62,13 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
                  'each checkout shows its own runner transcript')
             assert ui.text('watch-checkout-heading-' + keys[name]) == name
     audit_owned_controls(ui, 'watch-window')
+    assert 'Retired-VM' not in evidence()['top_tabs']
+    ui.activate('watch-checkout-tab-' + keys['worktree'])
+    wait(lambda: 'Retired-VM' in evidence().get('top_tabs', []),
+         'a worktree retains its own idle registry while All omits retired global entries')
+    ui.activate('watch-checkout-tab-all')
+    wait(lambda: 'Retired-VM' not in evidence().get('top_tabs', []),
+         'the combined view uses current VM registrations for idle tabs')
     control.write_text('remote')
     wait(lambda: evidence().get('remote_exited') and evidence().get('remote_received'),
          'another checkout forwards to the same desktop-session singleton')
@@ -255,6 +262,21 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
          'all idle VM tabs are gray')
     ui.activate('watch-tab-' + third_key)
     wait(lambda: ui.showing('watch-page-' + third_key), 'idle gray tab remains selectable')
+    ui.activate('watch-tab-' + vm_key)
+    wait(lambda: ui.showing('watch-page-' + vm_key) and evidence().get('selected') == vm_key,
+         'the VM being renamed is selected before its registry changes')
+    control.write_text('rename-vm')
+    renamed_key = 'vm-' + 'Renamed-Fixture-VM'.encode('ascii').hex()
+    wait(lambda: ui.text('watch-tab-' + renamed_key) == 'Renamed-Fixture-VM',
+         'a registry rename creates the current VM tab without restarting the viewer')
+    try:
+        wait(lambda: vm_name not in evidence().get('top_tabs', []) and evidence().get('selected') == 'all',
+             'the retired selected tab is removed and returns to All')
+    except AssertionError:
+        print('Watcher registry rename evidence:', evidence())
+        raise
+    assert evidence()['top_tabs'] == ['All', *sorted(evidence()['vm_names'],
+                                                   key=lambda name: int(evidence()['vm_ids'][name]))]
     ui.activate('watch-close')
     wait(lambda: process.poll() is not None, 'closing viewer releases only its own resources')
     assert process.returncode == 0, log.read_text()

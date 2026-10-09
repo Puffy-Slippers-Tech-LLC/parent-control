@@ -11,6 +11,9 @@
 - **Parent App**: Parent app app grid column headers on some RTL languages overlap
 - **Parent App**: Fixed the disabled Revoke button at zero remaining time when soft-blocked apps are still running, allowing parents to close those apps after the child’s session locks.
 
+### Fedora Workstation 44 Readiness
+- **Test Automation:** One big step closer - all automated tests are passing on Fedora
+
 
 ## v1.3 - 2026-10-03
 ### New Features

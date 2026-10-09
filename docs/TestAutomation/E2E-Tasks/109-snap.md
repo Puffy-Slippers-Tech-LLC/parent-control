@@ -19,26 +19,27 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **109p** — Snap baseline assets and FIX06 verification.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
 - **109b** — APP01/02/03/04 and FLOW08 Snap command usable/new-window route.
 
 ## Implementation
 
 Verify the qualified Snap baseline profile from task 109p in a fresh attempt.
-Qualify APP01/02/03 for the fixed Snap command route, then APP04 activity identity
-and FLOW08. Register the supported new-window command so presenting an existing
-window cannot pass a new launch. Use the repository-owned fixture IDs. Package
-installation is already qualified and must not be reimplemented here.
+Reuse 109b's fixed Snap command, supported new-window, APP03 usability and APP04
+activity operations. Add APP02 Hard/Soft denial and prior-window closure to
+FLOW08 while preserving the unaffected usable A. Use the repository-owned
+fixture IDs; an existing window cannot pass a new launch. Package installation
+is already qualified and must not be reimplemented here.
 
 ## Live VM acceptance
 
 On the VM, capture the required activity through 109b's qualified Snap command
 route. Apply the declared Hard and Soft blocks through Parent and require
 explicit command denial and the expected prior-window closure, with A still
-usable. Reuse unchanged launch/use and separate-window evidence from 109b;
-rerun affected branches when necessary. Missing supported assets or independent
-public policy observations block the affected consumer.
+usable. Reuse unchanged exact launch/use and separate-window qualification from
+109b; rerun affected branches when necessary. Its evidence supplies no saved VM
+state: qualify the new policy composition in a fresh guarded attempt with
+independent valid entry and wrong-fixture/owner refusal. Missing supported assets
+or independent public policy observations block the affected consumer.
 
 Qualification selector (implement and register before use):
 

@@ -211,6 +211,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # VM backup/restore checks own pytest-private files and descriptor leases with
 # process-local libvirt/launcher doubles and tiny QCOW2 images with waited
 # qemu-img children; no live VM, privilege or bus. Unit/cleanup are compatible.
+# Backup staging/exchange/deletion and setgid-parent checks use only recorded
+# pytest-private directories and files, with process-local interruption doubles;
+# red failures use launcher doubles. Both inventories remain compatible.
 # Missing foreign images and interrupted network creation retain that private
 # lifetime, with process-local network/UUID and host-command doubles only.
 # Reconciliation and baseline-hash checks retain this lifetime, using private

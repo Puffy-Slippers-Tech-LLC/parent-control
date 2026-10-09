@@ -19,18 +19,18 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
 - **155a** — FLOW12 overlay-to-kiosk choices for both children.
+
+Its transitive prerequisites retain overlay choices/duration/validation and
+Cancel/Escape operations, retained desktop entry and public Parent allowance setup.
 
 ## Implementation
 
-Compose FLOW12 in each direction from the declared request exit, entry and REQUEST03/UI12 comparisons. Duration, custom value and soft-app choice follow the child; the station and each overlay keep their own approver. Qualify both children and read the destination before editing. This composition performs no approval.
+Add the kiosk-to-overlay FLOW12 direction using 155a's shared request exit, entry and REQUEST03/UI12 comparison operations. Duration, custom value and soft-app choice follow the child; the station and each overlay keep their own approver. Qualify both child bindings and read the destination before editing. This composition performs no approval.
 
 ## Live VM acceptance
 
-On the VM, publicly enable both children with ample time. Seed the recipe's different values and local approvers, then compare overlay→kiosk and kiosk→overlay before changing any selection. Each route must finish with the destination form open. Current mute absence has no interactive value; deferred mute does not block this task.
+In fresh guarded VM attempts, publicly enable both children with ample time. Seed the recipe's different kiosk values and local approvers, then compare each child's kiosk-to-overlay result before changing any destination choice. Finish with that destination form open; preserve independent valid entry and wrong-child/surface refusal. Reuse 155a's unchanged exact overlay-to-kiosk qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Current mute absence has no interactive value; deferred mute does not block this task.
 
 Qualification selector (implement and register before use):
 

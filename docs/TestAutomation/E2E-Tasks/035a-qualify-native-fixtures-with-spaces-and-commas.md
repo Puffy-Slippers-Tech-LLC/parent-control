@@ -19,8 +19,6 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
 - **035d** — FIX06 space-path readiness; FILE05 copy and command-policy result.
 
 ## Implementation

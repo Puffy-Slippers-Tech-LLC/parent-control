@@ -1,8 +1,7 @@
 # 308 — Overlay Hebrew request and translated approval
 
 Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
-and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
-Also apply [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
+and [scenario acceptance](../E2E-Execution-Contracts.md#scenario-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **308b** — Hebrew product request/success with genuine Shell approval and normal return.

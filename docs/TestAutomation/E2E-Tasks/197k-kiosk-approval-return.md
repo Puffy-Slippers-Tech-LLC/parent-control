@@ -21,14 +21,11 @@ Read only the named [block contracts](../E2E-Building-Blocks.md#reusable-journey
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **021** — FLOW05/06/07 kiosk.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052** — TIME01 child-desktop presence and limits-off absence.
 - **197a** — FLOW20 kiosk new/open form with fresh-child destination.
 
 ## Implementation
 
-Compose kiosk FLOW04 and FLOW05, then the explicitly fresh/retained child FLOW15 entry and TIME01/UI12. Receive GDM or an independently open station form as declared. Reuse the shared FLOW20 argument/result contract; do not depend on overlay qualification, open a session implicitly or alter daily/app policy.
+Extend 197a's kiosk FLOW04/FLOW05 composition with explicit retained-child FLOW15 entry and TIME01/UI12 comparison. Receive GDM or an independently open station form as declared. Reuse the shared FLOW20 argument/result contract and unchanged fresh-child bindings; do not depend on overlay qualification, open a session implicitly or alter daily/app policy.
 
 ## Live VM acceptance
 
@@ -36,7 +33,8 @@ Qualify the new-form/retained-child and independently supplied
 open-form/retained-child entries in fresh guarded VM attempts. Approve once per
 invocation; require success, automatic station exit, legitimate return to the
 same child activity and countdown within prebound public/elapsed-time intervals.
-Reuse unchanged fresh-child results from 197a, rerunning them only when affected.
+Reuse unchanged exact fresh-child qualification from 197a, rerunning it only when
+affected; its evidence supplies no saved VM state.
 Missing entry modes refuse without repair. Keep entry/recipient and uncertain
 input guards in shared qualification; no additional choice combinations or
 expiry wait belong to this composition.

@@ -627,6 +627,12 @@ Implementation status: All cases pending.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
+Implementation context: compose `request_flow.overlay_to_kiosk` /
+`onpc_request_flow::overlay_to_kiosk` and immutable endpoint checks for the
+[qualified overlay-to-kiosk bindings](E2E-Building-Blocks.md#overlay-choices-transferred-to-kiosk).
+Each case still owns its finite values, order and complete acceptance;
+kiosk-to-overlay remains pending.
+
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).

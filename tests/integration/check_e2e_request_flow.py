@@ -6,4 +6,4 @@ from tools.test_storage import named_input
 
 
 if __name__ == '__main__':
-    sys.exit(smoke(assets=named_input(), provision_credentials=True, request_flow=True))
+    sys.exit(smoke(assets=named_input(vm_source=True, fixture_source=True), provision_credentials=True, request_flow=True))

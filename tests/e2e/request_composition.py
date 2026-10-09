@@ -9,6 +9,7 @@ from countdown import CountdownObservation, check_countdown_balance
 from installed_journey import InstalledJourney
 from journey_checks import check_balances
 from private_artifacts import require
+from ui_observations import RequestObservation
 
 
 class KioskRequestJourney(InstalledJourney):
@@ -16,6 +17,7 @@ class KioskRequestJourney(InstalledJourney):
         super().__init__(context, progress, plan, actions=actions)
         self.balance = None
         self.requests = {}
+        self.transfer_requests = {}
         self.countdown_baselines = {}
         self.countdowns = {}
 
@@ -29,6 +31,7 @@ class KioskRequestJourney(InstalledJourney):
             self.balance = deepcopy(observed['ui']['time_explanation'])
         self.check_estimate(observed)
         self.check_preserved_request(stage, observed)
+        self.check_transferred_request(stage, observed)
         self.check_countdown(stage, observed)
 
     def check_countdown(self, stage, observed):
@@ -84,3 +87,22 @@ class KioskRequestJourney(InstalledJourney):
             observed.setdefault('comparison', {})[result] = True
         require(stage not in self.requests, 'request:comparison-replay')
         self.requests[stage] = deepcopy(request)
+
+    def check_transferred_request(self, stage, observed):
+        """Compare immutable child-owned choices, allowing local selector differences."""
+        checks = self.plan.request_transfer_checks
+        if stage not in checks and stage not in checks.values():
+            return
+        operation = self.plan.screen_tags[stage].removeprefix('ui:')
+        request = RequestObservation.from_request(observed.get('ui', {}).get('request'), operation=operation)
+        require(stage not in self.transfer_requests, 'request-transfer:replay')
+        if stage in checks:
+            before = self.transfer_requests.get(checks[stage])
+            require(before is not None, 'request-transfer:missing-source')
+            require(before.surface == 'child-overlay' and request.surface == 'kiosk',
+                    'request-transfer:direction')
+            require(all(getattr(before, field) == getattr(request, field) for field in
+                        ('child', 'duration_seconds', 'custom_text', 'allow_soft')),
+                    'request-transfer:changed-child-choices')
+            observed.setdefault('comparison', {})['shared_child_choices_local_approver'] = True
+        self.transfer_requests[stage] = request

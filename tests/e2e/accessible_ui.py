@@ -911,6 +911,26 @@ KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
                                    'kiosk-about-close-ready', 'kiosk-about-closed'})
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
+TRANSFER_OPERATIONS = {
+    f'transfer-{surface}-{name}-{action}': (surface == 'overlay', child, action)
+    for name, child in (('riley', CHILD), ('jordan', EXISTING_CHILD))
+    for surface, actions in (
+        ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned', 'refused')),
+        ('kiosk', ('select-default', 'approver', 'select', 'read')))
+    for action in actions
+}
+TRANSFER_REQUESTS = {}
+for _operation, (_overlay, _child, _action) in TRANSFER_OPERATIONS.items():
+    if _action in ('default', 'approver', 'select-default', 'select', 'read'):
+        _default = _action in ('default', 'approver', 'select-default')
+        TRANSFER_REQUESTS[_operation] = (
+            1800 if _default else 75 if _child == CHILD else 150,
+            None if _default else '1.25' if _child == CHILD else '2.5',
+            False if _default else _child == CHILD,
+            PARENT if _overlay and _action != 'default' else OTHER_PARENT)
+OPERATIONS |= TRANSFER_OPERATIONS.keys()
+KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
+                            if not overlay}
 # Public-ID inventory for external applications on the maintained Ubuntu 26.04
 # host.  An observed Builder ID is recorded only when the installed provider
 # owns it; it is not usable until the application and surface roots are also
@@ -8270,7 +8290,7 @@ class AccessibleUI:
 
     def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
                            no_approver=False, duration_seconds=1800, custom_text=None,
-                           overlay=False, language='en'):
+                           overlay=False, language='en', overlay_child=CHILD):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(language in PARENT_LANGUAGE_CHOICES and (language == 'en' or
@@ -8281,7 +8301,7 @@ class AccessibleUI:
                 expected_selection is None or expected_selection[0] == 'approver'))),
             'ui:overlay-form-binding')
         if overlay:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(overlay_child)
         application_id = CHILD_APPLICATION if overlay else KIOSK_APPLICATION
         require(type(no_child) is bool and (not no_child or (
                 not enabled and expected_selection is None)), 'ui:kiosk-profile-binding')
@@ -8524,7 +8544,7 @@ class AccessibleUI:
             if projection['child'] is None or projection['approver'] is None:
                 return None
             if overlay:
-                require(projection['child'] == CHILD_IDENTITIES[CHILD], 'ui:overlay-fixed-child')
+                require(projection['child'] == CHILD_IDENTITIES[overlay_child], 'ui:overlay-fixed-child')
             if expected_selection is not None and projection[expected_selection[0]] != expected_selection[1]:
                 return None
             return projection
@@ -8538,8 +8558,9 @@ class AccessibleUI:
         finally:
             self.kiosk_diagnostic = None
 
-    def require_child_overlay_session(self):
-        uid = pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid
+    def require_child_overlay_session(self, child=CHILD):
+        require(child in (CHILD, EXISTING_CHILD), 'ui:overlay-child-binding')
+        uid = pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid
         require(uid >= 1000 and os.getuid() == uid and os.geteuid() == uid,
                 'ui:overlay-account')
         require_active_launch_session()
@@ -8554,9 +8575,9 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         self._invoke_target(self.overlay_panel_target())
 
-    def overlay_desktop(self):
+    def overlay_desktop(self, *, child=CHILD):
         """Independent complete absence and usable child desktop after Cancel."""
-        self.require_child_overlay_session()
+        self.require_child_overlay_session(child)
 
         def observe():
             value = self.shell_desktop_observation(no_prompt=True)
@@ -8568,11 +8589,11 @@ class AccessibleUI:
 
         self.wait(observe, 'overlay-desktop', prompt_in_predicate=True)
 
-    def request_surface(self, observation, *, overlay=False):
+    def request_surface(self, observation, *, overlay=False, child=CHILD):
         """Bind shared request IDs to the declared application before input."""
         require(type(overlay) is bool, 'ui:request-surface-binding')
         if overlay:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         nodes, _edges, identities, _facts = observation
         application = self.snapshot_matches(CHILD_APPLICATION if overlay else KIOSK_APPLICATION,
             nodes, showing=False, identities=identities)
@@ -8591,7 +8612,7 @@ class AccessibleUI:
         require(not awaiting_custom or identity == 'kiosk-custom-duration',
                 'ui:kiosk-valid-binding')
         observation = self.read_snapshot()
-        window = self.request_surface(observation, overlay=overlay)
+        window = self.request_surface(observation, overlay=overlay, child=child)
         form = self.snapshot_owned_target('kiosk-request-form', root=window, observation=observation)
         require(form is not None, 'ui:kiosk-valid-entry')
         for field, name in (('child', child), ('approver', approver)):
@@ -8604,7 +8625,7 @@ class AccessibleUI:
         if overlay:
             selector = self.snapshot_owned_target('kiosk-child-selector', root=form,
                                                   observation=observation)
-            require(child == CHILD and selector is not None
+            require(selector is not None
                     and not self.has_state(selector, self.api.StateType.SENSITIVE),
                     'ui:overlay-child-unlocked')
         target = self.snapshot_owned_target(identity, root=form, observation=observation)
@@ -8710,6 +8731,61 @@ class AccessibleUI:
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}
         value = self.wait(estimate, 'kiosk-estimate')
         return {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
+
+    def transfer_choices(self, operation):
+        """FLOW12 leaves: fixed child binding, single inputs and independent reads."""
+        require(operation in TRANSFER_OPERATIONS, 'ui:transfer-binding')
+        overlay, child, action = TRANSFER_OPERATIONS[operation]
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        if overlay:
+            self.require_child_overlay_session(child)
+        if action == 'refused':
+            try:
+                self.request_surface(self.read_snapshot(), overlay=False)
+            except UiError as error:
+                require(str(error) == 'ui:kiosk-valid-entry', 'ui:transfer-refusal')
+                return None
+            raise UiError('ui:transfer-wrong-surface-accepted')
+        if action == 'launch':
+            self.launch_child_command(child=child)
+            return None
+        if action == 'cancel':
+            self.cancel_kiosk_request(overlay=overlay, child=child)
+            return None
+        if action == 'returned':
+            self.overlay_desktop(child=child)
+            return None
+        seconds, custom, soft, approver = TRANSFER_REQUESTS.get(operation,
+            (75, '1.25', True, PARENT) if child == CHILD else (150, '2.5', False, PARENT))
+        if action in ('select', 'select-default'):
+            return self.select_kiosk_account('child', child, expected=(CHILD, EXISTING_CHILD),
+                duration_seconds=seconds, custom_text=custom)
+        if action == 'approver':
+            return self.select_kiosk_account('approver', approver,
+                expected=(PARENT, OTHER_PARENT), duration_seconds=seconds,
+                custom_text=custom, overlay=overlay, overlay_child=child)
+        if action in ('custom', 'text', 'apps'):
+            identity = {'custom': 'kiosk-duration-choices', 'text': 'kiosk-custom-duration',
+                        'apps': 'kiosk-soft-apps-toggle'}[action]
+            target = self.kiosk_valid_target(identity, child=child, approver=PARENT, overlay=overlay)
+            self.input_uncertain = True
+            if action == 'text':
+                # API text entry invokes the ordinary shared change handler.
+                target.setText(custom)
+            else:
+                target.setValue('custom' if action == 'custom' else soft)
+            self.input_uncertain = False
+            return None
+        require(action in ('default', 'read'), 'ui:transfer-action')
+        request = self.kiosk_request_form(enabled=True, overlay=overlay, overlay_child=child,
+            expected_selection=('approver', APPROVER_IDENTITIES[approver]),
+            duration_seconds=seconds, custom_text=custom)
+        require(request['child'] == CHILD_IDENTITIES[child]
+                and request['approver'] == APPROVER_IDENTITIES[approver]
+                and request['allow_soft'] is soft, 'ui:transfer-choice')
+        if custom is not None:
+            require(self.get_value('kiosk-custom-duration-units') == 'minutes', 'ui:transfer-unit')
+        return request
 
     def mate_agent_pid(self):
         """Bind AT-SPI to the kiosk session's maintained agent service."""
@@ -9586,7 +9662,7 @@ class AccessibleUI:
         return self.wait(observe, 'kiosk-approver-baseline', prompt_in_predicate=True)
 
     def kiosk_account_snapshot(self, field, *, require_enabled=True, overlay=False,
-                               child=None, language=None):
+                               child=None, language=None, overlay_child=CHILD):
         """One complete owned snapshot for a station account input boundary."""
         require(field in ('child', 'approver'), 'ui:kiosk-account-field')
         require(not overlay or field == 'approver', 'ui:overlay-child-selection')
@@ -9598,7 +9674,7 @@ class AccessibleUI:
         observation = (nodes, snapshot, identities, facts)
         self.handle_system_prompt(observation=(nodes, snapshot, facts))
         try:
-            window = self.request_surface(observation, overlay=overlay)
+            window = self.request_surface(observation, overlay=overlay, child=overlay_child)
         except UiError as error:
             if str(error) == 'ui:kiosk-valid-entry':
                 raise UiError('ui:kiosk-account-surface') from error
@@ -9729,7 +9805,7 @@ class AccessibleUI:
 
     def select_kiosk_account(self, field, name, *, expected, enabled=True,
                              duration_seconds=1800, custom_text=None, overlay=False,
-                             child=None, language='en', result_language=None):
+                             child=None, language='en', result_language=None, overlay_child=CHILD):
         """Check canonical eligible UIDs, select once, and read the resulting form."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(type(enabled) is bool and field in ('child', 'approver'),
@@ -9761,7 +9837,7 @@ class AccessibleUI:
         def offered():
             selector, _form, _observation = self.kiosk_account_snapshot(
                 field, overlay=overlay, child=child,
-                language=language if child is not None else None)
+                language=language if child is not None else None, overlay_child=overlay_child)
             choices = selector.getChoices()
             if field == 'approver':
                 strings = type(choices) is list and all(type(value) is str for value in choices)
@@ -9800,7 +9876,7 @@ class AccessibleUI:
 
             def selected():
                 current, _form, _observation = self.kiosk_account_snapshot(
-                    field, require_enabled=False, overlay=overlay)
+                    field, require_enabled=False, overlay=overlay, overlay_child=overlay_child)
                 return (current.getValue() == uid and
                         ' '.join(current.get_description().split()) ==
                         ACCOUNT_LANGUAGE_LABELS[result_language][2] % name)
@@ -9814,7 +9890,7 @@ class AccessibleUI:
             canonical = CHILD_IDENTITIES if field == 'child' else APPROVER_IDENTITIES
             result = self.kiosk_request_form(enabled=enabled,
                 expected_selection=(field, canonical[name]), duration_seconds=duration_seconds,
-                custom_text=custom_text, overlay=overlay, language=result_language)
+                custom_text=custom_text, overlay=overlay, language=result_language, overlay_child=overlay_child)
             if child is not None:
                 require(result['child'] == CHILD_IDENTITIES[name if field == 'child' else child],
                         'ui:kiosk-result-child')
@@ -9823,7 +9899,7 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
-    def kiosk_exit_target(self, *, with_window=False, overlay=False):
+    def kiosk_exit_target(self, *, with_window=False, overlay=False, child=CHILD):
         """Resolve the fresh owned Cancel control inside one showing form."""
         snapshot = {}
         facts = {}
@@ -9843,7 +9919,7 @@ class AccessibleUI:
         # Resolve this observation from its complete scoped snapshot. Generic
         # find_id re-traverses ownership trees even when supplied these nodes.
         if overlay:
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(child)
         application_id = CHILD_APPLICATION if overlay else KIOSK_APPLICATION
         application = lookup(application_id, nodes, showing=False)
         require(application is not None, 'ui:kiosk-application')
@@ -9877,11 +9953,11 @@ class AccessibleUI:
                 'ui:kiosk-request-cancel')
         return (window, target) if with_window else target
 
-    def cancel_kiosk_request(self, *, overlay=False):
+    def cancel_kiosk_request(self, *, overlay=False, child=CHILD):
         """UI04: activate Cancel once after refusing any system prompt."""
         # The station's scoped public action is explicitly authorized even
         # when its Cancel control is clipped by the scroll viewport.
-        target = self.kiosk_exit_target(overlay=overlay)
+        target = self.kiosk_exit_target(overlay=overlay, child=child)
         self._invoke_target(target)
 
     def kiosk_restrictions(self, *, stable_seconds=2, prepared=False):
@@ -10829,7 +10905,11 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in LOCK_SURFACE_OPERATIONS:
+        if operation in TRANSFER_OPERATIONS:
+            value = self.transfer_choices(operation)
+            if value is not None:
+                result['request'] = value
+        elif operation in LOCK_SURFACE_OPERATIONS:
             result['lock'] = self.lock_surface(operation)
         elif operation in RESTART_OPERATIONS:
             surface, action = RESTART_OPERATIONS[operation]
@@ -12191,6 +12271,7 @@ def main():
     else:
         account = greeter_account() if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
+            CHILD_ACCOUNTS[TRANSFER_OPERATIONS[sys.argv[1]][1]] if sys.argv[1] in TRANSFER_OPERATIONS else
             (CHILD_ACCOUNTS[CHILD] if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
              'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')

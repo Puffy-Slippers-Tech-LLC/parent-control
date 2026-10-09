@@ -366,6 +366,8 @@ OPERATION_LABELS.update({operation: 'Preserving the declared multilingual reques
                          for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
 OPERATION_LABELS['overlay-language-policy'] = 'Comparing Riley saved policy in Parent'
+OPERATION_LABELS.update({operation: 'Transferring child choices between the overlay and request station: ' + operation
+                        for operation in accessible_ui.TRANSFER_OPERATIONS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
                            accessible_ui.OVERLAY_LANGUAGE_OPERATIONS | {'overlay-language-policy'}})
 OPERATION_LABELS.update({
@@ -527,6 +529,7 @@ class RequestObservation:
                 and (type(observation.duration_seconds) is int or (
                     invalid is not None and observation.duration_seconds is None))
                 and (observation.custom_text is None or observation.custom_text == '1.25'
+                     or operation in accessible_ui.TRANSFER_REQUESTS and observation.custom_text == '2.5'
                      or invalid is not None and observation.custom_text ==
                      accessible_ui.KIOSK_INVALID_VALUES[invalid[0]])
                 and all(type(getattr(observation, field)) is bool for field in (
@@ -535,6 +538,17 @@ class RequestObservation:
                     'cancel_enabled'))
                 and type(observation.message) is str and observation.mute is None,
                 'ui:request')
+        if operation in accessible_ui.TRANSFER_REQUESTS:
+            overlay, child, _action = accessible_ui.TRANSFER_OPERATIONS[operation]
+            seconds, custom, soft, approver = accessible_ui.TRANSFER_REQUESTS[operation]
+            require(observation == cls(
+                surface='child-overlay' if overlay else 'kiosk', form_count=1,
+                child=accessible_ui.CHILD_IDENTITIES[child],
+                approver=accessible_ui.APPROVER_IDENTITIES[approver], duration_seconds=seconds,
+                custom_text=custom, allow_soft=soft, child_selector_enabled=not overlay,
+                approver_selector_enabled=True, duration_enabled=True, soft_choice_enabled=True,
+                request_enabled=True, cancel_enabled=True, message='', mute=None), 'ui:request')
+            return observation
         overlay_valid = (operation in accessible_ui.OVERLAY_VALID_REQUESTS
                          or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS)
         valid = {**accessible_ui.KIOSK_VALID_REQUESTS,
@@ -882,6 +896,7 @@ class UiObservations:
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
+                            or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
@@ -2136,6 +2151,7 @@ class UiObservations:
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
+                or operation in accessible_ui.TRANSFER_REQUESTS
                 or operation == 'overlay-request-form'):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation)

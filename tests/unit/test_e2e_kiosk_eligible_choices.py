@@ -247,7 +247,7 @@ def test_qualification_uses_shared_snapshot_and_guarded_envelope(tmp_path):
     assert context.installed_snapshot == 'onpc-v' + version
     assert KioskEligibleChoicesQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     from tools.test_storage import named_input
-    assert check.ASSETS == named_input(package_source=True)
+    assert check.ASSETS == named_input(vm_source=True, fixture_source=True)
 
 
 def test_ineligible_profile_reuses_all_pairs_and_owned_fixture(tmp_path):

@@ -433,6 +433,7 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
             ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
             ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
+            ['check_e2e_choices_overlay_to_kiosk'], ['check_e2e_choices_overlay_to_kiosk.py'],
             ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
             ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
             ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
@@ -553,7 +554,11 @@ def qualification_artifact_command(root, category, args):
             ['check_e2e_operate_public_connectivity_controls.py']):
         return None
     from test_storage import named_input
-    if args[0].removesuffix('.py') in ('check_e2e_retained_unlock_success', 'check_e2e_retained_entry'):
+    if args[0].removesuffix('.py') in (
+            'check_e2e_retained_unlock_success', 'check_e2e_retained_entry',
+            'check_e2e_choices_overlay_to_kiosk', 'check_e2e_overlay_valid_choices',
+            'check_e2e_overlay_choices', 'check_e2e_kiosk_eligible_choices',
+            'check_e2e_request_flow', 'check_e2e_request_choices', 'check_e2e_request_exit'):
         output = str(named_input(vm_source=True, fixture_source=True))
         if os.path.lexists(output):
             artifact_path(output)

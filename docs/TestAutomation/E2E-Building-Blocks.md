@@ -662,8 +662,8 @@ Both return routes preserve the same locked child desktop.
 
 | VM | Retained-entry qualification and required session regressions | Final window-switch regression |
 | --- | --- | --- |
-| Ubuntu 26.04 | [Six-selector report](../../output/test-runs/host/exports/onpc-artifact-export-lot0o3at/report.md) | [Passed](../../output/test-runs/host/reports/20261009T202254Z-b461cfd3/report.md) |
-| Fedora 44 | [First five selectors passed](../../output/test-runs/host/exports/onpc-artifact-export-y_05297h/report.md); the original final window-switch failure is superseded by the adjacent pass | [Passed](../../output/test-runs/host/reports/20261009T202254Z-570d98e5/report.md) |
+| Ubuntu 26.04 | [Six-selector report](../../output/test-runs/host/exports/onpc-artifact-export-lot0o3at/report.md) | Passed in `20261009T202254Z-b461cfd3` (report expired under retention) |
+| Fedora 44 | [First five selectors passed](../../output/test-runs/host/exports/onpc-artifact-export-y_05297h/report.md); the original final window-switch failure is superseded by the adjacent pass | Passed in `20261009T202254Z-570d98e5` (report expired under retention) |
 
 The retained selections are `check_e2e_retained_entry`, `check_e2e_retained_parent`,
 `check_e2e_retained_unlock_success`, `check_e2e_retained_unlock`,
@@ -1826,6 +1826,38 @@ worker shutdown, owned cleanup, baseline restoration and source preservation:
 | Kiosk open/new FLOW04 | `check_e2e_request_flow` | `20261001T232522Z-e5697445` |
 | Kiosk Cancel/Escape | `check_e2e_request_exit` | `20261001T233017Z-710715cc` |
 
+#### Overlay choices transferred to kiosk
+
+`choices_overlay_to_kiosk.PLAN` / `ChoicesOverlayToKioskJourney` qualified
+`request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` through
+`check_e2e_choices_overlay_to_kiosk` on Ubuntu 26.04 and Fedora 44. The composite
+consumes a fresh source observation, explicitly cancels the child overlay,
+switches to GDM, enters the kiosk and selects the declared child. The destination
+is read before editing and remains open. `AccessibleUI.transfer_choices` binds
+the public operations to each child; `KioskRequestJourney.check_transferred_request`
+compares immutable endpoints declared by `JourneyPlan.request_transfer_checks`.
+
+Both children receive public 30-minute daily allowances. Riley's overlay uses
+custom `1.25` minutes / 75 seconds with soft apps included; Jordan's uses `2.5`
+minutes / 150 seconds with soft apps excluded. Both overlays retain Jamie as
+approver while the kiosk retains Casey. Both child transfers and an independent
+retained Riley entry passed the shared-field/local-approver comparison. A wrong
+journey receipt was refused before input. Host checks also cover wrong-account
+and owner refusals, stale observations, immutable comparisons and independent
+shared-helper composition. Kiosk-to-overlay, interactive mute and complete
+cases 58–61 remain separate pending scope.
+
+The qualifier and all six affected regressions (`check_e2e_overlay_valid_choices`,
+`check_e2e_overlay_choices`, `check_e2e_kiosk_eligible_choices`,
+`check_e2e_request_flow`, `check_e2e_request_choices`, `check_e2e_request_exit`)
+passed on each selected VM in one grouped invocation:
+[Ubuntu report](../../output/test-runs/host/reports/20261009T213325Z-6d160963/report.md)
+and [Fedora report](../../output/test-runs/host/reports/20261009T213325Z-260b5ddc/report.md).
+Every execution passed collection, worker/callback shutdown, owned cleanup,
+baseline restoration and source/host preservation, with its lease complete.
+The shared source/fixture input bundle selects DEB or RPM from the verified VM
+baseline; qualification planning uses private allocator doubles in unit tests.
+
 #### Kiosk approval qualification
 
 `kiosk_approval.PLAN` / `KioskApprovalJourney` and
@@ -2908,7 +2940,7 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
-| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: REQUEST12(cancel) → DESK03 → REQUEST01. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02. Both then REQUEST03 → UI12(shared values and user-local selectors). Interactive mute remains deferred outside this current-choice composite. | pending |
+| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and an independent retained entry. `check_e2e_choices_overlay_to_kiosk` passed the [exact both-child scope](#overlay-choices-transferred-to-kiosk) on Ubuntu 26.04 and Fedora 44. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors), still unimplemented. Interactive mute remains deferred outside this current-choice composite. | overlay-to-kiosk stated both-child and independent retained bindings ready; reverse pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Historical fresh-zero consumer E2E-036 case 161, now UI-owned with no E2E executable, passed in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |

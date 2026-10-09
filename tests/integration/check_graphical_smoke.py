@@ -1134,7 +1134,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             'smoke:product-free-entry-prerequisites')
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
                                   'countdown-enabled', 'countdown-off', 'shell-panel',
-                                  'overlay-valid-choices', 'overlay-choices', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
+                                  'overlay-valid-choices', 'overlay-choices', 'choices-overlay-to-kiosk', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
                                   'overlay-approval-immediate', 'overlay-flow-rejection', 'overlay-flow-cancel',
                                   'overlay-browser-links', 'overlay-information') and
             (challenge_profile == 'parent' or challenges is True), 'smoke:challenge-profile')
@@ -1583,6 +1583,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'shell-panel': 'installed-shell-panel-qualification',
                 'overlay-valid-choices': 'installed-overlay-valid-choices-qualification',
                 'overlay-choices': 'installed-overlay-choices-qualification',
+                'choices-overlay-to-kiosk': 'installed-choices-overlay-to-kiosk-qualification',
                 'overlay-prompt': 'installed-overlay-prompt-qualification',
                 'overlay-approved-exit': 'installed-overlay-approved-exit-qualification',
                 'overlay-rejection': 'installed-overlay-rejection-qualification',
@@ -1757,7 +1758,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import (ChallengesQualification,
                         FreshChildAllowedQualification, FreshChildDeniedQualification,
                         CountdownQualification, CountdownOffQualification, ShellPanelQualification,
-                        OverlayValidChoicesQualification, OverlayChoicesQualification, OverlayLicenseQualification,
+                        OverlayValidChoicesQualification, OverlayChoicesQualification, ChoicesOverlayToKioskQualification, OverlayLicenseQualification,
                         OverlayBrowserLinksQualification, OverlayInformationQualification, OverlayPromptQualification,
                         OverlayApprovedExitQualification, OverlayRejectionQualification,
                         OverlayApprovalImmediateQualification, OverlayFlowRejectionQualification,
@@ -1770,6 +1771,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'shell-panel': ShellPanelQualification,
                         'overlay-valid-choices': OverlayValidChoicesQualification,
                         'overlay-choices': OverlayChoicesQualification,
+                        'choices-overlay-to-kiosk': ChoicesOverlayToKioskQualification,
                         'overlay-prompt': OverlayPromptQualification,
                         'overlay-approved-exit': OverlayApprovedExitQualification,
                         'overlay-rejection': OverlayRejectionQualification,

@@ -284,8 +284,14 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     vm_source = selector.removesuffix('.py') in (
         'check_e2e_challenges', 'check_e2e_unlock', 'check_e2e_fresh_child_allowed',
         'check_e2e_window_switch', 'check_e2e_set_an_allowance_for_a_named_child',
+        'check_e2e_kiosk_eligible_choices', 'check_e2e_request_flow',
+        'check_e2e_request_choices', 'check_e2e_request_exit',
         'check_e2e_retained_parent')
-    output = str(test_storage.named_input(package_source=current_package, vm_source=vm_source))
+    fixture_source = selector.removesuffix('.py') in (
+        'check_e2e_kiosk_eligible_choices', 'check_e2e_request_flow',
+        'check_e2e_request_choices', 'check_e2e_request_exit')
+    output = str(test_storage.named_input(package_source=current_package,
+                                        vm_source=vm_source, fixture_source=fixture_source))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)

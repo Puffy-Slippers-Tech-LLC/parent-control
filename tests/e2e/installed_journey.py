@@ -54,6 +54,7 @@ class JourneyPlan:
     custom_inputs: dict = field(default_factory=dict)
     child_bindings: dict = field(default_factory=dict)
     request_checks: dict = field(default_factory=dict)
+    request_transfer_checks: dict = field(default_factory=dict)
     balance_checks: dict = field(default_factory=dict)
     countdown_checks: dict = field(default_factory=dict)
     catalogue_checks: dict = field(default_factory=dict)
@@ -108,6 +109,11 @@ class JourneyPlan:
                     and all(type(value) is str and value for value in binding)
                     for stage, binding in self.request_checks.items()),
                 self.prefix + ':request-plan')
+        from accessible_ui import TRANSFER_REQUESTS
+        require(all(stage in stages and before in stages and stages.index(before) < stages.index(stage)
+                    and self.screen_tags[stage][3:] in TRANSFER_REQUESTS
+                    and self.screen_tags[before][3:] in TRANSFER_REQUESTS
+                    for stage, before in self.request_transfer_checks.items()), self.prefix + ':transfer-plan')
         from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CHILD_OPERATIONS
         require(all(stage in self.screen_tags and child in NAMED_CUSTOM_CHILDREN and
                     (self.screen_tags[stage][3:] in NAMED_CHILD_OPERATIONS or

@@ -809,6 +809,16 @@ class OverlayChoicesQualification(ChallengesQualification):
         return OverlayChoicesJourney(context, progress)
 
 
+class ChoicesOverlayToKioskQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from choices_overlay_to_kiosk import ChoicesOverlayToKioskJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ChoicesOverlayToKioskJourney(context, progress)
+
+
 class OverlayLicenseQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

@@ -300,6 +300,64 @@ sub overlay_entry {
     return $journey->invoke("$prefix-form");
 }
 
+# FLOW12 owns the exit/entry and untouched destination read; the caller owns
+# source capture, values and comparison endpoints. No request is submitted.
+sub overlay_to_kiosk {
+    onpc_progress::operation('Carrying the selected child choices from overlay to kiosk');
+    my ($journey, $proof, $source_stage, $prefix, $child) = @_;
+    die 'request-transfer:binding' unless @_ == 5 && ref($journey) eq 'onpc_journey'
+        && $source_stage =~ /\A[a-z][a-z0-9-]*\z/ && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && ($child eq 'riley' || $child eq 'jordan');
+    $journey->consume_observation($source_stage, $proof);
+    my $section = $journey->scope($prefix);
+    $section->seen($_) for qw(cancel desktop switch greeter);
+    onpc_gdm::enter_station($section, '');
+    $section->seen('child');
+    return $section->seen('read');
+}
+
+sub qualify_choices_overlay_to_kiosk {
+    onpc_progress::operation('Comparing both child overlays with independently remembered station choices');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'request-transfer:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'choices-overlay-to-kiosk', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'child',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen('riley-allowance');
+    $journey->consume_observation('existing-returned', onpc_parent::select_child($journey, 'returned',
+        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
+        'existing-child-choice-highlighted', 'existing-returned'));
+    $journey->seen('jordan-allowance');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_gdm::enter_station($journey->scope('seed'), '');
+    $journey->seen($_) for qw(seed-child seed-approver seed-cancel seed-returned);
+    for my $binding (['riley', 'riley', 'child', 'fresh'],
+                     ['jordan', 'jordan', 'other-child', 'fresh'],
+                     ['independent', 'riley', 'child', 'retained']) {
+        my ($prefix, $child, $role, $entry) = @$binding;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, $entry, 'success', "$prefix-entry");
+        $journey->seen("$prefix-launch");
+        if ($prefix ne 'independent') {
+            $journey->seen("$prefix-$_") for qw(default refused approver custom text apps);
+        }
+        my $source = $journey->seen("$prefix-source");
+        # A wrong source receipt cannot release even the first Cancel.
+        my $wrong = onpc_journey->new(exchange => $exchange, prefix => 'transfer-wrong', review => 0);
+        my $accepted = eval { overlay_to_kiosk($wrong, $source, "$prefix-source", 'wrong-transfer', $child); 1 };
+        die 'request-transfer:wrong-entry-accepted' if $accepted;
+        die 'request-transfer:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
+        overlay_to_kiosk($journey, $source, "$prefix-source", "$prefix-transfer", $child);
+        $journey->seen("$prefix-$_") for $prefix eq 'independent' ? () : qw(exit greeter);
+    }
+    $journey->finish();
+}
+
 # FLOW04: finite, explicit choices. The caller prepares policy independently.
 sub prepare {
     onpc_progress::operation('Preparing the declared kiosk request without submitting');

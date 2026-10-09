@@ -394,6 +394,23 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+FLOW12 overlay-to-kiosk declarations use `request_flow.overlay_to_kiosk` and
+`onpc_request_flow::overlay_to_kiosk`. The caller supplies a fresh source receipt,
+child and invocation prefix; the shared operation owns normal Cancel, child
+desktop/greeter return, station entry and untouched destination read. Declare
+`JourneyPlan.request_transfer_checks={destination: source}` for
+`KioskRequestJourney` to compare immutable child-owned duration/custom/soft-app
+values while independently validating the local approver. Finite public leaves
+in `AccessibleUI.transfer_choices` bind Riley or Jordan through every overlay
+reader/input/session guard. Qualification status belongs to FLOW12's catalogue
+row. The existing unit owner uses private values/files and bounded waited Perl
+children; resource classifications remain compatible with no new cleanup owner.
+The qualification and its request-form regressions share VM-specific,
+fixture-source-bound package inputs. Their maintained preparation selects DEB or
+RPM from the verified baseline and preserves existing immutable bundles. Planning
+tests replace allocation with a private double so they cannot leave an empty real
+bundle for an installed consumer.
+
 Explicit desktop entry pairs `journey_blocks.desktop_entry` with
 `onpc_desktop_session::enter_desktop`. Callers bind account, source, mode,
 expected result and an independent invocation prefix. Shared read-only

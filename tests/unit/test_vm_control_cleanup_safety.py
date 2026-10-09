@@ -363,7 +363,8 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
-    for action in ('reproduce-gdm-denial', 'reproduce-lock-denial'):
+    for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+                   'probe-lock-curtain', 'reproduce-retained-focus'):
         command = select(root, ['vm', action, *VM_ARGS])
         assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
         with pytest.raises(ValueError):
@@ -412,21 +413,25 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 
 @pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
-def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault):
+@pytest.mark.parametrize('retained_entry', [False, True])
+def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, retained_entry):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN
-    stages = list(CHILD_DENIAL_PLAN.stages)
-    prefix = stages[:stages.index('time-denied')]
-    assert prefix[-1] == 'reveal-ready'
+    from retained_entry import PLAN
+    plan = PLAN if retained_entry else CHILD_DENIAL_PLAN
+    boundary = 'riley-restricted-curtain' if retained_entry else 'time-denied'
+    stages = list(plan.stages)
+    prefix = stages[:stages.index(boundary)]
+    assert prefix[-1] == ('riley-restricted-entry-guard' if retained_entry else 'reveal-ready')
     assert 'lock-recipient-qualified' not in prefix
     if fault == 'missing-history':
         prefix.remove('zero-configured')
     elif fault == 'advanced':
-        prefix.append('time-denied')
-    journey = SimpleNamespace(plan=CHILD_DENIAL_PLAN, failed=fault == 'failed',
+        prefix.append(boundary)
+    journey = SimpleNamespace(plan=plan, failed=fault == 'failed',
                               steps=[{'stage': stage} for stage in prefix])
-    request = tmp_path / 'time-denied.request.json'
-    request.write_text(json.dumps({'stage': 'curtain' if fault == 'wrong-stage' else 'time-denied',
+    request = tmp_path / (boundary + '.request.json')
+    request.write_text(json.dumps({'stage': 'curtain' if fault == 'wrong-stage' else boundary,
                                   'screenshot': 'private' if fault == 'screenshot' else None}))
     if fault == 'symlink':
         request.rename(tmp_path / 'original')
@@ -435,9 +440,9 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
         request.write_text(' ' * 1025)
     if fault:
         with pytest.raises(runner.Error, match='diagnosis:'):
-            validate_boundary(journey, tmp_path, 'time-denied')
+            validate_boundary(journey, tmp_path, boundary)
     else:
-        validate_boundary(journey, tmp_path, 'time-denied')
+        validate_boundary(journey, tmp_path, boundary)
 
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):

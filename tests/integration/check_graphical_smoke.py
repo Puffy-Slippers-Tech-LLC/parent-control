@@ -682,7 +682,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None):
-    require(parent_entry in (None, 'retained') and (parent_entry is None or (
+    require(parent_entry in (None, 'retained', 'retained-children') and (parent_entry is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and approval_flow is None
         and not any(value for name, value in locals().items()
@@ -1389,7 +1389,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if lock_surface is not None:
             result['scope'] = 'installed-lock-' + lock_surface + '-qualification'
         if parent_entry is not None:
-            result['scope'] = 'installed-retained-parent-qualification'
+            result['scope'] = ('installed-retained-entry-qualification' if parent_entry == 'retained-children'
+                               else 'installed-retained-parent-qualification')
         if gdm_navigation:
             result['scope'] = 'installed-gdm-navigation-qualification'
         if gdm_recipient:
@@ -1665,8 +1666,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 result['qualification_evidence'] = str(collector.path)
                 qualification_class = Qualification
                 if parent_entry is not None:
-                    from parent_setup_qualification import RetainedParentQualification
-                    qualification_class = RetainedParentQualification
+                    from parent_setup_qualification import RetainedParentQualification, RetainedEntryQualification
+                    qualification_class = (RetainedEntryQualification if parent_entry == 'retained-children'
+                                           else RetainedParentQualification)
                 if lock_surface is not None:
                     from parent_setup_qualification import (LockSurfaceQualification,
                         SuppliedLockSurfaceQualification, LockRecipientQualification,

@@ -13,6 +13,51 @@ from oh_no_parent_control.logs import DailyLogWriter
 from tests.support.objects import bind_methods
 
 
+@pytest.mark.parametrize('presets, expected', [
+    ([14400, 300], 18000), ([82860], 82920), ([86350], 86350),
+    ([86400], 86400), ([], 1800),
+])
+def test_new_preset_suggestion_uses_largest_and_bounded_fallback(presets, expected):
+    from oh_no_parent_control_kiosk.preset_dialog import suggested_preset_seconds
+
+    assert suggested_preset_seconds(presets) == expected
+
+
+@pytest.mark.parametrize('text, expected', [
+    ('1.25', '1.3'), ('0.09', '0.1'), ('24', '24.0'), ('6.', '6.0'),
+    ('0.04', '0.0'), ('NaN', None), ('6e1000000', None),
+])
+def test_preset_fraction_rounding_uses_one_decimal_half_up(text, expected):
+    from oh_no_parent_control_kiosk.preset_dialog import rounded_preset_value
+
+    value = rounded_preset_value(text)
+    assert (None if value is None else str(value)) == expected
+
+
+@pytest.mark.parametrize('text, expected', [
+    ('6.', '6'), ('6.0', '6.0'), ('.5', '0.5'), (' 6. ', '6'),
+    ('', None), ('.', None), ('6..', None), ('NaN', None), ('Infinity', None),
+    ('6e3', None), ('-1', None), ('６', None),
+])
+def test_duration_editors_share_decimal_syntax(text, expected):
+    from oh_no_parent_control_kiosk.duration_controls import duration_number
+
+    value = duration_number(text)
+    assert (None if value is None else str(value)) == expected
+
+
+@pytest.mark.parametrize('seconds, unit, display', [
+    (7, 'minute', '0.1166666667'), (86350, 'minute', '1439.1666666667'),
+    (18000, 'hour', '5'), (6, 'minute', '0.1'),
+])
+def test_backend_preset_initial_value_retains_whole_second_precision(seconds, unit, display):
+    from oh_no_parent_control_kiosk.preset_dialog import PresetDialog, preset_display_value
+
+    assert preset_display_value(seconds, unit) == display
+    editor = SimpleNamespace(_initial_seconds=seconds)
+    assert PresetDialog._seconds(editor) == seconds
+
+
 def form_methods():
     """Exercise selector orchestration without constructing GTK or a desktop."""
     names = {"set_accounts", "_account_changed", "_approver_changed",

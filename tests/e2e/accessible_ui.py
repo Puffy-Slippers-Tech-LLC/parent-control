@@ -7467,10 +7467,24 @@ class AccessibleUI:
         require(all(node.get_process_id() == pid for node in controls), 'ui:lock-owner')
         # The focused recipient and all authentication controls must belong to
         # this lock window. A hidden desktop or an unrelated modal cannot guard input.
-        require(not any(facts[node]['showing'] and node not in controls and (
+        other_surfaces = [node for node in nodes if facts[node]['showing'] and node not in controls and (
             self.has_state(node, self.api.StateType.FOCUSED)
             or facts[node]['role'] in ('password text', 'dialog', 'alert')
-            or facts[node]['modal']) for node in nodes), 'ui:lock-other-surface')
+            or facts[node]['modal'])]
+        if other_surfaces:
+            # Failure-only protected structural facts; never UI text or input.
+            try:
+                print(json.dumps({'event': 'ui-lock-other-surface',
+                    'count': len(other_surfaces), 'nodes': [{
+                        'role': facts[node]['role'],
+                        'focused': self.has_state(node, self.api.StateType.FOCUSED),
+                        'modal': facts[node]['modal'],
+                        'same_shell_process': node.get_process_id() == pid,
+                    } for node in other_surfaces[:16]]}, sort_keys=True),
+                    file=sys.stderr, flush=True)
+            except Exception:
+                pass  # Preserve the original surface refusal.
+        require(not other_surfaces, 'ui:lock-other-surface')
         focused = [node for node in controls if facts[node]['showing']
                    and self.has_state(node, self.api.StateType.FOCUSED)]
         require(len(focused) <= 1, 'ui:lock-focus-ambiguous')

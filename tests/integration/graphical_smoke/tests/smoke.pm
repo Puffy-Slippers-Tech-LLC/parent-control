@@ -416,6 +416,13 @@ sub run {
         onpc_command_help::run(\&exchange);
         return;
     }
+    if ($ready->{retained_entry}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_desktop_session::qualify_retained_entry(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{retained_parent}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

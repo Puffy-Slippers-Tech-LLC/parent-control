@@ -1667,3 +1667,44 @@ msgstr "ამ ფანჯრის ხელახლა გახსნა �
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "მეტის ნახვა"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "წინასწარ განსაზღვრული დროები"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "წინასწარ განსაზღვრული დროის დამატება"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "წინასწარ განსაზღვრული დროის შეცვლა"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "ხანგრძლივობა"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "საათი"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "ყოველთვის ხელმისაწვდომია"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "აირჩიეთ დროის ვარიანტები მოთხოვნის ფორმაში. შეგიძლიათ წინასწარი პარამეტრების დამატება, შეცვლა ან წაშლა. ისინი ავტომატურად ლაგდება."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "ეს წინასწარ განსაზღვრული დრო უკვე არსებობს."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "შეიყვანეთ ხანგრძლივობა %(minimum)s-დან %(maximum)s წამამდე, მთელი წამებით."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "შეიყვანეთ სწორი რიცხვი."

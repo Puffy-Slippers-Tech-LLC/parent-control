@@ -1679,3 +1679,44 @@ msgstr "Šo logu varat atkal atvērt no lietotnes izvēlnes."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Uzzināt vairāk"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Iepriekš iestatīti laiki"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Pievienot iepriekš iestatītu laiku"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Rediģēt iepriekš iestatītu laiku"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Ilgums"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "stundas"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Vienmēr pieejams"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Izvēlieties laika opcijas pieprasījuma veidlapā. Varat pievienot, rediģēt vai noņemt iestatījumus. Tie tiek kārtoti automātiski."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Šis iepriekš iestatītais laiks jau pastāv."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Ievadiet ilgumu no %(minimum)s līdz %(maximum)s sekundēm veselās sekundēs."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Ievadiet derīgu skaitli."

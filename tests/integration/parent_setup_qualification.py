@@ -416,6 +416,16 @@ class RetainedParentQualification(KioskEntryQualification):
         return RetainedParentJourney(context, progress)
 
 
+class RetainedEntryQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from retained_entry import RetainedEntryJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RetainedEntryJourney(context, progress)
+
+
 class RetainedUnlockQualification(KioskEntryQualification):
     retained = True
 

@@ -1673,3 +1673,44 @@ msgstr "Du kan åpne dette igjen fra appmenyen."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Les mer"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Forhåndsinnstilte tider"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Legg til forhåndsinnstilt tid"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Rediger forhåndsinnstilt tid"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Varighet"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "timer"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Alltid tilgjengelig"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Velg tidsalternativene i forespørselsskjemaet. Du kan legge til, redigere eller fjerne forhåndsinnstilte tider. De sorteres automatisk."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Denne forhåndsinnstilte tiden finnes allerede."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Angi en varighet fra %(minimum)s til %(maximum)s sekunder i hele sekunder."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Skriv inn et gyldig tall."

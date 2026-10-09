@@ -22,9 +22,14 @@ from common.oh_no_parent_control_ui.accessibility import describe_control, set_a
 from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
-    POINTER, SHIELD, ArmoredButton,
+    POINTER, SHIELD, GEAR, ArmoredButton,
     MetalBoard, MetalPanel, PixelIcon,
 )
+from broker.oh_no_parent_control.preferences import (
+    DEFAULT_TIME_GRANT_PRESETS, MIN_CUSTOM_MINUTES, MAX_CUSTOM_MINUTES,
+    time_grant_choices,
+)
+from common.oh_no_parent_control_ui.duration import format_duration
 
 
 def _load_options():
@@ -44,14 +49,17 @@ def _duration_label(seconds):
         return m.CUSTOM_VALUE
     if seconds == 0:
         return m.REST_OF_DAY
-    return m.hour_count(seconds / 3600) if seconds >= 3600 else m.minute_count(seconds // 60)
+    if seconds % 3600 == 0:
+        return m.hour_count(seconds // 3600)
+    if seconds % 60 == 0:
+        return m.minute_count(seconds // 60)
+    return format_duration(seconds)
 
 
-DURATIONS = tuple((_duration_label(item["seconds"]), item["seconds"])
-                  for item in OPTIONS["durations"])
+DURATIONS = tuple((_duration_label(None if value == 'custom' else int(value)),
+                   None if value == 'custom' else int(value))
+                  for value in time_grant_choices(list(DEFAULT_TIME_GRANT_PRESETS)))
 DEFAULT_DURATION_SECONDS = OPTIONS["default_duration_seconds"]
-MIN_CUSTOM_MINUTES = OPTIONS["minimum_custom_minutes"]
-MAX_CUSTOM_MINUTES = OPTIONS["maximum_custom_minutes"]
 NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
 # Expanded account lists stay on the gateway plane, so they grow the board.
 # Keep only two rows visible and page with matching chevrons when more exist.
@@ -290,7 +298,8 @@ class RequestContent(MetalBoard):
     """Reusable request-time form used as the kiosk's primary content."""
 
     def __init__(self, on_request, on_cancel, on_account_selected=None, *,
-                 lock_child_selector=False, on_values_changed=None, selection_store=None):
+                 lock_child_selector=False, on_values_changed=None, selection_store=None,
+                 on_preferences=None):
         super().__init__(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=2,
@@ -320,6 +329,7 @@ class RequestContent(MetalBoard):
         self._selection_store = selection_store
         self._on_account_selected = on_account_selected
         self._on_values_changed = on_values_changed
+        self._on_preferences = on_preferences
         self._suppress_values_changed = False
         self._pending_approver_uid = 0
         self._kiosk_muted = True
@@ -390,8 +400,8 @@ class RequestContent(MetalBoard):
         self._build_duration_choices()
         bind_ui(self._duration_box, get_value=self._ui_duration_value,
                 set_value=self._ui_select_duration,
-                choices=lambda: ["custom" if seconds is None else str(seconds)
-                                 for _label, seconds in DURATIONS],
+                choices=lambda: ["custom" if b.duration_seconds is None else str(b.duration_seconds)
+                                 for b in self._duration_buttons],
                 aliases=("kiosk-duration",))
 
         self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
@@ -523,8 +533,7 @@ class RequestContent(MetalBoard):
         if self._request.is_sensitive():
             self._request.emit("clicked")
 
-    @staticmethod
-    def _header():
+    def _header(self):
         header = MetalPanel(spacing=8, panel_kind="header")
         set_automation_id(header, "kiosk-request-header")
         header.add_css_class("oh-no-parent-control-header")
@@ -562,6 +571,20 @@ class RequestContent(MetalBoard):
             title.add_css_class("oh-no-parent-control-title")
             copy.append(title)
         header.append(copy)
+        preferences = localized(Gtk.Button,
+                                tooltip_text=m.PREFERENCES, valign=Gtk.Align.CENTER,
+                                css_classes=['kiosk-preferences-button'])
+        # Header hardware is painted over its children without reserving space.
+        # Keep the compact action inside the face, clear of the right rivet/rail.
+        preferences.set_margin_end(10)
+        gear = PixelIcon(GEAR, display_size=16, label='')
+        gear.set_halign(Gtk.Align.CENTER)
+        gear.set_valign(Gtk.Align.CENTER)
+        preferences.set_child(gear)
+        describe_control(preferences, m.PREFERENCES, m.PREFERENCES,
+                         automation_id='kiosk-preferences-button')
+        preferences.connect('clicked', lambda *_: self._on_preferences and self._on_preferences())
+        header.append(preferences)
         return header
 
     @staticmethod
@@ -631,9 +654,9 @@ class RequestContent(MetalBoard):
             detail.set_spacing(2 if narrow else 6)
             caption.set_width_chars(0 if narrow else 7)
 
-    def _build_duration_choices(self):
+    def _build_duration_choices(self, durations=DURATIONS):
         group = None
-        for label, seconds in DURATIONS:
+        for label, seconds in durations:
             identity = "custom" if seconds is None else str(seconds)
             button = localized(Gtk.ToggleButton, hexpand=True)
             button.duration_seconds = seconds
@@ -842,6 +865,8 @@ class RequestContent(MetalBoard):
             )
             request = preferences.get("request", {})
             selected_value = request.get("last_selected_duration", str(DEFAULT_DURATION_SECONDS))
+            self.set_time_grant_presets(preferences.get('personal', {}).get(
+                'time_grant_presets', list(DEFAULT_TIME_GRANT_PRESETS)), selected_value=selected_value)
             selected_seconds = None if selected_value == "custom" else int(selected_value)
             selected = next(
                 (button for button in self._duration_buttons
@@ -849,10 +874,12 @@ class RequestContent(MetalBoard):
             )
             if selected is None:
                 selected = next(button for button in self._duration_buttons
-                                if button.duration_seconds == DEFAULT_DURATION_SECONDS)
+                                if button.duration_seconds is None)
             selected.set_active(True)
             self._custom_row.set_visible(selected.duration_seconds is None)
-            custom = request.get("last_custom_minutes", MIN_CUSTOM_MINUTES)
+            custom = (selected_seconds / 60 if selected_seconds not in (None, 0)
+                      and selected.duration_seconds is None else
+                      request.get("last_custom_minutes", MIN_CUSTOM_MINUTES))
             if isinstance(custom, float) and custom.is_integer():
                 custom = int(custom)
             set_text(self._custom_entry, 'text', str(custom))
@@ -864,6 +891,35 @@ class RequestContent(MetalBoard):
             self._update_ready()
         finally:
             self._suppress_values_changed = False
+
+    def set_time_grant_presets(self, presets, *, selected_value=None):
+        """Rebuild from backend choices, retaining an unsaved request exactly."""
+        selected_value = selected_value or self._ui_duration_value()
+        values = time_grant_choices(presets)
+        # A deleted remembered preset remains a valid request. Represent it in
+        # Custom value rather than silently changing the requested duration.
+        missing = selected_value is not None and selected_value not in values
+        suppressed = self._suppress_values_changed
+        self._suppress_values_changed = True
+        try:
+            for button in self._duration_buttons:
+                self._duration_box.remove(button.get_parent())
+            self._duration_buttons.clear()
+            self._build_duration_choices(tuple(
+                (_duration_label(None if value == 'custom' else int(value)),
+                 None if value == 'custom' else int(value)) for value in values))
+            selected = 'custom' if missing else selected_value
+            if selected is None:
+                selected = str(DEFAULT_DURATION_SECONDS) if str(DEFAULT_DURATION_SECONDS) in values else 'custom'
+            next(button for button in self._duration_buttons
+                 if ('custom' if button.duration_seconds is None else str(button.duration_seconds))
+                 == selected).set_active(True)
+            if missing:
+                self._custom_entry.set_text(str(int(selected_value) / 60))
+            self._custom_row.set_visible(selected == 'custom')
+            self._update_controls()
+        finally:
+            self._suppress_values_changed = suppressed
 
     def is_selected_account(self, target_uid):
         """Whether an asynchronous response still belongs to the selected child."""

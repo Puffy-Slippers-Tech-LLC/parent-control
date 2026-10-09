@@ -1685,3 +1685,44 @@ msgstr "To okno lahko znova odprete v meniju aplikacije."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Več informacij"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Prednastavljeni časi"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Dodaj prednastavljeni čas"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Uredi prednastavljeni čas"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Trajanje"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "ure"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Vedno na voljo"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Izberite časovne možnosti v obrazcu zahteve. Prednastavitve lahko dodajate, urejate ali odstranjujete. Razvrščene so samodejno."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Ta prednastavljeni čas že obstaja."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Vnesite trajanje od %(minimum)s do %(maximum)s sekund v celih sekundah."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Vnesite veljavno število."

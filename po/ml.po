@@ -1673,3 +1673,44 @@ msgstr "ആപ്പിന്റെ മെനുവിൽ നിന്ന് ഈ
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "കൂടുതൽ കാണുക"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "മുൻകൂട്ടി നിശ്ചയിച്ച സമയങ്ങൾ"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "മുൻകൂട്ടി നിശ്ചയിച്ച സമയം ചേർക്കുക"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "മുൻകൂട്ടി നിശ്ചയിച്ച സമയം തിരുത്തുക"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "സമയ ദൈർഘ്യം"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "മണിക്കൂർ"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "എപ്പോഴും ലഭ്യമാണ്"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "അഭ്യർത്ഥനാ ഫോമിലെ സമയ ഓപ്ഷനുകൾ തിരഞ്ഞെടുക്കുക. മുൻനിശ്ചയങ്ങൾ ചേർക്കാനോ തിരുത്താനോ നീക്കാനോ കഴിയും. അവ സ്വയമേവ ക്രമീകരിക്കപ്പെടും."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "ഈ മുൻകൂട്ടി നിശ്ചയിച്ച സമയം നിലവിലുണ്ട്."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "പൂർണ്ണ സെക്കൻഡുകളിൽ %(minimum)s മുതൽ %(maximum)s സെക്കൻഡ് വരെയുള്ള ദൈർഘ്യം നൽകുക."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "സാധുവായ ഒരു സംഖ്യ നൽകുക."

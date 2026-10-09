@@ -134,3 +134,44 @@ msgstr "You can open this again from the app menu."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "See More"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Preset Times"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Add Preset Time"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Edit Preset Time"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Time duration"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "hours"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Always available"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "This preset time already exists."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Enter a valid number."

@@ -1673,3 +1673,44 @@ msgstr "Tu puedis vierzi di gnûf chest barcon dal menù de aplicazion."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Plui informazions"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Timps predefinîts"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Zonte timp predefinît"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Modifiche timp predefinît"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Durade"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "oris"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Simpri disponibil"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Sielç lis opzions di timp tal modul di richieste. Tu puedis zontâ, modificâ o gjavâ lis preimpostazions. A vegnin ordenadis in automatic."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Chest timp predefinît al esist za."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Inserìs une durade di %(minimum)s a %(maximum)s seconts, in seconts intîrs."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Inserìs un numar valit."

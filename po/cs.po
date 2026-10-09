@@ -1679,3 +1679,44 @@ msgstr "Toto okno můžete znovu otevřít z nabídky aplikace."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Více informací"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Přednastavené časy"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Přidat přednastavený čas"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Upravit přednastavený čas"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Doba trvání"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "hodiny"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Vždy dostupné"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Vyberte časové možnosti ve formuláři žádosti. Přednastavené časy můžete přidávat, upravovat nebo odebírat. Řadí se automaticky."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Tento přednastavený čas již existuje."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Zadejte dobu od %(minimum)s do %(maximum)s sekund v celých sekundách."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Zadejte platné číslo."

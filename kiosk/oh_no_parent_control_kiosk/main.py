@@ -53,7 +53,7 @@ from .lightning import LightningDischarge
 from .thunder import LightningAudio
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
-    MENU, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
+    MENU, GEAR, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
     HudMenuBoard, HudMenuStem, MetalBoard, PixelIcon,
     paint_board_frame,
 )
@@ -1032,8 +1032,8 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         set_automation_id(menu_actions, "kiosk-help-actions")
         menu_actions.add_css_class("oh-no-parent-control-hud-menu-actions")
-        preferences_item = self._hud_menu_item(m.PREFERENCES_2, MENU, identity="preferences")
-        describe_control(preferences_item, m.PREFERENCES, m.CHOOSE_YOUR_LANGUAGE_2)
+        preferences_item = self._hud_menu_item(m.PREFERENCES_2, GEAR, identity="preferences")
+        describe_control(preferences_item, m.PREFERENCES, m.PREFERENCES)
         preferences_item.connect("clicked", lambda *_args: self._activate_help_menu(
             help_popover, self._show_preferences,
         ))
@@ -1150,6 +1150,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_access, self._cancel, self._load_preferences,
             lock_child_selector=self._child_overlay,
             on_values_changed=self._form_values_changed,
+            on_preferences=self._show_preferences,
             selection_store=(None if self._preview else SelectionStore(
                 Path(GLib.get_user_state_dir()) / "oh-no-parent-control" / "request-selections.json",
                 child_overlay=self._child_overlay,
@@ -1336,11 +1337,56 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._language_cancelled,
                 account=self._request_content.selected_child_account(),
                 load_notifications=self._load_notifications,
-                save_notifications=self._save_notifications)
+                save_notifications=self._save_notifications,
+                load_presets=self._load_presets, save_presets=self._save_presets)
         if self._preferences_tab_requested is not None:
             self._language_dialog._ui_select_tab(self._preferences_tab_requested)
             self._preferences_tab_requested = None
         self._language_dialog.present()
+
+    def _load_presets(self, success, failure):
+        self._presets_call(None, success, failure)
+
+    def _save_presets(self, settings, success, failure):
+        def saved(presets):
+            self._request_content.set_time_grant_presets(presets)
+            self._queue_time_estimate()
+            success(presets)
+        self._presets_call(settings, saved, failure)
+
+    def _presets_call(self, settings, success, failure):
+        revision, target_uid = self._language_revision, self._language_target_uid
+        if self._preview and not self._interactive_preview:
+            from broker.oh_no_parent_control.preferences import DEFAULT_TIME_GRANT_PRESETS, validate_time_grant_presets
+            if not hasattr(self, '_preview_presets'):
+                self._preview_presets = {}
+            if settings is not None:
+                self._preview_presets[target_uid] = validate_time_grant_presets(settings)
+            success(self._preview_presets.get(target_uid, list(DEFAULT_TIME_GRANT_PRESETS)))
+            return
+
+        def finished(connection, result):
+            if self._estimate_closed or revision != self._language_revision:
+                return
+            try:
+                encoded, = connection.call_finish(result).unpack()
+                presets = json.loads(encoded)
+            except Exception as error:
+                failure(error)
+            else:
+                success(presets)
+
+        try:
+            method = ('Get' if settings is None else 'Set') + (
+                'OwnTimeGrantPresets' if self._child_overlay else 'ChildTimeGrantPresets')
+            values = () if self._child_overlay else (target_uid,)
+            signature = '' if self._child_overlay else 'u'
+            if settings is not None:
+                values += (json.dumps(settings),)
+                signature += 's'
+            self._bus_call(method, GLib.Variant(f'({signature})', values), '(s)', finished)
+        except Exception as error:
+            failure(error)
 
     def _load_notifications(self, success, failure):
         self._notifications_call(None, success, failure)
@@ -1683,6 +1729,8 @@ class RequestWindow(Adw.ApplicationWindow):
             self._applying_preferences = True
             try:
                 self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
+                if target_uid in getattr(self, '_preview_presets', {}):
+                    self._request_content.set_time_grant_presets(self._preview_presets[target_uid])
                 if self._child_overlay:
                     self._apply_mute(
                         self._request_content.muted_for_surface(self._mute_surface()),

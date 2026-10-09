@@ -9,6 +9,7 @@ oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
   * Parent App: Revoke dialog shows list of running soft blocked apps that
     will be terminated.
   * What's New: Added metadata-driven What's new infra
+  * Request Time Form: You can customize the preset times in preferences!
 
   Bug Fixes
   * Broker: Fixed startup failures caused by temporary trust-database lock
@@ -21,12 +22,14 @@ oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
   * Parent App: Fixed the disabled Revoke button at zero remaining time when
     soft-blocked apps are still running, allowing parents to close those apps
     after the child’s session locks.
+  * Child App: In Kiosk session, hitting enter in after typing custom value
+    does not trigger auth dialog
 
   Fedora Workstation 44 Readiness
   * Test Automation: One big step closer - all automated tests are passing on
     Fedora
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Fri, 09 Oct 2026 16:05:44 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Fri, 09 Oct 2026 16:53:31 +0000
 
 oh-no-parent-control (1.3+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

@@ -1667,3 +1667,44 @@ msgstr "Bu pencereyi uygulama menüsünden tekrar açabilirsiniz."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Daha fazla bilgi"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Ön ayarlı süreler"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Ön ayarlı süre ekle"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Ön ayarlı süreyi düzenle"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Süre"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "saat"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Her zaman kullanılabilir"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "İstek formundaki süre seçeneklerini belirleyin. Ön ayar ekleyebilir, düzenleyebilir veya kaldırabilirsiniz. Ön ayarlar otomatik sıralanır."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Bu ön ayarlı süre zaten var."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Tam saniye olarak %(minimum)s ile %(maximum)s saniye arasında bir süre girin."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Geçerli bir sayı girin."

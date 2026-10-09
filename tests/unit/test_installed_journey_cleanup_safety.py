@@ -110,6 +110,7 @@ import feedback_rejection
 import feedback_length
 import window_switch
 import retained_parent
+import retained_entry
 import text_qualification
 import named_child_custom_saves
 import allowance_presets
@@ -270,7 +271,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                                  feedback_formats_qualification.PLAN,
                                  feedback_formats_qualification.LINK_PLAN,
                                  feedback_rejection.PLAN, feedback_length.PLAN,
-                                 window_switch.PLAN, retained_parent.PLAN,
+                                 window_switch.PLAN, retained_parent.PLAN, retained_entry.PLAN,
                                  text_qualification.PLAN, allowance_presets.PLAN,
                                  allowance.PLAN, time_explanation.PLAN, kiosk_valid_duration.PLAN,
                                  request_duration.PLAN, request_flow.PLAN, kiosk_cancel.PLAN,
@@ -297,7 +298,7 @@ def test_parent_desktop_preparation_is_shared_durable_and_fail_closed(
                               'trace-stable', 'trace-transition', 'compose-observation',
                               'accessibility-trace', 'named-child-custom-saves',
                               'format', 'block-semantics', 'feedback-formats', 'feedback-link',
-                              'feedback-rejection', 'feedback-length', 'window-switch', 'retained-parent',
+                              'feedback-rejection', 'feedback-length', 'window-switch', 'retained-parent', 'retained-entry',
                               'text', 'allowance-presets',
                               'allowance', 'time-explanation', 'kiosk-valid-duration', 'request-duration',
                               'request-flow', 'kiosk-cancel', 'kiosk-escape', 'kiosk-approved-case', 'mate-prompt', 'kiosk-approval',
@@ -564,12 +565,15 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                     'observed_monotonic_ns': 2_000_000_000}
             if operation == 'child-countdown-present':
                 result['countdown'].update(text='00:16', observed_monotonic_ns=12_000_000_000)
-        if plan in (overlay_approved_exit.PLAN, overlay_approved_exit.IMMEDIATE_PLAN,
-                    overlay_approved_exit.FLOW_REJECTION_PLAN, overlay_approved_exit.FLOW_CANCEL_PLAN) and operation == 'overlay-native-activity':
+        if operation in ('native-activity', 'overlay-native-activity'):
             result['activity'] = {'binding': 'native-primary', 'pid': 123,
                 'endpoint': [':1.2', '/fixture'], 'state': {
                     'draft': 'ONPC fixture draft', 'submitted': 'ONPC fixture draft',
                     'score': 'Moves: 0; token: 0'}}
+        if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
+            result['lock'] = {'challenge_id': 'a' * 64}
+        if operation == 'gdm-child-denied-return-state':
+            result['return_state'] = 'account-list'
         if plan in (overlay_about.PLAN, overlay_prompt.PLAN, overlay_approved_exit.PLAN, overlay_rejection.PLAN,
                     overlay_approved_exit.IMMEDIATE_PLAN, overlay_approved_exit.FLOW_REJECTION_PLAN,
                     overlay_approved_exit.FLOW_CANCEL_PLAN):

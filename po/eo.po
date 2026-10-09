@@ -1673,3 +1673,44 @@ msgstr "Vi povas remalfermi ĉi tiun fenestron el la aplikaĵa menuo."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Legi pli"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Antaŭdifinitaj tempoj"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Aldoni antaŭdifinitan tempon"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Redakti antaŭdifinitan tempon"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Daŭro"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "horoj"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Ĉiam disponebla"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Elektu la tempajn opciojn en la petformularo. Vi povas aldoni, redakti aŭ forigi antaŭdifinojn. Ili estas aŭtomate ordigitaj."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Ĉi tiu antaŭdifinita tempo jam ekzistas."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Enigu daŭron de %(minimum)s ĝis %(maximum)s sekundoj, en tutaj sekundoj."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Enigu validan nombron."

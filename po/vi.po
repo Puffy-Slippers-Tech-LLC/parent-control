@@ -1667,3 +1667,44 @@ msgstr "Bạn có thể mở lại cửa sổ này từ menu ứng dụng."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Xem thêm"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Thời gian đặt sẵn"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Thêm thời gian đặt sẵn"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Sửa thời gian đặt sẵn"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Thời lượng"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "giờ"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Luôn có sẵn"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Chọn các tùy chọn thời gian trong biểu mẫu yêu cầu. Bạn có thể thêm, sửa hoặc xóa thời gian đặt sẵn. Chúng được sắp xếp tự động."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Thời gian đặt sẵn này đã tồn tại."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Nhập thời lượng từ %(minimum)s đến %(maximum)s giây, theo số giây nguyên."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Nhập một số hợp lệ."

@@ -27,6 +27,12 @@ from common.oh_no_parent_control_ui.languages import (
 )
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon
 from .chrome import ArmoredButton, MetalBoard
+from .preset_dialog import PresetDialog
+from .duration_controls import DurationControls, DurationError, DurationEditorActions, duration_number
+from .request_content import _duration_label
+from broker.oh_no_parent_control.preferences import (
+    MAX_TIME_GRANT_PRESETS, validate_time_grant_presets, validate_notifications, UINT32_MAX,
+)
 
 SHELL_PREVIEW_NAME = 'com.puffyslippers.OhNoParentControl.ReminderPreview'
 SHELL_PREVIEW_PATH = '/com/puffyslippers/OhNoParentControl/ReminderPreview'
@@ -92,6 +98,12 @@ class PreferenceTabIcon(Gtk.Widget):
                 cr.move_to(inset, y)
                 cr.line_to(26 - inset, y)
             cr.stroke()
+        elif self._name == 'presets':
+            cr.arc(13, 13, 11, 0, math.tau)
+            cr.move_to(13, 5)
+            cr.line_to(13, 13)
+            cr.line_to(19, 13)
+            cr.stroke()
         else:
             cr.move_to(3, 21)
             cr.curve_to(7, 17, 6, 15, 6, 10)
@@ -120,7 +132,7 @@ class ReminderDialog(Gtk.Window):
             largest = max(reminders, key=lambda r: r['value'] *
                           (60 if r['unit'] == 'minute' else 1), default=None)
             timing_record = ({'value': min(largest['value'] * 2,
-                                          4294967295 // (60 if largest['unit'] == 'minute' else 1)),
+                                          UINT32_MAX // (60 if largest['unit'] == 'minute' else 1)),
                               'unit': largest['unit']} if largest else
                              {'value': 1, 'unit': 'minute'})
         self._saved, self._closed_callback = saved, closed
@@ -192,55 +204,20 @@ class ReminderDialog(Gtk.Window):
                                 css_classes=['preferences-section-title']))
         fields.append(localized(Gtk.Label, label=m.REMINDER_TIMING_HELP, xalign=0,
                                 wrap=True, css_classes=['reminder-trigger']))
-        timing = Gtk.Box(spacing=16, homogeneous=True)
-        number = Gtk.Box(spacing=0, css_classes=['reminder-number'])
-        self._value = Gtk.Entry(input_purpose=Gtk.InputPurpose.DIGITS, width_chars=10,
-                                max_width_chars=10, max_length=10, hexpand=True)
-        self._value.set_text(str(timing_record['value']))
-        describe_control(self._value, m.WHEN_TO_SHOW, m.REMINDER_TIMING_HELP,
-                         automation_id='reminder-value')
-        number.append(self._value)
-        steps = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for identity, glyph, delta in (('increase', '▴', 1), ('decrease', '▾', -1)):
-            button = Gtk.Button(label=glyph, css_classes=['reminder-step'])
-            describe_control(button, m.WHEN_TO_SHOW, m.REMINDER_TIMING_HELP,
-                             automation_id=f'reminder-value-{identity}')
-            button.connect('clicked', lambda _b, d=delta: self._step(d))
-            steps.append(button)
-        number.append(steps)
-        timing.append(number)
-        self._unit = Gtk.DropDown(model=Gtk.StringList.new(['', '']))
-        self._unit.set_selected(1 if timing_record['unit'] == 'second' else 0)
-        describe_control(self._unit, m.WHEN_TO_SHOW, m.REMINDER_TIMING_HELP,
-                         automation_id='reminder-unit')
-        bind_ui(self._unit, get_value=lambda: self._unit_token(),
-                set_value=self._set_unit, choices=['minute', 'second'])
-        register_retranslation(self, self._translate_units)
-        timing.append(self._unit)
+        timing = DurationControls(namespace='reminder', value=timing_record['value'],
+            unit=timing_record['unit'], units=[('minute', m.MINUTES), ('second', m.SECONDS)],
+            label=m.WHEN_TO_SHOW, description=m.REMINDER_TIMING_HELP, step=self._step)
+        self._value, self._unit = timing.value, timing.unit
         fields.append(timing)
-        self._error = localized(Gtk.Label, label=m.INVALID_REMINDER, wrap=True,
-                                visible=False, css_classes=['error'])
-        set_automation_id(self._error, 'reminder-editor-error')
+        self._error = DurationError('reminder')
         content.append(fields)
         self._duplicate = localized(Gtk.Label, label=m.DUPLICATE_REMINDER, wrap=True,
                                     visible=False, css_classes=['error', 'reminder-duplicate-warning'])
         set_automation_id(self._duplicate, 'reminder-duplicate-warning')
         content.append(self._duplicate)
         content.append(self._error)
-        actions = Gtk.Box(spacing=20, homogeneous=True)
-        actions.add_css_class('reminder-editor-actions')
-        fixed_direction(actions, Gtk.TextDirection.LTR)
-        for identity, message, callback in (
-                ('cancel', m.CANCEL, self._cancel), ('save', m.SAVE, self._submit)):
-            button = localized(ArmoredButton, label=message)
-            if identity == 'save':
-                button.add_css_class('oh-no-parent-control-request-button')
-                self._save_button = button
-            else:
-                button.add_css_class('oh-no-parent-control-cancel-button')
-            describe_control(button, message, message, automation_id=f'reminder-editor-{identity}')
-            button.connect('clicked', callback)
-            actions.append(button)
+        actions = DurationEditorActions('reminder', self._cancel, self._submit)
+        self._save_button = actions.submit
         content.append(actions)
         board.append(content)
         self.set_child(board)
@@ -253,25 +230,20 @@ class ReminderDialog(Gtk.Window):
     def _unit_token(self):
         return 'second' if self._unit.get_selected() == 1 else 'minute'
 
-    def _set_unit(self, value):
-        if value not in ('minute', 'second'):
-            raise ValueError('invalid reminder unit')
-        self._unit.set_selected(1 if value == 'second' else 0)
-
-    def _translate_units(self, translations):
-        model = self._unit.get_model()
-        selected = self._unit.get_selected()
-        model.splice(0, model.get_n_items(), [m.MINUTES.render(translations), m.SECONDS.render(translations)])
-        self._unit.set_selected(selected)
-
     def _duration(self):
-        raw = self._value.get_text().strip()
-        maximum = 4294967295 // (60 if self._unit_token() == 'minute' else 1)
-        return int(raw) if raw.isascii() and raw.isdigit() and 1 <= int(raw) <= maximum else None
+        value = duration_number(self._value.get_text())
+        if value is None or value != value.to_integral_value() or not 1 <= value <= UINT32_MAX:
+            return None
+        try:
+            validate_notifications({'show_in_fullscreen': True, 'reminders': [
+                {'id': 'editor', 'value': int(value), 'unit': self._unit_token()}]})
+        except ValueError:
+            return None
+        return int(value)
 
     def _step(self, delta):
         value = self._duration() or 1
-        maximum = 4294967295 // (60 if self._unit_token() == 'minute' else 1)
+        maximum = UINT32_MAX // (60 if self._unit_token() == 'minute' else 1)
         self._value.set_text(str(max(1, min(maximum, value + delta))))
 
     def _update_validation(self, *_args):
@@ -290,9 +262,9 @@ class ReminderDialog(Gtk.Window):
             self._value.add_css_class('reminder-duplicate')
         else:
             self._value.remove_css_class('reminder-duplicate')
-        self._save_button.set_sensitive(not duplicate)
+        self._save_button.set_sensitive(value is not None and not duplicate)
         self._preview_button.set_sensitive(value is not None and not self._preview_pending)
-        self._error.set_visible(False)
+        self._error.update(self._value.get_text(), value is not None, m.INVALID_REMINDER)
 
     def _preview(self, *_args):
         value = self._duration()
@@ -333,8 +305,7 @@ class ReminderDialog(Gtk.Window):
                     self._close_preview()
             except GLib.Error:
                 if not self._notified_closed:
-                    set_text(self._error, 'label', m.PREVIEW_IS_NOT_AVAILABLE)
-                    self._error.set_visible(True)
+                    self._error.show_message(m.PREVIEW_IS_NOT_AVAILABLE)
             finally:
                 self._preview_pending = False
                 if not self._notified_closed:
@@ -356,8 +327,7 @@ class ReminderDialog(Gtk.Window):
                 self._preview_pending = False
                 if not self._notified_closed:
                     self._preview_button.set_sensitive(self._duration() is not None)
-                    set_text(self._error, 'label', m.PREVIEW_IS_NOT_AVAILABLE)
-                    self._error.set_visible(True)
+                    self._error.show_message(m.PREVIEW_IS_NOT_AVAILABLE)
 
         Gio.bus_get(Gio.BusType.SESSION, None, connected)
 
@@ -393,8 +363,7 @@ class ReminderDialog(Gtk.Window):
         if self._duplicate.get_visible():
             return
         if value is None or (len(text) > 50 and text != original_text):
-            set_text(self._error, 'label', m.INVALID_REMINDER)
-            self._error.set_visible(True)
+            self._error.update(self._value.get_text(), False, m.INVALID_REMINDER)
             return
         record = {'id': self._record['id'] if self._record else 'reminder-' + uuid.uuid4().hex,
                   'value': value, 'unit': self._unit_token(), 'text': text if text.strip() else ''}
@@ -426,7 +395,8 @@ class ReminderDialog(Gtk.Window):
 
 class PreferencesDialog(Gtk.Window):
     def __init__(self, parent, language, save, saved, cancelled, *, account=None,
-                 load_notifications=None, save_notifications=None):
+                 load_notifications=None, save_notifications=None,
+                 load_presets=None, save_presets=None):
         super().__init__(application=parent.get_application(),
                          title=m.PREFERENCES, transient_for=parent, modal=True,
                          destroy_with_parent=True, deletable=False, decorated=False)
@@ -448,6 +418,9 @@ class PreferencesDialog(Gtk.Window):
         self._original_notifications = None
         self._notifications_loading = False
         self._editing = False
+        self._load_presets, self._save_presets = load_presets, save_presets
+        self._presets = self._original_presets = None
+        self._presets_loading = False
 
         board = MetalBoard(orientation=Gtk.Orientation.VERTICAL)
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -490,11 +463,12 @@ class PreferencesDialog(Gtk.Window):
         self._tab_choices = {}
         describe_control(tabs, m.PREFERENCES, m.PREFERENCES, automation_id='preferences-tabs')
         bind_ui(tabs, get_value=lambda: self._pages.get_visible_child_name(),
-                set_value=self._ui_select_tab, choices=['language', 'reminders'])
-        for name, message in (('language', m.LANGUAGE), ('reminders', m.REMINDERS)):
+                set_value=self._ui_select_tab, choices=['language', 'reminders', 'presets'])
+        for name, message in (('language', m.LANGUAGE), ('reminders', m.REMINDERS),
+                              ('presets', m.PRESET_TIMES)):
             tab = PreferenceTab(css_classes=['preferences-tab'], hexpand=True)
             child = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER,
-                            margin_start=22, margin_end=22, margin_top=7, margin_bottom=7)
+                            margin_start=12, margin_end=12, margin_top=7, margin_bottom=7)
             child.append(PreferenceTabIcon(name))
             child.append(localized(Gtk.Label, label=message))
             tab.set_child(child)
@@ -560,11 +534,13 @@ class PreferencesDialog(Gtk.Window):
         self._language_page.append(scroller)
         self._pages.add_named(self._language_page, 'language')
         self._build_reminders_page()
+        self._build_presets_page()
         content.append(self._pages)
         self._error = localized(Gtk.Label, wrap=True, visible=False, css_classes=["error"])
         set_automation_id(self._error, "language-error")
         content.append(self._error)
-        actions = Gtk.Box(spacing=12, homogeneous=True)
+        actions = Gtk.Box(spacing=10, homogeneous=True,
+                          css_classes=['oh-no-parent-control-actions'])
         # Keep Save and Cancel in place while the candidate changes direction.
         fixed_direction(actions, Gtk.TextDirection.LTR)
         self._cancel = localized(ArmoredButton, label=m.CANCEL,
@@ -631,18 +607,27 @@ class PreferencesDialog(Gtk.Window):
         self._retry.connect('clicked', lambda *_: self._request_notifications())
         self._retry.set_visible(False)
         page.append(self._retry)
-        fullscreen_row = Gtk.Box(spacing=16, css_classes=['reminder-fullscreen-row'])
-        fullscreen_row.append(localized(
+        self._fullscreen_row = Gtk.Button(
+            sensitive=False, css_classes=['reminder-fullscreen-row'])
+        describe_control(self._fullscreen_row, m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
+                         m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
+                         automation_id='reminder-fullscreen-row')
+        fullscreen_content = Gtk.Box(spacing=16)
+        fullscreen_content.append(localized(
             Gtk.Label, label=m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS, xalign=0,
             hexpand=True, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
             max_width_chars=28, css_classes=['reminder-text']))
         self._fullscreen = Gtk.Switch(valign=Gtk.Align.CENTER, sensitive=False)
+        self._fullscreen.set_can_target(False)
         describe_control(self._fullscreen, m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
                          m.SHOW_REMINDERS_IN_FULL_SCREEN_APPS,
                          automation_id='reminder-show-in-fullscreen')
         self._fullscreen.connect('notify::active', self._fullscreen_changed)
-        fullscreen_row.append(self._fullscreen)
-        page.append(fullscreen_row)
+        self._fullscreen.connect('notify::sensitive', self._fullscreen_sensitivity_changed)
+        fullscreen_content.append(self._fullscreen)
+        self._fullscreen_row.set_child(fullscreen_content)
+        self._fullscreen_row.connect('clicked', self._toggle_fullscreen)
+        page.append(self._fullscreen_row)
         self._pages.add_named(page, 'reminders')
         self._add.set_sensitive(False)
 
@@ -650,12 +635,138 @@ class PreferencesDialog(Gtk.Window):
         if self._notifications is not None:
             self._notifications['show_in_fullscreen'] = switch.get_active()
 
+    def _fullscreen_sensitivity_changed(self, switch, _property):
+        self._fullscreen_row.set_sensitive(switch.get_sensitive())
+
+    def _toggle_fullscreen(self, _button):
+        if self._fullscreen.get_sensitive():
+            self._fullscreen.set_active(not self._fullscreen.get_active())
+
+    def _build_presets_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                       css_classes=['preferences-page'])
+        heading = Gtk.Box(spacing=12)
+        heading.append(localized(Gtk.Label, label=m.PRESET_TIMES, xalign=0, hexpand=True,
+                                 css_classes=['preferences-section-title']))
+        self._preset_add = Gtk.Button(css_classes=['reminder-add'], sensitive=False)
+        caption = Gtk.Box(spacing=6)
+        caption.append(Gtk.Image.new_from_icon_name('list-add-symbolic'))
+        caption.append(localized(Gtk.Label, label=m.ADD))
+        self._preset_add.set_child(caption)
+        describe_control(self._preset_add, m.ADD_PRESET_TIME, m.PRESET_TIMES, automation_id='preset-add')
+        self._preset_add.connect('clicked', lambda *_: self._edit_preset(None))
+        heading.append(self._preset_add)
+        page.append(heading)
+        page.append(localized(Gtk.Label, label=m.PRESET_TIMES_HELP, xalign=0, wrap=True,
+                                 max_width_chars=42, css_classes=['reminder-trigger']))
+        self._preset_rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._preset_list = Gtk.ScrolledWindow(child=self._preset_rows, vexpand=True,
+            min_content_height=1, hscrollbar_policy=Gtk.PolicyType.NEVER,
+            overlay_scrolling=False, css_classes=['oh-no-parent-control-language-list'],
+            accessible_role=Gtk.AccessibleRole.GROUP)
+        describe_control(self._preset_list, m.PRESET_TIMES, m.PRESET_TIMES, automation_id='preset-list')
+        bind_ui(self._preset_list, get_value=lambda: list(self._presets or []),
+                choices=lambda: [str(value) for value in self._presets or []] + ['0', 'custom'])
+        page.append(self._preset_list)
+        self._preset_status = localized(Gtk.Label, label=m.PRESET_TIMES, wrap=True)
+        set_automation_id(self._preset_status, 'preset-status')
+        page.append(self._preset_status)
+        self._preset_retry = localized(Gtk.Button, label=m.TRY_AGAIN, visible=False)
+        describe_control(self._preset_retry, m.TRY_AGAIN, m.PRESET_TIMES, automation_id='preset-retry')
+        self._preset_retry.connect('clicked', lambda *_: self._request_presets())
+        page.append(self._preset_retry)
+        self._pages.add_named(page, 'presets')
+
+    def _request_presets(self):
+        if self._presets_loading or self._closed:
+            return
+        self._presets_loading = True
+        self._preset_retry.set_visible(False)
+        self._preset_status.set_visible(True)
+        set_text(self._preset_status, 'label', m.PRESET_TIMES)
+        if self._load_presets is None:
+            self._presets_failed(None)
+        else:
+            self._load_presets(self._presets_loaded, self._presets_failed)
+
+    def _presets_loaded(self, presets):
+        if self._closed:
+            return
+        self._presets_loading = False
+        self._presets = validate_time_grant_presets(presets)
+        self._original_presets = list(self._presets)
+        self._preset_status.set_visible(False)
+        self._render_presets()
+
+    def _presets_failed(self, _error):
+        if self._closed:
+            return
+        self._presets_loading = False
+        set_text(self._preset_status, 'label', m.THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER)
+        self._preset_retry.set_visible(True)
+
+    def _render_presets(self):
+        while (row := self._preset_rows.get_first_child()) is not None:
+            self._preset_rows.remove(row)
+        self._presets = validate_time_grant_presets(self._presets)
+        for value in [*self._presets, 0, None]:
+            identity = 'custom' if value is None else str(value)
+            row = Gtk.Box(spacing=12, css_classes=['preset-row'])
+            clock = Gtk.Image.new_from_icon_name('preferences-system-time-symbolic')
+            clock.add_css_class('reminder-bell')
+            row.append(clock)
+            label = localized(Gtk.Label, label=_duration_label(value), xalign=0, hexpand=True,
+                              wrap=True, css_classes=['reminder-text'])
+            set_automation_id(label, f'preset-{identity}-text')
+            row.append(label)
+            if value in (0, None):
+                row.append(Gtk.Image.new_from_icon_name('changes-prevent-symbolic'))
+                row.append(localized(Gtk.Label, label=m.ALWAYS_AVAILABLE,
+                                    css_classes=['reminder-trigger']))
+                if value == 0:
+                    row.set_margin_top(12)
+            else:
+                for action, message, icon, callback in (
+                        ('edit', m.EDIT_PRESET_TIME, 'document-edit-symbolic', self._edit_preset),
+                        ('delete', m.REMOVE, 'user-trash-symbolic', self._delete_preset)):
+                    button = localized(Gtk.Button, icon_name=icon, tooltip_text=message,
+                                       css_classes=[f'reminder-{action}'])
+                    describe_control(button, message, message, automation_id=f'preset-{identity}-{action}')
+                    button.connect('clicked', lambda _b, v=value, cb=callback: cb(v))
+                    row.append(button)
+            self._preset_rows.append(row)
+        self._preset_add.set_sensitive(len(self._presets) < MAX_TIME_GRANT_PRESETS and not self._saving)
+
+    def _delete_preset(self, value):
+        self._presets.remove(value)
+        self._render_presets()
+
+    def _edit_preset(self, value):
+        if self._editing or self._presets is None:
+            return
+        self._editing = True
+        self._preset_dialog = PresetDialog(self, value, self._presets,
+            lambda seconds: self._commit_preset(value, seconds), self._preset_editor_closed)
+        self._preset_dialog.present()
+
+    def _commit_preset(self, original, seconds):
+        if original is not None:
+            self._presets.remove(original)
+        self._presets.append(seconds)
+        self._render_presets()
+
+    def _preset_editor_closed(self):
+        self._editing = False
+        self._preset_dialog = None
+
     def _switch_tab(self, tab, name):
         if not tab.get_active():
             return
         self._pages.set_visible_child_name(name)
         if name == 'reminders' and self._notifications is None:
             self._request_notifications()
+        if name == 'presets' and self._presets is None:
+            self._request_presets()
 
     def _ui_select_tab(self, value):
         if type(value) is not str or value not in self._tab_choices:
@@ -876,6 +987,26 @@ class PreferencesDialog(Gtk.Window):
         self._add.set_sensitive(False)
         self._retry.set_sensitive(False)
         self._fullscreen.set_sensitive(False)
+        self._preset_list.set_sensitive(False)
+        self._preset_add.set_sensitive(False)
+        self._preset_retry.set_sensitive(False)
+        if self._presets is not None and self._presets != self._original_presets:
+            self._save_presets(list(self._presets), self._presets_saved, self._preset_save_failure)
+        else:
+            self._save_reminder_draft()
+
+    def _presets_saved(self, presets):
+        if self._closed:
+            return
+        self._original_presets = list(presets)
+        self._save_reminder_draft()
+
+    def _preset_save_failure(self, error):
+        self._failure(error)
+        set_text(self._error, 'label', m.COULD_NOT_SAVE_SETTING_S_PLEASE_TRY_AGAIN_LATER % {
+            'setting': m.PRESET_TIMES})
+
+    def _save_reminder_draft(self):
         if self._notifications is not None and self._notifications != self._original_notifications:
             self._save_notifications(copy.deepcopy(self._notifications),
                                      self._notifications_saved, self._preferences_failure)
@@ -920,6 +1051,9 @@ class PreferencesDialog(Gtk.Window):
         self._retry.set_sensitive(True)
         self._fullscreen.set_sensitive(self._notifications is not None
                                        and bool(self._notifications['reminders']))
+        self._preset_list.set_sensitive(True)
+        self._preset_add.set_sensitive(self._presets is not None and len(self._presets) < MAX_TIME_GRANT_PRESETS)
+        self._preset_retry.set_sensitive(True)
         set_text(self._error, 'label', m.YOUR_LANGUAGE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN)
         self._error.set_visible(True)
         self._size_to_gateway(self)

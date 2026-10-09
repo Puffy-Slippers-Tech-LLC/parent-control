@@ -1673,3 +1673,44 @@ msgstr "Μπορείτε να ανοίξετε ξανά αυτό το παράθ
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Μάθετε περισσότερα"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Προκαθορισμένοι χρόνοι"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Προσθήκη προκαθορισμένου χρόνου"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Επεξεργασία προκαθορισμένου χρόνου"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Διάρκεια"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "ώρες"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Πάντα διαθέσιμο"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Επιλέξτε τις χρονικές επιλογές στη φόρμα αιτήματος. Μπορείτε να προσθέσετε, να επεξεργαστείτε ή να αφαιρέσετε προεπιλογές. Ταξινομούνται αυτόματα."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Αυτός ο προκαθορισμένος χρόνος υπάρχει ήδη."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Εισαγάγετε διάρκεια από %(minimum)s έως %(maximum)s δευτερόλεπτα, σε ακέραια δευτερόλεπτα."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Εισαγάγετε έναν έγκυρο αριθμό."

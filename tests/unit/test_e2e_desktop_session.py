@@ -33,6 +33,197 @@ def retained_parent_probe():
     return program, binding
 
 
+def retained_entry_probe():
+    from retained_entry import PLAN
+    program, binding = unlock_probe(PLAN)
+    program = program.replace('onpc_desktop_session::qualify_retained_unlock',
+                              'onpc_desktop_session::qualify_retained_entry')
+    program = program.replace('$plan->{retained}, $plan->{invocations}', '$plan->{invocations}')
+    program = program.replace(r'\Alock-recipient-', r'\Ariley-unlock-lock-recipient-')
+    program = program.replace('return {observed => $stage};',
+        "return {observed => $stage, gdm_return_state => 'account-list'} if $stage eq 'denied-return-state'; return {observed => $stage};")
+    return program, binding
+
+
+def test_retained_entry_actual_worker_order_and_every_refusal_stop():
+    from retained_entry import PLAN
+    program, binding = retained_entry_probe()
+    result = json.loads(run_perl(program, '', binding).stdout)
+    assert result['ok'], (result['error'], result['events'][-12:])
+    events = result['events']
+    assert [row[1] for row in events if row[0] == 'stage'] == list(PLAN.screen_tags)
+    assert events.count(['secret']) == 9
+    assert events.count(['key', 'spc']) == 2
+    assert events.count(['key', 'alt-tab']) == 1
+    assert events[-1] == ['power', 'off']
+    for stage in PLAN.screen_tags:
+        failure = json.loads(run_perl(program, stage, binding).stdout)
+        assert not failure['ok'], failure
+        assert failure['events'] == events[:events.index(['stage', stage]) + 1]
+    assert all(tag[3:] in OPERATIONS if tag.startswith('ui:') else tag[7:] in control.BINDINGS
+               for tag in PLAN.screen_tags.values())
+
+
+def test_retained_entry_recorder_startup_and_actual_worker_titles(tmp_path):
+    from unittest.mock import MagicMock
+    from installed_journey import record_installed_journey, matched_screens
+    from private_artifacts import EvidenceError
+    from retained_entry import PLAN, RetainedEntryJourney
+    program, binding = retained_entry_probe()
+    program = program.replace('sub record_info { }',
+                              "sub record_info { push @main::events, ['title', $_[0]]; }")
+    events = json.loads(run_perl(program, '', binding).stdout)['events']
+    titles = [{'title': row[1], 'result': 'ok'} for row in events if row[0] == 'title']
+    observations = [{'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
+        'operation': tag.split(':', 1)[1], 'outcome': 'passed'},
+        **({'challenge': PLAN.challenge_at(stage)} if PLAN.challenge_at(stage) else {})}
+        for stage, tag in PLAN.screen_tags.items()]
+    (tmp_path / 'testresults').mkdir()
+    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': titles}))
+    assert [item['stage'] for item in matched_screens(tmp_path, PLAN, observations)] == list(PLAN.screen_tags)
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+        verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
+    context.recorder = MagicMock(assertion=Mock())
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is RetainedEntryJourney and journey.plan is PLAN
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(context.recorder, context, PLAN, journey_type=RetainedEntryJourney)
+    context.run_worker.assert_called_once()
+
+
+@pytest.mark.parametrize('role', ['child', 'standard'])
+@pytest.mark.parametrize('fault', ['', 'replaced', 'missing'])
+def test_retained_entry_real_step_refuses_replaced_child_before_reply(tmp_path, role, fault):
+    from retained_entry import PLAN, RetainedEntryJourney
+    from private_artifacts import EvidenceError
+    prefix = 'riley' if role == 'child' else 'jordan'
+    journey = RetainedEntryJourney(SimpleNamespace(directory=tmp_path), Mock())
+    value = {'operation': role + '-entry-same', 'outcome': 'passed', 'entry': 'same',
+             'session_sha256': 'a' * 64}
+    if fault != 'missing':
+        journey.check_settings(prefix + '-same-entry-guard', {'system': value})
+    value['session_sha256'] = 'b' * 64 if fault == 'replaced' else 'a' * 64
+    stage = prefix + '-return-identity'
+    journey.steps = [{'stage': s} for s in PLAN.stages[:PLAN.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
+    journey.transport = Mock()
+    from unittest.mock import patch
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    with patch('installed_journey.session_control.observe', return_value=value):
+        if fault:
+            with pytest.raises(EvidenceError): journey.step(Mock())
+            assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
+        else:
+            journey.step(Mock())
+            assert (tmp_path / (stage + '.reply.json')).exists()
+            assert journey.steps[-1]['comparison']['same_retained_child_desktop']
+
+
+@pytest.mark.parametrize('role', ['parent', 'child', 'standard'])
+@pytest.mark.parametrize('mode', ['fresh', 'retained', 'same', 'lock', 'refusals'])
+def test_explicit_entry_guard_and_decoder_are_read_only(monkeypatch, role, mode):
+    greeter = {'g': props('42', kind='greeter')}
+    current = greeter if mode == 'fresh' else (
+        {**greeter, '7': props(active='no', locked='yes')} if mode == 'retained' else
+        {'7': props(locked='yes' if mode == 'lock' else 'no')})
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    monkeypatch.setattr(control, 'sessions', Mock(return_value=current))
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    result = control.execute(role + '-entry-' + mode)
+    assert result['entry'] == mode
+    assert (result['session_sha256'] is None) == (mode == 'fresh')
+    transport = SimpleNamespace(call=Mock(return_value=json.dumps(result).encode()))
+    assert control.observe(transport, role + '-entry-' + mode) == result
+    submit.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', ['fresh', 'retained', 'same', 'lock'])
+@pytest.mark.parametrize('fault', ['wrong-state', 'wrong-owner', 'ambiguous', 'changed'])
+def test_explicit_entry_guard_refuses_wrong_state_without_input(monkeypatch, mode, fault):
+    current = {'g': props('42', kind='greeter')}
+    if mode == 'retained': current['7'] = props(active='no', locked='yes')
+    if mode in ('same', 'lock'): current = {'7': props(locked='yes' if mode == 'lock' else 'no')}
+    if fault == 'wrong-state':
+        current = {'7': props()} if mode in ('fresh', 'retained', 'lock') else {'g': props('42', kind='greeter')}
+    elif fault == 'wrong-owner':
+        if mode == 'fresh': current['7'] = props(active='no', locked='yes')
+        else: current['7']['User'] = '1001'
+    elif fault == 'ambiguous': current['8'] = props()
+    monkeypatch.setattr(control.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(control.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1000))
+    monkeypatch.setattr(control, 'sessions', Mock(side_effect=[current, {}] if fault == 'changed' else [current]))
+    submit = Mock()
+    monkeypatch.setattr(control, 'submit', submit)
+    with pytest.raises(control.SessionError): control.execute('child-entry-' + mode)
+    submit.assert_not_called()
+
+
+def test_retained_entry_registration_uses_maintained_vm_fixture_inputs(monkeypatch):
+    import check_e2e_retained_entry as check
+    from retained_entry import PLAN
+    from parent_setup_qualification import RetainedEntryQualification
+    from tools import test_commands
+    context = SimpleNamespace()
+    assert RetainedEntryQualification.journey(context, Mock()).plan is PLAN
+    smoke = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', smoke)
+    assert check.main() == 0 and smoke.call_args.kwargs['parent_entry'] == 'retained-children'
+    monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(test_commands, 'allocate_artifact_output', Mock(return_value='prepared'))
+    command = test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_retained_entry'])
+    assert any(value.endswith('/vm_artifacts.py') for value in command)
+
+
+@pytest.mark.parametrize('fault', ['other-child-receipt', 'lock-ack', 'lock-identity'])
+def test_retained_entry_mismatched_receipts_release_no_secret_or_later_input(fault):
+    program, binding = retained_entry_probe()
+    if fault == 'other-child-receipt':
+        program = program.replace("return {observed => $stage, challenge => {id => $id, role => $role,",
+            "return {observed => $stage, challenge => {id => $id, role => $stage eq 'jordan-fresh-standard-recipient-rechecked' ? 'child' : $role,")
+        boundary = 'jordan-fresh-standard-recipient-rechecked'
+    else:
+        boundary = 'riley-unlock-lock-recipient-rechecked'
+        if fault == 'lock-ack':
+            program = program.replace("return {observed => $stage, lock_recipient =>",
+                "return {observed => $stage eq 'riley-unlock-lock-recipient-rechecked' ? 'lock-recipient-rechecked' : $stage, lock_recipient =>")
+        else:
+            program = program.replace("challenge_id => 'a' x 64", "challenge_id => scalar(($stage eq 'riley-unlock-lock-recipient-rechecked' ? 'b' : 'a') x 64)")
+    result = json.loads(run_perl(program, '', binding).stdout)
+    assert not result['ok'] and result['events'][-1] == ['stage', boundary]
+
+
+@pytest.mark.parametrize('binding', [
+    ('child', 'gdm', 'same', 'success', None),
+    ('child', 'desktop', 'fresh', 'success', None),
+    ('child', 'desktop', 'retained', 'success', 'child'),
+    ('child', 'locked', 'same', 'success', None),
+    ('other-child', 'locked', 'lock', 'success', None),
+    ('other-child', 'gdm', 'fresh', 'time-denied', None),
+])
+def test_desktop_entry_rejects_incompatible_declared_modes_before_observation(binding):
+    from journey_blocks import desktop_entry
+    from private_artifacts import EvidenceError
+    account, source, mode, expected, source_account = binding
+    with pytest.raises(EvidenceError):
+        desktop_entry(account, source=source, entry=mode, expected=expected, source_account=source_account)
+    program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
+my $binding = decode_json($ARGV[1]);
+my $journey = onpc_journey->new(exchange => sub { push @events, ['input']; die 'unexpected'; },
+    prefix => 'independent-entry', review => 0);
+my $ok = eval { onpc_desktop_session::enter_desktop($journey, $binding->[1], $binding->[0],
+    $binding->[2], $binding->[3], 'independent', $binding->[4]); 1; };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+'''
+    result = json.loads(run_perl(program, '', json.dumps(binding)).stdout)
+    assert not result['ok'] and result['events'] == []
+
+
 def test_retained_parent_actual_worker_order_and_every_refusal_stop():
     from retained_parent import PLAN
     program, binding = retained_parent_probe()
@@ -840,6 +1031,21 @@ def test_curtain_proof_cannot_authorize_input_to_an_open_challenge(monkeypatch):
     ui, _, _, _, _, _ = lock_tree(monkeypatch, 'challenge')
     with pytest.raises(a.UiError, match='lock-not-curtain'):
         ui.run('parent-lock-reveal-ready', '')
+
+
+def test_other_lock_surface_diagnostic_preserves_refusal_without_private_text(monkeypatch, capsys):
+    import accessible_ui as a
+    ui, root, _, _, _, field = lock_tree(monkeypatch, 'challenge')
+    foreign = Node('PRIVATE-CANARY', 'text', states=('showing', 'visible', 'focused'))
+    root.children.append(Node('PRIVATE-APP-CANARY', 'application', children=[foreign]))
+    with pytest.raises(a.UiError, match='ui:lock-other-surface'):
+        ui.run('parent-lock-challenge', '')
+    diagnostic = json.loads(capsys.readouterr().err)
+    assert diagnostic == {'event': 'ui-lock-other-surface', 'count': 1, 'nodes': [
+        {'role': 'text', 'focused': True, 'modal': False, 'same_shell_process': True}]}
+    assert 'PRIVATE' not in json.dumps(diagnostic)
+    field.action.do_action.assert_not_called()
+    field.component.grab_focus.assert_not_called()
 
 
 def test_live_tree_refusal_projections_use_the_same_read_only_adapter(monkeypatch):

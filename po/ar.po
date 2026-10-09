@@ -1697,3 +1697,44 @@ msgstr "يمكنك فتح هذه النافذة مجددًا من قائمة ا�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "المزيد"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "أوقات محددة مسبقًا"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "إضافة وقت محدد مسبقًا"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "تعديل وقت محدد مسبقًا"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "المدة الزمنية"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "ساعات"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "متاح دائمًا"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "اختر خيارات الوقت في نموذج الطلب. يمكنك إضافة الأوقات المحددة مسبقًا أو تعديلها أو إزالتها. تُرتَّب تلقائيًا."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "هذا الوقت المحدد مسبقًا موجود بالفعل."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "أدخل مدة من %(minimum)s إلى %(maximum)s ثانية، باستخدام ثوانٍ كاملة."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "أدخل رقمًا صالحًا."

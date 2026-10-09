@@ -1665,3 +1665,44 @@ msgstr "アプリのメニューから再び開くことができます。"
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "詳しく見る"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "プリセット時間"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "プリセット時間を追加"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "プリセット時間を編集"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "時間の長さ"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "時間"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "常に利用可能"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "リクエストフォームに表示する時間を選択します。プリセットは追加、編集、削除できます。自動的に並べ替えられます。"
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "このプリセット時間はすでに存在します。"
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "%(minimum)s～%(maximum)s 秒の範囲で、整数の秒数となる時間を入力してください。"
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "有効な数値を入力してください。"

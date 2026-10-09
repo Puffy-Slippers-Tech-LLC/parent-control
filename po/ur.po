@@ -1673,3 +1673,44 @@ msgstr "آپ ایپ کے مینو سے یہ ونڈو دوبارہ کھول سک�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "مزید دیکھیں"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "پہلے سے مقررہ اوقات"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "پہلے سے مقررہ وقت شامل کریں"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "پہلے سے مقررہ وقت میں ترمیم کریں"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "دورانیہ"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "گھنٹے"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "ہمیشہ دستیاب"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "درخواست فارم میں وقت کے اختیارات منتخب کریں۔ آپ مقررہ اوقات شامل، ترمیم یا حذف کر سکتے ہیں۔ یہ خودکار ترتیب پاتے ہیں۔"
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "یہ پہلے سے مقررہ وقت پہلے ہی موجود ہے۔"
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "پورے سیکنڈز میں %(minimum)s سے %(maximum)s سیکنڈ کا دورانیہ درج کریں۔"
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "درست عدد درج کریں۔"

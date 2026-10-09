@@ -1549,6 +1549,15 @@ The zero-time Parent setup and retained session
 entry use the real shared journey; the running child's session remains available
 for diagnostic probes until the owner calls `tools/test-vm stop`.
 
+`tools/test-vm --vm NAME reproduce-retained-entry` retains Task 044's actual
+two-child activity and Parent return history at `riley-restricted-curtain`,
+after the independently verified locked-child entry guard and before any
+curtain observation or reveal. It uses `RetainedEntryJourney` / `PLAN` in the
+same maintenance envelope and supplies no acceptance credit.
+`tools/test-vm --vm NAME probe-lock-curtain` runs the current shared read-only
+child curtain observer against that owned scene and retains its command evidence.
+It cannot reveal, unlock, authenticate or supply acceptance credit.
+
 `SecretVariables` freezes controller-supplied fixture passwords for the fixed
 `parent`, `child`, `other-parent` and `other-child` roles. It accepts only 1–256
 printable ASCII characters, rejecting control characters that could submit a

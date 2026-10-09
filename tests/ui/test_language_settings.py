@@ -1,10 +1,14 @@
 """Localization's chooser contract through real GTK and shared E2E actions."""
 
+import json
+
 import pytest
 
 from tests.support.events import read_events
 from tests.support.feedback import feedback_editor
 from tests.support.localization_review import public_label_names
+from tests.support.request_form import open_preset_preferences
+from tests.support.automation_ids import audit_product_controls
 
 
 pytestmark = pytest.mark.ui
@@ -160,7 +164,8 @@ EXPANDED_LANGUAGES = {
 def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
                     save_failures=0, load_failures=0, release=None, scenario='normal',
                     child_desktop='', language_delay=0, unicode_input=False,
-                    notification_load_failures=0, notification_save_failures=0):
+                    notification_load_failures=0, notification_save_failures=0,
+                    preset_load_failures=0, preset_save_failures=0, preset_values=None):
     path = tmp_path / 'language-events.jsonl'
     environment = {
         'ONPC_LANGUAGE_INITIAL': language,
@@ -176,7 +181,11 @@ def launch_language(launch_ui, tmp_path, surface, *, language='', session='en',
         'ONPC_CHILD_LANGUAGE_DELAY_MS': str(language_delay),
         'ONPC_NOTIFICATION_LOAD_FAILURES': str(notification_load_failures),
         'ONPC_NOTIFICATION_SAVE_FAILURES': str(notification_save_failures),
+        'ONPC_PRESET_LOAD_FAILURES': str(preset_load_failures),
+        'ONPC_PRESET_SAVE_FAILURES': str(preset_save_failures),
     }
+    if preset_values is not None:
+        environment['ONPC_PRESET_VALUES'] = json.dumps(preset_values)
     if unicode_input:
         # Bare Mutter has no desktop input-method daemon. Reuse the Unicode
         # fixture setting from test_parent_feedback's normal editor checks.
@@ -362,7 +371,7 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     path = launch_language(launch_ui, tmp_path, surface, language='en')
     wait(lambda: ui.showing('kiosk-language-ready'), 'saved language ready')
     ui.reader.open_language_preferences('kiosk')
-    assert ui.find('preferences-tabs').getChoices() == ['language', 'reminders']
+    assert ui.find('preferences-tabs').getChoices() == ['language', 'reminders', 'presets']
     assert ui.getValue('preferences-tabs') == 'language'
     ui.setValue('preferences-tabs', 'reminders')
     assert ui.getValue('preferences-tabs') == 'reminders'
@@ -371,7 +380,8 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     assert ui.getText('reminder-fifteen-seconds-text') == '15 seconds left'
     assert ui.getText('reminder-fifteen-seconds-trigger') == '15 seconds left'
     assert ui.getValue('reminder-show-in-fullscreen') is True
-    ui.setValue('reminder-show-in-fullscreen', False)
+    ui.activate('reminder-fullscreen-row')
+    assert ui.getValue('reminder-show-in-fullscreen') is False
     ui.activate('reminder-five-minutes-edit')
     ui.setText('reminder-value', '30')
     ui.setValue('reminder-unit', 'second')
@@ -403,6 +413,7 @@ def test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list(
     for identity in ('fifteen-seconds', 'five-minutes', 'one-minute'):
         ui.activate(f'reminder-{identity}-delete')
     assert not ui.state('reminder-show-in-fullscreen', ui.api.StateType.SENSITIVE)
+    assert not ui.state('reminder-fullscreen-row', ui.api.StateType.SENSITIVE)
     ui.activate('language-continue')
     wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'empty list saved')
     ui.reader.open_language_preferences('kiosk')
@@ -434,12 +445,21 @@ def test_reminder_creation_validation_and_candidate_translation(
     assert ui.showing('reminder-duplicate-warning')
     assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setValue('reminder-unit', 'minute')
+    assert ui.text('reminder-editor-save') == 'Save'
+    ui.setText('reminder-value', '6.')
+    assert ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
+    assert ui.absent('reminder-editor-error', within='reminder-editor-dialog')
+    for invalid in ('NaN', 'Infinity', '6e3', '.', '6..', ''):
+        ui.setText('reminder-value', invalid)
+        assert ui.getText('reminder-editor-error') == 'Enter a valid number.'
+        assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setText('reminder-value', '1.5')
-    ui.activate('reminder-editor-save')
     assert ui.showing('reminder-editor-error')
+    assert ui.target('reminder-editor-error').get_name() == ui.getText('reminder-editor-error')
+    assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setText('reminder-value', '71582789')
-    ui.activate('reminder-editor-save')
     assert ui.showing('reminder-editor-error')
+    assert not ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
     ui.setText('reminder-value', '2')
     assert ui.absent('reminder-duplicate-warning', within='reminder-editor-dialog')
     assert ui.state('reminder-editor-save', ui.api.StateType.SENSITIVE)
@@ -489,6 +509,182 @@ def test_reminder_load_and_save_failures_keep_draft_and_allow_retry(
     assert len([e for e in read_events(path) if e['event'] == 'notifications-committed']) == 1
     assert next(e for e in read_events(path) if e['event'] == 'notifications-committed')[
         'settings']['show_in_fullscreen'] is False
+
+
+@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
+def test_preset_times_draft_bounds_persistence_and_empty_choices(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    ui.setValue('kiosk-duration-choices', 'custom')
+    ui.setText('kiosk-custom-duration', '2.5')
+    ui.setValue('kiosk-soft-apps-toggle', True)
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-300-edit'), 'backend presets loaded')
+    assert audit_product_controls(ui, 'language-dialog')
+    assert ui.getValue('preset-list') == [300, 900, 1800, 3600, 7200, 14400]
+    ui.activate('preset-add')
+    assert ui.getText('preset-editor-title') == 'Add Preset Time'
+    assert ui.text('preset-editor-save') == 'Save'
+    assert ui.getChoices('preset-unit') == ['minute', 'hour']
+    assert ui.getValue('preset-unit') == 'hour'
+    assert ui.getText('preset-value') == '5'
+    assert ui.target('preset-editor-dialog').surface_metadata['parent_id'] == 'language-dialog'
+    assert audit_product_controls(ui, 'preset-editor-dialog')
+    ui.setValue('preset-unit', 'minute')
+    for value in ('0.04', '1440.1', 'NaN', 'Infinity', '6e1000000'):
+        ui.setText('preset-value', value)
+        assert not ui.state('preset-editor-save', ui.api.StateType.SENSITIVE)
+    for invalid in ('NaN', 'Infinity', '6e3', '.', '6..', ''):
+        ui.setText('preset-value', invalid)
+        assert ui.getText('preset-editor-error') == 'Enter a valid number.'
+    ui.setText('preset-value', '6.')
+    assert ui.state('preset-editor-save', ui.api.StateType.SENSITIVE)
+    ui.setText('preset-value', '5')
+    assert ui.getText('preset-editor-error') == 'This preset time already exists.'
+    assert ui.target('preset-editor-error').get_name() == ui.getText('preset-editor-error')
+    ui.setText('preset-value', '1.25')
+    assert ui.getText('preset-value') == '1.3'
+    ui.setText('preset-value', '0.101')
+    assert ui.getText('preset-value') == '0.1'
+    ui.activate('preset-value-decrease')
+    assert ui.getText('preset-value') == '0.1'
+    ui.activate('preset-editor-save')
+    ui.activate('preset-300-edit')
+    assert ui.getText('preset-editor-title') == 'Edit Preset Time'
+    assert ui.text('preset-editor-save') == 'Save'
+    ui.setValue('preset-unit', 'hour')
+    ui.setText('preset-value', '24')
+    ui.activate('preset-value-increase')
+    assert ui.getText('preset-value') == '24'
+    ui.activate('preset-editor-save')
+    assert ui.getValue('preset-list') == [6, 900, 1800, 3600, 7200, 14400, 86400]
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'presets committed')
+    assert ui.getChoices('kiosk-duration-choices') == ['6', '900', '1800', '3600', '7200', '14400', '86400', '0', 'custom']
+    assert ui.getValue('kiosk-duration-choices') == 'custom'
+    assert ui.getText('kiosk-custom-duration') == '2.5'
+    assert ui.getValue('kiosk-soft-apps-toggle') is True
+    assert [e['presets'] for e in read_events(path) if e['event'] == 'presets-committed'] == [
+        [6, 900, 1800, 3600, 7200, 14400, 86400]]
+    ui.setValue('kiosk-duration-choices', '6')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-6-delete'), 'saved presets reload')
+    ui.activate('preset-6-delete')
+    ui.activate('preferences-close')
+    assert '6' in ui.getChoices('kiosk-duration-choices')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-6-delete'), 'Cancel retained saved list')
+    for value in ui.getValue('preset-list'):
+        ui.activate(f'preset-{value}-delete')
+    assert ui.getChoices('preset-list') == ['0', 'custom']
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'empty list saved')
+    assert ui.getChoices('kiosk-duration-choices') == ['0', 'custom']
+    assert ui.getValue('kiosk-duration-choices') == 'custom'
+    assert ui.getText('kiosk-custom-duration') == '0.1'
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.getValue('preset-list') == [], 'empty list reloads')
+    assert ui.getChoices('preset-list') == ['0', 'custom']
+    ui.activate('language-cancel')
+    if surface == 'kiosk':
+        ui.setValue('kiosk-child-selector', '1002')
+        wait(lambda: ui.getChoices('kiosk-duration-choices')[0] == '300', 'other child retains defaults')
+        ui.setValue('kiosk-child-selector', '1001')
+        wait(lambda: ui.getChoices('kiosk-duration-choices') == ['0', 'custom'], 'saved child retains empty list')
+
+
+@pytest.mark.parametrize('largest, suggested', [(7, 3607), (82860, 82920), (86350, 86350)])
+def test_preset_backend_precision_and_add_fallback(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, largest, suggested):
+    ui, wait = automation, wait_for_accessible_state
+    launch_language(launch_ui, tmp_path, 'kiosk', language='en', preset_values=[largest])
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing(f'preset-{largest}-edit'), 'backend preset loaded')
+    ui.activate(f'preset-{largest}-edit')
+    ui.activate('preset-editor-save')
+    assert ui.getValue('preset-list') == [largest]
+    ui.activate('preset-add')
+    if suggested == largest:
+        assert not ui.state('preset-editor-save', ui.api.StateType.SENSITIVE)
+        assert ui.getText('preset-editor-error') == 'This preset time already exists.'
+        ui.activate('preset-editor-cancel')
+    else:
+        ui.activate('preset-editor-save')
+        assert ui.getValue('preset-list') == [largest, suggested]
+    ui.activate('language-cancel')
+
+
+def test_preset_load_save_retry_retains_draft(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', language='en',
+                          preset_load_failures=1, preset_save_failures=1)
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-retry'), 'failed load offers retry')
+    assert not ui.state('preset-add', ui.api.StateType.SENSITIVE)
+    ui.activate('preset-retry')
+    wait(lambda: ui.showing('preset-300-delete'), 'retry loaded presets')
+    ui.activate('preset-300-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.showing('language-error'), 'failed save retains draft')
+    assert 300 not in ui.getValue('preset-list')
+    assert not [e for e in read_events(path) if e['event'] == 'presets-committed']
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'retry committed')
+    assert '300' not in ui.getChoices('kiosk-duration-choices')
+
+
+@pytest.mark.parametrize('surface', ['kiosk', 'overlay'])
+def test_preset_save_preserves_disabled_request_choices(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en',
+                          scenario='control-disabled')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-300-delete'), 'backend presets loaded')
+    ui.activate('preset-300-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'presets saved')
+    assert '300' not in ui.getChoices('kiosk-duration-choices')
+    for value in ui.getChoices('kiosk-duration-choices'):
+        assert not ui.state(f'kiosk-duration-{value}', ui.api.StateType.SENSITIVE)
+    assert not ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE)
+    assert not [event for event in read_events(path)
+                if event.get('method') in ('RequestAccess', 'RequestOwnAccess')]
+
+
+@pytest.mark.parametrize('failure', ['reminders', 'language'])
+def test_preset_partial_save_retry_does_not_repeat_committed_writes(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, failure):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, 'kiosk', language='en',
+                          notification_save_failures=int(failure == 'reminders'),
+                          save_failures=int(failure == 'language'))
+    wait(lambda: ui.showing('kiosk-language-ready'), 'startup ready')
+    open_preset_preferences(ui, wait)
+    wait(lambda: ui.showing('preset-300-delete'), 'backend presets loaded')
+    ui.activate('preset-300-delete')
+    ui.setValue('preferences-tabs', 'reminders')
+    wait(lambda: ui.showing('reminder-five-minutes-delete'), 'reminders loaded')
+    ui.activate('reminder-five-minutes-delete')
+    ui.activate('language-continue')
+    wait(lambda: ui.showing('language-error'), 'later write failed')
+    assert 'five-minutes' not in ui.getChoices('reminder-list')
+    committed = [event['presets'] for event in read_events(path)
+                 if event['event'] == 'presets-committed']
+    assert committed == [[900, 1800, 3600, 7200, 14400]]
+    ui.activate('language-continue')
+    wait(lambda: ui.absent('language-dialog', within='kiosk-request-window'), 'retry saved draft')
+    recorded = read_events(path)
+    assert len([event for event in recorded if event.get('method') == 'SetChildTimeGrantPresets']) == 1
+    assert len([event for event in recorded if event.get('method') == 'SetChildNotifications']) == (
+        2 if failure == 'reminders' else 1)
+    assert '300' not in ui.getChoices('kiosk-duration-choices')
 
 
 def test_installed_parent_chooser_reader_observes_first_run_and_preferences(

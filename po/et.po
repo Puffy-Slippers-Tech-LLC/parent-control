@@ -1673,3 +1673,44 @@ msgstr "Saate selle akna uuesti avada rakenduse menüüst."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Lisateave"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Eelseadistatud ajad"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Lisa eelseadistatud aeg"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Muuda eelseadistatud aega"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Kestus"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "tundi"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Alati saadaval"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Vali taotlusvormi ajavalikud. Eelseadistusi saab lisada, muuta ja eemaldada. Need sorditakse automaatselt."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "See eelseadistatud aeg on juba olemas."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Sisesta kestus %(minimum)s kuni %(maximum)s sekundit täissekundites."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Sisesta sobiv arv."

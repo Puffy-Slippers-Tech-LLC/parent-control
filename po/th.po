@@ -1667,3 +1667,44 @@ msgstr "คุณสามารถเปิดหน้าต่างนี้
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "ดูเพิ่มเติม"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "เวลาที่ตั้งไว้ล่วงหน้า"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "เพิ่มเวลาที่ตั้งไว้ล่วงหน้า"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "แก้ไขเวลาที่ตั้งไว้ล่วงหน้า"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "ระยะเวลา"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "ชั่วโมง"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "พร้อมใช้งานเสมอ"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "เลือกตัวเลือกเวลาในแบบฟอร์มคำขอ คุณสามารถเพิ่ม แก้ไข หรือลบเวลาที่ตั้งไว้ล่วงหน้าได้ ระบบจะเรียงลำดับให้อัตโนมัติ"
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "เวลาที่ตั้งไว้ล่วงหน้านี้มีอยู่แล้ว"
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "ป้อนระยะเวลาตั้งแต่ %(minimum)s ถึง %(maximum)s วินาที โดยใช้จำนวนวินาทีเต็ม"
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "ป้อนตัวเลขที่ถูกต้อง"

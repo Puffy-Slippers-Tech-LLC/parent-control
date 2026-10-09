@@ -1668,3 +1668,44 @@ msgstr "您可以從應用程式選單再次開啟此視窗。"
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "瞭解更多"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "預設時長"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "新增預設時長"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "編輯預設時長"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "時長"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "小時"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "一律可用"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "選擇請求表單中顯示的時長選項。您可以新增、編輯或移除預設。預設會自動排序。"
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "此預設時長已存在。"
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "請輸入 %(minimum)s 至 %(maximum)s 秒之間的時長，秒數必須為整數。"
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "請輸入有效數字。"

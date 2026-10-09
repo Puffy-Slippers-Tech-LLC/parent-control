@@ -1673,3 +1673,44 @@ msgstr "Voit avata tämän uudelleen sovelluksen valikosta."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Lisätietoja"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Esiasetetut ajat"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Lisää esiasetettu aika"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Muokkaa esiasetettua aikaa"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Kesto"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "tuntia"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Aina käytettävissä"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Valitse pyyntölomakkeen aikavaihtoehdot. Voit lisätä, muokata tai poistaa esiasetuksia. Ne järjestetään automaattisesti."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Tämä esiasetettu aika on jo olemassa."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Anna kesto %(minimum)s–%(maximum)s sekuntia kokonaisina sekunteina."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Anna kelvollinen luku."

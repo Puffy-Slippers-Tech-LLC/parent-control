@@ -106,7 +106,8 @@ sub lock_recipient {
             $reply = $journey->seen($stage);
             die 'desk:lock-recipient-proof' unless ref($reply) eq 'HASH' && keys(%$reply) == 2;
             my $proof = $reply->{lock_recipient};
-            die 'desk:lock-recipient-proof' unless ($reply->{observed} // '') eq $stage && ref($proof) eq 'HASH'
+            die 'desk:lock-recipient-proof' unless ($reply->{observed} // '') eq
+                ($journey->{stage_prefix} // '') . $stage && ref($proof) eq 'HASH'
                 && keys(%$proof) == 3 && ($proof->{surface} // '') eq 'lock'
                 && ($proof->{role} // '') eq $role
                 && ($proof->{challenge_id} // '') =~ /\A[0-9a-f]{64}\z/;
@@ -160,6 +161,100 @@ sub unlock_success {
     onpc_password::enter_lock_password($journey, 'child');
     testapi::send_key('ret');
     return $journey->seen('unlock-desktop');
+}
+
+# FLOW15. The controller's read-only guard proves the declared source before
+# any switch/authentication. Earlier session and activity captures stay caller-owned.
+sub enter_desktop {
+    onpc_progress::operation('Entering the explicitly declared fixture desktop');
+    my ($journey, $source, $account, $entry, $expected, $prefix, $source_account) = @_;
+    die 'desk:entry-binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
+        && ($account eq 'parent' || $account eq 'child' || $account eq 'other-child')
+        && ($expected eq 'success' || $expected eq 'time-denied' && $account eq 'child')
+        && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && (($entry eq 'fresh' && $source eq 'gdm')
+            || ($entry eq 'retained' && ($source eq 'gdm' || $source eq 'desktop'))
+            || ($entry eq 'same' && $source eq 'desktop' && $expected eq 'success')
+            || ($entry eq 'lock' && $source eq 'locked' && $account eq 'child'));
+    my $section = $journey->scope($prefix);
+    if ($entry eq 'retained' && $source eq 'desktop') {
+        die 'desk:entry-source' unless defined($source_account) && $source_account ne $account
+            && ($source_account eq 'parent' || $source_account eq 'child' || $source_account eq 'other-child');
+        $section->consume_observation('source-desktop', $section->seen('source-desktop'));
+        $section->seen($_) for qw(source-switch source-greeter);
+    } else {
+        die 'desk:entry-source' if defined($source_account);
+    }
+    $section->consume_observation('entry-guard', $section->seen('entry-guard'));
+    return $section->seen('desktop') if $entry eq 'same';
+    if ($entry eq 'lock') {
+        if ($expected eq 'time-denied') {
+            return reveal_lock($section, 'time-denied');
+        }
+        observe_lock($section);
+        return unlock_success($section);
+    }
+    my $focused = $account eq 'parent' ? 'parent' : $account eq 'child' ? 'child' : 'standard';
+    return onpc_gdm::sign_in_challenge($journey, $prefix,
+        "$prefix-installed-greeter", "$prefix-$focused-focused",
+        $prefix . ($expected eq 'success' ? '-desktop' : '-denied'));
+}
+
+sub qualify_retained_entry {
+    onpc_progress::operation('Visiting both original child desktops and the retained Parent window');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:retained-entry-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    require onpc_feedback_read;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-entry', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for qw(allowance-configured before session-before);
+    switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'riley-fresh');
+    onpc_app_rows::native_activity_entry($journey, 'riley-activity', 'command');
+    enter_desktop($journey, 'desktop', 'child', 'same', 'success', 'riley-same');
+    $journey->seen('riley-wrong-mode-refused');
+    $journey->consume_observation('riley-switch-ready', $journey->seen('riley-switch-ready'));
+    $journey->seen($_) for qw(riley-switch riley-greeter);
+    enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-fresh');
+    onpc_app_rows::native_activity_entry($journey, 'jordan-activity', 'command');
+    enter_desktop($journey, 'desktop', 'other-child', 'same', 'success', 'jordan-same');
+    $journey->seen('jordan-wrong-mode-refused');
+    enter_desktop($journey, 'desktop', 'child', 'retained', 'success', 'riley-return', 'other-child');
+    $journey->seen($_) for qw(riley-return-identity riley-return-activity);
+    $journey->consume_observation('riley-lock-ready', $journey->seen('riley-lock-ready'));
+    $journey->seen('riley-lock');
+    enter_desktop($journey, 'locked', 'child', 'lock', 'success', 'riley-unlock');
+    $journey->seen($_) for qw(riley-unlock-identity riley-unlock-activity);
+    onpc_app_rows::native_activity_resume($journey, 'riley-resume');
+    $journey->seen('riley-usable-activity');
+    enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success', 'jordan-return', 'child');
+    $journey->seen($_) for qw(jordan-return-identity jordan-return-activity);
+    onpc_app_rows::native_activity_resume($journey, 'jordan-resume');
+    $journey->seen('jordan-usable-activity');
+    enter_desktop($journey, 'desktop', 'child', 'retained', 'success', 'riley-again', 'other-child');
+    $journey->seen($_) for qw(riley-again-identity riley-again-activity);
+    $journey->consume_observation('return-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return'));
+    $journey->seen('session-returned');
+    onpc_feedback_read::prepare_window_switch($journey, 'focus-');
+    $journey->seen('zero-configured');
+    $journey->consume_observation('denial-switch-ready', $journey->seen('denial-switch-ready'));
+    $journey->seen($_) for qw(denial-switch denial-greeter);
+    enter_desktop($journey, 'gdm', 'child', 'retained', 'time-denied', 'riley-denied');
+    onpc_gdm::return_from_time_denial($journey,
+        'denied-return-ready', 'denied-return-state', 'denied-returned');
+    $journey->seen($_) for qw(retained-before enter-locked);
+    enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'riley-restricted');
+    $journey->seen($_) for qw(return-greeter restricted-returned retained-after);
+    $journey->finish();
 }
 
 sub qualify_retained_parent {

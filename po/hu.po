@@ -1673,3 +1673,44 @@ msgstr "Ezt az ablakot újra megnyithatja az alkalmazás menüjéből."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "További információ"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Előre beállított idők"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Előre beállított idő hozzáadása"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Előre beállított idő szerkesztése"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Időtartam"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "óra"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Mindig elérhető"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Válassza ki a kérési űrlap időbeállításait. Hozzáadhat, szerkeszthet vagy törölhet előbeállításokat. A rendezés automatikus."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Ez az előre beállított idő már létezik."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Adjon meg %(minimum)s és %(maximum)s másodperc közötti időtartamot, egész másodpercekben."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Adjon meg egy érvényes számot."

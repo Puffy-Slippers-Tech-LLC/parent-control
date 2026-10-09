@@ -394,6 +394,20 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Explicit desktop entry pairs `journey_blocks.desktop_entry` with
+`onpc_desktop_session::enter_desktop`. Callers bind account, source, mode,
+expected result and an independent invocation prefix. Shared read-only
+`session_control.entry_identity` proves fresh absence, retained locked entry,
+same-user desktop or actual lock entry before transition/authentication; it
+never repairs a mismatched mode. GDM and lock-screen proofs remain separate.
+Named worker scopes retain the exact controller acknowledgement prefix, so
+lock recipient proofs cannot be borrowed from an unscoped or other invocation.
+`retained_entry` supplies Task 044's finite two-child/Parent history and immutable
+session/activity comparisons. Qualification remains pending until its selected
+live run passes. Host checks use existing private values/recorder files and
+bounded waited Perl children; unit/cleanup classifications remain compatible,
+with no new storage, display, bus or VM cleanup owner.
+
 Retained-child histories use `journey_checks.RetainedSessionJourney` with
 caller-declared `session_checks={later: earlier}` endpoints on the existing
 `system:child-retained-locked` operation. The shared engine preserves allowance

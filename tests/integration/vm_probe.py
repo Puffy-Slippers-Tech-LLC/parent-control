@@ -36,7 +36,40 @@ def reproduce_lock_denial(lease):
     return reproduce_denial(lease, RetainedDenialJourney, CHILD_DENIAL_PLAN, 'time-denied', 'lock')
 
 
-def reproduce_denial(lease, journey_type, plan, boundary, surface):
+def reproduce_retained_entry(lease):
+    """Retain the two-child activity history before the restricted curtain read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from retained_entry import RetainedEntryJourney, PLAN
+    return reproduce_denial(lease, RetainedEntryJourney, PLAN,
+                            'riley-restricted-curtain', 'retained-entry')
+
+
+def reproduce_retained_focus(lease):
+    """Engineering focus experiment in the unlocked retained child history."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from retained_entry import RetainedEntryJourney, PLAN
+    return reproduce_denial(lease, RetainedEntryJourney, PLAN,
+                            'riley-restricted-curtain', 'retained-focus', focus_experiment='telemetry')
+
+
+def probe_lock_curtain(lease):
+    """Read the same guarded child curtain in a retained maintenance scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading the locked child surface for engineering diagnosis'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-lock-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('lock-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('child-lock-curtain')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('lock-probe: guarded curtain read passed', flush=True)
+
+
+def reproduce_denial(lease, journey_type, plan, boundary, surface, *, focus_experiment=False):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -85,6 +118,22 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface):
             with (directory / 'observations.jsonl').open('a') as stream:
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
+            if focus_experiment and stage in (
+                    'riley-again-activity', 'return-source-desktop', 'return-source-switch',
+                    'return-parent-retained', 'zero-configured',
+                    'riley-denied-child-recipient-rechecked', 'riley-denied-denied',
+                    'denied-returned', 'enter-locked', 'riley-restricted-entry-guard'):
+                guard = lambda: lease.guard()
+                guard()
+                with operation('Reading child focus across the retained-entry history'):
+                    output = transport.call(['/usr/bin/python3', '-', 'telemetry'], timeout=45,
+                        input=(system.ROOT / 'tests/e2e/lock_surface_probe.py').read_bytes())
+                summaries = [json.loads(row)['probe_summary'] for row in output.splitlines()
+                             if b'"probe_summary"' in row]
+                system.require(len(summaries) == 1, 'diagnosis:focus-observation')
+                print('retained-focus-timeline: ' + json.dumps(
+                    {'stage': stage, 'summary': summaries[0]}, sort_keys=True), flush=True)
+                guard()
 
         journey = Reproduction(SimpleNamespace(directory=directory, lease=lease), progress,
                                **({'plan': plan} if plan is not None else {}))

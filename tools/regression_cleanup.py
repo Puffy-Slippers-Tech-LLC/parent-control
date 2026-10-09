@@ -72,6 +72,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Maintenance denial reproduction uses the same private worker/lease/credential
 # fixtures and mocked VM calls. Its failure and detach checks add no shared
 # resource; those existing compatible classifications remain applicable.
+# Retained-entry boundary validation adds only plan values and private request
+# files to vm_control_cleanup_safety; no VM, display, bus or shared cache is used.
 # Restored-off maintenance audits use the same private lease/disk fixtures and
 # mocked VM/guest inspection, with no live VM, socket or shared state. Existing
 # VM-control compatible scheduling remains appropriate in both inventories.

@@ -1673,3 +1673,44 @@ msgstr "Þú getur opnað þetta aftur úr valmynd forritsins."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Sjá meira"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Forstilltir tímar"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Bæta við forstilltum tíma"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Breyta forstilltum tíma"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Tímalengd"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "klukkustundir"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Alltaf tiltækt"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Veldu tímavalkosti á beiðniforminu. Þú getur bætt við, breytt eða fjarlægt forstillingar. Þeim er raðað sjálfkrafa."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Þessi forstillti tími er þegar til."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Sláðu inn lengd frá %(minimum)s til %(maximum)s sekúndum, í heilum sekúndum."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Sláðu inn gilda tölu."

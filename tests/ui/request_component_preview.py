@@ -9,7 +9,9 @@ from pathlib import Path
 import sys
 import time
 from tests.support.language_fixture import LanguageFixture
-from broker.oh_no_parent_control.preferences import default_notifications, validate_notifications
+from broker.oh_no_parent_control.preferences import (
+    default_notifications, validate_notifications, DEFAULT_TIME_GRANT_PRESETS, validate_time_grant_presets,
+)
 
 from gi.repository import Gio, GLib
 
@@ -56,6 +58,12 @@ class Broker:
         self.language = LanguageFixture(self.record)
         self.child_languages = {uid: LanguageFixture(self.record) for uid, *_ in USERS}
         self.notifications = {uid: default_notifications() for uid, *_ in USERS}
+        presets = validate_time_grant_presets(json.loads(os.environ.get(
+            'ONPC_PRESET_VALUES', json.dumps(list(DEFAULT_TIME_GRANT_PRESETS)))))
+        for prefs in self.preferences.values():
+            prefs['personal'] = {'time_grant_presets': list(presets)}
+        self.preset_load_failures = int(os.environ.get('ONPC_PRESET_LOAD_FAILURES', '0'))
+        self.preset_save_failures = int(os.environ.get('ONPC_PRESET_SAVE_FAILURES', '0'))
         self.whats_new_seen = set()
         self.notification_load_failures = int(os.environ.get('ONPC_NOTIFICATION_LOAD_FAILURES', '0'))
         self.notification_save_failures = int(os.environ.get('ONPC_NOTIFICATION_SAVE_FAILURES', '0'))
@@ -248,6 +256,21 @@ class Broker:
             return Reply((() if self.scenario == "no-approvers" else APPROVERS,))
         if method == "GetPreferences":
             return Reply((json.dumps(self.preferences[values[0]]),))
+        if method in ('GetOwnTimeGrantPresets', 'GetChildTimeGrantPresets'):
+            uid = USERS[0][0] if method == 'GetOwnTimeGrantPresets' else values[0]
+            if self.preset_load_failures:
+                self.preset_load_failures -= 1
+                return Reply(error=RuntimeError('preset load failed'))
+            return Reply((json.dumps(self.preferences[uid]['personal']['time_grant_presets']),))
+        if method in ('SetOwnTimeGrantPresets', 'SetChildTimeGrantPresets'):
+            uid = USERS[0][0] if method == 'SetOwnTimeGrantPresets' else values[0]
+            if self.preset_save_failures:
+                self.preset_save_failures -= 1
+                return Reply(error=RuntimeError('preset save failed'))
+            presets = validate_time_grant_presets(json.loads(values[-1]))
+            self.preferences[uid]['personal']['time_grant_presets'] = presets
+            self.record('presets-committed', uid=uid, presets=presets)
+            return Reply((json.dumps(presets),))
         if method == "GetTimeStatus":
             if self.scenario == "estimate-unavailable":
                 return Reply(error=RuntimeError("org.example.Secret /private/path"))

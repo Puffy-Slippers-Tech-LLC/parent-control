@@ -1673,3 +1673,44 @@ msgstr "Podètz tornar dobrir aquesta fenèstra dempuèi lo menú de l’aplicac
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Ne saber mai"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Duradas predefinidas"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Apondre una durada predefinida"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Modificar la durada predefinida"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Durada"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "oras"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Totjorn disponible"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Causissètz las opcions de temps del formulari de demanda. Podètz apondre, modificar o suprimir de duradas predefinidas. Son triadas automaticament."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Aquesta durada predefinida existís ja."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Picatz una durada de %(minimum)s a %(maximum)s segondas, en segondas entièras."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Picatz un nombre valid."

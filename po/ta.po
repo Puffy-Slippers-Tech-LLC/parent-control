@@ -1673,3 +1673,44 @@ msgstr "பயன்பாட்டின் மெனுவிலிருந�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "மேலும் பார்க்க"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "முன்னமைக்கப்பட்ட நேரங்கள்"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "முன்னமைக்கப்பட்ட நேரத்தைச் சேர்"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "முன்னமைக்கப்பட்ட நேரத்தைத் திருத்து"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "நேர அளவு"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "மணிநேரம்"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "எப்போதும் கிடைக்கும்"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "கோரிக்கைப் படிவத்தில் நேர விருப்பங்களைத் தேர்ந்தெடுக்கவும். முன்னமைவுகளைச் சேர்க்கலாம், திருத்தலாம் அல்லது அகற்றலாம். அவை தானாக வரிசைப்படுத்தப்படும்."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "இந்த முன்னமைக்கப்பட்ட நேரம் ஏற்கனவே உள்ளது."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "முழு நொடிகளில் %(minimum)s முதல் %(maximum)s நொடிகள் வரையிலான நேர அளவை உள்ளிடவும்."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "செல்லுபடியாகும் எண்ணை உள்ளிடவும்."

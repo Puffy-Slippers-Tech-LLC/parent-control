@@ -1673,3 +1673,44 @@ msgstr "אפשר לפתוח את החלון הזה שוב מתפריט האפל�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "מידע נוסף"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "זמנים מוגדרים מראש"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "הוספת זמן מוגדר מראש"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "עריכת זמן מוגדר מראש"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "משך זמן"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "שעות"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "זמין תמיד"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "בחרו את אפשרויות הזמן בטופס הבקשה. אפשר להוסיף, לערוך או להסיר זמנים מוגדרים מראש. הם ממוינים אוטומטית."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "הזמן המוגדר מראש כבר קיים."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "הזינו משך בין %(minimum)s ל־%(maximum)s שניות, בשניות שלמות."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "יש להזין מספר תקין."

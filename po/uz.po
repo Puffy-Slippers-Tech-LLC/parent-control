@@ -1668,3 +1668,44 @@ msgstr "Bu oynani ilova menyusidan qayta ochishingiz mumkin."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Batafsil"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Oldindan belgilangan vaqtlar"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Oldindan belgilangan vaqt qo‘shish"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Oldindan belgilangan vaqtni tahrirlash"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Vaqt davomiyligi"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "soat"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Doim mavjud"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "So‘rov shaklidagi vaqt variantlarini tanlang. Oldindan belgilangan vaqtlarni qo‘shish, tahrirlash yoki olib tashlash mumkin. Ular avtomatik saralanadi."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Bu oldindan belgilangan vaqt allaqachon mavjud."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Butun sonli soniyalarda %(minimum)s dan %(maximum)s soniyagacha davomiylik kiriting."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Yaroqli raqam kiriting."

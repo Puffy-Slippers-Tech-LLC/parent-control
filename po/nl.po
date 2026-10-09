@@ -1673,3 +1673,44 @@ msgstr "Je kunt dit opnieuw openen via het appmenu."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Meer informatie"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Vooraf ingestelde tijden"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Vooraf ingestelde tijd toevoegen"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Vooraf ingestelde tijd bewerken"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Tijdsduur"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "uren"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Altijd beschikbaar"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Kies de tijdopties in het aanvraagformulier. Je kunt vooraf ingestelde tijden toevoegen, bewerken of verwijderen. Ze worden automatisch gesorteerd."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Deze vooraf ingestelde tijd bestaat al."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Voer een duur van %(minimum)s tot %(maximum)s seconden in, in hele seconden."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Voer een geldig getal in."

@@ -1673,3 +1673,44 @@ msgstr "ਤੁਸੀਂ ਐਪ ਦੇ ਮੀਨੂ ਤੋਂ ਇਹ ਵਿੰਡ
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "ਹੋਰ ਵੇਖੋ"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "ਪਹਿਲਾਂ ਤੋਂ ਨਿਰਧਾਰਤ ਸਮੇਂ"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "ਪਹਿਲਾਂ ਤੋਂ ਨਿਰਧਾਰਤ ਸਮਾਂ ਜੋੜੋ"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "ਪਹਿਲਾਂ ਤੋਂ ਨਿਰਧਾਰਤ ਸਮਾਂ ਸੋਧੋ"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "ਸਮੇਂ ਦੀ ਮਿਆਦ"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "ਘੰਟੇ"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "ਹਮੇਸ਼ਾ ਉਪਲਬਧ"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "ਬੇਨਤੀ ਫਾਰਮ ਵਿੱਚ ਸਮੇਂ ਦੇ ਵਿਕਲਪ ਚੁਣੋ। ਤੁਸੀਂ ਪਹਿਲਾਂ ਤੋਂ ਨਿਰਧਾਰਤ ਸਮੇਂ ਜੋੜ, ਸੋਧ ਜਾਂ ਹਟਾ ਸਕਦੇ ਹੋ। ਇਹ ਆਪਣੇ ਆਪ ਕ੍ਰਮਬੱਧ ਹੁੰਦੇ ਹਨ।"
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "ਇਹ ਪਹਿਲਾਂ ਤੋਂ ਨਿਰਧਾਰਤ ਸਮਾਂ ਪਹਿਲਾਂ ਹੀ ਮੌਜੂਦ ਹੈ।"
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "ਪੂਰੇ ਸਕਿੰਟਾਂ ਵਿੱਚ %(minimum)s ਤੋਂ %(maximum)s ਸਕਿੰਟਾਂ ਦੀ ਮਿਆਦ ਦਾਖਲ ਕਰੋ।"
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "ਇੱਕ ਵੈਧ ਨੰਬਰ ਦਾਖਲ ਕਰੋ।"

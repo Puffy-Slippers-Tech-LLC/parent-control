@@ -1677,3 +1677,44 @@ msgstr "Это окно можно снова открыть из меню пр�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Подробнее"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Готовые варианты времени"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Добавить вариант времени"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Изменить вариант времени"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Продолжительность"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "часы"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Всегда доступно"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Выберите варианты времени в форме запроса. Их можно добавлять, изменять и удалять. Варианты сортируются автоматически."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Такой вариант времени уже существует."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Введите продолжительность от %(minimum)s до %(maximum)s секунд в целых секундах."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Введите допустимое число."

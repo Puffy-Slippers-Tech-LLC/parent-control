@@ -402,10 +402,48 @@ Both reuse the Parent `whats-new-*` public dialog IDs.
 
 ## Child reminder preferences
 
-The shared request-screen preferences window has Language and Reminders tabs.
+The shared request-screen preferences window has Language, Reminders and Preset
+Times tabs. The menu and request-title action use the same gear icon; the title
+action has a translated Preferences tooltip and ordinary hover/focus feedback.
 Language keeps its existing search, native-name choices, public IDs and private
-candidate translation context. Both tabs use the same list frame and scrollbar
-CSS; the armored Cancel/Save actions stay outside the lists.
+candidate translation context. The tabs use the same list frame and scrollbar
+CSS; the armored Cancel/Save actions stay outside the lists. Close uses the
+same metal finish and hardware as Cancel.
+
+Preset Times reads the selected child's authoritative time-grant preset API
+when the tab first opens. The request selector reads the same personal field
+from `GetPreferences`; backend defaults, validation, sorting and fixed choices
+are reused rather than maintaining a frontend list. Rows show sorted editable
+durations followed by locked Rest of the day and Custom value rows. No redundant
+footer is shown. Add/Edit opens a modal editor whose title reflects the action.
+It shares the reminder editor's duration-entry, step buttons and unit-selector
+presentation, decimal syntax and invalid-number footer. Both editors accept `6.`
+as a whole-number entry and reject nonnumeric, nonfinite or exponent input with
+the same red message. Each editor separately applies its backend's duration
+constraints; reminders still require whole values. Both editor footers use the
+same Cancel/Save actions for new and existing entries. Presets offer minutes and
+hours; entries with more than one decimal
+place round to one decimal using half-up rounding before validation. Backend
+values that need more precision retain their exact whole seconds until the user
+changes the time or unit; opening and saving them does not round stored data. A trailing
+decimal point, such as `6.`, is a valid integer entry. Their backend owns the
+6–86400 whole-second bounds, uniqueness and list-size limit. Invalid or duplicate
+durations cannot be saved. Editor Save updates only the dialog draft;
+Cancel/Close discards the edit. Main Cancel/Close discards unsaved presets.
+Add initially proposes the largest preset plus one hour, or plus one minute
+when an hour would exceed the backend maximum, or the largest preset itself
+when neither fits. An empty list starts at 30 minutes. A duplicate proposal
+still requires a different duration before Add is enabled.
+
+Main Save writes changed presets, changed reminders, then language. A later
+failure retains the draft and records which earlier writes succeeded, so retry
+does not repeat them. Load/save failures offer retry without inventing defaults.
+A successful preset write refreshes the request choices while preserving the
+current request and soft-app selection. A removed selected or remembered preset
+becomes its equivalent Custom value. An empty saved list retains the two fixed
+choices. Kiosk child changes reload that child's list; stale callbacks cannot
+apply another child's data. These changes activate in a new request process,
+without a schema migration or broker change.
 
 Reminders loads the selected child's authoritative backend configuration on
 first opening that tab. Defaults come from the backend, and saved empty lists
@@ -439,7 +477,9 @@ subsequent language write fails, the reminder write has already committed; the
 dialog retains the language candidate for retry. Below the reminder list, a
 single “Show reminders in full screen apps (games, videos, etc.)” switch edits
 the selected child's account-wide `show_in_fullscreen` field in the same draft.
-It has a standard-font caption without a subtitle, and is disabled until the
+It has a standard-font caption without a subtitle. Its flat clickable row and
+rounded switch retain the reminder styling, with shared request-form row hover/focus feedback.
+The row and switch are disabled until the
 configuration loads, when the reminder list is empty, and while saving. Its
 saved value is preserved while disabled. Notification urgency belongs to the
 notification backend, not the dialog.

@@ -1667,3 +1667,44 @@ msgstr "بۇ كۆزنەكنى ئەپ تىزىملىكىدىن قايتا ئاچ�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "تېخىمۇ كۆپ"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "ئالدىن بەلگىلەنگەن ۋاقىتلار"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "ئالدىن بەلگىلەنگەن ۋاقىت قوشۇش"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "ئالدىن بەلگىلەنگەن ۋاقىتنى تەھرىرلەش"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "ۋاقىت ئۇزۇنلۇقى"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "سائەت"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "ھەمىشە ئىشلەتكىلى بولىدۇ"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "ئىلتىماس جەدۋىلىدىكى ۋاقىت تاللانمىلىرىنى تاللاڭ. ئالدىن بەلگىلەنگەن ۋاقىتلارنى قوشالايسىز، تەھرىرلىيەلەيسىز ياكى ئۆچۈرەلەيسىز. ئۇلار ئاپتوماتىك رەتلىنىدۇ."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "بۇ ئالدىن بەلگىلەنگەن ۋاقىت ئاللىبۇرۇن بار."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "پۈتۈن سېكۇنت بىلەن %(minimum)s دىن %(maximum)s سېكۇنتقىچە ۋاقىت كىرگۈزۈڭ."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "ئىناۋەتلىك سان كىرگۈزۈڭ."

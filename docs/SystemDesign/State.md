@@ -178,10 +178,11 @@ Reads do not create files. Saved customizations and empty lists survive broker
 restarts and migration retries without merging defaults. Ordinary removal
 retains them; purge removes them with the preference directory.
 
-The backend and D-Bus contract are implemented. The request form continues to
-use its shipped choices until a future frontend session integrates these APIs.
-Broker changes activate on process restart; no schema increment or released
-migration edit is required.
+The shared request form reads this field from `GetPreferences`, and its
+[Preset Times tab](Frontends.md#child-reminder-preferences) edits the same list
+through these APIs. Request choices use the backend helper and range definitions.
+Broker changes activate on process restart and frontend changes on a new request
+process; no schema increment or released migration edit is required.
 
 ## What's New backend
 

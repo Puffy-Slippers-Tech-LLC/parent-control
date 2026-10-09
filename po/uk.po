@@ -1685,3 +1685,44 @@ msgstr "Це вікно можна знову відкрити з меню за�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Докладніше"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Готові варіанти часу"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Додати варіант часу"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Змінити варіант часу"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Тривалість"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "години"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Завжди доступно"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Виберіть варіанти часу у формі запиту. Їх можна додавати, змінювати та видаляти. Варіанти сортуються автоматично."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Такий варіант часу вже існує."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Введіть тривалість від %(minimum)s до %(maximum)s секунд у цілих секундах."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Введіть коректне число."

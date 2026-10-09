@@ -9,4 +9,5 @@ ProductVersion = "1.4"
 Content = '''
 ## New features
 - **Remaining time reminders:** Reminders now appear by default. Reminders can appear over full-screen apps and can be customized in preferences.
+- **Request Time Form**: You can customize the preset times in preferences!
 '''

@@ -1673,3 +1673,44 @@ msgstr "యాప్ మెను నుండి ఈ విండోను మ�
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "మరింత చూడండి"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "ముందుగా నిర్ణయించిన సమయాలు"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "ముందుగా నిర్ణయించిన సమయాన్ని జోడించండి"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "ముందుగా నిర్ణయించిన సమయాన్ని సవరించండి"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "సమయ వ్యవధి"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "గంటలు"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "ఎల్లప్పుడూ అందుబాటులో ఉంటుంది"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "అభ్యర్థన ఫారమ్‌లో సమయ ఎంపికలను ఎంచుకోండి. మీరు ముందస్తు సమయాలను జోడించవచ్చు, సవరించవచ్చు లేదా తీసివేయవచ్చు. అవి స్వయంచాలకంగా క్రమబద్ధీకరించబడతాయి."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "ఈ ముందుగా నిర్ణయించిన సమయం ఇప్పటికే ఉంది."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "పూర్తి సెకన్లలో %(minimum)s నుండి %(maximum)s సెకన్ల వ్యవధిని నమోదు చేయండి."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "చెల్లుబాటు అయ్యే సంఖ్యను నమోదు చేయండి."

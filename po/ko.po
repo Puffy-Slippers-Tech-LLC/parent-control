@@ -1667,3 +1667,44 @@ msgstr "앱 메뉴에서 다시 열 수 있습니다."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "더 보기"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "사전 설정 시간"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "사전 설정 시간 추가"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "사전 설정 시간 편집"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "시간 길이"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "시간"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "항상 사용 가능"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "요청 양식에 표시할 시간 옵션을 선택하세요. 사전 설정을 추가, 편집 또는 삭제할 수 있습니다. 자동으로 정렬됩니다."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "이 사전 설정 시간은 이미 존재합니다."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "%(minimum)s~%(maximum)s초 범위에서 정수 초 단위로 시간을 입력하세요."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "유효한 숫자를 입력하세요."

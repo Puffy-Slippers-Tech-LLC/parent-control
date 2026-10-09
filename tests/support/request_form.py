@@ -29,3 +29,10 @@ def calls(path, method):
 
 def events(path, event):
     return [item for item in read_events(path) if item["event"] == event]
+
+
+def open_preset_preferences(ui, wait):
+    """Use the title-bar action and await its asynchronous language read."""
+    ui.activate('kiosk-preferences-button')
+    wait(lambda: ui.showing('preferences-tabs'), 'preferences available')
+    ui.setValue('preferences-tabs', 'presets')

@@ -206,24 +206,38 @@ screen-time control and absent accounts retain their existing restrictions.
 | `language-search` | Literal language search text in either frontend's `language-dialog` |
 | `language-list` | Get/set canonical catalogue language code; choices enumerate catalogue codes; filtered-out choices refuse until search is cleared |
 | `language-choice-<lowercase-code>` | Actual language radio; selection relabels the chooser |
-| `language-continue`, `language-cancel`, `language-error` | Main preferences Save, Cancel and ordinary save error readback; Save commits reminder drafts, Cancel discards them |
-| `preferences-tab-language`, `preferences-tab-reminders`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
-| `preferences-tabs` | Get/set canonical active page, including `language` and `reminders`; `getChoices` enumerates current pages; setter uses the normal tab handler |
+| `language-continue`, `language-cancel`, `language-error` | Main preferences Save, Cancel and ordinary save error readback; Save commits preset/reminder drafts, Cancel discards them |
+| `kiosk-preferences-button` | Title-bar gear; activate the ordinary request Preferences action |
+| `preferences-tab-language`, `preferences-tab-reminders`, `preferences-tab-presets`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
+| `preferences-tabs` | Get/set canonical active page `language`, `reminders` or `presets`; `getChoices` enumerates current pages; setter uses the normal tab handler |
+| `preset-list` | Sorted editable draft seconds via `getValue`; canonical seconds strings followed by `0`, `custom` via `getChoices` |
+| `preset-add`, `preset-retry`, `preset-<seconds>-edit`, `preset-<seconds>-delete` | Normal preset CRUD/read-retry handlers; fixed choices have no edit/delete actions |
+| `preset-<seconds>-text`, `preset-0-text`, `preset-custom-text`, `preset-status` | Translated duration captions and loading/error status |
+| `preset-editor-dialog`, `preset-editor-title` | Modal owned by `language-dialog`; context-specific Add/Edit title |
+| `preset-value`, `preset-unit` | Get/set numeric text and canonical unit `minute` or `hour`; entered extra decimal places round to one before backend-bound validation; an untouched backend value retains exact seconds |
+| `preset-value-increase`, `preset-value-decrease` | Shared duration-control step buttons with preset bounds |
+| `preset-editor-error`, `preset-editor-save`, `preset-editor-cancel`, `preset-editor-close` | Validation result; Save to the draft or discard the edit |
 | `reminder-list` | Sorted draft records via `getValue`; stable stored reminder IDs via `getChoices` |
 | `reminder-show-in-fullscreen` | Get/set the selected child's account-wide boolean fullscreen preference in the reminder draft |
+| `reminder-fullscreen-row` | Toggle the fullscreen reminder draft preference through its clickable row; shares the switch's disabled state |
 | `reminder-add`, `reminder-retry`, `reminder-<id>-edit`, `reminder-<id>-delete` | Normal reminder CRUD/read-retry handlers; backend remains authoritative |
 | `reminder-status` | Public loading/error text while the reminder list is unavailable |
 | `reminder-<id>-text`, `reminder-<id>-trigger` | Literal/default body and independently translated fixed trigger description |
 | `reminder-editor-dialog` | Modal owned by the request preferences `language-dialog` |
 | `reminder-text`, `reminder-value`, `reminder-unit` | Literal editor text/time; canonical unit `minute` or `second` |
-| `reminder-text-count`, `reminder-duplicate-warning`, `reminder-editor-error` | Character count and normal refusal messages; duplicate seconds disable Save |
+| `reminder-text-count`, `reminder-duplicate-warning`, `reminder-editor-error` | Character count and normal refusal messages; invalid or duplicate seconds disable Save |
 | `reminder-value-increase`, `reminder-value-decrease` | Normal bounded time increment/decrement handlers |
 | `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit |
 | `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
 
 Bind preferences controls to `language-dialog` and editor controls to
-`reminder-editor-dialog`. Editor Save changes only the draft returned by
-`reminder-list`; use main `language-continue` to persist it. Dynamic row IDs use
+`reminder-editor-dialog` or `preset-editor-dialog`. Both editors share decimal
+syntax (including `6.`) and the red invalid-number message; backend-specific
+limits and reminder whole-value requirements still apply. Both footer submit
+buttons read Save, including during edits. Editor Save changes only
+the corresponding draft returned by `reminder-list` or `preset-list`; use main
+`language-continue` to persist it. Preset row IDs use canonical whole seconds;
+their captions may be translated, and both fixed rows remain read-only. Dynamic reminder row IDs use
 the stored IDs returned by `reminder-list.getChoices()`, including newly added
 draft records. The fullscreen switch refuses input while loading, saving or
 when the list is empty, preserving its existing value. An open editor blocks

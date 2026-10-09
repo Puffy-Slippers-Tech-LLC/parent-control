@@ -821,6 +821,8 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # sentinel, private FIFO and process-local stdin/transport doubles. No real VM,
 # host service, socket or input descriptor is changed; vm_control_cleanup_safety
 # and vm_config retain compatible scheduling in unit and cleanup inventories.
+# Retained-entry reproduction guards reuse vm_control_cleanup_safety's private
+# request files and process-local plans; the compatible resource scope holds.
 # Restored-off maintenance recovery uses private lease journals, tiny fixture
 # disks and mocked VM/inspection calls, including a simulated restart during
 # audit. It adds no live VM or shared resource; vm_control remains compatible.

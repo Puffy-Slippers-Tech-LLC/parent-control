@@ -1667,3 +1667,44 @@ msgstr "Бұл терезені қолданба мәзірінен қайта �
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Толығырақ"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Алдын ала орнатылған уақыттар"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Алдын ала орнатылған уақытты қосу"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Алдын ала орнатылған уақытты өңдеу"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Уақыт ұзақтығы"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "сағат"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Әрқашан қолжетімді"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Сұрау пішініндегі уақыт нұсқаларын таңдаңыз. Алдын ала орнатылған уақыттарды қосуға, өңдеуге немесе жоюға болады. Олар автоматты түрде сұрыпталады."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Бұл алдын ала орнатылған уақыт бұрыннан бар."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Толық секундтармен %(minimum)s пен %(maximum)s секунд аралығындағы ұзақтықты енгізіңіз."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Жарамды сан енгізіңіз."

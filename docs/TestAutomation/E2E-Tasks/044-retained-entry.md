@@ -32,8 +32,34 @@ Implement retained-user routing, reusing normal DESK10 window switching and the 
 
 On the VM, leave recognizable windows on child and Parent desktops, switch between them, unlock normally and foreground the same windows. Wrong entry modes fail without repairing state; compare retained public activity before relaunching anything.
 
-Qualification selector (implement and register before use):
+Implementation: `journey_blocks.desktop_entry` declares the modes used by
+`onpc_desktop_session::enter_desktop`; `retained_entry.PLAN` and
+`RetainedEntryJourney` bind Riley/Jordan activity and desktop comparisons to the
+existing recorder. `session_control.entry_identity` refuses incompatible sources
+without repair. The qualification retains Jamie's Riley-selected Parent window,
+both child activities, normal Riley lock/unlock, independent retained returns,
+configured-zero GDM denial and the native lock restriction. Other-parent
+management remains task 198.
+
+Qualification and affected regression selectors (registered; qualification pending):
 
 ```sh
-tools/run-tests integration check_e2e_retained_entry
+tools/run-tests --vm onpc-Ubuntu26.04,onpc-Fedora44 integration check_e2e_retained_entry integration check_e2e_retained_parent integration check_e2e_retained_unlock_success integration check_e2e_retained_unlock integration check_e2e_desktop_session integration check_e2e_window_switch
 ```
+
+## Current validation and remaining work
+
+Host safety/composition checks passed, as did source checks.
+The first live qualification failed on both selected VMs at
+`riley-restricted-curtain` (`child-lock-curtain`, `ui:lock-other-surface`).
+Both retained child activities, normal Riley unlock, retained Parent state,
+foregrounding, configured-zero GDM denial and greeter return passed beforehand;
+`riley-restricted-entry-guard` independently confirmed the same locked child.
+Both runners completed cleanup/restoration and preserved source/host state.
+
+Retained reports: [Ubuntu](../../../output/test-runs/host/exports/onpc-artifact-export-o0pl6hqm/report.md)
+and [Fedora](../../../output/test-runs/host/exports/onpc-artifact-export-zgtvwk5s/report.md).
+Investigate this new failure in the next session, preserving the lock-surface
+guard and assertions. No diagnosis, repair or retry was attempted after this
+failure. All five later regression selectors remain unexecuted. Complete the
+qualification and those regressions on both selected VMs before close-out.

@@ -19,9 +19,11 @@ sub scope {
     my ($self, $prefix) = @_;
     die 'journey:scope' unless @_ == 2 && ref($self) eq 'onpc_journey'
         && defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/;
-    return onpc_journey->new(exchange => sub {
+    my $section = onpc_journey->new(exchange => sub {
         $self->{exchange}->($prefix . '-' . $_[0], @_[1 .. $#_]);
     }, prefix => $self->{prefix} . '-' . $prefix, review => $self->{review});
+    $section->{stage_prefix} = ($self->{stage_prefix} // '') . $prefix . '-';
+    return $section;
 }
 
 # Only nonsecret app observations may use review acquisition. Input, password

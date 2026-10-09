@@ -4,6 +4,7 @@
 - **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences.
 - **Parent App**: Revoke dialog shows list of running soft blocked apps that will be terminated.
 - **What's New**: Added metadata-driven What's new infra
+- **Request Time Form**: You can customize the preset times in preferences!
 
 ### Bug Fixes
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.

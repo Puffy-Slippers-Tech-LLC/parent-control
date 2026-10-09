@@ -1679,3 +1679,44 @@ msgstr "Šį langą galite vėl atverti iš programos meniu."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Sužinoti daugiau"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Iš anksto nustatyti laikai"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Pridėti iš anksto nustatytą laiką"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Redaguoti iš anksto nustatytą laiką"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Trukmė"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "valandos"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Visada pasiekiama"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Pasirinkite laiko parinktis užklausos formoje. Galite pridėti, redaguoti ar pašalinti nustatymus. Jie rūšiuojami automatiškai."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Toks iš anksto nustatytas laikas jau yra."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Įveskite trukmę nuo %(minimum)s iki %(maximum)s sekundžių sveikomis sekundėmis."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Įveskite tinkamą skaičių."

@@ -1667,3 +1667,44 @@ msgstr "Anda boleh membukanya semula daripada menu aplikasi."
 #. Shared message: SEE_MORE
 msgid "See More"
 msgstr "Lihat Lagi"
+
+#. Shared preset-time preferences.
+msgid "Preset Times"
+msgstr "Masa praset"
+
+#. Shared preset-time preferences.
+msgid "Add Preset Time"
+msgstr "Tambah masa praset"
+
+#. Shared preset-time preferences.
+msgid "Edit Preset Time"
+msgstr "Edit masa praset"
+
+#. Shared preset-time preferences.
+msgid "Time duration"
+msgstr "Tempoh masa"
+
+#. Shared preset-time preferences.
+msgid "hours"
+msgstr "jam"
+
+#. Shared preset-time preferences.
+msgid "Always available"
+msgstr "Sentiasa tersedia"
+
+#. Shared preset-time preferences.
+msgid "Choose which time options appear in the request form. You can add, edit, or remove presets. Presets are automatically sorted."
+msgstr "Pilih pilihan masa dalam borang permintaan. Anda boleh menambah, mengedit atau membuang praset. Praset diisih secara automatik."
+
+#. Shared preset-time preferences.
+msgid "This preset time already exists."
+msgstr "Masa praset ini sudah wujud."
+
+#. Shared preset-time preferences.
+#, python-format
+msgid "Enter a duration from %(minimum)s to %(maximum)s seconds, using whole seconds."
+msgstr "Masukkan tempoh dari %(minimum)s hingga %(maximum)s saat, dalam saat penuh."
+
+#. Shared duration-editor numeric validation.
+msgid "Enter a valid number."
+msgstr "Masukkan nombor yang sah."

@@ -9,6 +9,10 @@ import pytest
 import desktop_session
 from private_artifacts import EvidenceError
 
+# Shared retained-session comparisons add only process-local state and private
+# recorder files. Existing compatible unit/cleanup classifications still apply;
+# no subprocess, display, socket, bus, service or cleanup lifetime is added.
+
 
 @pytest.mark.parametrize('guest,filename,command', [
     ({'ubuntu_version': '26.04'}, 'package.deb', ['dpkg-deb', '-f']),
@@ -88,10 +92,11 @@ def test_next_input_requires_persisted_observation_and_current_worker(tmp_path, 
                if plan.challenges else {})}
 
 
+@pytest.mark.parametrize('plan', [desktop_session.CHILD_DENIAL_PLAN, desktop_session.RETAINED_DENIAL_PLAN],
+                         ids=['native-lock', 'retained-gdm'])
 @pytest.mark.parametrize('failure', ['', 'replaced', 'checkpoint', 'worker-loss'])
-def test_retained_child_comparison_precedes_durable_return_reply(tmp_path, monkeypatch, failure):
+def test_retained_child_comparison_precedes_durable_return_reply(tmp_path, monkeypatch, plan, failure):
     import session_control
-    plan = desktop_session.CHILD_DENIAL_PLAN
     stage = 'retained-after'
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
     reply = tmp_path / (stage + '.reply.json')
@@ -101,7 +106,9 @@ def test_retained_child_comparison_precedes_durable_return_reply(tmp_path, monke
         if failure == 'checkpoint': raise OSError('checkpoint')
     journey = desktop_session.RetainedDenialJourney(SimpleNamespace(directory=tmp_path), progress, plan)
     journey.steps = [{'stage': s} for s in plan.stages[:plan.stages.index(stage)]]
-    journey.retained_session = 'a' * 64
+    journey.check_settings('retained-before', {'system': {
+        'operation': 'child-retained-locked', 'outcome': 'passed',
+        'locked': True, 'session_sha256': 'a' * 64}})
     journey.boot = 'b' * 64
     journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
     monkeypatch.setattr(session_control, 'observe', Mock(return_value={
@@ -119,6 +126,68 @@ def test_retained_child_comparison_precedes_durable_return_reply(tmp_path, monke
     else:
         journey.step(guard)
         assert json.loads(reply.read_text()) == {'observed': stage}
+
+
+@pytest.mark.parametrize('failure', ['', 'replaced', 'missing', 'replay', 'invalid',
+                                     'checkpoint', 'worker-loss'])
+def test_named_retained_session_comparison_through_real_step(tmp_path, monkeypatch, failure):
+    from installed_journey import JourneyPlan
+    from journey_checks import RetainedSessionJourney
+    import session_control
+    plan = JourneyPlan(prefix='independent-session', worker_mode='child_unlock_denied',
+        screen_tags={'original': 'system:child-retained-locked',
+                     'returned': 'system:child-retained-locked'},
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                'original': 'step-1', 'returned': 'step-1'})
+    checks = {'returned': 'original'}
+    original = {'operation': 'child-retained-locked', 'outcome': 'passed',
+                'interface': 'system session', 'locked': True, 'session_sha256': 'a' * 64}
+    returned = {**original, 'session_sha256': ('b' if failure == 'replaced' else 'a') * 64}
+    if failure == 'invalid': returned['locked'] = False
+    monkeypatch.setattr(session_control, 'observe', Mock(side_effect=[original, returned]))
+    recorded = []
+    def progress(stage, observed):
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        if stage == 'returned':
+            assert observed['comparison'] == {'same_retained_locked_child': True}
+            if failure == 'checkpoint': raise OSError('checkpoint failed')
+        recorded.append(stage)
+    journey = RetainedSessionJourney(SimpleNamespace(directory=tmp_path), progress, plan,
+                                     session_checks=checks)
+    checks.clear()  # The caller cannot change the comparison after binding it.
+    journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
+    journey.boot = 'c' * 64
+    journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
+    for stage in plan.screen_tags:
+        (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    journey.step(Mock())
+    assert recorded == ['original']
+    original['session_sha256'] = 'b' * 64  # Never rewrite the retained capture.
+    if failure == 'missing': journey.session_observations.clear()
+    if failure == 'replay':
+        with pytest.raises(EvidenceError, match='observation-replay'):
+            journey.check_settings('original', {'system': original})
+        journey.session_observations['returned'] = 'a' * 64
+    def guard():
+        if 'returned' in recorded and failure == 'worker-loss': raise RuntimeError('worker stopped')
+    if failure:
+        with pytest.raises((EvidenceError, OSError, RuntimeError)): journey.step(guard)
+        assert not (tmp_path / 'returned.reply.json').exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(guard)
+        assert recorded == ['original', 'returned']
+        assert json.loads((tmp_path / 'returned.reply.json').read_text()) == {'observed': 'returned'}
+
+
+@pytest.mark.parametrize('checks', [{}, {'retained-before': 'retained-after'},
+    {'retained-after': 'missing'}, {'retained-after': 'time-denied'},
+    {'time-denied': 'retained-before'}])
+def test_retained_session_plan_refuses_missing_reversed_or_foreign_endpoints(tmp_path, checks):
+    from journey_checks import RetainedSessionJourney
+    with pytest.raises(EvidenceError, match='comparison-plan'):
+        RetainedSessionJourney(SimpleNamespace(directory=tmp_path), Mock(),
+                               desktop_session.CHILD_DENIAL_PLAN, session_checks=checks)
 
 
 @pytest.mark.parametrize('plan', [desktop_session.LOGOUT_PLAN, desktop_session.SWITCH_PLAN,

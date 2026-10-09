@@ -31,6 +31,43 @@ class AllowanceJourney(InstalledJourney):
             check_balances(self, observed, self.plan.balance_checks[stage])
 
 
+class RetainedSessionJourney(AllowanceJourney):
+    """Compare caller-declared locked-session endpoints before durable replies."""
+
+    def __init__(self, context, progress, plan, *, session_checks, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        stages = list(plan.screen_tags)
+        require(type(session_checks) is dict and bool(session_checks)
+                and all(earlier in stages and later in stages
+                        and stages.index(earlier) < stages.index(later)
+                        and plan.screen_tags[earlier] == plan.screen_tags[later]
+                        == 'system:child-retained-locked'
+                        for later, earlier in session_checks.items()),
+                'retained-session:comparison-plan')
+        self.session_checks = dict(session_checks)
+        self.session_observations = {}
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage not in self.session_checks and stage not in self.session_checks.values():
+            return
+        require(stage not in self.session_observations, 'retained-session:observation-replay')
+        value = observed.get('system', {})
+        import re
+        identity = value.get('session_sha256')
+        require(value.get('operation') == 'child-retained-locked'
+                and value.get('outcome') == 'passed' and value.get('locked') is True
+                and type(identity) is str and re.fullmatch(r'[0-9a-f]{64}', identity),
+                'retained-session:observation')
+        if stage in self.session_checks:
+            earlier = self.session_checks[stage]
+            require(earlier in self.session_observations, 'retained-session:missing-observation')
+            require(identity == self.session_observations[earlier], 'retained-denial:session-replaced')
+            observed['comparison'] = {'same_retained_locked_child': True}
+        # Store the immutable public identity, never the decoder's mutable reply.
+        self.session_observations[stage] = identity
+
+
 def allowed_app_rows(journey, observed):
     """Require a complete nonempty Allowed collection; return immutable rows."""
     rows = AppRowsObservation.from_rows(observed['ui']['apps']['rows'])

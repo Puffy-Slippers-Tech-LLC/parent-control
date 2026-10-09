@@ -436,16 +436,20 @@ This fixed capability supplies no complete-scenario or natural-expiry credit.
 
 Task 043c's `check_e2e_retained_unlock_success` passed two independent restored
 attempts per VM: `installed-lock-child-success-qualification` and
-`installed-lock-retained-success-qualification`. The retained selected reports
-also contain all six required regressions:
+`installed-lock-retained-success-qualification`. The original selected reports,
+now outside runner retention, also passed all six required regressions:
 `check_e2e_lock_recipient`, `check_e2e_lock_surface`,
 `check_e2e_desktop_session`, `check_e2e_challenges`,
 `check_e2e_fresh_child_allowed` and `check_e2e_unlock`.
 
-| VM | Actual GDM | Actual Shell | Actual locale / keyboard | Retained report |
+| VM | Actual GDM | Actual Shell | Actual locale / keyboard | Original report (outside retention) |
 | --- | --- | --- | --- | --- |
-| Ubuntu 26.04 | `50.1-0ubuntu0.1` | `50.1-0ubuntu1.3` | `en_US.UTF-8` / `[["xkb", "us"]]` | [Seven selected checks](../../output/test-runs/host/reports/20261009T034106Z-2897dec2/report.md) |
-| Fedora 44 | `1:50.3-1.fc44` | `0:50.5-1.fc44` | `en_US.UTF-8` / `[["xkb", "us"]]` | [Seven selected checks](../../output/test-runs/host/reports/20261009T034106Z-adc58695/report.md) |
+| Ubuntu 26.04 | `50.1-0ubuntu0.1` | `50.1-0ubuntu1.3` | `en_US.UTF-8` / `[["xkb", "us"]]` | `20261009T034106Z-2897dec2` |
+| Fedora 44 | `1:50.3-1.fc44` | `0:50.5-1.fc44` | `en_US.UTF-8` / `[["xkb", "us"]]` | `20261009T034106Z-adc58695` |
+
+Task 043a requalified both success routes and all six regressions on both VMs;
+its [retained eight-check reports](#retained-child-time-restriction-and-greeter-return-qualification)
+preserve that unchanged coverage.
 
 `desktop_session.CHILD_UNLOCK_PLAN` and `RETAINED_UNLOCK_PLAN` independently
 reuse public Parent preparation of 15 daily minutes, fresh child entry and
@@ -522,7 +526,10 @@ authentication retains its separately qualified recipient/input guards.
 
 Both branches independently observe usable GDM after leaving the denial and
 compare `child-retained-locked` before/after identities, requiring the same
-preserved locked child. Collection, worker shutdown, callback closure, owned
+preserved locked child. `RetainedDenialJourney` declares those endpoints for
+the shared `journey_checks.RetainedSessionJourney`; reusable comparison mechanics
+do not depend on the qualification's checkpoint names. Collection, worker
+shutdown, callback closure, owned
 cleanup, baseline restoration, finalization and host/source preservation passed.
 Both selected VMs were rechecked shut down after the complete selection.
 
@@ -539,6 +546,13 @@ regressions: `check_e2e_retained_unlock_success`, `check_e2e_lock_recipient`,
 safety, worker composition, source and close-out consistency checks passed.
 The exact configured-zero child bindings are qualified; natural exhaustion,
 other users/provider tuples and complete customer scenarios remain separate.
+
+The shared comparison extraction passed both independent routes again through
+`check_e2e_retained_unlock` on
+[Ubuntu 26.04](../../output/test-runs/host/reports/20261009T060915Z-31a3c2c3/report.md)
+and [Fedora 44](../../output/test-runs/host/reports/20261009T060915Z-10f4ba5c/report.md),
+including collection, worker/callback shutdown, owned cleanup and restoration.
+Provider input and the seven regression routes above were unchanged.
 
 ### Same-desktop window activation
 
@@ -5265,7 +5279,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | A complete accessibility traversal combines old readiness with a new account identity (300j) | Completeness is not atomicity. Confirm the selected UID and closed list, then discard that snapshot before the separate language-readiness/setup boundary. Regress the mixed-time traversal, saved/unset language and failed Save without input replay. Reuse the [shared account-selection implementation](../../tests/support/README.md#host-and-guest-boundaries), rather than adding sleeps or treating submitted values as results. |
 | A retained Parent window follows work in another window (300j) | Preserve that preceding input/return history in `test_parent_child_picker_after_language_policy_reads` in the [real GTK regressions](../../tests/ui/test_language_settings.py). Select the child by canonical API UID and independently read its policy; foreground/focus/popup state supplies no selection result. Keep the same owner/surface and uncertain-input guards. |
 | A resumed brief describes a failure although newer repairs or tests already exist (300j) | Reconcile the checkout, active runner selection and retained reports before editing or rerunning. A run title emitted before the exchange completes is not confirmed result evidence. Preserve valid completed slices and retry only outstanding work; follow [failure handling](../../tests/README.md#handling-test-failures) and [VM ownership](../Mandates/VM-Mandate.MD#authority-and-operation). |
-| Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. |
+| Choosing package inputs | Build artifacts when the installed product needs to include current changes. Runs use the supplied artifacts and allow concurrent checkout edits; private staged artifacts remain integrity-checked. Multi-VM qualifications also bind named inputs with `vm_source=True` and select the package format from each verified baseline. Task 042's Fedora entry required a separate RPM input and the shared package-version reader for snapshot attachment; a valid Ubuntu bundle cannot supply that boundary. Check the qualification and affected regression preparation bindings before live entry, preserving existing inputs and provenance refusals. See [snapshot preparation](../../tests/e2e/README.md#reusable-startup-preparation). |
 | VM is off but baseline acquisition reports `guard:source-changed` | Inspect the saved run phase and inactive configuration through the approved readers. An interrupted `isolated` setup can retain the test configuration. Use recorded graphical cleanup; do not edit the journal, recreate the baseline or treat powered-off status alone as restored state. |
 | A small fake collection passes but the installed app's reply exceeds the transport limit | Test the complete observation through serialization and both buffered/streamed transport at realistic and maximum declared sizes, including repeated save events (017b). Keep byte, item-count and schema bounds consistent. [App-row regressions](../../tests/unit/test_e2e_app_rows.py) and [trace regressions](../../tests/unit/test_e2e_feedback_read.py) exercise realistic collections and reject oversized/partial results. |
 | Widget doubles omit behavior seen through the real toolkit | Exercise the new projection with the real public adapter before VM qualification. Language tasks 300g–300i additionally separate visible labels from accessible names (including English capitalization) and compare both against literal caller-owned oracles; shared IDs stay locale-independent. Capture supported representation in the shared leaf and its regression, such as collapsed selectors or rich-editor paragraph endings; link the existing binding contract rather than teaching every consumer to normalize it. Task 226b additionally showed that collapsed legend content can be absent and its pressed state can precede content realization: regress absent-before-reveal, delayed-after-input and already-open reads in the shared adapter. Retry fresh result reads within the existing deadline, never the toggle input. |

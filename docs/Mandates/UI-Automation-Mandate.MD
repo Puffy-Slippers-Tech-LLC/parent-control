@@ -148,6 +148,15 @@ product UI test, its setup or its result assertions.
   safety qualification, never routine customer journeys. SSH authentication
   cannot substitute for a graphical PAM denial or retained-session unlock that
   the product case must observe. Locking cannot substitute for natural expiry.
+  Before designing a new unlock binding, establish whether that provider offers
+  a password challenge or blocks authentication with a native time restriction.
+  A restriction without a password field cannot satisfy an authenticated-denial
+  assertion. Investigate a mismatch in the actual child's session under the
+  [live diagnosis contract](../../tests/README.md#live-diagnosis-before-another-repair-attempt)
+  before another repair, and retain any required behavior decision. Reuse the
+  [qualified denial routes](../TestAutomation/E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification)
+  only for their stated entry/result; never force a password field or activate
+  a request-more-time action to dismiss a restriction.
 - **Observe the tested result:** System-command success establishes only that
   input was accepted. Independently check the required destination/session and
   the product's public result. Testing product behavior across logout, reboot,

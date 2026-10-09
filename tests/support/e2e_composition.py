@@ -32,7 +32,7 @@ APIS = {
                        'overlay_license_read', 'prefixed_stages', 'custom_allowance', 'lock_challenge', 'lock_recipient'},
     'native_fixtures': {'fixture_actions', 'check_catalogue', 'expected_rows', 'search_rows', 'catalogue_rows',
                         'CataloguePolicyJourney'},
-    'journey_checks': {'allowed_app_rows', 'installed_accounts', 'access_choice', 'AllowanceJourney',
+    'journey_checks': {'allowed_app_rows', 'installed_accounts', 'access_choice', 'AllowanceJourney', 'RetainedSessionJourney',
                        'policy_projection', 'request_choices', 'checked_language',
                        'approval_estimate', 'public_checks', 'restart_instructions'},
     'real_interval': {'interval_action'},

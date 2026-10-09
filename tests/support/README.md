@@ -394,6 +394,24 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Retained-child histories use `journey_checks.RetainedSessionJourney` with
+caller-declared `session_checks={later: earlier}` endpoints on the existing
+`system:child-retained-locked` operation. The shared engine preserves allowance
+checks, stores the immutable session identity and refuses changed, missing or
+replayed observations before the recorder reply. `desktop_session` supplies
+the two denial plans and their finite endpoints; future consumers bind their own
+names instead of inheriting a qualification's checkpoint comparison.
+Lock declarations/execution already share `journey_blocks.lock_challenge` /
+`onpc_desktop_session::observe_lock` and `lock_recipient` /
+`onpc_desktop_session::lock_recipient`. The
+[qualified lock and denial scopes](../../docs/TestAutomation/E2E-Building-Blocks.md#desktop-and-retained-session-entry)
+own their distinct native-lock/GDM results and provider bindings.
+The desktop/session regressions exercise both denial recipes and an independent
+renamed comparison through the real recorder, including refusal before durable
+reply. They use process-local values, private pytest files and existing waited
+Perl children; unit and cleanup classifications stay compatible with no new
+resource owner.
+
 Personal-language histories use
 [`language_composition.language_journey`](../e2e/language_composition.py) with
 caller-declared checks. Use `public_language_value` for complete literal chooser

@@ -3,7 +3,7 @@
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import (fresh_desktop, lock_challenge, lock_recipient,
                             parent_management, native_activity_entry, rejected_gdm_return)
-from journey_checks import AllowanceJourney
+from journey_checks import AllowanceJourney, RetainedSessionJourney
 
 ENTRY = fresh_desktop('parent')
 ENTRY_PHASES = {
@@ -169,19 +169,10 @@ CHILD_DENIAL_PLAN = retained_denial_plan()
 RETAINED_DENIAL_PLAN = retained_denial_plan(True)
 
 
-class RetainedDenialJourney(AllowanceJourney):
+class RetainedDenialJourney(RetainedSessionJourney):
     def __init__(self, context, progress, plan=RETAINED_DENIAL_PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
-
-    def check_settings(self, stage, observed):
-        super().check_settings(stage, observed)
-        if stage == 'retained-before':
-            self.retained_session = observed['system']['session_sha256']
-        elif stage == 'retained-after':
-            from private_artifacts import require
-            require(observed['system']['session_sha256'] == getattr(self, 'retained_session', None),
-                    'retained-denial:session-replaced')
-            observed['comparison'] = {'same_retained_locked_child': True}
+        super().__init__(context, progress, plan, actions=actions,
+                         session_checks={'retained-after': 'retained-before'})
 
 
 class RetainedUnlockJourney(AllowanceJourney):

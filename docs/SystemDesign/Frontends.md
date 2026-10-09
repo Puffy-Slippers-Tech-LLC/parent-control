@@ -751,9 +751,13 @@ its button within the current window, chooses the roomier side and caps its
 natural height to fit. This keeps its arrow attached to the button on short
 displays, including after scrolling or resizing; the presets scroll while
 the custom-amount action stays visible.
-Its pages scroll on shorter displays, and legend text wraps without imposing a
-wide minimum window size. A grid measures the legend's two columns at their
-allocated widths so the expanded card follows the wrapped content's height.
+Its pages scroll on shorter displays. App Limits shows an information icon
+immediately to the right of search, with a translated **Show legend** tooltip.
+Its toggle opens a floating legend panel with a close button. Clicking outside
+also dismisses the panel; either dismissal resets the toggle. The existing disclosure ID, boolean API and content
+ID remain unchanged. Legend text wraps without imposing a wide minimum window
+size. A grid measures the panel's two columns at their allocated widths, with
+each rule's description below its title.
 The shared About window can resize and scroll so its
 legal notices remain reachable on scaled displays. These layout changes load
 with the next app process and do not change saved data.

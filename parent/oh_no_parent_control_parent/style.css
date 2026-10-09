@@ -787,38 +787,37 @@ button.about-link > label {
 }
 
 .policy-legend {
-  margin: 16px 29px 8px;
+  padding: 16px;
+}
+
+.policy-legend-popover > contents {
+  padding: 0;
   border: 1px solid alpha(#24242a, 0.16);
   border-radius: 14px;
-  background: alpha(white, 0.48);
-  transition: 160ms ease-in-out;
+  background: #fdfcff;
+  box-shadow: 0 5px 20px alpha(black, 0.16);
 }
 
-.policy-legend.expanded {
-  border-color: alpha(#7357ef, 0.58);
-  background: linear-gradient(145deg,
-                              alpha(#fbfaff, 0.96),
-                              alpha(#f7f5ff, 0.58));
-}
-
-.policy-legend-header {
-  min-height: 78px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 13px;
-  background: transparent;
-  box-shadow: none;
+.policy-legend-toggle {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 2px;
+  border-radius: 12px;
   color: #7357ef;
 }
 
-.policy-legend-header:hover {
-  background: alpha(#7357ef, 0.045);
+.policy-legend-toggle:checked {
+  border-color: #7357ef;
+  background: alpha(#7357ef, 0.08);
+  box-shadow: 0 0 0 1px #7357ef;
 }
 
-.policy-legend-header:checked,
-.policy-legend-header:active {
-  background: transparent;
-  box-shadow: none;
+.policy-legend-header {
+  margin-bottom: 20px;
+}
+
+.policy-legend-close {
+  color: alpha(#292934, 0.65);
 }
 
 .policy-legend-book {
@@ -843,7 +842,7 @@ button.about-link > label {
 }
 
 .policy-legend-sections {
-  padding: 2px 32px 22px;
+  padding: 2px 6px 4px;
 }
 
 .policy-legend-section {
@@ -858,7 +857,7 @@ button.about-link > label {
 }
 
 .policy-legend-divider {
-  margin: 0 25px;
+  margin: 0 20px;
   background: alpha(#7357ef, 0.23);
 }
 

@@ -546,6 +546,14 @@ def test_public_policy_legend_full_read_and_unchanged_choices(
     read = reader.run('policy-legend-read', '')['legend']
     assert read == {key: value for key, value in expanded.items() if key != 'activated'}
     assert len(read['rules']) == 5 and len(read['headings']) == 2
+    ui.activate('parent-legend-close')
+    wait_for_accessible_state(
+        lambda: ui.getValue('parent-legend-toggle') is False,
+        'legend disclosure is reset after closing')
+    # Existing clients can still set the disclosure's boolean value and read
+    # the same complete explanations after the floating panel is reopened.
+    ui.setValue('parent-legend-toggle', True)
+    assert reader.run('policy-legend-read', '')['legend'] == read
     assert reader.app_rows(EXISTING_CHILD) == initial
     assert not any(record['event'] in ('set_preferences', 'set_parent_control')
                    for record in read_events(events))

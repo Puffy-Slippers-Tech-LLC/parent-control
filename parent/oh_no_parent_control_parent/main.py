@@ -874,11 +874,6 @@ class ParentWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["app-limits-card"],
         )
-        app_limits.append(self._legend_card())
-        app_limits.append(Gtk.Separator(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            css_classes=["app-limits-divider"],
-        ))
 
         apps_section = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -913,6 +908,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._search.connect("search-changed", self._filter)
         self._search.set_sensitive(False)
         search_row.append(self._search)
+        search_row.append(self._legend_button())
         apps_section.append(search_row)
 
         apps = localized(Adw.PreferencesGroup, css_classes=["apps-panel"])
@@ -1166,7 +1162,24 @@ class ParentWindow(Adw.ApplicationWindow):
             ))
         return selector
 
-    def _legend_card(self):
+    def _legend_button(self):
+        button = localized(Gtk.ToggleButton,
+            active=False, icon_name="dialog-information-symbolic",
+            tooltip_text=m.SHOW_LEGEND, valign=Gtk.Align.CENTER,
+            css_classes=["policy-legend-toggle"],
+        )
+        describe_control(
+            button, m.POLICY_LEGEND,
+            m.EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND,
+            automation_id="parent-legend-toggle",
+        )
+        popover = Gtk.Popover(
+            position=Gtk.PositionType.BOTTOM, halign=Gtk.Align.END,
+            autohide=True, has_arrow=True,
+            css_classes=["policy-legend-popover"],
+        )
+        popover.set_parent(button)
+        self._legend_popover = popover
         card = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             css_classes=["policy-legend"],
@@ -1190,26 +1203,23 @@ class ParentWindow(Adw.ApplicationWindow):
             label=m.LEGEND, xalign=0, css_classes=["policy-legend-title"],
         ))
         subtitle = localized(Gtk.Label, 
-            label=m.QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES,
+            label=m.UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES,
             xalign=0, wrap=True, css_classes=["policy-legend-subtitle"],
         )
         labels.append(subtitle)
         header_content.append(labels)
-        chevron = Gtk.Image(icon_name="go-down-symbolic", pixel_size=20)
-        header_content.append(chevron)
-
-        header = localized(Gtk.ToggleButton, 
-            active=False,
-            tooltip_text=m.SHOW_LEGEND,
-            css_classes=["policy-legend-header"],
-            child=header_content,
+        close = localized(Gtk.Button,
+            icon_name="window-close-symbolic", tooltip_text=m.CLOSE,
+            valign=Gtk.Align.START, css_classes=["flat", "policy-legend-close"],
         )
         describe_control(
-            header, m.POLICY_LEGEND,
-            m.EXPAND_OR_COLLAPSE_THE_APP_ACCESS_AND_MATCH_RULE_LEGEND,
-            automation_id="parent-legend-toggle",
+            close, m.CLOSE, m.HIDE_LEGEND,
+            automation_id="parent-legend-close",
         )
-        card.append(header)
+        close.connect("clicked", lambda *_: button.set_active(False))
+        header_content.append(close)
+        header_content.add_css_class("policy-legend-header")
+        card.append(header_content)
 
         # Measure both columns at their allocated widths. A horizontal Box
         # can retain the wrapped labels' narrow-width height after its children
@@ -1234,18 +1244,15 @@ class ParentWindow(Adw.ApplicationWindow):
             }, access=False,
         ), 2, 0, 1, 1)
 
-        revealer = Gtk.Revealer(
-            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
-            transition_duration=180,
-            reveal_child=False,
-            child=sections,
-        )
-        card.append(revealer)
-        header.connect(
-            "toggled", self._legend_toggled,
-            revealer, subtitle, chevron, card,
-        )
-        return card
+        card.append(sections)
+        popover.set_child(card)
+        button.connect("toggled", self._legend_toggled, popover)
+        popover.connect("closed", lambda *_: button.set_active(False))
+        # Keep the disclosure's existing boolean value/activation API. The
+        # popover remains in the same App Limits subtree. GTK dismisses it on
+        # an outside click, and the closed signal resets the disclosure.
+        button.connect("unmap", lambda *_: button.set_active(False))
+        return button
 
     def _legend_section(self, title, items, descriptions, *, access):
         section = Gtk.Box(
@@ -1281,33 +1288,29 @@ class ParentWindow(Adw.ApplicationWindow):
                     child=self._match_rule_image(item),
                 )
             rows.attach(icon, 0, row, 1, 1)
-            rows.attach(localized(Gtk.Label, 
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3,
+                           hexpand=True, valign=Gtk.Align.CENTER)
+            text.append(localized(Gtk.Label,
                 label=item["label"], xalign=0, wrap=True, max_width_chars=22,
                 css_classes=["policy-legend-item-title"],
-            ), 1, row, 1, 1)
-            rows.attach(localized(Gtk.Label, 
+            ))
+            text.append(localized(Gtk.Label,
                 label=descriptions[item["id"]], xalign=0, wrap=True,
                 max_width_chars=22, hexpand=True,
                 css_classes=["policy-legend-description"],
-            ), 2, row, 1, 1)
+            ))
+            rows.attach(text, 1, row, 1, 1)
         section.append(rows)
         return section
 
     @staticmethod
-    def _legend_toggled(button, revealer, subtitle, chevron, card):
+    def _legend_toggled(button, popover):
         expanded = button.get_active()
-        revealer.set_reveal_child(expanded)
-        set_text(subtitle, 'label', m.UNDERSTANDING_ACCESS_RULES_AND_MATCH_RULES
-            if expanded else m.QUICK_REFERENCE_FOR_ACCESS_AND_MATCH_RULES
-        )
-        chevron.set_from_icon_name(
-            "go-up-symbolic" if expanded else "go-down-symbolic",
-        )
         set_text(button, 'tooltip-text', m.HIDE_LEGEND if expanded else m.SHOW_LEGEND)
         if expanded:
-            card.add_css_class("expanded")
+            popover.popup()
         else:
-            card.remove_css_class("expanded")
+            popover.popdown()
 
     def _show_about(self, *_args):
         AboutDialog(self).present()
@@ -2044,6 +2047,10 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _close_requested(self, *_args):
         self._closed = True
+        legend = getattr(self, "_legend_popover", None)
+        if legend is not None and legend.get_parent() is not None:
+            legend.popdown()
+            legend.unparent()
         if self._whats_new_wait_id:
             GLib.source_remove(self._whats_new_wait_id)
             self._whats_new_wait_id = 0

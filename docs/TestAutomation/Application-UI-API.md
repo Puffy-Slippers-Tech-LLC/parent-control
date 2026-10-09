@@ -176,6 +176,7 @@ injects attachments into application state.
 | `parent-match-rule-entry` | Literal editable rule text in `parent-match-rule-dialog` |
 | `parent-match-rule-cancel`, `parent-match-rule-reset`, `parent-match-rule-save` | Ordinary dialog actions, including validation and save |
 | `parent-legend-toggle`, `parent-time-calculation-collapse` | Ordinary disclosure actions |
+| `parent-legend-content`, `parent-legend-close` | Legend explanations and floating-panel close action; the existing toggle retains boolean get/set and activation |
 | `parent-menu-button` | `getChoices`; `setValue` runs `preferences`, `help`, `whats-new` (only with current Parent notes), or `about` without a popup; `activate` opens the menu normally |
 | `parent-menu-<key>`, `parent-feedback-button` | Native menu or feedback actions |
 | `parent-language-loading`, `parent-language-ready`, `parent-no-users-message`, `parent-policy-warning` | Public readiness and result text/availability |

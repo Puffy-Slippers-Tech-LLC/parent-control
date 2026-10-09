@@ -44,14 +44,6 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
-def reproduce_retained_focus(lease):
-    """Temporary Task 044 read-only child focus timeline; no acceptance credit."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from retained_entry import RetainedEntryJourney, PLAN
-    return reproduce_denial(lease, RetainedEntryJourney, PLAN,
-                            'riley-restricted-curtain', 'retained-focus', focus_timeline=True)
-
-
 def probe_lock_curtain(lease):
     """Read the same guarded child curtain in a retained maintenance scene."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -69,50 +61,7 @@ def probe_lock_curtain(lease):
         print('lock-probe: guarded curtain read passed', flush=True)
 
 
-def probe_retained_focus_resync(lease):
-    """Temporary causal experiment; existing grab notification, never input."""
-    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from ui_observations import UiObservations
-    from qualification_storage import recovery_session, allocate
-    with operation('Testing locked-session focus resynchronization without input'), recovery_session():
-        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-focus-resync-probe-'))
-        private = directory / 'private'
-        private.mkdir(mode=0o700)
-        lease.commands.directory = private
-        print('focus-resync-probe: evidence=' + str(directory), flush=True)
-        transport = connect(lease)
-
-        def telemetry():
-            lease.guard()
-            output = transport.call(['/usr/bin/python3', '-', 'telemetry'], timeout=45,
-                input=(system.ROOT / 'tests/e2e/lock_surface_probe.py').read_bytes())
-            values = [json.loads(row)['probe_summary'] for row in output.splitlines()
-                      if b'"probe_summary"' in row]
-            system.require(len(values) == 1, 'diagnosis:focus-observation')
-            return values[0]
-
-        before = telemetry()
-        system.require(before['child_active'] and before['child_locked']
-            and before['screensaver_active'] and before['foreign_focus_count'] == 1,
-            'diagnosis:resync-source')
-        output = transport.call(['/usr/bin/python3', '-', str(before['fixture_pid']), 'resync'],
-            timeout=45, input=(system.ROOT / 'tests/e2e/lock_compositor_probe.py').read_bytes())
-        native = [json.loads(row)['native_compositor_summary'] for row in output.splitlines()
-                  if b'"native_compositor_summary"' in row]
-        system.require(len(native) == 1, 'diagnosis:native-observation')
-        after = telemetry()
-        result = {'before': before, 'native': native[0], 'after': after}
-        (directory / 'result.json').write_text(json.dumps(result, sort_keys=True))
-        print('focus-resync-probe: ' + json.dumps(result, sort_keys=True), flush=True)
-        system.require(before['activity_sha256'] == after['activity_sha256']
-            and before['fixture_pid'] == after['fixture_pid'], 'diagnosis:activity-changed')
-        observed = UiObservations(transport).observe('child-lock-curtain')
-        (directory / 'observed.json').write_text(json.dumps(observed))
-        lease.guard()
-        print('focus-resync-probe: guarded curtain read passed', flush=True)
-
-
-def reproduce_denial(lease, journey_type, plan, boundary, surface, *, focus_timeline=False):
+def reproduce_denial(lease, journey_type, plan, boundary, surface):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -161,37 +110,6 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, focus_time
             with (directory / 'observations.jsonl').open('a') as stream:
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
-            if focus_timeline and stage in (
-                    'riley-again-activity', 'return-source-desktop', 'return-source-switch',
-                    'return-parent-retained', 'zero-configured',
-                    'riley-denied-child-focused', 'riley-denied-denied',
-                    'denied-returned', 'enter-locked', 'riley-restricted-entry-guard'):
-                guard = lambda: lease.guard()
-                guard()
-                with operation('Reading child focus across the retained-entry history'):
-                    output = transport.call(['/usr/bin/python3', '-', 'telemetry'], timeout=45,
-                        input=(system.ROOT / 'tests/e2e/lock_surface_probe.py').read_bytes())
-                summaries = [json.loads(row)['probe_summary'] for row in output.splitlines()
-                             if b'"probe_summary"' in row]
-                system.require(len(summaries) == 1, 'diagnosis:focus-observation')
-                record = {'stage': stage, 'summary': summaries[0]}
-                with (directory / 'focus-timeline.jsonl').open('a') as stream:
-                    stream.write(json.dumps(record, sort_keys=True) + '\n')
-                print('retained-focus-timeline: ' + json.dumps(record, sort_keys=True), flush=True)
-                if stage == 'riley-restricted-entry-guard':
-                    fixture_pid = summaries[0]['fixture_pid']
-                    system.require(type(fixture_pid) is int and fixture_pid > 0,
-                                   'diagnosis:fixture-pid')
-                    with operation('Reading native lock routing without sending input'):
-                        native_output = transport.call(['/usr/bin/python3', '-', str(fixture_pid)],
-                            timeout=45, input=(system.ROOT / 'tests/e2e/lock_compositor_probe.py').read_bytes())
-                    native = [json.loads(row)['native_compositor_summary']
-                              for row in native_output.splitlines()
-                              if b'"native_compositor_summary"' in row]
-                    system.require(len(native) == 1, 'diagnosis:native-observation')
-                    (directory / 'native-compositor.json').write_text(json.dumps(native[0], sort_keys=True))
-                    print('retained-native-compositor: ' + json.dumps(native[0], sort_keys=True), flush=True)
-                guard()
 
         journey = Reproduction(SimpleNamespace(directory=directory, lease=lease), progress,
                                **({'plan': plan} if plan is not None else {}))

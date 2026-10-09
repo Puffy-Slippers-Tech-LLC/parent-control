@@ -372,8 +372,7 @@ def main(argv=None):
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
-                                          'reproduce-retained-entry', 'probe-lock-curtain',
-                                          'reproduce-retained-focus', 'probe-retained-focus-resync'))
+                                          'reproduce-retained-entry', 'probe-lock-curtain'))
     parser.add_argument('keys', nargs='*', type=int)
     parser.add_argument('--new-name')
     args = parser.parse_args(argv)
@@ -429,15 +428,12 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
-                            'reproduce-retained-focus'):
-            from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial, reproduce_retained_entry,
-                                  reproduce_retained_focus)
+        elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry'):
+            from vm_probe import reproduce_gdm_denial, reproduce_lock_denial, reproduce_retained_entry
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-lock-denial': reproduce_lock_denial,
-             'reproduce-retained-entry': reproduce_retained_entry,
-             'reproduce-retained-focus': reproduce_retained_focus}[args.action](lease)
+             'reproduce-retained-entry': reproduce_retained_entry}[args.action](lease)
         elif args.action == 'exec':
             from vm_probe import execute
             with operation('Probing the owned guest as root'):
@@ -450,10 +446,6 @@ def main(argv=None):
             from vm_probe import probe_lock_curtain
             resume(lease)
             probe_lock_curtain(lease)
-        elif args.action == 'probe-retained-focus-resync':
-            from vm_probe import probe_retained_focus_resync
-            resume(lease)
-            probe_retained_focus_resync(lease)
         else:
             operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')

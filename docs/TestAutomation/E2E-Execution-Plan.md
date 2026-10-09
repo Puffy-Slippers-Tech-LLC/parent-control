@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **044 — [Visit both retained child desktops](E2E-Tasks/044-retained-entry.md)**.
+Next task: **155a — [Compare overlay choices at the kiosk](E2E-Tasks/155a-choices-overlay-to-kiosk.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

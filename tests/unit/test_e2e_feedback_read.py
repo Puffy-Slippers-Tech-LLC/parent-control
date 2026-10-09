@@ -4773,6 +4773,60 @@ def test_window_switch_absent_target_never_launches(monkeypatch):
     launch.assert_not_called()
 
 
+@pytest.mark.parametrize('failure', [
+    'incomplete-transient', 'query-transient', 'visible-transient',
+    'incomplete-persistent', 'query-persistent', 'visible-persistent',
+    'wrong-owner', 'ambiguous',
+])
+def test_window_close_requires_complete_absence_without_replaying_input(monkeypatch, failure):
+    from gi.repository import Gio, GLib
+    ui, parent, dialog, controls = synthetic_feedback_ui()
+    dialog.bus, dialog.path = ':1.123', '/feedback'
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 1 if failure.endswith('-transient') else 0
+    absent = (None, None, None)
+    if failure.startswith('query-'):
+        first = Gio.DBusError.new_for_dbus_error(
+            'org.freedesktop.DBus.Error.ServiceUnknown', 'exited provider')
+    elif failure.startswith('visible-'):
+        first = (Node(), None, None)
+    else:
+        first = accessible_ui.UiError({
+            'wrong-owner': 'ui:document-owner',
+            'ambiguous': 'ui:license-provider-ambiguous',
+        }.get(failure, 'ui:incomplete-tree'))
+    reads = []
+
+    def snapshot():
+        reads.append(True)
+        value = absent if len(reads) > 1 and failure.endswith('-transient') else first
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    ui.license_viewer_snapshot = snapshot
+    launch = Mock(side_effect=AssertionError('read must not launch or close'))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', launch)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', Mock())
+    if failure.endswith('-transient'):
+        result = ui.window_switch_operation('switch-viewer-absent')
+        assert result == ui.window_switch_proof('feedback')
+        # Two absence reads and the independent absent-target refusal read.
+        assert len(reads) == 3
+    else:
+        expected = {'wrong-owner': 'ui:document-owner',
+                    'ambiguous': 'ui:license-provider-ambiguous'}.get(
+                        failure, 'ui:timeout:switch-viewer-absent')
+        with pytest.raises(accessible_ui.UiError, match=expected):
+            ui.window_switch_operation('switch-viewer-absent')
+        assert len(reads) == 1
+    launch.assert_not_called()
+    for node in (parent, dialog, *controls.values()):
+        node.action.do_action.assert_not_called()
+        node.component.grab_focus.assert_not_called()
+    assert not ui.input_uncertain
+
+
 @pytest.mark.parametrize('boundary', ['entry', 'proof', 'metadata'])
 @pytest.mark.parametrize('failure', ['transient', 'incomplete', 'wrong-owner'])
 def test_window_viewer_launch_retries_only_complete_reads(monkeypatch, boundary, failure):

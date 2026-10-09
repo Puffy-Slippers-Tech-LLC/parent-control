@@ -20,6 +20,13 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Compose only overlay-to-kiosk with explicit exit/entry and immutable comparison. Duration/custom/soft-app follow the child; preserve local approver defaults.
 
+Reuse [both retained child entries](../E2E-Building-Blocks.md#both-retained-child-desktops-and-explicit-entry-modes):
+`journey_blocks.desktop_entry` / `onpc_desktop_session::enter_desktop` bind the
+declared account, source and mode. `retained_parent_entry` /
+`onpc_parent::open_for_child` preserve the existing Parent window and selection;
+read Screen Limits explicitly when returning from App Limits. Task 044's
+qualification supplies these finite routes, not acceptance for FLOW12.
+
 ## Live VM acceptance
 
 Publicly enable both children, seed different overlay values and local approvers, then enter kiosk and read each destination before editing. Finish with the form open and qualify independent valid entry.

@@ -5368,8 +5368,10 @@ class AccessibleUI:
             self.input_uncertain = False
             return proof
         if operation == 'switch-viewer-absent':
-            viewer, _, _ = self.license_viewer_snapshot()
-            require(viewer is None, 'ui:switch-viewer-exists')
+            # Closing the provider can retire nodes during enumeration. Only a
+            # complete fresh tree proves absence; retry the read, never Close.
+            self.wait(lambda: self.license_viewer_snapshot()[0] is None,
+                      'switch-viewer-absent', prompt_in_predicate=True)
             try:
                 self.window_switch_ready('viewer', 'feedback')
             except UiError as error:

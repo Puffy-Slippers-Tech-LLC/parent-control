@@ -1107,8 +1107,10 @@ button.about-link > label {
   transition: 140ms ease-in-out;
 }
 
-.policy-choice:hover {
-  background: alpha(white, 0.16);
+.policy-selector > .policy-choice:hover:not(:disabled) {
+  background: alpha(white, 0.38);
+  box-shadow: 0 2px 6px alpha(black, 0.16),
+              inset 0 0 0 1px alpha(white, 0.60);
 }
 
 .policy-choice.policy-allowed {
@@ -1155,6 +1157,27 @@ button.about-link > label {
 
 .policy-choice:checked {
   border: 0;
+}
+
+.policy-selector > .policy-choice.policy-allowed:checked:hover:not(:disabled) {
+  background: linear-gradient(to bottom, #60d995, #2ac77c);
+  box-shadow: 0 0 16px alpha(#35d487, 0.58),
+              inset 0 1px alpha(white, 0.48),
+              inset 0 -1px alpha(#073b22, 0.42);
+}
+
+.policy-selector > .policy-choice.policy-hard-blocked:checked:hover:not(:disabled) {
+  background: linear-gradient(to bottom, #ef7880, #db4652);
+  box-shadow: 0 0 18px alpha(#ff5962, 0.64),
+              inset 0 1px alpha(white, 0.48),
+              inset 0 -1px alpha(#5d1016, 0.44);
+}
+
+.policy-selector > .policy-choice.policy-soft-blocked:checked:hover:not(:disabled) {
+  background: linear-gradient(to bottom, #edbc50, #ce9328);
+  box-shadow: 0 0 16px alpha(#e7b83e, 0.56),
+              inset 0 1px alpha(white, 0.48),
+              inset 0 -1px alpha(#503407, 0.42);
 }
 
 .match-rule-button.policy-choice:hover {

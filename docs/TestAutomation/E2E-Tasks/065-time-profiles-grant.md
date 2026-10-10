@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **065a** under the
 
 ## Scope and prerequisites
 
-Deliver **FLOW13 grant-only/combined; retained entry and explicit revoke preparation**. First scheduled consumer: [E2E-011, case 29](../E2E-Scenario-Recipes.md#e2e-010).
+Deliver **FLOW13 grant-only/combined; retained entry and explicit revoke preparation**. First scheduled consumer: [E2E-011, case 29](../E2E-Scenario-Recipes.md#e2e-011).
 Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -25,11 +25,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Extend FLOW13 to combined/grant-dominant using 065a's real kiosk approval and retained Parent readback operations. Reuse its grant-only and explicit-revoke branches. Keep D/G meanings and elapsed/rounding margins explicit.
 
+Bind the recipe's 4-minute daily allowance and 2-minute addition through the
+new shared profile arguments, using the actual observed daily balance rather
+than treating the allowance as a fresh bank. Extend 065a's public interval
+comparison only for G>D>0; its established grant-only, revoke-first and input
+safety evidence remains reusable unchanged.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt, observe G>D>0 for the declared combined/grant-dominant preparation after real kiosk approval and retained Parent readback. Finish at GDM without changing the clock or disabling a live grant. Qualify independent valid entry and wrong-entry refusal; an unexpected existing grant without an explicit revoke-first action refuses instead of clearing it silently. When revoke-first is declared, reuse PARENT17/18 and fresh PARENT09 readback. Reuse 065a's unchanged exact grant-only and revoke-first qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_time_profiles_grant

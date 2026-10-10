@@ -14,19 +14,24 @@ Use the shared system-session helper for this lock, switch-user or logout action
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
+- **048d** — Real overlay prompt and automatic successful approval/return.
+- **043c** — Intended child's successful direct lock-screen unlock.
 
 ## Implementation
 
 Compose only the overlay lock branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the normal lock shortcut, observe the lock challenge and unlock legitimately. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
+Extend `request_flow.overlay_authentication` and the shared
+`onpc_desktop_session::lock` / `unlock_success` operations for the pending-prompt
+composition. Their current bindings do not implement FLOW17. Keep the valid
+recipient and single-use input guards; qualify the new transition and focused
+refusals without replaying the unchanged Cancel/rejection/exit histories.
+
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
+On the VM, publicly prepare usable time, capture choices/balances, start approval and lock while authentication is pending. Observe the return, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_lock_during_pending_overlay_approval

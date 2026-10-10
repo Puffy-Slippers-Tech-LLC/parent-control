@@ -18,11 +18,18 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Extend the qualified desktop adapter with the supported normal new-window gesture for an existing S activity. Keep old and new public window identities distinct.
 
+Bind the fixture's declared `--instance secondary` route and extend the shared
+APP02/04 reader for that public endpoint. `gui_application.py::main` accepts the
+instance, while the installed native launch/projection currently accepts only
+primary. A supported DING new-window activation remains unqualified; record
+that route before use, without recreating a native double-click task. Reuse
+036g's unchanged placement/first-launch evidence.
+
 ## Live VM acceptance
 
 Capture S activity, use the desktop entry to open a distinguishable second window, and independently prove the original activity remains. Presenting the first window or substituting another launch route fails.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_desktop_new_window

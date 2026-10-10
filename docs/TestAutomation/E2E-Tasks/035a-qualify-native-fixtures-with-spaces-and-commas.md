@@ -28,11 +28,17 @@ profile. Declare reusable source assets in baseline preparation and verify them
 through FIX06. Bind exact identical-copy destinations and distinct allowed N;
 perform the recipe's copies through FILE05. Reuse command launch/result operations.
 
+`native_assets.ASSETS` has no comma-bearing executable. Add only that finite
+identity and its source digest to the maintained builder/baseline declaration,
+then bind it to 035d's executable-copy and launch-result helpers. Neither
+`NativeFixtures(profile='native')` nor `SyntheticFiles.call` currently accepts
+this new profile; extend their registered finite inputs before qualification.
+
 ## Live VM acceptance
 
 On the live VM, copy the added comma-containing executable through the shared FILE05 command helper and verify its exact destination/content. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Qualify independently prepared owned source/destination entry and wrong-path/owner/destination refusal before mutation. Reuse 035d's unchanged exact space-path qualification, rerunning it only when affected; it supplies no saved VM state. Case 188 still exercises both finite fixtures. Do not generalize this to arbitrary copied programs.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_qualify_native_fixtures_with_spaces_and_commas

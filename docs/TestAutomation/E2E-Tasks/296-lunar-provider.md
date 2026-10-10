@@ -20,9 +20,10 @@ Deliver **APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindin
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **296d** — APP06 Lunar/tray snapshot and close-to-tray/restore.
+- **079** — Public saved match/access editing for the original Lunar path.
 
 Its transitive prerequisites retain verified FIX05 Lunar/AppImageLauncher/autostart/
-Minecraft assets, native policy-result observations and guarded TIME03 intervals.
+Minecraft assets and guarded TIME03 intervals.
 
 ## Implementation
 
@@ -40,11 +41,13 @@ In fresh guarded attempts, qualify the original-AppImage command's specific
 policy denial using the prepared rule path and complete public observations.
 Reuse unchanged allowed launch/Quit and tray/restore results from 296c/296d;
 rerun their affected branches when the shared adapter changes.
-Exercise independently supplied valid entry, wrong owner, ambiguity, incomplete
-observations and uncertain-input refusal without replay. No process/rule probe
+Qualify the independently supplied denied entry. Focused adapter checks cover
+wrong owner, ambiguity, incomplete observations and uncertain-input refusal
+without replay; keep the same runtime guards. Do not rerun the unchanged native
+grid/command policy matrix or Lunar allowed/tray history. No process/rule probe
 may supply a customer result.
 
-Implement and register this fixed qualification in the existing envelope:
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_lunar_provider

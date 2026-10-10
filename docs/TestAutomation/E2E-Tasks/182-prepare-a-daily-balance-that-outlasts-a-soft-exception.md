@@ -22,11 +22,21 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Compose the exact daily-dominant-with-soft-exception recipe from qualified profiles, app use, retained Parent readback and TIME03. Do not edit allowance or app policy after approval; such edits restore launch blocks.
 
+FLOW18 and its fixed selector have no implementation/registration yet. Add one
+shared composition over FLOW13's publicly prepared combined profile,
+`real_interval.wait_real_interval`, Parent's public balance read and the
+existing native usable/activity helpers. Reuse unchanged grant, app-policy and
+retained-entry qualification; qualify only this no-edit-away/wait/return
+composition and its D/G inequalities. Invalid profile/owner/deadline refusal
+belongs in focused harness checks, with all runtime guards retained. The later
+seven cases own their distinct post-expiry actions; do not exercise those
+restoration branches while preparing this profile.
+
 ## Live VM acceptance
 
 On the live VM, approve the prescribed small addition with soft apps, open S, switch away and wait while daily use pauses. Read G in the 60–90-second window and D at least 120 seconds, then return while G remains positive. Wrong inequalities fail preparation; no relabeling or top-up.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_prepare_a_daily_balance_that_outlasts_a_soft_exception

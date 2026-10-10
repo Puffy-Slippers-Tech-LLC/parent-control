@@ -25,11 +25,16 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse 050a's warning/target operation and add explicit Confirm, then independently verify saved time and settings. Warning dismissal is shared navigation, not a separate acceptance result. Obtain the grant through kiosk approval.
 
+Extend the same shared PARENT17/18 operation, then use
+`AccessibleUI.reach_time_explanation` and `settings` for independent G=0,
+elapsed-bounded unchanged daily time and unchanged saved allowance/app rules.
+No child entry or application launch belongs to this balance-only capability.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt with a real kiosk-approved grant, open the owned warning, verify its child target, Confirm once and independently read the new daily/one-time explanation and saved settings. Qualify independent valid entry and wrong-child/confirmation refusal. Reuse 050a's unchanged exact warning/Cancel qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Child effects remain separate later observations.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_revocation

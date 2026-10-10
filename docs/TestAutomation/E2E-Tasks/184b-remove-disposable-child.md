@@ -25,15 +25,21 @@ Remove only the explicitly registered, logged-out spare child through the shared
 
 ## Live VM acceptance
 
-Prepare the spare in this attempt, remove it once and independently require only that account absent. Prove protected-account and wrong-owner refusals leave the account set unchanged. Parent/request refresh and fallback remain the complete scenario's GUI assertions.
+Prepare the spare in this attempt, remove it once and independently require only
+that account absent. Focused harness checks prove protected-account and
+wrong-owner refusals before transport/discovery, leaving the account set
+unchanged; the live route keeps the same guards. Parent/request refresh and
+fallback remain the complete scenario's GUI assertions.
+
+Cases 180/181 also need independently prepared profiles containing exactly two
+eligible registered spare children, or only the one to be removed, respectively.
+The current helper's empty-account
+preparation removes fixture children and is not this protected spare-removal
+binding. Plan and qualify these disposable-child profiles before their consumers;
+do not relax baseline-account protection or remove ordinary household accounts.
 
 Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
 tools/run-tests integration check_e2e_remove_disposable_child
 ```
-
-Use the shared watch intent, display and guarded command transport. Pass
-applicable cleanup/ownership checks in isolation first. Require independent
-result readback, sanitized evidence and owned cleanup. Host tests alone do not
-qualify a live route or complete a customer scenario.

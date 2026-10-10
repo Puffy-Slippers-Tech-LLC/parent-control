@@ -19,11 +19,21 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Qualify the other administrator's own fresh/retained desktop and Parent window. Select the named child, navigate to Screen Limits before reading settings, and preserve separate window observations for the two parents.
 
+Extend `journey_blocks.desktop_entry`, `onpc_desktop_session::enter_desktop`
+and `onpc_parent::open_for_child/set_allowance` with the explicit second-parent
+binding. Their current argument validation accepts only the primary parent
+(and the child roles); approver support in the request form does not implement
+Sam's management desktop. Bind owner/session/window receipts separately for
+Jamie and Sam and refresh the selected child's public settings on each visit.
+Reuse the qualified direct Parent launch and primary-parent entry; qualify
+only the added management identity/return composition and focused wrong-owner
+refusal, not the complete primary-parent provider matrix.
+
 ## Live VM acceptance
 
 On the VM, open Parent normally under each administrator, manage a named child and switch between the two retained windows. Reselect and read current settings before edits; an approver identity from a system prompt is not proof of management entry.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_manage_from_the_second_parent_s_own_window

@@ -22,6 +22,7 @@ Read only the named [block contracts](../E2E-Building-Blocks.md#reusable-journey
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **197a** — FLOW20 kiosk new/open form with fresh-child destination.
+- **043c** — Legitimate retained-child return with immutable original-activity comparison.
 
 ## Implementation
 
@@ -29,8 +30,9 @@ Extend 197a's kiosk FLOW04/FLOW05 composition with explicit retained-child FLOW1
 
 ## Live VM acceptance
 
-Qualify the new-form/retained-child and independently supplied
-open-form/retained-child entries in fresh guarded VM attempts. Approve once per
+Qualify new-form Riley/Jamie/30-second/soft-excluded and independently supplied
+open-form Jordan/Casey/75-second/soft-included requests with retained-child
+destinations in fresh guarded VM attempts. Approve once per
 invocation; require success, automatic station exit, legitimate return to the
 same child activity and countdown within prebound public/elapsed-time intervals.
 Reuse unchanged exact fresh-child qualification from 197a, rerunning it only when
@@ -39,12 +41,14 @@ Missing entry modes refuse without repair. Keep entry/recipient and uncertain
 input guards in shared qualification; no additional choice combinations or
 expiry wait belong to this composition.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_kiosk_approval_return
 ```
 
-The selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract).
-Require independent valid entry, wrong-entry refusal and owned live VM cleanup.
-Host checks and a diagnostic slice do not establish complete scenario coverage.
+Keep 197a's explicit child/eligible-parent/duration/soft-choice arguments and
+finite consumer scope; carry child identity through authentication, countdown
+and the supplied earlier activity. Extend only its destination through
+`journey_blocks.desktop_entry(entry='retained')` and shared activity comparisons.
+Missing prior activity or a newly created desktop cannot satisfy retained return.

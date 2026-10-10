@@ -27,6 +27,11 @@ time. Retain lower-layer hover-state rules in
 Use the stable API ID and public text readback, with no geometry or
 popup/focus choreography assertions.
 
+`child_shell_interaction.main` currently inventories `child-request-tooltip`
+but does not compare its public explanation. Add that missing assertion to the
+existing shared interaction path; the Node tooltip-clock checks do not supply
+the isolated-Shell public-text result.
+
 ## UI acceptance
 
 On the isolated Shell surface, require the explanation's public meaning and

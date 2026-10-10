@@ -27,11 +27,28 @@ needed for this pattern test. Reuse saved same-directory wildcard rules and
 command-result projections. Register the finite read-only refresh wait without
 retrying launch input. Case 253 separately owns the real Lunar integration.
 
+Source boundary: `_build_native_layout` builds the next S version, but
+`native_assets.sources()`/baseline verification declare only the current four
+executables. Bind that existing next-version asset and the exact new nonmatch
+to a finite FILE05 profile; do not rebuild vendor assets. Extend the current
+primary-only `AccessibleUI.native_launch_command` and result projection for
+matching/nonmatching identities. Reuse 186's rejected-save report operation;
+do not rerun its entire match/reopen qualification here.
+
+Declare a finite safe pattern directory/profile before implementation. The
+current native directory also contains Allowed space-bearing ELF nonmatches;
+a narrow version wildcard there can be rejected under the documented safe-rule
+contract. Reuse the existing asset bytes in a declared directory with the exact
+matching versions and representable nonmatches, or declare the necessary
+publicly blocked conflicts explicitly. Keep the successful pattern/enforcement
+result separate from the intentionally rejected pattern and prior-rule
+preservation; neither branch substitutes for the other.
+
 ## Live VM acceptance
 
 On the live VM, add the next version through shared FILE05 copy commands, require matching versions denied and existing nonmatches usable. For the new nonmatch, wait at most the recipe's 60 seconds and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_qualify_versioned_appimage_pattern_assets

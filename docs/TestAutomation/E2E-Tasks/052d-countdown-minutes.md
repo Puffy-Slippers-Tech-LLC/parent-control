@@ -20,11 +20,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Compose countdown snapshots with guarded waits and monotonic elapsed comparisons for the minute-precision branch only. Bind public precision and tolerance before input; verify remaining-time progression rather than a separate formatting matrix, which belongs to child UI coverage.
 
+Reuse `CountdownObservation.from_value`, `AccessibleUI.child_countdown` and
+`real_interval.interval_action`. `check_countdown_balance` currently checks one
+sample against a balance interval and explicitly is not a tick test: add the
+missing successive-sample comparison with immutable prior endpoints. Do not
+infer decreasing time from two samples that only satisfy the same broad bound.
+
 ## Live VM acceptance
 
 Publicly prepare short daily-only time, enter the child and observe successive minute samples over real intervals. Qualify independently supplied child entry and refuse reversed, stale or wrong-owner samples.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_countdown_minutes

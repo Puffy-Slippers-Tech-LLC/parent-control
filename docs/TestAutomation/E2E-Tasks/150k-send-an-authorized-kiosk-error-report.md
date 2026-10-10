@@ -25,7 +25,7 @@ Bind one reviewed synthetic Send on the actual kiosk error-report window. Reuse 
 
 On the VM, produce the public error, review the report and Privacy, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus GDM. Opening or successful transport alone cannot satisfy exit behavior.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_send_an_authorized_kiosk_error_report

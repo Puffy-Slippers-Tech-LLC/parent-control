@@ -1,4 +1,4 @@
-# 187a — Observe and decline a overlay cooldown error
+# 187a — Observe and decline an overlay cooldown error
 
 Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
@@ -14,20 +14,24 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
-- **030** — FEED05; FEED10 dialog persistence.
+- **048d** — Real overlay approval and automatic return before reopening.
 
 ## Implementation
 
 Qualify the normal overlay reopen/re-entry and Request before the real five-second cooldown ends. Observe the actual too-soon result and decline reporting through owned controls. Preserve the existing public-route applicability gate.
 
+Extend `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`
+and `AccessibleUI.kiosk_request_form` with the genuine cooldown/result/report-choice
+binding. Those callables currently qualify only 75 seconds with soft apps
+included; case 176 needs its explicit 30-second, soft-excluded binding. FEED15's
+request-result branch is planned. Declining needs neither Privacy nor a retained
+account visit, and this slice ends without waiting or another approval.
+
 ## Live VM acceptance
 
 Approve once on the VM, perform the normal return-and-Request within five seconds, read the error and decline. Independently observe the declared form/desktop or GDM destination and original balance before another approval. An unreachable route stays pending; no timing changes or forced errors.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_overlay_cooldown_error

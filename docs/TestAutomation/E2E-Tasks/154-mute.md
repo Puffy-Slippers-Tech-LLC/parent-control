@@ -17,12 +17,20 @@ request-form/toggle callables. No other task brief or full queue is needed.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
+- **048** — Direct owned overlay entry and request-form readback.
+- **011** — Owned request-station entry and request-form readback.
 
 Use its maintained callables plus the restored feature's
 contract. Preserve the saved-field obligations under
 [engineering reconciliation](../E2E-Building-Blocks.md#inventory-reconciliation).
 No old task document or VM state is required.
+
+Current source is `KioskWindow._toggle_mute` / `_persist_muted` in
+`kiosk/oh_no_parent_control_kiosk/main.py`: `REQUEST_MEDIA_ENABLED` disables
+the handler and hides/insensitizes `kiosk-mute-button`.
+`AccessibleUI.kiosk_request_form` expects no mute control. A restored boolean API
+binding and fixed qualification selector are planned, not implemented. Invalid
+duration, authentication and both exit histories are unrelated prerequisites.
 
 ## Conditional live VM acceptance
 

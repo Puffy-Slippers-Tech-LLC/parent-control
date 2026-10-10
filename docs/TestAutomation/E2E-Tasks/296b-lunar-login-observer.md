@@ -21,15 +21,16 @@ Deliver **APP06/UI22 continuous login interval and Lunar autostart binding**.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **296f** — APP06/UI22 allowed continuous login interval.
+- **296** — Original-AppImage same-route specific policy denial.
 
-Its transitive prerequisites retain Minecraft local-world activity, customer
+Its transitive prerequisites retain public Minecraft surface identity, customer
 reboot, the UI22 observer, distinct single-use login challenges, guarded TIME03
 intervals and public Parent allowance preparation.
 
 ## Implementation
 
-Compose the separately qualified Lunar/tray and Minecraft observations with
-UI22 and the existing login/reboot recorder. Arm before child login submission,
+Compose 296f's newly qualified login observer with the separately qualified
+Lunar/tray and Minecraft observations and existing login/reboot recorder. Arm before child login submission,
 preserve secret sealing, and observe tray, Lunar and game surfaces until 90 seconds
 after desktop readiness. Qualify reattachment before the first possible surface;
 no blind interval or final-window-only absence claim is acceptable. Reuse the
@@ -45,11 +46,12 @@ retained regressions. Reuse 296f's unchanged allowed-autostart qualification;
 repeat that live branch only when shared changes affect it. Its evidence supplies
 no saved VM state. This slice does not register or pass complete case 253.
 
-Implement and register the following fixed qualification in the existing guarded
-envelope before invoking it. Pass the affected cleanup/ownership regressions in
-isolation first. Use the shared watch observation and intention transport.
-Require independent valid entry, wrong-entry refusal, sanitized results and owned
-cleanup; host tests alone do not close this row.
+Exercise new denied-interval/incomplete-sample/reattachment refusal in focused
+harness coverage. Reuse unchanged credential-recipient, allowed observer,
+Lunar/tray and Minecraft-entry qualification; do not add local-world play or
+repeat their full histories solely to qualify this negative observation.
+
+Implement and register the following planned fixed qualification before use:
 
 ```sh
 tools/run-tests integration check_e2e_lunar_login_observer

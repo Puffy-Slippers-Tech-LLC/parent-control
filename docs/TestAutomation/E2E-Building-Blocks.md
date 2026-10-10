@@ -2122,7 +2122,7 @@ the complete command-help case owns one final public desktop result.
 | FILE04 | C | Open the file manager directly at a declared directory only when the case explicitly tests that app launch route. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands; product attachment/export handoffs use FILE03's actual chooser without a separate Files window. | pending |
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text and diagnostic Save destination bindings ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP and named Parent diagnostic-export bindings ready; retained-work and other exported artifacts pending |
-| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending |
+| FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change) runs as Jamie for standard/single attachment inputs. It does not open/save a child document. Task [196a](E2E-Tasks/196a-child-saved-work.md) separately qualifies child-owned FILE08/09 Save/reopen and APP03/04 work observations before E2E-050/051. UI16/public Save/readback only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding planned in 196a |
 | APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's exact Allowed fixture grid route under [native fixture preparation](#native-fixture-preparation). `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active child desktop user over guarded SSH, with independent APP02 window readback. Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. | native Allowed grid/command ready; other bindings pending |
 | APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`. UI01 → UI03 for presence; FILE06 for command denial; UI11 for hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. | native Allowed presence/normal closure ready; denial, hidden and other bindings pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. | native primary draft submission ready; other actions/bindings pending |
@@ -2600,6 +2600,14 @@ routes remain separate consumers.
 
 ### Time and ordinary lifecycle boundaries
 
+LIFE04/05's current `PackageCommand.read_result` requires the final reboot
+notice for its installed upgrade bindings. Tasks 135a/135/137 must implement
+their finite no-action/process/session notice and independent completion
+projections before qualification; the checked genuine-upgrade history supplies
+the unchanged package envelope, not those new notice branches. Reuse one real
+transaction per declared binding and retain each complete case's persistence
+and enforcement results.
+
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
 | TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; new customer time/session bindings need qualification, local visibility is UI scope |
@@ -3009,11 +3017,29 @@ These blocks supply the named new consumers in the
 [scenario recipes](E2E-Scenario-Recipes.md). All are pending; a documented
 binding does not extend an existing callable's qualified scope.
 
+The planned request-report branches of FEED15–18 need shared API projections
+for their actual surface and terminal result. `parent_reports.report_review`
+and `onpc_feedback_privacy::review_privacy` are Parent-bound; reuse their
+mechanics without replaying Parent entry/draft histories in every request
+consumer. `AccessibleUI.feedback_snapshot` rejects failed collection, visible
+Retry/Send without logs and busy controls; `wait_feedback_collection` waits
+for ready diagnostics/Download. Add explicit failed, sending/retry and success
+projections before describing those branches as callable. A persistent failed
+result needs independent capture before recovery, not a pre-entry trace.
+
+FEED17/18 additionally have a contract/source gap: the shared product
+`FeedbackDialog._hide_draft` currently performs the documented direct Stop
+action for a busy error report, with no warning/stay-open response. Preserve the
+pending case assertions and resolve that declared branch against the product
+contract before implementation; neither direct Stop nor a synthetic confirmation
+qualifies staying open. This gap affects tasks 190a/190b/190o/190k and cases
+218/219, without changing sending authorization or no-replay guards.
+
 | ID | Kind | Block and explicit contract | Callees / first consumer | Status |
 | --- | --- | --- | --- | --- |
 | AUTH04 | A | Validate authority and protected-account restrictions for shared fixture account operations. No Users-settings password prompt. | Owned fixture/SSH boundary; product approval challenges remain AUTH01/02. | pending |
 | ACCOUNT01 | A | Read the declared fixture account/role set through public system account interfaces over guarded SSH. | Shared account-fixture library with bounded nonsecret output. Preparation metadata only; app account lists supply customer assertions. | pending |
-| ACCOUNT02 | C | Add/remove/change the role of a registered spare fixture account through shared system commands or AccountsService and read back the change. | Reuse `account_fixture` infrastructure; protect active/last administrator and station, registered secrets and owned cleanup. Independently observe Parent/request-selector refresh. No GNOME Users wizard. | pending |
+| ACCOUNT02 | C | Add/remove/change the role of a registered spare fixture account through shared system commands or AccountsService and read back the change. | Reuse `account_fixture` infrastructure; protect active/last administrator, baseline accounts and station, registered secrets and owned cleanup. Independently observe Parent/request-selector refresh. Tasks 184/184b/184c must implement their finite spare registry, removal and role operations; today's fixed standard-child creation supplies neither a spare administrator nor a spare-only eligible-child profile. Cases 180/181 need safe independent disposable-child profiles before composition, not deletion of protected baseline children. No GNOME Users wizard. | pending |
 | PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | Shared `child-panel` client `getValue`; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-022 cases 118/120 own persistence and isolation; E2E-008 case 22 owns locking with animation enabled. | pending |
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | UI17 on `child-countdown-animation-toggle`, independent PANEL01 readback and DESK01; no popup or Escape dependency. | pending |
 | PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | UI01 → UI03 through the shared panel API; local obligation 181h retains text/function assertions. | pending UI coverage |
@@ -3030,6 +3056,32 @@ binding does not extend an existing callable's qualified scope.
 These fragments do not own fixture provisioning, attempt startup or cleanup.
 Arguments include expected results and the exact accounts/apps/choices. No
 fragment skips an unsuccessful step or resumes a previous attempt.
+
+`request_flow.prepared_request`, `overlay_approved_request`,
+`kiosk_approved_flow.approved_request` / `obtain_time` and
+`onpc_request_flow::prepare` / `approve` currently bind Riley/Jamie,
+75 seconds and soft apps included. FLOW13 and FLOW20's other finite inputs are
+planned extensions of those shared APIs, not ready merely because the block
+exists. Tasks 065a/065/132 and 197/197a/197k own the named profile/approval
+bindings; cases retain their own elapsed-time, app-effect and lifecycle results.
+Qualify changed parameter/result branches with representative independent
+entries and focused safety coverage rather than repeating unchanged approval,
+rejection, Cancel and exit histories in each consumer.
+
+FLOW20 must carry explicit Riley/Jordan identity, eligible Jamie/Sam approver,
+bounded duration and soft-choice arguments through prompt, automatic result,
+activity and countdown observations. Later recipes own their exact finite
+values; representative independent qualifications do not require a Cartesian
+choice matrix. FLOW11's separately qualified recovery history is unnecessary
+when a recipe already composes TIME04, retained FLOW20 and its own earlier
+activity comparisons.
+
+FLOW17 has no shared callable or fixed qualification selector yet. Extend the
+declared request prompt, session command/API and request-surface operations for
+each selected interruption. Lock/switch reuse successful retained-child entry;
+sign-out uses fresh entry; app-close uses its own normal modal/busy-gated route,
+not Parent LIFE01. A cancelled/denied request consumes no successful-request
+cooldown, so interruption qualification needs no artificial TIME03 delay.
 
 | ID | Kind | Block and explicit contract | Callees, in order | Status |
 | --- | --- | --- | --- | --- |
@@ -3639,8 +3691,25 @@ or complete-scenario result is supplied.
 FIX06's finite native declaration is [native_assets.py](../../tests/fixtures/native_assets.py).
 A/H/S/N are later policy roles; preparation leaves every launcher Allowed.
 The shared [builder](../../tests/fixtures/build_test_applications.py) compiles
-distinct retained role identities while preserving the GUI's native kind.
+distinct executable contents for enforcement while preserving the GUI's native kind.
 The four executables share adjacent `onpc-test-gui.py` and `gtk_automation.py`.
+Their GUI currently defaults every native role to the same primary application
+and control IDs. Concurrent A/S work therefore needs a finite role-scoped public
+projection or declared collision-free instance binding before enforcement cases;
+distinct executable bytes alone do not identify their public windows. APP04's
+current reader is primary-only and needs its named instance extension before
+secondary-window consumers. Snap/Flatpak builders likewise have one package/app
+identity each; tasks 109p/116p must supply their declared A/H/S profiles.
+
+Riley's same-target grid launcher is planned in [047g](E2E-Tasks/047g-riley-native-grid.md).
+Two distinct launchers sharing one target are the separate planned
+[229a native profile](E2E-Tasks/229a-shared-target-launchers.md) for case 187;
+the four baseline executables below do not supply that alias.
+The narrow version-pattern case 189 also needs 035b's finite safe-directory
+profile: space-bearing ELF nonmatches in the existing directory can reject the
+save under the [application matching contract](../SystemDesign/Applications.md).
+Preserve the separate unsafe-pattern rejection result rather than interpreting
+that rejection as successful pattern preparation.
 
 | Role | Desktop ID suffix (`com.puffyslippers.ONPCTest.`) | Executable below `/opt/onpc-test-fixtures/Applications` | Visible name | Description | Default match |
 | --- | --- | --- | --- | --- | --- |
@@ -4103,8 +4172,12 @@ order and prerequisites remain in the queue. Apply the
 inside explicit adapters. Ownership, complete absence observations, ambiguity
 refusal and independent results remain mandatory.
 
-Task 296b reuses UI22's qualified observer lifecycle and the existing reboot/session recorder: arm
-the public observation before child login submission, preserve secret filtering,
+Task 296f must first qualify continuous external-app observation and reattachment
+across login. UI22's current `observed_text` / `start_trace` / `poll_trace` /
+`finish_trace` binding observes Parent feedback, not a Lunar login interval.
+Reuse its lifecycle/ownership principles and the existing reboot/session recorder,
+but keep the missing public projection explicitly planned. Task 296b consumes
+that new binding: arm the public observation before child login submission, preserve secret filtering,
 and observe the login transition through **90 seconds after desktop readiness**.
 Qualify observer reattachment before any possible Lunar surface; a blind login
 interval cannot pass. APP06 observations must cover both tray and app/game

@@ -15,16 +15,22 @@ Read the [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces)
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **188p** — FEED09 Parent collection failure and usable controls; gate in brief.
+- **031a** — Parent's completed diagnostic-collection result after recovery.
 
 ## Implementation
 
 Compose FEED16 from the independently supplied failed-collection observation, one normal Retry collection input, FEED09 ready-state readback and FEED03/UI12 draft comparison. Reuse the qualified Parent entry and failure projections.
 
+Extend `feedback_collection.PLAN`, `AccessibleUI.wait_feedback_collection`
+and the shared feedback API operation with `feedback-retry-logs`.
+The failed-before-ready composition and its selector are planned; reuse the
+unchanged ready-state observation without rerunning its two-entry history.
+
 ## Live VM acceptance
 
 In a fresh live attempt, reproduce the qualified Parent collection failure, enter a synthetic draft, restore the declared public prerequisite and select Retry once. Require completed collection and the unchanged draft, then close normally. An already-ready draft cannot stand in for failure-before-recovery.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_parent_collection_retry

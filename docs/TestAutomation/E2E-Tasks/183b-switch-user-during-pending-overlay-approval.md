@@ -14,19 +14,24 @@ Use the shared system-session helper for this lock, switch-user or logout action
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
+- **048d** — Real overlay prompt and automatic successful approval/return.
+- **043c** — Intended retained child's successful GDM reauthentication.
 
 ## Implementation
 
 Compose only the overlay Switch User branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use the shared DESK03 lock/greeter command to switch users, observe GDM and return to the same retained child desktop. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
+Extend `request_flow.overlay_authentication`, `journey_blocks.desktop_entry`
+and `onpc_desktop_session::enter_desktop` for this pending-prompt composition;
+FLOW17 is unimplemented. Reuse their recipient/session guards and unchanged
+retained-entry qualification, adding only transition/result and focused refusal
+coverage for the new binding.
+
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
+On the VM, publicly prepare usable time, capture choices/balances, start approval and switch while authentication is pending. Observe GDM and the retained return, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_switch_user_during_pending_overlay_approval

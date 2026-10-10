@@ -14,19 +14,24 @@ Use the shared system-session helper for this lock, switch-user or logout action
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
+- **048d** — Real overlay prompt and automatic successful approval/return.
+- **003d** — Bound user's normal logout and independent ended-session/GDM result.
 
 ## Implementation
 
 Compose only the overlay sign-out branch with an already observed real AUTH01 prompt and explicit pre-request choices/balances. Use DESK04's shared `gnome-session-quit --logout --no-prompt` command, independently observe ended-session/GDM entry, then perform a fresh child login. Do not claim old-window continuity. Read REQUEST03 and require the old prompt absent; a later request must authenticate afresh.
 
+Extend `request_flow.overlay_authentication`, `session_control.execute` and
+`journey_blocks.desktop_entry` / `onpc_desktop_session::enter_desktop` for this
+pending-prompt composition. FLOW17 is unimplemented; preserve command/source
+identity, fresh-login recipient and no-replay guards. Retained-child visits and
+the unchanged approval/refusal histories are not this slice's qualification.
+
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
+On the VM, publicly prepare usable time, capture choices/balances, start approval and log out while authentication is pending. Observe ended-session/GDM and fresh return, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_sign_out_during_pending_overlay_approval

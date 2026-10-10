@@ -25,11 +25,16 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Extend 052d's TIME02 sampling with final-second progression, using TIME01, guarded TIME03 intervals and explicit UI12 elapsed-time comparisons. Declare public precision and tolerances before execution. Read the supported countdown format as needed to compare time; a separate formatting matrix remains in child UI coverage. Keep elapsed time distinct from an enforcement result.
 
+Use 052d's new immutable sample-comparison operation with exact final seconds;
+`CountdownObservation` and the existing `check_countdown_balance` alone do not
+implement this progression. Bind the transition/sample schedule in the fixed
+qualification, preserving the original allowance/deadline if a window is missed.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt, publicly establish short daily-only time, enter the child and independently compare successive final-second values with real measured intervals. Include a minute-precision sample only when needed to establish the transition into the new branch. Require the declared sample order and tolerances, independent valid entry and stale/reversed/wrong-owner sample refusal. Reuse 052d's unchanged exact minute-progression qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. No guest clock adjustment or usage probe is allowed.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_countdown_ticks

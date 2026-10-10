@@ -41,7 +41,7 @@ state: qualify the new policy composition in a fresh guarded attempt with
 independent valid entry and wrong-fixture/owner refusal. Missing supported assets
 or independent public policy observations block the affected consumer.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_snap

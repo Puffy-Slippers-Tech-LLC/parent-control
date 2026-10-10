@@ -24,15 +24,23 @@ Extend the shared account-fixture helper to create the registered disposable sta
 
 ## Live VM acceptance
 
-Create the registered spare in a fresh owned attempt and independently verify its role. Wrong identity, collision, unauthorized source and replay refuse without changing protected accounts. Require cleanup. Retain this preparation for the remaining account-removal and role-change consumers. Completed [case 3](../E2E-Building-Blocks.md#parent-discovery-block-contracts) owns live discovery, selection and settings checks with Parent open; system readback cannot pass that app assertion.
+Create the registered spare in a fresh owned attempt and independently verify
+its role. Focused harness checks cover wrong identity, collision, unauthorized
+source and replay before command submission, with discovery unavailable and no
+protected-account mutation. Require cleanup. Reuse this operation for later
+consumers; no account state survives between their attempts. Completed
+[case 3](../E2E-Building-Blocks.md#parent-discovery-block-contracts) owns live
+discovery, selection and settings checks with Parent open; system readback cannot
+pass that app assertion.
+
+Source gap: `DynamicAccountFixture.create` delegates a fixed standard-account
+creation to `e2e_dynamic_account.create`; it exposes no general registered
+read/create/remove/role operation. Extend those shared owners with the declared
+spare registry and independently observed result, preserving their single-use
+run/transport guards. Do not describe the later remove/role selectors as ready.
 
 Implement and register this planned fixed qualification and its cleanup coverage before invoking it:
 
 ```sh
 tools/run-tests integration check_e2e_create_disposable_child
 ```
-
-Use the shared watch intent, display and guarded command transport. Pass
-applicable cleanup/ownership checks in isolation first. Require independent
-result readback, sanitized evidence and owned cleanup. Host tests alone do not
-qualify a live route or complete a customer scenario.

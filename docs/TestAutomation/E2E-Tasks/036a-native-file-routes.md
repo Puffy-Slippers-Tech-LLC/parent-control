@@ -35,7 +35,7 @@ Its evidence supplies no saved VM state: use a fresh guarded attempt for the new
 policy-result composition, independent valid entry and wrong-file/owner refusal.
 No alternative launch route substitutes for the tested Files action.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_file_routes

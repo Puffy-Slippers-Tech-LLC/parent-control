@@ -19,10 +19,11 @@ shared overlay operation, then independently read that exact saved row in
 Riley's kiosk Preferences. Save a station edit to 75 seconds and independently
 require that value through Riley's overlay. Record Jordan's list/language and
 require them unchanged after selecting Jordan then returning to Riley. Changing
-approver Jamie → Casey → Jamie must retain Riley's list and language. Keep
+approver Jamie → Casey must retain Riley's list and language. Keep
 request choices and public time/policy unchanged apart from elapsed time.
-Qualify a second independent station entry and wrong-child/owner/surface,
-ambiguous stored-ID and stale selected-child revision refusals. Do not repeat
+Use the required station saved-value reopen as independent entry. Focused
+harness checks cover wrong-child/owner/surface, ambiguous stored-ID and stale
+selected-child revision refusal; runtime guards remain mandatory. Do not repeat
 312a's editor matrix or task 312's reboot history.
 
 ## Shared implementation
@@ -44,4 +45,5 @@ substitute for public readback.
 Planned fixed selector: `check_e2e_kiosk_reminder_binding`; unregistered and
 unqualified. Register before invoking
 `tools/run-tests integration check_e2e_kiosk_reminder_binding`.
-Retain affected selected-child language and overlay reminder qualifications.
+Reuse unchanged selected-child language and overlay reminder qualification;
+rerun only affected bindings if the shared route or guard changes.

@@ -38,7 +38,7 @@ Use the guarded VM/watch path to verify an independently prepared valid profile
 after normal restore and refusal of missing, drifted or wrong-account inputs.
 Supporting setup checks are engineering evidence, not a blocked-launch pass.
 Run affected host safety/unit checks first; keep public app/secret observations
-for tasks 296, 296a and 296b. Implement and register the fixed qualification in
+for tasks 296, 296a and 296b. Implement and register the planned fixed qualification in
 the existing guarded envelope before invocation:
 
 ```sh

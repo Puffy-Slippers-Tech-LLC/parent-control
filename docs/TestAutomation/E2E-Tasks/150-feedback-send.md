@@ -26,11 +26,22 @@ Compose FEED03/Privacy observations, one Send, FEED09 sending/success and FEED14
 dismissal. Qualify these result projections through the supported real service
 and dedicated recipient. Do not expand content, recipient or submission counts.
 
+Source gap: `AccessibleUI.feedback_snapshot` / `feedback_state_operation` read
+editable, idle drafts and do not implement sending, retry or success-dialog
+projections. Add the finite public submission/readback operations to the shared
+facade and observation registration; do not reuse an idle snapshot as success.
+Bind `feedback-send` once, `feedback-status`, and the owned
+`feedback-success-dialog`, `feedback-success-text` and `feedback-success-close`.
+The actual `_send` → `feedback_transport.submit` → `_submission_done` /
+`_success_closed` handlers in `common/oh_no_parent_control_ui/feedback.py` own
+submission, clearing and exit. Runtime authorization and uncertain-input guards
+remain in the shared operation; unchanged draft/chooser qualifications are reused.
+
 ## Live VM acceptance
 
 With authorized service configuration, submit once on the VM, observe the actual app response, dismiss confirmation and reopen feedback to observe clearing. No provider receipt probe or automatic repeat send. Planning is not sending authorization.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_feedback_send

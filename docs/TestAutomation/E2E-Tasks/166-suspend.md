@@ -27,9 +27,19 @@ Reuse 166a's shared LIFE03 suspend/wake route and add the post-deadline result. 
 
 ## Live VM acceptance
 
-In a fresh guarded VM attempt, use FLOW13 to prepare a real active grant with zero daily allowance. Suspend normally and wake through the qualified supported input after that grant's real elapsed deadline. Independently observe the actual return/lock surface and use DESK08's corresponding result branch to require specific time-limit denial with no desktop access. Qualify this post-suspend result, independent valid entry, wrong-owner refusal and retained-session continuity; configured-zero denial evidence alone does not qualify natural post-suspend expiry. Reuse 166a's unchanged exact pre-deadline wake/successful-access qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Suspended daily usage alone cannot prepare elapsed-time denial.
+In a fresh guarded VM attempt, use FLOW13 to prepare a real active grant with
+zero daily allowance. Suspend normally and wake through the qualified supported
+input after that grant's real elapsed deadline. Independently observe the actual
+return/lock surface and use DESK08's corresponding result branch to require
+specific time-limit denial with no desktop access. Qualify this new post-suspend
+result and retained-session continuity; configured-zero denial cannot qualify it.
+Reuse 166a's unchanged pre-deadline and entry-safety qualification, rerunning only
+affected branches if shared code changes. Cover new post-deadline refusal logic
+in focused harness checks; its live attempt retains every current identity and
+recipient guard. Evidence supplies no saved VM state. Suspended daily usage
+alone cannot prepare elapsed-time denial.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_suspend

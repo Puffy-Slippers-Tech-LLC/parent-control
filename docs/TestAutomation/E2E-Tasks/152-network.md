@@ -26,6 +26,13 @@ preserving the normal retry window and observation transport. Network setup is
 already owned by 193a/193; do not choose another guest connection, networking
 backend or management path here. No transport fault injection or forged response.
 
+`offline_controls.offline_controls` composes synchronous control inputs and
+saved-state observations; its fixed loop does not bind a pending submission's
+background retry. Reuse `vm_internet.InternetIsolation.enter` / context-managed
+`restore` directly in the shared retry operation, keeping one isolation lifetime
+and one submission. Add only FEED09's public retry/success projections and their
+new composition; reuse unchanged LIFE06 online/offline/ownership/cleanup evidence.
+
 ## Live VM acceptance
 
 In the authorized live retry attempt, remove Internet access through LIFE06,
@@ -35,7 +42,7 @@ operations from the existing test-control channel while keeping the current
 app/session surface. If the qualified helper loses control or observation,
 report that infrastructure failure; do not improvise another network route.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_network

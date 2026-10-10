@@ -5,7 +5,6 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300j** — Kiosk selected-child language ownership and approver independence.
-- **307a** — Shared installed Hebrew presentation observation contract.
 
 Estimate: 20–30 minutes.
 
@@ -34,6 +33,13 @@ this binding requires no report reopening or draft-retention qualification.
 Reuse selected-child language, approver-selection and language-aware REQUEST04
 operations in [accessible_ui.py](../../../tests/e2e/accessible_ui.py).
 Qualify the station ownership binding separately from the child overlay.
+
+Reuse `AccessibleUI.language_history_request` and the 300j station
+selected-child/approver operations, extending only the English → Hebrew → English
+fixed-history observation and immutable request comparisons. Parent-only 307a
+qualification is not a station prerequisite. Reuse the station's unchanged
+restriction guards; do not repeat shortcut/file/link restriction tours merely
+to observe translated request text.
 
 ## Implementation entry
 

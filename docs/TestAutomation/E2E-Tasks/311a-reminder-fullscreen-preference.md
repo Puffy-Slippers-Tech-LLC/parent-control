@@ -18,8 +18,10 @@ With a nonempty loaded reminder list, save false and independently reopen to
 require false; save true and independently require true. Cancel one false draft
 and require the saved true value unchanged. Compare exact reminder records,
 language, request choices and public time/policy before/after, with elapsed-time
-bounds. Repeat independent entry and refuse wrong-child/surface, stale,
-ambiguous, loading, busy and empty-list disabled controls before input.
+bounds. The necessary saved-value reopen supplies independent entry. Cover
+wrong-child/surface, stale, ambiguous, loading, busy and empty-list disabled
+control refusals in focused harness checks before discovery/input; preserve
+those shared runtime guards without repeating the editor's qualification matrix.
 Notification delivery and fullscreen suppression are separate qualifications;
 a saved boolean supplies no delivery acceptance.
 
@@ -42,4 +44,5 @@ than adding a new product preference or private storage route.
 Planned fixed selector: `check_e2e_reminder_fullscreen_preference`; unregistered
 and unqualified. Register before invoking
 `tools/run-tests integration check_e2e_reminder_fullscreen_preference`.
-Retain affected reminder Save/Cancel and overlay-language qualifications.
+Reuse unchanged reminder Save/Cancel and overlay-language qualification; rerun
+only the affected branches if shared operations change.

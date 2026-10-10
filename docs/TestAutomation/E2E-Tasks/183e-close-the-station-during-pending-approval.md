@@ -14,11 +14,8 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **020** — AUTH02 and REQUEST11/12 kiosk approval/rejection/cancel and both approved exits.
-- **014** — FLOW04 kiosk.
+- **021a** — Prepared kiosk request, real prompt and automatic successful approval/return.
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **052c** — TIME03.
 
 ## Implementation
 
@@ -29,11 +26,16 @@ its normal busy/modal refusal, observe GDM, then re-enter the station. Cancel
 on the agent is not this route. Read REQUEST03 through the same API facade and
 require the old external prompt absent; a later request must authenticate afresh.
 
+Extend `kiosk_approved_flow.approved_request`, `onpc_gdm::enter_station` and
+the shared API surface-close operation; FLOW17 has no callable yet. Reuse the
+qualified prompt/automatic approval leaves. Neither retained-child visits nor
+rejection, Cancel or immediate-success exit is exercised by this composition.
+
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
+On the VM, publicly prepare usable time, capture choices/balances, start approval and close the station through the declared public route while authentication is pending. Observe GDM and normal re-entry, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_close_the_station_during_pending_approval

@@ -44,11 +44,12 @@ otherwise request it as the final prerequisite and keep this task current. Do no
 send here. After authorization is recorded, later tasks reuse it without renewed
 permission unless the reviewed content, recipient or submission scope changes.
 
-Implement and register the following fixed qualification in the existing guarded
-envelope before invoking it. Pass the affected cleanup/ownership regressions in
-isolation first. Use the shared watch observation and intention transport.
-Require independent valid entry, wrong-entry refusal, sanitized results and owned
-cleanup; host tests alone do not close this row.
+Qualify only the new reviewed profile's body/reply/attachment/Privacy projection
+and authorization binding. Reuse unchanged FEED05/06/07 draft and chooser
+qualification; do not repeat their formatting, file-selection, wrong-provider
+or collection histories. Cover invalid profile/authorization/owner refusal in
+focused harness checks before UI discovery or any Send-capable action. The
+fixed selector below is planned and currently unregistered.
 
 ```sh
 tools/run-tests integration check_e2e_feedback_profile

@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **079d** under the
 
 ## Scope and prerequisites
 
-Deliver **APP02 and FLOW08 native grid/command policy results**. First scheduled consumer: [E2E-006, case 13](../E2E-Scenario-Recipes.md#e2e-005).
+Deliver **APP02 and FLOW08 native grid/command policy results**. First scheduled consumer: [E2E-006, case 13](../E2E-Scenario-Recipes.md#e2e-006).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -26,11 +26,17 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse 079d's native grid/command usable, hidden-launcher and explicit-denial projections. Add the prior-window-closure result to APP02/FLOW08. A hidden grid entry retains its separately declared command attempt to prove denied execution. APP03 runs only for usable access.
 
+Extend `InstalledJourney.check_activity` / `AppActivityObservation` with the
+declared earlier-window closure comparison and compose `AccessibleUI.native_app_closed`
+after the Parent mutation. Its existing complete-absence observer does not alone
+prove closure of the caller's captured activity. Keep the unaffected target's
+independent usable result; do not repeat 079d's unchanged no-prior-window matrix.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt, open a native activity permissively and capture its public window. Save each declared Hard and Soft block with no soft exception in Parent, return normally and require that earlier window's closure and a denied new launch, plus an unaffected Allowed target. Qualify independent valid entry and wrong-activity/owner refusal. Reapplying a block cannot be hidden by relaunching the old activity. Reuse 079d's unchanged exact no-prior-window launch-result qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_observe_native_policy_denial_and_existing_window_closure

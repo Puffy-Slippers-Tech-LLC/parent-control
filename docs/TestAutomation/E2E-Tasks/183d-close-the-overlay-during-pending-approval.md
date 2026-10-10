@@ -14,10 +14,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **028** — LIFE01.
-- **052c** — TIME03.
+- **048d** — Real overlay prompt and automatic successful approval/return.
 
 ## Implementation
 
@@ -29,11 +26,17 @@ command. Cancel on the agent is not this route. Read REQUEST03 through the same
 API facade and require the old external prompt absent; a later request must
 authenticate afresh.
 
+Extend `request_flow.overlay_authentication`, `onpc_request_flow::overlay_entry`
+and the shared API surface-close operation; FLOW17 has no callable yet. Parent
+LIFE01 restarts and retained-account visits do not implement this overlay route.
+Keep busy/modal refusal as the applicability gate and add focused new-binding
+safety coverage instead of repeating unchanged authentication histories.
+
 ## Live VM acceptance
 
-On the VM, publicly prepare usable time, capture choices/balances, start approval and perform the declared action while authentication is pending. Observe the destination and return, inspect cancellation and original balances before another request, then require a new prompt. Use TIME03 only for the actual cooldown.
+On the VM, publicly prepare usable time, capture choices/balances, start approval and close the overlay through the declared public route while authentication is pending. Observe disappearance and normal reopening, inspect cancellation and original balances before another request, then require fresh authentication and its successful time result. Cancellation consumes no cooldown; add no fixed wait.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_close_the_overlay_during_pending_approval

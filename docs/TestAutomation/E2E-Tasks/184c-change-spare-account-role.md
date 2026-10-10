@@ -23,6 +23,13 @@ Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 Change only the registered spare approver's role using the shared supported system-command/API route. Retain the active Jamie administrator and independently read the resulting role. No Users selector or Unlock prompt.
 
+Source gap: task 184's standard-child creation does not prepare a spare
+administrator. Add the finite registered Sam-approver preparation to the shared
+account fixture before qualification, including independent role readback and
+owned cleanup. Refuse borrowing the active/last administrator or changing a
+baseline account. If that preparation cannot fit this slice, extract it ahead
+of this task; do not silently assume Sam already exists after restore.
+
 ## Live VM acceptance
 
 Read the spare Sam role, change administrator to standard once and verify the result and retained Jamie administrator. Protected/wrong-account/ambiguous requests must refuse before mutation. The complete consumer must observe request-selector eligibility/fallback through the app.
@@ -32,8 +39,3 @@ Implement and register this planned fixed qualification and its cleanup coverage
 ```sh
 tools/run-tests integration check_e2e_change_spare_account_role
 ```
-
-Use the shared watch intent, display and guarded command transport. Pass
-applicable cleanup/ownership checks in isolation first. Require independent
-result readback, sanitized evidence and owned cleanup. Host tests alone do not
-qualify a live route or complete a customer scenario.

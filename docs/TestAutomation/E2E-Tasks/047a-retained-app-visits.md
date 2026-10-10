@@ -23,6 +23,16 @@ Switch User sequence. Carry the prior observations and current surface; do not
 replace an existing desktop or relaunch an app to satisfy continuity.
 Same-child multiple desktops retain their separate gate.
 
+Implement the missing FLOW09/FLOW14 shared declaration/worker using
+`journey_blocks.desktop_entry`, `native_activity_entry`, `native_activity_resume`
+and `InstalledJourney.check_activity`. Current fixture activity is a finite
+native-primary submitted draft; add only the declared user's binding needed by
+case 25: the foreground Parent as well as the existing child roles. Current
+`native_activity_entry` / `native_activity_resume` accept only the two child
+roles; explicitly extend the Parent identity/result path before advertising
+FLOW14's Parent branch. Retained entry consumes the existing session/activity ledger, never the
+complete 044 qualifier or its denial/lock branches.
+
 ## Live VM acceptance
 
 On the installed VM, prepare and capture recognizable activities for the child
@@ -32,7 +42,7 @@ usable. FLOW14 starts and ends at GDM; FLOW09 ends at the named usable activity.
 Independent retained entry must work; a missing prior observation or wrong
 entry mode refuses without recreating state.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_retained_app_visits

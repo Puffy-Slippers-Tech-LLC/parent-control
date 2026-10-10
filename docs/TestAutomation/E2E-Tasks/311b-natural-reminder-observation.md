@@ -22,9 +22,11 @@ threshold. Independently observe the owned ChildUI notification's exact literal
 body, `critical` urgency and the canonical seconds required by the API contract,
 using elapsed bounds. Bind the saved row's trigger independently from the public
 list. Require no delivery before crossing; naturally exhaust access and require
-the owned warning absent on the resulting lock. Repeat independent entry and
-refuse wrong account/endpoint, missing or ambiguous surfaces, stale delivery and
-hidden/locked input. This slice supplies no fullscreen or translated-default
+the owned warning absent on the resulting lock. Qualify independent natural
+delivery entry. Focused harness checks cover wrong account/endpoint, missing or
+ambiguous surfaces, stale delivery and hidden/locked input; live observation
+retains current ownership/lifetime guards without another settings/provider
+qualification history. This slice supplies no fullscreen or translated-default
 acceptance; task 311 owns those complete outcomes.
 
 ## Shared implementation and gate
@@ -55,4 +57,5 @@ delivery and broker calls as UI input supply no acceptance.
 Planned fixed selector: `check_e2e_natural_reminder_observation`; unregistered and
 unqualified. Register before invoking
 `tools/run-tests integration check_e2e_natural_reminder_observation`.
-Retain affected countdown, reminder settings and natural-expiry qualifications.
+Reuse unchanged countdown, reminder settings and natural-expiry qualification;
+rerun only branches affected by the new public observation or guard.

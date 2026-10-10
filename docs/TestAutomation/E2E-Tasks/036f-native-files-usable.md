@@ -23,11 +23,20 @@ the existing location adapter if needed; no folder browsing, copy operation,
 Properties dialog or view customization belongs to this launch check. Reuse
 owned app observations and one normal usability input.
 
+FILE04/FILE07's Files activation adapter is pending, not supplied by 047.
+Add that bounded exact-directory/file adapter and its supported second-instance
+entry in this slice. `FixtureUI(kind='native', instance='secondary')` can name
+the fixture, but `AccessibleUI.native_launch_command/native_app_snapshot` and
+`journey_blocks.native_usable_app` currently bind primary only. Extend the shared
+result/activity operation rather than copying it into this provider adapter.
+The second window proves a new launch while preserving work for case 236;
+ordinary case 74 consumes only the first-launch/use branch.
+
 ## Live VM acceptance
 
 Launch from Files, observe a normal action's effect, then open a distinguishable second window beside the first. Independently compare the original activity; wrong file or a reused first window refuses.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_files_usable

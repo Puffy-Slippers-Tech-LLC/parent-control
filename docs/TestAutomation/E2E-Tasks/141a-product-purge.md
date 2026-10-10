@@ -29,7 +29,7 @@ mechanical tests.
 
 In a fresh live attempt, make one public setting nondefault, purge through the shared administrator SSH package helper and follow its actual activation notice. Enter an ordinary child desktop and use the fixture app. Reinstall, follow activation and read the visible fresh default before editing. Require package cleanup checks and owned cleanup; the uninterrupted retained-settings journey remains case 139.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_product_purge

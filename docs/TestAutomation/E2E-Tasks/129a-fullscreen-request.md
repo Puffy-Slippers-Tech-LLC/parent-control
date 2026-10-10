@@ -19,11 +19,19 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Use REQUEST13's existing shared `child-panel` Application UI API operation to activate `child-request-button` while the real game remains fullscreen. This preserves the recipe's panel-entry integration without a Shell reveal, focus or presentation prerequisite under [product-focused journeys](../E2E-Execution-Contracts.md#product-focused-journeys). Bind the return to the same game via DESK10 and compare its earlier activity. Keep logical availability and target ownership guards in the shared API operation.
 
+`AccessibleUI.overlay_panel_target/overlay_panel_launch` supplies the existing
+panel operation, but currently calls `require_child_overlay_session()` with
+the default child binding. Carry the recipe's explicit child identity through
+this shared operation before adding its game consumer; do not infer identity
+from a visible panel. Reuse 048a's normal API Cancel and 129's fullscreen
+activity binding. Qualification adds only panel launch/Cancel/same-game return,
+not another expiry, approval or Shell reveal sequence.
+
 ## Live VM acceptance
 
 On the live VM, play fullscreen, capture activity and open the request overlay through REQUEST13's panel API operation. Read the intended fixed child, cancel through the qualified form control and return to the same usable fullscreen game activity. Repeat from an independent fullscreen entry and reject wrong-window proofs. Hidden panel presentation alone is no blocker; an unavailable or refused product operation or missing same-game return remains pending.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_fullscreen_request

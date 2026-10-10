@@ -15,17 +15,22 @@ Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-sur
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **187k** — REQUEST09 cooldown and FEED15 kiosk; gate in brief.
-- **031a** — FEED09 collection trace.
 
 ## Implementation
 
-Bind FEED09's unavailable/partial collection explanation and editing/Close controls on kiosk. Arm the public observer before entry. Reach the error report through the qualified public cooldown prefix and FEED15. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
+Bind FEED09's unavailable/partial collection explanation and editing/Close controls on kiosk. Reach the error report through the qualified public cooldown prefix and FEED15, then independently capture the terminal failed-collection state before editing. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
+
+Extend `AccessibleUI.feedback_snapshot` and `FeedbackStateObservation` for
+the station's failed-collection projection. Parent's ready/Download waiter is
+neither this result nor a station qualification. Retain wrong-surface/owner
+refusals; no successful Retry history or pre-entry trace is needed to observe
+the persistent failure before Send without logs.
 
 ## Live VM acceptance
 
-On the VM, observe collection actually fail on kiosk with its read-only trace already active. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
+On the VM, independently observe collection actually fail on kiosk. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_kiosk_collection_failure

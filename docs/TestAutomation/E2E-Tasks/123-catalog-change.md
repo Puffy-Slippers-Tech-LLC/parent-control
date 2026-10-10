@@ -20,11 +20,19 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Bind a verified old/new fixture package pair and extend LIFE04(update). Leave the real Edit Match Rule draft open while the package changes, then Save through the same owned editor's Application UI API operation. Package commands run over SSH, so no supporting window or desktop focus change is needed.
 
+`package_install.submit_install/submit_release` qualify product-package inputs;
+they do not register this fixture update. Bind the exact old/new fixture asset
+identities and one supported update command through the shared `PackageCommand`
+transport before qualification. The native baseline file layout is not itself
+an installable old/new fixture package. Preserve the open editor's public
+draft/owner through the command and reuse PARENT15's normal Save; do not add
+a new packaging framework or copy the completed product-upgrade history.
+
 ## Live VM acceptance
 
 On the VM, set a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper and Save from that still-open editor. Close/reopen Parent through LIFE01, reselect the child and independently read the refreshed public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_catalog_change

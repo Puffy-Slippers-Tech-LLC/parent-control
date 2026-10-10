@@ -20,9 +20,11 @@ Delete that row in a draft, Cancel main Preferences and independently require
 the saved record unchanged. Delete all rows, Save and independently require the
 empty saved list. Capture unchanged language, request choices and public
 time/policy, allowing only declared elapsed time; editing grants no access.
-Use a second independently entered Preferences session to qualify binding and
-refuse wrong-child/surface, missing or ambiguous IDs, busy/modal-blocked input
-and stale editor targets. Local duplicate/sorting/translation matrices remain
+Use the necessary saved-value reopen as independent Preferences entry; no extra
+unchanged open/close tour is needed. Focused harness checks cover
+wrong-child/surface, missing or ambiguous IDs, busy/modal-blocked input and stale
+editor targets before mutation; each live operation retains those guards.
+Local duplicate/sorting/translation matrices remain
 with [UI allocation](../UI-and-E2E-Coverage.md#duplicate-review-and-allocation).
 
 ## Shared implementation
@@ -46,4 +48,5 @@ no private preference/broker input or preview notification supplies acceptance.
 Planned fixed selector: `check_e2e_overlay_reminder_editing`; unregistered and
 unqualified. Register before invoking
 `tools/run-tests integration check_e2e_overlay_reminder_editing`.
-Retain affected overlay-language and request-preservation qualifications.
+Reuse unchanged overlay-language/request-preservation qualification. Rerun only
+affected checks and bindings if this new reminder operation changes shared code.

@@ -46,7 +46,7 @@ evidence from 036g/036h; rerun an affected binding when necessary. Qualify
 independently supplied desktop entry and wrong-target refusal. Another launcher
 cannot establish the desktop policy result.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_desktop_route

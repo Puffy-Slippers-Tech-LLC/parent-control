@@ -1243,7 +1243,7 @@ pending.
 1. P → LIFE06(disconnect) → FLOW16 → FLOW03(hard/soft/allowed).
 2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → FLOW08(allowed/soft usable,hard denied) → TIME02.
 3. DESK04(normal child logout) → request-entry(kiosk) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → C(fresh) → FLOW08(allowed/soft usable,hard denied) → TIME02.
-4. P → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → P → LIFE06(reconnect).
+4. P → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → LIFE06(reconnect).
 
 Use one child, one parent and one ordinary native app per rule. Set a fresh
 30-minute daily allowance and save the three app rules once while offline.
@@ -1258,6 +1258,11 @@ allowance keeps the final desktop usable after the single revocation, so prove
 soft-app closure/refused relaunch, retained allowed access and hard refusal
 before reconnecting. Internet remains unavailable throughout all product steps;
 test-control connectivity alone does not establish Internet access.
+Keep one shared Internet-isolation lifetime across both approvals, final
+revocation and all app results. The existing finite `offline_controls` qualifier
+restores Internet on exit and cannot be invoked as this complete history.
+LIFE06 can reconnect directly after the final child result; no Parent visit is
+needed just to run the shared system operation.
 
 ### E2E-044
 
@@ -1335,7 +1340,7 @@ removed from scheduling; case IDs 209–212 must not be reused. This keeps both
 recovery choices and station restrictions while accepting less coverage of
 screen-specific recovery problems.
 
-1. Arm the public-state observer before entry. Parent: P → FEED01; station: qualified public cooldown/error prefix → FEED15. Observe a genuine FEED09(failed collection); Internet loss alone is insufficient.
+1. Parent: P → FEED01; station: qualified public cooldown/error prefix → FEED15. Independently capture the genuine terminal FEED09(failed collection) before recovery or Send; Internet loss alone is insufficient. No pre-entry trace or observed collecting transient is required.
 2. UI02(edit/Close usable) → UI16(valid synthetic body) → FEED03(capture draft). Parent: restore the declared public prerequisite and FEED16(Retry once). Station: FEED05(in-app Privacy readable) and UI02(no Add files, log download, attachment shortcut or external Privacy link) → FEED11(action=Send without logs, once under the reviewed authorization).
 3. Parent: FEED09(ready) → FEED03/UI12(unchanged draft) → UI18(normal close), without Send. Station: FEED09(acceptance) → UI01(thanks; original report exit still pending) → FEED14(manual dismissal) → UI11(report) → GDM01(sign-in screen). Failed sending preserves the draft and is not success.
 
@@ -1461,6 +1466,12 @@ copies 249/250 must not be reused. Each case is one uninterrupted attempt
 with **two complete cycles**, retaining every row and intermediate result.
 Budget: 5400 seconds including setup and cleanup. Start with
 enough time before local midnight to finish. Never move the clock.
+
+Child-owned work uses [196a's planned FILE08/09 binding](E2E-Tasks/196a-child-saved-work.md),
+including Save/reopen and independent public activity. Checked 196 supplies
+attachment-source mutation only. Recovery composes TIME04, retained FLOW20 and
+the case's earlier work/game observations; it does not require another FLOW11
+qualification history.
 
 1. FLOW16(Jordan,on,0) → AppSet(W Always Allowed editor, S Soft Blocked real
    offline game, H Hard Blocked). Prepare Riley's unrestricted W activity with
@@ -1722,6 +1733,15 @@ time result and continued hard/soft denial, including the final recovery.
 Accounts in cases 180–182 are disposable spare accounts, prepared independently
 for each journey; case 180 shares its preparation across both screens.
 Shared account operations validate administrator authority through AUTH04.
+The ordinary two-child baseline is protected. Tasks 184/184b must first qualify
+the exact disposable-child profiles: two eligible registered spares for 180 and
+one for 181, with the same guarded Parent/station bindings. Recipe role names
+Jordan/Riley identify those disposable inputs, never permission to delete the
+baseline accounts. No current callable supplies these profiles. Keep them
+planned until preparation and independent public eligible-set readback are
+available; an engineering empty-list mutation cannot replace the journey.
+Task 184c separately needs the registered spare Sam administrator before its
+role change; retain Jamie and the last-administrator/station protections.
 Remove only logged-out spare children, retaining an administrator to finish the
 journey. For 180, Jordan and Riley are the only eligible children. Save Jordan's
 daily allowance as 30 minutes and Riley's as 15 minutes through Parent. Save
@@ -1798,6 +1818,20 @@ both cases stay pending until their exact public failure route is qualified,
 with recovery qualified for 208 and reviewed sending authorization for 213.
 Opening the report or seeing the final draft cannot stand in for observing
 failed collection, Retry, or explicit Send without logs.
+
+The current `AccessibleUI.feedback_snapshot` and `wait_feedback_collection`
+only accept ready diagnostics; the former rejects visible Retry/Send without
+logs and the latter requires available Download. Tasks 188p/188k must add a
+terminal failure projection, and 188r must compose failure → one Retry → ready
+with the unchanged draft. Keep the public-trigger gate; no trace qualification
+or internal fault substitutes for the failed result.
+
+FEED17/18's planned warning and stay-open branch is absent from the current
+`FeedbackDialog._hide_draft`: busy request reports stop directly. Preserve the
+declared cases 218/219 pending until their public branch and the
+[documented Stop action](../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export)
+are reconciled. Do not create an extra confirmation solely to satisfy stale
+choreography or treat direct stopping as acceptance of staying open.
 
 ### Natural calendar windows
 

@@ -22,9 +22,11 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **135a** — LIFE04 update and LIFE05 no-action notice.
+- **028** — Normal Parent close/reopen with independent destination readback.
 
-Its transitive prerequisites retain normal app restart, retained-desktop routing,
-customer reboot, public app-policy editing and overlay request entry/results/exits.
+Reuse only the prerequisite updater and public settings operations. Qualify the
+named affected-process reopen binding; request-form validation and unrelated
+retained-session qualification histories are not part of this slice.
 
 ## Implementation
 
@@ -39,7 +41,7 @@ retained settings before edits. Reuse unchanged no-action qualification from
 branches retain scoped live evidence. Run affected package activation checks
 separately.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_activation_process

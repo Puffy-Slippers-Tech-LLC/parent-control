@@ -28,7 +28,7 @@ reply-follow-up note and exit separately from ordinary Parent feedback.
 
 On the VM, produce the public error, review the report and Privacy, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus the child desktop. Opening or successful transport alone cannot satisfy exit behavior.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_send_an_authorized_overlay_error_report

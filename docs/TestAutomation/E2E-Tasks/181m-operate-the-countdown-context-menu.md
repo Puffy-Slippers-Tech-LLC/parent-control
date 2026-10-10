@@ -23,6 +23,11 @@ UI17 and independently reads the final value. UI28 activates
 public countdown-animation option; no secondary-click, focus or popup route
 is a prerequisite of changing the preference.
 
+The isolated-Shell `child_shell_interaction.main` already sets and reads the
+animation option through the shared facade. Add the missing installed
+`AccessibleUI` panel operation and controller decoder using the same endpoint;
+do not recreate preference storage or inspect GSettings for installed acceptance.
+
 ## Live VM acceptance
 
 On the VM, set the declared countdown-animation value and independently read the
@@ -32,7 +37,7 @@ persistence and per-child isolation across session boundaries belong to cases
 118 and 120. Case 22 verifies natural locking with animation enabled during its
 existing wait. Menu closure or repeated toggling adds no acceptance result here.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_operate_the_countdown_context_menu

@@ -22,11 +22,20 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Bind verified fixture removal/reinstallation commands. Save the real open draft with PARENT15 while Parent still holds its pre-removal row. Then close/reopen Parent and reselect the child to observe the app's absence. Reinstall and refresh again before checking the retained rule; no removed-app row is expected in a freshly loaded catalogue.
 
+Register the exact fixture package identity and supported remove/reinstall
+commands through the shared `PackageCommand` transport. Existing
+`package_install.submit_install/submit_release` are product-package bindings,
+and native baseline files are not this package lifecycle. Reuse the same
+PARENT15 and `onpc_lifecycle::reopen` operations as update; the new qualification
+owns only disappearance/reinstallation and retained-rule readback. Missing
+verified fixture package inputs remain a concrete prerequisite, not permission
+to substitute private catalogue removal or recreate product installation tests.
+
 ## Live VM acceptance
 
 On the live VM, leave a nondefault match draft open, remove the fixture through the shared administrator SSH package helper and Save through that same owned editor's Application UI API operation. No supporting window or desktop focus change is needed. Close/reopen Parent through LIFE01, reselect the child and observe exclusion from the refreshed public catalogue. Reinstall through the shared administrator SSH package helper, reopen Parent again and independently read the retained rule before editing it.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_catalog_removal

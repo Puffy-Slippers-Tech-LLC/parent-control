@@ -16,7 +16,7 @@ Session exception: Real countdown intervals, child-session resume and natural ex
 ## Scope and acceptance
 
 Compose the [fixed panel recipe](../E2E-Scenario-Recipes.md#panel-language-and-expiry-planned-task-310)
-in one uninterrupted case with a publicly prepared short daily-only allowance
+in one uninterrupted case with the recipe's publicly prepared 10-minute daily-only allowance
 and zero grant. Change Riley's product language English → Hebrew → English
 through the overlay, close/reopen it and resume the child session. Observe the
 shared saved choice and refreshed countdown language/time,

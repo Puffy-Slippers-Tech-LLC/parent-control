@@ -36,4 +36,6 @@ Use public request/result observations, not broker preference or grant probes.
 Planned selector: `check_e2e_overlay_translated_approval`; unregistered and unqualified.
 Register its fixed binding before invoking
 `tools/run-tests integration check_e2e_overlay_translated_approval`.
-Retain the fixed English overlay approval/return qualification and affected Shell secret/recipient safety checks.
+Reuse unchanged fixed English approval/return qualification. Qualify only the
+affected Hebrew request/success branches and their Shell secret/recipient guards;
+do not replay the predecessor's complete authentication history.

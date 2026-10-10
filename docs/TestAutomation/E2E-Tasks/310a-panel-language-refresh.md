@@ -7,7 +7,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **043c** — Public retained-child session unlock/resume.
 - **052** — Owned child countdown observations.
 - **300i** — Riley overlay language Save/Cancel and command relaunch.
-- **307a** — Installed Hebrew logical-text observation contract; qualify the child-panel API binding here.
 
 Estimate: 20–30 minutes.
 
@@ -38,6 +37,13 @@ Reuse `AccessibleUI.child_countdown`, `overlay_panel_target`, LANG01,
 workers. Read `child-remaining-time` canonical seconds and translated text;
 extend their public observation schema for the exact panel language
 binding, preserving active Riley, duplicate-ID and uncertain-input guards.
+
+The current `CountdownObservation` projection contains presence, display text,
+timestamp and stability only; it has no language or canonical-seconds field.
+Implement that missing public panel projection and controller validation rather
+than treating Parent-only 307a qualification as a panel binding. Reuse the
+host `test_child_panel_refreshes_language_after_overlay_save` shared API path;
+its preview pass supplies no installed language/time result.
 
 ## Implementation entry
 

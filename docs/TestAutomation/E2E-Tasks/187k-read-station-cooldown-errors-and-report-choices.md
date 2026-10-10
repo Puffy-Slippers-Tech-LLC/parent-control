@@ -22,10 +22,17 @@ Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-a
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **187b** — REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief.
+- **030** — Shared in-app Privacy disclosure and preserved-draft comparison; qualify the station binding here.
 
 ## Implementation
 
 Reuse 187b's station re-entry, Request and approval operations to reach the real five-second cooldown error. Add report-review, Privacy and normal report-close bindings with the correct station/GDM destination. Do not change timing or force an error.
+
+Use `parent_reports.report_review`, `onpc_feedback_privacy::review_privacy`
+and `AccessibleUI.feedback_snapshot` as shared extension points; their current
+report/Privacy projections are Parent-bound. Add the station projection and
+cross-child cooldown result, preserving station restrictions and focused
+ownership refusals without repeating Parent or decline qualification histories.
 
 ## Live VM acceptance
 
@@ -39,7 +46,7 @@ when necessary; its evidence supplies no saved VM state. An unreachable public
 trigger remains pending. Case 178 retains review and decline in its complete
 journey with separate cooldown errors.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_read_station_cooldown_errors_and_report_choices

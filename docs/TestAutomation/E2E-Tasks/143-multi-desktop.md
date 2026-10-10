@@ -34,7 +34,7 @@ Use permitted fixture activity with sufficient usable time for this session-bind
 qualification. Revocation and approval are results of the consuming cases,
 not prerequisites for proving that distinct desktops can be reached and retained.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_multi_desktop

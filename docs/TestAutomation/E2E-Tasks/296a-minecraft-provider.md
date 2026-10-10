@@ -37,11 +37,12 @@ world and observe the declared action/result within the recipe's 180-second game
 readiness bound. Exit normally and independently observe Lunar. Reject wrong
 world/owner, ambiguity, unavailable assets and uncertain input; never replay.
 
-Implement and register the following fixed qualification in the existing guarded
-envelope before invoking it. Pass the affected cleanup/ownership regressions in
-isolation first. Use the shared watch observation and intention transport.
-Require independent valid entry, wrong-entry refusal, sanitized results and owned
-cleanup; host tests alone do not close this row.
+Reuse unchanged Lunar launch/Quit and Minecraft menu/exit qualification; this
+slice qualifies only the local-world action/result and its changed safety
+boundaries. Focused adapter checks cover wrong-world/owner, ambiguous targets,
+unavailable assets and uncertain input; live operations retain every guard.
+The following fixed qualification is planned; implement and register it before
+invocation:
 
 ```sh
 tools/run-tests integration check_e2e_minecraft_provider

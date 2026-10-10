@@ -22,16 +22,23 @@ Read the named [block contracts](../E2E-Building-Blocks.md#kiosk-child-overlay-a
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **187a** — REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief.
+- **030** — Shared in-app Privacy disclosure and preserved-draft comparison; qualify the overlay binding here.
 
 ## Implementation
 
 Reuse 187a's public reopen/Request and selected-parent approval operations to reach the actual five-second cooldown error. Add report-review, Privacy and normal report-close bindings with their overlay destinations; never extend product timing.
 
+Use `parent_reports.report_review`, `onpc_feedback_privacy::review_privacy`
+and `AccessibleUI.feedback_snapshot` as the shared extension points; current
+report/Privacy projections are Parent-bound. Implement the request-result entry
+and overlay projections, without copying the Parent qualification's repeated
+entries or unchanged draft-lifecycle history.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt, approve once, reopen and Request before five seconds from success, and read the actual too-soon result. Review the report, visit Privacy and close normally; independently check the report/form destination and original balance before any new approval. Qualify independent valid entry and wrong-surface/owner refusal. Reuse 187a's unchanged exact decline qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. An unreachable public trigger remains pending.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_read_overlay_cooldown_errors_and_report_choices

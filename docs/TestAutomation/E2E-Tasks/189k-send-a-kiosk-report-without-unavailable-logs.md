@@ -25,7 +25,7 @@ Bind the explicit Send without logs action on kiosk after observed collection fa
 
 With the reviewed sending authorization, reproduce the qualified public collection failure on the VM, verify the station restrictions and submit the declared report once without logs. Observe service acceptance and thanks with the report's exit still pending; manually dismiss thanks, require the report closed and the sign-in screen visible. Missing logs alone is not acceptance.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_send_a_kiosk_report_without_unavailable_logs

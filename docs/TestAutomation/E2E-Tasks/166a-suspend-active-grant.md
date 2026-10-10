@@ -26,11 +26,23 @@ Keep the host awake and preserve the attempt/VM identity across the expected
 temporary guest transport loss. Resume observation of the same attempt after
 wake; no power-settings UI, host suspend, RTC setup or wake-method matrix.
 
+LIFE03 has no registered callable/qualification yet. Add the bounded suspend
+transition beside `InstalledJourney.submit_reboot` and the existing owned-VM
+transport, without treating suspend as a boot change or restoring the attempt.
+Reuse `real_interval.wait_real_interval` and the qualified DESK08 result reader;
+the new operation must independently establish suspend/wake completion and the
+same retained desktop/activity.
+
 ## Live VM acceptance
 
-Prepare a real active grant with zero daily allowance, suspend normally, wake before its deadline, independently observe the return surface and unlock successfully. Qualify independent valid entry, wrong-owner refusal and continuity of the existing activity.
+Prepare a real active grant with zero daily allowance, suspend normally, wake
+before its deadline, independently observe the return surface and unlock
+successfully. Qualify independent valid entry and continuity of the existing
+activity. Cover wrong-owner/attempt/deadline refusal in focused harness checks
+before discovery or suspend input; retain fresh runtime identity guards without
+replaying GDM's unchanged qualification history.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_suspend_active_grant

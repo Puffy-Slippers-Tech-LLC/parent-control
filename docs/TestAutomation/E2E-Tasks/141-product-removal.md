@@ -22,9 +22,10 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **141b** — LIFE04 remove and LIFE05 removal activation.
+- **180** — Public Parent entry and independent saved-settings readback.
 
 Its transitive prerequisites retain customer reboot, native policy-result
-observations and prepared kiosk request entry.
+observations and administrator package authority.
 
 ## Implementation
 
@@ -35,9 +36,14 @@ fresh-default observation are a separate capability.
 
 ## Live VM acceptance
 
-On the live VM, remove the product through the shared administrator SSH package helper, read the final reboot-required text, reboot normally and enter the child desktop to use the prepared app. Reinstall, follow the actual activation notice and open Parent. Require affected package cleanup checks and owned cleanup; case 139 owns the complete retained-settings lifecycle.
+On the live VM, establish the removed entry through 141b's shared operation,
+then reinstall, follow the actual activation notice and independently read the
+usable Parent settings before editing. Reuse unchanged removal/reboot/child-use
+qualification; this slice qualifies the newly composed reinstall/activation
+result. Require affected package cleanup checks and owned cleanup; case 139 owns
+the complete retained-settings lifecycle.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_product_removal

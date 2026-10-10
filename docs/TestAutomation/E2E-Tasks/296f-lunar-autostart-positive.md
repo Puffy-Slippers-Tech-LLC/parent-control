@@ -14,7 +14,8 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **296a** — APP01/02/03 and UI18 Minecraft local-world binding.
+- **296d** — Lunar/tray public identity and absence/presence observations.
+- **296e** — Minecraft public owner/menu/exit binding.
 - **007** — LIFE02.
 - **016a** — UI22.
 - **004** — UI19/GDM05 distinct single-use authentication challenges.
@@ -25,11 +26,21 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Compose existing Lunar/tray/game readers with the shared login observer. Arm before child login input and preserve sealed capture, reattachment and all samples through 90 seconds after desktop readiness.
 
+Source gap: task 016a's UI22 is `journey_blocks.observed_text` with
+`UiObservations.start_trace` / `poll_trace` / `finish_trace`, qualified around one Parent
+feedback edit. It is not a continuous external-app login observer.
+Bind the existing recorder/boot lifecycle to public Lunar/tray/Minecraft samples
+across login, including reacquisition before the first possible app surface and
+the complete post-readiness interval. No login-observer callable or selector is
+registered yet. Keep this source gap explicit; final-window absence and a
+product-text trace cannot supply interval coverage. Local-world play remains
+task 296a and the complete case, not another observer-qualification activity.
+
 ## Live VM acceptance
 
 Observe working allowed autostart continuously from before login submission. Require the actual tray/Lunar result and reject blind intervals, ambiguous ownership and missing samples. Retain all applicable recorder/secret/cleanup regressions.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_lunar_autostart_positive

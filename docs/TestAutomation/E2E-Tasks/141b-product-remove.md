@@ -16,7 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **007** — LIFE02.
 - **047** — APP04 and FLOW08 native usable-app observations.
-- **014** — FLOW04 kiosk.
 
 ## Implementation
 
@@ -26,11 +25,17 @@ reboot notice through FILE06; no Terminal or unrelated password prompt is
 needed. Compose the shared LIFE02 reboot command and ordinary child entry using
 existing qualified operations.
 
+Reuse `package_command.PackageCommand`'s registered remove binding and
+`package_lifecycle.PackageLifecycleJourney`'s completion checks. The complete
+`removal_journey.PLAN` already consumes them; extract the focused qualification
+without replaying its install/reinstall/purge history. The station must be
+logged out before removal; opening a request form is unnecessary for this slice.
+
 ## Live VM acceptance
 
 Remove through the shared administrator SSH package helper, read the real reboot notice, reboot normally and enter the child to use the fixture app. Pass applicable package cleanup checks; do not assert reinstall persistence yet.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_product_remove

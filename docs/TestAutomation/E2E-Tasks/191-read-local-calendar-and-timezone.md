@@ -10,9 +10,7 @@ Estimate: 20–30 minutes. Follow the
 
 Deliver **TIME05 read-only system clock/timezone observations**.
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
-
-- **052c** — TIME03.
+Required tasks: none (Baseline).
 
 ## Read only this context
 
@@ -23,6 +21,11 @@ Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 Read date/time, UTC offset and timezone through fixed `date`/`timedatectl` commands over SSH. Bind locale-independent output, explicit precision and monotonic bracketing. Never set the guest clock or timezone. No Shell calendar or Settings page.
 
+Extend the guarded observation transport in `guest_observations.py` and
+`observation_transport.py` with one finite clock projection and independent
+readback. TIME05 has no callable yet. Monotonic bracketing requires no deliberate
+TIME03 wait or unrelated About-window qualification.
+
 ## Live VM acceptance
 
 On an ordinary day, independently read and validate the actual system clock/timezone in the owned VM. Reject malformed, incomplete or stale output. Natural calendar scenarios still require their actual eligible windows and app countdown/access results.
@@ -32,8 +35,3 @@ Implement and register this planned fixed qualification and its cleanup coverage
 ```sh
 tools/run-tests integration check_e2e_read_local_calendar_and_timezone
 ```
-
-Use the shared watch intent, display and guarded command transport. Pass
-applicable cleanup/ownership checks in isolation first. Require independent
-result readback, sanitized evidence and owned cleanup. Host tests alone do not
-qualify a live route or complete a customer scenario.

@@ -13,17 +13,25 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
-- **003d** — DESK04 direct logout command and independent GDM result.
+- **003c** — DESK03 Switch User command and independently observed GDM destination.
 
 ## Implementation
 
 Compose the daily-only FLOW13 branch from fresh/same FLOW01, PARENT09, FLOW02 and DESK03. Reuse the initial PARENT09 observation to establish zero grant; refuse unexpected nonzero G without another unchanged balance read. Independently observe the saved allowance and resulting balances after FLOW02. Optional revocation and retained Parent entry are qualified with the later grant-profile extension.
 
+Implement the missing shared FLOW13 declaration/worker. `AccessibleUI.configure_time_controls`
+currently accepts only 0/15-minute presets and the fresh 30-minute binding; use
+the shared PARENT06 custom operation for the recipe's short 2/4-minute allowances
+and independently observe the saved result. Do not relabel the existing 15-minute
+qualification as a short daily-only profile. Consume DESK03's qualified Switch
+User operation to finish at GDM; direct logout remains available only when an
+explicit entry/window choice needs a new session.
+
 ## Live VM acceptance
 
 In a fresh installed VM attempt, reach Parent, read G=0, save a short positive allowance, verify D>0/G=0 and finish at GDM. Qualify an independently opened same-user Parent entry too. No real approval or retained-user return is required by this slice.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (implement and register before use):
 
 ```sh
 tools/run-tests integration check_e2e_time_profiles_daily

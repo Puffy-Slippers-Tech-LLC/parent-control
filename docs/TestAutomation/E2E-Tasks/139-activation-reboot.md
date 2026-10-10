@@ -14,20 +14,25 @@ Read the named [block contracts](../E2E-Building-Blocks.md#time-and-ordinary-lif
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **007** — LIFE02.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
-- **079** — PARENT16 and FLOW03 public app-policy editing.
-- **048a** — Overlay REQUEST04/05/06/08, invalid REQUEST09, REQUEST11/12 Cancel/Escape and FLOW04.
+- **135a** — Verified updater infrastructure and public saved-settings comparison.
+- **007** — LIFE02 owned reboot and independent boot/greeter result.
 
 ## Implementation
 
 Bind a verified old/new package profile requiring reboot activation. Extend LIFE04(update) and LIFE05 only for this route. Follow the displayed requirement for every named affected app/user; preserve all mechanical migration obligations.
 
+Reuse `package_install.submit_release` / `observe_release` and the existing
+`JourneyPlan.reboot_transition` / `InstalledJourney.submit_reboot` path. The
+qualified `package_upgrade.PLAN` reads the upgrade notice without activating the
+new release; add the observed post-upgrade reboot and affected-app/settings
+result. Reuse unchanged package and reboot qualification rather than replaying
+their refusal histories; full request-choice/enforcement coverage stays in case 138.
+
 ## Live VM acceptance
 
 On the VM install the real update, read its reboot requirement, perform the normal reboot/login sequence and read settings before edits. Run the affected existing package activation checks separately.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_activation_reboot

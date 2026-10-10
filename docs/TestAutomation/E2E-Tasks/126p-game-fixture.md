@@ -28,17 +28,25 @@ actual gameplay, windowed/fullscreen behavior and expiry to the following tasks.
 
 ## Live VM acceptance
 
-Qualify baseline first preparation, unchanged repetition, owned updates and
-interrupted retry. After ordinary restore, independently verify the declared
+Exercise idempotence, owned updates, interrupted retry and unsafe-asset refusal
+in the existing baseline/ownership host regressions for this added profile.
+Reuse unchanged reconciliation qualification. After ordinary preparation and
+restore, independently verify the declared
 files, modes, owners and launcher without writes, then observe the exact public
 catalogue identity. Refuse stale/missing assets with baseline-refresh guidance;
 preserve cleanup refusal cases. This does not claim a playable-game or expiry result.
 
-Implement and register the following fixed qualification in the existing guarded
-envelope before invoking it. Pass the affected cleanup/ownership regressions in
-isolation first. Use the shared watch observation and intention transport.
-Require independent valid entry, wrong-entry refusal, sanitized results and owned
-cleanup; host tests alone do not close this row.
+`build_test_applications.build` already emits `onpc-test-game` and its launcher,
+and `gui_application.main` provides public move/score controls. The current
+`baseline_fixtures.build_payload` builds native roles only, and
+`NativeFixtures` accepts only native/Chinese verification profiles. Add the
+game to those finite baseline/readback declarations. Actual level/mode and
+playability bindings remain with 126a/126/129; a built file is not that result.
+
+Qualification selector (planned; implement and register before use). Qualify
+independent installed asset readback and the added profile's wrong-owner/entry
+refusal, retaining shared runtime/cleanup guards without replaying unrelated
+baseline histories.
 
 ```sh
 tools/run-tests integration check_e2e_game_fixture

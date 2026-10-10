@@ -14,17 +14,24 @@ Read the named [block contracts](../E2E-Building-Blocks.md#additional-public-sur
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **031a** — FEED09 collection trace.
+- **009** — Ordinary Parent feedback entry and public synthetic-text operations.
 
 ## Implementation
 
-Bind FEED09's unavailable/partial collection explanation and editing/Close controls on Parent. Arm the public observer before entry. Enter ordinary feedback with FEED01. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
+Bind FEED09's unavailable/partial collection explanation and editing/Close controls on Parent. Enter ordinary feedback with FEED01 and independently capture the terminal failed-collection state before editing. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
+
+Extend `AccessibleUI.feedback_snapshot` / `wait_feedback_collection` and
+`FeedbackStateObservation` for the explicit failure projection. Existing
+`feedback_collection.PLAN` waits for ready/Download and cannot observe a failed
+collection as success. This slice needs no ready-state qualification history or
+observer running before entry: the independent persistent failure result is
+required before any recovery or Send.
 
 ## Live VM acceptance
 
-On the VM, observe collection actually fail on Parent with its read-only trace already active. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
+On the VM, independently observe collection actually fail on Parent. Read the failure explanation, enter a synthetic draft through the usable editor and close normally through the usable Close action. No successful recovery or submission is needed to qualify this failure-state slice.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_parent_collection_failure

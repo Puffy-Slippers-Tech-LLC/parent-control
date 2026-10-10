@@ -5,7 +5,6 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300i** — Riley overlay language selection.
-- **307a** — Shared installed Hebrew presentation observation contract.
 
 Estimate: 20–30 minutes.
 
@@ -33,6 +32,13 @@ Reuse qualified overlay language, request observation and activity-return
 operations through
 [AccessibleUI](../../../tests/e2e/accessible_ui.py).
 Keep child session ownership distinct from the kiosk despite shared GTK IDs.
+
+Extend `AccessibleUI.kiosk_language_form` / `language_history_request` with
+the representative English/Hebrew/restored-English observation and immutable
+75-second/soft-included request comparison. Reuse 300i's saved-language input
+operation and the existing overlay activity-return comparison; qualify the new
+overlay projection here. Parent-only 307a evidence supplies no overlay readiness
+and its chooser/dialog history is not a prerequisite.
 
 ## Implementation entry
 

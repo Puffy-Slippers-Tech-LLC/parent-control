@@ -22,11 +22,22 @@ destination and distinct allowed N. Extend baseline declaration/verification onl
 for missing reusable assets; verify through FIX06 and perform the recipe's copy
 through the shared FILE05 command helper.
 
+Source boundary: `native_assets.ASSETS` already declares the space-bearing H
+binary and distinct N; `SyntheticFiles.call` currently supplies only its finite
+synthetic-text/attachment/save profiles. Add the exact executable-copy profile
+and destination receipt there, then extend `AccessibleUI.native_launch_command`
+and the shared result reader for these finite paths; their current fixed
+`Exact Fixture.AppImage`/primary binding cannot prove H/copy/N results. Reuse
+existing descriptor/owner guards and qualify only the added profile.
+`SyntheticFiles._command` currently runs as Jamie. Bind the declared child
+and exact owned destination explicitly for this executable copy, before any
+write; do not treat the parent attachment profile as child-owned preparation.
+
 ## Live VM acceptance
 
 Copy the declared executable on the VM through FILE05; under publicly saved Hard and Soft rules require original/copy denial while N remains usable. Qualify independently prepared owned source/destination fixtures and wrong-path/owner/destination refusal before mutation.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_space_path

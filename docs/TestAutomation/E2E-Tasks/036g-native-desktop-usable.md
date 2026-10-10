@@ -25,6 +25,13 @@ copying, permissions and trust setup out of DING/Files UI automation. Then bind
 the exact DING icon and its actual activation; reuse the owned fixture result
 readers. Qualify only this finite preparation and launch route.
 
+The provider catalogue has no DING route; add the minimum owned-icon activation
+adapter here. Reuse `baseline_fixtures.reconcile`/`native_assets.desktop_entry`
+for the verified source and one exact per-user destination helper for placement,
+permissions and trust. Task 036's synthetic-text profile is not yet an executable
+or desktop-entry copy binding. Extend only that finite helper input; retain
+conflicting-file refusal without repeating generic FILE05 qualification.
+
 ## Live VM acceptance
 
 On the VM, prepare and independently verify the declared entry through the
@@ -33,7 +40,7 @@ usability action. Qualify independent desktop entry and wrong-icon/ambiguous-own
 refusal. A missing supported preparation API is a concrete prerequisite, not a
 reason to add a file-manager setup tour.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_native_desktop_usable

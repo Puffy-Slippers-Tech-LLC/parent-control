@@ -22,16 +22,20 @@ APP02 window identity, APP03 ordinary input/effect and APP04 recognizable activi
 then compose its FLOW08 usable branch. Repository-owned controls use public IDs.
 Keep installation, mode/level composition and natural expiry in their own tasks.
 
+Source route: `build_test_applications.build` emits the game owner;
+`gui_application.main` publishes `onpc-fixture-game-primary-move` and `-score`,
+and `FixtureUI.move/snapshot` supplies the normal action and independent public
+progress projection. Extend the installed APP01/02/04 binding for game identity;
+the current native-primary reader rejects game kind and nonzero move progress.
+The fixture has one finite four-cell game and no level selector. Bind its one
+starting level explicitly; do not invent a game-selection or completion matrix.
+
 ## Live VM acceptance
 
 On the live VM, verify the declared baseline game without repair, enter a child with ample publicly prepared time, and launch the fixed game/level through shared supported commands or shortcuts. Perform a real gameplay input, independently observe its effect, capture recognizable progress and compare a fresh observation of the same window. An independently opened game at the declared level is also a valid entry. Wrong-window or missing prior-activity input refuses. Do not wait for expiry, substitute a timer/mock game or use private state. Reuse 126p's existing offline game and one fixed level; this task does not choose another game or repeat installation qualification. One ordinary play action and its visible effect establish usability; do not add level completion, score targets, game-mechanics coverage or an automated gameplay strategy.
 
-Qualification selector (implement and register before use):
+Planned qualification selector (not registered; implement before use):
 
 ```sh
 tools/run-tests integration check_e2e_game_activity
 ```
-
-The selector must exist under the master's [qualification contract](../E2E-Execution-Plan.md#live-verification-contract).
-Require independent valid entry, wrong-entry refusal and owned live VM cleanup.
-Host checks and a diagnostic slice do not establish complete scenario coverage.

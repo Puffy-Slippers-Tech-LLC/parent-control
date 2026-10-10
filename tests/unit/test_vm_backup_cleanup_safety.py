@@ -1,5 +1,7 @@
 """Disaster recovery against private files and libvirt doubles; no live VM access."""
 import json
+from contextlib import contextmanager, nullcontext
+import fcntl
 import hashlib
 import os
 import runpy
@@ -835,56 +837,54 @@ def test_sparse_copy_preserves_bytes_without_inflating_holes(tmp_path):
 
 @pytest.mark.parametrize('selector,names', [(None, 'Backup-guest,Other-guest'),
     ('all-enabled', 'Backup-guest'), ('9,Backup-guest,12', 'Backup-guest,Other-guest')])
-def test_backup_prepares_whole_queue_before_serial_backup(backup_rig, monkeypatch, selector, names):
+def test_backup_dispatches_serial_archive_without_guest_preparation(backup_rig, monkeypatch, selector, names):
     monkeypatch.setattr(launcher, 'check', Mock())
     run = Mock(return_value=SimpleNamespace(returncode=0))
     monkeypatch.setattr(launcher.subprocess, 'run', run)
     assert launcher.main('backup', [] if selector is None else ['--vm', selector]) == 0
-    assert run.call_count == 2
-    assert run.call_args_list[0].args[0] == [str(launcher.ROOT / 'tools/prepare-baseline'),
-                                           '--vm', names, '--mode', 'auto', '--y']
-    assert run.call_args_list[1].args[0][-3:] == ['backupvms', '--vm', names]
+    assert run.call_count == 1
+    assert run.call_args.args[0][-3:] == ['backupvm', '--vm', names]
 
 
-def test_preparation_failure_never_starts_backup(backup_rig, monkeypatch, capsys):
+def test_backup_failure_is_returned_without_followup(backup_rig, monkeypatch, capsys):
     monkeypatch.setattr(launcher, 'check', Mock())
     run = Mock(return_value=SimpleNamespace(returncode=7))
     monkeypatch.setattr(launcher.subprocess, 'run', run)
     assert launcher.main('backup', []) == 7
     assert run.call_count == 1
-    assert '\033[31mbackupvms: FAILED: baseline preparation failed' in capsys.readouterr().err
+    assert '\033[31mbackupvm: FAILED: archive operation failed' in capsys.readouterr().err
 
 
 @pytest.mark.parametrize('action', ['backup', 'restore'])
 def test_archive_failure_is_red_and_never_reports_success(backup_rig, monkeypatch, capsys, action):
     monkeypatch.setattr(launcher, 'check', Mock())
-    statuses = [0, 1] if action == 'backup' else [1]
+    statuses = [1]
     monkeypatch.setattr(launcher.subprocess, 'run', Mock(
         side_effect=[SimpleNamespace(returncode=status) for status in statuses]))
     assert launcher.main(action, []) == 1
     output = capsys.readouterr()
-    assert f'\033[31m{action}vms: FAILED:' in output.err
+    assert f'\033[31m{action}vm: FAILED:' in output.err
     assert '\033[0m' in output.err
     assert 'SUCCESS' not in output.out
 
 
 def test_invalid_backup_selection_reports_failure_in_red(backup_rig, capsys):
     assert launcher.main('backup', ['--vm', 'Unknown']) == 2
-    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
 
 
 def test_invalid_backup_arguments_report_failure_in_red(capsys):
     with pytest.raises(SystemExit) as error:
         launcher.main('backup', ['--invalid'])
     assert error.value.code == 2
-    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
 
 
 def test_privileged_backup_refusal_reports_failure_in_red(monkeypatch, capsys):
     # Fail before importing libvirt or accessing any real VM/storage path.
     monkeypatch.setattr(recovery.os, 'geteuid', lambda: 12345)
     assert recovery.main(['backup']) == 1
-    assert '\033[31mbackupvms: FAILED:' in capsys.readouterr().err
+    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
 
 
 def test_private_backup_directory_under_setgid_parent(tmp_path):
@@ -916,13 +916,14 @@ def test_existing_shared_backup_directory_is_refused_without_adoption(tmp_path, 
     assert (parent / 'unrelated').read_bytes() == b'preserve'
 
 
-def test_restore_refreshes_helper_pins_only_after_success(backup_rig, monkeypatch):
+def test_restore_prepares_auto_only_after_archive_success(backup_rig, monkeypatch):
     monkeypatch.setattr(launcher, 'check', Mock())
     run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
     monkeypatch.setattr(launcher.subprocess, 'run', run)
     assert launcher.main('restore', ['--vm', '9']) == 0
-    assert run.call_args_list[0].args[0][-3:] == ['restorevms', '--vm', 'Backup-guest']
-    assert run.call_args_list[1].args[0] == [str(launcher.ROOT / 'setup.sh'), '--test-tools-only']
+    assert run.call_args_list[0].args[0][-3:] == ['restorevm', '--vm', 'Backup-guest']
+    assert run.call_args_list[1].args[0] == [str(launcher.ROOT / 'tools/prepare-vm'),
+        '--vm', 'Backup-guest', '--mode', 'auto', '--y']
 
 
 @pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', '/path//backup', None])
@@ -1114,7 +1115,278 @@ def test_vm_lease_refuses_contention_and_closes_owned_descriptors(backup_rig):
         os.fstat(descriptor)
 
 
-@pytest.mark.parametrize('action', ['backupvms', 'restorevms'])
+def test_nested_preparation_descriptors_keep_outer_vm_lock(backup_rig):
+    path = backup_rig.vm.baseline_directory / '.lock'
+    with recovery.lease(backup_rig.vm, base.Commands()):
+        descriptor = base.open_controller_lock(path)
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        os.close(descriptor)
+        outsider = os.open(path, os.O_RDWR)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(outsider, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            os.close(outsider)
+    with path.open('rb') as outsider:
+        fcntl.flock(outsider, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.fixture
+def snapshot_free_backup(backup_rig, monkeypatch):
+    rig = backup_rig
+    saved = rig.top.read_bytes()
+    events = []
+    def restore(layout, xml):
+        assert layout == rig.source.layout and xml == rig.source.baseline()
+        rig.top.write_bytes(saved)
+        events.append('restore')
+    def apps(layout):
+        assert rig.source.off
+        events.append('apps')
+        rig.domain.snapshots.pop('onpc-1.2', None)
+    original = rig.source.delete_baseline
+    def baseline(layout):
+        events.append('baseline')
+        original(layout)
+        rig.domain.snapshots.pop(base.SNAPSHOT, None)
+        rig.domain.current = None
+    monkeypatch.setattr(rig.source, 'restore_baseline', restore, raising=False)
+    monkeypatch.setattr(rig.source, 'delete_app_snapshots', apps)
+    monkeypatch.setattr(rig.source, 'delete_baseline', baseline)
+    rig.domain.snapshots['onpc-1.2'] = '<domainsnapshot><name>onpc-1.2</name><memory snapshot="no"/></domainsnapshot>'
+    rig.top.write_bytes(b'guest changes after baseline')
+    return rig, saved, events
+
+
+def test_backup_restores_baseline_then_removes_snapshots_and_archives(snapshot_free_backup):
+    rig, saved, events = snapshot_free_backup
+    with recovery.lease(rig.vm, rig.commands):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+        assert events == ['restore', 'apps', 'baseline']
+        assert rig.top.read_bytes() == saved
+        assert not rig.domain.snapshots
+        assert not (rig.directory / 'phase.json').exists()
+        assert list(rig.directory.glob('retired-*.json'))
+        recovery.backup(API, rig.vm, rig.root, rig.commands)
+    archive, manifest, _ = recovery.load_archive(rig.vm, rig.root)
+    assert manifest['snapshots'] == [] and manifest['current_snapshot'] is None
+    top = next(item for item in manifest['files'] if item['original'] == str(rig.top))
+    assert (archive / top['payload']).read_bytes() == saved
+    assert all(item['relative'] != 'phase.json' for item in manifest['files'] if item['area'] == 'state')
+
+
+def test_backup_retries_after_baseline_deletion_without_reverting_again(snapshot_free_backup, monkeypatch):
+    rig, saved, events = snapshot_free_backup
+    original = rig.source.delete_baseline
+    def interrupted(layout):
+        original(layout)
+        raise KeyboardInterrupt
+    monkeypatch.setattr(rig.source, 'delete_baseline', interrupted)
+    with recovery.lease(rig.vm, rig.commands):
+        with pytest.raises(KeyboardInterrupt):
+            recovery.prepare_backup(API, rig.vm, rig.commands)
+        assert (rig.directory / 'phase.json').exists()
+        monkeypatch.setattr(rig.source, 'delete_baseline', original)
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+    assert events == ['restore', 'apps', 'baseline']
+    assert rig.top.read_bytes() == saved
+    assert recovery.read_json(rig.directory / 'backup-preparation.json')['phase'] == 'complete'
+
+
+def test_snapshot_free_backup_restores_guest_without_active_baseline(snapshot_free_backup):
+    rig, saved, _ = snapshot_free_backup
+    with recovery.lease(rig.vm, rig.commands):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+        recovery.backup(API, rig.vm, rig.root, rig.commands)
+    rig.top.write_bytes(b'damaged disk to replace')
+    restore(rig)
+    assert rig.top.read_bytes() == saved
+    assert rig.source.off and not rig.domain.snapshots
+    assert not (rig.directory / 'phase.json').exists()
+    journal = recovery.read_json(rig.directory / recovery.JOURNAL)
+    assert journal['phase'] == 'complete' and journal['uuid'] == UUID
+
+
+def test_backup_retry_refuses_disk_writes_after_snapshot_retirement(snapshot_free_backup):
+    rig, _, events = snapshot_free_backup
+    with recovery.lease(rig.vm, rig.commands):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+    rig.top.write_bytes(b'changed after snapshot removal')
+    with recovery.lease(rig.vm, rig.commands):
+        with pytest.raises(base.CaptureError, match='backup-preparation-incomplete'):
+            recovery.prepare_backup(API, rig.vm, rig.commands)
+    assert events == ['restore', 'apps', 'baseline']
+
+
+@pytest.mark.parametrize('fault', [None, 'uuid', 'disk-bytes', 'disk-inode', 'domain',
+                                   'autostart', 'snapshots', 'binding-missing', 'directory'])
+def test_auto_preparation_bootstraps_only_verified_snapshot_free_restore(snapshot_free_backup, monkeypatch, fault):
+    import sys
+    from tools import prepare_vm_host as host
+    rig, _, _ = snapshot_free_backup
+    recovery.prepare_backup(API, rig.vm, rig.commands)
+    save(rig)
+    restore(rig)
+    journal_path = rig.directory / recovery.JOURNAL
+    journal = recovery.read_json(journal_path)
+    if fault == 'uuid':
+        journal['uuid'] = 'foreign-uuid'
+    elif fault == 'disk-bytes':
+        rig.top.write_bytes(b'changed after verified restore')
+    elif fault == 'disk-inode':
+        rig.top.rename(rig.top.with_suffix('.previous'))
+        rig.top.write_bytes(b'replacement disk')
+    elif fault == 'domain':
+        rig.domain.xml = rig.domain.xml.replace('<devices>', '<description>changed</description><devices>')
+    elif fault == 'autostart':
+        rig.domain.automatic = True
+    elif fault == 'snapshots':
+        rig.domain.snapshots['foreign'] = '<domainsnapshot><name>foreign</name></domainsnapshot>'
+    elif fault == 'binding-missing':
+        journal.pop('bootstrap', None)
+    elif fault == 'directory':
+        journal['directory'] = {'device': 0, 'inode': 0}
+    recovery.atomic(journal_path, journal)
+    monkeypatch.setitem(sys.modules, 'libvirt', API)
+    prepare = Mock(side_effect=[0, 37])
+    monkeypatch.setattr(host.baseline, 'main', prepare)
+    monkeypatch.setattr(host.baseline, 'Commands', lambda: rig.commands)
+    monkeypatch.setattr(host.baseline, 'start_event_dispatch', Mock())
+    if fault is not None:
+        with pytest.raises(base.CaptureError):
+            host.prepare('auto', True, rig.vm, SimpleNamespace(pw_uid=os.getuid()))
+        prepare.assert_not_called()
+    else:
+        assert host.prepare('auto', True, rig.vm, SimpleNamespace(pw_uid=os.getuid())) == 37
+        assert [call.args[0] for call in prepare.call_args_list] == [
+            ['--mode', 'manual', '--y', '--vm', rig.vm.name],
+            ['--mode', 'auto', '--y', '--vm', rig.vm.name]]
+
+
+@pytest.mark.parametrize('failed_consumer', [False, True])
+def test_artifact_worker_drops_privilege_and_retains_owner_until_consumed(backup_rig, tmp_path,
+                                                                       monkeypatch, failed_consumer):
+    import pwd
+    from tools import prepare_vm_host as host
+    import runner
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    path = tmp_path / 'output/test-runs/host/allocations/onpc-worker-artifacts'
+    caller = pwd.getpwuid(os.getuid())
+    worker = SimpleNamespace(stdin=Mock(), wait=Mock(return_value=0))
+    def spawn(command, **options):
+        assert command[:3] == ['/usr/bin/python3', '-IB', str(Path(host.__file__).resolve())]
+        assert command[3:5] == ['--build-package-format', 'deb']
+        assert options['user'] == caller.pw_uid and options['group'] == caller.pw_gid
+        assert options['extra_groups'] == os.getgrouplist(caller.pw_name, caller.pw_gid)
+        assert 'PKEXEC_UID' not in options['env']
+        assert options['env'][vm_config.VARIABLE] == backup_rig.vm.name
+        os.write(options['pass_fds'][0], (str(path) + '\n').encode())
+        return worker
+    monkeypatch.setattr(host.subprocess, 'Popen', spawn)
+    def consume():
+        with host.built_artifacts('deb', caller) as result:
+            assert result == path
+            worker.stdin.close.assert_not_called()
+            worker.wait.assert_not_called()
+            if failed_consumer:
+                raise RuntimeError('consumer failed')
+    if failed_consumer:
+        with pytest.raises(RuntimeError, match='consumer failed'):
+            consume()
+    else:
+        consume()
+    worker.stdin.close.assert_called_once()
+    worker.wait.assert_called_once()
+
+
+def test_failed_baseline_restore_does_not_delete_snapshots(snapshot_free_backup, monkeypatch):
+    rig, _, events = snapshot_free_backup
+    monkeypatch.setattr(rig.source, 'restore_baseline', Mock(side_effect=base.CaptureError('restore:failed')))
+    with recovery.lease(rig.vm, rig.commands):
+        with pytest.raises(base.CaptureError, match='restore:failed'):
+            recovery.prepare_backup(API, rig.vm, rig.commands)
+    assert not events
+    assert base.SNAPSHOT in rig.domain.snapshots and 'onpc-1.2' in rig.domain.snapshots
+
+
+def test_backup_retry_refuses_unfinished_foreign_attempt(snapshot_free_backup, monkeypatch):
+    rig, _, events = snapshot_free_backup
+    original = rig.source.delete_app_snapshots
+    monkeypatch.setattr(rig.source, 'delete_app_snapshots', Mock(side_effect=KeyboardInterrupt))
+    with pytest.raises(KeyboardInterrupt):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+    recovery.atomic(rig.directory / 'system-run.json', {'phase': 'running', 'run': 'foreign'})
+    monkeypatch.setattr(rig.source, 'delete_app_snapshots', original)
+    with pytest.raises(base.CaptureError, match='interrupted-run'):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+    assert events == ['restore']
+    assert base.SNAPSHOT in rig.domain.snapshots and 'onpc-1.2' in rig.domain.snapshots
+
+
+def test_unfinished_backup_excludes_ordinary_preparation(snapshot_free_backup, monkeypatch):
+    rig, _, events = snapshot_free_backup
+    original = rig.source.delete_app_snapshots
+    monkeypatch.setattr(rig.source, 'delete_app_snapshots', Mock(side_effect=KeyboardInterrupt))
+    with pytest.raises(KeyboardInterrupt):
+        recovery.prepare_backup(API, rig.vm, rig.commands)
+    monkeypatch.setattr(rig.source, 'delete_app_snapshots', original)
+    with pytest.raises(base.CaptureError, match='interrupted-vm-backup'):
+        rig.capture().run(mode='manual', confirm=lambda *_: True)
+    assert events == ['restore']
+
+
+@pytest.mark.parametrize('failed_stage', [None, 'baseline', 'app'])
+def test_combined_preparation_holds_vm_lock_until_final_restore(backup_rig, monkeypatch, failed_stage):
+    import sys
+    from tools import prepare_vm_host as host
+    import test_retention
+    import test_storage
+    import prepare_snapshot
+    rig = backup_rig
+    events = []
+    path = rig.directory / '.lock'
+    def check_lock(stage):
+        with path.open('rb') as outsider:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(outsider, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        events.append(stage)
+    def baseline(options):
+        check_lock('baseline')
+        assert options == ['--mode', 'auto', '--y', '--vm', rig.vm.name]
+        return 7 if failed_stage == 'baseline' else 0
+    @contextmanager
+    def artifacts(package_format, caller):
+        check_lock('build')
+        assert package_format == 'deb'
+        yield rig.directory
+    def app(artifacts, identity, **options):
+        check_lock('app')
+        assert identity == UUID and options == {'overwrite': True, 'mode': 'online'}
+        return 8 if failed_stage == 'app' else 0
+    def restore(layout, xml):
+        check_lock('restore')
+        assert rig.source.off and xml == rig.source.baseline()
+    monkeypatch.setitem(sys.modules, 'libvirt', API)
+    monkeypatch.setattr(host.baseline, 'main', baseline)
+    monkeypatch.setattr(host.baseline, 'Commands', lambda: rig.commands)
+    monkeypatch.setattr(host.baseline, 'start_event_dispatch', Mock())
+    monkeypatch.setattr(host, 'built_artifacts', artifacts)
+    monkeypatch.setattr(prepare_snapshot, 'prepare', app)
+    monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: rig.directory / 'retention')
+    monkeypatch.setattr(test_retention.Store, 'session', lambda self, **options: nullcontext())
+    monkeypatch.setattr(rig.source, 'restore_baseline', restore, raising=False)
+    status = host.prepare('auto', True, rig.vm, SimpleNamespace(pw_uid=os.getuid()))
+    expected = ['baseline'] if failed_stage == 'baseline' else ['baseline', 'build', 'app']
+    if failed_stage is None:
+        expected.append('restore')
+    assert events == expected
+    assert status == (7 if failed_stage == 'baseline' else 8 if failed_stage == 'app' else 0)
+    with path.open('rb') as outsider:
+        fcntl.flock(outsider, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize('action', ['backupvm', 'restorevm'])
 def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_rig, tmp_path):
     helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     checkout = tmp_path / 'checkout'
@@ -1124,7 +1396,7 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     (checkout / 'tools/vm_backup.py').write_text('')
     command = helper['command'](checkout, [action, '--vm', '9,12,Backup-guest'])
     assert command == ['/usr/bin/python3', '-B', str(checkout / 'tools/vm_backup.py'),
-                       'backup' if action == 'backupvms' else 'restore', '--vm', 'Backup-guest,Other-guest']
+                       'backup' if action == 'backupvm' else 'restore', '--vm', 'Backup-guest,Other-guest']
     for args in ([action, '--path', '/etc'], [action, '--vm', 'Unknown'], [action, '--vm', '9', '--vm', '12']):
         with pytest.raises(ValueError):
             helper['command'](checkout, args)

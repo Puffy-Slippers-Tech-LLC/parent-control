@@ -4,6 +4,7 @@ import signal
 import fcntl
 import os
 import json
+from pathlib import Path
 import subprocess
 import threading
 import xml.etree.ElementTree as ET
@@ -169,6 +170,23 @@ def test_optional_failure_keeps_automation_running():
     adapter.open_display.assert_called_once_with()
     adapter.close_display.assert_not_called()
     adapter.lease.stop.assert_not_called()
+
+
+def test_nested_preparation_reuses_feed_without_closing_outer_collector(monkeypatch):
+    import prepare_baseline as baseline
+    observer = Mock(progress=None)
+    owner = Mock(watch=None)
+    monkeypatch.setenv('PKEXEC_UID', '1000')
+    monkeypatch.setattr(watch.os, 'geteuid', lambda: 0)
+    with baseline.controller_scope(Path('/unused-private-lock'), 42, watch=observer):
+        with patch.object(watch, 'Observer', side_effect=AssertionError('second collector')):
+            watch.begin(owner)
+        owner.watch.attach_display('owned display')
+        owner.watch.progress = 'stage progress'
+        owner.watch.close()
+    observer.attach_display.assert_called_once_with('owned display')
+    observer.close.assert_not_called()
+    assert observer.progress is None
 
 
 @pytest.mark.parametrize('failed', [False, True])

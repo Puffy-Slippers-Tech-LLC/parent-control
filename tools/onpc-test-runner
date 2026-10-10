@@ -87,7 +87,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     if argv[:2] == ['vm', 'exec']:
         timeout, command, input_stream = vm_config.guest_command_arguments(argv[2:])
         if identity is None:
-            raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
+            raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
         target = confined_file(root, 'tests/integration/vm_control.py')
         return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
                 'exec', '--timeout', str(timeout), *(['--stdin'] if input_stream else []), '--', *command]
@@ -141,7 +141,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     args = parser.parse_args(argv)
     if args.category == 'appsnapshot':
         if identity is None:
-            raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
+            raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
         target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
         command = ['/usr/bin/python3', '-B', str(target), '--mode', args.mode,
                    '--expected-uuid', identity, *vm_args]
@@ -173,7 +173,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 (args.action not in ('send-key', 'recover-online') and not args.keys)):
             raise ValueError('test-runner:invalid-vm-keycodes')
         if identity is None:
-            raise ValueError('test-runner:prepare-baseline-and-refresh-test-tools')
+            raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
         target = confined_file(root, 'tests/integration/vm_control.py')
         return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
                 args.action, *map(str, args.keys),

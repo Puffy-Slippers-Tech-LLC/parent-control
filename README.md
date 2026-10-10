@@ -173,10 +173,10 @@ Reference: [test commands and artifacts](tests/README.md).
 Follow [VM setup](tests/integration/Environment.md). With the source VM off,
 choose one required mode on the host:
 
-- `tools/prepare-baseline --vm NAME --mode auto`: restore an existing accepted baseline,
+- `tools/prepare-vm --vm NAME --mode auto`: restore an existing accepted baseline,
   boot, run no-app prerequisites, update Ubuntu packages, reboot if required,
   shut down and replace `onpc_baseline`.
-- `tools/prepare-baseline --vm NAME --mode manual`: boot the current guest state, run
+- `tools/prepare-vm --vm NAME --mode manual`: boot the current guest state, run
   no-app prerequisites, shut down and create or replace `onpc_baseline`.
 
 Both modes show a red warning and delete all versioned app
@@ -185,7 +185,7 @@ exits without changing the guest or snapshots. Missing `--mode` or its value
 shows usage help; there is no default. Every confirmed run repeats its steps.
 Ordinary `./setup.sh` never prepares a baseline.
 
-Launcher/session work uses `tools/prepare-baseline --vm NAME --mode auto --y`
+Launcher/session work uses `tools/prepare-vm --vm NAME --mode auto --y`
 for authorized auto-mode refresh, or `--mode manual --y` for an explicitly
 authorized manual-mode preparation. `--y` suppresses the y/n prompt and retains
 the warning and every safety check. Manual work omits `--y` to keep confirmation.
@@ -199,9 +199,11 @@ matching the shared password.
 
 For manual maintenance, restore your own snapshot (for example `1 - Clean`),
 make your changes, shut down the VM, and replace your snapshot as usual. Then
-run `tools/prepare-baseline --vm NAME --mode manual`. After confirmation, it accepts the
+run `tools/prepare-vm --vm NAME --mode manual`. After confirmation, it accepts the
 current disk chain of the same VM, deletes the versioned app snapshots and
-replaces `onpc_baseline`. Other manually managed snapshots are preserved.
+replaces `onpc_baseline`. Both modes then prepare the current online app snapshot
+and restore the powered-off baseline under one uninterrupted VM lease. Other
+manually managed snapshots are preserved.
 
 For an explicitly authorized replacement after manual baseline deletion, prepare
 and shut down the guest, then run `./setup.sh --replace-missing-baseline`. This

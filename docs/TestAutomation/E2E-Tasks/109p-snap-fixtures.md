@@ -18,7 +18,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse the maintained repository-owned Snap payloads, fixture builder/artifact
 cache and pinned A/H/S manifest. FIX04 transfers bytes only. Implement the finite
-reusable declaration in `tools/prepare-baseline`, using the shared package helper
+reusable declaration in `tools/prepare-vm`, using the shared package helper
 for the supported local installation command and required Snap base. Reconcile
 matching state without reinstalling it and bind fixture sources to baseline identity,
 preserving manifest/digest verification, any supplied signatures, the fixture's

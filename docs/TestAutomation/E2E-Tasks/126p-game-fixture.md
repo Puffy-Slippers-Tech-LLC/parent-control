@@ -20,7 +20,7 @@ Reuse the repository's existing offline game fixture, builder/artifact cache,
 verified asset profile and one fixed level through the
 [fixture contract](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope).
 Its controls require public automation IDs. Add its finite files/launcher and
-dependencies to idempotent `tools/prepare-baseline` reconciliation, using the
+dependencies to idempotent `tools/prepare-vm` reconciliation, using the
 existing fixture layout rather than inventing a package. Bind sources to the
 baseline identity; FIX04 retains transfer only. No game selection, vendor launcher,
 account, asset download or graphics-settings qualification is needed. Leave

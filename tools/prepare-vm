@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Prepare guest accounts/tools and replace the test VM baseline. The VM must be off."""
+"""Prepare baseline and current app snapshots, then restore the powered-off baseline."""
 import argparse
 import os
 from pathlib import Path
@@ -46,23 +46,23 @@ def main(argv=None, *, refresh=True):
         check(HELPER)
         if len(vms) > 1:
             from vm_selection import confirm_queue
-            if not confirm_queue(args, 'prepare-baseline', mode_message(args.mode)):
-                print('prepare-baseline: cancelled; no baseline snapshot was prepared.')
+            if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
+                print('prepare-vm: cancelled; no baseline snapshot was prepared.')
                 return 0
-            results, queue_status = preparation(ROOT, 'prepare-baseline', args, concurrency, vms)
+            results, queue_status = preparation(ROOT, 'prepare-vm', args, concurrency, vms)
             # Even after a partial failure, accept successfully prepared VMs.
             status = (subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
                       if refresh and 0 in results.values() else 0)
             return status or queue_status
         select(args.vm)
         status = subprocess.run(
-            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-baseline', '--mode', args.mode,
+            ['/usr/bin/pkexec', '--keep-cwd', HELPER, 'prepare-vm', '--mode', args.mode,
              *(['--y'] if args.y else []), '--vm', args.vm],
             cwd=ROOT,
             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
         ).returncode
         if status == 3:  # Operator declined; no baseline was prepared.
-            print('prepare-baseline: cancelled; no baseline snapshot was prepared.')
+            print('prepare-vm: cancelled; no baseline snapshot was prepared.')
             return 0
         if status:
             return status
@@ -71,10 +71,10 @@ def main(argv=None, *, refresh=True):
         # Pin the accepted UUID only after successful baseline reconciliation.
         status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
         if status == 0:
-            print(f'prepare-baseline: onpc_baseline prepared and accepted for {args.vm}.')
+            print(f'prepare-vm: onpc_baseline prepared and accepted for {args.vm}.')
         return status
     except (ValueError, OSError) as error:
-        print('prepare-baseline: ' + str(error), file=sys.stderr)
+        print('prepare-vm: ' + str(error), file=sys.stderr)
         return 2
 
 

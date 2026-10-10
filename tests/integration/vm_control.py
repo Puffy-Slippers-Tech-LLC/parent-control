@@ -47,7 +47,7 @@ def acquire_idle(lease):
     lease.capture.directory_identity = lease.capture.private_directory()
     lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
-    lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    lease.fd = base.open_controller_lock(lock)
     base.identity(lock, private=True, mode=0o600)
     try:
         fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -189,7 +189,7 @@ def resume(lease, *, stopping=False, recovery_instance=None):
     lease.capture.directory_identity = lease.capture.private_directory()
     lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
-    lease.fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    lease.fd = base.open_controller_lock(lock)
     base.identity(lock, private=True, mode=0o600)
     try:
         fcntl.flock(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)

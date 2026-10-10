@@ -13,17 +13,17 @@ OPERATIONS = {
     'codex-rules': ('tools/install_codex_rules.py', '--system'),
     'test-tools': ('tools/install_test_runner.py',),
     'graphical-policy': ('tools/install_graphical_test_policy.py',),
-    'prepare-baseline': ('tests/integration/prepare_baseline.py',),
+    'prepare-vm': ('tools/prepare_vm_host.py',),
     'replace-missing-baseline': ('tests/integration/prepare_baseline.py', '--replace-missing'),
-    'backupvms': ('tools/vm_backup.py', 'backup'),
-    'restorevms': ('tools/vm_backup.py', 'restore'),
+    'backupvm': ('tools/vm_backup.py', 'backup'),
+    'restorevm': ('tools/vm_backup.py', 'restore'),
 }
 
 
 def command(root, argv):
     mode_args = []
     vm_args = []
-    recovery = bool(argv and argv[0] in ('backupvms', 'restorevms'))
+    recovery = bool(argv and argv[0] in ('backupvm', 'restorevm'))
     if recovery:
         sys.path.insert(0, str(root / 'tests/integration'))
         try:
@@ -38,7 +38,7 @@ def command(root, argv):
             vm_args = ['--vm', ','.join(vm.name for vm in vms)]
         finally:
             sys.path.pop(0)
-    if argv and argv[0] in ('prepare-baseline', 'replace-missing-baseline'):
+    if argv and argv[0] in ('prepare-vm', 'replace-missing-baseline'):
         sys.path.insert(0, str(root / 'tests/integration'))
         try:
             import vm_config
@@ -46,11 +46,11 @@ def command(root, argv):
             sys.path.pop(0)
         argv, configured = vm_config.extract(argv, path=root / 'config/test-vm.json')
         vm_args = ['--vm', configured.name]
-    if argv and argv[0] == 'prepare-baseline':
+    if argv and argv[0] == 'prepare-vm':
         if (len(argv) not in (3, 4) or argv[1] != '--mode'
                 or argv[2] not in ('auto', 'manual')
                 or (len(argv) == 4 and argv[3] != '--y')):
-            raise ValueError('setup-helper: prepare-baseline requires --mode auto or --mode manual with optional --y')
+            raise ValueError('setup-helper: prepare-vm requires --mode auto or --mode manual with optional --y')
         mode_args = argv[1:]
     elif len(argv) != 1 or argv[0] not in OPERATIONS:
         raise ValueError('setup-helper: expected one supported setup operation')
@@ -64,9 +64,9 @@ def command(root, argv):
         raise ValueError('setup-helper: missing setup module')
     if argv[0] in ('dependencies', 'ppa-build-tools', 'rpm-build-tools'):
         return ['/bin/bash', str(target), *args]
-    # prepare_baseline imports its sibling guest contract; the other installers use
+    # VM controllers import their sibling contracts; the other installers use
     # only the standard library and can run with Python's isolated mode.
-    return ['/usr/bin/python3', '-B' if recovery or argv[0] in ('prepare-baseline', 'replace-missing-baseline') else '-IB', str(target), *args]
+    return ['/usr/bin/python3', '-B' if recovery or argv[0] in ('prepare-vm', 'replace-missing-baseline') else '-IB', str(target), *args]
 
 
 def main():
@@ -75,7 +75,7 @@ def main():
             raise ValueError('setup-helper: use the installed helper through setup.sh')
         root = Path(CHECKOUT)
         selected = command(root, sys.argv[1:])
-        report_status = sys.argv[1] != 'prepare-baseline'
+        report_status = sys.argv[1] != 'prepare-vm'
         if report_status:
             print(f'setup-helper: starting {sys.argv[1]}', flush=True)
         result = subprocess.run(selected, cwd=root, check=False,

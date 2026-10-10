@@ -305,7 +305,7 @@ def prepare_continuous_activity():
     require(re.fullmatch(r'uint32 [0-9]+', previous) is not None, 'idle-delay-value')
     seconds = int(previous.split()[1])
     require(0 <= seconds <= 4294967295, 'idle-delay-value')
-    require(seconds == 0, 'idle-delay-baseline-stale; run tools/prepare-baseline')
+    require(seconds == 0, 'idle-delay-baseline-stale; run tools/prepare-vm')
     require(call(command).strip() == 'uint32 0', 'idle-delay-readback')
     return seconds
 

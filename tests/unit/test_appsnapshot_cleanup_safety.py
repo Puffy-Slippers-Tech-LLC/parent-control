@@ -792,7 +792,7 @@ def test_snapshot_dispatch_pins_vm_and_confines_inputs(dispatch, tmp_path):
     with pytest.raises(ValueError):
         dispatch(ROOT, ['appsnapshot', '--expected-uuid', 'other'])
     dispatch.__globals__['VM_UUIDS'] = {}
-    with pytest.raises(ValueError, match='prepare-baseline'):
+    with pytest.raises(ValueError, match='prepare-vm'):
         dispatch(ROOT, ['appsnapshot', '--probe', *VM_ARGS])
 
 

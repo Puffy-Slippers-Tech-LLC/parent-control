@@ -18,7 +18,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse the maintained repository-owned A/H/S Flatpak bundles, pinned runtime and
 fixture builder/artifact cache. FIX04 transfers bytes only. Reconcile the runtime
-and bundles through `tools/prepare-baseline` in one declared installation scope,
+and bundles through `tools/prepare-vm` in one declared installation scope,
 using the shared package helper. Reuse matching state and bind sources to baseline
 identity. No Flathub browsing, third-party remote setup, online
 runtime search or installation-scope matrix is needed. Preserve real Flatpak

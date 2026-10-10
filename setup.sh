@@ -23,7 +23,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   -h, --help            Show this help
 
 All modes are repeatable. Ordinary host setup preserves the VM. Explicit baseline
-replacement is tools/prepare-baseline. See tests/integration/Environment.md.
+replacement is tools/prepare-vm. See tests/integration/Environment.md.
 USAGE
 }
 
@@ -120,7 +120,7 @@ case "$mode" in
         /usr/bin/python3 -B "$script_dir/tests/integration/test_account_password.py"
         # Explicit recovery recaptures a deleted baseline without restoring it.
         # The controller rejects running, concurrent or replaced resources.
-        echo 'setup: [stage:prepare-baseline]'
+        echo 'setup: [stage:prepare-vm]'
         run_root replace-missing-baseline /usr/bin/python3 -B "$script_dir/tests/integration/prepare_baseline.py" --replace-missing --vm "$vm_name"
         # Pin the accepted UUID only after successful baseline reconciliation.
         install_test_tools

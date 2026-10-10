@@ -1527,7 +1527,7 @@ release-acceptance roadmap.
 
 ## Test layers
 
-Reusable one-time guest setup belongs in `tools/prepare-baseline`, including
+Reusable one-time guest setup belongs in `tools/prepare-vm`, including
 fixed app fixtures, launchers, dependencies and persistent harness settings.
 Tests and app-snapshot preparation verify those inputs; missing/stale state
 requires a separate authorized baseline refresh, never an in-test installer or

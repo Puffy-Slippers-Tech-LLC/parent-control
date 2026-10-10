@@ -1870,7 +1870,7 @@ must be the independently observed default selected child on the first kiosk
 entry, with no saved product language preference. Use one latest verified
 current-source package asset; if that input or the real reboot-required result is
 unavailable, retain the gate rather than inject state. Chinese system locale,
-translation and font assets are installed by `tools/prepare-baseline` and only
+translation and font assets are installed by `tools/prepare-vm` and only
 verified by the attempt under the
 [language preparation contract](E2E-Building-Blocks.md#chinese-language-preparation-and-desktop-language-setup).
 

@@ -429,10 +429,37 @@ def attach(lease):
         attach_display(lease, adapter)
 
 
+class BorrowedObserver:
+    """A nested stage may attach displays, but cannot close the outer feed."""
+
+    def __init__(self, observer):
+        self.observer = observer
+        self.previous_progress = observer.progress
+
+    def __getattr__(self, name):
+        return getattr(self.observer, name)
+
+    @property
+    def progress(self):
+        return self.observer.progress
+
+    @progress.setter
+    def progress(self, value):
+        self.observer.progress = value
+
+    def close(self):
+        self.observer.progress = self.previous_progress
+
+
 def begin(lease):
     """Publish one connected feed for the entire exclusive VM lease."""
     uid = os.environ.get('PKEXEC_UID', '')
     if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
+        return
+    from prepare_baseline import controller_watch
+    enclosing = controller_watch()
+    if enclosing is not None:
+        lease.watch = BorrowedObserver(enclosing)
         return
     observer = None
     try:

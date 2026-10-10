@@ -27,8 +27,8 @@ test defects may be fixed automatically while preserving the intended checks.
 | Source and documentation edits | Native `apply_patch` within workspace permissions; `tools/read-only links` for Markdown |
 | Builds and checks | Approved plain Make targets or validated `tools/run-tests`, `tools/run-unit-tests` and `tools/run-ui-tests` selections |
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
-| Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-baseline` and `tools/test-vm` within their existing grants and authorized scope |
-| VM disaster recovery | `tools/backupvms` and `tools/restorevms` for registered selections and configured `backup_root`; fixed operations through the setup dispatcher, with shared leases and retained recovery evidence |
+| Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-vm` and `tools/test-vm` within their existing grants and authorized scope |
+| VM disaster recovery | `tools/backupvm` and `tools/restorevm` for registered selections and configured `backup_root`; fixed operations through the setup dispatcher, with shared leases and retained recovery evidence |
 | E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; add `--discard-completed` only when discarding saved execution results is explicitly authorized, under [retention ownership](../tests/README.md#aggregate-output-retention); `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
@@ -103,7 +103,7 @@ the caller-owned Fedora 44 RPM build image. `--rpm-build-tools` installs only it
 RPM/Podman host prerequisites and prepares that image; refresh an older installed
 setup helper with `--test-tools-only` first. Builds never install prerequisites.
 Explicit baseline preparation is
-`tools/prepare-baseline --vm NAME --mode auto|manual [--y]`; launcher/session
+`tools/prepare-vm --vm NAME --mode auto|manual [--y]`; launcher/session
 work includes `--y`, while manual work omits it to retain confirmation. See
 [VM prerequisites](../tests/integration/Environment.md).
 Reusable guest dependencies, fixed fixture apps/launchers and persistent harness
@@ -271,24 +271,27 @@ matches literal argument prefixes; the strictest decision wins.
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`,
-`replace-missing-baseline`, `prepare-baseline`, `backupvms` or `restorevms`.
+`replace-missing-baseline`, `prepare-vm`, `backupvm` or `restorevm`.
 The disaster recovery operations accept only a registered `--vm` queue selector
 (default `all`), never caller-supplied archive, domain XML or disk paths. They
 use `backup_root` from the trusted registry and the existing setup authorization;
 see [VM disaster recovery](../tests/integration/Environment.md#vm-disaster-recovery).
-Only `prepare-baseline`
+Only `prepare-vm`
 requires the fixed arguments `--mode auto` or `--mode manual`, optionally
 followed by `--y`; arbitrary paths
 and other arguments are refused. Its
 dedicated Polkit action defaults to denial and grants only active local members
-of `sudo`. `setup.sh` and `tools/prepare-baseline` check this authorization without
+of `sudo`. `setup.sh` and `tools/prepare-vm` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
-`tools/prepare-baseline --vm NAME --mode auto|manual [--y]`; the
+`tools/prepare-vm --vm NAME --mode auto|manual [--y]`; the
 [VM mandate](Mandates/VM-Mandate.MD#vm-host-setup-and-baseline) owns mode
 authorization, selector scope, warnings and preparation lifetime. Auto restores
 the accepted baseline and updates the supported guest distribution; manual
-prepares the current disk state. Both capture `onpc_baseline` after validation.
+prepares the current disk state. Both capture `onpc_baseline` after validation,
+prepare the current online app snapshot through shared app-snapshot code, and
+restore the baseline with the VM off. One exclusive VM lease covers all stages;
+package building runs as the authenticated unprivileged caller.
 The dispatcher uses fixed modules relative to the invoking repository root and a
 clean environment; trust includes edits to that checkout's setup code. The dependency
 operation runs only the fixed host-package module with noninteractive package

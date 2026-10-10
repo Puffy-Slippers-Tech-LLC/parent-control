@@ -115,7 +115,7 @@ PREREQUISITE_FAILURES = frozenset(
     'guest-tools:' + reason for reason in (
         'unsupported-os', 'unsupported-package-version', 'ambiguous-package-status',
         'missing-or-mismatched-package', 'package-not-configured')) | frozenset(
-    'baseline:chinese-' + reason + '; run tools/prepare-baseline' for reason in (
+    'baseline:chinese-' + reason + '; run tools/prepare-vm' for reason in (
         'changed', 'locale-command', 'read-command', 'command-bound', 'locale-runtime',
         'parent', 'missing-file', 'file', 'release', 'selinux', 'package-status', 'missing-package',
         'font-table', 'font-format', 'font-faces', 'font-face', 'font-tables', 'font-cmap',
@@ -123,7 +123,7 @@ PREREQUISITE_FAILURES = frozenset(
         'package-version', 'package-identity', 'package-bytes', 'locale',
         'catalogue-identity', 'translation-fallback', 'unowned-collision',
         'response-bound', 'response', 'receipt', 'receipt-platform', 'receipt-catalogue', 'receipt-files')) | {
-    'guest-tools:missing-or-mismatched-package; run tools/prepare-baseline on the host'}
+    'guest-tools:missing-or-mismatched-package; run tools/prepare-vm on the host'}
 
 
 def error_category(error):
@@ -541,7 +541,7 @@ class SourceView:
 
 
 class Lease:
-    """Serializes prepare-baseline/system runners; durable state refuses interrupted ownership."""
+    """Serializes prepare-vm/system runners; durable state refuses interrupted ownership."""
 
     def __init__(self, source, commands, inspect, *, directory=None,
                  anchor=None, ledger=None, graphics_type='spice', finalize=None):
@@ -585,7 +585,7 @@ class Lease:
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
-            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            self.fd = baseline.open_controller_lock(self.capture.lock_path)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -866,7 +866,7 @@ class Lease:
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
-            self.fd = os.open(self.capture.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            self.fd = baseline.open_controller_lock(self.capture.lock_path)
             baseline.identity(self.capture.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)

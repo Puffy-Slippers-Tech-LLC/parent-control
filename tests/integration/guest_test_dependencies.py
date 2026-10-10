@@ -142,5 +142,5 @@ def verify_packages(status, packages=PACKAGES):
                 check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 timeout=10).returncode != 0
             for name, version in found.items()):
-        raise ValueError('guest-tools:missing-or-mismatched-package; run tools/prepare-baseline on the host')
+        raise ValueError('guest-tools:missing-or-mismatched-package; run tools/prepare-vm on the host')
     return found

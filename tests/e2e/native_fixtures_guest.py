@@ -1,4 +1,4 @@
-"""Read the finite native files already installed by prepare-baseline."""
+"""Read the finite native files already installed by prepare-vm."""
 from contextlib import ExitStack, contextmanager
 import grp
 import hashlib

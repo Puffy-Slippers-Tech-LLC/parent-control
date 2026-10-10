@@ -23,7 +23,7 @@ launcher, enabled child autostart/tray settings and private credential reference
 No product policy/grant setup and no host installation are part of this task.
 
 Establish repeatable availability after the existing runner restore through
-the authorized `tools/prepare-baseline` route and its finite owned inventory,
+the authorized `tools/prepare-vm` route and its finite owned inventory,
 under the [baseline mandate](../../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
 Do not create alternate snapshots, overwrite baseline state outside that route,
 skip restore or add an automatic installer to FIX05.

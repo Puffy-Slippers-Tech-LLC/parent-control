@@ -96,7 +96,7 @@ class LocalFiles:
 
 def require(value, code):
     if not value:
-        raise ValueError('baseline:chinese-' + code + '; run tools/prepare-baseline')
+        raise ValueError('baseline:chinese-' + code + '; run tools/prepare-vm')
 
 
 def file_identity(g, path):
@@ -279,7 +279,7 @@ def verify(g, os_id=None):
     try:
         require(g.command(LOCALE_COMMAND) == 'UTF-8\n', 'locale-runtime')
     except (RuntimeError, subprocess.CalledProcessError, OSError) as error:
-        raise ValueError('baseline:chinese-locale-runtime; run tools/prepare-baseline') from error
+        raise ValueError('baseline:chinese-locale-runtime; run tools/prepare-vm') from error
     files[LOCALE_PATH] = hashlib.sha256(locale_data).hexdigest()
     translations = {}
     for domain, messages in CATALOGUES.items():

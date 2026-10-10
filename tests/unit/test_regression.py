@@ -338,7 +338,7 @@ def test_event_record_stays_complete_when_diagnostics_follow_each_write(
     item = regression.Category('Mixed output', 1)
     run.categories.append(item)
     execution = regression.Execution(run, item, events=True)
-    diagnostic = b'prepare-baseline: [connection:event-loop-failed]\n'
+    diagnostic = b'prepare-vm: [connection:event-loop-failed]\n'
 
     class InterleavedOutput:
         def write(self, value):
@@ -1105,7 +1105,7 @@ def test_final_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
         assert str(run.report.directory / 'report.md') in prompt
         assert 'progress.json' in prompt
         assert 'rerun the relevant checks' in prompt
-        assert 'tools/prepare-baseline --vm NAME --mode auto --y' in prompt
+        assert 'tools/prepare-vm --vm NAME --mode auto --y' in prompt
         assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt
         assert 'omit it for manual work' in prompt
         assert 'Detailed failure evidence' not in prompt

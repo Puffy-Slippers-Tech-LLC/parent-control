@@ -140,6 +140,19 @@ bounded joined threads, process-local command doubles and the existing owned
 session children. No live VM, setup, privilege or shared output is touched.
 vm_config, prepare_baseline_tool, appsnapshot_cleanup_safety and regression_session
 retain compatible unit scheduling; app-snapshot cleanup coverage stays compatible too.
+Combined preparation and snapshot-free backup checks in vm_backup_cleanup_safety
+use private registry/disks/journals and real advisory locks on those private files.
+Build, app preparation and privilege dispatch are process-local doubles; no live
+VM, host build, external service, bus/display or new cleanup owner is added.
+The module retains compatible scheduling in the unit and cleanup inventories.
+Restore-bootstrap refusal checks use those same private disks, metadata and
+journals; they add no live service, subprocess or shared mutable resource.
+Interrupted-backup ownership checks retain those same private journal fixtures.
+Repeated baseline entry checks reuse one bounded, joined event thread with API
+doubles; prepare_baseline keeps its existing compatible resource classification.
+Borrowed watch-feed coverage in e2e_watch_cleanup_safety uses only process-local
+observer doubles and context state; no collector, socket, display or subprocess
+is created. Its compatible unit/cleanup classification remains unchanged.
 Preparation-digest scheduling regressions add only private copied source/config
 files to vm_config. No live VM or helper refresh runs; compatible overlap remains valid.
 

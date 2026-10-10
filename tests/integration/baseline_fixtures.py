@@ -13,7 +13,7 @@ PURPOSE = 'onpc-reusable-fixtures-v1'
 
 def require(value):
     if not value:
-        raise ValueError('baseline:fixtures-unsafe-or-stale; run tools/prepare-baseline')
+        raise ValueError('baseline:fixtures-unsafe-or-stale; run tools/prepare-vm')
 
 
 def build_payload():

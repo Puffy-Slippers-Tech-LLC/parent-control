@@ -37,7 +37,7 @@ Disabled older layouts remain valid for owned cleanup. The watch panels remain
 read-only; clipboard sharing is available through the interactive VM console.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
-`.envrc`, then run `tools/prepare-baseline --vm NAME --mode manual` on the development host with the
+`.envrc`, then run `tools/prepare-vm --vm NAME --mode manual` on the development host with the
 product-free Ubuntu 26.04 VM off. Missing, empty, placeholder or unsafe
 credentials fail before privilege dispatch or VM access. The old `make prepare-vm`
 target, `make prepare-baseline` alias and `./setup.sh --prepare-baseline` mode
@@ -59,21 +59,30 @@ deleting their children.
 Under the [VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
 auto-mode refresh needed for authorized development or testing is preapproved,
 including app-snapshot deletion and baseline replacement. Launchers and sessions
-use `tools/prepare-baseline --vm NAME --mode auto --y` without asking the developer
+use `tools/prepare-vm --vm NAME --mode auto --y` without asking the developer
 again. Manual mode still requires explicit developer authorization; authorized
 launcher/session work uses `--mode manual --y`. Manual work omits `--y` to keep
 confirmation. Refresh the installed dispatcher with `./setup.sh --test-tools-only`
 after adding support for this flag. This standing authorization does not
 bypass any VM, ownership, lease or validation check.
 
-- `tools/prepare-baseline --vm NAME --mode auto` requires an existing accepted baseline,
+- `tools/prepare-vm --vm NAME --mode auto` requires an existing accepted baseline,
   restores it, boots, runs no-app prerequisites, and updates Ubuntu packages.
   If a reboot is required, a second controlled boot verifies a changed boot ID
   before shutdown. The old baseline is replaced only after successful guest
   preparation and independent offline inspection.
-- `tools/prepare-baseline --vm NAME --mode manual` boots the current guest disk state,
+- `tools/prepare-vm --vm NAME --mode manual` boots the current guest disk state,
   runs no-app prerequisites, shuts down and creates `onpc_baseline`, replacing
   an existing baseline if present. It does not run the system update step.
+
+Both modes then build the current package as the invoking administrator, prepare
+the current online app snapshot through the same implementation as
+`tools/prepare-appsnapshot`, and restore `onpc_baseline`. The VM finishes off.
+One exclusive per-VM controller lock covers the complete sequence, including
+package building and the final restore. Nested controllers duplicate the held
+lock descriptor in-process; ending one stage cannot release the outer lease.
+Queue workers retain isolated state and the registry concurrency limit. Helper
+UUID pins refresh once after the workers finish.
 
 Automatic updates use Ubuntu's scripting interface,
 [`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
@@ -135,7 +144,7 @@ pinning is refreshed by host preparation); no product activation or data migrati
 
 ## Reusable preparation ownership
 
-`tools/prepare-baseline` owns all reusable one-time guest preparation. Tests,
+`tools/prepare-vm` owns all reusable one-time guest preparation. Tests,
 qualification workers and app-snapshot preparation verify readiness and refuse
 missing or stale inputs with baseline-refresh guidance. They must not install,
 repair or recreate those inputs during an attempt. This applies to future native,
@@ -180,7 +189,7 @@ lease, provenance, ownership or product-free gates. The governing rule is the
 | Resource | Contract |
 | --- | --- |
 | Libvirt connection and domain | `qemu:///system`; `name` in the shared config; guest hostname is its lowercase form |
-| Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-baseline`; maintained guest modules are staged privately inside the VM. Installed helpers validate the invoking checkout at runtime through the [embedded resolver](../../tools/dev_checkout.py), rather than retaining an installation-time checkout path. VM UUID pins remain separately bound to finalized baseline provenance. |
+| Host/guest preparation checkout | The checkout containing the invoked `tools/prepare-vm`; maintained guest modules are staged privately inside the VM. Installed helpers validate the invoking checkout at runtime through the [embedded resolver](../../tools/dev_checkout.py), rather than retaining an installation-time checkout path. VM UUID pins remain separately bound to finalized baseline provenance. |
 | Disk-chain anchor | `disk_anchor` in the shared config; resolve and validate the actual active chain. |
 | Retained product-free baseline | Internal `onpc_baseline` snapshot, captured while off, without VM memory; name defined by `SNAPSHOT` in [prepare_baseline.py](prepare_baseline.py). Runners also accept `onpc-baseline` and `oh-no-parent-control-baseline`; explicit preparation replaces them with `onpc_baseline`. |
 | Controller state | Root-private `/Data/virt-manager/oh-no-parent-control-baseline-state/<configured-name>/` |
@@ -206,7 +215,7 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 [../ui/requirements.txt](../ui/requirements.txt). Missing tooling is a
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
-the host's `tools/prepare-baseline` during its controlled guest boot.
+the host's `tools/prepare-vm` during its controlled guest boot.
 Dependencies are OpenSSH server, pytest, `spice-vdagent`, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
@@ -269,7 +278,7 @@ never invokes baseline preparation. Tests continue to reuse the accepted baselin
 
 **Manual snapshot maintenance:** restore any snapshot you manage (such as
 `1 - Clean`), perform maintenance, shut down, and delete/retake your snapshot.
-Then run `tools/prepare-baseline --vm NAME --mode manual`. The command uses the current guest disk state
+Then run `tools/prepare-vm --vm NAME --mode manual`. The command uses the current guest disk state
 without choosing or restoring any snapshot. A changed active image or backing
 chain on the same recorded VM is accepted automatically, provided the chain
 still ends at the configured anchor. The automation baseline and all versioned
@@ -323,8 +332,8 @@ External firmware/TPM state outside the recorded snapshot contract is refused.
 
 ## VM disaster recovery
 
-The [`backupvms`](../../tools/backupvms) and
-[`restorevms`](../../tools/restorevms) commands read `backup_root` from
+The [`backupvm`](../../tools/backupvm) and
+[`restorevm`](../../tools/restorevm) commands read `backup_root` from
 [`config/test-vm.json`](../../config/test-vm.json). Run them as the unprivileged
 local administrator after ordinary `./setup.sh` on a replacement host, or
 `./setup.sh --test-tools-only` to refresh existing development helpers.
@@ -333,22 +342,25 @@ and `all` selectors as baseline preparation. Their default is **all**, including
 disabled entries. IDs resolve from the current registry on every invocation.
 
 ```sh
-tools/backupvms
-tools/backupvms --vm '1,2'
-tools/restorevms
-tools/restorevms --vm '1'
+tools/backupvm
+tools/backupvm --vm '1,2'
+tools/restorevm
+tools/restorevm --vm '1'
 ```
 
-Backup first calls `tools/prepare-baseline --vm SELECTION --mode auto --y`
-once for the whole selection. That tool uses registry concurrency and its
-existing isolated workers. Automatic preparation updates the product-free
-baselines and deletes versioned app snapshots under the existing preparation
-contract. If any preparation fails, no archive copying starts. Shut down selected
+Backup restores each VM's existing accepted baseline, deletes all versioned app
+snapshots and the baseline snapshot, then archives the resulting powered-off,
+product-free guest. It does not update packages or run baseline/app preparation.
+One exclusive VM lease covers restoration, deletion and copying. Shut down selected
 VMs completely before invocation; disable their libvirt autostart and finish any
-owned maintenance/test attempt. Preparation itself still applies all its usual
-authorization, baseline and guest-prerequisite checks.
+owned maintenance/test attempt. Baseline provenance is verified before mutation
+and retained as historical evidence. A durable preparation journal permits retry
+after snapshot deletion; snapshot-free archives have no active baseline record.
+An unfinished backup blocks ordinary preparation and execution until the same
+backup route completes. Retries recheck unfinished test and maintenance ownership
+before restoring or deleting snapshots.
 
-After successful preparation, archive copying is strictly serial. Each VM has
+Archive copying is strictly serial. Each VM has
 one complete backup directly in `backup_root/NAME/`, with independent sparse
 disk-chain copies, inactive domain XML, snapshot hierarchy/current snapshot,
 referenced persistent network definitions, private baseline provenance and any
@@ -407,9 +419,18 @@ before a new transaction begins. Ordinary preparation/execution refuses an
 unfinished restore. It recreates snapshot metadata through libvirt's redefine
 API without creating/reverting snapshots, rebinds baseline directory/disk inode
 identities, verifies the preserved internal baseline proof, and leaves the VM
-off. On success, it refreshes installed helper UUID pins through
-`./setup.sh --test-tools-only`. A failed pin refresh is reported separately and
-must be completed before maintenance/tests. No product is installed on the host.
+off. After the entire archive selection succeeds, the launcher calls
+`tools/prepare-vm --vm SELECTION --mode auto --y`. Snapshot-free restored guests
+first acquire an accepted baseline through the shared reconciliation code, then
+receive automatic baseline updates and the current app snapshot. Preparation
+keeps one VM lease throughout and finishes with the baseline restored and VM off.
+Its queue refreshes helper UUID pins once. Preparation failures are reported
+separately from successful archive restoration. No product is installed on the host.
+Snapshot-free bootstrap authority binds the restored disk identities and change
+timestamps, domain XML and snapshot inventory to the completed restore journal.
+Changing that guest before bootstrap refuses automatic preparation; rerun
+`tools/restorevm` to establish verified restored state again. Older completed
+journals without this binding also require restoration before bootstrap.
 
 For explicit disaster recovery, the verified restored VM and archive are the
 authority for local bookkeeping. Corrupt/stale baseline records do not prevent
@@ -429,9 +450,8 @@ Changed baseline state receives a new hash; ordinary disk identity, snapshot pro
 and preparation freshness checks remain mandatory. A subsequent archive preserves
 the logical hash across repeated recovery.
 
-Preparation-source freshness still applies after recovery. Use the normal
-explicit baseline refresh if the checkout's preparation contract changed since
-backup; derived app snapshots must then be prepared normally. External snapshot
+Preparation-source freshness still applies after recovery and is reconciled by
+the automatic preparation follow-up. External snapshot
 files, firmware/TPM state and unsupported disk layouts are refused under the
 existing VM boundaries. Backups cannot restore host dependencies, arbitrary
 unregistered machines or unrelated checkout files. Preserve backup storage
@@ -457,7 +477,7 @@ with the saved disk proof, or explicit baseline replacement. An
 unrelated snapshot is not a substitute for the recorded baseline.
 
 To replace a baseline, prepare and shut down the guest, then run
-`tools/prepare-baseline --vm NAME --mode manual`; manual deletion is unnecessary. Refresh an older
+`tools/prepare-vm --vm NAME --mode manual`; manual deletion is unnecessary. Refresh an older
 installed setup dispatcher first with `./setup.sh --test-tools-only`.
 The retained `./setup.sh --replace-missing-baseline` recovery mode handles an
 already deleted baseline without replacing an existing one. It requires unchanged

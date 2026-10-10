@@ -43,6 +43,17 @@ def confirm_preparation(args):
     return confirm_queue(args, 'prepare-appsnapshot', warning, prompt=input)
 
 
+def build_artifacts(root, package_format, control, environment, *, label='prepare-appsnapshot'):
+    """Build once in the caller's active retained session, using owned transport."""
+    directory = test_retention.allocate(tempfile.mkdtemp,
+        prefix='onpc-test-artifacts-')
+    print(label + ': artifacts=' + directory, flush=True)
+    status = control.run(['/usr/bin/python3', '-B',
+        str(root / 'tools/build_test_artifacts.py'), '--output', directory,
+        '--package-format', package_format], cwd=root, env=environment)
+    return directory, status
+
+
 def main(argv=None):
     args = arguments(argv)
     try:
@@ -92,13 +103,7 @@ def main(argv=None):
                     return 130
             args.overwrite = 'true'
             with test_retention.Store(test_activity.retention_path(root)).session() as run:
-                directory = test_retention.allocate(tempfile.mkdtemp,
-                    prefix='onpc-test-artifacts-', dir='/tmp')
-                print('prepare-appsnapshot: artifacts=' + directory, flush=True)
-                status = control.run(['/usr/bin/python3', '-B',
-                    str(root / 'tools/build_test_artifacts.py'), '--output', directory,
-                    '--package-format', package_format],
-                    cwd=root, env=environment)
+                directory, status = build_artifacts(root, package_format, control, environment)
                 if status:
                     return status
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,

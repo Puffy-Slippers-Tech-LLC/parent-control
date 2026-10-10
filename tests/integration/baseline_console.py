@@ -9,7 +9,7 @@ GETTY_LINK = '/etc/systemd/system/getty.target.wants/serial-getty@ttyS0.service'
 
 def require(value, code):
     if not value:
-        raise ValueError('baseline:console-' + code + '; run tools/prepare-baseline')
+        raise ValueError('baseline:console-' + code + '; run tools/prepare-vm')
 
 
 def login_window(g, *, prepare=False):

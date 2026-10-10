@@ -72,7 +72,7 @@ def verify_fixture_files(declaration, identities, *, root=Path('/')):
         guest.require(path.resolve() == path and stat.S_ISREG(info.st_mode)
                       and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) == mode
                       and (info.st_uid, info.st_gid) == (uid, gid),
-                      'enforcement:baseline-fixture-metadata; run tools/prepare-baseline')
+                      'enforcement:baseline-fixture-metadata; run tools/prepare-vm')
         for parent in path.parents:
             if not parent.is_relative_to(root):
                 break
@@ -83,11 +83,11 @@ def verify_fixture_files(declaration, identities, *, root=Path('/')):
             guest.require(path.read_bytes() == content, 'enforcement:baseline-launcher')
         else:
             guest.require(content == 'mechanical' and guest.sha(path) == guest.sha(source),
-                          'enforcement:baseline-fixture-digest; run tools/prepare-baseline')
+                          'enforcement:baseline-fixture-digest; run tools/prepare-vm')
 
 
 def provision_catalog(accounts):
-    """Verify the catalogue fixture captured by prepare-baseline."""
+    """Verify the catalogue fixture captured by prepare-vm."""
     try:
         from baseline_assets import catalogue_files
     except ImportError:
@@ -167,7 +167,7 @@ def native_paths(variant):
 
 
 def provision_native(variant='command'):
-    """Verify fixed native witnesses; installation belongs to prepare-baseline."""
+    """Verify fixed native witnesses; installation belongs to prepare-vm."""
     guest.guard()
     target, desktop, _ = native_paths(variant)
     guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),

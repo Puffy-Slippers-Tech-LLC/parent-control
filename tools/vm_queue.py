@@ -45,7 +45,7 @@ def preparation(root, tool, args, concurrency, vms):
             environment.pop(BATCH, None)
             environment[VARIABLE] = vm.name
             runner = control
-            if tool == 'prepare-baseline':
+            if tool == 'prepare-vm':
                 # Do not interrupt a privileged replacement through an
                 # unprivileged intermediary that cannot signal its root child.
                 runner = Control()
@@ -77,12 +77,12 @@ def preparation(root, tool, args, concurrency, vms):
 def worker(argv):
     import runpy
     tool, *options = argv
-    if tool not in ('prepare-baseline', 'prepare-appsnapshot'):
+    if tool not in ('prepare-vm', 'prepare-appsnapshot'):
         raise ValueError('private VM preparation entry only')
     launcher = runpy.run_path(str(Path(__file__).resolve().parent / tool))
     # Shared helper installation must happen once in the parent, after all
     # baseline workers release their VM leases.
-    return launcher['main'](options, **({'refresh': False} if tool == 'prepare-baseline' else {}))
+    return launcher['main'](options, **({'refresh': False} if tool == 'prepare-vm' else {}))
 
 
 if __name__ == '__main__':

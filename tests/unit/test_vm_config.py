@@ -439,7 +439,7 @@ def test_selection_updates_imported_controller_and_guest(monkeypatch):
 
 
 @pytest.mark.parametrize('command', [
-    ['tools/test-vm', 'status'], ['tools/prepare-baseline', '--mode', 'auto'],
+    ['tools/test-vm', 'status'], ['tools/prepare-vm', '--mode', 'auto'],
     ['tools/prepare-appsnapshot'], ['tools/cleanup-e2e'],
     ['tools/run-tests', 'system'], ['tools/run-tests', 'e2e'],
     ['tools/run-tests', 'integration', 'check_test_recovery'],
@@ -545,7 +545,7 @@ def test_test_and_repair_launchers_keep_exact_queue_on_forwarding(
     assert test_commands.includes_host_request(ROOT, ['host', 'system', *options])
 
 
-@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+@pytest.mark.parametrize('tool', ['prepare-vm', 'prepare-appsnapshot'])
 def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_failure(monkeypatch, tool):
     import threading
     from types import SimpleNamespace
@@ -587,7 +587,7 @@ def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_fai
                 active -= 1
     monkeypatch.setattr(Control, 'run', lambda self, command, **kw: execute(command, **kw))
     statuses, status = vm_queue.preparation(
-        ROOT, tool, SimpleNamespace(mode='auto' if tool == 'prepare-baseline' else 'offline',
+        ROOT, tool, SimpleNamespace(mode='auto' if tool == 'prepare-vm' else 'offline',
                                     overwrite='false'), 2, vms)
     assert peak == 2 and sorted(calls) == [vm.name for vm in vms]
     assert statuses == {'guest-0': 0, 'guest-1': 7, 'guest-2': 0} and status == 7
@@ -595,20 +595,20 @@ def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_fai
     assert os.environ[vm_selection.BATCH] == 'parent-batch'
 
 
-@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+@pytest.mark.parametrize('tool', ['prepare-vm', 'prepare-appsnapshot'])
 def test_preparation_worker_uses_guarded_public_launcher_and_defers_baseline_refresh(monkeypatch, tool):
     import runpy
     import vm_queue
     entry = Mock(return_value=7)
     loader = Mock(return_value={'main': entry})
     monkeypatch.setattr(runpy, 'run_path', loader)
-    options = ['--vm', 'guest', '--y', '--mode', 'auto' if tool == 'prepare-baseline' else 'online']
+    options = ['--vm', 'guest', '--y', '--mode', 'auto' if tool == 'prepare-vm' else 'online']
     assert vm_queue.worker([tool, *options]) == 7
     loader.assert_called_once_with(str(ROOT / 'tools' / tool))
-    entry.assert_called_once_with(options, **({'refresh': False} if tool == 'prepare-baseline' else {}))
+    entry.assert_called_once_with(options, **({'refresh': False} if tool == 'prepare-vm' else {}))
 
 
-@pytest.mark.parametrize('tool', ['prepare-baseline', 'prepare-appsnapshot'])
+@pytest.mark.parametrize('tool', ['prepare-vm', 'prepare-appsnapshot'])
 def test_preparation_cancellation_keeps_completed_status_and_skips_queued_work(monkeypatch, tool):
     from types import SimpleNamespace
     import threading
@@ -906,7 +906,7 @@ def test_configured_vm_pins_are_selected_by_name_and_missing_pin_never_falls_bac
         command = dispatch(ROOT, ['vm', 'status', '--vm', name])
         assert command[3:7] == ['--vm', name, '--expected-uuid', identity]
     dispatch.__globals__['VM_UUIDS'].pop(names[1])
-    with pytest.raises(ValueError, match='prepare-baseline-and-refresh'):
+    with pytest.raises(ValueError, match='prepare-vm-and-refresh'):
         dispatch(ROOT, ['vm', 'status', '--vm', names[1]])
 
 

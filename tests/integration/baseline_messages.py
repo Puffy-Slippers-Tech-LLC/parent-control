@@ -2,6 +2,11 @@
 
 SNAPSHOT = 'onpc_baseline'
 APP_SNAPSHOT_STEP = 'Delete all onpc-[version] app snapshots, including onpc-v[version], after confirmation or --y.'
+FINAL_STEPS = (
+    'Prepare the current online app snapshot through prepare-appsnapshot shared code.',
+    'Restore onpc_baseline, leaving the VM powered off.',
+    'Keep the exclusive VM lock throughout all preparation steps.',
+)
 MODE_STEPS = {
     'auto': (
         'Require the VM to be off and an existing accepted onpc_baseline.',
@@ -24,11 +29,11 @@ MODE_STEPS = {
 
 
 def mode_message(mode):
-    return mode + ' mode:\n' + '\n'.join('  - ' + step for step in MODE_STEPS[mode])
+    return mode + ' mode:\n' + '\n'.join('  - ' + step for step in (*MODE_STEPS[mode], *FINAL_STEPS))
 
 
 def help_message():
-    return ('Choose tools/prepare-baseline --mode auto or tools/prepare-baseline --mode manual.\n\n'
+    return ('Choose tools/prepare-vm --mode auto or tools/prepare-vm --mode manual.\n\n'
             'Launcher/session work: include --y to suppress y/n confirmation.\n'
             'Use --vm NAME, ID, a comma-separated list, all-enabled (default), or all.\n'
             'Manual work: omit --y to keep confirmation. All safety checks still apply.\n\n'

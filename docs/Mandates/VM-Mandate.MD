@@ -23,8 +23,8 @@ selector. The enabled default means entries whose `enabled` is the string
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
 | `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
-| `tools/prepare-baseline`, `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
-| `tools/backupvms`, `tools/restorevms` | Same queue selectors | `all`, including disabled entries | Backup preparation uses the existing baseline queue; archive copying and restoration are serial |
+| `tools/prepare-vm`, `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
+| `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all`, including disabled entries | Archive work is serial; preparation after restore uses registry concurrency |
 | `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
@@ -56,15 +56,20 @@ preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
 ownership or create snapshots, overlays or clones outside those routes. Stop
 maintenance before system/E2E tests; reset is not a customer journey step.
 
-Disaster recovery uses the scoped `tools/backupvms` and `tools/restorevms`
+Disaster recovery uses the scoped `tools/backupvm` and `tools/restorevm`
 routes described in [the environment guide](../../tests/integration/Environment.md#vm-disaster-recovery).
-Both retain exclusive per-VM leases and shared observation. Backup first runs
-automatic baseline preparation for the complete selection through its maintained
-queue; preparation failure prevents archive copying. Archive work runs one VM at
-a time and stops on failure. Restore verifies complete checksummed generations,
+Both retain exclusive per-VM leases and shared observation. Backup restores the
+existing accepted baseline, deletes baseline and versioned app snapshots, then
+archives that powered-off baseline guest under the same lease. It does not run
+guest setup or updates. Archive work runs one VM at a time and stops on failure.
+Restore verifies complete checksummed generations,
 refuses active domains, held leases and foreign storage references, retains displaced files and definitions, and
-reconciles filesystem identities with the original snapshot proof. It never
-boots a guest or substitutes new baseline preparation for missing backup evidence.
+reconciles filesystem identities with archived evidence. Archive restoration
+does not boot a guest or substitute preparation for missing backup evidence.
+After successful restoration of the selection, the launcher invokes
+`tools/prepare-vm --mode auto --y`. For snapshot-free archives, that route first
+reconciles the verified restored guest through the shared baseline implementation,
+then performs automatic preparation and app capture, ending powered off.
 An unfinished restore blocks ordinary preparation/execution and helper pinning
 until restoration completes. Explicit restore treats the verified restored guest
 as the authority for local bookkeeping: it preserves and retires stale controller
@@ -129,7 +134,7 @@ execution until recovered; evidence is never discarded to enable parallelism.
 
 ## VM-host setup and baseline
 
-- All reusable, one-time guest prerequisites belong to `tools/prepare-baseline`:
+- All reusable, one-time guest prerequisites belong to `tools/prepare-vm`:
   dependencies, fixed fixture applications and launchers, and persistent harness
   settings. Runners, cases and app-snapshot preparation only verify them. Missing
   or stale prerequisites fail with baseline-refresh guidance; no on-the-fly
@@ -155,18 +160,22 @@ execution until recovered; evidence is never discarded to enable parallelism.
   retryable, preserve unrelated configuration and fail on missing prerequisites.
   Tests and builds report missing prerequisites; they do not install them.
 - Baseline preparation is an explicit destructive operation through
-  `tools/prepare-baseline --vm NAME --mode auto` (restore and update) or
-  `tools/prepare-baseline --vm NAME --mode manual` (prepare the current state). Auto-mode
+  `tools/prepare-vm --vm NAME --mode auto` (restore and update) or
+  `tools/prepare-vm --vm NAME --mode manual` (prepare the current state). Auto-mode
   refresh is preapproved when needed for authorized development or testing,
   including deletion of all versioned app snapshots and replacement of
   `onpc_baseline`. Do not ask the developer for confirmation; launcher/session
-  work uses `tools/prepare-baseline --vm NAME --mode auto --y` to suppress the
+  work uses `tools/prepare-vm --vm NAME --mode auto --y` to suppress the
   y/n prompt. Manual mode still requires explicit developer authorization;
   authorized launcher/session work uses `--mode manual --y`. Interactive invocation omits
   `--y` to retain confirmation. For both preparation tools, `--y` suppresses
   warnings and confirmation. Both baseline modes require the VM off and retain
   all tool safety checks; see
   [VM prerequisites](../../tests/integration/Environment.md).
+  Both modes then prepare the current online app snapshot using the standalone
+  app-snapshot implementation and restore the powered-off baseline. One exclusive
+  VM lock covers baseline work, package building, app preparation and final restore;
+  nested stages borrow that process's lock without releasing the enclosing lease.
   Ordinary setup and E2E runners never prepare or replace it implicitly; invoke
   the preapproved auto-mode preparation separately when needed.
   Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the

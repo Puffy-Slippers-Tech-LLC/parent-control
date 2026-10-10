@@ -9,10 +9,10 @@ def test_guest_launcher_and_make_target_are_removed():
     makefile = (ROOT / 'Makefile').read_text()
     assert 'prepare-vm:' not in makefile
     assert 'prepare-baseline:' not in makefile
-    result = subprocess.run(['bash', str(ROOT / 'setup.sh'), '--prepare-vm'],
+    result = subprocess.run(['bash', str(ROOT / 'setup.sh'), '--prepare-baseline'],
                             capture_output=True, text=True)
     assert result.returncode == 2
-    result = subprocess.run(['bash', str(ROOT / 'setup.sh'), '--prepare-baseline'],
+    result = subprocess.run(['bash', str(ROOT / 'setup.sh'), '--prepare-vm'],
                             capture_output=True, text=True)
     assert result.returncode == 2
 
@@ -23,7 +23,8 @@ def test_guest_preparation_accepts_no_interactive_password():
     assert 'os.environ' not in source
 
 def test_prepare_baseline_is_an_executable_project_tool():
-    path = ROOT / 'tools/prepare-baseline'
+    path = ROOT / 'tools/prepare-vm'
     assert path.is_file()
     assert path.stat().st_mode & stat.S_IXUSR
     assert os.access(path, os.X_OK)
+    assert not (ROOT / 'tools/prepare-baseline').exists()

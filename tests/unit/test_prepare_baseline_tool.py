@@ -15,7 +15,7 @@ VM_ARGS = ['--vm', vm_name()]
 
 @pytest.fixture
 def launcher():
-    loaded = runpy.run_path(str(ROOT / 'tools/prepare-baseline'))
+    loaded = runpy.run_path(str(ROOT / 'tools/prepare-vm'))
     return loaded['main'].__globals__
 
 
@@ -72,7 +72,7 @@ def test_failed_baseline_does_not_refresh_test_tools(authorized, monkeypatch, ca
     assert authorized['main'](['--mode', 'manual', *VM_ARGS]) == 1
     run.assert_called_once()
     assert run.call_args.args[0] == [
-        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', 'manual', *VM_ARGS]
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-vm', '--mode', 'manual', *VM_ARGS]
     assert run.call_args.kwargs['cwd'] == ROOT
     assert run.call_args.kwargs['env']['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
     output = capsys.readouterr()
@@ -88,7 +88,7 @@ def test_successful_baseline_refreshes_test_tools(authorized, monkeypatch, mode,
     assert authorized['main'](['--mode', mode, *VM_ARGS, *confirmation_args]) == 0
     assert run.call_count == 2
     assert run.call_args_list[0].args[0] == [
-        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-baseline', '--mode', mode,
+        '/usr/bin/pkexec', '--keep-cwd', authorized['HELPER'], 'prepare-vm', '--mode', mode,
         *confirmation_args, *VM_ARGS]
     assert run.call_args_list[1].args[0] == [str(ROOT / 'setup.sh'), '--test-tools-only']
     assert run.call_args_list[1].kwargs['cwd'] == ROOT
@@ -129,7 +129,7 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
     monkeypatch.setattr(authorized['subprocess'], 'run', run)
     assert authorized['main'](['--mode', 'auto', *VM_ARGS]) == 0
     assert run.call_count == 1
-    assert capsys.readouterr().out == 'prepare-baseline: cancelled; no baseline snapshot was prepared.\n'
+    assert capsys.readouterr().out == 'prepare-vm: cancelled; no baseline snapshot was prepared.\n'
 
 
 def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypatch, capsys, tmp_path):
@@ -146,7 +146,7 @@ def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypat
     monkeypatch.setattr(authorized['subprocess'], 'run', dispatch)
     assert authorized['main'](['--mode', 'auto']) == 0
     assert capsys.readouterr().out == ('baseline warnings\n'
-                                     'prepare-baseline: cancelled; no baseline snapshot was prepared.\n')
+                                     'prepare-vm: cancelled; no baseline snapshot was prepared.\n')
 
 
 def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):

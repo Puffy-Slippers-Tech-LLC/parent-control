@@ -200,6 +200,13 @@ from regression_resources import HOST_WORKERS
 # acquired. Compatible here and in the unit inventory.
 # DESK07 keeps that lifetime: count/clock/transport doubles and private durable
 # replies introduce no new process, display, socket or cleanup owner.
+# vm_backup's combined-preparation and snapshot-removal checks keep all locks,
+# disks, registries and durable journals under private pytest trees. Package and
+# VM operations are doubles; no live service or additional cleanup owner exists.
+# Restore-bootstrap refusals retain these private disk/metadata/journal fixtures.
+# Interrupted-backup ownership checks likewise use only private journals/doubles.
+# e2e_watch's borrowed-feed checks add only observer/context doubles, retaining
+# its compatible classification without a collector, socket or child process.
 REVIEWED = frozenset('''
 parent_presentation
 package_lifecycle

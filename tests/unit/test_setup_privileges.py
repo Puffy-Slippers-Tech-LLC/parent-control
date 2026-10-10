@@ -15,16 +15,16 @@ helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     ('codex-rules', 'tools/install_codex_rules.py', ['--system']),
     ('test-tools', 'tools/install_test_runner.py', []),
     ('graphical-policy', 'tools/install_graphical_test_policy.py', []),
-    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'auto']),
-    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'manual']),
-    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'auto', '--y']),
-    ('prepare-baseline', 'tests/integration/prepare_baseline.py', ['--mode', 'manual', '--y']),
+    ('prepare-vm', 'tools/prepare_vm_host.py', ['--mode', 'auto']),
+    ('prepare-vm', 'tools/prepare_vm_host.py', ['--mode', 'manual']),
+    ('prepare-vm', 'tools/prepare_vm_host.py', ['--mode', 'auto', '--y']),
+    ('prepare-vm', 'tools/prepare_vm_host.py', ['--mode', 'manual', '--y']),
     ('replace-missing-baseline', 'tests/integration/prepare_baseline.py', ['--replace-missing']),
 ])
 def test_only_fixed_modules_and_arguments_are_selected(operation, relative, options):
-    vm_args = ['--vm', vm_name()] if operation in ('prepare-baseline', 'replace-missing-baseline') else []
-    selected = helper['command'](ROOT, [operation, *(options if operation == 'prepare-baseline' else []), *vm_args])
-    assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-baseline', 'replace-missing-baseline') else '-IB',
+    vm_args = ['--vm', vm_name()] if operation in ('prepare-vm', 'replace-missing-baseline') else []
+    selected = helper['command'](ROOT, [operation, *(options if operation == 'prepare-vm' else []), *vm_args])
+    assert selected == ['/usr/bin/python3', '-B' if operation in ('prepare-vm', 'replace-missing-baseline') else '-IB',
                         str(ROOT / relative), *options, *vm_args]
 
 
@@ -38,18 +38,18 @@ def test_host_dependencies_use_only_the_fixed_package_module():
 
 
 @pytest.mark.parametrize('args', [[], ['shell'], ['python3'], ['codex-rules', '/tmp/rules'],
-                                  ['prepare-baseline'], ['prepare-baseline', '--mode'],
-                                  ['prepare-baseline', '--mode', 'invalid'],
-                                  ['prepare-baseline', '--mode', 'auto', '--yes'],
-                                  ['prepare-baseline', '--mode', 'auto', '--y', '--y'],
-                                  ['prepare-baseline', '--mode', 'auto', '--y', 'true'],
+                                  ['prepare-vm'], ['prepare-vm', '--mode'],
+                                  ['prepare-vm', '--mode', 'invalid'],
+                                  ['prepare-vm', '--mode', 'auto', '--yes'],
+                                  ['prepare-vm', '--mode', 'auto', '--y', '--y'],
+                                  ['prepare-vm', '--mode', 'auto', '--y', 'true'],
                                   ['replace-missing-baseline', '--y'], ['test-tools', '--y'],
-                                  ['test-tools', '--command', 'arbitrary'], ['prepare-baseline', '--reset'],
+                                  ['test-tools', '--command', 'arbitrary'], ['prepare-vm', '--reset'],
                                   ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'],
                                   ['rpm-build-tools', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
     vm_args = (['--vm', vm_name()]
-               if args and args[0] in ('prepare-baseline', 'replace-missing-baseline') else [])
+               if args and args[0] in ('prepare-vm', 'replace-missing-baseline') else [])
     with pytest.raises(ValueError):
         helper['command'](ROOT, [*args, *vm_args])
 
@@ -64,10 +64,10 @@ def test_missing_or_symlinked_module_is_refused(tmp_path):
 
 
 @pytest.mark.parametrize('operation,options', [
-    ('codex-rules', []), ('prepare-baseline', ['--mode', 'auto']),
+    ('codex-rules', []), ('prepare-vm', ['--mode', 'auto']),
 ])
 def test_root_execution_uses_pinned_checkout_and_sanitized_environment(monkeypatch, capsys, operation, options):
-    vm_args = ['--vm', vm_name()] if operation == 'prepare-baseline' else []
+    vm_args = ['--vm', vm_name()] if operation == 'prepare-vm' else []
     namespace = helper['main'].__globals__
     monkeypatch.setitem(namespace, 'CHECKOUT', str(ROOT))
     monkeypatch.setattr(os, 'geteuid', lambda: 0)
@@ -84,7 +84,7 @@ def test_root_execution_uses_pinned_checkout_and_sanitized_environment(monkeypat
     assert run.call_args.args[0][-1] == (vm_name() if options else '--system')
     output = capsys.readouterr()
     assert output.err == ''
-    if operation == 'prepare-baseline':
+    if operation == 'prepare-vm':
         assert output.out == ''
     else:
         assert 'setup-helper: starting codex-rules' in output.out

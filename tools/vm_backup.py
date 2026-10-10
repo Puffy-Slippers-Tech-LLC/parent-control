@@ -283,7 +283,8 @@ def lease(vm, commands):
         holder = SimpleNamespace(watch=None)
         begin(holder)
         observer = holder.watch
-        yield
+        with base.controller_scope(vm.baseline_directory / '.lock', fd, watch=observer):
+            yield
     finally:
         if observer is not None:
             observer.close()
@@ -305,6 +306,35 @@ def idle(vm):
         require(state.get('phase') == 'finalized', 'baseline-not-finalized')
         return state
     return None
+
+
+def bootstrap_binding(source, api, vm, commands):
+    """Bind baseline-free preparation to the exact verified restored guest.
+
+    UUID alone does not attest its current bytes. In-place writes, replacement
+    disks and metadata changes after restore must all invalidate this authority.
+    This is checked under the VM lease before any preparation mutates the guest.
+    """
+    guard_domain(source.connection, api, vm, source.uuid)
+    capture = base.Capture(source, commands, None)
+    inventory, off = capture.inventory()
+    require(off and source.baseline() is None and capture.disk_snapshot() is None,
+            'restore:guest-changed')
+    snapshots, current = snapshot_inventory(source.domain)
+    return dict(inventory=inventory,
+                disks=[stamp(Path(item['path'])) for item in inventory['chain']],
+                domain_xml=source.domain.XMLDesc(api.VIR_DOMAIN_XML_INACTIVE),
+                snapshots=snapshots, current_snapshot=current)
+
+
+def verify_bootstrap(source, api, vm, commands, restored):
+    require(restored.get('schema_version') == SCHEMA and restored.get('phase') == 'complete' and
+            restored.get('uuid') == source.uuid and
+            restored.get('directory') == private_directory(vm.baseline_directory) and
+            isinstance(restored.get('bootstrap'), dict), 'restore:guest-changed')
+    idle(vm)
+    require(restored['bootstrap'] == bootstrap_binding(source, api, vm, commands),
+            'restore:guest-changed; rerun tools/restorevm for this VM')
 
 
 def archive_preflight(api, vm, commands):
@@ -467,6 +497,84 @@ def publish_archive(vm, root, archive):
     finish_publication(vm, root)
 
 
+def prepare_backup(api, vm, commands):
+    """Restore accepted guest bytes and retire automation snapshots under the lease.
+
+    Record each destructive boundary so deletion or provenance retirement can
+    resume after interruption. The original proof stays in retired provenance;
+    snapshot-free archives deliberately have no active phase.json.
+    """
+    with operation('Restoring baseline and deleting VM automation snapshots before backup'):
+        source = base.LibvirtSource(api)
+        try:
+            guard_domain(source.connection, api, vm, source.uuid)
+            capture = base.Capture(source, commands, None)
+            capture.directory_identity = capture.private_directory()
+            inventory, off = capture.inventory()
+            require(off, 'VM-must-be-off')
+            # A retry owns its backup journal, never another controller's
+            # unfinished guest. Recheck this on every entry, not only first use.
+            capture.require_idle_attempt(backup=True)
+            path = vm.baseline_directory / 'backup-preparation.json'
+            phase = vm.baseline_directory / 'phase.json'
+            pending = read_json(path) if os.path.lexists(path) else None
+            if pending is not None and pending.get('phase') == 'complete' and os.path.lexists(phase):
+                os.rename(path, vm.baseline_directory / ('retired-backup-preparation-' + uuid.uuid4().hex + '.json'))
+                base.sync_directory(vm.baseline_directory)
+                pending = None
+            if pending is None:
+                state = idle(vm)
+                require(state is not None, 'accepted-baseline-required')
+                capture.state = capture.read_state()
+                capture.revalidate(off=True)
+                capture.verify_snapshot()
+                capture.archive_state()
+                pending = dict(phase='restore-requested', uuid=source.uuid,
+                               directory=capture.directory_identity, inventory=inventory,
+                               state=capture.state, snapshot=source.baseline())
+                atomic(path, pending)
+            require(pending.get('uuid') == source.uuid and
+                    pending.get('directory') == capture.directory_identity and
+                    pending.get('inventory') == inventory and
+                    pending.get('phase') in ('restore-requested', 'restored', 'baseline-delete-requested', 'complete'),
+                    'backup-preparation-changed')
+            capture.state = pending['state']
+            if pending['phase'] != 'complete':
+                require(not os.path.lexists(phase) or read_json(phase) == capture.state,
+                        'backup-provenance-changed')
+            if pending['phase'] == 'restore-requested':
+                capture.verify_snapshot()
+                source.restore_baseline(inventory['layout'], pending['snapshot'])
+                pending['phase'] = 'restored'
+                atomic(path, pending)
+            if pending['phase'] == 'restored':
+                capture.verify_snapshot()
+                source.delete_app_snapshots(inventory['layout'])
+                pending['phase'] = 'baseline-delete-requested'
+                atomic(path, pending)
+            if pending['phase'] == 'baseline-delete-requested':
+                if source.baseline() is not None:
+                    capture.verify_snapshot()
+                    source.delete_baseline(inventory['layout'])
+                require(source.baseline() is None and capture.disk_snapshot() is None,
+                        'baseline-deletion-incomplete')
+                if 'disks' not in pending:
+                    pending['disks'] = [stamp(Path(item['path'])) for item in inventory['chain']]
+                    atomic(path, pending)
+                if os.path.lexists(phase):
+                    require(read_json(phase) == capture.state, 'backup-provenance-changed')
+                    phase.unlink()
+                    base.sync_directory(vm.baseline_directory)
+                pending['phase'] = 'complete'
+                atomic(path, pending)
+            require(not os.path.lexists(phase) and source.baseline() is None and
+                    capture.disk_snapshot() is None and capture.inventory() == (inventory, True) and
+                    pending.get('disks') == [stamp(Path(item['path'])) for item in inventory['chain']],
+                    'backup-preparation-incomplete')
+        finally:
+            source.close()
+
+
 def backup(api, vm, root, commands):
     with operation('Backing up registered VM disks, snapshots and provenance'):
         finish_publication(vm, root)
@@ -523,7 +631,7 @@ def backup(api, vm, root, commands):
                 sha256=checksum(archive / 'manifest.json')))
             publish_archive(vm, root, archive)
             cleanup_staging(vm, root)
-            print(f'backupvms: {vm.name}: backup complete: {root / vm.name}', flush=True)
+            print(f'backupvm: {vm.name}: backup complete: {root / vm.name}', flush=True)
         except BaseException:
             # Publication recovery owns the displaced old directory after the
             # exchange. Otherwise remove only this attempt's recorded scratch.
@@ -1006,9 +1114,11 @@ def restore(connection, api, vm, root, commands):
             for name in ('system-run.json', 'vm-control.json'):
                 retain_record(vm, journal, vm.baseline_directory / name)
             retire_stale_records(vm, manifest, journal)
+            if not os.path.lexists(phase):
+                journal['bootstrap'] = bootstrap_binding(source, api, vm, commands)
             journal['phase'] = 'complete'
             atomic(vm.baseline_directory / JOURNAL, journal)
-            print(f'restorevms: {vm.name}: restored {latest["generation"]}; VM remains off. '
+            print(f'restorevm: {vm.name}: restored {latest["generation"]}; VM remains off. '
                   'App snapshot caches may require tools/prepare-appsnapshot.', flush=True)
         finally:
             source.close()
@@ -1022,7 +1132,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         require(os.geteuid() == os.getegid() == 0 and int(os.environ.get('PKEXEC_UID', '0')) > 0,
-                'use-tools-backupvms-or-restorevms')
+                'use-tools-backupvm-or-restorevm')
         _, vms = vm_config.execution(args.vm)
         root = vm_config.backup_root()
         require(all(root != vm.disk_anchor.parent and not vm.disk_anchor.parent.is_relative_to(root)
@@ -1061,6 +1171,7 @@ def main(argv=None):
                     commands = base.Commands()
                     with lease(vm, commands):
                         if args.action == 'backup':
+                            prepare_backup(api, vm, commands)
                             backup(api, vm, root, commands)
                         else:
                             connection = api.open(vm_config.URI)
@@ -1074,7 +1185,7 @@ def main(argv=None):
         return 0
     except (Exception, KeyboardInterrupt) as error:
         category = str(error) if isinstance(error, (base.CaptureError, ValueError)) else type(error).__name__
-        failure(f'{args.action}vms', f'{category}; preserve backups, displaced files and restore journals. '
+        failure(f'{args.action}vm', f'{category}; preserve backups, displaced files and restore journals. '
                 'Resolve the condition and rerun the same selection.')
         return 1
 

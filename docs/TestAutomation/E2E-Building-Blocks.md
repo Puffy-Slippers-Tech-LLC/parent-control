@@ -110,7 +110,7 @@ required by the recipe; their existence does not qualify an unimplemented route.
 
 | Supporting work | Minimal route and stopping point |
 | --- | --- |
-| App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Reconcile reusable native executables, shared GUI files and launchers through `tools/prepare-baseline`; attempts independently verify them over guarded SSH. Deliberate scenario file mutations use shared file operations. No native fixture package or product installer is required. Independently controlled native roles need distinct executable content where content-based enforcement applies. Use the shared package helper only for inputs that actually require package/runtime installation. Bind the required public identity and one ordinary usable action in its consuming slice. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply where declared. Lunar's explicitly real-app profile uses FIX05 instead. |
+| App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Reconcile reusable native executables, shared GUI files and launchers through `tools/prepare-vm`; attempts independently verify them over guarded SSH. Deliberate scenario file mutations use shared file operations. No native fixture package or product installer is required. Independently controlled native roles need distinct executable content where content-based enforcement applies. Use the shared package helper only for inputs that actually require package/runtime installation. Bind the required public identity and one ordinary usable action in its consuming slice. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply where declared. Lunar's explicitly real-app profile uses FIX05 instead. |
 | Files and desktop entries | Use shared exact-path copy/rename and supported per-user commands/APIs for launcher placement, permissions and trust metadata. Open Files directly at the prepared directory only when its launch route is tested; the actual Files/DING activation remains graphical. No folder tours, Properties-dialog preparation or alternate launch after failure. Product downloads use the bound user's `~/Downloads` and the existing destination helper. |
 | Sessions and power | Reuse direct entry, logout, lock/greeter and reboot helpers. Suspend uses one supported guest command and one supported owned-VM wake operation, followed by the actual public return/unlock result. Do not add power-settings, screensaver, RTC, hardware or wake-method matrices. Ordinary overlay reopening uses REQUEST02. |
 | Offline and recovery | Every consumer uses LIFE06's same VM Internet-isolation/recovery helper, including from a child desktop or GDM. Restoring Internet access needs no visit to Parent, network settings or another session. Preserve the current product surface and independently observe the app's retry, stop or local-operation result. |
@@ -3362,7 +3362,7 @@ reboot-required result, Chinese authentication or complete-case credit is suppli
 
 Task 300's [Chinese kiosk history](E2E-Scenario-Recipes.md#chinese-kiosk-language-lifecycle)
 requires one declared Simplified Chinese profile. **Chinese language installation
-must be implemented in `tools/prepare-baseline`**, through its existing finite
+must be implemented in `tools/prepare-vm`**, through its existing finite
 dependency/fixture declaration and supported distro package/locale preparation.
 Install and verify `zh_CN.UTF-8`, the distribution's Chinese translations for
 the ordinary MATE PolicyKit agent and authentication stack, and CJK fonts. Record
@@ -3603,7 +3603,7 @@ The four executables share adjacent `onpc-test-gui.py` and `gtk_automation.py`.
 | S | `S.desktop` | `Lunar Client-3.7.17.AppImage` | ONPC Soft Fixture | Versioned native catalogue fixture | pattern (`Lunar Client-*.AppImage`) |
 | N | `N.desktop` | `PrismLauncher.AppImage` | ONPC Nonmatching Fixture | Unrelated native catalogue fixture | precise |
 
-`tools/prepare-baseline` installs this finite declaration through
+`tools/prepare-vm` installs this finite declaration through
 [baseline_fixtures.py](../../tests/integration/baseline_fixtures.py), with the
 static engineering fixtures declared in
 [baseline_assets.py](../../tests/fixtures/baseline_assets.py). Reconciliation

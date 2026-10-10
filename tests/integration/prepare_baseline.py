@@ -11,6 +11,8 @@ Internal verification callers continue to preserve accepted baselines.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+from contextvars import ContextVar
 import fcntl
 from functools import partial
 import hashlib
@@ -52,6 +54,61 @@ BASELINES = guest_contract.VM.baseline_directory if guest_contract.VM else None
 PREVIOUS_SNAPSHOT = "oh-no-parent-control-baseline"
 SNAPSHOT_NAMES = (SNAPSHOT, 'onpc-baseline', PREVIOUS_SNAPSHOT)
 PHASES = ("validation", "shutdown-requested", "source-off", "snapshot-requested", "finalized")
+_controller = ContextVar('preparation_controller', default=None)
+_event_dispatch = None
+_event_dispatch_lock = threading.Lock()
+
+
+def start_event_dispatch(api):
+    """Keep one process-lifetime event pump across in-process VM stages."""
+    global _event_dispatch
+    with _event_dispatch_lock:
+        if _event_dispatch is not None and _event_dispatch[0] == os.getpid():
+            require(_event_dispatch[1] is api and _event_dispatch[2].is_alive(),
+                    'connection:event-loop-unavailable')
+            return
+        api.virEventRegisterDefaultImpl()
+        def dispatch_events():
+            while True:
+                try:
+                    api.virEventRunDefaultImpl()
+                except Exception:
+                    log('connection:event-loop-failed')
+                    return
+        thread = threading.Thread(target=dispatch_events, name='libvirt-events', daemon=True)
+        thread.start()
+        _event_dispatch = (os.getpid(), api, thread)
+
+
+@contextmanager
+def controller_scope(path, fd, *, watch=None):
+    """Let trusted in-process stages borrow the enclosing exclusive lease.
+
+    Duplicates share the same flock open-file description. Closing a stage's
+    descriptor cannot release the enclosing controller's lock. No environment
+    variable or caller-supplied descriptor can establish this authority.
+    """
+    token = _controller.set((Path(path), fd, os.getpid(), watch))
+    try:
+        yield
+    finally:
+        _controller.reset(token)
+
+
+def open_controller_lock(path):
+    held = _controller.get()
+    if held is not None and held[0] == Path(path) and held[2] == os.getpid():
+        info = identity(path, private=True, mode=0o600)
+        opened = os.fstat(held[1])
+        require((opened.st_dev, opened.st_ino) == (info['device'], info['inode']),
+                'guard:controller-lock-changed')
+        return os.dup(held[1])
+    return os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+
+
+def controller_watch():
+    held = _controller.get()
+    return held[3] if held is not None and held[2] == os.getpid() else None
 
 
 class CaptureError(RuntimeError):
@@ -70,7 +127,7 @@ def require(condition, category):
 def log(stage):
     from watch_activity import event
     event(stage)
-    print(f"prepare-baseline: [{stage}]", file=sys.stderr, flush=True)
+    print(f"prepare-vm: [{stage}]", file=sys.stderr, flush=True)
 
 
 def confirm_preparation(mode, existing, *, assume_yes=False):
@@ -157,7 +214,7 @@ def baseline_sha256(state, directory):
     identity(path, private=True, mode=0o600)
     record = parse_json(path.read_bytes())
     require(isinstance(record, dict) and record.get('phase') == 'complete',
-            'state:interrupted-vm-restore; rerun tools/restorevms for this VM')
+            'state:interrupted-vm-restore; rerun tools/restorevm for this VM')
     binding = record.get('baseline_identity')
     if binding is None:
         return current
@@ -726,12 +783,18 @@ class Capture:
     def refuse_existing_snapshot(self):
         require(self.source.baseline() is None and self.disk_snapshot() is None, "snapshot:already-exists")
 
-    def require_idle_attempt(self, *, manual_inventory=None):
+    def require_idle_attempt(self, *, manual_inventory=None, backup=False):
+        preparation = self.directory / 'backup-preparation.json'
+        if not backup and os.path.lexists(preparation):
+            identity(preparation, private=True, mode=0o600)
+            record = parse_json(preparation.read_bytes())
+            require(isinstance(record, dict) and record.get('phase') == 'complete',
+                    'state:interrupted-vm-backup; rerun tools/backupvm for this VM')
         restore = self.directory / 'restore-vms.json'
         if os.path.lexists(restore):
             identity(restore, private=True, mode=0o600)
             require(parse_json(restore.read_bytes()).get('phase') == 'complete',
-                    'state:interrupted-vm-restore; rerun tools/restorevms for this VM')
+                    'state:interrupted-vm-restore; rerun tools/restorevm for this VM')
         for record in self.directory.glob('disk-rename-*.json'):
             identity(record, private=True, mode=0o600)
             rename = parse_json(record.read_bytes())
@@ -936,7 +999,7 @@ class Capture:
         compatibility = compatibility_lock(self.directory)
         fd = None
         try:
-            fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            fd = open_controller_lock(self.lock_path)
             identity(self.lock_path, private=True, mode=0o600)
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -1258,20 +1321,12 @@ def main(argv=None):
         if args.check_tools:
             log("tools:available")
             return 0
-        require(os.geteuid() == os.getegid() == 0, "guard:root; run tools/prepare-baseline on the development host")
+        require(os.geteuid() == os.getegid() == 0, "guard:root; run tools/prepare-vm on the development host")
         # libvirt requires continuous event dispatch to answer server keepalives,
         # including during hashing, libguestfs inspection and QEMU checks.
         # The process-lifetime daemon also drains callbacks after close().
         api = modules["libvirt"]
-        api.virEventRegisterDefaultImpl()
-        def dispatch_events():
-            while True:
-                try:
-                    api.virEventRunDefaultImpl()
-                except Exception:
-                    log("connection:event-loop-failed")
-                    return
-        threading.Thread(target=dispatch_events, name="libvirt-events", daemon=True).start()
+        start_event_dispatch(api)
         source = LibvirtSource(modules["libvirt"])
         require(source.snapshot()[1], "guard:source-running")
         prepare_state_root()
@@ -1312,15 +1367,15 @@ def main(argv=None):
         phase = capture.state["phase"] if capture and capture.state else "before-validation"
         log(f"{category}; recovery-phase:{phase}")
         if category.startswith("guard:source-running"):
-            print('\033[31mprepare-baseline: the selected VM is running. '
-                  'Shut down the VM completely, then rerun tools/prepare-baseline. '
+            print('\033[31mprepare-vm: the selected VM is running. '
+                  'Shut down the VM completely, then rerun tools/prepare-vm. '
                   'Both auto and manual modes require the VM to be powered off before starting.'
                   '\033[0m', file=sys.stderr)
         if category == "snapshot:metadata-missing":
-            print("prepare-baseline: the recorded baseline has no matching libvirt snapshot metadata; "
+            print("prepare-vm: the recorded baseline has no matching libvirt snapshot metadata; "
                   "retain the disk and controller state; recover verified metadata or "
                   "prepare the powered-off guest and explicitly replace the baseline", file=sys.stderr)
-        print("prepare-baseline: resolve the reported condition, then rerun tools/prepare-baseline; retain snapshot and controller state",
+        print("prepare-vm: resolve the reported condition, then rerun tools/prepare-vm; retain snapshot and controller state",
               file=sys.stderr)
         return 1
     finally:

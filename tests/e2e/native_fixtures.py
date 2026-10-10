@@ -1,4 +1,4 @@
-"""Read-only verification of native fixtures prepared by prepare-baseline."""
+"""Read-only verification of native fixtures prepared by prepare-vm."""
 import hashlib
 import json
 from pathlib import Path

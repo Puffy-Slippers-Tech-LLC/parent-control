@@ -74,8 +74,8 @@ authorizes ordinary producers to allocate under an independent root.
 
 Explicit VM disaster archives use `backup_root` in
 [`config/test-vm.json`](../../config/test-vm.json) through
-[`tools/backupvms`](../../tools/backupvms) and
-[`tools/restorevms`](../../tools/restorevms). This operator-owned durable storage
+[`tools/backupvm`](../../tools/backupvm) and
+[`tools/restorevm`](../../tools/restorevm). This operator-owned durable storage
 is an exception to disposable test-output allocation, not a new test scratch
 route. The archive root, VM directories and generations are root-private;
 publication is atomic and checksummed. Each VM has one folder named exactly

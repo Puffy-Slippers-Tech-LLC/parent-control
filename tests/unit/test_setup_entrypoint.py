@@ -142,8 +142,8 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
     assert result.returncode == code
     assert not events
     if args == ['--help']:
-        assert 'tools/prepare-baseline' in result.stdout
-        assert '--prepare-baseline' not in result.stdout
+        assert 'tools/prepare-vm' in result.stdout
+        assert '--prepare-vm' not in result.stdout
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')

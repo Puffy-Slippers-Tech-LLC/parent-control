@@ -20,7 +20,7 @@ SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default
                  'or all (including disabled VMs); config concurrency limits active work')
 BASELINE_INSTRUCTIONS = (
     'When authorized baseline preparation is needed in launcher/session work, use '
-    'tools/prepare-baseline --vm NAME --mode auto --y (or --mode manual --y only '
+    'tools/prepare-vm --vm NAME --mode auto --y (or --mode manual --y only '
     'with explicit developer authorization). --y suppresses y/n confirmation; '
     'omit it for manual work. All VM, ownership, lease and validation checks still apply.')
 APPSNAPSHOT_INSTRUCTIONS = (

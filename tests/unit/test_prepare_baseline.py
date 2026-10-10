@@ -1418,6 +1418,7 @@ def test_capture_accepts_installed_product_on_host(monkeypatch, capsys, missing_
     monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
+    monkeypatch.setattr(host, '_event_dispatch', None)
     worker = Mock()
     monkeypatch.setattr(host.threading, "Thread", Mock(return_value=worker))
     monkeypatch.setattr(host.shutil, "which", lambda name: f"/usr/bin/{name}")
@@ -1467,10 +1468,12 @@ def test_absent_baseline_is_listed_without_error_lookup(rig):
     domain.snapshotLookupByName.assert_not_called()
 
 
-def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
+@pytest.mark.parametrize('stages', [1, 2])
+def test_event_dispatch_continues_while_capture_blocks(monkeypatch, stages):
     monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
     monkeypatch.setattr(host.guest_contract, "CHECKOUT", ROOT)
     monkeypatch.setattr(host, 'prepare_state_root', Mock())
+    monkeypatch.setattr(host, '_event_dispatch', None)
     api = Mock()
     request = host.threading.Event()
     answered = host.threading.Event()
@@ -1506,12 +1509,24 @@ def test_event_dispatch_continues_while_capture_blocks(monkeypatch):
     capture.run.side_effect = blocked_capture
     monkeypatch.setattr(host, "Capture", Mock(return_value=capture))
     try:
-        assert host.main(['--vm', vm_name(), '--mode', 'manual']) == 0
+        for _ in range(stages):
+            assert host.main(['--vm', vm_name(), '--mode', 'manual']) == 0
+        assert len(threads) == 1
     finally:
         finished.set()
         for thread in threads:
             thread.join(timeout=5)
             assert not thread.is_alive(), "test event dispatcher did not finish"
+
+
+def test_event_dispatch_refuses_a_failed_process_service(monkeypatch):
+    api = Mock()
+    worker = Mock()
+    worker.is_alive.return_value = False
+    monkeypatch.setattr(host, '_event_dispatch', (host.os.getpid(), api, worker))
+    with pytest.raises(host.CaptureError, match='connection:event-loop-unavailable'):
+        host.start_event_dispatch(api)
+    api.virEventRegisterDefaultImpl.assert_not_called()
 
 
 def test_resource_arguments_are_not_operator_overrides():

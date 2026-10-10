@@ -537,7 +537,7 @@ def test_online_readiness_failure_blocks_snapshot_return_before_product_actions(
     transport = SimpleNamespace(call=Mock(side_effect=[b'', b'1000\n']))
     monkeypatch.setattr(online_snapshot, 'connect_saved_transport', lambda *args: transport)
     monkeypatch.setattr(online_snapshot.time, 'time', lambda: 1000)
-    failure = Mock(side_effect=ValueError('baseline:chinese-locale; run tools/prepare-baseline'))
+    failure = Mock(side_effect=ValueError('baseline:chinese-locale; run tools/prepare-vm'))
     monkeypatch.setattr(assets, 'verify_transport', failure)
     lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': {'os_id': os_id}}))
     with pytest.raises(ValueError, match='chinese-locale'):
@@ -568,7 +568,7 @@ def test_missing_language_stops_real_bootstrap_before_any_guest_write(tmp_path, 
     monkeypatch.setattr(system_runner, 'mounted_guest', mounted)
     lease = Mock()
     commands = Mock()
-    with pytest.raises(ValueError, match='chinese-missing-file.*prepare-baseline'):
+    with pytest.raises(ValueError, match='chinese-missing-file.*prepare-vm'):
         system_runner.bootstrap(commands, lease, tmp_path, Mock(), observation_only=True)
     g.write.assert_not_called()
     g.chown.assert_not_called()
@@ -579,7 +579,7 @@ def test_missing_generated_locale_fails_with_refresh_guidance(runtime):
     g, _, _ = guest()
     if isinstance(runtime, Exception): g.command.side_effect = runtime
     else: g.command.return_value = runtime
-    with pytest.raises(ValueError, match='chinese-locale-runtime.*prepare-baseline'):
+    with pytest.raises(ValueError, match='chinese-locale-runtime.*prepare-vm'):
         assets.verify(g)
 
 

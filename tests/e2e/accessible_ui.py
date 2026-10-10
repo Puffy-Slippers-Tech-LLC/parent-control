@@ -934,22 +934,23 @@ for _operation, (_overlay, _child, _action) in TRANSFER_OPERATIONS.items():
         TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation]
 # Complete remembered-choice histories use the recipe's own finite values,
 # independently of the qualification's opposite child/approver assignments.
-for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
-    for _surface, _actions in (
-            ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
-            ('kiosk', ('select-default', 'approver', 'select', 'read'))):
-        for _action in _actions:
-            _operation = f'remembered-{_surface}-{_name}-{_action}'
-            _overlay = _surface == 'overlay'
-            _default = _action in ('default', 'approver', 'select-default')
-            _approver = OTHER_PARENT if _overlay or _action == 'select-default' else PARENT
-            _values = (1800 if _default else 75 if _child == EXISTING_CHILD else 150,
-                       None if _default else '1.25' if _child == EXISTING_CHILD else '2.5',
-                       False if _default else _child == EXISTING_CHILD, _approver)
-            TRANSFER_OPERATIONS[_operation] = (_overlay, _child, _action)
-            TRANSFER_CHOICES[_operation] = _values
-            if _action in ('default', 'approver', 'select-default', 'select', 'read'):
-                TRANSFER_REQUESTS[_operation] = _values
+for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-second', CHILD)):
+    for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
+        for _surface, _actions in (
+                ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
+                ('kiosk', ('select-default', 'approver', 'select', 'read'))):
+            for _action in _actions:
+                _operation = f'{_profile}-{_surface}-{_name}-{_action}'
+                _overlay = _surface == 'overlay'
+                _default = _action in ('default', 'approver', 'select-default')
+                _approver = OTHER_PARENT if _overlay or _action == 'select-default' else PARENT
+                _values = (1800 if _default else 75 if _child == _short_child else 150,
+                           None if _default else '1.25' if _child == _short_child else '2.5',
+                           False if _default else _child == _short_child, _approver)
+                TRANSFER_OPERATIONS[_operation] = (_overlay, _child, _action)
+                TRANSFER_CHOICES[_operation] = _values
+                if _action in ('default', 'approver', 'select-default', 'select', 'read'):
+                    TRANSFER_REQUESTS[_operation] = _values
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}

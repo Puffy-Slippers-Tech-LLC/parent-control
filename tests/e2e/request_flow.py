@@ -13,8 +13,8 @@ def overlay_to_kiosk(prefix, *, child, choices='qualification'):
     """FLOW12: cancel an explicitly captured overlay and read the destination untouched."""
     from journey_blocks import prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
-    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
-    binding = 'transfer' if choices == 'qualification' else 'remembered'
+    require(choices in ('qualification', 'remembered', 'remembered-second'), 'request-transfer:choices')
+    binding = 'transfer' if choices == 'qualification' else choices
     role = 'child' if child == 'riley' else 'standard'
     return prefixed_stages(prefix, {
         'cancel': f'ui:{binding}-overlay-{child}-cancel',

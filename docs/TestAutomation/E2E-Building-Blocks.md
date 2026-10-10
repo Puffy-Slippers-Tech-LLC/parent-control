@@ -1888,7 +1888,7 @@ without a third overlay visit or retained GDM authentication. A wrong journey
 receipt still refuses before input. Host checks also cover wrong-account
 and owner refusals, stale observations, immutable comparisons and independent
 shared-helper composition. Kiosk-to-overlay, interactive mute and complete
-cases 59–61 remain separate pending scope. Case 58 has independent
+cases 60–61 remain separate pending scope. Cases 58/59 have independent
 [complete-case acceptance](#request-forms-and-remembered-choices).
 
 The historical qualifier additionally returned to Riley's retained desktop and
@@ -3957,12 +3957,29 @@ its GDM password behavior is outside this acceptance history. Initial account
 and credential-recipient guards are unchanged. The historical retained-return
 scene remains explicit maintenance-only `remembered_choices.DIAGNOSTIC_PLAN`.
 
+Case 59 uses `remembered_choices.SECOND_PLAN` with the same worker and shared
+`remembered-second` choice bindings. Riley goes first with custom `1.25` minutes
+/ 75 seconds and soft apps included; Jordan follows with `2.5` minutes / 150
+seconds and soft apps excluded. The kiosk and overlay approvers remain Jamie
+and Casey respectively. Its two transfer and two same-kiosk persistence/isolation
+comparisons use each child's immutable original capture, in Riley/Jordan order.
+
 Independent complete-case acceptance passed on Ubuntu 26.04 in
 `20261010T163428Z-a8f26ba6` and Fedora 44 in `20261010T163428Z-b7f41533`.
 Both runs passed collection, owned shutdown/cleanup, baseline restoration and
 source/host preservation. Host composition checks also prove that either old
 retained-return failure checkpoint cannot interrupt the shortened case.
-Cases 59–61 remain pending.
+Case 59 independently passed complete acceptance on Ubuntu 26.04 in
+`20261010T191952Z-0f99f9cd` and Fedora 44 in `20261010T191952Z-10edeb0a`.
+Both passed all four comparisons, collection, worker/callback shutdown,
+owned cleanup, baseline restoration, finalization and source/host preservation.
+The affected case 58 regression passed on Ubuntu 26.04 in
+`20261010T193429Z-03e2822b` and Fedora 44 in `20261010T193429Z-f31b5634`,
+with the same complete collection and cleanup results. Coverage was regenerated
+after each complete case. The shared worker follows the caller's declared
+fresh-entry order; host checks exercise both orders, every refusal boundary,
+actual child-account bindings and immutable comparisons before durable replies.
+Cases 60–61 remain pending.
 
 ### Application routes and complete customer journeys
 

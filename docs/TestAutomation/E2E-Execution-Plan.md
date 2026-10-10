@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **156b — [E2E-018: overlay-to-kiosk-second](E2E-Tasks/156b-case-59.md)**.
+Next task: **155 — [Compare kiosk choices at each child overlay](E2E-Tasks/155-cross-surface.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

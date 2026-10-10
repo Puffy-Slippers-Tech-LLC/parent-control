@@ -416,6 +416,13 @@ immutable comparisons rather than importing the qualification plan.
 Case 58 visits each overlay once and compares both destination reads with the
 original captures, then reselects both children in the open kiosk and compares
 again. Its persistence/isolation result requires no retained child-desktop login.
+Case 59's `choices='remembered-second'` binding swaps the primary child and
+finite values: Riley 75 seconds/included, then Jordan 150 seconds/excluded.
+Both overlays still use the other eligible parent and the station uses Jamie.
+The shared worker follows the caller's declared fresh-entry order and repeats
+that order for the kiosk readbacks; the original case and diagnostic plan retain
+their order. Host checks cover both bindings, all refusal checkpoints, immutable
+comparisons and actual child-account reader/input guards.
 The historical full return scene is preserved only as `DIAGNOSTIC_PLAN` for
 explicit maintenance probes; it supplies no customer acceptance prerequisite.
 The qualification and its request-form regressions share VM-specific,

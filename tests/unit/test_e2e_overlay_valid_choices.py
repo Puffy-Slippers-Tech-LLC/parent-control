@@ -30,24 +30,24 @@ from tests.support.e2e_kiosk import accounts_form
 from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN, ChoicesOverlayToKioskJourney
-from remembered_choices import PLAN as REMEMBERED_PLAN
+from remembered_choices import PLAN as REMEMBERED_PLAN, SECOND_PLAN
 from request_composition import KioskRequestJourney
 from tests.support.desktop_session import RUN_PROBE
 from tests.support.paths import ROOT
 
 
 def transfer_request(*, overlay=True, jordan=False, remembered=False):
-    short = jordan if remembered else not jordan
+    short = jordan if remembered is True else not jordan
     return dict(surface='child-overlay' if overlay else 'kiosk', form_count=1,
         child='existing-fixture-child' if jordan else 'fixture-child',
-        approver='fixture-parent' if overlay != remembered else 'other-fixture-parent',
+        approver='other-fixture-parent' if overlay == bool(remembered) else 'fixture-parent',
         duration_seconds=75 if short else 150, custom_text='1.25' if short else '2.5',
         allow_soft=short, child_selector_enabled=not overlay, approver_selector_enabled=True,
         duration_enabled=True, soft_choice_enabled=True, request_enabled=True,
         cancel_enabled=True, message='', mute=None)
 
 
-@pytest.mark.parametrize('case', [False, True, 'diagnosis', 'repeat', 'entry'])
+@pytest.mark.parametrize('case', [False, True, 'second', 'diagnosis', 'repeat', 'entry'])
 def test_transfer_worker_order_titles_refusal_and_registration(tmp_path, monkeypatch, case):
     import check_e2e_choices_overlay_to_kiosk as check
     import session_control
@@ -77,6 +77,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 '''
     program = program.replace('sub record_info { }', "sub record_info { push @main::events, ['title', $_[0]]; }")
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
+    if case == 'second':
+        plan = SECOND_PLAN
     if case == 'diagnosis':
         from remembered_choices import DIAGNOSTIC_PLAN
         plan = DIAGNOSTIC_PLAN
@@ -107,7 +109,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         failed = json.loads(run_perl(program, stage, binding).stdout)
         assert not failed['ok'], failed
         assert failed['events'] == events[:events.index(['stage', stage]) + 1]
-    if case is True:
+    if case is True or case == 'second':
         # A refusal at either old retained desktop boundary cannot affect the
         # customer case: neither boundary is visited, and all core reads remain.
         for removed in ('jordan-return-entry-desktop', 'riley-return-entry-desktop'):
@@ -151,9 +153,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'replay', 'child', 'soft', 'approver', 'duration', 'source-mutated'])
-@pytest.mark.parametrize('remembered', [False, True])
+@pytest.mark.parametrize('remembered', [False, True, 'second'])
 def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, remembered):
-    binding = 'remembered' if remembered else 'transfer'
+    binding = 'remembered-second' if remembered == 'second' else 'remembered' if remembered else 'transfer'
     plan = JourneyPlan('renamed-transfer', 'renamed-transfer', {
         'capture': f'ui:{binding}-overlay-jordan-read', 'destination': f'ui:{binding}-kiosk-jordan-read'}, {},
         request_transfer_checks={'destination': 'capture'})
@@ -165,7 +167,7 @@ def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, r
     if fault in ('child', 'soft', 'approver', 'duration'):
         key, replacement = {'child': ('child', 'fixture-child'), 'soft': ('allow_soft', not value['allow_soft']),
             'approver': ('approver', 'other-fixture-parent' if remembered else 'fixture-parent'),
-            'duration': ('custom_text', '2.5' if remembered else '1.25')}[fault]
+            'duration': ('custom_text', '2.5' if remembered is True else '1.25')}[fault]
         value[key] = replacement
     if fault == 'replay': journey.check_transferred_request('destination', {'ui': {'request': value}})
     journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}, {'stage': 'capture'}]
@@ -182,10 +184,12 @@ def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, r
         assert journey.steps[-1]['comparison']['shared_child_choices_local_approver'] is True
 
 
-@pytest.mark.parametrize('case', [False, True])
+@pytest.mark.parametrize('case', [False, True, 'second'])
 def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
     import installed_journey
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
+    if case == 'second':
+        plan = SECOND_PLAN
     journey_type = KioskRequestJourney if case else ChoicesOverlayToKioskJourney
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(), guestfs=Mock(),
         commands=Mock(), verified=SimpleNamespace(inputs={}))
@@ -198,7 +202,7 @@ def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
 
 
 @pytest.mark.parametrize('jordan', [False, True])
-@pytest.mark.parametrize('remembered', [False, True])
+@pytest.mark.parametrize('remembered', [False, True, 'second'])
 def test_transfer_actual_form_reader_decoder_and_child_uid(monkeypatch, capsys, jordan, remembered):
     ui, _, child, _, custom = overlay(monkeypatch)
     name = 'jordan' if jordan else 'riley'
@@ -210,7 +214,7 @@ def test_transfer_actual_form_reader_decoder_and_child_uid(monkeypatch, capsys, 
     child.value = str(uid)
     child.description = f'Selected account: {a.EXISTING_CHILD if jordan else a.CHILD}.'
     child.children[0].identity = 'kiosk-child-selected-' + str(uid)
-    short = jordan if remembered else not jordan
+    short = jordan if remembered is True else not jordan
     custom.value = '1.25' if short else '2.5'
     ui.find_id('kiosk-duration-custom').action.do_action(0)
     if short: ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
@@ -220,7 +224,7 @@ def test_transfer_actual_form_reader_decoder_and_child_uid(monkeypatch, capsys, 
     unit = Node(identity='kiosk-custom-duration-units', value='minutes')
     unit.parent = custom.parent
     custom.parent.children.append(unit)
-    binding = 'remembered' if remembered else 'transfer'
+    binding = 'remembered-second' if remembered == 'second' else 'remembered' if remembered else 'transfer'
     operation = f'{binding}-overlay-{name}-read'
     value = ui.run(operation, '')
     raw = capsys.readouterr().out.encode() + (json.dumps(value) + '\n').encode()
@@ -238,7 +242,7 @@ def test_transfer_actual_form_reader_decoder_and_child_uid(monkeypatch, capsys, 
 
 
 @pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-owner', 'disabled', 'prompt', 'uncertain'])
-@pytest.mark.parametrize('remembered', [False, True])
+@pytest.mark.parametrize('remembered', [False, True, 'second'])
 def test_transfer_jordan_text_uses_shared_input_guards(monkeypatch, fault, remembered):
     ui, application, child, _, custom = overlay(monkeypatch)
     monkeypatch.setattr(a.pwd, 'getpwnam', lambda account: SimpleNamespace(pw_uid=
@@ -251,7 +255,8 @@ def test_transfer_jordan_text_uses_shared_input_guards(monkeypatch, fault, remem
     if remembered:
         ui.find_id('kiosk-approver-selector').setValue(str(ui.fixture_uids[a.OTHER_PARENT]))
         child.states.discard('sensitive')
-    operation = ('remembered' if remembered else 'transfer') + '-overlay-jordan-text'
+    operation = ('remembered-second' if remembered == 'second' else
+                 'remembered' if remembered else 'transfer') + '-overlay-jordan-text'
     if fault == 'wrong-child': child.value = '1001'
     if fault == 'wrong-owner': application.identity = a.KIOSK_APPLICATION
     if fault == 'disabled': custom.states.discard('sensitive')
@@ -262,7 +267,7 @@ def test_transfer_jordan_text_uses_shared_input_guards(monkeypatch, fault, remem
     else:
         ui.run(operation, '')
     assert custom.setText.call_count == (0 if fault in ('wrong-child', 'wrong-owner', 'disabled', 'prompt') else 1)
-    if custom.setText.call_count: custom.setText.assert_called_once_with('1.25' if remembered else '2.5')
+    if custom.setText.call_count: custom.setText.assert_called_once_with('1.25' if remembered is True else '2.5')
     if fault == 'uncertain':
         with pytest.raises(a.UiError, match='uncertain-input'): ui.run(operation, '')
         custom.setText.assert_called_once()

@@ -33,18 +33,20 @@ sub run {
     # Only explicit maintenance reproduction declares the old retained logins.
     # The customer case checks persistence by changing children in the open kiosk.
     my $diagnosis = grep { /^jordan-return-entry-/ } @$declared;
-    my @visits = (['jordan', 'jordan', 'other-child', 'fresh'],
-                  ['riley', 'riley', 'child', 'fresh']);
+    my @entries = grep { /^(?:jordan|riley)-entry-/ } @$declared;
+    die 'remembered-choices:child-order' unless @entries;
+    my @children = $entries[0] =~ /^riley-/ ? qw(riley jordan) : qw(jordan riley);
+    my @visits = map { [$_, $_, $_ eq 'riley' ? 'child' : 'other-child', 'fresh'] } @children;
     push @visits, (['jordan-return', 'jordan', 'other-child', 'retained'],
                    ['riley-return', 'riley', 'child', 'retained']) if $diagnosis;
     for my $binding (@visits) {
         my ($prefix, $child, $role, $entry) = @$binding;
         visit($journey, $prefix, $child, $role, $entry);
-        $journey->seen("$prefix-$_") for $prefix eq ($diagnosis ? 'riley-return' : 'riley')
+        $journey->seen("$prefix-$_") for $prefix eq ($diagnosis ? 'riley-return' : $children[-1])
             ? () : qw(exit greeter);
     }
     unless ($diagnosis) {
-        $journey->seen("$_-revisit-select"), $journey->seen("$_-revisit-read") for qw(jordan riley);
+        $journey->seen("$_-revisit-select"), $journey->seen("$_-revisit-read") for @children;
     }
     $journey->finish();
 }

@@ -237,10 +237,11 @@ def test_ready_requests_use_shared_comparisons_with_declared_endpoints(monkeypat
                                    if variant['coverage_id'] in (191, 192) else {})
 
 
-def test_remembered_choices_case_compares_both_children_without_retained_logins(monkeypatch):
+@pytest.mark.parametrize('case,children', [(58, ('jordan', 'riley')), (59, ('riley', 'jordan'))])
+def test_remembered_choices_case_compares_both_children_without_retained_logins(monkeypatch, case, children):
     import accessible_ui
     from request_composition import KioskRequestJourney
-    variant = next(variant for _, variant in READY if variant['coverage_id'] == 58)
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == case)
     _, plan, options = capture_composition(monkeypatch, variant)
     assert options['journey_type'] is KioskRequestJourney
     assert plan.request_transfer_checks == {
@@ -248,15 +249,20 @@ def test_remembered_choices_case_compares_both_children_without_retained_logins(
         **{child + '-revisit-read': child + '-source' for child in ('jordan', 'riley')},
     }
     assert [stage for stage in plan.screen_tags if stage.endswith('-source')] == [
-        'jordan-source', 'riley-source']
+        child + '-source' for child in children]
+    assert [stage for stage in plan.screen_tags if stage.endswith('-revisit-read')] == [
+        child + '-revisit-read' for child in children]
     assert set(plan.challenges) == {'initial', 'jordan-entry', 'riley-entry'}
     assert not any('return-entry' in stage for stage in plan.screen_tags)
     assert not any(tag.endswith('-entry-retained') for tag in plan.screen_tags.values())
-    for child, values in (('jordan', (75, '1.25', True)), ('riley', (150, '2.5', False))):
+    binding = 'remembered' if case == 58 else 'remembered-second'
+    for child, values in zip(children, ((75, '1.25', True), (150, '2.5', False))):
         for surface, approver in (('overlay', accessible_ui.OTHER_PARENT), ('kiosk', accessible_ui.PARENT)):
-            assert accessible_ui.TRANSFER_REQUESTS[f'remembered-{surface}-{child}-read'] == (*values, approver)
+            assert accessible_ui.TRANSFER_REQUESTS[f'{binding}-{surface}-{child}-read'] == (*values, approver)
     assert plan.balance_checks == {'riley-allowance': 1800, 'jordan-allowance': 1800}
-    assert plan.assertions_after == {'riley-revisit-read': 'visible-result'}
+    assert plan.assertions_after == {children[-1] + '-revisit-read': 'visible-result'}
+    assert plan.advance_after == {'installed-greeter': 'step-1', children[0] + '-source': 'step-2',
+                                  children[0] + '-transfer-read': 'step-3'}
 
 
 def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monkeypatch):

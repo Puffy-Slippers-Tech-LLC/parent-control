@@ -635,9 +635,9 @@ restoration. Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status: Case 58 passed installed acceptance on Ubuntu 26.04 and
+Implementation status: Cases 58/59 passed installed acceptance on Ubuntu 26.04 and
 Fedora 44; [exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices).
-Cases 59–61 pending.
+Cases 60–61 pending.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -657,6 +657,13 @@ prove transfer, persistence and child isolation without returning to either
 retained desktop. Retained GDM login behavior and unrelated system prompts are
 outside this case's acceptance. Necessary initial login recipient guards remain.
 The case is independent of the qualification's opposite child values and local approvers.
+
+Case 59 composes `remembered_choices.SECOND_PLAN` with the same worker and
+shared `remembered-second` operations. It swaps the primary child and finite
+values: Riley first with custom `1.25` / soft included, then Jordan with `2.5`
+/ soft excluded. The station still remembers Jamie and each overlay Casey.
+Both original overlay captures are compared at transfer and again after
+Riley/Jordan reselection in the open station, without retained desktop returns.
 
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 

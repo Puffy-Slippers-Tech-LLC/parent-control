@@ -516,8 +516,9 @@ msgid "Icon"
 msgstr "Ikona"
 
 #. Shared message: LOADING_INSTALLED_APPS
-msgid "Loading installed apps…"
-msgstr "Ielādē instalētās lietotnes…"
+#, python-format
+msgid "Loading installed apps for %(child_name)s..."
+msgstr "Ielādē lietotājam %(child_name)s instalētās lietotnes..."
 
 #. Shared message: HOW_IT_S_CALCULATED
 msgid "How it's calculated"

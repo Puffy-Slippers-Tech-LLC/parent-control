@@ -516,8 +516,9 @@ msgid "Icon"
 msgstr "प्रतिमा"
 
 #. Shared message: LOADING_INSTALLED_APPS
-msgid "Loading installed apps…"
-msgstr "स्थापित एपहरू लोड हुँदैछन्…"
+#, python-format
+msgid "Loading installed apps for %(child_name)s..."
+msgstr "%(child_name)s का लागि स्थापित एपहरू लोड हुँदैछन्..."
 
 #. Shared message: HOW_IT_S_CALCULATED
 msgid "How it's calculated"

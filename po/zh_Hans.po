@@ -516,8 +516,9 @@ msgid "Icon"
 msgstr "图标"
 
 #. Shared message: LOADING_INSTALLED_APPS
-msgid "Loading installed apps…"
-msgstr "正在加载已安装的应用…"
+#, python-format
+msgid "Loading installed apps for %(child_name)s..."
+msgstr "正在加载 %(child_name)s 的已安装应用..."
 
 #. Shared message: HOW_IT_S_CALCULATED
 msgid "How it's calculated"

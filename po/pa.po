@@ -516,8 +516,9 @@ msgid "Icon"
 msgstr "ਆਈਕਾਨ"
 
 #. Shared message: LOADING_INSTALLED_APPS
-msgid "Loading installed apps…"
-msgstr "ਸਥਾਪਤ ਐਪਾਂ ਲੋਡ ਹੋ ਰਹੀਆਂ ਹਨ…"
+#, python-format
+msgid "Loading installed apps for %(child_name)s..."
+msgstr "%(child_name)s ਲਈ ਸਥਾਪਤ ਐਪਾਂ ਲੋਡ ਹੋ ਰਹੀਆਂ ਹਨ..."
 
 #. Shared message: HOW_IT_S_CALCULATED
 msgid "How it's calculated"

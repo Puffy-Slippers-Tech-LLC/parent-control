@@ -916,8 +916,11 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('css_classes=["apps-panel"]', source)
         self.assertIn('css_classes=["apps-table-overlay"]', source)
         self.assertIn('css_classes=["apps-loading-mask"]', source)
-        self.assertIn('label=m.LOADING_INSTALLED_APPS', source)
-        self.assertEqual(m.LOADING_INSTALLED_APPS.source, 'Loading installed apps…')
+        self.assertIn('loading_content.append(self._apps_loading_label)', source)
+        self.assertIn("m.LOADING_INSTALLED_APPS % {'child_name': child_name}",
+                      inspect.getsource(ParentWindow._update_apps_loading_ui))
+        self.assertEqual(m.LOADING_INSTALLED_APPS.source,
+                         'Loading installed apps for %(child_name)s...')
         self.assertNotIn(".app-limits-card-header {", stylesheet)
         self.assertIn(".apps-section {\n  margin: 16px 29px 16px;", stylesheet)
         self.assertIn(".apps-loading-mask {", stylesheet)

@@ -516,8 +516,9 @@ msgid "Icon"
 msgstr "아이콘"
 
 #. Shared message: LOADING_INSTALLED_APPS
-msgid "Loading installed apps…"
-msgstr "설치된 앱을 불러오는 중…"
+#, python-format
+msgid "Loading installed apps for %(child_name)s..."
+msgstr "%(child_name)s의 설치된 앱을 불러오는 중..."
 
 #. Shared message: HOW_IT_S_CALCULATED
 msgid "How it's calculated"

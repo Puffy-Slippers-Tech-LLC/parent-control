@@ -1069,10 +1069,11 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["apps-loading-spinner"],
         )
         loading_content.append(self._apps_loading_spinner)
-        loading_content.append(localized(Gtk.Label, 
-            label=m.LOADING_INSTALLED_APPS,
+        self._apps_loading_label = Gtk.Label(
+            wrap=True, justify=Gtk.Justification.CENTER,
             css_classes=["apps-loading-label"],
-        ))
+        )
+        loading_content.append(self._apps_loading_label)
         self._apps_loading_progress = Gtk.Label(label="0%", visible=False)
         set_automation_id(self._apps_loading_progress, "parent-apps-loading-progress")
         loading_content.append(self._apps_loading_progress)
@@ -2014,6 +2015,11 @@ class ParentWindow(Adw.ApplicationWindow):
             self._apps_paint_wait = (clock, handler)
             self._apps_group.queue_draw()
         show = self._apps_mask_should_show()
+        label = getattr(self, "_apps_loading_label", None)
+        if label is not None:
+            child_name = next((name for uid, name, _icon in self._users
+                               if uid == self._apps_load_uid), "")
+            set_text(label, 'label', m.LOADING_INSTALLED_APPS % {'child_name': child_name})
         mask.set_visible(show)
         spinner = getattr(self, "_apps_loading_spinner", None)
         if spinner is not None:

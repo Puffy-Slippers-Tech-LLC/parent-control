@@ -444,7 +444,16 @@ qualification binding. Case 60 uses `remembered_choices.REVERSE_PLAN` and
 `onpc_remembered_choices::run_reverse` to seed local overlay approvers, capture
 each kiosk source and compare untouched transfer and fresh overlay reentry
 results against it. Ordinary logout avoids incidental retained-login requirements.
-Its second station entry uses `remembered-reverse-kiosk-riley-select-default`:
+Case 61's `remembered_choices.REVERSE_SECOND_PLAN` uses the same worker with
+Riley/Jordan order for seeds, transfers and fresh revisits, and
+`choices='remembered-second'` for Riley 75 seconds/included and Jordan
+150 seconds/excluded. Its second station entry uses
+`remembered-second-reverse-kiosk-jordan-select-default`, retaining Jamie after
+Riley's earlier selector save. Both complete cases declare four immutable
+comparisons against the original station captures. The existing private
+unit/cleanup resources and preview display classifications remain applicable;
+no new resource owner is introduced.
+Case 60's second station entry uses `remembered-reverse-kiosk-riley-select-default`:
 Riley's untouched default request values must retain the kiosk's Jamie selection
 saved during Jordan's visit. Fresh-station seed bindings still require Casey.
 Before binding an untouched default read, trace the last selector save for the

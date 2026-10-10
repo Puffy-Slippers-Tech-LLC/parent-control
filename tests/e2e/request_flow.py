@@ -28,7 +28,7 @@ def kiosk_to_overlay(prefix, *, child, entry, choices='qualification'):
     from journey_blocks import desktop_entry, prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
     require(entry in ('fresh', 'retained'), 'request-transfer:entry')
-    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
+    require(choices in ('qualification', 'remembered', 'remembered-second'), 'request-transfer:choices')
     binding = 'transfer' if choices == 'qualification' else choices
     role = 'child' if child == 'riley' else 'other-child'
     return {

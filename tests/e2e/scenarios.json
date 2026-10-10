@@ -993,7 +993,7 @@
         {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "overlay-to-kiosk-first"}},
         {"coverage_id": 59, "id": "overlay-to-kiosk-second", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "overlay-to-kiosk-second"}},
         {"coverage_id": 60, "id": "kiosk-to-overlay-first", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "kiosk-to-overlay-first"}},
-        {"coverage_id": 61, "id": "kiosk-to-overlay-second", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null}
+        {"coverage_id": 61, "id": "kiosk-to-overlay-second", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "kiosk-to-overlay-second"}}
       ]
     },
     {

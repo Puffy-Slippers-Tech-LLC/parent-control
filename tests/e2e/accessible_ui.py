@@ -951,11 +951,13 @@ for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-seco
                 TRANSFER_CHOICES[_operation] = _values
                 if _action in ('default', 'approver', 'select-default', 'select', 'read'):
                     TRANSFER_REQUESTS[_operation] = _values
-# The reverse case selects Riley after saving Jamie at the kiosk for Jordan.
+# Each reverse case selects its second child after saving Jamie at the kiosk.
 # Fresh-station seed bindings above still require their initial Casey selection.
-_operation = 'remembered-reverse-kiosk-riley-select-default'
-TRANSFER_OPERATIONS[_operation] = (False, CHILD, 'select-default')
-TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation] = (1800, None, False, PARENT)
+for _profile, _name, _child in (('remembered', 'riley', CHILD),
+                                ('remembered-second', 'jordan', EXISTING_CHILD)):
+    _operation = f'{_profile}-reverse-kiosk-{_name}-select-default'
+    TRANSFER_OPERATIONS[_operation] = (False, _child, 'select-default')
+    TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation] = (1800, None, False, PARENT)
 for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
     TRANSFER_OPERATIONS[f'reverse-overlay-{_name}-wrong-child'] = (True, _child, 'wrong-child')
     for _action in ('custom', 'text', 'apps', 'read'):

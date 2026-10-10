@@ -1906,8 +1906,8 @@ without a third overlay visit or retained GDM authentication. A wrong journey
 receipt still refuses before input. Host checks also cover wrong-account
 and owner refusals, stale observations, immutable comparisons and independent
 shared-helper composition. Kiosk-to-overlay has separate
-[qualified scope](#kiosk-choices-transferred-to-overlays); interactive mute and
-complete case 61 remain pending. Cases 58–60 have independent
+[qualified scope](#kiosk-choices-transferred-to-overlays); interactive mute remains
+deferred. Cases 58–61 have independent
 [complete-case acceptance](#request-forms-and-remembered-choices).
 
 The historical qualifier additionally returned to Riley's retained desktop and
@@ -3119,7 +3119,7 @@ cooldown, so interruption qualification needs no artificial TIME03 delay.
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
-| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: `request_flow.kiosk_to_overlay` / `onpc_request_flow::kiosk_to_overlay` compose REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors); `cross_surface.PLAN` binds both children through fresh entry. See [reverse qualification](#kiosk-choices-transferred-to-overlays). Interactive mute remains deferred outside this current-choice composite. | both directions ready for both children; overlay-to-kiosk same-kiosk persistence/isolation ready; kiosk-to-overlay fresh entry and complete case 60 passed; retained reverse entry and case 61 pending |
+| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: `request_flow.kiosk_to_overlay` / `onpc_request_flow::kiosk_to_overlay` compose REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors); `cross_surface.PLAN` binds both children through fresh entry. See [reverse qualification](#kiosk-choices-transferred-to-overlays). Interactive mute remains deferred outside this current-choice composite. | both directions ready for both children; overlay-to-kiosk same-kiosk persistence/isolation ready; kiosk-to-overlay fresh entry and complete cases 60–61 passed; retained reverse entry pending |
 | FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09. If revocation is declared: PARENT17 → PARENT18(confirm) → PARENT09. Then UI12(no grant) on that observation, without another unchanged read → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Historical fresh-zero consumer E2E-036 case 161, now UI-owned with no E2E executable, passed in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
@@ -4124,16 +4124,39 @@ regression passed on both in the same reports, including wrong-child refusals
 before provider discovery, both untouched destination comparisons and verified
 worker/callback shutdown. Host guards, decoder/composition, worker/cleanup,
 resource inventory and source checks passed. Coverage was regenerated.
-The wrong-account guard now refuses before unrelated accessibility discovery;
-its changed binding still requires the registered cross-surface qualification
-on both selected VMs. Preserve the unchanged complete-case passes separately;
-the supporting failure establishes no remembered-choice product defect.
+The wrong-account guard refuses before unrelated accessibility discovery;
+its matching-account transfer and refusal branches passed the registered
+cross-surface qualification on both selected VMs.
 Fresh overlay entries seed Casey for each child and log out. The kiosk saves
 Jamie and Jordan's `1.25` minutes / soft included, then Riley's `2.5` minutes /
 soft excluded. `request_flow.kiosk_to_overlay(..., choices='remembered')` reuses
 FLOW12's qualified fresh transport with the recipe's own choices. Both transfer
 reads and both freshly reopened overlay reads compare against immutable original
-kiosk captures, preserving child isolation and local selectors. Case 61 remains pending.
+kiosk captures, preserving child isolation and local selectors.
+
+Case 61 uses `remembered_choices.REVERSE_SECOND_PLAN` with the parameterized
+`onpc_remembered_choices::run_reverse` worker and shared `remembered-second`
+choice bindings. Riley seeds, transfers and revisits first with custom `1.25`
+minutes / 75 seconds and soft apps included; Jordan follows with `2.5` minutes /
+150 seconds and soft apps excluded. Jamie remains local to the station and Casey
+to each child overlay, including the later station default after Jamie was saved.
+Normal logout separates fresh overlay visits. Both untouched transfer reads and
+both fresh persistence/isolation readbacks compare with the child's immutable
+original station capture; no approval, retained desktop or time denial is required.
+
+Independent complete-case acceptance passed on Ubuntu 26.04 in
+`20261010T223455Z-98af0539` and Fedora 44 in `20261010T223455Z-23e98260`.
+Both passed all four comparisons, product acceptance, collection, worker/callback
+shutdown, owned cleanup, baseline restoration, finalization and host/source
+preservation with complete leases. Coverage was regenerated. Scoped host checks
+passed both finite orders, all worker refusal boundaries, immutable comparisons,
+actual child/approver bindings, cleanup/resource contracts and source validation;
+real GTK checks passed both choice profiles. The required case-60 regression
+of the parameterized reverse worker passed on Ubuntu 26.04 in
+`20261010T230336Z-49bf361a` and Fedora 44 in `20261010T230336Z-359d009d`,
+including all four comparisons, collection, worker/callback shutdown, owned
+cleanup, baseline restoration, finalization and host/source preservation with
+complete leases. Coverage was regenerated after that pass as well.
 
 ### Application routes and complete customer journeys
 

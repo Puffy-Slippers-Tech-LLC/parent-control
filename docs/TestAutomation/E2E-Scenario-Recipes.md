@@ -643,9 +643,10 @@ restoration. Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status: Cases 58–60 passed complete-case acceptance on Ubuntu 26.04 and
+Implementation status: Cases 58–61 passed complete-case acceptance on Ubuntu 26.04 and
 Fedora 44; [exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices).
-The affected cross-surface regression also passed on both; case 61 is pending.
+The affected cross-surface regression and case 61's required case-60 reverse-worker
+regression also passed on both.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -657,7 +658,8 @@ The reverse direction composes `request_flow.kiosk_to_overlay` /
 [both child bindings](E2E-Building-Blocks.md#kiosk-choices-transferred-to-overlays)
 are qualified through explicit fresh entry and destination reads before edits.
 Each case still owns its finite values, order and complete acceptance; case
-60 is registered through `remembered_choices.REVERSE_PLAN`; case 61 remains pending.
+60 is registered through `remembered_choices.REVERSE_PLAN`; case 61 is registered
+through `remembered_choices.REVERSE_SECOND_PLAN`.
 
 Case 58 composes `remembered_choices.PLAN` / `onpc_remembered_choices::run`:
 Jordan then Riley seed the recipe's own distinct values; one overlay visit and
@@ -687,11 +689,18 @@ reentries read Jordan and Riley again against their original station captures:
 four immutable comparisons prove transfer, persistence, child isolation and
 local approvers. No retained desktop, approval or time denial is required.
 
+Case 61 uses `remembered_choices.REVERSE_SECOND_PLAN` and the same reverse worker
+with Riley/Jordan seed, transfer and fresh revisit order. Riley saves custom
+`1.25` minutes / soft included at the station, then Jordan saves `2.5` minutes /
+soft excluded. Jamie stays local to the station and Casey to each overlay.
+All four destination comparisons use the child's original station capture;
+normal logout separates fresh overlay visits without approvals or time denials.
+
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
 2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
-3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk; kiosk-to-overlay logs out and freshly reenters both child overlays for persistence/isolation readbacks. Case 61 remains pending.
+3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk; kiosk-to-overlay logs out and freshly reenters both child overlays for persistence/isolation readbacks.
 
 ### E2E-019
 

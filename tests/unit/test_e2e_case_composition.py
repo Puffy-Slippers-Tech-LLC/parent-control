@@ -266,34 +266,46 @@ def test_remembered_choices_case_compares_both_children_without_retained_logins(
                                   children[0] + '-transfer-read': 'step-3'}
 
 
-def test_reverse_remembered_case_compares_transfer_and_reopened_overlays(monkeypatch):
+@pytest.mark.parametrize('case,children', [(60, ('jordan', 'riley')), (61, ('riley', 'jordan'))])
+def test_reverse_remembered_case_compares_transfer_and_reopened_overlays(monkeypatch, case, children):
     import accessible_ui
     from request_composition import KioskRequestJourney
-    variant = next(variant for _, variant in READY if variant['coverage_id'] == 60)
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == case)
     _, plan, options = capture_composition(monkeypatch, variant)
     assert options['journey_type'] is KioskRequestJourney
     assert plan.request_transfer_checks == {
         **{child + '-transfer-read': child + '-source' for child in ('jordan', 'riley')},
         **{child + '-revisit-read': child + '-source' for child in ('jordan', 'riley')},
     }
-    assert [stage for stage in plan.screen_tags if stage.endswith('-source')] == ['jordan-source', 'riley-source']
+    assert [stage for stage in plan.screen_tags if stage.endswith('-source')] == [child + '-source' for child in children]
     assert [stage for stage in plan.screen_tags if stage.endswith('-revisit-read')] == [
-        'jordan-revisit-read', 'riley-revisit-read']
-    for child, values in (('jordan', (75, '1.25', True)), ('riley', (150, '2.5', False))):
+        child + '-revisit-read' for child in children]
+    assert [stage for stage in plan.screen_tags if stage.endswith('-seed-launch')] == [
+        child + '-seed-launch' for child in children]
+    binding = 'remembered' if case == 60 else 'remembered-second'
+    for child, values in zip(children, ((75, '1.25', True), (150, '2.5', False))):
         for surface, approver in (('overlay', accessible_ui.OTHER_PARENT), ('kiosk', accessible_ui.PARENT)):
-            assert accessible_ui.TRANSFER_REQUESTS[f'remembered-{surface}-{child}-read'] == (*values, approver)
+            assert accessible_ui.TRANSFER_REQUESTS[f'{binding}-{surface}-{child}-read'] == (*values, approver)
+            if surface == 'overlay':
+                assert plan.screen_tags[child + '-transfer-read'] == f'ui:{binding}-{surface}-{child}-read'
+                assert plan.screen_tags[child + '-revisit-read'] == f'ui:{binding}-{surface}-{child}-read'
+        select = plan.screen_tags[child + '-select-default'].removeprefix('ui:')
+        assert accessible_ui.TRANSFER_OPERATIONS[select] == (
+            False, accessible_ui.CHILD if child == 'riley' else accessible_ui.EXISTING_CHILD, 'select-default')
+        assert accessible_ui.TRANSFER_REQUESTS[select] == (
+            1800, None, False, accessible_ui.OTHER_PARENT if child == children[0] else accessible_ui.PARENT)
         for prefix in (child + '-seed', child, child + '-revisit'):
             assert any(stage == prefix + '-logout' for stage in plan.screen_tags) == (
-                prefix != 'riley-revisit')
+                prefix != children[-1] + '-revisit')
     assert set(plan.challenges) == {'initial', *(
         child + '-' + suffix + '-entry' for child in ('jordan', 'riley')
         for suffix in ('seed', 'transfer', 'revisit'))}
     assert not any(tag.endswith('-entry-retained') for tag in plan.screen_tags.values())
     assert not any('approval' in tag for tag in plan.screen_tags.values())
     assert plan.balance_checks == {'riley-allowance': 1800, 'jordan-allowance': 1800}
-    assert plan.assertions_after == {'riley-revisit-read': 'visible-result'}
-    assert plan.advance_after == {'installed-greeter': 'step-1', 'jordan-source': 'step-2',
-                                  'jordan-transfer-read': 'step-3'}
+    assert plan.assertions_after == {children[-1] + '-revisit-read': 'visible-result'}
+    assert plan.advance_after == {'installed-greeter': 'step-1', children[0] + '-source': 'step-2',
+                                  children[0] + '-transfer-read': 'step-3'}
 
 
 def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monkeypatch):

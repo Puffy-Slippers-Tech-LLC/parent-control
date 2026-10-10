@@ -12,8 +12,10 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+@pytest.mark.parametrize('binding,seconds,custom,soft', [
+    ('remembered', 150, '2.5', False), ('remembered-second', 75, '1.25', True)])
 def test_remembered_overlay_binding_uses_local_approver_and_native_shared_choices(
-        launch_ui, automation, wait_for_accessible_state, monkeypatch):
+        launch_ui, automation, wait_for_accessible_state, monkeypatch, binding, seconds, custom, soft):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
     from tests.e2e.ui_observations import RequestObservation
@@ -34,11 +36,11 @@ def test_remembered_overlay_binding_uses_local_approver_and_native_shared_choice
     # journey's local overlay approver before checking the shared tuple.
     assert ui.find('kiosk-approver-selector').get_description() == 'Selected account: ' + PARENT + '.'
     for action in ('approver', 'custom', 'text', 'apps'):
-        reader.run('remembered-overlay-riley-' + action, '')
-    operation = 'remembered-overlay-riley-read'
+        reader.run(binding + '-overlay-riley-' + action, '')
+    operation = binding + '-overlay-riley-read'
     request = RequestObservation.from_request(reader.run(operation, '')['request'], operation=operation)
     assert request.child == 'fixture-child' and request.approver == 'other-fixture-parent'
-    assert request.duration_seconds == 150 and request.custom_text == '2.5' and request.allow_soft is False
+    assert request.duration_seconds == seconds and request.custom_text == custom and request.allow_soft is soft
     assert reader.run('transfer-overlay-riley-refused', '')['outcome'] == 'passed'
 
 

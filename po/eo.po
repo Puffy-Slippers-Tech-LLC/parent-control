@@ -139,6 +139,27 @@ msgstr "Aplikaĵaj limigoj"
 msgid "Search installed apps"
 msgstr "Serĉi instalitajn aplikaĵojn"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Raporti eraron"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Pardonon pro la ĝeno"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Io misfunkciis. Helpu nin ripari ĝin sendante raporton."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Sendi erarraporton"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Kion vi faris, kiam tio okazis?\nPliaj detaloj povas helpi nin reprodukti kaj ripari la problemon..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Ĉi tiuj ruliĝantaj aplikaĵoj kun provizora blokado estos fermitaj:"

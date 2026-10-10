@@ -139,6 +139,27 @@ msgstr "Had Aplikasi"
 msgid "Search installed apps"
 msgstr "Cari aplikasi yang dipasang"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Laporkan Ralat"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Maaf atas kesulitan ini"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Sesuatu tidak kena. Bantu kami membaikinya dengan menghantar laporan."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Hantar Laporan Ralat"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Apakah yang anda lakukan ketika ini berlaku?\nButiran tambahan boleh membantu kami menghasilkan semula dan membaiki masalah ini..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Aplikasi yang sedang berjalan dan disekat sementara ini akan ditutup:"

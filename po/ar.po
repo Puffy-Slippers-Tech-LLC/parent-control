@@ -139,6 +139,27 @@ msgstr "قيود التطبيقات"
 msgid "Search installed apps"
 msgstr "ابحث عن التطبيقات المثبتة"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "الإبلاغ عن خطأ"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "نأسف للإزعاج"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "حدث خطأ ما. ساعدنا في إصلاحه بإرسال تقرير."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "إرسال تقرير الخطأ"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "ماذا كنت تفعل عندما حدث هذا؟\nأي تفاصيل إضافية قد تساعدنا في إعادة إنتاج المشكلة وإصلاحها..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "سيتم إغلاق هذه التطبيقات قيد التشغيل المحظورة مؤقتًا:"

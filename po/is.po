@@ -139,6 +139,27 @@ msgstr "Forritatakmarkanir"
 msgid "Search installed apps"
 msgstr "Leita að uppsettum forritum"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Tilkynna villu"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Afsakið óþægindin"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Eitthvað fór úrskeiðis. Hjálpaðu okkur að laga það með því að senda skýrslu."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Senda villuskýrslu"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Hvað varstu að gera þegar þetta gerðist?\nFrekari upplýsingar geta hjálpað okkur að endurskapa og laga vandamálið..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Þessum keyrandi forritum með tímabundna lokun verður lokað:"

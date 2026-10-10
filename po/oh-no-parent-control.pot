@@ -1722,3 +1722,23 @@ msgstr ""
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr ""
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr ""
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr ""
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr ""
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr ""
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr ""

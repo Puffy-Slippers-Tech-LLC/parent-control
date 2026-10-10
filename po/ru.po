@@ -15,6 +15,27 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Сообщить об ошибке"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Приносим извинения за неудобства"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Что-то пошло не так. Помогите нам исправить это, отправив отчёт."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Отправить отчёт об ошибке"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Что вы делали, когда это произошло?\nДополнительные сведения помогут нам воспроизвести и устранить проблему..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Эти работающие приложения с временной блокировкой будут закрыты:"

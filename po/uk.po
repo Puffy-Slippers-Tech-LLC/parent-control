@@ -139,6 +139,27 @@ msgstr "Обмеження програм"
 msgid "Search installed apps"
 msgstr "Пошук установлених програм"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Повідомити про помилку"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Перепрошуємо за незручності"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Щось пішло не так. Допоможіть нам це виправити, надіславши звіт."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Надіслати звіт про помилку"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Що ви робили, коли це сталося?\nДодаткові відомості можуть допомогти нам відтворити й усунути проблему..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Ці запущені програми з тимчасовим блокуванням буде закрито:"

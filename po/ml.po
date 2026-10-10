@@ -139,6 +139,27 @@ msgstr "ആപ്പ് നിയന്ത്രണങ്ങൾ"
 msgid "Search installed apps"
 msgstr "സ്ഥാപിച്ച ആപ്പുകൾ തിരയുക"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "പിശക് റിപ്പോർട്ട് ചെയ്യുക"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "അസൗകര്യത്തിന് ക്ഷമിക്കണം"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "എന്തോ തകരാറുണ്ടായി. ഒരു റിപ്പോർട്ട് അയച്ച് അത് പരിഹരിക്കാൻ ഞങ്ങളെ സഹായിക്കുക."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "പിശക് റിപ്പോർട്ട് അയയ്ക്കുക"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "ഇത് സംഭവിച്ചപ്പോൾ നിങ്ങൾ എന്ത് ചെയ്യുകയായിരുന്നു?\nകൂടുതൽ വിവരങ്ങൾ പ്രശ്നം പുനഃസൃഷ്ടിക്കാനും പരിഹരിക്കാനും ഞങ്ങളെ സഹായിക്കും..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "താൽക്കാലികമായി തടഞ്ഞിരിക്കുന്ന, പ്രവർത്തിച്ചുകൊണ്ടിരിക്കുന്ന ഈ ആപ്പുകൾ അടയ്ക്കും:"

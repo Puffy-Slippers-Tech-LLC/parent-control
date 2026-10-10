@@ -140,6 +140,27 @@ msgstr "應用程式限制"
 msgid "Search installed apps"
 msgstr "搜尋已安裝的應用程式"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "回報錯誤"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "很抱歉造成您的不便"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "發生了問題。請傳送報告，協助我們修正。"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "傳送錯誤報告"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "發生此問題時，您正在做什麼？\n任何補充資訊都有助於我們重現並修正問題..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "以下正在執行的軟封鎖應用程式將被關閉："

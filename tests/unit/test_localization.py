@@ -297,6 +297,16 @@ def test_catalogue_choices_have_unique_ids_names_and_packaged_metadata(productio
     }
 
 
+def test_error_editor_prompt_has_two_nonempty_lines_in_every_language(production_catalogues):
+    from common.oh_no_parent_control_ui import messages as m
+    from common.oh_no_parent_control_ui.message import render
+
+    for language, _name in SUPPORTED_LANGUAGES:
+        translations = load_translations(language, localedir=production_catalogues)
+        lines = render(m.ERROR_EDITOR_PLACEHOLDER, translations).splitlines()
+        assert len(lines) == 2 and all(line.strip() for line in lines), language
+
+
 @pytest.mark.parametrize('language', [identity for identity, _name in SUPPORTED_LANGUAGES])
 @pytest.mark.parametrize('surface', ['child', 'kiosk'])
 def test_polkit_request_uses_child_catalogue_and_complete_prompt(

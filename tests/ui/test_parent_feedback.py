@@ -238,6 +238,8 @@ def open_feedback(launch_ui, ui, wait, *, scenario="normal", status=None,
     ui.activate("parent-feedback-button")
     wait(lambda: ui.showing("feedback-dialog"), "feedback dialog opens")
     editor = feedback_editor(ui, wait)
+    assert ui.text('feedback-dialog') == 'Send Feedback'
+    assert ui.text('feedback-send') == 'Send Feedback'
     return editor, log
 
 

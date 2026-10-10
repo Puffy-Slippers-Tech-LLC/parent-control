@@ -90,11 +90,18 @@ def test_error_report_initial_explanation_uses_request_language(
 
 
 def wait_for_error_draft(ui, wait):
+    from tests.support.localization_review import public_label_names
+
     editor = feedback_editor(ui, wait)
     wait(lambda: "Error categories: RuntimeError" in ui.content(editor),
          "error draft loaded")
     value = ui.content(editor)
     assert value.startswith("Something went wrong\nThe operation could not be completed.")
+    assert ui.text('feedback-dialog') == 'Report an Error'
+    assert ui.text('feedback-send') == 'Send Error Report'
+    labels = public_label_names(ui, 'feedback-content')
+    assert 'Sorry about the inconvenience' in labels
+    assert 'Something went wrong. Help us fix it by sending a report.' in labels
     return editor, value
 
 

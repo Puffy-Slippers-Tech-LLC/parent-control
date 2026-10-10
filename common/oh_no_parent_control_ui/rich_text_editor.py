@@ -29,11 +29,12 @@ ASSET_DIR = Path(__file__).with_name("rich_editor")
 class RichTextEditor(Gtk.Box):
     """Quill-backed editor whose draft never leaves the local WebKit process."""
 
-    def __init__(self, attachment_requested):
+    def __init__(self, attachment_requested, *, placeholder=m.EDITOR_PLACEHOLDER):
         super().__init__(orientation=Gtk.Orientation.VERTICAL,
                          css_classes=["feedback-rich-editor"])
         self.set_overflow(Gtk.Overflow.HIDDEN)
         self._attachment_requested = attachment_requested
+        self._placeholder = placeholder
         self._plain_text = ""
         self._html = ""
         self._delta = '{"ops":[{"insert":"\\n"}]}'
@@ -94,8 +95,7 @@ class RichTextEditor(Gtk.Box):
             -1, None, None, None, None, None,
         )
 
-    @staticmethod
-    def _labels(translations):
+    def _labels(self, translations):
         return {key: render(value, translations) for key, value in {
             'feedback-format-toolbar': m.FEEDBACK_FORMATTING,
             'feedback-editor-input': m.YOUR_FEEDBACK,
@@ -120,7 +120,7 @@ class RichTextEditor(Gtk.Box):
             'feedback-link-save': m.SAVE_LINK,
             'edit-link': m.EDIT_LINK,
             'feedback-link-remove': m.REMOVE_LINK,
-            'placeholder': m.EDITOR_PLACEHOLDER,
+            'placeholder': self._placeholder,
             'code-block': m.CODE_BLOCK,
             'numbered-list-item': m.NUMBERED_LIST_ITEM,
             'bulleted-list-item': m.BULLETED_LIST_ITEM,
@@ -337,7 +337,9 @@ body {{ display: flex; flex-direction: column; }}
 #feedback-editor-root {{ border: 0; flex: 1; min-height: 0; overflow: hidden; font: inherit; }}
 .ql-editor {{ min-height: 0; overflow-y: auto; padding: 14px 18px; line-height: 1.45;
   text-align: start; }}
-.ql-editor.ql-blank::before {{ left: 18px; right: 18px; color: #8c8c9b; }}
+.ql-editor.feedback-empty::before {{ content: attr(data-placeholder);
+  position: absolute; pointer-events: none; font-style: italic;
+  left: 18px; right: 18px; color: #8c8c9b; white-space: pre-wrap; }}
 .ql-toolbar button:focus-visible, .ql-toolbar .ql-picker-label:focus-visible {{
   outline: 2px solid #7657f6; outline-offset: 2px;
 }}
@@ -472,7 +474,13 @@ function exposeBlockSemantics() {{
   semanticNodes = new Set(current.keys());
 }}
 let draftRevision = 0;
+function updateWatermark() {{
+  // Quill's ql-blank excludes empty headings, lists, quotes and code blocks.
+  // The sole terminal newline means no draft content, regardless of format.
+  editor.classList.toggle('feedback-empty', quill.getLength() === 1);
+}}
 function publish() {{
+  updateWatermark();
   exposeBlockSemantics();
   const text = quill.getText().replace(/\\n$/, '');
   bridge.postMessage(JSON.stringify({{
@@ -495,6 +503,7 @@ window.feedbackEditor = {{
       node.setAttribute('data-label', label);
     }}
     editor.setAttribute('data-placeholder', labels.placeholder);
+    updateWatermark();
     updateStyleLabel();
     updateLinkAction();
     exposeBlockSemantics();

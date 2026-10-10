@@ -15,6 +15,27 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "エラーを報告"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "ご不便をおかけして申し訳ありません"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "問題が発生しました。レポートを送信して、問題の修正にご協力ください。"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "エラーレポートを送信"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "この問題が発生したとき、何をしていましたか？\n追加の情報は、問題の再現と修正に役立ちます..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "実行中の以下のソフトブロック対象アプリを終了します："

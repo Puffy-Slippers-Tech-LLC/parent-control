@@ -46,6 +46,11 @@
   color: #6740ef;
 }
 
+.feedback-icon.feedback-error-icon {
+  background: #ffdde5;
+  color: #e81950;
+}
+
 .feedback-title {
   font-size: 28px;
   font-weight: 800;

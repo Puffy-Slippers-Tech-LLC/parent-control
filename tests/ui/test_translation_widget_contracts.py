@@ -10,6 +10,93 @@ import pytest
 pytestmark = pytest.mark.ui
 
 
+def test_editor_watermark_tracks_empty_content_and_language(hermetic_ui_session):
+    """Exercise the bundled document in a synthetic WebKit helper harness."""
+    import subprocess
+    import sys
+    from tests.support.paths import ROOT
+
+    # No frontend or product control is launched. The synthetic host exercises
+    # the document helper's Quill state directly, including formatted emptiness.
+    script = '''
+import json
+import time
+from types import MethodType
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('WebKit', '6.0')
+from gi.repository import GLib, Gtk, WebKit
+from common.oh_no_parent_control_ui import messages as m
+from common.oh_no_parent_control_ui.localization import load_translations
+from common.oh_no_parent_control_ui.rich_text_editor import RichTextEditor
+
+Gtk.init()
+host = Gtk.Box()
+host._attachment_requested = None
+host._placeholder = m.ERROR_EDITOR_PLACEHOLDER
+host._labels = MethodType(RichTextEditor._labels, host)
+manager = WebKit.UserContentManager()
+assert manager.register_script_message_handler('feedbackEditor')
+messages = []
+manager.connect('script-message-received::feedbackEditor',
+                lambda _manager, value: messages.append(json.loads(value.to_string())))
+view = WebKit.WebView(user_content_manager=manager,
+                     network_session=WebKit.NetworkSession.new_ephemeral())
+window = Gtk.Window(child=view)
+window.present()
+view.load_html(RichTextEditor._document(host), None)
+loop = GLib.MainContext.default()
+def wait(predicate):
+    deadline = time.monotonic() + 20
+    while not predicate():
+        assert time.monotonic() < deadline, 'Synthetic editor timed out'
+        while loop.pending(): loop.iteration(False)
+        time.sleep(0.01)
+wait(lambda: any(item.get('type') == 'ready' for item in messages))
+def evaluate(script):
+    results = []
+    def finished(view, result, *_):
+        results.append(view.evaluate_javascript_finish(result).to_string())
+    view.evaluate_javascript(script, -1, None, None, None, finished, None)
+    wait(lambda: results)
+    return json.loads(results[0])
+
+expected = str(m.ERROR_EDITOR_PLACEHOLDER)
+assert evaluate("JSON.stringify(editor.getAttribute('data-placeholder'))") == expected
+states = evaluate("""JSON.stringify((() => {
+  const states = [];
+  for (const [format, value] of [[null, null], ['header', 1], ['header', 2],
+      ['list', 'ordered'], ['list', 'bullet'], ['blockquote', true], ['code-block', true]]) {
+    quill.setText('Draft');
+    if (format) quill.formatLine(0, 1, format, value);
+    const originalFormats = quill.getFormat(0, 1);
+    states.push({empty: false, text: quill.getText(),
+      watermark: editor.matches('.ql-blank, .feedback-empty')});
+    quill.deleteText(0, quill.getLength() - 1);
+    states.push({empty: true, text: quill.getText(),
+      watermark: editor.matches('.ql-blank, .feedback-empty'),
+      retained: JSON.stringify(quill.getFormat(0, 1)) === JSON.stringify(originalFormats)});
+  }
+  return states;
+})())""")
+for state in states:
+    assert state['watermark'] is state['empty'], state
+    if state['empty']:
+        assert state['text'] == chr(10) and state['retained'], state
+for language in ('de', 'ar', 'en'):
+    labels = host._labels(load_translations(language))
+    labels.update(language=language, direction='rtl' if language == 'ar' else 'ltr')
+    evaluate('window.feedbackEditor.labels(' + json.dumps(labels) + '); JSON.stringify(null)')
+    assert evaluate("JSON.stringify(editor.getAttribute('data-placeholder'))") == labels['placeholder']
+    assert len(labels['placeholder'].splitlines()) == 2
+    assert evaluate('JSON.stringify(quill.getText())') == chr(10)
+window.destroy()
+'''
+    result = subprocess.run([sys.executable, '-X', 'faulthandler', '-c', script], cwd=ROOT,
+                            capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_translation_bindings_follow_native_lifetime_and_reparenting(hermetic_ui_session):
     """Engineering lifecycle check on the existing private GTK display/bus."""
     import subprocess

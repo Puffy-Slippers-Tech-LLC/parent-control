@@ -139,6 +139,27 @@ msgstr "Aplikazioen mugak"
 msgid "Search installed apps"
 msgstr "Bilatu instalatutako aplikazioak"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Jakinarazi errore bat"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Barkatu eragozpenak"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Zerbait gaizki joan da. Lagundu konpontzen txosten bat bidaliz."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Bidali errore-txostena"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Zer egiten ari zinen hau gertatu zenean?\nXehetasun gehigarriek arazoa erreproduzitzen eta konpontzen lagun diezagukete..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Aldi baterako blokeatutako eta martxan dauden aplikazio hauek itxiko dira:"

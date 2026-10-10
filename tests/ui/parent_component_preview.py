@@ -247,8 +247,8 @@ if os.environ.get('ONPC_FEEDBACK_CHOOSER_INPUTS'):
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-blocks":
     class RestoredBlockEditor(feedback.RichTextEditor):
         """Engineering fixture: ordinary startup restore of a declared delta."""
-        def __init__(self, attachment_requested):
-            super().__init__(attachment_requested)
+        def __init__(self, attachment_requested, **kwargs):
+            super().__init__(attachment_requested, **kwargs)
             lines = (('Heading sample', {'header': 1}),
                      ('Subheading sample', {'header': 2}),
                      ('Number sample', {'list': 'ordered'}),
@@ -264,8 +264,8 @@ if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-blocks
 if os.environ.get("ONPC_PARENT_COMPONENT_SCENARIO") == "feedback-restored-link":
     class RestoredLinkEditor(feedback.RichTextEditor):
         """Engineering startup restoration; observations still use public Text."""
-        def __init__(self, attachment_requested):
-            super().__init__(attachment_requested)
+        def __init__(self, attachment_requested, **kwargs):
+            super().__init__(attachment_requested, **kwargs)
             from tests.e2e.block_semantics import BODY
             self._delta = json.dumps({'ops': [
                 {'insert': BODY[:-len('Plain sample')]},

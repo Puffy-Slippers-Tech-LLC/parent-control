@@ -26,7 +26,7 @@ def dialog(monkeypatch):
     monkeypatch.setattr(feedback.transport, "SENDING_ENABLED", True)
     instance = SimpleNamespace(
         _busy=False, _collecting=False, _collection_failed=False, _disposed=False,
-        _include_logs=True, _logs=None, _kiosk_session=False, _on_close=None,
+        _include_logs=True, _logs=None, _kiosk_session=False, _on_close=None, _report=None,
         _attachment_rows=[], _user_attachments=[], _subject="", _cancelled=Mock(),
         get_visible=Mock(return_value=True), _choose_download=Mock(),
         _submission_progress=Mock(), _submission_done=Mock(),
@@ -141,6 +141,25 @@ def test_download_and_send_use_the_reviewed_snapshot(dialog, monkeypatch):
     assert submitted[0].logs == b"validated snapshot"
     assert submitted[0].message == "My feedback draft"
     feedback.collect_logs.assert_called_once()
+
+
+@pytest.mark.parametrize('error_report', (False, True))
+@pytest.mark.parametrize('kiosk_session', (False, True))
+def test_send_label_keeps_report_mode_during_submission(dialog, error_report, kiosk_session):
+    from common.oh_no_parent_control_ui.errors import ErrorReport
+
+    dialog._kiosk_session = kiosk_session
+    if error_report:
+        dialog._report = ErrorReport.capture('Kiosk App' if kiosk_session else 'Parent App',
+                                            RuntimeError())
+        dialog._subject = dialog._report.subject
+    dialog._start_collection()
+    finish_collection(dialog)
+    dialog._send(None)
+    assert dialog._busy and len(dialog.jobs) == 1
+    expected = 'Send Error Report' if error_report else 'Send Feedback'
+    dialog._send_button.set_label.assert_called_once_with(expected)
+    assert dialog._submission.subject == dialog._subject
 
 
 def test_failure_resolves_animation_and_requires_retry_or_explicit_opt_out(dialog):

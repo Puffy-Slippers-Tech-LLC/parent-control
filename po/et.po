@@ -139,6 +139,27 @@ msgstr "Rakenduste piirangud"
 msgid "Search installed apps"
 msgstr "Otsi paigaldatud rakendusi"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Teata veast"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Vabandame ebamugavuse pärast"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Midagi läks valesti. Aita meil see parandada, saates veateate."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Saada veateade"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Mida sa tegid, kui see juhtus?\nLisateave võib aidata meil probleemi korrata ja parandada..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Need töötavad ajutiselt blokeeritud rakendused suletakse:"

@@ -139,6 +139,27 @@ msgstr "Appbeperkingen"
 msgid "Search installed apps"
 msgstr "Geïnstalleerde apps zoeken"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Een fout melden"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Sorry voor het ongemak"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Er is iets misgegaan. Help ons dit op te lossen door een rapport te versturen."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Foutrapport versturen"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Wat was je aan het doen toen dit gebeurde?\nAanvullende details kunnen ons helpen het probleem te reproduceren en op te lossen..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Deze actieve apps met een tijdelijke blokkering worden gesloten:"

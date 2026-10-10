@@ -139,6 +139,27 @@ msgstr "מגבלות יישומים"
 msgid "Search installed apps"
 msgstr "חיפוש יישומים מותקנים"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "דיווח על שגיאה"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "מצטערים על אי הנוחות"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "משהו השתבש. עזרו לנו לתקן זאת באמצעות שליחת דוח."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "שליחת דוח שגיאה"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "מה עשיתם כשזה קרה?\nפרטים נוספים יכולים לעזור לנו לשחזר את הבעיה ולתקן אותה..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "היישומים הפעילים האלה עם חסימה זמנית ייסגרו:"

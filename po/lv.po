@@ -139,6 +139,27 @@ msgstr "Lietotņu ierobežojumi"
 msgid "Search installed apps"
 msgstr "Meklēt instalētās lietotnes"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Ziņot par kļūdu"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Atvainojamies par neērtībām"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Kaut kas nogāja greizi. Palīdziet mums to novērst, nosūtot ziņojumu."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Nosūtīt kļūdas ziņojumu"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Ko jūs darījāt, kad tas notika?\nPapildu informācija var palīdzēt mums atkārtot un novērst problēmu..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Šīs palaistās lietotnes ar pagaidu bloķēšanu tiks aizvērtas:"

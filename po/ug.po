@@ -139,6 +139,27 @@ msgstr "ئەپ چەكلىمىلىرى"
 msgid "Search installed apps"
 msgstr "ئورنىتىلغان ئەپلەرنى ئىزدەش"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "خاتالىقنى مەلۇم قىلىش"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "قولايسىزلىق ئۈچۈن كەچۈرۈڭ"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "چاتاق چىقتى. دوكلات ئەۋەتىپ ئۇنى تۈزىتىشىمىزگە ياردەم بېرىڭ."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "خاتالىق دوكلاتىنى ئەۋەتىش"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "بۇ ئىش يۈز بەرگەندە نېمە قىلىۋاتاتتىڭىز؟\nقوشۇمچە تەپسىلاتلار مەسىلىنى قايتا پەيدا قىلىش ۋە تۈزىتىشىمىزگە ياردەم بېرەلەيدۇ..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "ۋاقىتلىق چەكلەنگەن بۇ ئىجرا بولۇۋاتقان ئەپلەر تاقىلىدۇ:"

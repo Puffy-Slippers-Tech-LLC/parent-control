@@ -139,6 +139,27 @@ msgstr "محدودیت‌های برنامه‌ها"
 msgid "Search installed apps"
 msgstr "جستجوی برنامه‌های نصب‌شده"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "گزارش خطا"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "بابت مزاحمت پوزش می‌خواهیم"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "مشکلی پیش آمد. با ارسال گزارش به ما در رفع آن کمک کنید."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "ارسال گزارش خطا"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "هنگام رخ دادن این مشکل چه کاری انجام می‌دادید؟\nهر جزئیات بیشتری می‌تواند به ما در بازتولید و رفع مشکل کمک کند..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "این برنامه‌های در حال اجرا با مسدودسازی موقت بسته خواهند شد:"

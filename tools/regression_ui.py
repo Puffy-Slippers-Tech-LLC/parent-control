@@ -60,6 +60,10 @@ from pathlib import PurePosixPath
 # Synthetic translation-helper contracts live in test_translation_widget_contracts
 # and reuse the Identity bucket's private display/bus with one waited GTK 4 child.
 # Moving these engineering assertions adds no session, service or cleanup owner.
+# The synthetic watermark document check adds one ephemeral WebKit view in that
+# waited child, using the same private display/bus and bundled offline assets.
+# No extra compositor, persistent cache, network or shared mutable state; retain
+# the whole-module Identity bucket and its existing resource reservation.
 # Chooser preview/modal checks use one waited GTK child, a NON_UNIQUE application
 # and two windows on that same private display/bus, including fullscreen focus.
 # They add no shared cache, setting, file, service or cleanup owner.

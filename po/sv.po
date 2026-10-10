@@ -139,6 +139,27 @@ msgstr "Appbegränsningar"
 msgid "Search installed apps"
 msgstr "Sök bland installerade appar"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Rapportera ett fel"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Beklagar besväret"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Något gick fel. Hjälp oss att åtgärda det genom att skicka en rapport."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Skicka felrapport"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Vad gjorde du när detta hände?\nYtterligare detaljer kan hjälpa oss att återskapa och åtgärda problemet..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Dessa körande appar med tillfällig blockering kommer att stängas:"

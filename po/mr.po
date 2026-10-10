@@ -139,6 +139,27 @@ msgstr "ॲप मर्यादा"
 msgid "Search installed apps"
 msgstr "स्थापित ॲप शोधा"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "त्रुटी नोंदवा"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "गैरसोयीबद्दल क्षमस्व"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "काहीतरी चूक झाली. अहवाल पाठवून ती दुरुस्त करण्यात आम्हाला मदत करा."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "त्रुटी अहवाल पाठवा"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "हे घडले तेव्हा तुम्ही काय करत होता?\nअधिक तपशील आम्हाला समस्या पुन्हा निर्माण करून पाहण्यास आणि सोडवण्यास मदत करू शकतात..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "तात्पुरते अवरोधित केलेले हे चालू अ‍ॅप्स बंद केले जातील:"

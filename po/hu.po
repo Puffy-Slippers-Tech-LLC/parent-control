@@ -139,6 +139,27 @@ msgstr "Alkalmazáskorlátok"
 msgid "Search installed apps"
 msgstr "Telepített alkalmazások keresése"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Hiba jelentése"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Elnézést a kellemetlenségért"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Valami hiba történt. Segítsen kijavítani egy jelentés elküldésével."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Hibajelentés küldése"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Mit csinált, amikor ez történt?\nA további részletek segíthetnek a probléma reprodukálásában és javításában..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Ezek a futó, ideiglenesen blokkolt alkalmazások bezáródnak:"

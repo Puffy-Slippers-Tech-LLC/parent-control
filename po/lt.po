@@ -139,6 +139,27 @@ msgstr "Programų apribojimai"
 msgid "Search installed apps"
 msgstr "Ieškoti įdiegtų programų"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Pranešti apie klaidą"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Atsiprašome už nepatogumus"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Kažkas nutiko. Padėkite mums tai ištaisyti išsiųsdami pranešimą."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Siųsti klaidos pranešimą"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Ką darėte, kai tai nutiko?\nPapildoma informacija gali padėti mums atkurti ir išspręsti problemą..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Šios veikiančios laikinai blokuojamos programos bus uždarytos:"

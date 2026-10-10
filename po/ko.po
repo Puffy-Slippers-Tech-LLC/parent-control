@@ -139,6 +139,27 @@ msgstr "앱 제한"
 msgid "Search installed apps"
 msgstr "설치된 앱 검색"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "오류 신고"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "불편을 드려 죄송합니다"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "문제가 발생했습니다. 보고서를 보내 문제를 해결할 수 있도록 도와주세요."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "오류 보고서 보내기"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "이 문제가 발생했을 때 무엇을 하고 계셨나요?\n추가 정보는 문제를 재현하고 해결하는 데 도움이 됩니다..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "실행 중인 다음 임시 차단 앱이 종료됩니다:"

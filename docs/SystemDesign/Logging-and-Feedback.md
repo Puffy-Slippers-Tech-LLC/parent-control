@@ -464,7 +464,15 @@ subprocess stdin pipe. Exception contents never enter the pipe or arguments.
 Only its retained subprocess may be stopped
 when the extension is disabled.
 
-Opening a report sends nothing. Send Feedback is explicit. While an error report
+The shared dialog selects error-report presentation when supplied an `ErrorReport`:
+**Report an Error**, a pink warning icon, **Sorry about the inconvenience**, and
+**Something went wrong. Help us fix it by sending a report.** Its empty-editor
+watermark asks what the user was doing and invites details to reproduce and fix
+the issue, including after deleting the text from a heading, list, quote or code
+block. The watermark is separate from the draft and preserves the selected
+formatting. The editable public explanation remains the initial draft.
+
+Opening a report sends nothing. **Send Error Report** is explicit. While an error report
 is sending, its Close action becomes **Stop sending and close**, which cancels
 pending retries before leaving. A request already accepted remotely cannot be
 recalled. Ordinary feedback retains its existing background retry behavior.

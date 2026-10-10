@@ -139,6 +139,27 @@ msgstr "Limits des aplicazions"
 msgid "Search installed apps"
 msgstr "Cîr aplicazions instaladis"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Segnale un erôr"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Scusait pal fastidi"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Alc al è lât stuart. Judaitnus a corezilu inviânt une segnalazion."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Invie la segnalazion di erôr"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Ce staviso fasint cuant che al è sucedût chest?\nAltris detais nus puedin judâ a riprodusi e corezi il probleme..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Chestis aplicazions in esecuzion cun bloc temporani a saran sieradis:"

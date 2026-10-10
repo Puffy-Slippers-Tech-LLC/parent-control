@@ -139,6 +139,27 @@ msgstr "Uygulama Sınırları"
 msgid "Search installed apps"
 msgstr "Yüklü uygulamaları ara"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Hata Bildir"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Verdiğimiz rahatsızlık için özür dileriz"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Bir şeyler ters gitti. Rapor göndererek düzeltmemize yardımcı olun."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Hata Raporu Gönder"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Bu olduğunda ne yapıyordunuz?\nEk ayrıntılar sorunu yeniden oluşturmamıza ve düzeltmemize yardımcı olabilir..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Çalışan bu geçici olarak engellenmiş uygulamalar kapatılacak:"

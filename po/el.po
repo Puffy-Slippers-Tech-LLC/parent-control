@@ -139,6 +139,27 @@ msgstr "Περιορισμοί εφαρμογών"
 msgid "Search installed apps"
 msgstr "Αναζήτηση εγκατεστημένων εφαρμογών"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Αναφορά σφάλματος"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Ζητούμε συγγνώμη για την ταλαιπωρία"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Κάτι πήγε στραβά. Βοηθήστε μας να το διορθώσουμε στέλνοντας μια αναφορά."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Αποστολή αναφοράς σφάλματος"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Τι κάνατε όταν συνέβη αυτό;\nΤυχόν πρόσθετες λεπτομέρειες μπορούν να μας βοηθήσουν να αναπαραγάγουμε και να διορθώσουμε το πρόβλημα..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Αυτές οι εφαρμογές που εκτελούνται με προσωρινό αποκλεισμό θα κλείσουν:"

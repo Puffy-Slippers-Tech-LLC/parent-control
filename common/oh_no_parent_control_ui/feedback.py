@@ -58,6 +58,8 @@ def _feedback_icon(name, size, color="#343437"):
     paths = {
         "mail": '<rect x="3" y="5" width="26" height="22" rx="2"/>'
                 '<path d="m4 8 12 9L28 8"/>',
+        "error": '<path d="M14 4a2.3 2.3 0 0 1 4 0l12 22a2 2 0 0 1-2 3H4'
+                 'a2 2 0 0 1-2-3Z"/><path d="M16 12v7m0 5h.01"/>',
         "attachment": '<path d="m12 19 9-9a4 4 0 0 1 6 6L15 28a7 7 0 0 1-10-10L17 6'
                       'a5 5 0 0 1 7 7L12 25a2 2 0 0 1-3-3l11-11"/>',
         "archive": '<rect x="5" y="2" width="23" height="28" rx="3"/>'
@@ -79,10 +81,13 @@ class FeedbackDialog(Adw.Window):
     """Keep drafts and immutable retries in memory for this app session."""
 
     def __init__(self, parent, *, kiosk_session=False, report=None, on_close=None):
-        super().__init__(title=m.SEND_FEEDBACK, transient_for=parent, modal=True,
+        is_error_report = report is not None
+        title = m.REPORT_AN_ERROR if is_error_report else m.SEND_FEEDBACK
+        send_label = m.SEND_ERROR_REPORT if is_error_report else m.SEND_FEEDBACK
+        super().__init__(title=title, transient_for=parent, modal=True,
                          destroy_with_parent=True, default_width=660,
                          default_height=840, css_classes=["feedback-dialog"])
-        set_text(self, 'title', m.SEND_FEEDBACK)
+        set_text(self, 'title', title)
         set_automation_id(self, "feedback-dialog")
         self._kiosk_session = kiosk_session
         self._report = report
@@ -112,7 +117,7 @@ class FeedbackDialog(Adw.Window):
             application.connect("shutdown", lambda *_: self._cancelled.set())
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar(
-            title_widget=localized(Adw.WindowTitle, title=m.SEND_FEEDBACK),
+            title_widget=localized(Adw.WindowTitle, title=title),
             css_classes=["feedback-header"],
         )
         add_identified_window_controls(header, "feedback-window-controls")
@@ -121,17 +126,22 @@ class FeedbackDialog(Adw.Window):
                           margin_start=28, margin_end=28,
                           margin_top=8, margin_bottom=8)
         introduction = Gtk.Box(spacing=18, margin_bottom=8)
-        hero_icon = _feedback_icon("mail", 38, "#6740ef")
+        hero_icon = _feedback_icon("error" if is_error_report else "mail", 38,
+                                   "#e81950" if is_error_report else "#6740ef")
         hero_icon.set_valign(Gtk.Align.CENTER)
         hero_icon.add_css_class("feedback-icon")
+        if is_error_report:
+            hero_icon.add_css_class("feedback-error-icon")
         introduction.append(hero_icon)
         heading = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4,
                           valign=Gtk.Align.CENTER, hexpand=True)
-        heading.append(localized(Gtk.Label, label=m.HELP_US_MAKE_THINGS_BETTER, xalign=0,
+        heading.append(localized(Gtk.Label,
+                                 label=(m.SORRY_ABOUT_THE_INCONVENIENCE if is_error_report
+                                        else m.HELP_US_MAKE_THINGS_BETTER), xalign=0,
                                  wrap=True, css_classes=["feedback-title"]))
         heading.append(localized(Gtk.Label, 
-            label=(m.REVIEW_THE_ERROR_DETAILS_BELOW_BEFORE_SENDING
-                   if report else m.SHARE_A_PROBLEM_SUGGESTION_OR_IDEA),
+            label=(m.SOMETHING_WENT_WRONG_HELP_US_FIX_IT
+                   if is_error_report else m.SHARE_A_PROBLEM_SUGGESTION_OR_IDEA),
             xalign=0, wrap=True, css_classes=["feedback-subtitle"],
         ))
         introduction.append(heading)
@@ -139,7 +149,11 @@ class FeedbackDialog(Adw.Window):
 
         message_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                                 vexpand=True, margin_bottom=2)
-        message = RichTextEditor(None if kiosk_session else self._choose_attachments)
+        message = RichTextEditor(
+            None if kiosk_session else self._choose_attachments,
+            placeholder=(m.ERROR_EDITOR_PLACEHOLDER if is_error_report
+                         else m.EDITOR_PLACEHOLDER),
+        )
         set_automation_id(message, "feedback-editor-container")
         self._message = message
         if report:
@@ -299,11 +313,11 @@ class FeedbackDialog(Adw.Window):
         cancel.connect("clicked", lambda *_: self.close())
         actions.append(cancel)
         self._send_button = localized(Gtk.Button, 
-            label=m.SEND_FEEDBACK, sensitive=transport.SENDING_ENABLED,
+            label=send_label, sensitive=transport.SENDING_ENABLED,
             css_classes=["suggested-action", "feedback-send"],
         )
         describe_control(
-            self._send_button, m.SEND_FEEDBACK,
+            self._send_button, send_label,
             m.SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS,
             automation_id="feedback-send",
         )
@@ -485,9 +499,10 @@ class FeedbackDialog(Adw.Window):
         )
         self._without_logs.set_visible(False)
         self._set_busy(True)
-        set_text(self._send_button, 'label', m.SEND_FEEDBACK)
+        send_label = m.SEND_ERROR_REPORT if self._report is not None else m.SEND_FEEDBACK
+        set_text(self._send_button, 'label', send_label)
         describe_control(
-            self._send_button, m.SEND_FEEDBACK,
+            self._send_button, send_label,
             m.SUBMIT_THE_FEEDBACK_AND_SELECTED_ATTACHMENTS,
         )
         set_text(self._status, 'label', m.PREPARING_FEEDBACK % {'hint': self._sending_hint()})

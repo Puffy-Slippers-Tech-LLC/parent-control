@@ -139,6 +139,27 @@ msgstr "செயலி வரம்புகள்"
 msgid "Search installed apps"
 msgstr "நிறுவப்பட்ட செயலிகளைத் தேடவும்"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "பிழையைப் புகாரளி"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "சிரமத்திற்கு வருந்துகிறோம்"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "ஏதோ தவறு நடந்துவிட்டது. அறிக்கையை அனுப்பி அதைச் சரிசெய்ய எங்களுக்கு உதவுங்கள்."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "பிழை அறிக்கையை அனுப்பு"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "இது நடந்தபோது நீங்கள் என்ன செய்து கொண்டிருந்தீர்கள்?\nகூடுதல் விவரங்கள் சிக்கலை மீண்டும் உருவாக்கிப் பார்த்துச் சரிசெய்ய எங்களுக்கு உதவும்..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "தற்காலிகமாகத் தடுக்கப்பட்டு இயங்கிக்கொண்டிருக்கும் இந்தச் செயலிகள் மூடப்படும்:"

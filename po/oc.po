@@ -139,6 +139,27 @@ msgstr "Limitacions d'aplicacions"
 msgid "Search installed apps"
 msgstr "Cercar d'aplicacions installadas"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Senhalar una error"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Excusatz-nos pel destorbi"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Quicòm a pas foncionat. Ajudatz-nos a o corregir en mandant un rapòrt."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Mandar lo rapòrt d’error"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Qué fasiatz quand aquò s’es produsit ?\nDe detalhs suplementaris nos pòdon ajudar a reproduire e corregir lo problèma..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Aquestas aplicacions en execucion amb blocatge temporari seràn tampadas:"

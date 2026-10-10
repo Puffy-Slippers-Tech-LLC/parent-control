@@ -139,6 +139,27 @@ msgstr "ایپس کی حدود"
 msgid "Search installed apps"
 msgstr "نصب شدہ ایپس تلاش کریں"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "خرابی کی اطلاع دیں"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "زحمت کے لیے معذرت"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "کچھ غلط ہو گیا۔ رپورٹ بھیج کر اسے ٹھیک کرنے میں ہماری مدد کریں۔"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "خرابی کی رپورٹ بھیجیں"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "جب یہ ہوا تو آپ کیا کر رہے تھے؟\nاضافی تفصیلات مسئلے کو دوبارہ پیدا کرنے اور حل کرنے میں ہماری مدد کر سکتی ہیں..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "عارضی طور پر مسدود یہ چلتی ہوئی ایپس بند کر دی جائیں گی:"

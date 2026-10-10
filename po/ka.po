@@ -139,6 +139,27 @@ msgstr "აპების შეზღუდვები"
 msgid "Search installed apps"
 msgstr "დაყენებული აპების ძიება"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "შეცდომის შეტყობინება"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "ბოდიშს გიხდით შეფერხებისთვის"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "რაღაც არასწორად მოხდა. ანგარიშის გაგზავნით დაგვეხმარეთ მის გამოსწორებაში."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "შეცდომის ანგარიშის გაგზავნა"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "რას აკეთებდით, როდესაც ეს მოხდა?\nდამატებითი დეტალები დაგვეხმარება პრობლემის გამეორებასა და გამოსწორებაში..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "ეს გაშვებული, დროებით დაბლოკილი აპები დაიხურება:"

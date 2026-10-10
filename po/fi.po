@@ -139,6 +139,27 @@ msgstr "Sovellusrajoitukset"
 msgid "Search installed apps"
 msgstr "Etsi asennettuja sovelluksia"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Ilmoita virheestä"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Pahoittelut häiriöstä"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Jokin meni pieleen. Auta meitä korjaamaan se lähettämällä raportti."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Lähetä virheraportti"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Mitä olit tekemässä, kun tämä tapahtui?\nLisätiedot voivat auttaa meitä toistamaan ja korjaamaan ongelman..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Nämä käynnissä olevat tilapäisesti estetyt sovellukset suljetaan:"

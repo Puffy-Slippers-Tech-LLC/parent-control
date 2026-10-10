@@ -139,6 +139,27 @@ msgstr "Giới hạn ứng dụng"
 msgid "Search installed apps"
 msgstr "Tìm ứng dụng đã cài đặt"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Báo cáo lỗi"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Xin lỗi vì sự bất tiện"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Đã xảy ra sự cố. Hãy giúp chúng tôi khắc phục bằng cách gửi báo cáo."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Gửi báo cáo lỗi"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Bạn đang làm gì khi sự cố này xảy ra?\nThông tin bổ sung có thể giúp chúng tôi tái hiện và khắc phục sự cố..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Các ứng dụng đang chạy bị chặn tạm thời sau đây sẽ bị đóng:"

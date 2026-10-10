@@ -139,6 +139,27 @@ msgstr "Appgrenser"
 msgid "Search installed apps"
 msgstr "Søk etter installerte appar"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Rapporter ein feil"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Orsak ulempa"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Noko gjekk gale. Hjelp oss med å rette det ved å sende ein rapport."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Send feilrapport"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Kva gjorde du då dette hende?\nFleire detaljar kan hjelpe oss med å gjenskape og rette problemet..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Desse køyrande appane med mellombels blokkering vert lukka:"

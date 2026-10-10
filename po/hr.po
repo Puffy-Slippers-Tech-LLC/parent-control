@@ -139,6 +139,27 @@ msgstr "Ograničenja aplikacija"
 msgid "Search installed apps"
 msgstr "Pretraži instalirane aplikacije"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Prijavi grešku"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Žao nam je zbog neugodnosti"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Nešto je pošlo po zlu. Pomozite nam to popraviti slanjem izvješća."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Pošalji izvješće o grešci"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Što ste radili kada se to dogodilo?\nDodatne pojedinosti mogu nam pomoći ponoviti i riješiti problem..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Ove pokrenute aplikacije s privremenom blokadom bit će zatvorene:"

@@ -140,6 +140,27 @@ msgstr "Ilova cheklovlari"
 msgid "Search installed apps"
 msgstr "Oʻrnatilgan ilovalarni qidirish"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Xato haqida xabar berish"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Noqulaylik uchun uzr"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Nimadir xato ketdi. Hisobot yuborib, uni tuzatishimizga yordam bering."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Xato hisobotini yuborish"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Bu sodir bo‘lganida nima qilayotgan edingiz?\nQo‘shimcha tafsilotlar muammoni qayta yuzaga keltirish va tuzatishimizga yordam beradi..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Vaqtincha bloklangan ushbu ishlayotgan ilovalar yopiladi:"

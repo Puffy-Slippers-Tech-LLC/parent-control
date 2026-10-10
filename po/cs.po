@@ -139,6 +139,27 @@ msgstr "Omezení aplikací"
 msgid "Search installed apps"
 msgstr "Hledat nainstalované aplikace"
 
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Report an Error"
+msgstr "Nahlásit chybu"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Sorry about the inconvenience"
+msgstr "Omlouváme se za nepříjemnosti"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Something went wrong. Help us fix it by sending a report."
+msgstr "Něco se pokazilo. Pomozte nám to opravit odesláním hlášení."
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "Send Error Report"
+msgstr "Odeslat hlášení chyby"
+
+#. Error-report presentation in the shared feedback dialog.
+msgid "What were you doing when this happened?\nAny additional details can help us reproduce and fix the issue..."
+msgstr "Co jste dělali, když k tomu došlo?\nDalší podrobnosti nám mohou pomoci problém zopakovat a opravit..."
+
 #. Revoke confirmation: only currently running apps with a temporary soft block.
 msgid "These running soft blocked apps will be closed:"
 msgstr "Tyto spuštěné aplikace s dočasným blokováním budou zavřeny:"

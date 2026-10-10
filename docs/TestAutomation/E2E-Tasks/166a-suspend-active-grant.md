@@ -13,13 +13,16 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **052** — TIME01 public child-desktop remaining balance.
-- **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
+- **065a** — FLOW13 grant-only preparation and explicit revoke-first entry.
 - **043a** — GDM02 retained-child lock entry; DESK08/11.
 - **052c** — TIME03.
 
 ## Implementation
 
 Use the shared LIFE03 system suspend command, supported wake input and independent return-surface observation. Reuse a real grant-only profile, guarded wait and legitimate unlock; backend power state does not prove the customer result.
+
+Consume only 065a's grant-only operation. A combined daily/grant profile and its
+dominance qualification add no result to this zero-daily suspend boundary.
 
 Bind one supported guest suspend command and one existing owned-VM wake route.
 Keep the host awake and preserve the attempt/VM identity across the expected

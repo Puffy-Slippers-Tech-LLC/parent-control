@@ -15,10 +15,14 @@ Session exception: The complete child history retains language changes, immutabl
 Compose the [fixed overlay recipe](../E2E-Scenario-Recipes.md#overlay-language-presentation-planned-task-308)
 as one complete case. Preserve the English → Hebrew → English saved-language
 history and unchanged child, approver, request values and activity from 308a.
-After observing restored English, save Hebrew again and perform one genuine
-75-second soft-included approval through 308b. Independently require Hebrew
-success, the expected public time increment and return to the original usable
-activity with unchanged synthetic content. Keep the native agent's own language
+During the Hebrew part of that history, perform one genuine 75-second
+soft-included approval through 308b. Independently require Hebrew success, the
+expected public time increment and return to the original usable activity with
+unchanged synthetic content. Reopen the overlay once, restore English and read
+the original request choices before normal Cancel return to that same activity.
+Compare time against the approved deadline and elapsed use; restoring language
+must not reset the grant. This ordering needs no fourth language save or second
+Hebrew preparation. Keep the native agent's own language
 separate from the product-owned request/result language. Repeated About and
 error-report tours are outside this journey; Parent task 307 retains the
 mixed-script ordinary feedback draft check.

@@ -986,7 +986,7 @@ Implementation status: All cases pending.
 
 Bindings: delivery = retry.
 
-1. P0 → FEED01 → UI16 → FEED06 → FEED03 → FEED05.
+1. P0 → FEED01 → UI16 → FEED06 → FEED03. Reuse the reviewed profile's Privacy evidence; no new disclosure visit is needed for retry/background completion.
 2. LIFE06(disconnect).
 3. FEED11 on the still-open feedback surface → FEED09(retry). Internet isolation does not require leaving the dialog or activating it again.
 4. UI18(ordinary feedback only) → UI11(feedback); keep the same Parent running → LIFE06(reconnect before retry deadline). Require no unsolicited feedback/thanks window during the bounded background completion interval.
@@ -1355,7 +1355,7 @@ Bindings: flow = app-exit / overlay-stop / kiosk-stop / overlay-success / kiosk-
 Background reconnection is combined into [E2E-033 / case 157](#e2e-033),
 without a separate submission or task for former case 215.
 
-1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03 → FEED05; LIFE06(disconnect) for retry branches → FEED11 on the existing report surface. Internet isolation needs no report-reactivation step.
+1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03; LIFE06(disconnect) for retry branches → FEED11 on the existing report surface. Reuse the reviewed profile and exact surface's qualified Privacy operation; no repeated disclosure tour is required for sending or exit behavior. Internet isolation needs no report-reactivation step.
 2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
 3. Use FEED14 only for observed thanks; FEED03 checks cleared/preserved/reset draft as specified, and LIFE06 restores connectivity.
 
@@ -1802,6 +1802,15 @@ The customer accepts the app's actual service confirmation; mailbox delivery,
 transport idempotency and payload equality remain separate integration work.
 One action is issued once; uncertain input is never replayed.
 
+Review the exact current body, reply address and attachments before Send.
+Reuse Privacy evidence for the unchanged reviewed profile and qualified surface;
+do not reopen the disclosure in every send, retry or exit qualification. Case
+156 retains the ordinary-feedback disclosure visit; cooldown cases 176/178 and
+without-logs case 213 retain their request-surface disclosure results. A changed
+disclosure or surface binding still needs its affected qualification. Reusing
+Privacy evidence never reuses a draft, submission authorization outside its
+scope, or another case's send result.
+
 | Case | Exact branch after preparation and one Send |
 | --- | --- |
 | 156 ordinary success | Leave the optional reply address empty. FEED09(success) → TIME03(5 seconds) → UI03(thanks without reply follow-up) → FEED14 → FEED01 → FEED03(cleared). |
@@ -2076,11 +2085,16 @@ matrices remain UI-owned. Repeated About and error-report tours are removed.
 The exact mixed-script ordinary feedback draft history remains in Parent task 307;
 error-report closure ends its draft under the
 [specification](../Specification.md#feedback-and-error-reports).
-After restored English text is verified, save Hebrew again and perform one genuine
-75-second soft-included approval. The desktop/native Shell agent remains English;
-the product request/result is Hebrew. Require correct recipient/secret guards,
-ordinary translated success, return to the same usable activity with unchanged
-content and the expected public time increment. Do not send feedback.
+While Hebrew is selected, perform one genuine 75-second soft-included approval.
+The desktop/native Shell agent remains English; the product request/result is
+Hebrew. Require correct recipient/secret guards, ordinary translated success,
+return to the same usable activity with unchanged content and the expected
+public time increment. Reopen the overlay once, restore English and independently
+compare the original request choices and representative English text before
+normal Cancel return to that same activity. Compare remaining time against the
+approved deadline and actual elapsed use; language restoration must not reset
+time. This completes English → Hebrew → English without saving Hebrew again or
+repeating request preparation. Do not send feedback.
 
 ### Kiosk language presentation (planned task 309)
 

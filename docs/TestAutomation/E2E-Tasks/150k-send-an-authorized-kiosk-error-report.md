@@ -21,9 +21,13 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Bind one reviewed synthetic Send on the actual kiosk error-report window. Reuse the qualified public cooldown-error prefix and shared submission operation; qualify the surface's confirmation and exit separately from ordinary Parent feedback.
 
+Read the current synthetic report once before Send. Reuse 187k's exact kiosk
+Privacy qualification and the reviewed profile; no disclosure visit or extra
+draft comparison is needed in this submission slice.
+
 ## Live VM acceptance
 
-On the VM, produce the public error, review the report and Privacy, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus GDM. Opening or successful transport alone cannot satisfy exit behavior.
+On the VM, produce the public error, review the report, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus GDM. Opening or successful transport alone cannot satisfy exit behavior.
 
 Planned qualification selector (not registered; implement before use):
 

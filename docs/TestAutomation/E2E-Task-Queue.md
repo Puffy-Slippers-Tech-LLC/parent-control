@@ -526,10 +526,10 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 197k, 196a, 079b, 155, 129a, 047a, 028 | Cases 248; two complete cycles; gate in brief | 20–30 + ≤90 live (exception) |
 | [ ] | 198 | [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md) | 044, 079 | FLOW15/FLOW01 other-parent management entry | 20–30 |
 | [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 197k, 198, 196a, 079b, 079a, 155, 126, 047a | Cases 251; two recomposed rounds; gate in brief | 20–30 + ≤90 live (exception) |
-| [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052, 065, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
-| [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079d, 065, 166a | Cases 124 | 40–60 (exception) |
+| [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052, 065a, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
+| [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079d, 065a, 166a | Cases 124 | 40–60 (exception) |
 | [ ] | 166 | [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md) | 166a | LIFE03 | 20–30 |
-| [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 079b, 079d, 065, 166 | Cases 125 | 40–60 (exception) |
+| [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 079b, 079d, 065a, 166 | Cases 125 | 40–60 (exception) |
 | [ ] | 135a | [Qualify a real update requiring no activation](E2E-Tasks/135a-update-no-action.md) | 300d, 180 | LIFE04 update and LIFE05 no-action notice | 20–30 |
 | [ ] | 135 | [Follow a real process-activation update](E2E-Tasks/135-activation-process.md) | 135a, 028 | LIFE04 update; LIFE05 process/none scope | 30–50 (exception) |
 | [ ] | 136 | [E2E-026: process](E2E-Tasks/136-case-136.md) | 135, 079d, 079b, 065, 052 | Cases 136 | 40–60 (exception) |

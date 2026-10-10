@@ -14,16 +14,20 @@ Estimate: 20–30 minutes. First planned consumer:
 ## Scope and acceptance
 
 Qualify Riley's account-wide fullscreen boolean through overlay Preferences.
-With a nonempty loaded reminder list, save false and independently reopen to
-require false; save true and independently require true. Cancel one false draft
-and require the saved true value unchanged. Compare exact reminder records,
+With a nonempty loaded reminder list and the default true value, save false and
+independently reopen to require false. Set a true draft, Cancel and independently
+require the saved false value unchanged. This proves a saved nondefault and a
+discarded change with one Save instead of two. Compare exact reminder records,
 language, request choices and public time/policy before/after, with elapsed-time
 bounds. The necessary saved-value reopen supplies independent entry. Cover
 wrong-child/surface, stale, ambiguous, loading, busy and empty-list disabled
 control refusals in focused harness checks before discovery/input; preserve
 those shared runtime guards without repeating the editor's qualification matrix.
 Notification delivery and fullscreen suppression are separate qualifications;
-a saved boolean supplies no delivery acceptance.
+a saved boolean supplies no delivery acceptance. Task 311c still explicitly
+saves both enabled and disabled choices before checking their distinct banner
+effects. Local boolean/editing combinations remain in
+`tests/ui/test_language_settings.py::test_child_preferences_reminders_sort_edit_save_cancel_and_empty_list`.
 
 ## Shared implementation
 

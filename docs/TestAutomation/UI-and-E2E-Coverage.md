@@ -112,6 +112,17 @@ outcomes remain required; consecutive unchanged reads and repeated route sweeps
 add no customer result. Case 152's wrong-entry exercise stays in isolated
 qualification. Each changed composition needs scoped live validation.
 
+Remaining suspend tasks consume the grant-only preparation needed by their
+zero-daily boundary, without a combined-profile qualification. The
+[sending recipes](E2E-Scenario-Recipes.md#sending-background-completion-and-report-exits)
+reuse unchanged Privacy evidence while retaining a current draft review and
+each submission, recovery and exit result. Future overlay task 308 approves
+during Hebrew before restoring English; its saved-work and language history
+remain complete. Reminder task 311a qualifies one nondefault Save and one Cancel;
+311c retains both fullscreen choices and their actual banner effects. These
+reductions leave natural waits, identity guards and all distinct customer
+outcomes under their existing owners.
+
 | Family / cases | Customer result and review disposition |
 | --- | --- |
 | E2E-001 / 1 | Retain runner-smoke transport/credential/continuity qualification; explicitly no customer acceptance. |
@@ -137,7 +148,7 @@ qualification. Each changed composition needs scoped live validation.
 | E2E-021 / 112–115 | Retain affected work and launches on distinct retained desktops; no invented session or repeated-resume substitute. |
 | E2E-022 / 116–122, 124–125 | Retain original grant deadlines and legitimate access before and after expiry for each lifecycle boundary. Active cases 116/118/120/124 own full saved-choice tours on both forms; expired partners omit the repeat but retain saved rules, refusal, enforcement and recovery. Case 122 uses one short grant for early idle return, natural expiry, refusal and approved recovery. Compare old work only on retained desktops; future mute remains separate. |
 | E2E-023 / 126–127 | Retain denied entry → station approval → real game → natural lock → replacement and same game. Display mode matters to real input ownership at lock. |
-| E2E-024 / 128, 131 | Retain daily-dominant windowed play and grant-dominant fullscreen play: both time calculations, both game modes, fullscreen request access, unchanged game progress and the same game continuing until extended natural expiry. Remove opposite pairings 129 and 130 without reusing their IDs. Fullscreen panel reveal remains the tested entry route. |
+| E2E-024 / 128, 131 | Retain daily-dominant windowed play and grant-dominant fullscreen play: both time calculations, both game modes, fullscreen request access, unchanged game progress and the same game continuing until extended natural expiry. Remove opposite pairings 129 and 130 without reusing their IDs. REQUEST13's panel API entry remains the tested route; no Shell reveal sequence is required. |
 | E2E-025 / 132–135 | Retain replacement soft choice before returning with daily time left; fresh launches versus preserved retained work follow the declared session lifetime. |
 | E2E-026 / 136–138 | Retain each actual earlier-release update and its instructions for every affected user/surface, preserved allowance/app rules and usable/enforced access without restarting the grant. Reboot case 138 owns the full both-form saved-choice tour; process/session cases 136/137 shorten only repeated preference checks. |
 | E2E-027 / 139 | Retain continuous remove/reinstall/reapply/purge history with personal access restored, choices retained or reset and no recreated grant. |

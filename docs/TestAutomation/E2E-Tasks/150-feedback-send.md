@@ -22,9 +22,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse the concrete reviewed profile and submission authorization from task 150a.
 Use an empty optional reply address for this Parent ordinary-feedback binding.
-Compose FEED03/Privacy observations, one Send, FEED09 sending/success and FEED14
-dismissal. Qualify these result projections through the supported real service
-and dedicated recipient. Do not expand content, recipient or submission counts.
+Read the current report through FEED03 and reuse 150a's reviewed Privacy evidence.
+Compose one Send, FEED09 sending/success and FEED14 dismissal without reopening
+the unchanged disclosure. Qualify these result projections through the supported
+real service and dedicated recipient. Do not expand content, recipient or
+submission counts.
 
 Source gap: `AccessibleUI.feedback_snapshot` / `feedback_state_operation` read
 editable, idle drafts and do not implement sending, retry or success-dialog

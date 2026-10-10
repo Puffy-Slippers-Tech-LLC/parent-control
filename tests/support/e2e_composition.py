@@ -20,7 +20,7 @@ APIS = {
     'dataclasses': {'replace'},
     'countdown': {'CountdownObservation', 'check_countdown_balance'},
     'access_choices': {'AccessChoiceJourney'},
-    'policy_edits': {'policy_edit'},
+    'policy_edits': {'policy_edit', 'AppPolicyJourney'},
     'match_rules': {'MatchRuleJourney', 'MATCH_RULES', 'match_edit'},
     'parent_reports': {'ParentReportJourney', 'report_review', 'report_close'},
     'account_fixture': {'DynamicAccountFixture', 'EmptyAccountFixture', 'station_fixture_actions'},

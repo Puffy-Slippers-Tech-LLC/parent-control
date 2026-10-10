@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **099 — [E2E-019: native-command-allowed-enabled](E2E-Tasks/099-case-80.md)**.
+Next task: **099b — [E2E-019: native-command-allowed-disabled](E2E-Tasks/099b-case-81.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

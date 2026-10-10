@@ -704,7 +704,10 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 
 ### E2E-019
 
-Implementation status: All cases pending.
+Implementation status: Case 80 is registered through `app_launch.PLAN` /
+`onpc_app_launch::run` and passed installed acceptance on Ubuntu and Fedora.
+The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
+records its exact accepted scope. Other cases remain pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 
@@ -722,6 +725,14 @@ another child's unaffected access through the same route.
 1. P0 → FLOW02(control,usable time) → FLOW03(target access rule).
 2. C(fresh) → FLOW08(exact route, policy result). Hidden launcher: APP02(hidden) → FLOW08(explicit command route,denied).
 3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
+
+Case 80 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
+to public Allowed readback. Parent enables Jordan with 30 daily minutes and no
+one-time grant, then the shared native command/window/Submit/result operations
+prove use. Log out Jordan and enter Riley fresh; the same command and independent
+submitted-draft result prove unaffected access with Riley's policy untouched.
+`AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
+order and recorder phases. It prepares no approval and requires no retained work.
 
 ### E2E-020
 

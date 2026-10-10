@@ -48,6 +48,7 @@ use onpc_fresh_thirty_allowance ();
 use onpc_app_restart ();
 use onpc_zero_total ();
 use onpc_app_rows ();
+use onpc_app_launch ();
 use onpc_feedback_read ();
 use onpc_feedback_privacy ();
 use onpc_feedback_states ();
@@ -559,6 +560,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_parent_search_launch::run(\&exchange);
+        return;
+    }
+    if ($ready->{native_command_allowed}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{app_activity}) {

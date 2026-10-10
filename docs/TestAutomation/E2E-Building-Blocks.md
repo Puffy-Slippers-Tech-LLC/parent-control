@@ -1470,6 +1470,14 @@ restoration passed for both runs. No enforcement or complete-case credit follows
 from these public editing checks. Other apps and input bindings retain their
 own qualification requirements.
 
+`policy_edits.AppPolicyJourney` composes the existing exact match/access
+comparisons with `journey_checks.check_balances` for caller-declared unused
+daily/grant/total balances. Case 80's declaration supplies Jordan's 1800/0/1800
+setup, precise match and Allowed choice; the same real recorder step refuses a
+wrong balance, match or access result before durable acknowledgement. Host checks
+remain in `test_e2e_app_activity.py`; the complete case's installed acceptance is
+recorded under [application journeys](#application-routes-and-complete-customer-journeys).
+
 The actual qualification pattern must render without omissions against the
 declared baseline fixture names before live work. `Exact*.AppImage` is valid
 editor text but leaves unrelated space-bearing ELF fixtures outside the match;
@@ -4164,6 +4172,28 @@ Use the [E2E-019–027 recipes](E2E-Scenario-Recipes.md#e2e-019) for launch,
 catalogue mutation, retained-session, gameplay, update and removal journeys.
 Their finite route sets, ordered outcomes and applicability gates remain in
 those recipes and their selected task briefs.
+
+Task 099 delivered E2E-019 case 80 through `app_launch.PLAN` /
+`onpc_app_launch::run`: Parent's fresh Jordan setup enables limits with 30 daily
+minutes and zero one-time grant, independently reads saved balances, saves and
+reads native fixture A's precise match and Allowed choice, then logs out.
+Jordan freshly enters and launches `Exact Fixture.AppImage` through the native
+command operation; its intended window and submitted-draft result prove use.
+After Jordan logs out, Riley freshly enters and proves the same command target
+usable through the same window/Submit/result operations, with Riley's existing
+policy and disabled limits untouched. The shared policy edit, desktop entry and
+native usable-app helpers own mechanics; `AppPolicyJourney` compares declared
+settings, balances, match and access before acknowledging input.
+
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' e2e --id '80'` passed in
+`20261010T232729Z-5c7cdbab` (Ubuntu) and `20261010T232729Z-7ef82c63` (Fedora).
+Both independent attempts passed product, infrastructure, collection and cleanup,
+completed their leases, and passed suite cleanup and baseline restoration.
+Host checks cover actual worker order, every declared-stage refusal, independent
+comparison failures and the real recorder constructor; unchanged shared lifecycle
+and resource guards and the Parent composite UI check also passed. This scope
+qualifies the native-command/Allowed/enabled case for this finite fixture only;
+other E2E-019 route, rule and control bindings retain their own acceptance.
 
 ### Recovery, information and feedback
 

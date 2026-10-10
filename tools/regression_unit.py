@@ -378,6 +378,8 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # Native activity comparison uses frozen synthetic public values, private
 # pytest reply/marker files, process-local transport doubles and waited Perl
 # children. No live VM, display, socket, shared cache or new resource lifetime.
+# Case 80 adds policy/balance reply checks and the two-child command composition
+# in the same e2e_app_activity module with these private resources; compatible.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private

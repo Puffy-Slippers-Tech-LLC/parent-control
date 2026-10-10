@@ -3,6 +3,17 @@ from accessible_ui import ACCESS_CHOICES, FILTER_OPTIONS, MATCH_APP
 from journey_blocks import filter_screens
 from private_artifacts import require
 from match_rules import match_edit
+from access_choices import AccessChoiceJourney
+from journey_checks import check_balances
+
+
+class AppPolicyJourney(AccessChoiceJourney):
+    """Compare declared time, match and access results before acknowledging input."""
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in self.plan.balance_checks:
+            check_balances(self, observed, self.plan.balance_checks[stage])
 
 
 def policy_edit(app, draft, access, prefix, *, filters=()):

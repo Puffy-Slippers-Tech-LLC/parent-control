@@ -687,7 +687,15 @@ restores strict app policy and terminates blocked apps in that case, leaving
 daily time unchanged.
 
 App Limits loads the selected child's catalogue asynchronously on child selection
-and creates rows in batches. Unlike the account list, it has no periodic refresh:
+and creates rows in batches. The loading mask stays visible until the complete
+table has its saved policies, filters and enabled state applied and GTK has
+finished a frame with that table underneath it. Removing the mask then reveals
+the prepared list without a further row-loading delay. The mask belongs to the
+page viewport outside the scrolling content, so growing the list cannot move
+its centered message out of view. Its background, spinner and message share
+one visibility lifetime and disappear together. A new catalogue cancels
+the previous frame wait; closing Parent disconnects it.
+Unlike the account list, it has no periodic refresh:
 reselect another child and back, or reopen Parent, to display installed/removed
 launchers. Save-time target resolution at the broker is independent of this UI
 snapshot. Search combines with independent match/access filters, each allowing

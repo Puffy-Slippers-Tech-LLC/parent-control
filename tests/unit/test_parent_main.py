@@ -794,7 +794,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn("screen_limits.append(screen_limit_rows)", source)
         self.assertIn("app_limits.append(self._legend_card())", source)
         self.assertIn("app_limits.append(apps_section)", source)
-        self.assertIn("app_limits_page.set_child(Adw.Clamp(", source)
+        self.assertIn("app_limits_scroll.set_child(Adw.Clamp(", source)
 
     def test_screen_limits_use_reference_card_and_calculation_layout(self):
         source = inspect.getsource(ParentWindow._build)
@@ -1576,10 +1576,14 @@ class ParentWindowTests(unittest.TestCase):
         window._pages = type("Pages", (), {
             "get_visible_child_name": lambda self: "app-limits",
         })()
+        window._closed = False
+        window._loading = False
         window._app_limits_visible = False
         window._apps_loading = True
         window._catalog_building = False
         window._apps_table_ready = False
+        window._apps_table_painted = False
+        window._apps_paint_wait = None
         window._preferences = None
         window._app_catalog = None
         window._maybe_populate_app_table = lambda: None
@@ -1612,11 +1616,117 @@ class ParentWindowTests(unittest.TestCase):
         window._app_catalog = []
         window._catalog_building = False
         window._apps_table_ready = True
+        window._apps_table_painted = True
         window._preferences = {"apps": {}}
         window._update_apps_loading_ui()
         self.assertFalse(window._apps_mask_should_show())
         self.assertFalse(window.mask_visible)
         self.assertFalse(window.spinner_spinning)
+
+    def catalog_paint_window(self, applications, *, preferences=True, mapped=True):
+        window = type("CatalogPaintHarness", (), {
+            name: getattr(ParentWindow, name) for name in (
+                "_append_catalog_batch", "_apps_mask_should_show",
+                "_update_apps_loading_ui", "_cancel_apps_paint",
+            )
+        })()
+        window._closed = False
+        window._loading = False
+        window._app_limits_visible = True
+        window._apps_loading = False
+        window._apps_table_ready = False
+        window._apps_table_painted = False
+        window._apps_paint_wait = None
+        window._catalog_building = True
+        window._catalog_build_generation = window._apps_load_generation = 1
+        window._pending_catalog_apps = applications.copy()
+        window._preferences = {"apps": {}} if preferences else None
+        window._rows = []
+        window._search = mock.Mock()
+        window._add_app_row = window._rows.append
+        window._apply_app_policies = mock.Mock()
+        window._filter = mock.Mock()
+        window._set_apps_sensitive = mock.Mock()
+        window._apps_loading_mask = mock.Mock()
+        window._apps_loading_spinner = mock.Mock()
+        window._apps_group = mock.Mock()
+        window._apps_group.get_mapped.return_value = mapped
+        return window
+
+    def test_complete_catalog_stays_masked_through_its_first_paint(self):
+        for count in (0, CATALOG_ROW_BATCH_SIZE + 1):
+            with self.subTest(count=count):
+                apps = [{"id": f"app-{index}.desktop"} for index in range(count)]
+                window = self.catalog_paint_window(apps)
+                clock = window._apps_group.get_frame_clock.return_value
+                while window._pending_catalog_apps:
+                    window._append_catalog_batch()
+                    if window._pending_catalog_apps:
+                        clock.connect.assert_not_called()
+                if not apps:
+                    window._append_catalog_batch()
+                self.assertEqual(window._rows, apps)
+                window._apply_app_policies.assert_called_once_with()
+                window._filter.assert_called_once_with(window._search)
+                window._set_apps_sensitive.assert_called_once_with(True)
+                self.assertTrue(window._apps_table_ready)
+                self.assertTrue(window._apps_mask_should_show())
+                window._apps_loading_mask.set_visible.assert_called_with(True)
+                # Repeated readiness updates must share one frame callback.
+                window._update_apps_loading_ui()
+                clock.connect.assert_called_once()
+                signal, painted = clock.connect.call_args.args
+                self.assertEqual(signal, "after-paint")
+                painted(clock)
+                clock.disconnect.assert_called_once_with(clock.connect.return_value)
+                self.assertIsNone(window._apps_paint_wait)
+                self.assertTrue(window._apps_table_painted)
+                self.assertFalse(window._apps_mask_should_show())
+                window._apps_loading_mask.set_visible.assert_called_with(False)
+                window._apps_loading_spinner.set_spinning.assert_called_with(False)
+
+    def test_catalog_paint_waits_for_preferences_and_mapping(self):
+        window = self.catalog_paint_window([], preferences=False, mapped=False)
+        window._append_catalog_batch()
+        window._apps_group.get_frame_clock.assert_not_called()
+        self.assertTrue(window._apps_mask_should_show())
+        window._preferences = {"apps": {}}
+        # A previous child's preferences do not finish the current load.
+        window._loading = True
+        window._apps_group.get_mapped.return_value = True
+        window._update_apps_loading_ui()
+        window._apps_group.get_frame_clock.assert_not_called()
+        window._loading = False
+        window._apps_group.get_mapped.return_value = False
+        window._update_apps_loading_ui()
+        window._apps_group.get_frame_clock.assert_not_called()
+        window._apps_group.get_mapped.return_value = True
+        window._update_apps_loading_ui()
+        clock = window._apps_group.get_frame_clock.return_value
+        clock.connect.call_args.args[1](clock)
+        self.assertFalse(window._apps_mask_should_show())
+
+    def test_catalog_paint_cannot_reveal_a_stale_hidden_or_closed_table(self):
+        for field, value in (("_apps_load_generation", 2),
+                             ("_app_limits_visible", False), ("_closed", True)):
+            with self.subTest(field=field):
+                window = self.catalog_paint_window([])
+                window._append_catalog_batch()
+                clock = window._apps_group.get_frame_clock.return_value
+                setattr(window, field, value)
+                clock.connect.call_args.args[1](clock)
+                self.assertFalse(window._apps_table_painted)
+                self.assertIsNone(window._apps_paint_wait)
+
+    def test_cancel_catalog_paint_disconnects_only_its_owned_handler(self):
+        window = self.catalog_paint_window([])
+        window._append_catalog_batch()
+        clock = window._apps_group.get_frame_clock.return_value
+        window._cancel_apps_paint()
+        window._cancel_apps_paint()
+        clock.disconnect.assert_called_once_with(clock.connect.return_value)
+        self.assertIsNone(window._apps_paint_wait)
+        self.assertFalse(window._apps_table_painted)
 
     def test_stale_app_catalog_results_are_ignored_after_account_change(self):
         window = type("WindowHarness", (), {

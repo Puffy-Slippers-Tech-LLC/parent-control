@@ -405,6 +405,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._apps_load_uid = None
         self._apps_load_generation = 0
         self._apps_table_ready = False
+        self._apps_table_painted = False
+        self._apps_paint_wait = None
         self._catalog_building = False
         self._catalog_build_generation = 0
         self._pending_catalog_apps = []
@@ -905,11 +907,17 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["screen-limits-clamp"],
         ))
 
-        app_limits_page = Gtk.ScrolledWindow(
+        # Keep the loading layer outside the scrolling content: app rows grow
+        # during loading, but the message must stay centered in the viewport.
+        app_limits_page = Gtk.Overlay(
+            hexpand=True, vexpand=True, css_classes=["apps-table-overlay"],
+        )
+        app_limits_scroll = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.NEVER,
             vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
             css_classes=["app-limits-page"],
         )
+        app_limits_page.set_child(app_limits_scroll)
         set_automation_id(app_limits_page, "parent-app-limits-page")
         pages.add_titled_with_icon(
             app_limits_page, "app-limits", m.APP_LIMITS, "view-grid-symbolic",
@@ -959,6 +967,7 @@ class ParentWindow(Adw.ApplicationWindow):
         apps = localized(Adw.PreferencesGroup, css_classes=["apps-panel"])
         set_automation_id(apps, "parent-app-rows")
         self._apps_group = apps
+        apps.connect("map", self._update_apps_loading_ui)
         # PreferencesGroup places non-row widgets after its list. Keep the
         # headings in an ActionRow so they remain directly above app rows.
         # Each column measures both its translated heading and row controls.
@@ -980,10 +989,6 @@ class ParentWindow(Adw.ApplicationWindow):
             identity="access-rule", column_size=self._access_column_size))
         apps.add(headers)
         self._app_rows = []
-        apps_overlay = Gtk.Overlay(
-            hexpand=True, vexpand=True, css_classes=["apps-table-overlay"],
-        )
-        apps_overlay.set_child(apps)
         loading_mask = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             hexpand=True, vexpand=True, visible=False, can_target=True,
@@ -1007,11 +1012,11 @@ class ParentWindow(Adw.ApplicationWindow):
         loading_center = Gtk.CenterBox(hexpand=True, vexpand=True)
         loading_center.set_center_widget(loading_content)
         loading_mask.append(loading_center)
-        apps_overlay.add_overlay(loading_mask)
+        app_limits_page.add_overlay(loading_mask)
         self._apps_loading_mask = loading_mask
-        apps_section.append(apps_overlay)
+        apps_section.append(apps)
         app_limits.append(apps_section)
-        app_limits_page.set_child(Adw.Clamp(
+        app_limits_scroll.set_child(Adw.Clamp(
             child=app_limits,
             maximum_size=CONTENT_MAX_WIDTH,
             tightening_threshold=CONTENT_MAX_WIDTH,
@@ -1664,10 +1669,12 @@ class ParentWindow(Adw.ApplicationWindow):
         self._app_rows.append(row)
 
     def _set_catalog(self, applications):
+        self._cancel_apps_paint()
         self._clear_catalog_rows()
         self._pending_catalog_apps = list(applications)
         self._catalog_building = True
         self._apps_table_ready = False
+        self._apps_table_painted = False
         self._catalog_build_generation = self._apps_load_generation
         self._update_apps_loading_ui()
         GLib.idle_add(self._append_catalog_batch)
@@ -1686,8 +1693,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._apps_table_ready = True
         self._apply_app_policies()
         self._filter(self._search)
-        self._update_apps_loading_ui()
         self._set_apps_sensitive(self._preferences is not None)
+        self._update_apps_loading_ui()
         LOG.info("parent.003", row_count=len(self._rows))
         return GLib.SOURCE_REMOVE
 
@@ -1828,12 +1835,14 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._apps_loading and self._apps_load_uid == uid:
             return
         self._apps_load_generation += 1
+        self._cancel_apps_paint()
         generation = self._apps_load_generation
         self._apps_load_uid = uid
         self._app_catalog = None
         self._app_catalog_uid = None
         self._apps_loading = True
         self._apps_table_ready = False
+        self._apps_table_painted = False
         self._catalog_building = False
         self._pending_catalog_apps = []
         self._clear_catalog_rows()
@@ -1886,14 +1895,46 @@ class ParentWindow(Adw.ApplicationWindow):
                 getattr(self, "_apps_loading", False)
                 or getattr(self, "_catalog_building", False)
                 or not getattr(self, "_apps_table_ready", True)
+                or not getattr(self, "_apps_table_painted", False)
                 or getattr(self, "_preferences", None) is None
             )
         )
 
-    def _update_apps_loading_ui(self):
+    def _cancel_apps_paint(self):
+        pending = self._apps_paint_wait
+        self._apps_paint_wait = None
+        if pending is not None:
+            clock, handler = pending
+            clock.disconnect(handler)
+
+    def _update_apps_loading_ui(self, *_args):
         mask = getattr(self, "_apps_loading_mask", None)
         if mask is None:
             return
+        if (not self._closed and self._app_limits_visible
+                and self._apps_table_ready and not self._catalog_building
+                and not self._apps_loading and not self._loading
+                and self._preferences is not None
+                and not self._apps_table_painted and self._apps_paint_wait is None
+                and self._apps_group.get_mapped()):
+            # Creating widgets does not finish GTK's layout and snapshot work.
+            # Paint the complete, filtered, enabled table underneath the mask
+            # before removing it, so revealing it needs no further row work.
+            clock = self._apps_group.get_frame_clock()
+            generation = self._apps_load_generation
+
+            def painted(clock):
+                self._cancel_apps_paint()
+                if (self._closed or generation != self._apps_load_generation
+                        or not self._app_limits_visible
+                        or not self._apps_group.get_mapped()):
+                    return
+                self._apps_table_painted = True
+                self._update_apps_loading_ui()
+
+            handler = clock.connect("after-paint", painted)
+            self._apps_paint_wait = (clock, handler)
+            self._apps_group.queue_draw()
         show = self._apps_mask_should_show()
         mask.set_visible(show)
         spinner = getattr(self, "_apps_loading_spinner", None)
@@ -2092,6 +2133,7 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _close_requested(self, *_args):
         self._closed = True
+        self._cancel_apps_paint()
         legend = getattr(self, "_legend_popover", None)
         if legend is not None and legend.get_parent() is not None:
             legend.popdown()

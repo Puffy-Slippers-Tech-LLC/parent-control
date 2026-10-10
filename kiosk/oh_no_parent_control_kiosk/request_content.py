@@ -30,6 +30,7 @@ from broker.oh_no_parent_control.preferences import (
     time_grant_choices,
 )
 from common.oh_no_parent_control_ui.duration import format_duration
+from .duration_controls import duration_range_message
 
 
 def _load_options():
@@ -1061,6 +1062,8 @@ class RequestContent(MetalBoard):
         if approver_index >= len(self._approver_uids):
             raise ValueError(m.SELECT_ADMINISTRATOR)
         selected = next(
+                    duration_range_message(MIN_CUSTOM_MINUTES * 60, MAX_CUSTOM_MINUTES * 60,
+                                           self._custom_unit) if self._custom_unit == 'hours' else
             (button for button in self._duration_buttons if button.get_active()), None
         )
         if selected is None:

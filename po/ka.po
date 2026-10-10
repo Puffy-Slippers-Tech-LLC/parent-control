@@ -1713,3 +1713,7 @@ msgstr "მართვა შესაძლებელია მხოლო�
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "შეიყვანეთ სწორი რიცხვი."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "დასაშვები დიაპაზონი: %(minimum)s – %(maximum)s %(unit)s."

@@ -1713,3 +1713,7 @@ msgstr "จัดการได้เฉพาะบัญชีที่ไม
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "ป้อนตัวเลขที่ถูกต้อง"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "ช่วงที่อนุญาต: %(minimum)s – %(maximum)s %(unit)s."

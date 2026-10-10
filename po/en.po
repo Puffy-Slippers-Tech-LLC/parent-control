@@ -179,3 +179,7 @@ msgstr "Only non-admin accounts can be managed."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Enter a valid number."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Allowed range: %(minimum)s – %(maximum)s %(unit)s."

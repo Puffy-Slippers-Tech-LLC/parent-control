@@ -1719,3 +1719,7 @@ msgstr "Hallata saab ainult administraatoriõigusteta kontosid."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sisesta sobiv arv."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Lubatud vahemik: %(minimum)s – %(maximum)s %(unit)s."

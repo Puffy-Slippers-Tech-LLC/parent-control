@@ -1725,3 +1725,7 @@ msgstr "Кіраваць можна толькі ўліковымі запіса
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Увядзіце карэктны лік."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Дапушчальны дыяпазон: %(minimum)s – %(maximum)s %(unit)s."

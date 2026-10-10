@@ -1725,3 +1725,7 @@ msgstr "Pot fi gestionate doar conturile fără drepturi de administrator."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Introduceți un număr valid."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Interval permis: %(minimum)s – %(maximum)s %(unit)s."

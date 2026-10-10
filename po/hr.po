@@ -1725,3 +1725,7 @@ msgstr "Moguće je upravljati samo računima bez administratorskih ovlasti."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Unesite valjani broj."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Dopušteni raspon: %(minimum)s – %(maximum)s %(unit)s."

@@ -1719,3 +1719,7 @@ msgstr "प्रशासक अधिकार नभएका खाताह
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "मान्य सङ्ख्या प्रविष्ट गर्नुहोस्।"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "अनुमति दिइएको दायरा: %(minimum)s – %(maximum)s %(unit)s."

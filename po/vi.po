@@ -1713,3 +1713,7 @@ msgstr "Chỉ có thể quản lý các tài khoản không có quyền quản t
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Nhập một số hợp lệ."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Phạm vi cho phép: %(minimum)s – %(maximum)s %(unit)s."

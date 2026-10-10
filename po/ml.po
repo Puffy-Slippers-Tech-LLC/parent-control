@@ -1719,3 +1719,7 @@ msgstr "അഡ്മിനിസ്ട്രേറ്റർ അധികാര�
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "സാധുവായ ഒരു സംഖ്യ നൽകുക."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "അനുവദനീയമായ പരിധി: %(minimum)s – %(maximum)s %(unit)s."

@@ -1713,3 +1713,7 @@ msgstr "Yalnızca yönetici olmayan hesaplar yönetilebilir."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Geçerli bir sayı girin."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "İzin verilen aralık: %(minimum)s – %(maximum)s %(unit)s."

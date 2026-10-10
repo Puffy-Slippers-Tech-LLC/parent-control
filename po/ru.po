@@ -1723,3 +1723,7 @@ msgstr "Управлять можно только учётными запися
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Введите допустимое число."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Допустимый диапазон: %(minimum)s – %(maximum)s %(unit)s."

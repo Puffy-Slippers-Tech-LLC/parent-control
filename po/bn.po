@@ -1719,3 +1719,7 @@ msgstr "শুধুমাত্র প্রশাসক নয় এমন �
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "একটি বৈধ সংখ্যা লিখুন।"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "অনুমোদিত পরিসর: %(minimum)s – %(maximum)s %(unit)s."

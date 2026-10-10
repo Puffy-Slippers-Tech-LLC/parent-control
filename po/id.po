@@ -1713,3 +1713,7 @@ msgstr "Hanya akun non-administrator yang dapat dikelola."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Masukkan angka yang valid."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Rentang yang diizinkan: %(minimum)s – %(maximum)s %(unit)s."

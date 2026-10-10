@@ -1717,3 +1717,7 @@ msgstr "Seuls les comptes sans droits d’administration peuvent être gérés."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Saisissez un nombre valide."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Plage autorisée: %(minimum)s – %(maximum)s %(unit)s."

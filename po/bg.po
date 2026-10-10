@@ -1719,3 +1719,7 @@ msgstr "Могат да се управляват само акаунти без
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Въведете валидно число."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Допустим диапазон: %(minimum)s – %(maximum)s %(unit)s."

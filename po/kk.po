@@ -1713,3 +1713,7 @@ msgstr "Тек әкімші құқықтары жоқ тіркелгілерді
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Жарамды сан енгізіңіз."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Рұқсат етілген ауқым: %(minimum)s – %(maximum)s %(unit)s."

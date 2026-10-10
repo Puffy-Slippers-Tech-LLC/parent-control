@@ -1719,3 +1719,7 @@ msgstr "Csak rendszergazdai jogosultság nélküli fiókok kezelhetők."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Adjon meg egy érvényes számot."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Megengedett tartomány: %(minimum)s – %(maximum)s %(unit)s."

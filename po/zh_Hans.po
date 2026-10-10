@@ -1711,3 +1711,7 @@ msgstr "只能管理非管理员账户。"
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "请输入有效数字。"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "允许范围: %(minimum)s – %(maximum)s %(unit)s."

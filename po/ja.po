@@ -1711,3 +1711,7 @@ msgstr "管理者権限のないアカウントのみ管理できます。"
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "有効な数値を入力してください。"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "許容範囲: %(minimum)s – %(maximum)s %(unit)s."

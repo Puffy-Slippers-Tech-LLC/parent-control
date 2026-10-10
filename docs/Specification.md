@@ -93,8 +93,11 @@ the separate technical checks described in the system design.
   editable preset is allowed; Rest of the day and Custom value remain hardcoded
   and cannot be customized. Editors accept minutes or hours, rounding entered
   values to one decimal place; untouched presets retain their exact whole seconds.
-  Invalid and duplicate durations cannot be saved. Editor Save updates the draft;
-  main Save persists it and Cancel discards uncommitted changes. Removing the
+  Invalid and duplicate durations cannot be saved. Out-of-range feedback in both
+  preset editors and custom requests shows the
+  allowed range in the selected minutes or hours unit, using decimal values.
+  Editor Save updates the draft; main Save persists it and Cancel discards
+  uncommitted changes. Removing the
   selected or remembered preset preserves its duration as an equivalent Custom value.
 - [ONPC-CORE-REQUEST-005] The requester selects an eligible parent and whether to allow soft blocked apps. The system authentication prompt identifies the child, duration and soft-app choice and requests authentication from that selected parent.
 - [ONPC-CORE-REQUEST-006] The parent enters credentials only in the system authentication prompt. Product request forms do not receive, store or display the password.

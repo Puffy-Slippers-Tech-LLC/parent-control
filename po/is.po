@@ -1719,3 +1719,7 @@ msgstr "Aðeins er hægt að stjórna reikningum án stjórnandaréttinda."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sláðu inn gilda tölu."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Leyfilegt bil: %(minimum)s – %(maximum)s %(unit)s."

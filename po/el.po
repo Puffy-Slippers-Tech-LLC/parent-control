@@ -1719,3 +1719,7 @@ msgstr "Μπορείτε να διαχειριστείτε μόνο λογαρι
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Εισαγάγετε έναν έγκυρο αριθμό."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Επιτρεπόμενο εύρος: %(minimum)s – %(maximum)s %(unit)s."

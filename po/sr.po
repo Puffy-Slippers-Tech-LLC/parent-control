@@ -1731,3 +1731,7 @@ msgstr "Могуће је управљати само налозима без а
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Унесите исправан број."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Дозвољени опсег: %(minimum)s – %(maximum)s %(unit)s."

@@ -1713,3 +1713,7 @@ msgstr "Hanya akaun bukan pentadbir boleh diurus."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Masukkan nombor yang sah."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Julat dibenarkan: %(minimum)s – %(maximum)s %(unit)s."

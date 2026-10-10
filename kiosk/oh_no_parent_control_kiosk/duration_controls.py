@@ -17,6 +17,19 @@ from .chrome import ArmoredButton
 NUMBER_RE = re.compile(r'^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$')
 
 
+def duration_range_message(minimum_seconds, maximum_seconds, unit):
+    hours = unit in ('hour', 'hours')
+    scale = 3600 if hours else 60
+    minimum = Decimal(str(minimum_seconds)) / scale
+    maximum = Decimal(str(maximum_seconds)) / scale
+    # Bound recurring decimals without changing the underlying validation.
+    minimum_text = format(minimum, '.10f').rstrip('0').rstrip('.')
+    return m.INVALID_DURATION_RANGE % {
+        'minimum': minimum_text, 'maximum': format(maximum, 'f'),
+        'unit': m.HOURS if hours else m.MINUTES,
+    }
+
+
 def duration_number(text):
     """Accept ordinary decimal input, including an editable trailing point."""
     raw = text.strip()

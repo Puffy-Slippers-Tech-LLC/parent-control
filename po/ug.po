@@ -1713,3 +1713,7 @@ msgstr "پەقەت باشقۇرغۇچى ھوقۇقى يوق ھېساباتلار
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "ئىناۋەتلىك سان كىرگۈزۈڭ."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "رۇخسەت قىلىنغان دائىرە: %(minimum)s – %(maximum)s %(unit)s."

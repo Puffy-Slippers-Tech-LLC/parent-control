@@ -1743,3 +1743,7 @@ msgstr "يمكن إدارة الحسابات غير الإدارية فقط."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "أدخل رقمًا صالحًا."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "النطاق المسموح: %(minimum)s – %(maximum)s %(unit)s."

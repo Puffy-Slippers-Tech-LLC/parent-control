@@ -1719,3 +1719,7 @@ msgstr "ਸਿਰਫ਼ ਗੈਰ-ਪ੍ਰਬੰਧਕ ਖਾਤਿਆਂ ਦ�
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "ਇੱਕ ਵੈਧ ਨੰਬਰ ਦਾਖਲ ਕਰੋ।"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "ਮਨਜ਼ੂਰ ਸੀਮਾ: %(minimum)s – %(maximum)s %(unit)s."

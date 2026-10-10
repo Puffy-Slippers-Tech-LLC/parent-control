@@ -1719,3 +1719,7 @@ msgstr "صرف غیر منتظم اکاؤنٹس کا انتظام کیا جا س
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "درست عدد درج کریں۔"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "مجاز حد: %(minimum)s – %(maximum)s %(unit)s."

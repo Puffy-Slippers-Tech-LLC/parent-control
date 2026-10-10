@@ -1719,3 +1719,7 @@ msgstr "Nur kontoj sen administrantaj rajtoj povas esti administrataj."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Enigu validan nombron."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Permesita intervalo: %(minimum)s – %(maximum)s %(unit)s."

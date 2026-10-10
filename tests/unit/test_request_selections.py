@@ -65,6 +65,18 @@ def form_methods():
     return bind_methods(SimpleNamespace(), RequestContent, names)
 
 
+@pytest.mark.parametrize('unit, expected', [
+    ('minutes', 'Allowed range: 0.1 – 1440 minutes.'),
+    ('hours', 'Allowed range: 0.0016666667 – 24 hours.'),
+    ('minute', 'Allowed range: 0.1 – 1440 minutes.'),
+    ('hour', 'Allowed range: 0.0016666667 – 24 hours.'),
+])
+def test_duration_range_uses_request_unit(unit, expected):
+    from oh_no_parent_control_kiosk.duration_controls import duration_range_message
+
+    assert duration_range_message(6, 86400, unit) == expected
+
+
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_escape_dismisses_unit_choices_before_exiting_request(overlay):
     choices = Mock()

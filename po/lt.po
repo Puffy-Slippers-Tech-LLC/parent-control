@@ -1725,3 +1725,7 @@ msgstr "Galima valdyti tik paskyras be administratoriaus teisių."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Įveskite tinkamą skaičių."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Leistinas intervalas: %(minimum)s – %(maximum)s %(unit)s."

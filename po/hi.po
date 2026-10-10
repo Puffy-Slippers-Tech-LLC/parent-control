@@ -1719,3 +1719,7 @@ msgstr "केवल गैर-व्यवस्थापक खातों �
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "कोई मान्य संख्या दर्ज करें।"
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "अनुमत सीमा: %(minimum)s – %(maximum)s %(unit)s."

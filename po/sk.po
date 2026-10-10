@@ -1725,3 +1725,7 @@ msgstr "Spravovať možno iba účty bez oprávnení správcu."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Zadajte platné číslo."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Povolený rozsah: %(minimum)s – %(maximum)s %(unit)s."

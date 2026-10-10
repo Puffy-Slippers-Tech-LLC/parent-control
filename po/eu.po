@@ -1719,3 +1719,7 @@ msgstr "Administratzaile-baimenik gabeko kontuak soilik kudea daitezke."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Sartu baliozko zenbaki bat."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Onartutako tartea: %(minimum)s – %(maximum)s %(unit)s."

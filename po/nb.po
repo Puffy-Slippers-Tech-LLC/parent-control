@@ -1719,3 +1719,7 @@ msgstr "Bare kontoer uten administratorrettigheter kan administreres."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Skriv inn et gyldig tall."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Tillatt område: %(minimum)s – %(maximum)s %(unit)s."

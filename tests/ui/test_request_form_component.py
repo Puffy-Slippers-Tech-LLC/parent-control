@@ -365,6 +365,21 @@ def test_local_selections_restore_only_eligible_accounts(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_custom_hours_range_feedback(launch_ui, request_ui, wait_for_accessible_state,
+                                     tmp_path, overlay):
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="custom-too-large")
+    ready(ui, wait_for_accessible_state)
+    ui.setValue("kiosk-custom-duration-units", "hours")
+    ui.setText("kiosk-custom-duration", "200")
+    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
+    ui.activate("kiosk-request-submit")
+    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
+
+
 def test_local_selection_changes_are_saved_before_submission(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     selections = tmp_path / "request-selections.json"

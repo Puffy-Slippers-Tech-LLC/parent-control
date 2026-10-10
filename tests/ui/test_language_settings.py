@@ -555,6 +555,12 @@ def test_preset_times_draft_bounds_persistence_and_empty_choices(
     assert ui.getText('preset-editor-title') == 'Edit Preset Time'
     assert ui.text('preset-editor-save') == 'Save'
     ui.setValue('preset-unit', 'hour')
+    ui.setText('preset-value', '200')
+    assert ui.getText('preset-editor-error') == 'Allowed range: 0.0016666667 – 24 hours.'
+    ui.setValue('preset-unit', 'minute')
+    ui.setText('preset-value', '2000')
+    assert ui.getText('preset-editor-error') == 'Allowed range: 0.1 – 1440 minutes.'
+    ui.setValue('preset-unit', 'hour')
     ui.setText('preset-value', '24')
     ui.activate('preset-value-increase')
     assert ui.getText('preset-value') == '24'

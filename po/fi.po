@@ -1719,3 +1719,7 @@ msgstr "Vain tilejä, joilla ei ole ylläpitäjän oikeuksia, voi hallita."
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Anna kelvollinen luku."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Sallittu alue: %(minimum)s – %(maximum)s %(unit)s."

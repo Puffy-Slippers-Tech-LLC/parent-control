@@ -1714,3 +1714,7 @@ msgstr "Faqat administrator huquqlariga ega bo‘lmagan hisoblarni boshqarish mu
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Yaroqli raqam kiriting."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Ruxsat etilgan oraliq: %(minimum)s – %(maximum)s %(unit)s."

@@ -1719,3 +1719,7 @@ msgstr "فقط حساب‌های فاقد دسترسی مدیر قابل مدی�
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "یک عدد معتبر وارد کنید."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "محدودهٔ مجاز: %(minimum)s – %(maximum)s %(unit)s."

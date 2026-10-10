@@ -13,7 +13,7 @@ from common.oh_no_parent_control_ui.translation_widgets import (
     localized, set_text,
 )
 from .chrome import ArmoredButton, MetalBoard
-from .duration_controls import DurationControls, DurationError, DurationEditorActions, duration_number
+from .duration_controls import DurationControls, DurationError, DurationEditorActions, duration_number, duration_range_message
 
 
 def rounded_preset_value(text):
@@ -73,8 +73,8 @@ class PresetDialog(Gtk.Window):
         if seconds is None:
             seconds = suggested_preset_seconds(presets)
         unit = 'hour' if seconds % 3600 == 0 else 'minute'
-        self._range_message = m.INVALID_PRESET_DURATION % {
-            'minimum': MIN_TIME_GRANT_SECONDS, 'maximum': MAX_TIME_GRANT_SECONDS}
+        self._range_message = duration_range_message(
+            MIN_TIME_GRANT_SECONDS, MAX_TIME_GRANT_SECONDS, unit)
         self._units = ('minute', 'hour')
         self._initial_seconds = seconds
         timing = DurationControls(namespace='preset', value=preset_display_value(seconds, unit), unit=unit,
@@ -83,8 +83,9 @@ class PresetDialog(Gtk.Window):
             input_purpose=Gtk.InputPurpose.NUMBER, max_length=20)
         self._value, self._unit = timing.value, timing.unit
         content.append(timing)
-        content.append(localized(Gtk.Label, label=self._range_message, xalign=0, wrap=True,
-                                 css_classes=['reminder-trigger']))
+        self._range_label = localized(Gtk.Label, label=self._range_message, xalign=0, wrap=True,
+                                      css_classes=['reminder-trigger'])
+        content.append(self._range_label)
         self._error = DurationError('preset')
         content.append(self._error)
         actions = DurationEditorActions('preset', self._cancel, self._submit)
@@ -129,6 +130,11 @@ class PresetDialog(Gtk.Window):
         self._value.set_text(format(value, 'f').removesuffix('.0'))
 
     def _validate(self, *_args):
+        self._range_message = duration_range_message(
+            MIN_TIME_GRANT_SECONDS, MAX_TIME_GRANT_SECONDS, self._unit_token())
+        set_text(self._range_label, 'label', self._range_message)
+        describe_control(self._value, m.TIME_DURATION, self._range_message,
+                         automation_id='preset-value')
         raw = self._value.get_text().strip()
         value = rounded_preset_value(raw)
         if (self._initial_seconds is None and value is not None and '.' in raw

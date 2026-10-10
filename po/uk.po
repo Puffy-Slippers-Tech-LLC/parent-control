@@ -1731,3 +1731,7 @@ msgstr "Керувати можна лише обліковими записам
 #. Shared duration-editor numeric validation.
 msgid "Enter a valid number."
 msgstr "Введіть коректне число."
+
+#, python-format
+msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+msgstr "Допустимий діапазон: %(minimum)s – %(maximum)s %(unit)s."

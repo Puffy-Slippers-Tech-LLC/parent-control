@@ -291,9 +291,9 @@ Parent fades its window shade in when the language chooser maps and out when it
 unmaps, respecting GTK's animation setting. After a successful save, the chooser
 is destroyed before relabeling the existing management controls; reopening
 Preferences does not relabel an unchanged active language. For first-time
-setup, the chooser paints before the management interface is constructed in a
-later main-loop iteration behind it; account loading then runs asynchronously.
-A saved language is applied before constructing the management interface.
+setup, the chooser paints before management loading starts in a later main-loop
+iteration behind it. The main window's blank layout already exists;
+a saved language is applied before revealing its content.
 If account loading fails fatally, Parent dismisses the language chooser immediately
 and shows the error report instead. Management stays disabled, and closing that
 report exits the app. Dismissal does not save or apply the chooser's candidate;
@@ -604,13 +604,18 @@ work. This module owns the chooser surfaces and their public UI identities.
 
 ## Parent controls and shared information
 
-Parent presents a loading window before checking broker permission on a worker;
-reactivation reuses it and closing it prevents a late reply from reopening UI.
+Parent immediately presents its main window with blank framed sections and
+separators, then checks broker permission on a worker. Reactivation reuses that
+window and closing it prevents a late reply from reopening UI. Successful startup
+continues in the same window. Header and navigation content appears after language
+resolution, the account section after account discovery, and the complete Screen
+Limits card after preferences and time status (or its final unavailable result).
+Unfinished sections reserve their content's space and hide their controls.
 Only the broker's exact `Error.RebootRequired` status opens the shared restart
 modal in Parent, kiosk and child overlay. It is not inferred from generic
 service errors or the operating system's global reboot marker. Parent startup
-shows only the restart dialog instead of constructing another notice or management
-window; Close exits the app. Request forms retain a restart result and their
+replaces the blank main window with only the restart dialog; Close exits the app.
+Request forms retain a restart result and their
 ordinary exit action.
 Repeated callbacks reuse one modal and cannot overwrite the known reboot reason
 with a generic language-loading failure.
@@ -636,8 +641,9 @@ Manually launching `/usr/bin/oh-no-parent-control-parent` as a standard user
 shows a branded **Administrator Required** notice with the packaged app logo,
 explaining that an administrator must
 sign in to manage parental controls. Only the broker's exact `AccessDenied`
-reply selects this notice. No management window or authentication challenge is
-created; Close exits. Broker outages retain the startup error-report flow.
+reply selects this notice. The blank main window is replaced before any management
+content is revealed; no authentication challenge is created. Close exits.
+Broker outages retain the startup error-report flow.
 This Parent-only change activates on the next app process (`none` package
 activation); it changes no saved data or child/kiosk behavior.
 

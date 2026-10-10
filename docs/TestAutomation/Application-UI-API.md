@@ -169,6 +169,7 @@ injects attachments into application state.
 | `parent-app-KEY-icon` | App Limits icon, using the same renderer/source as revoke confirmation |
 | `parent-app-search` | Literal search text |
 | `parent-apps-loading-progress` | Read-only percentage text while the catalogue rows are being built; hidden during discovery |
+| `parent-header-panel`, `parent-actions-panel`, `parent-navigation-panel`, `parent-account-panel`, `parent-screen-panel` | Read-only `blank` or `content` readiness value; unfinished content remains hidden |
 | `parent-filter-match-rule`, `parent-filter-access-rule` | Get/set list of canonical category keys; choices from live selector; empty list selects none |
 | `parent-filter-<kind>-<key>` | Actual filter checkbox; selector setter also works with popup closed |
 | `parent-app-rows`, `parent-app-<hash>` | App collection and row metadata; row `getValue` returns the launcher ID; hash is its first 16 hex digits of SHA-256 |

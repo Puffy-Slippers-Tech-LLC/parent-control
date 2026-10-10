@@ -186,6 +186,8 @@ GROUPS = (
     # bounded keyboard workers of the valid matrix; keep this module together.
     # Allowance keyboard checks reuse the same preview, guarded input and tiny
     # tmp_path event files; no new shared resource or cleanup owner.
+    # Parent startup gates one existing preview broker worker on a tmp_path
+    # release file, released in finally; same private display/bus/process owner.
     ('Preview smoke', ('test_preview_smoke.py',), 6),
     # About launches independent per-test applications. Give its module a
     # separate worker deadline so the long preview matrices cannot consume

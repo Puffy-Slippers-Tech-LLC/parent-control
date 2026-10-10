@@ -208,14 +208,17 @@ class ParentWindowTests(unittest.TestCase):
         import parent.oh_no_parent_control_parent.main as main
         window = mock.Mock()
         app = SimpleNamespace(_startup_window=None, _client_factory=mock.Mock(),
-                              _startup_notice=mock.Mock(return_value=(window, None)),
+                              _ensure_stylesheet=mock.Mock(),
                               _startup_closed=mock.Mock(), _startup_finished=mock.Mock())
         with (mock.patch.object(main.threading, 'Thread') as thread,
+              mock.patch.object(main, 'ParentWindow', return_value=window) as parent,
               mock.patch.object(main, '_can_start') as check,
               mock.patch.object(main.GLib, 'idle_add') as idle):
             thread.return_value.start.side_effect = lambda: window.present.assert_called_once()
             Application._check_startup(app)
             Application._check_startup(app)
+            parent.assert_called_once_with(app, client_factory=app._client_factory,
+                                           defer_startup=True)
             thread.assert_called_once()
             check.assert_not_called()
             thread.call_args.kwargs['target']()
@@ -239,7 +242,41 @@ class ParentWindowTests(unittest.TestCase):
                 app.hold.assert_called_once()
                 app.release.assert_called_once()
                 window.destroy.assert_called_once()
+                window._close_requested.assert_called_once()
                 app.do_activate.assert_called_once()
+
+    def test_successful_startup_keeps_the_same_main_window(self):
+        from parent.oh_no_parent_control_parent.main import Application
+        window = mock.Mock()
+        app = SimpleNamespace(_startup_window=window, _startup_cancelled=False,
+                              do_activate=mock.Mock())
+        Application._startup_finished(app, None)
+        window._begin_startup.assert_called_once()
+        window.destroy.assert_not_called()
+        app.do_activate.assert_not_called()
+        self.assertIsNone(app._startup_window)
+
+    def test_closed_window_ignores_pending_client_initialization(self):
+        window = SimpleNamespace(_closed=True, _client=None, _load_language=mock.Mock())
+        ParentWindow._client_ready(window, mock.Mock())
+        self.assertIsNone(window._client)
+        window._load_language.assert_not_called()
+
+    def test_screen_panel_waits_for_both_preferences_and_time(self):
+        for preferences in (None, {"parent_control_enabled": True}):
+            for time_ready in (False, True):
+                for closed in (False, True):
+                    with self.subTest(preferences=preferences, time_ready=time_ready, closed=closed):
+                        panel = mock.Mock()
+                        window = SimpleNamespace(_preferences=preferences,
+                            _screen_time_ready=time_ready, _closed=closed,
+                            _panels={"screen": panel})
+                        ParentWindow._reveal_screen(window)
+                        if closed:
+                            panel.set_visible_child_name.assert_not_called()
+                        else:
+                            expected = "content" if preferences is not None and time_ready else "blank"
+                            panel.set_visible_child_name.assert_called_once_with(expected)
 
     def setUp(self):
         from tests.support.objects import set_plain_text, plain_accessible_text
@@ -792,7 +829,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(m.APP_LIMITS.source, 'App Limits')
         self.assertIn("screen_limits_page.set_child(Adw.Clamp(", source)
         self.assertIn("screen_limits.append(screen_limit_rows)", source)
-        self.assertIn("app_limits.append(self._legend_card())", source)
+        self.assertIn("search_row.append(self._legend_button())", source)
         self.assertIn("app_limits.append(apps_section)", source)
         self.assertIn("app_limits_scroll.set_child(Adw.Clamp(", source)
 
@@ -821,7 +858,7 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn(".revoke-grant-action {", stylesheet)
         self.assertIn(".revoke-grant-button:hover {", stylesheet)
         self.assertIn(".revoke-grant-button:active {", stylesheet)
-        self.assertIn('icon_name="action-unavailable-symbolic", pixel_size=40', source)
+        self.assertIn('gicon=revoke_gicon, pixel_size=40', source)
         self.assertIn("width_request=270, max_width_chars=36", source)
         self.assertIn("width_request=320", source)
         self.assertNotIn("revoke_icon.append", source)
@@ -913,8 +950,8 @@ class ParentWindowTests(unittest.TestCase):
         )
         self.assertEqual(source.count("can_focus=False, can_target=False"), 2)
 
-    def test_legend_is_one_collapsed_expandable_card(self):
-        source = inspect.getsource(ParentWindow._legend_card)
+    def test_legend_is_one_initially_closed_floating_panel(self):
+        source = inspect.getsource(ParentWindow._legend_button)
         toggled = inspect.getsource(ParentWindow._legend_toggled)
         stylesheet = (
             Path(__file__).resolve().parents[2]
@@ -924,7 +961,9 @@ class ParentWindowTests(unittest.TestCase):
         self.assertIn('label=m.LEGEND', source)
         self.assertEqual(m.LEGEND.source, 'Legend')
         self.assertIn('active=False', source)
-        self.assertIn('reveal_child=False', source)
+        self.assertIn('popover = Gtk.Popover(', source)
+        self.assertIn('autohide=True', source)
+        self.assertIn('automation_id="parent-legend-close"', source)
         self.assertIn(
             'set_automation_id(sections, "parent-legend-content")', source,
         )
@@ -933,11 +972,12 @@ class ParentWindowTests(unittest.TestCase):
         self.assertEqual(m.APP_ACCESS_WHAT_HAPPENS.source, 'App Access (What happens)')
         self.assertEqual(m.MATCH_RULE_HOW_APPS_ARE_MATCHED.source, 'Match Rule (How apps are matched)')
         self.assertIn('orientation=Gtk.Orientation.VERTICAL', source)
-        self.assertIn('card.add_css_class("expanded")', toggled)
-        self.assertIn('.policy-legend.expanded {', stylesheet)
+        self.assertIn('popover.popup()', toggled)
+        self.assertIn('popover.popdown()', toggled)
+        self.assertIn('.policy-legend-popover > contents {', stylesheet)
 
     def test_legend_book_icon_is_centered_in_its_tile(self):
-        source = inspect.getsource(ParentWindow._legend_card)
+        source = inspect.getsource(ParentWindow._legend_button)
 
         self.assertIn("book = Gtk.CenterBox(", source)
         self.assertIn("book.set_center_widget(Gtk.Image(", source)

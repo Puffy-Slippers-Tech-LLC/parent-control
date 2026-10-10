@@ -351,7 +351,7 @@ class ParentAccountSelector(Gtk.MenuButton):
 
 
 class ParentWindow(Adw.ApplicationWindow):
-    def __init__(self, application, *, client_factory=BrokerClient):
+    def __init__(self, application, *, client_factory=BrokerClient, defer_startup=False):
         super().__init__(application=application, title=app_name())
         set_automation_id(self, "parent-window")
         # The application ID ends in ``.Parent``, but the shared installed
@@ -361,7 +361,9 @@ class ParentWindow(Adw.ApplicationWindow):
         # Both pages scroll; let shorter logical displays shrink the window
         # instead of forcing its lower controls off-screen.
         self.set_size_request(820, -1)
-        self._client = client_factory()
+        self._client_factory = client_factory
+        self._client = None
+        self._startup_started = False
         self._own_language = None
         self._applied_language = None
         context_for(self)
@@ -398,6 +400,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status_retry_id = 0
         self._time_status_retry_count = 0
         self._remaining_time_seconds = None
+        self._screen_time_ready = False
         self._has_running_soft_blocked_apps = False
         self._app_catalog = None
         self._app_catalog_uid = None
@@ -416,6 +419,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._content_built = False
         self._time_status_refresh_id = 0
         self._account_refresh_id = 0
+        self._panels = {}
         self._toasts = Adw.ToastOverlay()
         overlay = Gtk.Overlay(child=self._toasts)
         self._language_shade = Gtk.Revealer(
@@ -427,13 +431,54 @@ class ParentWindow(Adw.ApplicationWindow):
         overlay.add_overlay(self._language_shade)
         self.set_content(overlay)
         self.connect("close-request", self._close_requested)
-        GLib.idle_add(self._load_language)
+        self._build()
+        if not defer_startup:
+            GLib.idle_add(self._begin_startup)
+
+    def _begin_startup(self):
+        if self._startup_started or self._closed:
+            return GLib.SOURCE_REMOVE
+        self._startup_started = True
+        self._run(self._client_factory, self._client_ready, self._users_failed)
+        return GLib.SOURCE_REMOVE
+
+    def _client_ready(self, client):
+        if self._closed:
+            return
+        self._client = client
+        self._load_language()
+
+    def _stage_panel(self, name, content, placeholder=None):
+        # Homogeneous measurement reserves the finished panel's space while
+        # Gtk.Stack keeps its unfinished controls hidden and non-interactive.
+        panel = Gtk.Stack(hhomogeneous=True, vhomogeneous=True,
+                          transition_type=Gtk.StackTransitionType.NONE)
+        set_automation_id(panel, f"parent-{name}-panel")
+        bind_ui(panel, get_value=panel.get_visible_child_name)
+        panel.add_named(placeholder if placeholder is not None else Gtk.Box(), "blank")
+        panel.add_named(content, "content")
+        panel.set_visible_child_name("blank")
+        self._panels[name] = panel
+        return panel
+
+    def _reveal_panel(self, name, ready=True):
+        panel = getattr(self, "_panels", {}).get(name)
+        if panel is not None and not self._closed:
+            panel.set_visible_child_name("content" if ready else "blank")
+
+    def _reveal_screen(self):
+        ParentWindow._reveal_panel(self, "screen", bool(
+            getattr(self, "_preferences", None) is not None
+            and getattr(self, "_screen_time_ready", False)))
 
     def _finish_startup(self):
         if self._content_built or self._closed:
             return GLib.SOURCE_REMOVE
-        self._build()
         self._content_built = True
+        self._reveal_panel("header")
+        self._reveal_panel("actions")
+        self._reveal_panel("navigation")
+        self._header_actions.set_sensitive(True)
         self._time_status_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_status,
         )
@@ -450,7 +495,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._content_built:
             return
         # Mapping alone precedes painting. Yield through the chooser's first
-        # frame before constructing management widgets behind the modal.
+        # frame before starting management loading behind the modal.
         clock = dialog.get_frame_clock()
 
         def painted(clock):
@@ -486,7 +531,7 @@ class ParentWindow(Adw.ApplicationWindow):
         title_brand.append(localized(Adw.WindowTitle, 
             title=app_name(), css_classes=["parent-window-title"],
         ))
-        header.set_title_widget(title_brand)
+        header.set_title_widget(self._stage_panel("header", title_brand))
         menu = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=190)
         popover = Gtk.Popover(child=menu, css_classes=["parent-menu-popover"])
         # Explicit buttons expose the same accessible labels as their visible
@@ -556,7 +601,9 @@ class ParentWindow(Adw.ApplicationWindow):
         feedback_button.connect("clicked", lambda _button: self._show_feedback())
         header_actions.append(feedback_button)
         header_actions.append(self._menu_button)
-        header.pack_end(header_actions)
+        header.pack_end(self._stage_panel("actions", header_actions))
+        header_actions.set_sensitive(False)
+        self._header_actions = header_actions
         toolbar.add_top_bar(header)
         content = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -700,8 +747,17 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         set_automation_id(self._no_users_message, "parent-no-users-message")
         account_section.append(self._no_users_message)
+        account_blank = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        account_blank.append(Gtk.Box(height_request=24))
+        account_frames = Gtk.Box(hexpand=True)
+        account_frames.append(Gtk.Box(hexpand=True, css_classes=["account-picker"]))
+        account_frames.append(Gtk.Separator(
+            orientation=Gtk.Orientation.VERTICAL,
+            css_classes=["account-actions-separator"]))
+        account_frames.append(Gtk.Box(width_request=320, css_classes=["revoke-grant-button"]))
+        account_blank.append(account_frames)
         content.append(Adw.Clamp(
-            child=account_section,
+            child=self._stage_panel("account", account_section, account_blank),
             maximum_size=CONTENT_MAX_WIDTH,
             tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["account-clamp"],
@@ -750,7 +806,8 @@ class ParentWindow(Adw.ApplicationWindow):
         bind_ui(pages, get_value=pages.get_visible_child_name,
                 set_value=select_page, choices=lambda: list(page_buttons))
         content.append(Adw.Clamp(
-            child=switcher,
+            child=self._stage_panel("navigation", switcher,
+                                   Gtk.Box(css_classes=["main-view-switcher"])),
             maximum_size=CONTENT_MAX_WIDTH,
             tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["switcher-clamp"],
@@ -900,8 +957,15 @@ class ParentWindow(Adw.ApplicationWindow):
         screen_limit_rows.append(self._time_status)
         screen_limits.append(screen_limit_rows)
 
+        screen_blank = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                               css_classes=["screen-limits-card"])
+        for _ in range(3):
+            screen_blank.append(Gtk.Box(height_request=65,
+                                        css_classes=["parent-blank-row"]))
+        screen_blank.append(Gtk.Box(height_request=110,
+                                    css_classes=["calculation-panel"]))
         screen_limits_page.set_child(Adw.Clamp(
-            child=screen_limits,
+            child=self._stage_panel("screen", screen_limits, screen_blank),
             maximum_size=CONTENT_MAX_WIDTH,
             tightening_threshold=CONTENT_MAX_WIDTH,
             css_classes=["screen-limits-clamp"],
@@ -1026,6 +1090,7 @@ class ParentWindow(Adw.ApplicationWindow):
             css_classes=["app-limits-clamp"],
         ))
         self._pages.connect("notify::visible-child-name", self._visible_page_changed)
+        self._update_apps_loading_ui()
 
     @staticmethod
     def _setting_icon(icon_name):
@@ -1704,6 +1769,8 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _run(self, operation, success, failure=None):
         def done(value=None, error=None):
+            if self._closed:
+                return GLib.SOURCE_REMOVE
             try:
                 if error is not None:
                     raise error
@@ -1796,6 +1863,10 @@ class ParentWindow(Adw.ApplicationWindow):
         else:
             if not self._users:
                 self._toast(m.NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND)
+        ParentWindow._reveal_panel(self, "account")
+        if not self._users:
+            # No data is pending; show the ordinary disabled empty state.
+            ParentWindow._reveal_panel(self, "screen")
 
     def _selected_uid(self):
         index = self._account.get_selected()
@@ -1809,6 +1880,8 @@ class ParentWindow(Adw.ApplicationWindow):
         uid = self._selected_uid()
         if uid is None:
             return
+        ParentWindow._reveal_panel(self, "screen", False)
+        self._preferences = None
         self._policy_warning.set_visible(False)
         self._load_policy_warnings()
         selected = self._account.get_selected()
@@ -1819,6 +1892,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # Do not carry a previous child's grant state into this selection while
         # its authoritative time status is still loading.
         self._remaining_time_seconds = None
+        self._screen_time_ready = False
         self._has_running_soft_blocked_apps = False
         set_text(self._time_status_value, 'label', m.LOADING)
         set_text(self._time_explanation, 'label', "—")
@@ -1993,6 +2067,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._loading = False
         self._set_apps_sensitive(True)
         self._update_apps_loading_ui()
+        ParentWindow._reveal_screen(self)
         LOG.info(
             "parent.012",
             enabled=preferences["parent_control_enabled"],
@@ -2040,6 +2115,8 @@ class ParentWindow(Adw.ApplicationWindow):
             calculated=status["calculated_active_extension_seconds"],
         )
         self._set_apps_sensitive(True)
+        self._screen_time_ready = True
+        ParentWindow._reveal_screen(self)
         self._load_pending_time_status_refresh()
 
     def _time_status_failed(self, uid, error):
@@ -2061,6 +2138,8 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         set_text(self._time_status_value, 'label', m.UNAVAILABLE)
         set_text(self._time_explanation, 'label', "—")
+        self._screen_time_ready = True
+        ParentWindow._reveal_screen(self)
         self._show_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER)
 
     def _retry_time_status(self):
@@ -3066,42 +3145,12 @@ class Application(Adw.Application):
             self._watch_preview_files()
         window.present()
 
-    def _startup_notice(self, identity, title, detail=None, *, loading=False):
-        window = localized(Adw.ApplicationWindow, application=self, title=app_name(),
-                           default_width=560, default_height=300)
-        set_automation_id(window, identity)
-        self._ensure_stylesheet(window)
-        toolbar = Adw.ToolbarView()
-        header = Adw.HeaderBar()
-        add_identified_window_controls(header, identity + '-window-controls')
-        toolbar.add_top_bar(header)
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20,
-                         margin_top=24, margin_bottom=24, margin_start=24, margin_end=24)
-        if loading:
-            content.append(Adw.Spinner(height_request=32, halign=Gtk.Align.CENTER))
-        heading = localized(Gtk.Label, label=title, wrap=True, css_classes=['title-2'])
-        set_automation_id(heading, identity + '-heading')
-        content.append(heading)
-        if detail is not None:
-            explanation = localized(Gtk.Label, label=detail, wrap=True, vexpand=True)
-            set_automation_id(explanation, identity + '-message')
-            content.append(explanation)
-        actions = Gtk.Box(spacing=12, halign=Gtk.Align.END, valign=Gtk.Align.END, vexpand=True)
-        close = localized(Gtk.Button, label=m.CLOSE)
-        set_automation_id(close, identity + '-close')
-        close.connect('clicked', lambda *_: window.close())
-        actions.append(close)
-        content.append(actions)
-        toolbar.set_content(content)
-        window.set_content(toolbar)
-        window.set_default_widget(close)
-        return window, actions
-
     def _check_startup(self):
         if self._startup_window is not None:
             self._startup_window.present()
             return
-        window, _actions = self._startup_notice('parent-startup-window', m.LOADING, loading=True)
+        window = ParentWindow(self, client_factory=self._client_factory, defer_startup=True)
+        self._ensure_stylesheet(window)
         self._startup_window = window
         window.connect('close-request', self._startup_closed)
         window.present()
@@ -3125,12 +3174,17 @@ class Application(Adw.Application):
             return GLib.SOURCE_REMOVE
         self._startup_checked = True
         self._startup_error = error
-        # Keep the application alive while replacing its only window. Closing
-        # the loading window manually never permits a late reply to reopen it.
+        window = self._startup_window
+        self._startup_window = None
+        if error is None:
+            # Continue in the same main window; never replace it on success.
+            window._begin_startup()
+            return GLib.SOURCE_REMOVE
+        # Failure notices retain their existing authorization and exit flows.
         self.hold()
         try:
-            self._startup_window.destroy()
-            self._startup_window = None
+            window._close_requested()
+            window.destroy()
             self.do_activate()
         finally:
             self.release()
@@ -3208,7 +3262,7 @@ class Application(Adw.Application):
 
 
 def _can_start(client_factory=BrokerClient, on_error=None):
-    # Do this before creating management controls so manually invoking the
+    # Do this before revealing management controls so manually invoking the
     # launcher does not expose them to a standard account. ListManagedUsers
     # is deliberately broker-authorized and therefore uses the same
     # AccountsService role source as all management operations.

@@ -15,7 +15,8 @@ pytestmark = pytest.mark.ui
 
 
 def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
-                 scenario="normal", events_path=None, loading_release=None):
+                 scenario="normal", events_path=None, loading_release=None,
+                 complete_language_setup=True):
     # These cases exercise management after language setup. Script the saved
     # language so immediate error reports cannot race an unrelated first-run
     # chooser; first-run save/cancel coverage belongs to language_settings.
@@ -25,7 +26,8 @@ def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
         environment["ONPC_PARENT_COMPONENT_EVENTS_PATH"] = str(events_path)
     if loading_release is not None:
         environment["ONPC_PARENT_COMPONENT_LOADING_RELEASE"] = str(loading_release)
-    launch_ui(launcher, environment_overrides=environment, wait_for_application=False)
+    launch_ui(launcher, environment_overrides=environment, wait_for_application=False,
+              complete_language_setup=complete_language_setup)
     wait(lambda: ui.find("parent-window") is not None, "Parent publishes its window ID")
     return ui
 
@@ -33,6 +35,30 @@ def start_parent(launch_ui, ui, wait, *, launcher="parent_component_preview",
 def wait_parent_ready(ui, wait):
     wait(lambda: ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE),
          "Parent screen-time controls load")
+
+
+def test_parent_opens_main_shell_before_startup_check_completes(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    release = tmp_path / "startup-release"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="startup-loading", loading_release=release,
+                      complete_language_setup=False)
+    try:
+        assert len(ui.find_all("parent-window")) == 1
+        assert not ui.find_all("parent-startup-window")
+        for panel in ("header", "actions", "navigation", "account", "screen"):
+            assert ui.getValue(f"parent-{panel}-panel") == "blank"
+        for control in ("parent-child-selector", "parent-screen-limit-toggle",
+                        "parent-daily-limit-selector", "parent-time-remaining"):
+            assert not ui.showing(control)
+    finally:
+        release.touch()
+    wait_parent_ready(ui, wait_for_accessible_state)
+    for panel in ("header", "actions", "navigation", "account", "screen"):
+        assert ui.getValue(f"parent-{panel}-panel") == "content"
+    assert ui.text("parent-time-remaining") == "47m"
+    assert len(ui.find_all("parent-window")) == 1
+    assert not ui.find_all("parent-startup-window")
 
 
 def test_parent_reports_partial_app_limits_and_remains_usable(
@@ -187,6 +213,9 @@ def test_parent_loading_state_disables_conflicting_controls(
     try:
         assert not ui.state("parent-screen-limit-toggle", ui.api.StateType.SENSITIVE)
         assert not ui.state("parent-daily-limit-selector", ui.api.StateType.SENSITIVE)
+        assert ui.getValue("parent-screen-panel") == "blank"
+        assert not ui.showing("parent-screen-limit-toggle")
+        assert not ui.showing("parent-daily-limit-selector")
     finally:
         release.touch()
     wait_parent_ready(ui, wait_for_accessible_state)

@@ -63,16 +63,9 @@ def test_missing_configuration_has_no_hardcoded_vm_fallback(tmp_path):
         vm_config.load('custom-test-vm', tmp_path / 'absent')
 
 
-@pytest.mark.parametrize('value, expected', [('true', True), ('false', False)])
-def test_clipboard_is_an_explicit_per_vm_option(tmp_path, value, expected):
-    configured = vm_config.load('custom-test-vm', write_config(tmp_path, clipboard=value))
-    assert configured.clipboard is expected
-    assert vm_config.load('custom-test-vm', write_config(tmp_path)).clipboard is False
-
-
-@pytest.mark.parametrize('value', [True, False, 1, None, '', 'yes', 'TRUE', []])
-def test_clipboard_option_rejects_ambiguous_values(tmp_path, value):
-    with pytest.raises(ValueError, match='vm-config:clipboard'):
+@pytest.mark.parametrize('value', ['true', 'false', True, False, 1, None, '', 'yes', 'TRUE', []])
+def test_removed_clipboard_option_is_refused(tmp_path, value):
+    with pytest.raises(ValueError, match='vm-config:fields'):
         vm_config.registry(write_config(tmp_path, clipboard=value))
 
 

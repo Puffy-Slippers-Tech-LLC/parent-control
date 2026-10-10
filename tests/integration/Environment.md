@@ -27,13 +27,14 @@ The E2E inventory's `ubuntu26.04` environment label describes the currently
 supported guest OS independently of the VM name; adding an entry does not
 qualify its OS for Ubuntu-specific baseline preparation or installed tests.
 
-An optional `clipboard` field accepts the strings `"true"` and `"false"`
-(default `"false"`). It controls host/guest clipboard sharing in the interactive
-SPICE console, including maintenance and restored app snapshots. Stop owned
-maintenance before changing it and refresh the baseline through the preparation
-route. App preparation refreshes snapshots whose saved console policy differs. Disabled older layouts
-remain valid for owned cleanup after enabling it. The watch panels remain read-only;
-clipboard sharing is available through the interactive VM console.
+Host/guest clipboard sharing is always enabled in the interactive SPICE console,
+including baseline preparation, maintenance and restored app snapshots. There is
+no per-VM clipboard option. Baseline preparation configures the SPICE console and
+display-agent channel and installs/verifies `spice-vdagent` on both supported
+guests. Refresh existing baselines through the preparation route to apply these
+prerequisites. App preparation refreshes snapshots with clipboard sharing disabled.
+Disabled older layouts remain valid for owned cleanup. The watch panels remain
+read-only; clipboard sharing is available through the interactive VM console.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host checkout's private mode-0600
 `.envrc`, then run `tools/prepare-baseline --vm NAME --mode manual` on the development host with the
@@ -206,7 +207,7 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
 the host's `tools/prepare-baseline` during its controlled guest boot.
-Dependencies are OpenSSH server, pytest, OpenLDAP server/client
+Dependencies are OpenSSH server, pytest, `spice-vdagent`, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
 minimum qualified versions, accepts newer security/maintenance versions,
@@ -303,8 +304,8 @@ existing guarded controllers; raw `virsh` commands bypass these contracts.
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
 baseline, removes host transfer channels before boot while retaining the private
-SPICE display-agent channel for automatic resolution matching and the selected
-VM's configured clipboard sharing (file transfers remain disabled),
+SPICE display-agent channel for automatic resolution matching and always-enabled
+clipboard sharing (file transfers remain disabled),
 executes real guest operations, collects evidence, restores the baseline/prior
 persistent domain configuration, and leaves the VM off. It creates no new
 snapshot, overlay or cloned VM. Reboot inside a journey changes the real boot

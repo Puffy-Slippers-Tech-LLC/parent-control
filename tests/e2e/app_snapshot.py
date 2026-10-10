@@ -45,7 +45,7 @@ def mode_mismatch(xml, mode, *, now=None):
             return 'snapshot console configuration changed'
         if not domain.findall('devices/channel'):
             return 'snapshot display-agent channel missing'
-        if domain.find('devices/graphics/clipboard').get('copypaste') != system.clipboard_policy():
+        if domain.find('devices/graphics/clipboard').get('copypaste') != 'yes':
             return 'snapshot clipboard configuration changed'
         return None
     except (ET.ParseError, ValueError, TypeError):

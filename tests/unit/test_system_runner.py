@@ -237,7 +237,7 @@ def test_bootstrap_reuses_prepared_tools_and_independently_verifies_writes(tmp_p
 
 
 
-def test_isolation_removes_spice_transfer_but_preserves_disk():
+def test_isolation_enables_clipboard_and_preserves_disk():
     root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN))
     assert root.findtext('uuid') == UUID
     assert root.find('devices/disk/source').get('file') == '/image'
@@ -248,7 +248,7 @@ def test_isolation_removes_spice_transfer_but_preserves_disk():
     assert root.find('devices/channel/target').attrib == {
         'type': 'virtio', 'name': 'com.redhat.spice.0'}
     runner.validate_host_sharing(root)
-    assert root.find('devices/graphics/clipboard').get('copypaste') == 'no'
+    assert root.find('devices/graphics/clipboard').get('copypaste') == 'yes'
     assert root.find('devices/graphics/filetransfer').get('enable') == 'no'
     assert root.findtext('description') == runner.TAG + RUN
 

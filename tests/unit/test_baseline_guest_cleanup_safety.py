@@ -74,6 +74,30 @@ def test_repeat_stages_only_maintained_code_and_never_the_host_envrc(preparation
     p.capture.source.shutdown.assert_not_called()
 
 
+@pytest.mark.parametrize('graphics', ['vnc', 'spice'])
+def test_clipboard_setup_reconciles_existing_console_and_channel(graphics):
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(f'''<domain><devices>
+        <graphics type="{graphics}"><clipboard copypaste="no"/></graphics>
+        <channel type="unix"><target name="com.redhat.spice.0"/></channel>
+        <channel type="unix"><target name="unrelated"/></channel>
+        </devices></domain>''')
+    guest.configure_clipboard(root)
+    first = ET.tostring(root)
+    guest.configure_clipboard(root)
+    assert ET.tostring(root) == first
+    displays = root.findall("devices/graphics[@type='spice']")
+    assert len(displays) == 1
+    assert displays[0].find('clipboard').attrib == {'copypaste': 'yes'}
+    assert displays[0].find('filetransfer').attrib == {'enable': 'no'}
+    channels = root.findall('devices/channel')
+    assert len(channels) == 2
+    assert channels[0].find('target').get('name') == 'unrelated'
+    assert channels[1].attrib == {'type': 'spicevmc'}
+    assert channels[1].find('target').attrib == {
+        'type': 'virtio', 'name': 'com.redhat.spice.0'}
+
+
 def test_preparation_orders_background_apt_jobs_after_its_package_work():
     assert 'Before=display-manager.service apt-daily.service apt-daily-upgrade.service' in guest.SERVICE
 
@@ -227,6 +251,11 @@ def test_baseline_boot_uses_shared_endpoint_and_collector(preparation, monkeypat
     def boot():
         configured = ET.fromstring(p.capture.source.connection.defineXML.call_args.args[0])
         assert configured.findall('devices/graphics')[0].get('type') == 'spice'
+        assert configured.find('devices/graphics/clipboard').attrib == {'copypaste': 'yes'}
+        assert configured.find('devices/graphics/filetransfer').attrib == {'enable': 'no'}
+        assert configured.find('devices/channel').attrib == {'type': 'spicevmc'}
+        assert configured.find('devices/channel/target').attrib == {
+            'type': 'virtio', 'name': 'com.redhat.spice.0'}
         copied = configured.findall('devices/graphics')[1]
         assert copied.attrib == {'type': 'dbus', 'p2p': 'yes'}
         assert copied.find('gl').get('enable') == 'no'

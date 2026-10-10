@@ -198,6 +198,24 @@ def prepare(capture, guestfs, password, *, mode='manual'):
             label_preparation(g, [RECORD, *paths])
 
 
+def configure_clipboard(root):
+    """Use the same clipboard-capable SPICE console for baseline and attempts."""
+    devices = root.find('devices')
+    for graphics in devices.findall("graphics[@type='spice']"):
+        devices.remove(graphics)
+    graphics = ET.Element('graphics', type='spice', autoport='yes')
+    devices.insert(0, graphics)
+    ET.SubElement(graphics, 'listen', type='none')
+    ET.SubElement(graphics, 'clipboard', copypaste='yes')
+    ET.SubElement(graphics, 'filetransfer', enable='no')
+    for channel in devices.findall('channel'):
+        target = channel.find('target')
+        if target is not None and target.get('name') == 'com.redhat.spice.0':
+            devices.remove(channel)
+    channel = ET.SubElement(devices, 'channel', type='spicevmc')
+    ET.SubElement(channel, 'target', type='virtio', name='com.redhat.spice.0')
+
+
 def configure_cpu(root):
     """Accept memory-snapshot-compatible CPU settings during baseline setup."""
     cpu = root.find('cpu')
@@ -227,6 +245,7 @@ def boot_and_wait(capture):
     root = ET.fromstring(source.domain.XMLDesc(source.api.VIR_DOMAIN_XML_INACTIVE))
     configure_cpu(root)
     configure_snapshot_memory(root)
+    configure_clipboard(root)
     display_endpoint(root)
     source.connection.defineXML(ET.tostring(root, encoding='unicode'))
     capture.revalidate(off=True)

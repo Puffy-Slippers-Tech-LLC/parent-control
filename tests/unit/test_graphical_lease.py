@@ -69,19 +69,16 @@ def test_maintenance_worker_refuses_offline_lease(prepared):
 
 
 @pytest.mark.parametrize('graphics_type', ['spice', 'vnc'])
-def test_clipboard_opt_in_survives_isolation_without_other_host_transfers(monkeypatch, graphics_type):
-    config = runner.baseline.guest_contract.vm_config
-    selected = config.selected()
-    from dataclasses import replace
-    monkeypatch.setattr(config, 'selected', lambda **_: replace(selected, clipboard=True))
+def test_clipboard_always_enabled_without_other_host_transfers(graphics_type):
     root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type=graphics_type))
     assert root.find('devices/graphics/clipboard').attrib == {'copypaste': 'yes'}
     assert root.find('devices/graphics/filetransfer').attrib == {'enable': 'no'}
     runner.validate_host_sharing(root)
     if graphics_type == 'vnc':
         runner.validate_private_vnc(root)
-    # Old disabled snapshots can still be stopped/recovered after opting in.
+    # Old disabled snapshots can still be stopped/recovered.
     root.find('devices/graphics/clipboard').set('copypaste', 'no')
+    runner.validate_private_spice(root.find('devices/graphics'))
     runner.validate_host_sharing(root)
     root.find('devices/graphics/filetransfer').set('enable', 'yes')
     with pytest.raises(runner.Error, match='guard:graphics-'):
@@ -128,7 +125,7 @@ def test_display_agent_refuses_host_access_and_transfer_reenable(fault):
     elif fault == 'nested':
         ET.SubElement(channel.find('target'), 'source')
     elif fault == 'clipboard':
-        root.find('devices/graphics/clipboard').set('copypaste', 'yes')
+        root.find('devices/graphics/clipboard').set('copypaste', 'invalid')
     elif fault == 'filetransfer':
         root.find('devices/graphics/filetransfer').set('enable', 'yes')
     else:
@@ -163,7 +160,7 @@ def test_accepts_non_listening_spice_normalization(attributes):
     ('type="spice"', 'type="spice" socket="/private/display"'),
     ('type="spice"', 'type="spice" autoport="invalid"'),
     ('type="none"', 'type="address" address="127.0.0.1"'),
-    ('copypaste="no"', 'copypaste="yes"'),
+    ('copypaste="no"', 'copypaste="invalid"'),
     ('enable="no"', 'enable="yes"'),
 ])
 def test_normalized_spice_still_refuses_exposure(replacement):

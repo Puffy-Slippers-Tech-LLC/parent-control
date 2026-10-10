@@ -17,6 +17,8 @@ PACKAGES = (
     'openssh-server=1:10.2p1-2ubuntu3.6', 'python3-pytest=9.0.2-4',
     # Native GUI fixtures use the distribution's maintained GTK 4 bindings.
     'python3-gi=0', 'gir1.2-gtk-4.0=0',
+    # The SPICE channel needs the guest daemon and desktop session agent.
+    'spice-vdagent=0',
     *REMOTE_PACKAGES,
     *CHINESE_PACKAGES,
 )
@@ -26,7 +28,7 @@ DORMANT_PATHS = ('/etc/ldap/slapd.d', '/etc/ldap/slapd.conf', '/etc/sssd/sssd.co
 FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6.10',
                           'sssd-ldap': '2.12.0', 'sssd-client': '2.12.0'}
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
-                   'python3-gobject': '0', 'gtk4': '0', **FEDORA_REMOTE_VERSIONS,
+                   'python3-gobject': '0', 'gtk4': '0', 'spice-vdagent': '0', **FEDORA_REMOTE_VERSIONS,
                    **dict.fromkeys(FEDORA_CHINESE_PACKAGES, '0')}
 # Fedora's RPM generates its own default slapd.d. The fixture uses separate
 # configuration/database paths and leaves those package defaults untouched.

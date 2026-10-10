@@ -5,6 +5,9 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Clipboard baseline reconciliation and snapshot freshness checks use in-memory
+# XML and existing process-local libvirt doubles. Baseline-guest and app-snapshot
+# remain compatible in both inventories; no live guest or new resource is added.
 # Concurrent write_e2e limit adjustments and answered-blocker completion add a
 # tiny pytest-private bare Git remote and finite waited Git commands. Joined
 # threads and owned agent cleanup remain

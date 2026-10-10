@@ -113,7 +113,6 @@ def test_nested_ui_stream_keeps_guard_output_out_of_outer_parser():
 def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch, fault, display_agent):
     configured = Mock(name='configuration')
     configured.name = 'custom-test-vm'
-    configured.clipboard = False
     monkeypatch.setattr(transport.vm_config, 'selected', lambda **_: configured)
     domain = Mock()
     domain.ID.return_value = 72 if fault == 'instance' else 71
@@ -132,7 +131,7 @@ def test_host_guard_uses_configured_vm_and_preserves_identity_checks(monkeypatch
         if not display_agent:
             devices += ('<channel type="spicevmc"><target type="virtio" '
                         'name="com.redhat.spice.0"/></channel>')
-        devices = devices.replace('copypaste="no"', 'copypaste="yes"')
+        devices = devices.replace('copypaste="no"', 'copypaste="invalid"')
     elif fault == 'hostdev':
         devices += '<hostdev/>'
     domain.XMLDesc.return_value = (

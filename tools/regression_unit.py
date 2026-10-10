@@ -209,9 +209,10 @@ use existing private pytest lease/scratch trees and process-local SSH/libvirt,
 stream and clock doubles. They add no live guest, socket, display, credentials,
 shared state or heavy construction; their compatible unit classifications hold.
 
-Per-VM clipboard policy checks use those same process-local configuration/libvirt
-doubles and private fixtures. Graphical-lease, VM-config and app-snapshot unit
-classifications remain compatible; no clipboard, live guest or new resource is used.
+Always-enabled clipboard checks use those same process-local configuration/libvirt
+doubles and private fixtures. Graphical-lease, VM-config, baseline-guest and
+app-snapshot unit classifications remain compatible; console reconciliation adds
+only tiny in-memory XML trees, with no clipboard, live guest or new resource.
 
 Fresh-desktop, Shell-search and GDM recipient release bindings use tiny tmp_path
 metadata and a restored process-local ROOT patch; no VM, shared file, socket or

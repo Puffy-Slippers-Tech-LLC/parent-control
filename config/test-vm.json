@@ -12,7 +12,6 @@
       "id": "2",
       "name": "onpc-Fedora44",
       "enabled": "true",
-      "clipboard": "true",
       "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2"
     }
   ]

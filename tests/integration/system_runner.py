@@ -383,12 +383,6 @@ def announce_selection(selection):
         item.phase + '::' + item.case_id for item in selection.executions])
 
 
-def clipboard_policy():
-    """Host clipboard sharing is an explicit option of the selected VM."""
-    configured = baseline.guest_contract.vm_config.selected(required=False)
-    return 'yes' if configured is not None and configured.clipboard else 'no'
-
-
 def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     """Use the fixed guest disk and private test display and transport."""
     baseline.domain_layout(xml, expected_uuid)
@@ -404,14 +398,8 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     # Keep SPICE first for interactive viewers and their keyboard capture.
     # Automation uses a separate private VNC endpoint, selected by protocol.
     # Neither console listens on a host port/socket.
-    graphics = ET.SubElement(devices, 'graphics', type='spice', autoport='yes')
-    ET.SubElement(graphics, 'listen', type='none')
-    ET.SubElement(graphics, 'clipboard', copypaste=clipboard_policy())
-    ET.SubElement(graphics, 'filetransfer', enable='no')
-    # Recreate only the guest display agent, never a supplied host channel.
-    # Clipboard follows the selected VM option; file transfer stays disabled.
-    channel = ET.SubElement(devices, 'channel', type='spicevmc')
-    ET.SubElement(channel, 'target', type='virtio', name='com.redhat.spice.0')
+    from baseline_guest import configure_clipboard
+    configure_clipboard(root)
     if graphics_type == 'vnc':
         graphics = ET.SubElement(devices, 'graphics', type='vnc')
         ET.SubElement(graphics, 'listen', type='none')
@@ -475,10 +463,9 @@ def validate_private_spice(display):
             # The exact listener and disabled ports remain mandatory below.
             display.get('autoport', 'yes') == 'yes', 'guard:graphics-endpoint')
     clipboard = display.find('clipboard')
-    # A disabled clipboard remains safe for an old owner's cleanup after opt-in.
-    # Fresh snapshot reuse separately requires the current configured value.
-    require(clipboard is not None and clipboard.get('copypaste') in
-            ({'no', 'yes'} if clipboard_policy() == 'yes' else {'no'}),
+    # Disabled legacy layouts remain valid for their recorded owner's cleanup.
+    # Fresh snapshot reuse separately requires clipboard sharing enabled.
+    require(clipboard is not None and clipboard.get('copypaste') in {'no', 'yes'},
             'guard:graphics-clipboard')
     require(len(display) == 3 and
             {child.tag: dict(child.attrib) for child in display} == {

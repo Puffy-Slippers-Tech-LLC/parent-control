@@ -254,7 +254,7 @@ def test_auto_baseline_recovers_off_maintenance_and_preserves_refused_attempts(
     elif fault == 'interrupted':
         held.inspect = Mock(side_effect=KeyboardInterrupt())
     monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'selected',
-                        lambda **_: SimpleNamespace(baseline_directory=lease.directory, clipboard=False))
+                        lambda **_: SimpleNamespace(baseline_directory=lease.directory))
     monkeypatch.setattr(runner, 'Lease', lambda *a, **kw: held)
     snapshots = lease.source.domain.revertToSnapshot.call_count
     starts = lease.source.domain.create.call_count

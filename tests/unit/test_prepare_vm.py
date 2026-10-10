@@ -742,7 +742,7 @@ def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, mo
     ({'openssh-server': '10.2p1'}, False),
 ])
 def test_fedora_package_inventory_refuses_old_missing_or_prerelease_tools(versions, accepted):
-    versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0',
+    versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0', 'spice-vdagent': '0.23.0',
                 **dict.fromkeys(prepare.guest_tools.FEDORA_CHINESE_PACKAGES, '1'),
                 **prepare.guest_tools.FEDORA_REMOTE_VERSIONS, **versions}
     if accepted:

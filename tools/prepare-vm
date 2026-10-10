@@ -23,7 +23,9 @@ def arguments(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'),
                         help='auto: restore baseline and update guest; manual: prepare current VM state')
-    parser.add_argument('--vm', help=SELECTOR_HELP)
+    parser.add_argument('--vm', default='all',
+                        help=SELECTOR_HELP.replace('all-enabled (default)', 'all-enabled').replace(
+                            'all (including disabled VMs)', 'all (default, including disabled VMs)'))
     parser.add_argument('--y', action='store_true',
                         help='proceed without y/n confirmation; use for authorized launcher/session work')
     parser.epilog = help_message()

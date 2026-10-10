@@ -248,7 +248,8 @@ including after another guest fails. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
 list, `all-enabled`, or `all`. Explicit entries and `all` include disabled VMs.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
-including the enabled default when omitted; see the
+with `tools/prepare-vm` defaulting to `all` (including disabled VMs) in both
+modes and app-snapshot preparation defaulting to enabled VMs; see the
 [VM mandate](../docs/Mandates/VM-Mandate.MD#authority-and-operation).
 All `--vm` options and Make `VM=` parameters accept either the exact configured
 name or its `id`. IDs resolve from the current `config/test-vm.json` on every

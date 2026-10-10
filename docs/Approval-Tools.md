@@ -168,8 +168,9 @@ adding general snapshot or libvirt permissions.
 Automation and agent sessions include `--y` for authorized preparation.
 Manual work omits `--y` to confirm before preparation. Selection and rolling
 concurrency follow the [VM mandate](Mandates/VM-Mandate.MD#authority-and-operation),
-including lists, `all-enabled`, `all`, and the enabled default when `--vm` is
-omitted. The flag preserves all authorization, lease, ownership and validation checks.
+including lists, `all-enabled` and `all`. Omitting `--vm` selects `all`, including
+disabled VMs, for baseline preparation in both modes; app-snapshot preparation
+defaults to enabled VMs. The flag preserves all authorization, lease, ownership and validation checks.
 Online mode is the default and reuses fresh matching snapshots without building.
 `--overwrite` defaults to `false` online and `true` offline; supplying the flag
 without a value means `true`. Use `--mode offline` for shutdown/snapshot

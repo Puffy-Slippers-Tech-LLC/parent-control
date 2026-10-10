@@ -132,21 +132,21 @@ def test_declined_preparation_does_not_refresh_helpers(authorized, monkeypatch, 
     assert capsys.readouterr().out == 'prepare-vm: cancelled; no baseline snapshot was prepared.\n'
 
 
-def test_missing_vm_uses_enabled_selection_before_dispatch(authorized, monkeypatch, capsys, tmp_path):
+@pytest.mark.parametrize('mode', ['auto', 'manual'])
+@pytest.mark.parametrize('enabled', ['true', 'false'])
+def test_missing_vm_includes_disabled_guests(authorized, monkeypatch, tmp_path, mode, enabled):
     path = tmp_path / 'test-vm.json'
     path.write_text(json.dumps({'vms': [
-        {'name': 'Single-guest', 'disk_anchor': '/single.qcow2', 'enabled': 'true'},
+        {'name': 'Single-guest', 'disk_anchor': '/single.qcow2', 'enabled': enabled},
         {'name': 'Disabled-guest', 'disk_anchor': '/disabled.qcow2', 'enabled': 'false'}]}))
     monkeypatch.setattr(vm_selection.vm_config, 'CONFIG', path)
-    configured, = vm_selection.vm_config.execution()[1]
-    def dispatch(command, **kwargs):
-        assert command[-2:] == ['--vm', configured.name]
-        print('baseline warnings')
-        return SimpleNamespace(returncode=3)
-    monkeypatch.setattr(authorized['subprocess'], 'run', dispatch)
-    assert authorized['main'](['--mode', 'auto']) == 0
-    assert capsys.readouterr().out == ('baseline warnings\n'
-                                     'prepare-vm: cancelled; no baseline snapshot was prepared.\n')
+    prepare = Mock(return_value=({'Single-guest': 0, 'Disabled-guest': 0}, 0))
+    monkeypatch.setitem(authorized, 'preparation', prepare)
+    assert authorized['main'](['--mode', mode, '--y'], refresh=False) == 0
+    args, concurrency, vms = prepare.call_args.args[2:]
+    assert args.mode == mode
+    assert args.vm == 'Single-guest,Disabled-guest'
+    assert [vm.name for vm in vms] == ['Single-guest', 'Disabled-guest']
 
 
 def test_vm_prompt_retries_invalid_numbers(launcher, monkeypatch, capsys):
@@ -180,7 +180,7 @@ def test_baseline_queue_shares_scheduler_and_refreshes_once(authorized, monkeypa
     refresh = Mock(return_value=SimpleNamespace(returncode=0))
     monkeypatch.setattr(authorized['subprocess'], 'run', refresh)
     assert authorized['main'](['--mode', 'auto', '--y', *([] if selector is None else ['--vm', selector])]) == 7
-    selection.assert_called_once_with(selector)
+    selection.assert_called_once_with('all' if selector is None else selector)
     assert prepare.call_args.args[3:] == (2, vms)
     refresh.assert_called_once_with([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT)
 

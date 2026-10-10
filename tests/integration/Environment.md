@@ -14,7 +14,8 @@ and absolute base QCOW2 `disk_anchor`, plus `enabled` as the string `"true"` or
 `"false"`. Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
-entries. The positive integer `concurrency` limits simultaneous operations,
+entries except `tools/prepare-vm`, which defaults to `all` in both modes,
+including disabled entries. The positive integer `concurrency` limits simultaneous operations,
 refilling each free slot immediately. Maintenance still requires one explicit
 selector, matching a configured name exactly, including case.
 Workers inherit validated selections; there is no
@@ -51,7 +52,8 @@ workflow and deletion of **all versioned app snapshots**, including release-deri
 names with or without the `v` prefix. By default, only an explicit `y` proceeds;
 `n` or end of input exits without guest or snapshot changes. `--y` suppresses
 the y/n prompt while retaining the warning and every safety check. An omitted
-`--vm` selects all enabled VMs; multiple VMs are confirmed together before work.
+`--vm` selects all registered VMs, including disabled entries, in both auto and
+manual modes; multiple VMs are confirmed together before work.
 After
 confirmation or `--y`, those app snapshots are deleted without recursively
 deleting their children.

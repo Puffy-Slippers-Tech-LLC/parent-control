@@ -23,7 +23,8 @@ selector. The enabled default means entries whose `enabled` is the string
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
 | `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
-| `tools/prepare-vm`, `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
+| `tools/prepare-vm` | Same queue selectors | `all`, including disabled entries, in both modes | Registry concurrency cap; isolated workers |
+| `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
 | `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all`, including disabled entries | Archive work is serial; preparation after restore uses registry concurrency |
 | `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |

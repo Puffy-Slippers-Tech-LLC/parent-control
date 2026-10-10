@@ -687,7 +687,10 @@ restores strict app policy and terminates blocked apps in that case, leaving
 daily time unchanged.
 
 App Limits loads the selected child's catalogue asynchronously on child selection
-and creates rows in batches. The loading mask stays visible until the complete
+and creates rows in batches. The loading mask shows a spinner during discovery,
+then adds a percentage based on completed rows out of the returned catalogue,
+updated after each batch. The numeric percentage applies in every language;
+the existing loading message remains translated. The mask stays visible until the complete
 table has its saved policies, filters and enabled state applied and GTK has
 finished a frame with that table underneath it. Removing the mask then reveals
 the prepared list without a further row-loading delay. The mask belongs to the

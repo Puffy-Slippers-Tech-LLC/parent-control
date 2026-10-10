@@ -1009,6 +1009,9 @@ class ParentWindow(Adw.ApplicationWindow):
             label=m.LOADING_INSTALLED_APPS,
             css_classes=["apps-loading-label"],
         ))
+        self._apps_loading_progress = Gtk.Label(label="0%", visible=False)
+        set_automation_id(self._apps_loading_progress, "parent-apps-loading-progress")
+        loading_content.append(self._apps_loading_progress)
         loading_center = Gtk.CenterBox(hexpand=True, vexpand=True)
         loading_center.set_center_widget(loading_content)
         loading_mask.append(loading_center)
@@ -1688,6 +1691,7 @@ class ParentWindow(Adw.ApplicationWindow):
         for app in batch:
             self._add_app_row(app)
         if self._pending_catalog_apps:
+            self._update_apps_loading_ui()
             return GLib.SOURCE_CONTINUE
         self._catalog_building = False
         self._apps_table_ready = True
@@ -1940,6 +1944,16 @@ class ParentWindow(Adw.ApplicationWindow):
         spinner = getattr(self, "_apps_loading_spinner", None)
         if spinner is not None:
             spinner.set_spinning(show)
+        progress = getattr(self, "_apps_loading_progress", None)
+        if progress is not None:
+            known = not self._apps_loading and (
+                self._catalog_building or self._apps_table_ready)
+            progress.set_visible(show and known)
+            if known:
+                built = len(self._rows)
+                total = built + len(self._pending_catalog_apps)
+                percent = built * 100 // total if total else 100
+                progress.set_label(f"{percent}%")
 
     def _preferences_for(self, uid, preferences):
         if uid != self._selected_uid():

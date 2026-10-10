@@ -168,6 +168,7 @@ injects attachments into application state.
 | `parent-revoke-app-KEY`, `parent-revoke-app-KEY-bullet`, `parent-revoke-app-KEY-icon` | Catalogue name, bullet and canonical icon source; `KEY` uses the app-row desktop-ID hash |
 | `parent-app-KEY-icon` | App Limits icon, using the same renderer/source as revoke confirmation |
 | `parent-app-search` | Literal search text |
+| `parent-apps-loading-progress` | Read-only percentage text while the catalogue rows are being built; hidden during discovery |
 | `parent-filter-match-rule`, `parent-filter-access-rule` | Get/set list of canonical category keys; choices from live selector; empty list selects none |
 | `parent-filter-<kind>-<key>` | Actual filter checkbox; selector setter also works with popup closed |
 | `parent-app-rows`, `parent-app-<hash>` | App collection and row metadata; row `getValue` returns the launcher ID; hash is its first 16 hex digits of SHA-256 |

@@ -1649,6 +1649,7 @@ class ParentWindowTests(unittest.TestCase):
         window._set_apps_sensitive = mock.Mock()
         window._apps_loading_mask = mock.Mock()
         window._apps_loading_spinner = mock.Mock()
+        window._apps_loading_progress = mock.Mock()
         window._apps_group = mock.Mock()
         window._apps_group.get_mapped.return_value = mapped
         return window
@@ -1659,10 +1660,19 @@ class ParentWindowTests(unittest.TestCase):
                 apps = [{"id": f"app-{index}.desktop"} for index in range(count)]
                 window = self.catalog_paint_window(apps)
                 clock = window._apps_group.get_frame_clock.return_value
+                window._apps_loading = True
+                window._update_apps_loading_ui()
+                window._apps_loading_progress.set_visible.assert_called_with(False)
+                window._apps_loading = False
+                window._update_apps_loading_ui()
+                window._apps_loading_progress.set_label.assert_called_with(
+                    "0%" if apps else "100%")
                 while window._pending_catalog_apps:
                     window._append_catalog_batch()
                     if window._pending_catalog_apps:
                         clock.connect.assert_not_called()
+                        window._apps_loading_progress.set_visible.assert_called_with(True)
+                        window._apps_loading_progress.set_label.assert_called_with("88%")
                 if not apps:
                     window._append_catalog_batch()
                 self.assertEqual(window._rows, apps)
@@ -1670,6 +1680,7 @@ class ParentWindowTests(unittest.TestCase):
                 window._filter.assert_called_once_with(window._search)
                 window._set_apps_sensitive.assert_called_once_with(True)
                 self.assertTrue(window._apps_table_ready)
+                window._apps_loading_progress.set_label.assert_called_with("100%")
                 self.assertTrue(window._apps_mask_should_show())
                 window._apps_loading_mask.set_visible.assert_called_with(True)
                 # Repeated readiness updates must share one frame callback.
@@ -1684,6 +1695,7 @@ class ParentWindowTests(unittest.TestCase):
                 self.assertFalse(window._apps_mask_should_show())
                 window._apps_loading_mask.set_visible.assert_called_with(False)
                 window._apps_loading_spinner.set_spinning.assert_called_with(False)
+                window._apps_loading_progress.set_visible.assert_called_with(False)
 
     def test_catalog_paint_waits_for_preferences_and_mapping(self):
         window = self.catalog_paint_window([], preferences=False, mapped=False)

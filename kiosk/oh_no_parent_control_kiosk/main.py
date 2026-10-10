@@ -1071,6 +1071,13 @@ class RequestWindow(Adw.ApplicationWindow):
         menu_actions.append(about_item)
         menu_items["about"] = about_item
         if self._preview:
+            error_item = self._hud_menu_item(m.SEND_ERROR_REPORT, ABOUT, identity="send-error-report")
+            describe_control(error_item, m.SEND_ERROR_REPORT, m.SEND_ERROR_REPORT)
+            error_item.connect("clicked", lambda *_: self._activate_help_menu(
+                help_popover, lambda: self._errors.handle(RuntimeError()),
+            ))
+            menu_actions.append(error_item)
+            menu_items["send-error-report"] = error_item
             from .preview_screen import show_screen_dialog
             screen_item = self._hud_menu_item("Change Screens", MENU, identity="change-screens")
             describe_control(screen_item, "Change Screens", "Choose the preview screen resolution and display scale.")

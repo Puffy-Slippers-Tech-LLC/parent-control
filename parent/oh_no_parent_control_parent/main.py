@@ -541,12 +541,18 @@ class ParentWindow(Adw.ApplicationWindow):
             callback()
 
         menu_items = {}
-        for identity, label, callback in (
+        menu_commands = [
             ("preferences", m.PREFERENCES, self._show_preferences),
             ("help", m.HELP, open_help),
             ("whats-new", m.WHATS_NEW, self._show_whats_new),
             ("about", m.ABOUT, self._show_about),
-        ):
+        ]
+        if getattr(self.get_application(), "_preview", False):
+            menu_commands.append((
+                "send-error-report", m.SEND_ERROR_REPORT,
+                lambda: self._show_error(RuntimeError()),
+            ))
+        for identity, label, callback in menu_commands:
             item = localized(Gtk.Button, child=localized(Gtk.Label, label=label, xalign=0),
                               css_classes=["parent-menu-item"])
             describe_control(item, label, label,

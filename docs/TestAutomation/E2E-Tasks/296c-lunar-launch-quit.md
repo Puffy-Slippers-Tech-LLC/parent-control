@@ -28,7 +28,10 @@ not a prerequisite for this allowed Lunar binding.
 
 ## Live VM acceptance
 
-Launch the prepared original AppImage, independently observe usable Lunar, Quit normally and prove absence within the complete surrounding desktop. Independently supplied valid Lunar entry works; process/rule probes cannot pass.
+Launch the prepared original AppImage, independently observe usable Lunar, Quit
+normally and prove absence through a complete account-scoped Lunar observation
+from the recognized desktop. No unrelated window inventory is needed.
+Independently supplied valid Lunar entry works; process/rule probes cannot pass.
 
 Planned qualification selector (not registered; implement before use):
 

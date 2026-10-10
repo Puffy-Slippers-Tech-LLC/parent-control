@@ -28,6 +28,10 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse 187b's station re-entry, Request and approval operations to reach the real five-second cooldown error. Add report-review, Privacy and normal report-close bindings with the correct station/GDM destination. Do not change timing or force an error.
 
+Reuse the recipe's [bounded cooldown trigger](../E2E-Scenario-Recipes.md#pending-approval-and-account-changes)
+without inserting report/balance reads between approval and Request. Report
+review follows the observed refusal and has no five-second completion deadline.
+
 Use `parent_reports.report_review`, `onpc_feedback_privacy::review_privacy`
 and `AccessibleUI.feedback_snapshot` as shared extension points; their current
 report/Privacy projections are Parent-bound. Add the station projection and

@@ -20,6 +20,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Qualify the normal overlay reopen/re-entry and Request before the real five-second cooldown ends. Observe the actual too-soon result and decline reporting through owned controls. Preserve the existing public-route applicability gate.
 
+Use the recipe's [bounded cooldown trigger](../E2E-Scenario-Recipes.md#pending-approval-and-account-changes):
+ready the shared reopen/observer before approval, then perform only necessary
+return, reopen and Request with fresh guards. Read balances and inspect the
+report after refusal. A missed window fails; do not loop Request or approvals.
+
 Extend `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`
 and `AccessibleUI.kiosk_request_form` with the genuine cooldown/result/report-choice
 binding. Those callables currently qualify only 75 seconds with soft apps

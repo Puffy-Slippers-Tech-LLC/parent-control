@@ -28,6 +28,10 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Reuse 187a's public reopen/Request and selected-parent approval operations to reach the actual five-second cooldown error. Add report-review, Privacy and normal report-close bindings with their overlay destinations; never extend product timing.
 
+Reuse the recipe's [bounded cooldown trigger](../E2E-Scenario-Recipes.md#pending-approval-and-account-changes)
+without inserting report/balance reads between approval and Request. Report
+review follows the observed refusal and has no five-second completion deadline.
+
 Use `parent_reports.report_review`, `onpc_feedback_privacy::review_privacy`
 and `AccessibleUI.feedback_snapshot` as the shared extension points; current
 report/Privacy projections are Parent-bound. Implement the request-result entry

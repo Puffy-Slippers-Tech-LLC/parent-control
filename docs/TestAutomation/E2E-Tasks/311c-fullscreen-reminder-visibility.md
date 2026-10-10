@@ -25,6 +25,12 @@ unchanged saved reminder/policy values and usable activity; no private timer or 
 injection and no replacement fixture. Refuse wrong-child/banner ownership,
 ambiguous/stale surfaces and unavailable fullscreen observations.
 
+Reuse 311b's observer before the threshold and retain the current warning's
+identity across the one fullscreen transition. Await its owned surface flags
+within the original warning lifetime; no screenshot, desktop notification
+settings tour or exact-second snapshot is needed. Expiry or observer loss
+cannot pass fullscreen suppression.
+
 ## Shared implementation
 
 Use the [reminder qualification catalogue](../E2E-Building-Blocks.md#reminder-controls-and-notification-qualification)

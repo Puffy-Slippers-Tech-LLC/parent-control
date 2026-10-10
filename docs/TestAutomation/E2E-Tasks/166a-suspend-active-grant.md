@@ -36,6 +36,13 @@ Reuse `real_interval.wait_real_interval` and the qualified DESK08 result reader;
 the new operation must independently establish suspend/wake completion and the
 same retained desktop/activity.
 
+Observe the owned VM's actual suspend event/state before the single wake input,
+then require the same boot/session identity and public return result. A failed
+SSH read alone is not suspension. Measure the suspended interval on the
+controller's monotonic clock, which continues while the guest is suspended;
+do not use guest uptime or wait for a guest reply before waking. Bind the wake
+deadline before suspend so the active branch retains a sufficient grant margin.
+
 ## Live VM acceptance
 
 Prepare a real active grant with zero daily allowance, suspend normally, wake

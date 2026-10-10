@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **APP06 Lunar/tray snapshot and close-to-tray/restore**. Named consumer: task **296** and any
+Deliver **APP06 Lunar/tray snapshot and close-to-tray/restore**. Named consumer: task **296f** and any
 complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -16,7 +16,12 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Extend the qualified Lunar adapter with the actual tray owner/entry and independent surrounding-desktop snapshots. Keep window close distinct from genuine Quit.
+Extend the qualified Lunar adapter with an account-scoped observation of the
+actual tray entry and Lunar window, using the recognized desktop only to
+establish a complete, usable observation context. Await the tray/main-window
+result after Close and the same usable Lunar after Restore; no inventory of
+unrelated desktop windows or tray items is needed. Keep window close distinct
+from genuine Quit. Missing tray support remains a gate for this tested route.
 
 ## Live VM acceptance
 

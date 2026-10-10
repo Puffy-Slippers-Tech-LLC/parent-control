@@ -19,7 +19,14 @@ Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Read date/time, UTC offset and timezone through fixed `date`/`timedatectl` commands over SSH. Bind locale-independent output, explicit precision and monotonic bracketing. Never set the guest clock or timezone. No Shell calendar or Settings page.
+Read UTC epoch, local date/time and numeric UTC offset through one fixed,
+locale-independent `date` projection; read the timezone through a named system
+property rather than parsing `timedatectl`'s human-readable status. Bracket the
+reads with controller monotonic timestamps and reject a projection that spans
+the tested calendar boundary instead of combining before/after fields. Repeat
+only the read within its original deadline. UTC instants plus offsets distinguish
+the repeated fall-back hour; local clock text alone cannot order it. Never set
+the guest clock or timezone. No Shell calendar or Settings page.
 
 Extend the guarded observation transport in `guest_observations.py` and
 `observation_transport.py` with one finite clock projection and independent

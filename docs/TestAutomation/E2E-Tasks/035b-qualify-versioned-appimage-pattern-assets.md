@@ -24,8 +24,10 @@ maintained deterministic AppImage-path fixture assets for case 189. Declare
 reusable sources in baseline preparation and verify through FIX06. Prepare the
 recipe's copies through FILE05; no vendor download, updater or AppImageLauncher setup is
 needed for this pattern test. Reuse saved same-directory wildcard rules and
-command-result projections. Register the finite read-only refresh wait without
-retrying launch input. Case 253 separately owns the real Lunar integration.
+command-result projections. Use the recipe's guarded 60-second refresh interval
+before the new nonmatch's one launch; no pre-launch APP02 absence read can prove
+policy readiness. Observe the launch result independently and never retry its
+input. Case 253 separately owns the real Lunar integration.
 
 Source boundary: `_build_native_layout` builds the next S version, but
 `native_assets.sources()`/baseline verification declare only the current four
@@ -46,7 +48,7 @@ preservation; neither branch substitutes for the other.
 
 ## Live VM acceptance
 
-On the live VM, add the next version through shared FILE05 copy commands, require matching versions denied and existing nonmatches usable. For the new nonmatch, wait at most the recipe's 60 seconds and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
+On the live VM, add the next version through shared FILE05 copy commands, require matching versions denied and existing nonmatches usable. For the new nonmatch, allow the recipe's 60-second refresh interval and issue one declared launch. A rejected pattern must expose its report and preserve the prior confirmed rule.
 
 Planned qualification selector (not registered; implement before use):
 

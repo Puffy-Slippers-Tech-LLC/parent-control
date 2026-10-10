@@ -159,6 +159,41 @@ for adjacent unchanged checks, while keeping observations on both sides of a
 transition when they prove persistence, isolation or retained work. Report
 remaining necessary provider dependencies and unqualified changed routes.
 
+### Supporting operations and observations
+
+Apply these choices to every unfinished capability and case, including its
+transitive prerequisites. Keep platform details in the shared adapter; cases
+supply the intended account, operation and result. Prefer an existing qualified
+binding over a new abstraction. A proposed portable route remains pending until
+implemented and qualified; these rules do not qualify additional distros or DEs.
+
+| Need | Simplest reliable approach |
+| --- | --- |
+| Reach or leave a session | Use the shared guarded session command and one independent destination/identity observation. Reuse an existing product window. Keep graphical authentication only when required for entry or the tested denial/unlock. Select a supported adapter before mutation; do not try commands or menus in succession after uncertain input. |
+| Prepare files, accounts or packages | Use the existing finite shared command/API profile and its owned completion receipt. Resolve desktop directories and account identities through supported APIs, not translated folder names or list order. Inspect the required product result afterward. |
+| Refresh a catalogue after a package change | After saving the retained draft, select the declared other child and back through PARENT02 in the same Parent window, then await the target child's loaded catalogue. Selecting the already-selected UID does not refresh it. No Parent restart is needed unless restart persistence itself is under test. |
+| Wait for a save, window, login or recovery | Await the required public state within the original deadline using read-only observations. Remove arbitrary settling sleeps, repeated unchanged inventories and checks of unrelated desktop controls. Keep mutations outside waits and never replay uncertain input. |
+| Compare elapsed time | Bracket each public read with controller monotonic timestamps and include read latency and declared display precision in the comparison. Require observable progress without demanding every intermediate tick or exact scheduler cadence. Keep the original allowance/grant deadline. |
+| Establish absence or closure | Use a complete, current observation scoped to the required owner/surface and the earlier activity identity when testing closure. An unavailable observer, incomplete list, timeout or generic launch error cannot prove absence or policy denial. Do not inventory unrelated desktop contents. |
+| Observe a short-lived result | Ready the shared observer before the triggering action and await the actual owned result. Use the existing trace lifecycle only when the assertion concerns an interval or a transient that snapshots cannot establish; preserve gap detection and secret sealing. Persistent results need no pre-entry trace. |
+
+Real waits remain when elapsed time is the product input: delayed approval,
+natural expiry, cooldown, refresh intervals and calendar transitions. Bind their
+start/end observations and bounds before execution. A missed required window
+fails that attempt; do not reset the grant, extend the product interval, retry
+the mutation or silently accept a different branch. During suspend, use the
+controller's elapsed clock; guest uptime and lost SSH alone prove neither
+suspend nor product denial. Calendar comparisons also need actual UTC instants,
+local date, timezone and offset, so repeated local times remain distinguishable.
+
+Use structured system properties or fixed locale-independent command output
+for supporting observations. Package-manager, session-manager, file-manager,
+tray and authentication differences belong in their finite qualified adapters.
+Retain a particular GUI provider only for the integration under test, such as
+app-grid/desktop/Files launches, authentication, or a real attachment chooser.
+Missing required public observations keep their concrete implementation gate;
+processes, private product state and screenshots cannot replace customer results.
+
 ## Task size and order
 
 The customer-first selection principle is applied when maintaining this fixed

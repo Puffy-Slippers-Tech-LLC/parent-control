@@ -48,6 +48,9 @@ Supporting qualification commands are not implicit recipe steps. Apply the
 to every family: reuse unchanged qualified bindings and shared runtime guards;
 keep deliberate wrong-account and provider-refusal exercises in focused safety
 coverage. Changed bindings retain their required scoped qualification.
+Use the shared [supporting-operation and observation choices](E2E-Execution-Contracts.md#supporting-operations-and-observations)
+for all remaining families: await public results within deadlines, account for
+read latency, and keep incidental platform details in qualified shared adapters.
 
 Apply that scope to every family and finite branch below, including retained
 completed cases. Desktop, greeter, authentication-agent and chooser observations
@@ -721,7 +724,7 @@ Bindings: change = update / remove.
 
 1. FLOW16(usable time) → PARENT10 → PARENT16(Hard Blocked) → PARENT13 → UI16(match draft covering the declared updated target).
 2. LIFE04(app update/remove through shared administrator SSH commands); Parent's editor stays open.
-3. PARENT15(save in the still-open editor) → LIFE01(Parent) → PARENT02. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01 → PARENT02 → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step.
+3. PARENT15(save in the still-open editor) → PARENT02(Riley, then Jordan in the same Parent window) → await Jordan's loaded App Limits. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → the same PARENT02 refresh → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step. Selecting the already-selected child does not reload its catalogue; no Parent restart is needed for this journey.
 
 ### E2E-021
 
@@ -1649,7 +1652,7 @@ saved rows and, when stated, using the app as the child.
 | 186 match-reopen | Save custom same-directory wildcard; change access to Allowed; LIFE01 → PARENT02 → PARENT12 verifies remembered custom wildcard. Save precise on an app with a suggested pattern; reselect the child and reopen Parent, reading the documented suggested pattern each time. Reselect precise before a subsequent save. Repeat restoration after a customer-rejected pattern save, closing its report before reading. This records the current limitation, not desired new behavior. |
 | 187 shared-launchers | Two visible launchers for one supported app: PARENT16(first,Hard) → PARENT16(second,Allowed); C → FLOW08(each supported launch,denied). P → allow first → C → FLOW08(each,usable). Reverse which launcher holds the block and repeat. No claim of independent rules overriding the shared target. |
 | 188 special-paths | For a known native app whose displayed precise path contains a space, then a comma, FILE05 copies its executable to the declared second name/location. PARENT16(Hard) → C → FLOW08(original and identical copy,denied), with existing distinct N usable. Repeat under Soft with no exception. These supported path cases do not assert universal copied-program control. |
-| 189 pattern-files | Save a same-directory version wildcard for the prepared AppImage. FILE05 adds the next matching version and a nonmatching file; FLOW08 matching denied and existing nonmatch usable. The new nonmatch may require the documented refresh: wait up to 60 seconds through TIME03/APP02 read-only observations, then perform one declared launch. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
+| 189 pattern-files | Save a same-directory version wildcard for the prepared AppImage. FILE05 adds the next matching version and a nonmatching file; FLOW08 matching denied and existing nonmatch usable. Allow the declared 60-second refresh interval through guarded TIME03 before the new nonmatch's single launch. APP02 observes that launch's actual result; an absent window before launch is not refresh readiness. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
 
 No screenshot geometry or file/process introspection supplies an app result.
 FIX06 verifies reusable baseline sources; FIX04 transfers attempt inputs only.
@@ -1707,6 +1710,15 @@ the next Request action. Reopening and, at the station, selecting the other chil
 must complete within five seconds; if no supported route can do so, record that
 prerequisite gap. Do not extend the product cooldown or delay a response. The
 request error-report sending cases retain this same public-error prerequisite.
+
+Ready the shared return/reopen helper and its read-only observer before the
+successful approval. After success, perform only the necessary exit, entry,
+child selection and Request operations with fresh runtime guards; defer
+unrelated balance reads, app launches and report inspection until after the
+too-soon result. Record the success-to-Request elapsed interval independently.
+A missed five-second window supplies no cooldown result and does not authorize
+another approval or Request loop. The route remains gated until it can meet
+that real bound; keep report review outside the short trigger interval.
 
 Prepare enabled 30-minute daily allowances and hard/soft fixture blocks once for
 Riley (176), or Jordan and Riley (178). Every successful request uses custom

@@ -47,6 +47,13 @@ Notification delivery saves its final custom reminder directly; task 312 owns
 reminder editing. Lunar command denial consumes launch/absence operations;
 tray controls remain a separate autostart prerequisite.
 
+All unfinished rows also follow the shared
+[supporting-operation and observation choices](E2E-Execution-Contracts.md#supporting-operations-and-observations).
+Catalogue update/removal uses same-window child reselection; timing uses bounded
+public-state waits and measured read intervals. Required launch integrations,
+natural expiry, authentication, interval coverage and ownership guards remain.
+These planning changes leave task status and live qualification unchanged.
+
 ## Reallocated UI coverage
 
 Reallocated case: **161** (zero-total Revoke availability; Parent UI owner;
@@ -514,9 +521,9 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 079a, 065a | FLOW11 | 20–30 |
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 (exception) |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 (exception) |
-| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 20–30 |
+| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006 | LIFE04 fixture update; PARENT15 retained-editor save; PARENT02 catalogue refresh | 20–30 |
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079d, 180 | Cases 110 | 35–55 (exception) |
-| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 (exception) |
+| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; PARENT02 catalogue refresh | 30–50 (exception) |
 | [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079d, 180 | Cases 111 | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |

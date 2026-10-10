@@ -29,6 +29,14 @@ retains current ownership/lifetime guards without another settings/provider
 qualification history. This slice supplies no fullscreen or translated-default
 acceptance; task 311 owns those complete outcomes.
 
+Ready the shared public notification observer before normal activity crosses
+the threshold. Await the owned emission within its declared elapsed bound and
+read body/urgency together from that current surface, rather than sleeping to
+an exact second and taking one snapshot. Use the same observer through natural
+lock to distinguish actual removal from lost observation. A missed transient
+or observation gap supplies no absence/delivery result and cannot be repaired
+by injecting a notification or resetting time.
+
 ## Shared implementation and gate
 
 Use the [reminder qualification catalogue](../E2E-Building-Blocks.md#reminder-controls-and-notification-qualification)

@@ -1070,6 +1070,12 @@ outside Shell's generic message tray. Qualify these public mappings through
 shared facade operations; no generic Shell notification adapter is a prerequisite.
 Missing independent public identity or visibility remains a qualification gate.
 
+Ready the shared notification observer before the natural threshold and await
+the current owned body/urgency or surface flags within the warning's lifetime.
+Use the [supporting-observation contract](E2E-Execution-Contracts.md#supporting-operations-and-observations)
+for read latency and observation loss. Exact-second snapshots, urgency alone
+and warning expiry cannot establish delivery or fullscreen suppression.
+
 The [saved-reminder case 312](E2E-Tasks/312-child-reminder-preferences.md) and
 [warning case 311](E2E-Tasks/311-remaining-time-notifications.md) retain their
 separate complete histories. Case 311 reuses task 135a's real verified upgrade
@@ -2119,6 +2125,13 @@ verified prepared assets. Native/Snap/Flatpak and app names are parameters of
 these blocks, not copies of them.
 INFO02 validates each command's output without an intervening desktop UI check;
 the complete command-help case owns one final public desktop result.
+
+Use the shared [supporting-operation and observation contract](E2E-Execution-Contracts.md#supporting-operations-and-observations)
+for pending bindings below. E2E-020 refreshes the catalogue through PARENT02's
+other-child/target-child selection in the same Parent window after Save, then
+reads the loaded target catalogue. Tasks 123/123a must qualify that finite
+composition; existing selection callables supply no refresh qualification.
+LIFE01 remains necessary only where an app restart is a tested boundary.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

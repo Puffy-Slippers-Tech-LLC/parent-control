@@ -26,6 +26,13 @@ lock result. Reuse the qualified lock-surface observer for identity and harmless
 input ownership, without invoking its preparatory manual Lock or replaying its
 password/denial matrix. Absence of the app under a lock is not app closure.
 
+Ready that observer before the activity loop and await the owned lock within
+the original measured expiry bound. End normal app input when the observed
+session leaves the usable desktop; do not race a final action against an
+assumed tick or keep sending app input after lock. Shared fresh recipient
+guards remain required for every action. Fixed settling sleeps and the passage
+of the expected deadline supply no lock result.
+
 ## Live VM acceptance
 
 From daily-only time prepared through customer controls, use the actual app until natural exhaustion. Observe the owned lock surface receiving harmless normal input while desktop interaction is unavailable; a password challenge is not required when the qualified surface displays a native time restriction. No manual Lock, backend expiry, or hidden-window inspection.

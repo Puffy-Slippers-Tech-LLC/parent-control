@@ -26,6 +26,12 @@ sample against a balance interval and explicitly is not a tick test: add the
 missing successive-sample comparison with immutable prior endpoints. Do not
 infer decreasing time from two samples that only satisfy the same broad bound.
 
+Bracket each read with controller monotonic timestamps. Await a different
+public value within the declared bound instead of sleeping to an exact minute
+edge; compare its decrease against elapsed/read-latency and display-rounding
+intervals. Do not require observing every tick or repeat an unchanged read as
+a separate acceptance result. A stalled countdown must still fail the bound.
+
 ## Live VM acceptance
 
 Publicly prepare short daily-only time, enter the child and observe successive minute samples over real intervals. Qualify independently supplied child entry and refuse reversed, stale or wrong-owner samples.

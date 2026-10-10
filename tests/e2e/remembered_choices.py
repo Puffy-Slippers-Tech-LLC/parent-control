@@ -1,19 +1,12 @@
 """Cases 58–60: both children's choices survive independent request-form visits."""
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import desktop_entry, fresh_desktop, parent_management, prefixed_stages, station_entry
+from journey_blocks import desktop_entry, fresh_desktop, prefixed_stages, station_entry
 from request_flow import overlay_to_kiosk, kiosk_to_overlay, transfer_allowances
 from request_composition import KioskRequestJourney
 
 
 SCREENS = {
-    **fresh_desktop('parent'), **parent_management(),
-    'riley-allowance': 'ui:time-explanation-setup-thirty-read',
-    'existing-child-picker-opened': 'ui:existing-child-picker-opened',
-    'existing-child-choice-highlighted': 'ui:existing-child-choice-highlighted',
-    'existing-returned': 'ui:discovery-ready',
-    'jordan-allowance': 'ui:time-explanation-setup-thirty-read',
-    'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
-    'gdm-switched': 'ui:gdm-returned', **prefixed_stages('seed', station_entry()),
+    **transfer_allowances(), **prefixed_stages('seed', station_entry()),
     'seed-child': 'ui:remembered-kiosk-jordan-select-default',
     'seed-approver': 'ui:remembered-kiosk-jordan-approver',
     'seed-cancel': 'ui:kiosk-request-cancel', 'seed-returned': 'ui:gdm-station-returned',

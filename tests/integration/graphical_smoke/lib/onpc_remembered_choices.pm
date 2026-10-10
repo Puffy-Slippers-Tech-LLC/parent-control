@@ -4,7 +4,6 @@ use warnings;
 use onpc_progress ();
 use onpc_journey ();
 use onpc_gdm ();
-use onpc_parent ();
 use onpc_desktop_session ();
 use onpc_request_flow ();
 
@@ -16,18 +15,7 @@ sub run {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'remembered-choices', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
-    onpc_gdm::reattach_functional();
-    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
-        'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::launch($journey, $desktop, 'management');
-    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'child',
-        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
-    $journey->seen('riley-allowance');
-    $journey->consume_observation('existing-returned', onpc_parent::select_child($journey, 'returned',
-        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
-        'existing-child-choice-highlighted', 'existing-returned'));
-    $journey->seen('jordan-allowance');
-    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    onpc_request_flow::prepare_transfer_allowances($journey);
     onpc_gdm::enter_station($journey->scope('seed'), '');
     $journey->seen($_) for qw(seed-child seed-approver seed-cancel seed-returned);
     # Only explicit maintenance reproduction declares the old retained logins.

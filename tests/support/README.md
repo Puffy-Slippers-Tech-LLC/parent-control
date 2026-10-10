@@ -394,6 +394,15 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Both-child request-transfer histories reuse `request_flow.transfer_allowances` /
+`onpc_request_flow::prepare_transfer_allowances` for public allowance setup,
+independent child reads and the guarded greeter return. Forward and reverse
+cases and qualifications share this pair; keep each consumer's choice values,
+visit order and immutable comparison endpoints in its plan. The existing
+[transfer regressions](../unit/test_e2e_overlay_valid_choices.py) cover both
+declaration/worker orders and stopping at every refusal boundary for
+[composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight).
+
 FLOW12 overlay-to-kiosk declarations use `request_flow.overlay_to_kiosk` and
 `onpc_request_flow::overlay_to_kiosk`. The caller supplies a fresh source receipt,
 child and invocation prefix; the shared operation owns normal Cancel, child
@@ -438,6 +447,11 @@ results against it. Ordinary logout avoids incidental retained-login requirement
 Its second station entry uses `remembered-reverse-kiosk-riley-select-default`:
 Riley's untouched default request values must retain the kiosk's Jamie selection
 saved during Jordan's visit. Fresh-station seed bindings still require Casey.
+Before binding an untouched default read, trace the last selector save for the
+requesting OS user through the declared history. Changing the selected child
+does not reset the kiosk user's remembered approver. Exercise that preceding
+save/child-selection history in the host reader/decoder check before live
+acceptance; a fresh-form fixture alone cannot catch a wrong later default.
 Kiosk custom/text/soft inputs reuse `AccessibleUI.transfer_choices`, including
 the same child, owner, availability and uncertain-input guards. These bindings
 introduce no new resource or cleanup owner; existing private unit fixtures and

@@ -21,7 +21,7 @@ Compose bounded APP03 actions/TIME03 waits, TIME02 only while visible, and publi
 
 ## Live VM acceptance
 
-From daily-only time prepared through customer controls, use the actual app until natural exhaustion. Observe lock and a harmless key reaching the lock challenge while desktop interaction is unavailable. No manual Lock, backend expiry, or hidden-window inspection.
+From daily-only time prepared through customer controls, use the actual app until natural exhaustion. Observe the owned lock surface receiving harmless normal input while desktop interaction is unavailable; a password challenge is not required when the qualified surface displays a native time restriction. No manual Lock, backend expiry, or hidden-window inspection.
 
 Qualification selector (implement and register before use):
 

@@ -30,13 +30,34 @@ journey. Preserve distinct intermediate customer outcomes and shared target,
 ownership and input-safety guards. A capability's qualification matrix is not
 the recipe for each consuming customer case.
 
-For every step, observation and acceptance condition in a new case or E2E
-maintenance change, ask:
+For every step, observation, prerequisite and acceptance condition in a new
+case or test automation maintenance change, ask:
 
-1. Does it prove a core product behavior?
-2. Is it necessary to reach or observe that behavior safely?
-3. Can it be removed, combined or replaced with a simpler, more reliable
-   supported operation that preserves the same product result?
+1. Does it prove the product behavior under test?
+2. Does it enable necessary navigation or observation of that behavior?
+3. Does it protect account identity, resource ownership or safe input?
+
+If none applies, remove it. Otherwise use the simplest supported operation that
+preserves its purpose and independent outcome checks. Use the Application UI API
+for product controls and shared supported system commands/APIs for incidental
+navigation. Apply the same test to transitive prerequisites and qualification
+commands; a historical dependency alone is not a reason to retain one.
+
+Reject invalid arguments, mismatched bound accounts and known ownership failures
+as soon as the existing trusted evidence establishes them, before unrelated UI,
+accessibility-service or provider discovery. A conclusive refusal must release
+no input and must not depend on that unrelated service being available. Valid
+entries still require fresh target, ownership and recipient proofs at the actual
+input boundary; early refusal never substitutes for those proofs.
+
+Keep negative-entry matrices and deliberate wrong-account/provider exercises in
+focused harness safety coverage. Ordinary feature journeys call the same guarded
+operations without repeating the full supporting qualification history. Reuse
+valid qualification for an unchanged exact binding; changes to the guard, route
+or composition require affected regression checks and scoped qualification under
+the [live verification contract](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
+Do not skip runtime guards, infer a new binding's readiness or count a product
+pass as safety qualification.
 
 Apply this review to implemented tests, shared flows, recipes, qualifications,
 completed-task requirements and unfinished briefs. Accept equivalent supported

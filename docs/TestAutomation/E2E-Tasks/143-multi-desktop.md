@@ -15,9 +15,6 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **047a** — FLOW09 and FLOW14 distinct-user retention.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
-- **050** — PARENT17, PARENT18.
-- **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
 
 ## Implementation
 
@@ -32,6 +29,10 @@ product obligation without substituting two windows on one desktop.
 ## Live VM acceptance
 
 Live UI actions must create two separately identifiable public activities for the same child, revisit both, and preserve an unrelated user's activity. No backend session creation/probes. A failed applicability check is not a completed scenario.
+
+Use permitted fixture activity with sufficient usable time for this session-binding
+qualification. Revocation and approval are results of the consuming cases,
+not prerequisites for proving that distinct desktops can be reached and retained.
 
 Qualification selector (implement and register before use):
 

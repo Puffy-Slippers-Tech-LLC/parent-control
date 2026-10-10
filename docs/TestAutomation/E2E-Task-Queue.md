@@ -28,6 +28,18 @@ independent qualification of unchanged prerequisite slices rather than repeating
 their full histories in each consumer. A case still observes every distinct
 product result required by its own journey.
 
+The 2026-10-10 blanket review covered all 259 active unfinished rows and deferred
+task 154, including their briefs and supporting prerequisites. Dependencies now
+select usable launch, new-launch denial, prior-window closure, grant-only time,
+countdown sampling or session retention only where the consuming slice needs it.
+Expired lifecycle cases omit repeated remembered-choice preparation; fixture and
+account setup avoid unrelated desktop qualification. Required product outcomes,
+runtime identity/input guards, authorization and applicability gates remain.
+Future maintenance and new cases must apply the
+[prerequisite and early-refusal mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+and [qualification separation](E2E-Execution-Contracts.md#product-focused-journeys).
+This review supplies no task completion or new live qualification.
+
 ## Reallocated UI coverage
 
 Reallocated case: **161** (zero-total Revoke availability; Parent UI owner;
@@ -81,9 +93,11 @@ Excluded tasks: **063** (separate daily-exhaustion unlock journey).
 The developer combined its results into [task 064 / case 22](E2E-Tasks/064-case-22.md)
 on 2026-10-07. Task 063 and inventory case 21 are removed, neither completed nor
 deferred; do not recreate the separate journey or reuse case ID 21. Natural lock,
-input ownership and correct-password unlock denial remain mandatory intermediate
+input ownership and specific retained time restriction remain mandatory intermediate
 results before approved recovery, normal logout, revocation and fresh sign-in
-denial. Task 064 remains pending until the complete journey passes.
+correct-password denial. The [recipe](E2E-Scenario-Recipes.md#e2e-008) distinguishes
+native pre-authentication restriction from authenticated denial. Task 064 remains
+pending until the complete journey passes.
 
 Excluded tasks: **090b, 091b, 092b, 093b, 094b, 095b, 096b, 097b, 098b,
 110b, 111b, 112b, 117b, 118b, 119b** (repeated app launches with time limits off).
@@ -359,8 +373,11 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 156 | E2E-018: overlay-to-kiosk-first | 155a | Cases 58; both children passed four saved-choice comparisons using one overlay visit each and kiosk reselection, without retained desktop returns; Ubuntu 26.04 / Fedora 44 acceptance and cleanup passed in `20261010T163428Z-a8f26ba6` / `20261010T163428Z-b7f41533`; [scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices) | 20–30 |
 | [x] | 156b | E2E-018: overlay-to-kiosk-second | 155a | Cases 59; Riley first with custom 75 seconds/soft included, then Jordan 150 seconds/soft excluded; both surface-local approvers and four immutable transfer/persistence/isolation comparisons passed on Ubuntu 26.04 / Fedora 44 in `20261010T191952Z-0f99f9cd` / `20261010T191952Z-10edeb0a`. Affected case 58 passed on both in `20261010T193429Z-03e2822b` / `20261010T193429Z-f31b5634`; host composition, child/input guards, recorder/worker/ownership and source checks passed. Collection, owned cleanup, baseline restoration and preservation passed; coverage regenerated after each case. [Scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices) | 20–30 |
 | [x] | 155 | Compare kiosk choices at each child overlay | 155a | FLOW12 kiosk-to-overlay current choices for both children passed on Ubuntu 26.04 / Fedora 44 in `20261010T200106Z-8faf3366` / `20261010T200106Z-92948a5e`: fresh child entry, untouched destination comparisons, shared custom/soft choices, independent local approvers and wrong-child/surface/receipt refusals. Exact overlay-to-kiosk regression passed on both in the same reports. Host guards, composition, recorder, worker/cleanup, resource inventory, native UI and source checks passed; collection, worker/callback shutdown, owned cleanup, baseline restoration and preservation passed. [Qualified scope and retained reports](E2E-Building-Blocks.md#kiosk-choices-transferred-to-overlays). Cases 60–61 remain pending | 20–30 |
-| [ ] | 157 | [E2E-018: kiosk-to-overlay-first](E2E-Tasks/157-case-60.md) | 155 | Cases 60 | 20–30 |
+| [x] | 157 | E2E-018: kiosk-to-overlay-first | 155 | Cases 60; complete case and affected cross-surface regression passed on Ubuntu 26.04 / Fedora 44 in `20261010T210956Z-1e8137e1` / `20261010T210956Z-7e6e1ae2`. Four immutable comparisons prove both children's untouched transfers and freshly reopened overlay persistence/isolation with independent local approvers. Changed wrong-account guard refuses before unrelated provider discovery; both live refusal branches and matching-account transfers passed. Collection, owned cleanup, baseline restoration and preservation passed, with complete leases; regression worker/callback shutdown verified. Scoped host guard, decoder/composition, worker/cleanup, resource inventory, source and close-out checks passed; coverage regenerated. [Exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices) | 20–30 |
 | [ ] | 157b | [E2E-018: kiosk-to-overlay-second](E2E-Tasks/157b-case-61.md) | 155 | Cases 61 | 20–30 |
+| [ ] | 090 | [E2E-019: native-grid-allowed-enabled](E2E-Tasks/090-case-62.md) | 047, 079, 180 | Cases 62 | 20–30 |
+| [ ] | 099 | [E2E-019: native-command-allowed-enabled](E2E-Tasks/099-case-80.md) | 047, 079, 180 | Cases 80 | 20–30 |
+| [ ] | 099b | [E2E-019: native-command-allowed-disabled](E2E-Tasks/099b-case-81.md) | 047, 079, 180 | Cases 81 | 20–30 |
 | [ ] | 047a | [Compose retained app visits for distinct users](E2E-Tasks/047a-retained-app-visits.md) | 047, 044 | FLOW09 and FLOW14 distinct-user retention | 20–30 |
 | [ ] | 050a | [Read a revocation warning and Cancel](E2E-Tasks/050a-revoke-cancel.md) | 021, 044 | PARENT17/18 revocation target, warning and Cancel | 20–30 |
 | [ ] | 050 | [Confirm grant revocation and read balances](E2E-Tasks/050-revocation.md) | 050a | PARENT17, PARENT18 | 20–30 |
@@ -374,10 +391,10 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 052b | [Verify countdown availability in UI tests](E2E-Tasks/052b-countdown-absence.md) | 052 | UI obligation; countdown availability on desktop, locked and greeter states | 20–30 |
 | [ ] | 181h | [Read the countdown explanation in UI tests](E2E-Tasks/181h-read-the-countdown-hover-explanation.md) | 052 | UI obligation; readable countdown explanation | 20–30 |
 | [ ] | 065a | [Prepare grant-only time and explicit revoke-first entry](E2E-Tasks/065a-grant-only-profile.md) | 051, 050 | FLOW13 grant-only profile and explicit revoke preparation | 20–30 |
+| [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065a, 052, 052c, 047a | Cases 25 | 35–55 (exception) |
+| [ ] | 067 | [E2E-010: other-child](E2E-Tasks/067-case-26.md) | 065a, 052, 052c, 047a | Cases 26 | 35–55 (exception) |
+| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 065a, 052a, 062 | Cases 28 | 35–55 (exception) |
 | [ ] | 065 | [Compose the combined grant-dominant profile](E2E-Tasks/065-time-profiles-grant.md) | 065a | FLOW13 grant-only/combined; retained entry and explicit revoke preparation | 20–30 |
-| [ ] | 066 | [E2E-010: parent](E2E-Tasks/066-case-25.md) | 065, 052a, 047a | Cases 25 | 35–55 (exception) |
-| [ ] | 067 | [E2E-010: other-child](E2E-Tasks/067-case-26.md) | 065, 052a, 047a | Cases 26 | 35–55 (exception) |
-| [ ] | 068 | [E2E-011: grant-only](E2E-Tasks/068-case-28.md) | 065, 052a, 062 | Cases 28 | 35–55 (exception) |
 | [ ] | 069 | [E2E-011: combined](E2E-Tasks/069-case-29.md) | 065, 052a, 062 | Cases 29 | 35–55 (exception) |
 | [ ] | 308b | [Qualify translated overlay approval and return](E2E-Tasks/308b-overlay-translated-approval.md) | 048d, 300i | Qualify translated overlay approval and return; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
 | [ ] | 308a | [Qualify overlay Hebrew request presentation](E2E-Tasks/308a-overlay-dialog-language.md) | 300i, 307a | Qualify Hebrew/restored-English overlay requests with unchanged choices and original activity; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
@@ -386,83 +403,80 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 309a | Planned scenario; Hebrew/restored-English requests with unchanged choices and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
 | [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 300i, 307a | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
 | [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | Planned scenario; Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
-| [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 044, 052 | FLOW20 overlay new/open form | 20–30 |
+| [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048b, 052 | FLOW20 overlay new/open form | 20–30 |
 | [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 20–30 |
-| [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065 | Cases 225; gate in brief | 20–30 |
+| [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065a | Cases 225; gate in brief | 20–30 |
 | [ ] | 197a | [Compose kiosk approval and fresh child entry](E2E-Tasks/197a-kiosk-fresh-return.md) | 021, 044, 052 | FLOW20 kiosk new/open form with fresh-child destination | 20–30 |
 | [ ] | 197k | [Compose kiosk approval and retained child entry](E2E-Tasks/197k-kiosk-approval-return.md) | 197a | FLOW20 kiosk new/open form and fresh/retained child | 20–30 |
 | [ ] | 266 | [E2E-048: daily-only-kiosk](E2E-Tasks/266-case-224.md) | 197k, 052c, 051 | Cases 224; gate in brief | 20–30 |
 | [ ] | 272 | [E2E-048: grant-dominant-kiosk](E2E-Tasks/272-case-230.md) | 197k, 052c, 065 | Cases 230; gate in brief | 20–30 |
-| [ ] | 079d | [Observe native launch denial without a prior window](E2E-Tasks/079d-native-denial.md) | 079, 047, 044 | APP02 and FLOW08 native grid/command blocked-launch results | 20–30 |
-| [ ] | 079a | [Observe closure of an already-open native app](E2E-Tasks/079a-observe-native-policy-denial-and-existing-window-closure.md) | 079d | APP02 and FLOW08 native grid/command policy results | 20–30 |
-| [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 079a, 180, 052 | Cases 7 | 40–60 (exception) |
-| [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 079a, 180, 052 | Cases 8 | 40–60 (exception) |
-| [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 079a, 180, 052, 021 | Cases 9 | 40–60 (exception) |
-| [ ] | 056 | [E2E-005: grant-only-retained](E2E-Tasks/056-case-10.md) | 079a, 180, 052, 021 | Cases 10 | 40–60 (exception) |
-| [ ] | 057 | [E2E-005: combined-new](E2E-Tasks/057-case-11.md) | 079a, 180, 052, 021 | Cases 11 | 40–60 (exception) |
-| [ ] | 058 | [E2E-005: combined-retained](E2E-Tasks/058-case-12.md) | 079a, 180, 052, 021 | Cases 12 | 40–60 (exception) |
-| [ ] | 090 | [E2E-019: native-grid-allowed-enabled](E2E-Tasks/090-case-62.md) | 079a, 180 | Cases 62 | 20–30 |
-| [ ] | 091 | [E2E-019: native-grid-hard-blocked-enabled](E2E-Tasks/091-case-64.md) | 079a, 180 | Cases 64 | 20–30 |
-| [ ] | 092 | [E2E-019: native-grid-soft-blocked-enabled](E2E-Tasks/092-case-66.md) | 079a, 180 | Cases 66 | 20–30 |
-| [ ] | 099 | [E2E-019: native-command-allowed-enabled](E2E-Tasks/099-case-80.md) | 079a, 180 | Cases 80 | 20–30 |
-| [ ] | 099b | [E2E-019: native-command-allowed-disabled](E2E-Tasks/099b-case-81.md) | 079a, 180 | Cases 81 | 20–30 |
-| [ ] | 100 | [E2E-019: native-command-hard-blocked-enabled](E2E-Tasks/100-case-82.md) | 079a, 180 | Cases 82 | 20–30 |
-| [ ] | 100b | [E2E-019: native-command-hard-blocked-disabled](E2E-Tasks/100b-case-83.md) | 079a, 180 | Cases 83 | 20–30 |
-| [ ] | 101 | [E2E-019: native-command-soft-blocked-enabled](E2E-Tasks/101-case-84.md) | 079a, 180 | Cases 84 | 20–30 |
-| [ ] | 101b | [E2E-019: native-command-soft-blocked-disabled](E2E-Tasks/101b-case-85.md) | 079a, 180 | Cases 85 | 20–30 |
-| [ ] | 227 | [E2E-041: match-editor](E2E-Tasks/227-case-185.md) | 186, 180, 079a | Cases 185 | 20–30 |
-| [ ] | 228 | [E2E-041: match-reopen](E2E-Tasks/228-case-186.md) | 186, 079, 028, 180, 079a | Cases 186 | 20–30 |
-| [ ] | 229 | [E2E-041: shared-launchers](E2E-Tasks/229-case-187.md) | 079a, 180 | Cases 187 | 20–30 |
+| [ ] | 079d | [Observe native launch denial without a prior window](E2E-Tasks/079d-native-denial.md) | 079, 047 | APP02 and FLOW08 native grid/command blocked-launch results | 20–30 |
+| [ ] | 053 | [E2E-005: daily-only-new](E2E-Tasks/053-case-7.md) | 079d, 044b, 180, 052 | Cases 7 | 40–60 (exception) |
+| [ ] | 054 | [E2E-005: daily-only-retained](E2E-Tasks/054-case-8.md) | 079d, 044, 180, 052 | Cases 8 | 40–60 (exception) |
+| [ ] | 055 | [E2E-005: grant-only-new](E2E-Tasks/055-case-9.md) | 079d, 044b, 180, 052, 021 | Cases 9 | 40–60 (exception) |
+| [ ] | 056 | [E2E-005: grant-only-retained](E2E-Tasks/056-case-10.md) | 079d, 044, 180, 052, 021 | Cases 10 | 40–60 (exception) |
+| [ ] | 057 | [E2E-005: combined-new](E2E-Tasks/057-case-11.md) | 079d, 044b, 180, 052, 021 | Cases 11 | 40–60 (exception) |
+| [ ] | 058 | [E2E-005: combined-retained](E2E-Tasks/058-case-12.md) | 079d, 044, 180, 052, 021 | Cases 12 | 40–60 (exception) |
+| [ ] | 091 | [E2E-019: native-grid-hard-blocked-enabled](E2E-Tasks/091-case-64.md) | 079d, 180 | Cases 64 | 20–30 |
+| [ ] | 092 | [E2E-019: native-grid-soft-blocked-enabled](E2E-Tasks/092-case-66.md) | 079d, 180 | Cases 66 | 20–30 |
+| [ ] | 100 | [E2E-019: native-command-hard-blocked-enabled](E2E-Tasks/100-case-82.md) | 079d, 180 | Cases 82 | 20–30 |
+| [ ] | 100b | [E2E-019: native-command-hard-blocked-disabled](E2E-Tasks/100b-case-83.md) | 079d, 180 | Cases 83 | 20–30 |
+| [ ] | 101 | [E2E-019: native-command-soft-blocked-enabled](E2E-Tasks/101-case-84.md) | 079d, 180 | Cases 84 | 20–30 |
+| [ ] | 101b | [E2E-019: native-command-soft-blocked-disabled](E2E-Tasks/101b-case-85.md) | 079d, 180 | Cases 85 | 20–30 |
+| [ ] | 227 | [E2E-041: match-editor](E2E-Tasks/227-case-185.md) | 186, 180, 079d | Cases 185 | 20–30 |
+| [ ] | 228 | [E2E-041: match-reopen](E2E-Tasks/228-case-186.md) | 186, 079, 028, 180, 079d | Cases 186 | 20–30 |
+| [ ] | 229 | [E2E-041: shared-launchers](E2E-Tasks/229-case-187.md) | 079d, 044b, 180 | Cases 187 | 20–30 |
+| [ ] | 079a | [Observe closure of an already-open native app](E2E-Tasks/079a-observe-native-policy-denial-and-existing-window-closure.md) | 079d, 044 | APP02 and FLOW08 native grid/command policy results | 20–30 |
 | [ ] | 079b | [Compose a named app-rule set](E2E-Tasks/079b-compose-a-named-app-rule-set.md) | 079, 044 | FLOW19 | 15–30 |
 | [ ] | 080 | [E2E-006: enabled-precise](E2E-Tasks/080-case-13.md) | 079a, 079b, 047a, 065, 028 | Cases 13 | 40–60 (exception) |
 | [ ] | 081 | [E2E-006: enabled-pattern](E2E-Tasks/081-case-14.md) | 079a, 079b, 047a, 065, 028 | Cases 14 | 40–60 (exception) |
 | [ ] | 082 | [E2E-006: disabled-precise](E2E-Tasks/082-case-15.md) | 079a, 079b, 047a, 065, 028 | Cases 15 | 40–60 (exception) |
 | [ ] | 083 | [E2E-006: disabled-pattern](E2E-Tasks/083-case-16.md) | 079a, 079b, 047a, 065, 028 | Cases 16 | 40–60 (exception) |
-| [ ] | 084 | [E2E-007: zero-single](E2E-Tasks/084-case-17.md) | 079b, 079a, 047a, 065 | Cases 17 | 40–60 (exception) |
+| [ ] | 084 | [E2E-007: zero-single](E2E-Tasks/084-case-17.md) | 079b, 047, 047a, 065a | Cases 17 | 40–60 (exception) |
 | [ ] | 085 | [E2E-007: remaining-single](E2E-Tasks/085-case-19.md) | 079b, 079a, 047a, 065 | Cases 19 | 40–60 (exception) |
 | [ ] | 086 | [E2E-012: excluded-first](E2E-Tasks/086-case-30.md) | 048b, 079b, 079a, 065, 052, 052c | Cases 30 | 20–30 |
 | [ ] | 087b | [E2E-012: included-second](E2E-Tasks/087b-case-33.md) | 048b, 079b, 079a, 065, 052, 052c | Cases 33 | 20–30 |
 | [ ] | 088 | [E2E-013: child-overlay-recovery](E2E-Tasks/088-case-34.md) | 079b, 079a, 048b, 052 | Cases 34; wrong password → separate Cancel → fresh valid approval; time, app restrictions and remembered choices after each failure (absorbs 088b / case 35) | 20–30 |
 | [ ] | 089 | [E2E-013: kiosk-recovery](E2E-Tasks/089-case-36.md) | 079b, 079a, 021, 052 | Cases 36; wrong password → separate Cancel → fresh valid approval; time, app restrictions and remembered choices after each failure (absorbs 089b / case 37) | 20–30 |
-| [ ] | 158 | [E2E-022: app-restart-active](E2E-Tasks/158-case-116.md) | 155, 079b, 079a, 065, 052c, 052, 028 | Cases 116 | 40–60 (exception) |
-| [ ] | 159 | [E2E-022: app-restart-expired](E2E-Tasks/159-case-117.md) | 155, 079b, 079a, 065, 052c, 052, 028 | Cases 117 | 40–60 (exception) |
-| [ ] | 160 | [E2E-022: sign-out-in-active](E2E-Tasks/160-case-118.md) | 155, 079b, 079a, 065, 052c, 052, 181m | Cases 118; independent animation choices after sign-out/return | 40–60 (exception) |
-| [ ] | 161 | [E2E-022: sign-out-in-expired](E2E-Tasks/161-case-119.md) | 155, 079b, 079a, 065, 052c, 052 | Cases 119 | 40–60 (exception) |
-| [ ] | 162 | [E2E-022: reboot-active](E2E-Tasks/162-case-120.md) | 155, 079b, 079a, 065, 052c, 052, 007, 181m | Cases 120; independent animation choices after reboot | 40–60 (exception) |
-| [ ] | 163 | [E2E-022: reboot-expired](E2E-Tasks/163-case-121.md) | 155, 079b, 079a, 065, 052c, 052, 007 | Cases 121 | 40–60 (exception) |
-| [ ] | 164 | [E2E-022: idle-active-expired](E2E-Tasks/164-case-122.md) | 155, 079b, 079a, 065, 052c, 052 | Cases 122; one short grant, early idle return with original deadline, idle through expiry, refusal and new approval; saved choices and retained work | 40–60 (exception) |
+| [ ] | 158 | [E2E-022: app-restart-active](E2E-Tasks/158-case-116.md) | 155, 079b, 079a, 065a, 052c, 052, 028 | Cases 116 | 40–60 (exception) |
+| [ ] | 159 | [E2E-022: app-restart-expired](E2E-Tasks/159-case-117.md) | 079b, 079a, 065a, 052c, 052, 028 | Cases 117 | 40–60 (exception) |
+| [ ] | 160 | [E2E-022: sign-out-in-active](E2E-Tasks/160-case-118.md) | 155, 079b, 079a, 065a, 052c, 052, 181m | Cases 118; independent animation choices after sign-out/return | 40–60 (exception) |
+| [ ] | 161 | [E2E-022: sign-out-in-expired](E2E-Tasks/161-case-119.md) | 079b, 079a, 065a, 052c, 052 | Cases 119 | 40–60 (exception) |
+| [ ] | 162 | [E2E-022: reboot-active](E2E-Tasks/162-case-120.md) | 155, 079b, 079a, 065a, 052c, 052, 007, 181m | Cases 120; independent animation choices after reboot | 40–60 (exception) |
+| [ ] | 163 | [E2E-022: reboot-expired](E2E-Tasks/163-case-121.md) | 079b, 079a, 065a, 052c, 052, 007 | Cases 121 | 40–60 (exception) |
+| [ ] | 164 | [E2E-022: idle-active-expired](E2E-Tasks/164-case-122.md) | 155, 079b, 079a, 065a, 052c, 052 | Cases 122; one short grant, early idle return with original deadline, idle through expiry, refusal and new approval; saved choices and retained work | 40–60 (exception) |
 | [ ] | 105 | [E2E-025: excluded-new-login](E2E-Tasks/105-case-132.md) | 065, 079b, 079a, 052c | Cases 132 | 40–60 (exception) |
 | [ ] | 106 | [E2E-025: excluded-retained-unlock](E2E-Tasks/106-case-133.md) | 065, 079b, 079a, 052c | Cases 133 | 40–60 (exception) |
 | [ ] | 107 | [E2E-025: included-new-login](E2E-Tasks/107-case-134.md) | 065, 079b, 079a, 052c | Cases 134 | 40–60 (exception) |
 | [ ] | 108 | [E2E-025: included-retained-unlock](E2E-Tasks/108-case-135.md) | 065, 079b, 079a, 052c | Cases 135 | 40–60 (exception) |
-| [ ] | 202 | [E2E-036: daily-positive](E2E-Tasks/202-case-160.md) | 065, 079b, 079a | Cases 160 | 20–30 |
+| [ ] | 202 | [E2E-036: daily-positive](E2E-Tasks/202-case-160.md) | 065a, 079b, 079a | Cases 160 | 20–30 |
 | [ ] | 236 | [E2E-043: both-surfaces](E2E-Tasks/236-case-194.md) | 193, 079b, 079a, 052a, 050, 048b | Cases 194 | 40–60 (exception) |
 | [ ] | 273 | [E2E-049: native-grid-child-overlay](E2E-Tasks/273-case-231.md) | 197, 079b, 079a, 180 | Cases 231 | 20–30 |
 | [ ] | 274 | [E2E-049: native-grid-kiosk](E2E-Tasks/274-case-232.md) | 197k, 079b, 079a, 180 | Cases 232 | 20–30 |
 | [ ] | 280 | [E2E-049: native-command-kiosk](E2E-Tasks/280-case-238.md) | 197k, 079b, 079a, 180 | Cases 238 | 20–30 |
-| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079a | FIX06 space-path readiness; FILE05 copy and command-policy result | 20–30 |
+| [ ] | 035d | [Qualify a native executable path containing a space](E2E-Tasks/035d-native-space-path.md) | 036, 079d | FIX06 space-path readiness; FILE05 copy and command-policy result | 20–30 |
 | [ ] | 035a | [Qualify the comma-containing native fixture](E2E-Tasks/035a-qualify-native-fixtures-with-spaces-and-commas.md) | 035d | FIX06 special-path readiness; FILE05 and command-result bindings | 20–30 |
 | [ ] | 230 | [E2E-041: special-paths](E2E-Tasks/230-case-188.md) | 035a, 180 | Cases 188 | 20–30 |
-| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079a, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
+| [ ] | 035b | [Qualify versioned AppImage pattern assets](E2E-Tasks/035b-qualify-versioned-appimage-pattern-assets.md) | 036, 079d, 186, 052c | FIX06 versioned-path readiness; FILE05 and pattern launch results | 20–30 |
 | [ ] | 231 | [E2E-041: pattern-files](E2E-Tasks/231-case-189.md) | 035b, 180 | Cases 189 | 20–30 |
-| [ ] | 036f | [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md) | 036, 079a | APP01/02/03 native file-manager usable/new-window route | 20–30 |
+| [ ] | 036f | [Launch separate usable native windows from Files](E2E-Tasks/036f-native-files-usable.md) | 047 | APP01/02/03 native file-manager usable/new-window route | 20–30 |
+| [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md) | 180, 036f | Cases 74 | 20–30 |
 | [ ] | 036a | [Observe policy results for Files launches](E2E-Tasks/036a-native-file-routes.md) | 036f | APP01/02/03 native file-manager route | 20–30 |
-| [ ] | 096 | [E2E-019: native-file-manager-allowed-enabled](E2E-Tasks/096-case-74.md) | 180, 036a | Cases 74 | 20–30 |
 | [ ] | 097 | [E2E-019: native-file-manager-hard-blocked-enabled](E2E-Tasks/097-case-76.md) | 180, 036a | Cases 76 | 20–30 |
 | [ ] | 098 | [E2E-019: native-file-manager-soft-blocked-enabled](E2E-Tasks/098-case-78.md) | 180, 036a | Cases 78 | 20–30 |
 | [ ] | 278 | [E2E-049: native-file-manager-kiosk](E2E-Tasks/278-case-236.md) | 197k, 079b, 180, 036a | Cases 236 | 20–30 |
-| [ ] | 036g | [Place and launch a native desktop entry](E2E-Tasks/036g-native-desktop-usable.md) | 036, 079a, 035p | APP01/02/03 DING desktop entry and usable launch | 20–30 |
+| [ ] | 036g | [Place and launch a native desktop entry](E2E-Tasks/036g-native-desktop-usable.md) | 036, 047, 035p | APP01/02/03 DING desktop entry and usable launch | 20–30 |
+| [ ] | 093 | [E2E-019: native-desktop-allowed-enabled](E2E-Tasks/093-case-68.md) | 180, 036g | Cases 68 | 20–30 |
 | [ ] | 036h | [Open a second native window from the desktop](E2E-Tasks/036h-native-desktop-new-window.md) | 036g | APP01/02 desktop separate-window route | 20–30 |
 | [ ] | 036b | [Observe policy results for desktop launches](E2E-Tasks/036b-native-desktop-route.md) | 036h | APP01/02/03 native desktop route | 20–30 |
-| [ ] | 093 | [E2E-019: native-desktop-allowed-enabled](E2E-Tasks/093-case-68.md) | 180, 036b | Cases 68 | 20–30 |
 | [ ] | 094 | [E2E-019: native-desktop-hard-blocked-enabled](E2E-Tasks/094-case-70.md) | 180, 036b | Cases 70 | 20–30 |
 | [ ] | 095 | [E2E-019: native-desktop-soft-blocked-enabled](E2E-Tasks/095-case-72.md) | 180, 036b | Cases 72 | 20–30 |
 | [ ] | 275 | [E2E-049: native-desktop-child-overlay](E2E-Tasks/275-case-233.md) | 197, 079b, 180, 036b | Cases 233 | 20–30 |
 | [ ] | 109p | [Prepare the declared Snap fixtures in the baseline](E2E-Tasks/109p-snap-fixtures.md) | 006, 077a | Snap baseline assets and FIX06 verification | 20–30 |
-| [ ] | 109b | [Launch and use Snap fixtures by command](E2E-Tasks/109b-snap-command-usable.md) | 109p, 079a | APP01/02/03/04 and FLOW08 Snap command usable/new-window route | 20–30 |
+| [ ] | 109b | [Launch and use Snap fixtures by command](E2E-Tasks/109b-snap-command-usable.md) | 109p, 047 | APP01/02/03/04 and FLOW08 Snap command usable/new-window route | 20–30 |
+| [ ] | 113 | [E2E-019: snap-command-allowed-enabled](E2E-Tasks/113-case-92.md) | 180, 109b | Cases 92 | 20–30 |
+| [ ] | 113b | [E2E-019: snap-command-allowed-disabled](E2E-Tasks/113b-case-93.md) | 180, 109b | Cases 93 | 20–30 |
 | [ ] | 109 | [Observe Snap command denial and closure](E2E-Tasks/109-snap.md) | 109b | APP01/02/03/04 and FLOW08 Snap command route | 20–30 |
-| [ ] | 113 | [E2E-019: snap-command-allowed-enabled](E2E-Tasks/113-case-92.md) | 180, 109 | Cases 92 | 20–30 |
-| [ ] | 113b | [E2E-019: snap-command-allowed-disabled](E2E-Tasks/113b-case-93.md) | 180, 109 | Cases 93 | 20–30 |
 | [ ] | 114 | [E2E-019: snap-command-hard-blocked-enabled](E2E-Tasks/114-case-94.md) | 180, 109 | Cases 94 | 20–30 |
 | [ ] | 114b | [E2E-019: snap-command-hard-blocked-disabled](E2E-Tasks/114b-case-95.md) | 180, 109 | Cases 95 | 20–30 |
 | [ ] | 115 | [E2E-019: snap-command-soft-blocked-enabled](E2E-Tasks/115-case-96.md) | 180, 109 | Cases 96 | 20–30 |
@@ -474,10 +488,10 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 112 | [E2E-019: snap-grid-soft-blocked-enabled](E2E-Tasks/112-case-90.md) | 180, 109a | Cases 90 | 20–30 |
 | [ ] | 281 | [E2E-049: snap-grid-child-overlay](E2E-Tasks/281-case-239.md) | 197, 079b, 180, 109a | Cases 239 | 20–30 |
 | [ ] | 116p | [Prepare the declared Flatpak fixtures in the baseline](E2E-Tasks/116p-flatpak-fixtures.md) | 006, 077a | Flatpak baseline assets and FIX06 verification | 20–30 |
-| [ ] | 116b | [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md) | 116p, 079a | APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route | 20–30 |
+| [ ] | 116b | [Launch and use Flatpak fixtures by command](E2E-Tasks/116b-flatpak-command-usable.md) | 116p, 047 | APP01/02/03/04 and FLOW08 Flatpak command usable/new-window route | 20–30 |
+| [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md) | 180, 116b | Cases 104 | 20–30 |
+| [ ] | 120b | [E2E-019: flatpak-command-allowed-disabled](E2E-Tasks/120b-case-105.md) | 180, 116b | Cases 105 | 20–30 |
 | [ ] | 116 | [Observe Flatpak command denial and closure](E2E-Tasks/116-flatpak.md) | 116b | APP01/02/03/04 and FLOW08 Flatpak command route | 20–30 |
-| [ ] | 120 | [E2E-019: flatpak-command-allowed-enabled](E2E-Tasks/120-case-104.md) | 180, 116 | Cases 104 | 20–30 |
-| [ ] | 120b | [E2E-019: flatpak-command-allowed-disabled](E2E-Tasks/120b-case-105.md) | 180, 116 | Cases 105 | 20–30 |
 | [ ] | 121 | [E2E-019: flatpak-command-hard-blocked-enabled](E2E-Tasks/121-case-106.md) | 180, 116 | Cases 106 | 20–30 |
 | [ ] | 121b | [E2E-019: flatpak-command-hard-blocked-disabled](E2E-Tasks/121b-case-107.md) | 180, 116 | Cases 107 | 20–30 |
 | [ ] | 122 | [E2E-019: flatpak-command-soft-blocked-enabled](E2E-Tasks/122-case-108.md) | 180, 116 | Cases 108 | 20–30 |
@@ -492,9 +506,9 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 (exception) |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 (exception) |
 | [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 20–30 |
-| [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079a, 180 | Cases 110 | 35–55 (exception) |
+| [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079d, 180 | Cases 110 | 35–55 (exception) |
 | [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 (exception) |
-| [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079a, 180 | Cases 111 | 35–55 (exception) |
+| [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079d, 180 | Cases 111 | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
 | [ ] | 126 | [Compose windowed gameplay through natural expiry](E2E-Tasks/126-game.md) | 126a, 062, 065 | APP05/FLOW10 windowed game | 20–30 |
@@ -511,30 +525,30 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 197k, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 248; two complete cycles; gate in brief | 20–30 + ≤90 live (exception) |
 | [ ] | 198 | [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md) | 044, 079 | FLOW15/FLOW01 other-parent management entry | 20–30 |
 | [ ] | 293 | [E2E-051: jordan](E2E-Tasks/293-case-251.md) | 197, 197k, 198, 196, 079b, 079a, 155, 126, 047a | Cases 251; two recomposed rounds; gate in brief | 20–30 + ≤90 live (exception) |
-| [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052a, 065, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
+| [ ] | 166a | [Suspend and wake before a grant expires](E2E-Tasks/166a-suspend-active-grant.md) | 052, 065, 043a, 052c | LIFE03 normal suspend/wake with active grant | 20–30 |
+| [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079d, 065, 166a | Cases 124 | 40–60 (exception) |
 | [ ] | 166 | [Observe time denial after suspend and wake](E2E-Tasks/166-suspend.md) | 166a | LIFE03 | 20–30 |
-| [ ] | 167 | [E2E-022: suspend-wake-active](E2E-Tasks/167-case-124.md) | 155, 079b, 079a, 065, 166 | Cases 124 | 40–60 (exception) |
-| [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 155, 079b, 079a, 065, 166 | Cases 125 | 40–60 (exception) |
+| [ ] | 168 | [E2E-022: suspend-wake-expired](E2E-Tasks/168-case-125.md) | 079b, 079d, 065, 166 | Cases 125 | 40–60 (exception) |
 | [ ] | 135a | [Qualify a real update requiring no activation](E2E-Tasks/135a-update-no-action.md) | 028, 044, 007, 079, 048a | LIFE04 update and LIFE05 no-action notice | 20–30 |
 | [ ] | 135 | [Follow a real process-activation update](E2E-Tasks/135-activation-process.md) | 135a | LIFE04 update; LIFE05 process/none scope | 30–50 (exception) |
-| [ ] | 136 | [E2E-026: process](E2E-Tasks/136-case-136.md) | 135, 155, 079a, 079b, 065, 052 | Cases 136 | 40–60 (exception) |
+| [ ] | 136 | [E2E-026: process](E2E-Tasks/136-case-136.md) | 135, 079d, 079b, 065, 052 | Cases 136 | 40–60 (exception) |
 | [ ] | 137 | [Follow session activation after a real update](E2E-Tasks/137-activation-session.md) | 044, 007, 079, 048a | LIFE04 update; LIFE05 session scope | 30–50 (exception) |
-| [ ] | 138 | [E2E-026: session](E2E-Tasks/138-case-137.md) | 137, 155, 079a, 079b, 065, 052 | Cases 137 | 40–60 (exception) |
+| [ ] | 138 | [E2E-026: session](E2E-Tasks/138-case-137.md) | 137, 079d, 079b, 065, 052 | Cases 137 | 40–60 (exception) |
 | [ ] | 139 | [Follow reboot activation after a real update](E2E-Tasks/139-activation-reboot.md) | 007, 044, 079, 048a | LIFE04 update; LIFE05 reboot scope | 30–50 (exception) |
-| [ ] | 140 | [E2E-026: reboot](E2E-Tasks/140-case-138.md) | 139, 155, 079a, 079b, 065, 052 | Cases 138 | 40–60 (exception) |
-| [ ] | 141b | [Remove the product and follow its reboot notice](E2E-Tasks/141b-product-remove.md) | 007, 079a, 014 | LIFE04 remove and LIFE05 removal activation | 40–60 (exception) |
+| [ ] | 140 | [E2E-026: reboot](E2E-Tasks/140-case-138.md) | 139, 155, 079d, 079b, 065, 052 | Cases 138 | 40–60 (exception) |
+| [ ] | 141b | [Remove the product and follow its reboot notice](E2E-Tasks/141b-product-remove.md) | 007, 047, 014 | LIFE04 remove and LIFE05 removal activation | 40–60 (exception) |
 | [ ] | 141 | [Reinstall after removal and follow activation](E2E-Tasks/141-product-removal.md) | 141b | LIFE04 product remove/reinstall; LIFE05 corresponding notices/activation | 30–50 (exception) |
 | [ ] | 141a | [Qualify purge and reinstall to visible defaults](E2E-Tasks/141a-product-purge.md) | 141 | LIFE04 purge; LIFE05 notice and reinstall/defaults | 30–50 (exception) |
 | [ ] | 142 | [E2E-027: continuous](E2E-Tasks/142-case-139.md) | 141a, 155, 065, 079b | Cases 139 | 20–30 + continuous run (exception) |
-| [ ] | 182 | [Prepare a daily balance that outlasts a soft exception](E2E-Tasks/182-prepare-a-daily-balance-that-outlasts-a-soft-exception.md) | 065, 079b, 079a, 052a | FLOW18 | 20–30 |
-| [ ] | 206 | [E2E-038: none](E2E-Tasks/206-case-164.md) | 182, 047a | Cases 164 | 20–30 |
-| [ ] | 207 | [E2E-038: unlock](E2E-Tasks/207-case-165.md) | 182, 047a | Cases 165 | 20–30 |
-| [ ] | 208 | [E2E-038: fresh-login](E2E-Tasks/208-case-166.md) | 182, 047a | Cases 166 | 20–30 |
-| [ ] | 209 | [E2E-038: allowance-edit](E2E-Tasks/209-case-167.md) | 182, 047a | Cases 167 | 20–30 |
-| [ ] | 210 | [E2E-038: toggle](E2E-Tasks/210-case-168.md) | 182, 047a | Cases 168 | 20–30 |
-| [ ] | 211 | [E2E-038: app-save](E2E-Tasks/211-case-169.md) | 182, 047a | Cases 169 | 20–30 |
-| [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a | Cases 170 | 20–30 |
-| [ ] | 184 | [Create the registered spare child through shared account helpers](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 004 | ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards | 20–30 |
+| [ ] | 182 | [Prepare a daily balance that outlasts a soft exception](E2E-Tasks/182-prepare-a-daily-balance-that-outlasts-a-soft-exception.md) | 065, 079b, 047, 052, 052c | FLOW18 | 20–30 |
+| [ ] | 206 | [E2E-038: none](E2E-Tasks/206-case-164.md) | 182, 047a, 079d | Cases 164 | 20–30 |
+| [ ] | 207 | [E2E-038: unlock](E2E-Tasks/207-case-165.md) | 182, 047a, 079a | Cases 165 | 20–30 |
+| [ ] | 208 | [E2E-038: fresh-login](E2E-Tasks/208-case-166.md) | 182, 047a, 079d | Cases 166 | 20–30 |
+| [ ] | 209 | [E2E-038: allowance-edit](E2E-Tasks/209-case-167.md) | 182, 047a, 079d | Cases 167 | 20–30 |
+| [ ] | 210 | [E2E-038: toggle](E2E-Tasks/210-case-168.md) | 182, 047a, 079d | Cases 168 | 20–30 |
+| [ ] | 211 | [E2E-038: app-save](E2E-Tasks/211-case-169.md) | 182, 047a, 079d | Cases 169 | 20–30 |
+| [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a, 079a | Cases 170 | 20–30 |
+| [ ] | 184 | [Create the registered spare child through shared account helpers](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | Baseline | ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards | 20–30 |
 | [ ] | 184b | [Remove a logged-out spare child through shared account helpers](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 20–30 |
 | [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 014, 180, 044 | Cases 180; one removal, independent Parent and reopened-station fallback; absorbs case 183 | 40–60 (exception) |
 | [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017 | Cases 181 | 20–30 |
@@ -564,7 +578,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 152 | [Observe feedback recovery after system network changes](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 20–30 |
 | [ ] | 153 | [E2E-033: retry](E2E-Tasks/153-case-157.md) | 152 | Cases 157; gate in brief | 35–55 (exception) |
 | [ ] | 258 | [E2E-047: app-exit](E2E-Tasks/258-case-216.md) | 152, 030a | Cases 216; gate in brief | 20–30 |
-| [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006, 036 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
+| [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
 | [ ] | 296c | [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md) | 295, 079a, 052c | APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit | 20–30 |
 | [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore | 20–30 |
 | [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 296d | APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings | 20–30 |
@@ -605,13 +619,13 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 190b | [Keep a sending kiosk report open after Close](E2E-Tasks/190b-kiosk-sending-stay.md) | 150k, 152 | FEED09 retry and FEED17/18 kiosk stay-open branch; gate in brief | 20–30 |
 | [ ] | 190k | [Stop a sending kiosk report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | FEED09 retry and FEED17/18 kiosk; gate in brief | 20–30 |
 | [ ] | 261 | [E2E-047: kiosk-stop](E2E-Tasks/261-case-219.md) | 190k | Cases 219; gate in brief | 20–30 |
-| [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a, 079a, 050, 048b | FLOW14 same-child multi-desktop scope; gate in brief | 20–30 |
+| [ ] | 143 | [Qualify distinct retained desktops for one child](E2E-Tasks/143-multi-desktop.md) | 047a | FLOW14 same-child multi-desktop scope; gate in brief | 20–30 |
 | [ ] | 144 | [E2E-007: zero-multiple](E2E-Tasks/144-case-18.md) | 079b, 065, 143 | Cases 18; gate in brief | 40–60 (exception) |
-| [ ] | 145 | [E2E-007: remaining-multiple](E2E-Tasks/145-case-20.md) | 079b, 065, 143 | Cases 20; gate in brief | 40–60 (exception) |
-| [ ] | 146 | [E2E-021: save](E2E-Tasks/146-case-112.md) | 143, 079b, 065 | Cases 112; gate in brief | 40–60 (exception) |
-| [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065 | Cases 113; gate in brief | 40–60 (exception) |
-| [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065 | Cases 114; gate in brief | 40–60 (exception) |
-| [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065 | Cases 115; gate in brief | 40–60 (exception) |
+| [ ] | 145 | [E2E-007: remaining-multiple](E2E-Tasks/145-case-20.md) | 079b, 065, 143, 079a | Cases 20; gate in brief | 40–60 (exception) |
+| [ ] | 146 | [E2E-021: save](E2E-Tasks/146-case-112.md) | 143, 079b, 065, 079a | Cases 112; gate in brief | 40–60 (exception) |
+| [ ] | 147 | [E2E-021: approve-without-soft](E2E-Tasks/147-case-113.md) | 143, 079b, 065, 079a | Cases 113; gate in brief | 40–60 (exception) |
+| [ ] | 148 | [E2E-021: approve-with-soft](E2E-Tasks/148-case-114.md) | 143, 079b, 065, 079d | Cases 114; gate in brief | 40–60 (exception) |
+| [ ] | 149 | [E2E-021: revoke](E2E-Tasks/149-case-115.md) | 143, 079b, 065, 079a | Cases 115; gate in brief | 40–60 (exception) |
 | [ ] | 191 | [Read local date, time and timezone through SSH](E2E-Tasks/191-read-local-calendar-and-timezone.md) | 052c | TIME05 read-only system clock/timezone observations | 20–30 |
 | [ ] | 238 | [E2E-044: ordinary-daily-reset](E2E-Tasks/238-case-196.md) | 191, 065, 062 | Cases 196; gate in brief | Scheduled window; ≤60 (exception) |
 | [ ] | 239 | [E2E-044: ordinary-rest-of-day](E2E-Tasks/239-case-197.md) | 191, 065, 062 | Cases 197; gate in brief | Scheduled window; ≤60 (exception) |

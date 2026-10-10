@@ -13,7 +13,7 @@ Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-an
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
+- **079d** — APP02 and FLOW08 native blocked-launch results.
 - **186** — PARENT15 failed-save; FEED15 Parent and report-close binding.
 - **052c** — TIME03.
 

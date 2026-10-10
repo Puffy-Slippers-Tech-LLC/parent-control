@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **036f** under the
 
 ## Scope and prerequisites
 
-Deliver **APP01/02/03 native file-manager route**. First scheduled consumer: [E2E-019, case 74](../E2E-Scenario-Recipes.md#e2e-019).
+Deliver **APP01/02/03 native file-manager route**. First scheduled consumer: [E2E-019, case 76](../E2E-Scenario-Recipes.md#e2e-019).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

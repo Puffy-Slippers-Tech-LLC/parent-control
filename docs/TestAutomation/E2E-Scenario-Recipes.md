@@ -43,6 +43,11 @@ and the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supportin
 Reuse verified local fixtures, direct supporting commands and existing helpers.
 Preparation ends when the declared prerequisite is established; the following
 product action and independent customer result supply acceptance.
+Supporting qualification commands are not implicit recipe steps. Apply the
+[qualification separation](E2E-Execution-Contracts.md#product-focused-journeys)
+to every family: reuse unchanged qualified bindings and shared runtime guards;
+keep deliberate wrong-account and provider-refusal exercises in focused safety
+coverage. Changed bindings retain their required scoped qualification.
 
 Apply that scope to every family and finite branch below, including retained
 completed cases. Desktop, greeter, authentication-agent and chooser observations
@@ -635,9 +640,9 @@ restoration. Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status: Cases 58/59 passed installed acceptance on Ubuntu 26.04 and
+Implementation status: Cases 58–60 passed complete-case acceptance on Ubuntu 26.04 and
 Fedora 44; [exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices).
-Cases 60–61 pending.
+The affected cross-surface regression also passed on both; case 61 is pending.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -648,8 +653,8 @@ The reverse direction composes `request_flow.kiosk_to_overlay` /
 `onpc_request_flow::kiosk_to_overlay` and the same immutable endpoint checks;
 [both child bindings](E2E-Building-Blocks.md#kiosk-choices-transferred-to-overlays)
 are qualified through explicit fresh entry and destination reads before edits.
-Each case still owns its finite values, order and complete acceptance; cases
-60–61 remain pending.
+Each case still owns its finite values, order and complete acceptance; case
+60 is registered through `remembered_choices.REVERSE_PLAN`; case 61 remains pending.
 
 Case 58 composes `remembered_choices.PLAN` / `onpc_remembered_choices::run`:
 Jordan then Riley seed the recipe's own distinct values; one overlay visit and
@@ -669,11 +674,21 @@ values: Riley first with custom `1.25` / soft included, then Jordan with `2.5`
 Both original overlay captures are compared at transfer and again after
 Riley/Jordan reselection in the open station, without retained desktop returns.
 
+Case 60 composes `remembered_choices.REVERSE_PLAN` /
+`onpc_remembered_choices::run_reverse`. Fresh Jordan/Riley overlay entries
+remember Casey without changing request values, then log out. The station saves
+Jamie and Jordan's custom `1.25` minutes / soft included, transfers to Jordan's
+untouched overlay through FLOW12 fresh entry, then repeats with Riley's `2.5`
+minutes / soft excluded. After each transfer the child logs out. Fresh overlay
+reentries read Jordan and Riley again against their original station captures:
+four immutable comparisons prove transfer, persistence, child isolation and
+local approvers. No retained desktop, approval or time denial is required.
+
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
 2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
-3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk, with no retained desktop return; kiosk-to-overlay composes the qualified fresh child entry, with complete-case persistence comparisons remaining in cases 60–61.
+3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk; kiosk-to-overlay logs out and freshly reenters both child overlays for persistence/isolation readbacks. Case 61 remains pending.
 
 ### E2E-019
 

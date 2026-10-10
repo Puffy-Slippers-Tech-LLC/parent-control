@@ -30,7 +30,7 @@ perform the recipe's copies through FILE05. Reuse command launch/result operatio
 
 ## Live VM acceptance
 
-On the live VM, copy each declared executable through the shared FILE05 command helper and verify its exact destination/content. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Do not generalize this to arbitrary copied programs.
+On the live VM, copy the added comma-containing executable through the shared FILE05 command helper and verify its exact destination/content. Under publicly saved Hard and Soft rules, require original and identical-copy denial while N remains usable. Qualify independently prepared owned source/destination entry and wrong-path/owner/destination refusal before mutation. Reuse 035d's unchanged exact space-path qualification, rerunning it only when affected; it supplies no saved VM state. Case 188 still exercises both finite fixtures. Do not generalize this to arbitrary copied programs.
 
 Qualification selector (implement and register before use):
 

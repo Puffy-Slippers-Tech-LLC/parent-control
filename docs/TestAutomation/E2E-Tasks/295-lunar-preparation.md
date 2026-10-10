@@ -8,7 +8,6 @@ Estimate: 20–30 minutes.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **006** — LIFE04 install only.
-- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
 
 First consumer:
 [E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).
@@ -27,7 +26,9 @@ the authorized `tools/prepare-vm` route and its finite owned inventory,
 under the [baseline mandate](../../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
 Do not create alternate snapshots, overwrite baseline state outside that route,
 skip restore or add an automatic installer to FIX05.
-Keep FIX04's transfer-only boundary. Missing assets, expired sign-in, mandatory
+Read the restored real-app inputs in place; the FILE05 copy/rename and FIX04
+synthetic-file qualification are not prerequisites for this read-only verifier.
+Missing assets, expired sign-in, mandatory
 updates or unresolved restored-state ownership leave this task blocked.
 
 ## Qualification and close-out

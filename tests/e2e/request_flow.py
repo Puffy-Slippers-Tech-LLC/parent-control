@@ -23,18 +23,20 @@ def transfer_allowances():
     }
 
 
-def kiosk_to_overlay(prefix, *, child, entry):
+def kiosk_to_overlay(prefix, *, child, entry, choices='qualification'):
     """FLOW12: leave a captured station form and read the untouched child overlay."""
     from journey_blocks import desktop_entry, prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
     require(entry in ('fresh', 'retained'), 'request-transfer:entry')
+    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
+    binding = 'transfer' if choices == 'qualification' else choices
     role = 'child' if child == 'riley' else 'other-child'
     return {
         **prefixed_stages(prefix, {
             'cancel': 'ui:kiosk-request-cancel', 'greeter': 'ui:gdm-station-returned'}),
         **prefixed_stages(prefix + '-entry', desktop_entry(role, source='gdm', entry=entry)),
-        prefix + '-launch': f'ui:transfer-overlay-{child}-launch',
-        prefix + '-read': f'ui:transfer-overlay-{child}-read',
+        prefix + '-launch': f'ui:{binding}-overlay-{child}-launch',
+        prefix + '-read': f'ui:{binding}-overlay-{child}-read',
     }
 
 

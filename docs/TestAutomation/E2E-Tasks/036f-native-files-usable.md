@@ -12,12 +12,12 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
+- **047** — APP04 and FLOW08 native usable-app observations.
 
 ## Implementation
 
-Open Files directly at the prepared fixture directory through FILE04, then bind
+Verify the native baseline assets already supplied through 047. Open Files
+directly at that prepared fixture directory through FILE04, then bind
 only the exact fixture's activation and supported separate-window action. Reuse
 the existing location adapter if needed; no folder browsing, copy operation,
 Properties dialog or view customization belongs to this launch check. Reuse

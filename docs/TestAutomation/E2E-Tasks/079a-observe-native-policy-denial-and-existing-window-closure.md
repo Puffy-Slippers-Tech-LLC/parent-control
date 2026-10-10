@@ -14,12 +14,13 @@ Reuse the delivered scope of tasks **079d** under the
 
 ## Scope and prerequisites
 
-Deliver **APP02 and FLOW08 native grid/command policy results**. First scheduled consumer: [E2E-005, case 7](../E2E-Scenario-Recipes.md#e2e-005).
+Deliver **APP02 and FLOW08 native grid/command policy results**. First scheduled consumer: [E2E-006, case 13](../E2E-Scenario-Recipes.md#e2e-005).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use), [related block contracts](../E2E-Building-Blocks.md#reusable-journey-fragments) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **079d** — APP02 and FLOW08 native grid/command blocked-launch results.
+- **044** — Legitimate return to the captured child desktop after the Parent save.
 
 ## Implementation
 

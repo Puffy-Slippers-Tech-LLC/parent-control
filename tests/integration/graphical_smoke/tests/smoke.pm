@@ -277,6 +277,12 @@ sub run {
         onpc_remembered_choices::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{remembered_reverse}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_remembered_choices::run_reverse(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{cross_surface}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

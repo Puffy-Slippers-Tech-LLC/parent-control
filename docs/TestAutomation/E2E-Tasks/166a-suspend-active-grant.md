@@ -12,7 +12,7 @@ complete cases released directly by this slice in the canonical queue.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **052a** — TIME02 minute/final-second ticks.
+- **052** — TIME01 public child-desktop remaining balance.
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 - **043a** — GDM02 retained-child lock entry; DESK08/11.
 - **052c** — TIME03.

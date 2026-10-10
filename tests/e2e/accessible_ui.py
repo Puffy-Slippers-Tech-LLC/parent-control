@@ -938,7 +938,7 @@ for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-seco
     for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
         for _surface, _actions in (
                 ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
-                ('kiosk', ('select-default', 'approver', 'select', 'read'))):
+                ('kiosk', ('select-default', 'approver', 'select', 'custom', 'text', 'apps', 'read'))):
             for _action in _actions:
                 _operation = f'{_profile}-{_surface}-{_name}-{_action}'
                 _overlay = _surface == 'overlay'
@@ -951,6 +951,11 @@ for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-seco
                 TRANSFER_CHOICES[_operation] = _values
                 if _action in ('default', 'approver', 'select-default', 'select', 'read'):
                     TRANSFER_REQUESTS[_operation] = _values
+# The reverse case selects Riley after saving Jamie at the kiosk for Jordan.
+# Fresh-station seed bindings above still require their initial Casey selection.
+_operation = 'remembered-reverse-kiosk-riley-select-default'
+TRANSFER_OPERATIONS[_operation] = (False, CHILD, 'select-default')
+TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation] = (1800, None, False, PARENT)
 for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
     TRANSFER_OPERATIONS[f'reverse-overlay-{_name}-wrong-child'] = (True, _child, 'wrong-child')
     for _action in ('custom', 'text', 'apps', 'read'):
@@ -8648,6 +8653,10 @@ class AccessibleUI:
                 'ui:kiosk-valid-binding')
         require(not awaiting_custom or identity == 'kiosk-custom-duration',
                 'ui:kiosk-valid-binding')
+        # A mismatched OS account is conclusive before discovering any UI.
+        # Unrelated desktop providers may exit while a complete tree is read.
+        if overlay:
+            self.require_child_overlay_session(child)
         observation = self.read_snapshot()
         window = self.request_surface(observation, overlay=overlay, child=child)
         form = self.snapshot_owned_target('kiosk-request-form', root=window, observation=observation)

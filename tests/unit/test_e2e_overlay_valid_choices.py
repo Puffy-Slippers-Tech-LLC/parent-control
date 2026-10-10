@@ -31,7 +31,7 @@ from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN, ChoicesOverlayToKioskJourney
 from cross_surface import PLAN as REVERSE_PLAN
-from remembered_choices import PLAN as REMEMBERED_PLAN, SECOND_PLAN
+from remembered_choices import PLAN as REMEMBERED_PLAN, SECOND_PLAN, REVERSE_PLAN as REVERSE_CASE_PLAN
 from request_composition import KioskRequestJourney
 from tests.support.desktop_session import RUN_PROBE
 from tests.support.paths import ROOT
@@ -48,7 +48,7 @@ def transfer_request(*, overlay=True, jordan=False, remembered=False):
         cancel_enabled=True, message='', mute=None)
 
 
-@pytest.mark.parametrize('case', [False, True, 'second', 'diagnosis', 'repeat', 'entry', 'reverse'])
+@pytest.mark.parametrize('case', [False, True, 'second', 'diagnosis', 'repeat', 'entry', 'reverse', 'reverse-case'])
 def test_transfer_worker_order_titles_refusal_and_registration(tmp_path, monkeypatch, case):
     import check_e2e_choices_overlay_to_kiosk as check
     import session_control
@@ -80,6 +80,8 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
     if case == 'second':
         plan = SECOND_PLAN
+    if case == 'reverse-case':
+        plan = REVERSE_CASE_PLAN
     if case == 'reverse':
         plan = REVERSE_PLAN
         import check_e2e_cross_surface as check
@@ -104,13 +106,15 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         program = program.replace('onpc_request_flow::qualify_choices_overlay_to_kiosk',
                                   'onpc_remembered_choices::repeat_return_for_diagnosis'
                                   if case == 'repeat' else 'onpc_remembered_choices::enter_return_for_diagnosis'
-                                  if case == 'entry' else 'onpc_remembered_choices::run')
+                                  if case == 'entry' else 'onpc_remembered_choices::run_reverse'
+                                  if case == 'reverse-case' else 'onpc_remembered_choices::run')
     binding = json.dumps({'invocations': plan.invocations, 'challenges': plan.challenges})
     result = json.loads(run_perl(program, '', binding).stdout)
     assert result['ok'], result
     events = result['events']
     assert [row[1] for row in events if row[0] == 'stage'] == list(plan.screen_tags)
     assert events.count(['secret']) == (2 if case == 'repeat' else 1 if case == 'entry'
+                                      else 7 if case == 'reverse-case'
                                       else 5 if case in ('diagnosis', 'reverse') else 3)
     for stage in plan.screen_tags:
         failed = json.loads(run_perl(program, stage, binding).stdout)
@@ -166,14 +170,16 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'replay', 'child', 'soft', 'approver', 'duration', 'source-mutated'])
-@pytest.mark.parametrize('remembered', [False, True, 'second', 'reverse'])
+@pytest.mark.parametrize('remembered', [False, True, 'second', 'reverse', 'reverse-case'])
 def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, remembered):
-    reverse = remembered == 'reverse'
+    reverse = remembered in ('reverse', 'reverse-case')
+    if remembered == 'reverse-case':
+        remembered = True
     if reverse:
-        remembered = False
+        remembered = remembered is True
     binding = 'remembered-second' if remembered == 'second' else 'remembered' if remembered else 'transfer'
-    source_op = 'reverse-kiosk-jordan-read' if reverse else f'{binding}-overlay-jordan-read'
-    destination_op = 'transfer-overlay-jordan-read' if reverse else f'{binding}-kiosk-jordan-read'
+    source_op = ('remembered-kiosk-jordan-read' if remembered else 'reverse-kiosk-jordan-read') if reverse else f'{binding}-overlay-jordan-read'
+    destination_op = f'{binding}-overlay-jordan-read' if reverse else f'{binding}-kiosk-jordan-read'
     plan = JourneyPlan('renamed-transfer', 'renamed-transfer', {
         'capture': 'ui:' + source_op, 'destination': 'ui:' + destination_op}, {},
         request_transfer_checks={'destination': 'capture'})
@@ -184,7 +190,8 @@ def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, r
     value = transfer_request(overlay=reverse, jordan=True, remembered=remembered)
     if fault in ('child', 'soft', 'approver', 'duration'):
         key, replacement = {'child': ('child', 'fixture-child'), 'soft': ('allow_soft', not value['allow_soft']),
-            'approver': ('approver', 'other-fixture-parent' if remembered or reverse else 'fixture-parent'),
+            'approver': ('approver', 'fixture-parent' if remembered and reverse else
+                        'other-fixture-parent' if remembered or reverse else 'fixture-parent'),
             'duration': ('custom_text', '2.5' if remembered is True else '1.25')}[fault]
         value[key] = replacement
     if fault == 'replay': journey.check_transferred_request('destination', {'ui': {'request': value}})
@@ -202,7 +209,7 @@ def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, r
         assert journey.steps[-1]['comparison']['shared_child_choices_local_approver'] is True
 
 
-@pytest.mark.parametrize('case', [False, True, 'second', 'reverse'])
+@pytest.mark.parametrize('case', [False, True, 'second', 'reverse', 'reverse-case'])
 def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
     import installed_journey
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
@@ -210,6 +217,8 @@ def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
         plan = SECOND_PLAN
     if case == 'reverse':
         plan = REVERSE_PLAN
+    if case == 'reverse-case':
+        plan = REVERSE_CASE_PLAN
     journey_type = KioskRequestJourney if case else ChoicesOverlayToKioskJourney
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(), guestfs=Mock(),
         commands=Mock(), verified=SimpleNamespace(inputs={}))
@@ -219,6 +228,32 @@ def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
     context.run_worker = worker
     monkeypatch.setattr(journey_type, 'validate', lambda self: [])
     installed_journey.record_installed_journey(MagicMock(), context, plan, journey_type=journey_type)
+
+
+@pytest.mark.parametrize('fault', ['', 'missing', 'changed', 'replayed', 'mutated-source'])
+def test_reverse_case_all_declared_comparisons_use_original_station_captures(tmp_path, fault):
+    journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), REVERSE_CASE_PLAN)
+    for child in ('jordan', 'riley'):
+        source = transfer_request(overlay=False, jordan=child == 'jordan', remembered=True)
+        if fault != 'missing':
+            journey.check_transferred_request(child + '-source', {'ui': {'request': source}})
+        if fault == 'mutated-source':
+            source['custom_text'] = '999'
+        for suffix in ('transfer-read', 'revisit-read'):
+            stage = child + '-' + suffix
+            result = transfer_request(overlay=True, jordan=child == 'jordan', remembered=True)
+            if fault == 'changed':
+                result['allow_soft'] = not result['allow_soft']
+            observed = {'ui': {'request': result}}
+            if fault in ('missing', 'changed'):
+                with pytest.raises(EvidenceError):
+                    journey.check_transferred_request(stage, observed)
+            else:
+                journey.check_transferred_request(stage, observed)
+                assert observed['comparison']['shared_child_choices_local_approver']
+                if fault == 'replayed':
+                    with pytest.raises(EvidenceError, match='request-transfer:replay'):
+                        journey.check_transferred_request(stage, observed)
 
 
 @pytest.mark.parametrize('jordan', [False, True])
@@ -317,6 +352,11 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 @pytest.mark.parametrize('jordan', [False, True])
 def test_reverse_overlay_wrong_child_refuses_before_input(monkeypatch, jordan):
     ui, _, _, _, custom = overlay(monkeypatch)
+    soft = ui.find_id('kiosk-soft-apps-toggle')
+    submit = ui.find_id('kiosk-request-submit')
+    # A vanished desktop provider must not prevent a conclusive UID refusal.
+    # This reproduces the retained Jordan failure before target discovery.
+    ui.read_snapshot = Mock(side_effect=RuntimeError('synthetic provider service missing'))
     uid = 1002 if jordan else 1001
     monkeypatch.setattr(a.pwd, 'getpwnam', lambda account: SimpleNamespace(pw_uid=
         1002 if account == 'onpc-child-jordan' else 1001))
@@ -324,16 +364,21 @@ def test_reverse_overlay_wrong_child_refuses_before_input(monkeypatch, jordan):
     monkeypatch.setattr(a.os, 'geteuid', lambda: uid)
     operation = f'reverse-overlay-{"jordan" if jordan else "riley"}-wrong-child'
     assert ui.run(operation, '')['outcome'] == 'passed'
+    ui.read_snapshot.assert_not_called()
     custom.setText.assert_not_called()
-    ui.find_id('kiosk-soft-apps-toggle').setValue.assert_not_called()
-    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+    soft.setValue.assert_not_called()
+    submit.action.do_action.assert_not_called()
 
 
 @pytest.mark.parametrize('entry', ['fresh', 'retained'])
-def test_reverse_transfer_shared_fragment_independent_named_caller(entry):
+@pytest.mark.parametrize('choices', ['qualification', 'remembered'])
+def test_reverse_transfer_shared_fragment_independent_named_caller(entry, choices):
     from request_flow import kiosk_to_overlay
     from journey_blocks import fresh_desktop, prefixed_stages
-    stages = kiosk_to_overlay('renamed', child='jordan', entry=entry)
+    stages = kiosk_to_overlay('renamed', child='jordan', entry=entry, choices=choices)
+    assert stages['renamed-read'] == f'ui:{"transfer" if choices == "qualification" else choices}-overlay-jordan-read'
+    with pytest.raises(EvidenceError, match='request-transfer:choices'):
+        kiosk_to_overlay('renamed', child='jordan', entry=entry, choices='unknown')
     declaration = {'invocations': tuple(prefixed_stages('renamed-entry', fresh_desktop('other-child'))),
                    'challenges': {'renamed-entry': ('other-child',
                        'renamed-entry-standard-recipient-qualified', 'renamed-entry-standard-recipient-rechecked')}}
@@ -362,8 +407,9 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
 
 
 @pytest.mark.parametrize('jordan', [False, True])
+@pytest.mark.parametrize('remembered', [False, True])
 @pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-owner', 'disabled', 'prompt', 'uncertain'])
-def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jordan, fault):
+def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jordan, remembered, fault):
     ui, application, child, _, custom = overlay(monkeypatch)
     application.identity = a.KIOSK_APPLICATION
     child.states.add('sensitive')
@@ -371,10 +417,11 @@ def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jorda
     child.value = str(uid)
     child.children[0].identity = 'kiosk-child-selected-' + str(uid)
     child.description = f'Selected account: {a.EXISTING_CHILD if jordan else a.CHILD}.'
-    ui.find_id('kiosk-approver-selector').setValue(str(ui.fixture_uids[a.OTHER_PARENT]))
+    ui.find_id('kiosk-approver-selector').setValue(str(ui.fixture_uids[a.PARENT if remembered else a.OTHER_PARENT]))
     ui.find_id('kiosk-duration-custom').action.do_action(0)
-    custom.value = '2.5' if jordan else '1.25'
-    if not jordan:
+    short = jordan if remembered else not jordan
+    custom.value = '1.25' if short else '2.5'
+    if short:
         ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
     unit = Node(identity='kiosk-custom-duration-units', value='minutes')
     unit.parent = custom.parent
@@ -385,7 +432,8 @@ def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jorda
     if fault == 'disabled': custom.states.discard('sensitive')
     if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
     if fault == 'uncertain': custom.setText.side_effect = TimeoutError('uncertain')
-    operation = f'reverse-kiosk-{name}-text'
+    binding = 'remembered' if remembered else 'reverse'
+    operation = f'{binding}-kiosk-{name}-text'
     if fault:
         with pytest.raises((a.UiError, TimeoutError)): ui.run(operation, '')
     else:
@@ -396,14 +444,14 @@ def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jorda
         custom.setText.assert_called_once()
     if fault:
         return
-    operation = f'reverse-kiosk-{name}-read'
+    operation = f'{binding}-kiosk-{name}-read'
     value = ui.run(operation, '')
     raw = capsys.readouterr().out.encode() + (json.dumps(value) + '\n').encode()
     def call(*_args, on_output, **_kwargs):
         for offset in range(0, len(raw), 17): on_output(raw[offset:offset + 17])
         return raw
     observer = UiObservations(SimpleNamespace(call=call, commands=SimpleNamespace(progress=None)))
-    assert observer.observe(operation)['request'] == transfer_request(overlay=False, jordan=jordan)
+    assert observer.observe(operation)['request'] == transfer_request(overlay=False, jordan=jordan, remembered=remembered)
 
 
 def test_remembered_station_seeds_local_approver_from_distinct_default(monkeypatch):
@@ -419,6 +467,44 @@ def test_remembered_station_seeds_local_approver_from_distinct_default(monkeypat
     request = RequestObservation.from_request(value['request'], operation='remembered-kiosk-jordan-approver')
     assert request.child == 'existing-fixture-child' and request.approver == 'fixture-parent'
     assert request.duration_seconds == 1800 and request.custom_text is None and request.allow_soft is False
+
+
+@pytest.mark.parametrize('fault', ['', 'approver', 'child', 'soft', 'duration'])
+def test_reverse_case_default_reads_preserve_station_approver_history(capsys, fault):
+    ui, selector, _, _ = accounts_form('child')
+    approver = ui.find_id('kiosk-approver-selector')
+    for child, parent in (('jordan', a.OTHER_PARENT), ('riley', a.PARENT)):
+        # The first station entry starts at Casey; the second retains Jamie
+        # saved by the preceding Jordan visit, even when Riley is selected.
+        uid = str(ui.fixture_uids[parent])
+        approver.value = uid
+        approver.children[0].identity = 'kiosk-approver-selected-' + uid
+        approver.description = f'Selected account: {parent}.'
+        operation = REVERSE_CASE_PLAN.screen_tags[child + '-select-default'][3:]
+        value = ui.run(operation, '')
+        selector.setValue.assert_called_with(str(ui.fixture_uids[
+            a.EXISTING_CHILD if child == 'jordan' else a.CHILD]))
+        if fault and child == 'riley':
+            field, replacement = {
+                'approver': ('approver', 'other-fixture-parent'),
+                'child': ('child', 'existing-fixture-child'),
+                'soft': ('allow_soft', True), 'duration': ('duration_seconds', 75),
+            }[fault]
+            value['request'][field] = replacement
+        raw = capsys.readouterr().out.encode() + (json.dumps(value) + '\n').encode()
+        def call(*_args, on_output, **_kwargs):
+            for offset in range(0, len(raw), 17):
+                on_output(raw[offset:offset + 17])
+            return raw
+        observer = UiObservations(SimpleNamespace(call=call, commands=SimpleNamespace(progress=None)))
+        if fault and child == 'riley':
+            with pytest.raises(EvidenceError, match='ui:request'):
+                observer.observe(operation)
+        else:
+            request = observer.observe(operation)['request']
+            assert request['approver'] == a.APPROVER_IDENTITIES[parent]
+            assert request['duration_seconds'] == 1800 and request['custom_text'] is None
+            assert request['allow_soft'] is False
 
 
 @pytest.mark.parametrize('plan,journey_type', [(PLAN, OverlayValidChoicesJourney),

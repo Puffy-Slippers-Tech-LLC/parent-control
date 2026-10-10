@@ -2013,6 +2013,13 @@ a mechanical test issue. Report the cause, correction and verification in the
 normal work summary. A test's disagreement with the app alone never justifies
 classifying the test as broken.
 
+Classify supporting qualification and feature results separately. A supporting
+failure does not establish a product defect without evidence connecting it to
+the required product behavior, and it does not erase an independently valid
+feature pass. Keep unresolved safety qualification open; a feature pass does
+not qualify its harness. Before repairing an incidental dependency, apply the
+[product-focused review](../docs/TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys).
+
 Read the failed operation's retained error and independent result, not only a
 generic worker/SSH error or its last printed title. A title may precede a failed
 exchange. Use the [composition preflight](../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
@@ -2039,8 +2046,11 @@ the unexecuted/failed selection with its original assertions.
    assert unchanged grants/policy and recovery, not just Ubuntu's error message.
    For every new E2E case and maintenance change, apply the mandate's
    [three review questions](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
-   to steps, observations and acceptance, including shared flows and
-   qualifications. Reconcile recipes and unfinished consumers under the
+   to steps, observations, prerequisites and acceptance, including shared flows
+   and qualification commands. Reject conclusively invalid accounts/ownership
+   before unrelated UI discovery; keep that refusal in focused safety coverage.
+   Ordinary feature cases retain runtime guards without repeating unchanged
+   qualification histories. Reconcile recipes and unfinished consumers under the
    [journey review contract](../docs/TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys);
    remove an unnecessary dependency before adding adapters, retries or timeouts.
 2. Classify the tests, their affected components/shared dependencies, runner,

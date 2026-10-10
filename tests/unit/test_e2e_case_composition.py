@@ -212,7 +212,7 @@ def test_ready_binding_phases_assertions_and_worker_are_registered(monkeypatch, 
     branches = re.findall(r'if \(\$ready->\{(\w+)\}\) \{(.*?)\n    \}', dispatch, re.S)
     branch = [body for mode, body in branches if mode == plan.worker_mode]
     assert len(branch) == 1, plan.worker_mode
-    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_none|run_links|run_overlay|run_removal|run_parent_notice|run_child_notice|run_kiosk_notice|search_filters|parent_error_report)\(', branch[0])
+    workers = re.findall(r'\b(onpc_\w+)::(?:run|run_reverse|run_none|run_links|run_overlay|run_removal|run_parent_notice|run_child_notice|run_kiosk_notice|search_filters|parent_error_report)\(', branch[0])
     assert len(workers) == 1, plan.worker_mode
     source = (ROOT / 'tests/integration/graphical_smoke/lib' / (workers[0] + '.pm')).read_text()
     # Logging is harmless; raw input, process/file I/O and provider selection
@@ -264,6 +264,36 @@ def test_remembered_choices_case_compares_both_children_without_retained_logins(
     assert plan.assertions_after == {children[-1] + '-revisit-read': 'visible-result'}
     assert plan.advance_after == {'installed-greeter': 'step-1', children[0] + '-source': 'step-2',
                                   children[0] + '-transfer-read': 'step-3'}
+
+
+def test_reverse_remembered_case_compares_transfer_and_reopened_overlays(monkeypatch):
+    import accessible_ui
+    from request_composition import KioskRequestJourney
+    variant = next(variant for _, variant in READY if variant['coverage_id'] == 60)
+    _, plan, options = capture_composition(monkeypatch, variant)
+    assert options['journey_type'] is KioskRequestJourney
+    assert plan.request_transfer_checks == {
+        **{child + '-transfer-read': child + '-source' for child in ('jordan', 'riley')},
+        **{child + '-revisit-read': child + '-source' for child in ('jordan', 'riley')},
+    }
+    assert [stage for stage in plan.screen_tags if stage.endswith('-source')] == ['jordan-source', 'riley-source']
+    assert [stage for stage in plan.screen_tags if stage.endswith('-revisit-read')] == [
+        'jordan-revisit-read', 'riley-revisit-read']
+    for child, values in (('jordan', (75, '1.25', True)), ('riley', (150, '2.5', False))):
+        for surface, approver in (('overlay', accessible_ui.OTHER_PARENT), ('kiosk', accessible_ui.PARENT)):
+            assert accessible_ui.TRANSFER_REQUESTS[f'remembered-{surface}-{child}-read'] == (*values, approver)
+        for prefix in (child + '-seed', child, child + '-revisit'):
+            assert any(stage == prefix + '-logout' for stage in plan.screen_tags) == (
+                prefix != 'riley-revisit')
+    assert set(plan.challenges) == {'initial', *(
+        child + '-' + suffix + '-entry' for child in ('jordan', 'riley')
+        for suffix in ('seed', 'transfer', 'revisit'))}
+    assert not any(tag.endswith('-entry-retained') for tag in plan.screen_tags.values())
+    assert not any('approval' in tag for tag in plan.screen_tags.values())
+    assert plan.balance_checks == {'riley-allowance': 1800, 'jordan-allowance': 1800}
+    assert plan.assertions_after == {'riley-revisit-read': 'visible-result'}
+    assert plan.advance_after == {'installed-greeter': 'step-1', 'jordan-source': 'step-2',
+                                  'jordan-transfer-read': 'step-3'}
 
 
 def test_ready_catalogue_case_uses_the_shared_engine_with_recipe_endpoints(monkeypatch):

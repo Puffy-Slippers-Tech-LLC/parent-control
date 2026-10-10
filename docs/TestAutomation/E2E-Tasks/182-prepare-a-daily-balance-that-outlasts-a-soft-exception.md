@@ -14,8 +14,9 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **065** — FLOW13 grant-only/combined; retained entry and explicit revoke preparation.
 - **079b** — FLOW19.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
-- **052a** — TIME02 minute/final-second ticks.
+- **047** — APP04 and FLOW08 native usable-app observations.
+- **052** — TIME01 public child-desktop remaining balance.
+- **052c** — TIME03 bounded real wait.
 
 ## Implementation
 

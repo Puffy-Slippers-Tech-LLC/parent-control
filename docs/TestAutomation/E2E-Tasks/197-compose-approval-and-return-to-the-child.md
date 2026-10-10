@@ -13,7 +13,6 @@ Read the named [block contracts](../E2E-Building-Blocks.md#reusable-journey-frag
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **048b** — Overlay AUTH01/02, valid REQUEST09, REQUEST11/12 both approved exits and FLOW05/07.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 - **052** — TIME01 child-desktop presence and limits-off absence.
 
 ## Implementation

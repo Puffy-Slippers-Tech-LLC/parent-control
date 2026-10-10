@@ -13,7 +13,7 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **036** — FILE05 bounded copy/rename; FIX04 synthetic files.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
+- **079d** — APP02 and FLOW08 native launch results without a prior window.
 
 ## Implementation
 

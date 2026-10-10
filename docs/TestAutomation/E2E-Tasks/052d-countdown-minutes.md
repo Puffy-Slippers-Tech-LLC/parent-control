@@ -18,7 +18,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Compose countdown snapshots with guarded waits and monotonic elapsed comparisons for the minute-format branch only. Bind precision and tolerance before input.
+Compose countdown snapshots with guarded waits and monotonic elapsed comparisons for the minute-precision branch only. Bind public precision and tolerance before input; verify remaining-time progression rather than a separate formatting matrix, which belongs to child UI coverage.
 
 ## Live VM acceptance
 

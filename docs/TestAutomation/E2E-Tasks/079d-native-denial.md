@@ -14,7 +14,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **079** — PARENT16 and FLOW03 public app-policy editing.
 - **047** — APP04; FLOW08 native usable-app scope.
-- **044** — DESK09; FLOW15 and FLOW01 retained scopes.
 
 ## Implementation
 

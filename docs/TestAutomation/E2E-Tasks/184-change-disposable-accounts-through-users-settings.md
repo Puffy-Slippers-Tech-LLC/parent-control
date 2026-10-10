@@ -10,9 +10,8 @@ Estimate: 20–30 minutes. Follow the
 
 Deliver **ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards**.
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
-
-- **004** — UI19/GDM05 distinct single-use authentication challenges.
+Required tasks: none (Baseline). AUTH04 qualifies this operation's fixture/SSH
+authority and protected-account guards; no graphical authentication is involved.
 
 ## Read only this context
 
@@ -21,7 +20,7 @@ Apply the [system-operation rule](../../Mandates/UI-Automation-Mandate.MD).
 
 ## Implementation
 
-Extend the shared account-fixture helper to create the registered disposable standard child through supported system commands or AccountsService over guarded SSH. Read back its exact account/role. Keep credential bytes on the existing sealed provisioning channel; reject collisions and protect the active/last administrator and station. No Users page, Unlock prompt or add-user wizard.
+Extend the shared account-fixture helper to create the registered disposable standard child through supported system commands or AccountsService over guarded SSH. Read back its exact account/role. Keep credential bytes on the existing sealed provisioning channel; reject collisions and protect the active/last administrator and station. Validate known controller, registered-account and ownership restrictions before command submission; no desktop accessibility discovery is needed. No Users page, Unlock prompt or add-user wizard.
 
 ## Live VM acceptance
 

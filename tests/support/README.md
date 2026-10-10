@@ -408,6 +408,10 @@ children; resource classifications remain compatible with no new cleanup owner.
 The wrong-surface refusal reads the complete owner-pinned product API catalogue.
 It releases no input and does not traverse unrelated desktop providers; a
 disappearing external AT-SPI owner cannot prevent this product-only guard.
+Overlay input targets reject a mismatched OS account before discovering UI.
+The wrong-child qualification therefore establishes the existing UID refusal
+without depending on an unrelated desktop provider remaining alive; matching
+accounts still pass the full surface, selection, ownership and input guards.
 The `choices='remembered'` declaration selects the recipe's Jordan 75-second /
 included and Riley 150-second / excluded values, with Jamie at the station and
 the other eligible parent on each overlay. The `remembered-*` operations reuse
@@ -425,6 +429,19 @@ their order. Host checks cover both bindings, all refusal checkpoints, immutable
 comparisons and actual child-account reader/input guards.
 The historical full return scene is preserved only as `DIAGNOSTIC_PLAN` for
 explicit maintenance probes; it supplies no customer acceptance prerequisite.
+The reverse declaration `request_flow.kiosk_to_overlay(..., choices='remembered')`
+selects those same recipe values and local approvers, preserving the default
+qualification binding. Case 60 uses `remembered_choices.REVERSE_PLAN` and
+`onpc_remembered_choices::run_reverse` to seed local overlay approvers, capture
+each kiosk source and compare untouched transfer and fresh overlay reentry
+results against it. Ordinary logout avoids incidental retained-login requirements.
+Its second station entry uses `remembered-reverse-kiosk-riley-select-default`:
+Riley's untouched default request values must retain the kiosk's Jamie selection
+saved during Jordan's visit. Fresh-station seed bindings still require Casey.
+Kiosk custom/text/soft inputs reuse `AccessibleUI.transfer_choices`, including
+the same child, owner, availability and uncertain-input guards. These bindings
+introduce no new resource or cleanup owner; existing private unit fixtures and
+bounded waited Perl classifications apply.
 The qualification and its request-form regressions share VM-specific,
 fixture-source-bound package inputs. Their maintained preparation selects DEB or
 RPM from the verified baseline and preserves existing immutable bundles. Planning

@@ -61,6 +61,38 @@ sub visit {
     onpc_request_flow::overlay_to_kiosk($journey, $source, "$prefix-source", "$prefix-transfer", $child);
 }
 
+sub run_reverse {
+    onpc_progress::operation('Remembering both children choices from kiosk to reopened overlays');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'remembered-reverse:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'remembered-reverse', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_request_flow::prepare_transfer_allowances($journey);
+    for my $child (qw(jordan riley)) {
+        my $role = $child eq 'riley' ? 'child' : 'other-child';
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, 'fresh', 'success', "$child-seed-entry");
+        $journey->seen("$child-seed-$_") for qw(launch default approver cancel returned logout greeter);
+    }
+    onpc_gdm::enter_station($journey->scope('station'), '');
+    for my $child (qw(jordan riley)) {
+        $journey->seen("$child-$_") for qw(select-default approver custom text apps);
+        my $source = $journey->seen("$child-source");
+        onpc_request_flow::kiosk_to_overlay($journey, $source, "$child-source", "$child-transfer", $child, 'fresh');
+        $journey->seen("$child-$_") for qw(exit desktop logout greeter);
+        onpc_gdm::enter_station($journey->scope('next-station'), '') if $child eq 'jordan';
+    }
+    for my $child (qw(jordan riley)) {
+        my $prefix = "$child-revisit";
+        my $role = $child eq 'riley' ? 'child' : 'other-child';
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, 'fresh', 'success', "$prefix-entry");
+        $journey->seen("$prefix-$_") for qw(launch read);
+        $journey->seen("$prefix-$_") for $child eq 'jordan' ? qw(exit desktop logout greeter) : ();
+    }
+    $journey->finish();
+}
+
 sub repeat_return_for_diagnosis {
     onpc_progress::operation('Reproducing the retained child transfer and desktop return');
     my ($exchange, $declared, $challenges) = @_;

@@ -37,6 +37,9 @@ Briefs contain task-specific deltas. Use this format for new and revised briefs:
   Implementation and acceptance describe that remaining slice; the cumulative
   delivered scope includes its unchanged qualified prerequisites.
 - List required task IDs in the queue row's declared order with only the capability each supplies.
+  Retain a prerequisite only for an operation, independent result or safety
+  boundary the remaining slice actually needs; apply this to transitive scope
+  and selected supporting qualification commands too.
   State exact inventory binding/parameters for a scenario and link its recipe.
 - Name the final product result, finite input/branch references, relevant source
   paths/symbols and selected qualification or case command. Mark nonexistent
@@ -81,13 +84,35 @@ case command selects inventory `coverage_id`, never the task ID.
 
 Apply the mandate's [three review questions](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
 to new cases, existing executable cases, shared flows, completed qualifications,
-recipes and unfinished briefs. For each action, observation and acceptance condition,
+recipes and unfinished briefs. For each action, observation, prerequisite and acceptance condition,
 identify the product behavior it proves. Keep it when removing it would hide a
 distinct product failure, or when shared automation needs it to establish safe
 input or resource ownership. Otherwise remove it, combine it with a necessary
 observation, or use the simplest maintained system operation to reach the next
 product surface. A historical passing sequence does not make its incidental
 desktop behavior a future requirement.
+
+Separate three responsibilities when reviewing a task's prerequisites and commands:
+
+- The feature case owns its complete product journey and independent outcomes.
+  It calls guarded shared operations; it does not deliberately target the wrong
+  account or replay a provider's safety matrix just to consume those operations.
+- Focused harness coverage owns refusal, independent entry and input safety.
+  Reject a known invalid account/ownership/argument before discovering unrelated
+  UI services, and regress that refusal with discovery unavailable and no input.
+  Preserve fresh identity and recipient checks for valid entries.
+- Qualification establishes the exact shared binding's readiness. Preserve valid
+  unchanged qualification instead of rerunning its complete history for every
+  consumer. A changed guard, provider route or composition still needs its
+  affected checks and scoped live qualification; a new composition keeps its own
+  required acceptance. Name available selectors, or record a missing focused
+  selector as implementation work rather than claiming it exists.
+
+Classify a supporting failure against the assertion it could establish. A crash
+in an unrelated accessibility service during wrong-account qualification does
+not establish a defect in the product's remembered choices. Preserve the failed
+supporting result and any unresolved qualification separately from an independently
+passed feature case. Neither result cancels or supplies acceptance for the other.
 
 The journey should depend on the required destination and product result, not
 on an unrelated provider's exact path. In particular:

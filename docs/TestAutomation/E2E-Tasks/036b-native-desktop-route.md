@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **036g**, **036h** under the
 
 ## Scope and prerequisites
 
-Deliver **APP01/02/03 native desktop route**. First scheduled consumer: [E2E-019, case 68](../E2E-Scenario-Recipes.md#e2e-019).
+Deliver **APP01/02/03 native desktop route**. First scheduled consumer: [E2E-019, case 70](../E2E-Scenario-Recipes.md#e2e-019).
 Read the named [block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

@@ -15,7 +15,7 @@ complete cases released directly by this slice in the canonical queue.
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **007** — LIFE02.
-- **079a** — APP02 and FLOW08 native grid/command policy results.
+- **047** — APP04 and FLOW08 native usable-app observations.
 - **014** — FLOW04 kiosk.
 
 ## Implementation

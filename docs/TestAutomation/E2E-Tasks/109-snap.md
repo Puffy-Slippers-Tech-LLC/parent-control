@@ -14,7 +14,7 @@ Reuse the delivered scope of tasks **109b** under the
 
 ## Scope and prerequisites
 
-Deliver **APP01/02/03/04 and FLOW08 Snap command route**. First scheduled consumer: [E2E-019, case 92](../E2E-Scenario-Recipes.md#e2e-019).
+Deliver **APP01/02/03/04 and FLOW08 Snap command route**. First scheduled consumer: [E2E-019, case 94](../E2E-Scenario-Recipes.md#e2e-019).
 Read the named [block contracts](../E2E-Building-Blocks.md#fixture-boundaries-and-the-common-attempt-envelope), [related block contracts](../E2E-Building-Blocks.md#customer-terminal-files-and-application-use) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):

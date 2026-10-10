@@ -14,7 +14,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **038** — FEED06, FEED07, FEED12, FEED13.
 - **031a** — FEED09 collection trace.
 - **030** — FEED05; FEED10 dialog persistence.
-- **052c** — TIME03.
 
 ## Implementation
 

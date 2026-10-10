@@ -972,7 +972,7 @@ Implementation status: All cases pending.
 Bindings: delivery = success.
 
 1. P0 → FEED01 → UI16(reviewed body,empty reply address) → FEED06 → FEED03 → FEED05 → FEED11.
-2. FEED09(sending,success) → TIME03(5 seconds with thanks still present) → UI03(thanks without reply follow-up) → FEED14 → FEED01 → FEED03(cleared).
+2. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared).
 
 This single ordinary-feedback send absorbs former case 214. Case 220 sends an
 error report with a reviewed reply address; focused dialog checks own the exact
@@ -1802,6 +1802,11 @@ The customer accepts the app's actual service confirmation; mailbox delivery,
 transport idempotency and payload equality remain separate integration work.
 One action is issued once; uncertain input is never replayed.
 
+Read the owned confirmation and explicitly dismiss it; no fixed inspection
+wait is required. Preserve the original report exit as pending before dismissal
+and independently observe its destination afterwards. Exact confirmation wording
+and local dialog lifetime checks remain with the shared feedback UI owner.
+
 Review the exact current body, reply address and attachments before Send.
 Reuse Privacy evidence for the unchanged reviewed profile and qualified surface;
 do not reopen the disclosure in every send, retry or exit qualification. Case
@@ -1813,11 +1818,11 @@ scope, or another case's send result.
 
 | Case | Exact branch after preparation and one Send |
 | --- | --- |
-| 156 ordinary success | Leave the optional reply address empty. FEED09(success) → TIME03(5 seconds) → UI03(thanks without reply follow-up) → FEED14 → FEED01 → FEED03(cleared). |
+| 156 ordinary success | Leave the optional reply address empty. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
 | 157 retry/background | Start offline, FEED09(retry) → UI18(ordinary feedback only) → UI11(feedback) → LIFE06(reconnect before retry deadline). Keep the same Parent running and require no unsolicited feedback/thanks window. Reopen within the bounded completion interval and FEED03(cleared). If sending remains active, read FEED09 until explicit acceptance, dismiss any resulting thanks and reopen to verify the empty draft. No second Send and no inference from elapsed time alone. |
 | 216 app-exit | Offline FEED09(retry) → UI18(feedback) → UI18(Parent) → LIFE06(reconnect) → PARENT01 → FEED01 → FEED03(reset, no resumed outbox). Do not claim an earlier request could not have reached the service. |
 | 218 overlay-stop / 219 kiosk-stop | Offline FEED09(retry) → FEED17 → UI03(stop warning) → FEED18(stay) → FEED17 → FEED18(stop) → UI11(report) → DESK01 or GDM01. Restore Internet access through the same LIFE06 VM helper from that surface; no Parent visit/login. A stop cannot recall a request already accepted. |
-| 220 overlay-success / 221 kiosk-success | Case 220 includes the reviewed synthetic reply address and observes the reply follow-up note. FEED09(acceptance) → TIME03(5 seconds) → UI01(thanks still showing) → FEED14 → UI11(report) → DESK01 or GDM01. Original request flow exits only after manual dismissal. |
+| 220 overlay-success / 221 kiosk-success | Case 220 includes the reviewed synthetic reply address and observes the reply follow-up note. FEED09(acceptance and owned confirmation; original report exit still pending) → FEED14(manual dismissal) → UI11(report) → DESK01 or GDM01. |
 
 Collection recovery cases 208 and 213 each require a real publicly observed
 collection failure. Parent retry additionally requires genuine recovery;
@@ -2100,11 +2105,11 @@ repeating request preparation. Do not send feedback.
 
 One complete restricted kiosk English → Hebrew → English history for Riley,
 Jamie, 75 seconds and soft apps included, with English station desktop.
-In Hebrew, change approver Jamie → Casey → Jamie while requiring Riley's checked
+In Hebrew, change approver Jamie → Casey once while requiring Riley's checked
 language and translated request text to remain unchanged. Keep Riley, the custom
 75-second duration and included soft apps fixed; the declared approver is the only
-changed request field. Restore English through public Preferences and compare
-the original Riley/Jamie request choices.
+changed request field. Restore English through public Preferences with Casey
+still selected and compare Riley's unchanged duration and soft-app choice.
 
 Require representative installed Hebrew and restored English request context,
 literal account names, request numbers and station restrictions. Stable IDs and
@@ -2121,9 +2126,11 @@ task 300's continuous Chinese case.
 One uninterrupted Riley child history with an initial 10-minute daily-only
 allowance, zero grant and recorded app-policy rows. Use the declared native
 activity, capturing its synthetic content. Change English → Hebrew → English
-through overlay Preferences, close/reopen it and resume the retained child
-session. Independently observe shared choice, refreshed remaining time and the
-same retained activity using qualified public operations. Tooltip/menu content
+through overlay Preferences. After each language save, close the overlay and
+independently observe refreshed remaining-time language, elapsed time and the
+same usable activity on that child desktop. The next Preferences visit performs
+the next language change; omit the extra unchanged reopen and manual lock/unlock.
+E2E-011/022 retain their session-resume and lifecycle results. Tooltip/menu content
 and each label combination are child UI obligations.
 
 Use representative Hebrew and restored English time/request context to continue

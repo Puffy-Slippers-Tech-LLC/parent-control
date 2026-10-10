@@ -7,19 +7,19 @@ Estimate: 20–30 minutes.
 
 ## Session boundary
 
-Add the original command's specific public policy denial and compose the complete snapshot/launch/tray/Quit contract. Reuse 296c/296d; Minecraft and login intervals remain separate.
+Add the original command's specific public policy denial and complete public absence result. Reuse 296c's launch/window/absence operations; tray controls, Minecraft and login intervals remain separate.
 
-Reuse the delivered scope of tasks **296c**, **296d** under the
+Reuse the delivered scope of task **296c** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
 
 ## Scope and prerequisites
 
-Deliver **APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings**. First complete consumer:
+Deliver **APP01/02 Lunar original-AppImage command denial and complete public absence**. First complete consumer:
 [E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **296d** — APP06 Lunar/tray snapshot and close-to-tray/restore.
+- **296c** — Original-AppImage launch, owned Lunar window and complete public absence.
 - **079** — Public saved match/access editing for the original Lunar path.
 
 Its transitive prerequisites retain verified FIX05 Lunar/AppImageLauncher/autostart/
@@ -29,8 +29,9 @@ Minecraft assets and guarded TIME03 intervals.
 
 Add the original AppImage command's specific denial result under the
 [profile contract](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
-Reuse 296c/296d's command launch, Lunar window, close-to-tray, restore, Quit and
-APP06 surrounding-desktop snapshots when composing the new policy branch.
+Reuse 296c's command launch and owned-window/complete-absence observations
+when composing the new policy branch. Task 296d's tray close/restore is needed
+by allowed autostart, not by this command-denial qualification.
 Apply the external-provider exception only in
 explicit adapters, preserving owner, ambiguity and input/result checks. Keep
 Minecraft gameplay and continuous login observation in their following tasks.
@@ -39,8 +40,8 @@ Minecraft gameplay and continuous login observation in their following tasks.
 
 In fresh guarded attempts, qualify the original-AppImage command's specific
 policy denial using the prepared rule path and complete public observations.
-Reuse unchanged allowed launch/Quit and tray/restore results from 296c/296d;
-rerun their affected branches when the shared adapter changes.
+Reuse unchanged allowed launch/Quit and complete-absence qualification from
+296c; rerun its affected branches when the shared adapter changes.
 Qualify the independently supplied denied entry. Focused adapter checks cover
 wrong owner, ambiguity, incomplete observations and uncertain-input refusal
 without replay; keep the same runtime guards. Do not rerun the unchanged native

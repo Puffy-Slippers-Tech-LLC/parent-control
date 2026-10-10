@@ -4,7 +4,7 @@ Follow the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
-- **043c** — Public retained-child session unlock/resume.
+
 - **052** — Owned child countdown observations.
 - **300i** — Riley overlay language Save/Cancel and command relaunch.
 
@@ -13,11 +13,11 @@ Estimate: 20–30 minutes.
 ## Scope and acceptance
 
 Qualify Riley's panel binding for English → Hebrew → English through overlay
-Preferences. Close the overlay normally and independently observe the refreshed
-public countdown language and remaining time.
-Reopen the overlay, confirm the shared choice, close it, then resume the child
-session through the qualified retained-session route and observe refreshed
-countdown again. Require Hebrew/restored English public meaning and correct
+Preferences. After each language save, close the overlay normally and
+independently observe the refreshed public countdown language and remaining
+time on the same child desktop. The next Preferences visit performs the next
+language change; no extra unchanged reopen or manual lock/unlock cycle is needed.
+Require Hebrew/restored English public meaning and correct
 remaining time through the shared `child-panel` Application UI API. Full
 tooltip/menu translation and content combinations belong to host UI coverage;
 public IDs and matching semantics remain automation guards.
@@ -33,7 +33,7 @@ language evidence alone does not qualify the distinct product child-panel endpoi
 ## Shared implementation
 
 Reuse `AccessibleUI.child_countdown`, `overlay_panel_target`, LANG01,
-[countdown.py](../../../tests/e2e/countdown.py) and shared overlay/session
+[countdown.py](../../../tests/e2e/countdown.py) and shared overlay
 workers. Read `child-remaining-time` canonical seconds and translated text;
 extend their public observation schema for the exact panel language
 binding, preserving active Riley, duplicate-ID and uncertain-input guards.

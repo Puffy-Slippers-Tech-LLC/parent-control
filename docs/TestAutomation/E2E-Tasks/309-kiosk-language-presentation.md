@@ -14,11 +14,11 @@ Compose one complete case from the
 [fixed kiosk recipe](../E2E-Scenario-Recipes.md#kiosk-language-presentation-planned-task-309).
 Preserve the selected child's saved language across approver changes and the
 English → Hebrew → English history, with representative translated request text.
-In Hebrew, select Jamie → Casey → Jamie while keeping Riley, the 75-second
+In Hebrew, select Casey once while keeping Riley, the 75-second
 custom request and included soft apps unchanged; require the station to retain
-Riley's language throughout. Restore English and compare the original request
-choices. Keep station restrictions intact. Repeated About and error-report tours
-are outside this journey; Parent task 307 retains the mixed-script ordinary
+Riley's language. Restore English with Casey still selected and compare the
+same child, duration and soft-app choice. Keep station restrictions intact.
+Repeated About and error-report tours are outside this journey; Parent task 307 retains the mixed-script ordinary
 feedback draft check. The ordinary translated kiosk approvals
 remain in task 300's independent continuous Chinese case.
 

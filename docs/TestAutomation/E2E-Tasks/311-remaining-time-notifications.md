@@ -53,9 +53,10 @@ countdown; expect shared localized text and Critical urgency. Do not wait for
 the 10m and 5m warnings to appear; their saved defaults remain checked, but their
 delivery is outside this case's acceptance.
 Use German for one child and English for the other. Through the public
-dialog, create a 75-second reminder with `Save your game now`, update it to 15
-seconds, delete the other reminders, and save. Verify literal custom text across
-the language switch and the other child's unchanged reminders. Omit the extra
+dialog, create the final 15-second reminder with `Save your game now`, delete
+the other reminders, and save. Task 312 owns the create/edit persistence history.
+Verify literal custom text across the language switch and the other child's
+unchanged reminders. Omit the extra
 whitespace-only text delivery cycle.
 
 Compare fullscreen-enabled Critical delivery with fullscreen-disabled High

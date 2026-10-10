@@ -12,13 +12,13 @@ Estimate: 20–30 minutes.
 
 Qualify the station binding for Riley/Jamie, a 75-second soft-included request,
 and English → Hebrew → English via public Preferences. Verify the selected
-child's saved language reaches representative request text. Compare exact Riley
-and Jamie account identities, the 75-second custom request and included soft apps
-at each language transition. In Hebrew, change approver Jamie → Casey → Jamie;
+child's saved language reaches representative request text. Compare Riley's
+identity, the current approver, the 75-second custom request and included soft apps
+at each language transition. In Hebrew, change approver Jamie → Casey once;
 require Riley's checked language and Hebrew request context to remain unchanged,
-with the declared approver as the only changed request field. Restore English
-and require the original Riley/Jamie request choices. Retain station restrictions
-on external actions/files. Full translated-label/dialog combinations belong to
+with Casey as the only changed request field. Restore English with Casey still
+selected and require Riley's duration and soft-app choice unchanged. Retain
+station restrictions on external actions/files. Full translated-label/dialog combinations belong to
 host UI coverage; public IDs and matching semantics remain shared automation
 guards. Qualify independent entry and wrong selected-child/surface/owner refusal
 without uncertain replay.

@@ -38,6 +38,15 @@ callable name supplies no broader qualification. Apply the
 and [qualification separation](E2E-Execution-Contracts.md#product-focused-journeys).
 Documentation review supplies no task completion or new live qualification.
 
+The remaining-scope review keeps enforcement, approval, recovery, retained work,
+child isolation and lifecycle results. Feedback confirmation needs one acceptance
+read and manual dismissal, without a fixed inspection delay. Language journeys
+use one approver change for child ownership and observe the panel after each
+language save; ordinary session-resume coverage remains in E2E-011/022.
+Notification delivery saves its final custom reminder directly; task 312 owns
+reminder editing. Lunar command denial consumes launch/absence operations;
+tray controls remain a separate autostart prerequisite.
+
 ## Reallocated UI coverage
 
 Reallocated case: **161** (zero-total Revoke availability; Parent UI owner;
@@ -400,8 +409,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 308 | [Overlay Hebrew request and translated approval](E2E-Tasks/308-overlay-language-presentation.md) | 308b, 308a | Planned scenario; Hebrew/restored-English request, genuine translated approval and return to unchanged activity; exact binding and installed acceptance pending; gates and finite scope in brief | 30–45 (exception) |
 | [ ] | 309a | [Qualify kiosk Hebrew request presentation](E2E-Tasks/309a-kiosk-dialog-language.md) | 300j | Qualify Hebrew/restored-English station requests and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
 | [ ] | 309 | [Kiosk Hebrew request and child-language ownership](E2E-Tasks/309-kiosk-language-presentation.md) | 309a | Planned scenario; Hebrew/restored-English requests with unchanged choices and child's language across approver changes; exact binding and installed acceptance pending; gates and finite scope in brief | 20–30 |
-| [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 043c, 052, 300i | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
-| [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 043c, 051, 052a, 062, 310a | Planned scenario; Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
+| [ ] | 310a | [Qualify child panel language refresh and presentation](E2E-Tasks/310a-panel-language-refresh.md) | 052, 300i | Child language propagates to the countdown without resetting time or policy; exact binding and installed acceptance pending; gates in brief | 20–30 |
+| [ ] | 310 | [Language changes preserve countdown and natural expiry](E2E-Tasks/310-language-countdown-expiry.md) | 051, 052a, 062, 310a | Planned scenario; Language changes preserve countdown and natural expiry; exact binding and installed acceptance pending; gates and finite scope in brief | 35–55 (exception) |
 | [ ] | 197 | [Compose overlay approval and return](E2E-Tasks/197-compose-approval-and-return-to-the-child.md) | 048d, 052 | FLOW20 overlay new/open form | 20–30 |
 | [ ] | 265 | [E2E-048: daily-only-child-overlay](E2E-Tasks/265-case-223.md) | 197, 052c, 051 | Cases 223; gate in brief | 20–30 |
 | [ ] | 267 | [E2E-048: grant-only-child-overlay](E2E-Tasks/267-case-225.md) | 197, 052c, 065a | Cases 225; gate in brief | 20–30 |
@@ -573,7 +582,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 177 | [Preserve and qualify system obligation 148: concurrent transaction](E2E-Tasks/177-system-148.md) | Baseline | System obligation 148 | 30–60 (exception) |
 | [ ] | 178 | [Preserve and qualify system obligation 149: policy reload](E2E-Tasks/178-system-149.md) | Baseline | System obligation 149 | 30–60 (exception) |
 | [ ] | 179 | [Preserve and qualify system obligation 150: partial termination](E2E-Tasks/179-system-150.md) | Baseline | System obligation 150 | 30–60 (exception) |
-| [ ] | 150a | [Prepare the reviewed feedback submission profile](E2E-Tasks/150a-feedback-profile.md) | 038, 031a, 030, 052c | Concrete synthetic reports, recipient and authorization scope for FEED11 consumers | 20–30 |
+| [ ] | 150a | [Prepare the reviewed feedback submission profile](E2E-Tasks/150a-feedback-profile.md) | 038, 031a, 030 | Concrete synthetic reports, recipient and authorization scope for FEED11 consumers | 20–30 |
 | [ ] | 150 | [Submit one authorized synthetic report and read success](E2E-Tasks/150-feedback-send.md) | 150a | FEED11, FEED09 sending/success and FEED14 Parent feedback; gate in brief | 20–30 |
 | [ ] | 151 | [E2E-032: success](E2E-Tasks/151-case-156.md) | 150 | Cases 156; gate in brief | 35–55 (exception) |
 | [ ] | 152 | [Observe feedback recovery after system network changes](E2E-Tasks/152-network.md) | 150, 193 | FEED09 Parent retry/recovery over qualified LIFE06; gate in brief | 20–30 |
@@ -582,7 +591,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
 | [ ] | 296c | [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md) | 295, 052c | APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit | 20–30 |
 | [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore | 20–30 |
-| [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 296d, 079 | APP06 snapshot and APP01/02/03/UI18 Lunar launch, tray and Quit bindings | 20–30 |
+| [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 296c, 079 | APP01/02 Lunar original-AppImage command denial and complete public absence | 20–30 |
 | [ ] | 296e | [Launch Minecraft to its menu and exit normally](E2E-Tasks/296e-minecraft-entry-exit.md) | 296c | APP01/02/UI18 Lunar-to-Minecraft entry and return | 20–30 |
 | [ ] | 296a | [Play the prepared Minecraft local world](E2E-Tasks/296a-minecraft-provider.md) | 296e | APP01/02/03 and UI18 Minecraft local-world binding | 20–30 |
 | [ ] | 296f | [Observe allowed Lunar autostart across login](E2E-Tasks/296f-lunar-autostart-positive.md) | 296d, 296e, 007, 016a, 004, 052c, 180 | APP06/UI22 allowed continuous login interval | 40–60 (exception) |

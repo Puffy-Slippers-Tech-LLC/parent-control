@@ -30,7 +30,7 @@ draft comparison is needed in this submission slice.
 
 ## Live VM acceptance
 
-On the VM, produce the public error, review the report, Send once, observe acceptance and keep thanks visible for five seconds. Dismiss normally and require report closure plus the child desktop. Opening or successful transport alone cannot satisfy exit behavior.
+On the VM, produce the public error, review the report and Send once. Independently read acceptance and the owned confirmation while the original report exit remains pending. Dismiss it explicitly and require report closure plus the child desktop. Opening or successful transport alone cannot satisfy exit behavior.
 
 Planned qualification selector (not registered; implement before use):
 

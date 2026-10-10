@@ -1021,8 +1021,8 @@ for the remaining bindings:
 | Installed Hebrew logical text and labels | Parent chooser/dialogs and finite enabled policy qualified by 307a/307b/307c; complete Parent case 256 passed; other surfaces require separate qualification | 308–310 |
 | Hebrew overlay product approval/result with ordinary native Shell authentication | 308b | 308 |
 | Overlay Hebrew/restored-English request with unchanged choices and original activity | 308a | 308 |
-| Restricted kiosk Hebrew/restored-English request and child's language across approver changes | 309a | 309 |
-| Remaining-time and request information refresh after overlay language changes and session resume | 310a, using qualified panel reading and retained-session operations; tooltip/menu text matrices remain UI scope | 310 countdown/natural expiry |
+| Restricted kiosk Hebrew/restored-English request and child's language across one approver change | 309a | 309 |
+| Remaining-time language and time refresh after each overlay language save | 310a, using qualified panel reading and overlay operations; session resume remains E2E-011/022 and tooltip/menu text matrices remain UI scope | 310 countdown/natural expiry |
 
 Parent enabled-state readback is qualified for English/Chinese and the finite
 Riley/Hebrew 60-minute binding above. Complete Parent task 307 passed its own
@@ -1073,7 +1073,10 @@ Missing independent public identity or visibility remains a qualification gate.
 The [saved-reminder case 312](E2E-Tasks/312-child-reminder-preferences.md) and
 [warning case 311](E2E-Tasks/311-remaining-time-notifications.md) retain their
 separate complete histories. Case 311 reuses task 135a's real verified upgrade
-and task 129's fullscreen game. No selector, numeric inventory binding,
+and task 129's fullscreen game, saving its final custom reminder directly.
+Task 312 owns the reminder create/edit persistence history. Fullscreen banner
+qualification observes enabled delivery and disabled suppression; an extra
+windowed-return cycle is not required. No selector, numeric inventory binding,
 installed qualification or acceptance is supplied by this planning record.
 
 ### Daily allowance selection
@@ -4168,9 +4171,9 @@ preparation. Pin a profile that runs the declared local activity without downloa
 or authentication during the measured launch checks; requalify after drift.
 
 The [canonical queue](E2E-Task-Queue.md) separates original-AppImage usable
-launch/Quit (296c), tray close/restore (296d), specific command denial and their
-composition (296), Minecraft entry/exit (296e), local-world activity (296a),
-allowed continuous login (296f), and denied login/launch observation (296b).
+launch/Quit (296c), tray close/restore (296d), specific command denial and complete
+public absence (296, consuming 296c), Minecraft entry/exit (296e), local-world
+activity (296a), allowed continuous login (296f), and denied login/launch observation (296b).
 Their APP01/02/03/06, UI18 and UI22 bindings stay separately qualified; task
 order and prerequisites remain in the queue. Apply the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)

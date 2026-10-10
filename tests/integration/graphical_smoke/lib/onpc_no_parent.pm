@@ -18,7 +18,7 @@ sub run {
         $journey->consume_observation($stage, $result);
     }
     onpc_gdm::enter_station($journey, 'cancel-');
-    for my $stage ('empty-form', 'empty-rechecked') {
+    for my $stage ('empty-form', 'final-cancel-action', 'final-cancel-returned') {
         my $result = $journey->seen($stage);
         $journey->consume_observation($stage, $result);
     }

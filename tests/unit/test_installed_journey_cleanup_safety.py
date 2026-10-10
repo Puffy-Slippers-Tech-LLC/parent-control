@@ -418,8 +418,6 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                 result['settings']['allowance'] = ['1 hour']
             if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN) and state['stage'] == 'final-settings':
                 result['settings'].update(limit_enabled=True, allowance=['30 minutes'])
-            if plan is search_filters.PLAN and state['stage'] == 'saved-settings':
-                result['settings'].update(limit_enabled=True, allowance=['30 minutes'])
             if plan is named_child_custom_saves.PLAN and state['stage'] in plan.settings_checks:
                 expected = plan.settings_checks[state['stage']]
                 result['settings'].update(child=expected.child, limit_enabled=expected.limit_enabled,
@@ -483,7 +481,7 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
                                  'choice': plan.access_checks[state['stage']]}
                 if action == 'row' else {'page': 'screen'} if action == 'screen' else
                 {'refusal': action} if action in ('wrong-row', 'disabled') else {'chosen': action})
-        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN, policy_legend.PLAN, search_filters.PLAN) and state['stage'] in (
+        if plan in (fresh_thirty_allowance.PLAN, fresh_thirty_allowance.JORDAN_PLAN, policy_legend.PLAN) and state['stage'] in (
                 'allowance-configured', 'balance-reread'):
             result['time_explanation'] = {
                 'child': 'existing-fixture-child' if child == 'existing' else 'fixture-child',

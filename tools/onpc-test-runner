@@ -133,6 +133,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
                                       'reproduce-gdm-denial', 'reproduce-lock-denial',
                                       'reproduce-retained-entry', 'probe-lock-curtain',
+                                      'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                       'reproduce-remembered-return', 'probe-remembered-return',
                                       'repeat-remembered-return', 'enter-remembered-return'))
     vm.add_argument('keys', nargs='*', type=int)

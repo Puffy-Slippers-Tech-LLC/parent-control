@@ -8,6 +8,9 @@ means, not an obligation to test its controls in each consumer. Simplify redunda
 inputs, dialog visits, unchanged observations and incidental GUI presentation outright
 under the [result contract](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
 New or changed provider routes still require scoped entry/refusal qualification.
+Apply the [product-focused journey contract](E2E-Execution-Contracts.md#product-focused-journeys)
+to current callables as well as future consumers; historical provider checks
+below describe earlier qualification, not mandatory steps in every journey.
 
 This is the contract catalogue for the operations used by customer scenarios.
 The [documentation map](README.md) defines document ownership and status terms;
@@ -81,7 +84,10 @@ When preparation fails, inspect the direct failure evidence and distinguish an
 environment/fixture defect from a potential product defect. For non-product
 work, use the simplest reliable maintained recovery route or a small repair of
 the immediate proven mechanical defect. Verify the prerequisite and return to
-the product test as soon as it is ready. If that requires recursively repairing
+the product test as soon as it is ready. First remove any incidental requirement
+or choose a simpler supported route that preserves the product result; do not
+expand GDM or desktop qualification solely to reproduce an unnecessary step.
+If the remaining prerequisite requires recursively repairing
 dependencies, investigating their internals, or creating new infrastructure,
 stop that branch and report the exact blocker, evidence and minimum external
 action needed to resume. Do not add prerequisite tasks merely to continue that
@@ -240,6 +246,14 @@ Account parameters are a closed set of provisioned fixture roles, not arbitrary
 usernames. The public-UI connection must be qualified for the selected greeter
 or desktop. Extending the current fixed Parent/other-child routing is part of
 the affected entry block; that connection metadata supplies no product evidence.
+
+The GDM prompt and denial blocks below are opt-in operations for a real
+authentication input, an explicit enforcement assertion or isolated harness
+qualification. Ordinary journeys require only their declared destination and
+product result. A shared entry operation must not force a password prompt when
+a qualified direct return suffices; it must still establish the intended session
+and apply fresh recipient guards before any secret delivery. Existing
+prompt-specific qualification does not by itself qualify a direct-return branch.
 
 `greeter_account` uses bounded public logind reads. If a listed session disappears
 before its properties can be read, a fresh successful inventory must confirm
@@ -614,17 +628,22 @@ immutable before/after snapshots of the page, settings and DESK10 public endpoin
 before replying to the worker. Both retained qualifiers bind their own expected
 values and Parent/window/session comparison endpoints to that engine.
 The read-only `session_control` Parent identity proof independently requires the
-same active unlocked desktop session. DESK10 foregrounds the same window after
-launching the supporting GPL viewer. Normal Parent closure then qualifies absent
+same active unlocked desktop session. Current retained qualifications compare
+the original public Parent endpoint, page and settings directly, without
+launching a supporting GPL viewer or switching foreground windows. Product API
+operations require their owned usable surface, not a foregrounding tour.
+Normal Parent closure then qualifies absent
 window refusal with no relaunch. Wrong child, page, settings, window or desktop,
 missing baseline and malformed observations retain host refusal regressions.
+The table below records historical qualification that included the viewer tour;
+the shortened qualification still needs live verification.
 
 | VM | Supporting viewer version / actual locale / keyboard | Qualification and session regressions | Window-switch, allowance and case 6 regressions |
 | --- | --- | --- | --- |
-| Ubuntu 26.04 | `50.1-0ubuntu0.1` / `en_US.UTF-8` / `[["xkb", "us"]]` | [Current qualification/session regression report](../../output/test-runs/host/exports/onpc-artifact-export-lot0o3at/report.md) | Historical `20261009T155056Z-67254e9a` (outside runner retention) |
-| Fedora 44 | `0:50.1-1.fc44` / `en_US.UTF-8` / `[["xkb", "us"]]` | [Current qualification/session regression report, first five checks passed](../../output/test-runs/host/exports/onpc-artifact-export-y_05297h/report.md) | Historical `20261009T155056Z-a2e0f2a5` (outside runner retention) |
+| Ubuntu 26.04 | `50.1-0ubuntu0.1` / `en_US.UTF-8` / `[["xkb", "us"]]` | Historical qualification/session regression passed (report outside retained history) | Historical `20261009T155056Z-67254e9a` (outside runner retention) |
+| Fedora 44 | `0:50.1-1.fc44` / `en_US.UTF-8` / `[["xkb", "us"]]` | Historical qualification/session regression; first five checks passed (report outside runner retention) | Historical `20261009T155056Z-a2e0f2a5` (outside runner retention) |
 
-The preserved reports retain qualification steps/assertions, public comparisons
+The qualification runs recorded steps/assertions, public comparisons
 and cleanup, plus `check_e2e_desktop_session` and both independent
 `check_e2e_retained_unlock` denial routes. Fedora's first window-switch preparation
 stopped before creating a graphical worker because its generic input lacked an
@@ -658,20 +677,22 @@ remain usable. Riley additionally locks and unlocks normally.
 The same history returns from Riley to Jamie's original Riley-selected Parent
 window, preserving its desktop identity, endpoint/PID, App Limits page and saved
 settings. FLOW01 explicitly reaches Screen Limits for its settings read without
-reselection; DESK10 foregrounds that existing window. After public zero-time
+reselection or a foreground-window tour. The current qualifier compares the
+original public Parent endpoint and values directly; the shortened sequence
+still needs live verification. After public zero-time
 configuration, retained Riley GDM authentication produces the specific denial,
 and native lock entry produces the time restriction without secret delivery.
 Both return routes preserve the same locked child desktop.
 
 | VM | Retained-entry qualification and required session regressions | Final window-switch regression |
 | --- | --- | --- |
-| Ubuntu 26.04 | [Six-selector report](../../output/test-runs/host/exports/onpc-artifact-export-lot0o3at/report.md) | Passed in `20261009T202254Z-b461cfd3` (report expired under retention) |
-| Fedora 44 | [First five selectors passed](../../output/test-runs/host/exports/onpc-artifact-export-y_05297h/report.md); the original final window-switch failure is superseded by the adjacent pass | Passed in `20261009T202254Z-570d98e5` (report expired under retention) |
+| Ubuntu 26.04 | Six selectors passed (report outside retained history) | Passed in `20261009T202254Z-b461cfd3` (report expired under retention) |
+| Fedora 44 | First five selectors passed (report outside runner retention); the original final window-switch failure is superseded by the adjacent pass | Passed in `20261009T202254Z-570d98e5` (report expired under retention) |
 
-The retained selections are `check_e2e_retained_entry`, `check_e2e_retained_parent`,
+The historical retained selections were `check_e2e_retained_entry`, `check_e2e_retained_parent`,
 `check_e2e_retained_unlock_success`, `check_e2e_retained_unlock`,
-`check_e2e_desktop_session` and `check_e2e_window_switch`. The first five remain
-valid unchanged; only the viewer-close observer was repaired and requalified on
+`check_e2e_desktop_session` and `check_e2e_window_switch`. At that close-out the
+first five remained valid unchanged; only the viewer-close observer was repaired and requalified on
 both VMs. It now discards incomplete shutdown trees in its existing bounded
 read-only wait, retaining absence, absent-target refusal and unchanged feedback
 draft assertions without replaying Close. The supporting viewer tuples are
@@ -689,9 +710,9 @@ rechecked off. Scope remains these finite child/Parent bindings. Other-parent
 management and complete scenarios remain pending.
 
 Both retained selectors passed after extraction of their comparisons into
-`journey_checks.RetainedDesktopJourney`: [Ubuntu qualification report](../../output/test-runs/host/reports/20261009T225326Z-5e8bd6f9/report.md)
-and [Fedora qualification report](../../output/test-runs/host/reports/20261009T222838Z-7052a5d9/report.md).
-These runs retain the stated Parent/child bindings and assertions, with completed
+`journey_checks.RetainedDesktopJourney` in Ubuntu run `20261009T225326Z-5e8bd6f9`
+and Fedora run `20261009T222838Z-7052a5d9` (reports outside runner retention).
+These runs covered the stated Parent/child bindings and assertions, with completed
 collection, worker/callback shutdown, owned cleanup and baseline restoration.
 
 ### Personal-language selection
@@ -799,7 +820,7 @@ Riley. Parent language persistence does not imply child-selector persistence.
 `AccessibleUI.parent_language_state(child=..., enabled=True, language=...)`
 adds the explicit English/Chinese bindings while retaining the disabled/zero
 reader. `child_selection` and `parent-language-{riley,jordan}-selected` prove
-closed picker and selected UID/name independently of the English-only settings
+selected UID/name and loaded controls independently of the English-only settings
 reader. `time_explanation` / `reach_time_explanation` carry the declared language;
 `app_rows(include_names=True)` reads public names with the complete policy rows.
 `ParentLanguageIsolationJourney` / `ISOLATION_PLAN` in `parent_language.py` and
@@ -1226,6 +1247,12 @@ comparison; missing captures, replay and changed policies refuse before reply.
 Callers supply their own plan and fixture actions; no qualification lifecycle is
 inherited. Case 184's independent composition is described in
 the [E2E-041 recipe](E2E-Scenario-Recipes.md#e2e-041).
+Its shortened direct Parent/Jordan entry removes allowance writes and balance
+readbacks while preserving initial, search, combined-filter and unchanged-policy
+comparisons. It passed on Ubuntu 26.04 in `20261010T172702Z-f2ff759d`, including
+collection, owned cleanup and baseline restoration. Fedora 44 run
+`20261010T172703Z-e3e339fa` was cancelled at the developer's request, with owned
+cleanup complete; the shortened composition remains unverified there.
 
 ### Match editor Save and Cancel
 
@@ -1368,7 +1395,7 @@ exact public choice ID. The current binding is native fixture A
 (`com.puffyslippers.ONPCTest.A.desktop`); ID suffixes `allowed`, `permanent`
 and `conditional` represent Allowed, Hard Blocked and Soft Blocked.
 One fresh complete snapshot proves ownership, selected child, App Limits,
-loaded catalogue, active management window and visible/sensitive target before
+loaded catalogue, logically available management surface and visible/sensitive target before
 one public action. Wrong-row IDs, wrong child, hidden/disabled/duplicate/foreign
 controls and uncertain input refuse. Incomplete reads may retry before input;
 actions and uncertain results never replay.
@@ -1440,7 +1467,7 @@ invocations and every failure stop; the actual GTK composition is
 ### Public policy legend
 
 `AccessibleUI.expand_policy_legend(child)` / `read_policy_legend(child)` in
-[accessible_ui.py](../../tests/e2e/accessible_ui.py) bind the owned active Parent,
+[accessible_ui.py](../../tests/e2e/accessible_ui.py) bind the owned usable Parent API surface,
 selected child and App Limits page before input or read. UI04 resolves
 `parent-legend-toggle` once and invokes its public action only when collapsed;
 UI03 independently resolves `parent-legend-content` and requires both headings
@@ -1491,7 +1518,7 @@ are unnecessary.
 | REQUEST10 | C | Native double-click Request and one-prompt observation: excluded on both kiosk and overlay. | Requires unsupported UI20; see the [UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Do not substitute two activations or recreate capability/consumer tasks. Ordinary REQUEST09 and independent public observations remain separate capabilities. | excluded; no active task or queue blocker |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | UI01 → UI03 → REQUEST03 where the form remains → UI12. Capture brief success before waiting for automatic exit. `AccessibleUI.kiosk_gdm_returned` is installed-qualified through `check_e2e_request_exit` for Cancel/Escape from the fixed disabled-child kiosk form: usable GDM and absent request/error UI. Case 54 also validates Cancel from the no-child form through `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run`. `AccessibleUI.kiosk_approval_success` qualifies explicit success before automatic or immediate exit; see [kiosk approval](#kiosk-approval-qualification). `kiosk_rejection.PLAN` independently compares preserved choices after explicit rejection and Cancel; see [kiosk rejection](#kiosk-rejection-qualification). Normal overlay Cancel and exact original usable-app activity passed the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). The [overlay FLOW04/invalid/Escape slice](#overlay-flow04-invalid-submission-and-escape-qualification) adds representative invalid validation with preserved choices/no prompt and an independent Escape/activity comparison. `OverlayPromptJourney` / `KioskRequestJourney` independently compare unchanged usable no-error overlay choices after password-free Shell Cancel; see [Shell prompt qualification](#overlay-shell-prompt-and-cancel-qualification). The child-owned Time granted result passed [overlay approval](#overlay-approval-and-automatic-return-qualification) and both [approved exit compositions](#overlay-immediate-exit-and-approval-compositions). `OverlayRejectionJourney` / `KioskRequestJourney` qualified explicit overlay rejection and unchanged usable no-error form; see [overlay rejection](#overlay-rejection-and-cancel-qualification). Other bindings remain pending. | pending; kiosk Cancel/Escape, fixed approval success and rejection/Cancel preserved form, declared overlay Cancel/Escape/invalid validation and fixed Shell rejection/Cancel preserved form and fixed overlay approval success ready |
 | REQUEST12 | C | Exit through the normal API Cancel action, surface close, approved immediate exit action, or already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. Form cancellation refuses an active authentication prompt. Legacy Escape bindings retain their normal-close user outcome. | UI04(Cancel or approved immediate exit), UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `AccessibleUI.cancel_kiosk_request` invokes the owned API action; `onpc_request_exit::escape` composes the scoped request-surface close with `kiosk_gdm_returned` or `overlay_desktop` for independent destination observation. Retained `focus_kiosk_escape_recipient` names supply guarded API close, with no native key or focus requirement. Cases 47/48 and 54 retain their choices and GDM assertions; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` and `auth_result.PLAN` retain automatic/immediate approved exit; see [kiosk approval](#kiosk-approval-qualification). Overlay Cancel/close shares the request API and compares the original usable activity; see [valid overlay slice](#valid-overlay-choice-and-cancel-qualification), [overlay close history](#overlay-flow04-invalid-submission-and-escape-qualification) [automatic overlay approval](#overlay-approval-and-automatic-return-qualification) and [immediate/automatic overlay compositions](#overlay-immediate-exit-and-approval-compositions). Historical native-Escape evidence does not require keyboard input in current consumers. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic/immediate approved exits ready |
-| REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Shared `overlay_entry` routes `panel` and `panel-reopen` qualify normal launch and deliberate repeated activation over the open form; see [overlay entry qualification](#overlay-entry-qualification). Gameplay fullscreen reveal remains separate. | normal launch and singleton ready; gameplay reveal pending |
+| REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Shared `overlay_entry` routes `panel` and `panel-reopen` qualify normal launch and deliberate repeated activation over the open form; see [overlay entry qualification](#overlay-entry-qualification). Fullscreen gameplay uses the same product API entry without panel reveal or focus choreography; its distinct request/return and retained-game results still need qualification. | normal launch and singleton ready; fullscreen gameplay/request/return binding pending |
 
 #### Overlay Shell prompt and Cancel qualification
 
@@ -1732,8 +1759,8 @@ child reselection and kiosk input on this overlay before input is released.
 Shared `select_kiosk_account(..., overlay=True)` selects Jamie and independently
 reads it. `kiosk_valid_choice` / `overlay-valid-*` select/read 300 seconds,
 custom `1.25` minutes (75 seconds), Rest-of-day, inclusion and exclusion of soft
-apps. `onpc_text::replace_text(overlay-fraction)` reuses UI16 focus/selection/exact
-text readback. `KioskRequestJourney.check_estimate` bounds fixed estimates by
+apps. `onpc_text::replace_text(overlay-fraction)` reuses UI16's product API text
+replacement and independent exact text readback. `KioskRequestJourney.check_estimate` bounds fixed estimates by
 the earlier public balances, elapsed time and precision; Rest-of-day requires
 the exact midnight footer. Existing kiosk unused-child equality remains intact.
 
@@ -1802,11 +1829,11 @@ The full seven-value invalid matrix belongs in native GTK UI tests; the shared
 decoder/stream tests also retain wrong surface/child, unlocked child, disabled
 controls, prompts, changed text and uncertain-input refusals.
 
-Cancel after the open FLOW04 branch and Escape after invalid validation have
-distinct return/activity observations. `cancel_kiosk_request(overlay=True)`
-invokes the owned Cancel once. `focus_kiosk_escape_recipient(overlay=True)`
-qualifies fresh same-target focus twice without activation; shared
-`onpc_request_exit::escape` sends one ordinary Escape. Each independently
+Cancel after the open FLOW04 branch and the legacy Escape-labelled API close
+after invalid validation have distinct return/activity observations.
+`cancel_kiosk_request(overlay=True)` invokes the owned Cancel once; shared
+`onpc_request_exit::escape` uses the product surface-close operation. Historical
+native Escape/focus proofs are not current product input requirements. Each independently
 requires overlay absence and usable child desktop, then
 `InstalledJourney.check_activity` compares the exact original window/draft.
 The native app closes normally afterward. All five declared assertions,
@@ -1837,9 +1864,13 @@ worker shutdown, owned cleanup, baseline restoration and source preservation:
 
 #### Overlay choices transferred to kiosk
 
-`choices_overlay_to_kiosk.PLAN` / `ChoicesOverlayToKioskJourney` qualified
+`choices_overlay_to_kiosk.PLAN` / `ChoicesOverlayToKioskJourney` exercise
 `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` through
-`check_e2e_choices_overlay_to_kiosk` on Ubuntu 26.04 and Fedora 44. The composite
+`check_e2e_choices_overlay_to_kiosk`. The shared composite has historical
+qualification on Ubuntu 26.04 and Fedora 44. The shortened qualifier below passed
+on both: Ubuntu run `20261010T170933Z-ebf81845` and Fedora run
+`20261010T170933Z-47ccb69c`, including collection, owned cleanup and baseline
+restoration. The composite
 consumes a fresh source observation, explicitly cancels the child overlay,
 switches to GDM, enters the kiosk and selects the declared child. The destination
 is read before editing and remains open. `AccessibleUI.transfer_choices` binds
@@ -1849,20 +1880,25 @@ compares immutable endpoints declared by `JourneyPlan.request_transfer_checks`.
 Both children receive public 30-minute daily allowances. Riley's overlay uses
 custom `1.25` minutes / 75 seconds with soft apps included; Jordan's uses `2.5`
 minutes / 150 seconds with soft apps excluded. Both overlays retain Jamie as
-approver while the kiosk retains Casey. Both child transfers and an independent
-retained Riley entry passed the shared-field/local-approver comparison. A wrong
-journey receipt was refused before input. Host checks also cover wrong-account
+approver while the kiosk retains Casey. The current qualifier transfers each
+child once, then reselects Riley and Jordan in the same open kiosk and compares
+each saved value with that child's original overlay capture. Its four immutable
+comparisons preserve transfer, persistence, child isolation and local approvers
+without a third overlay visit or retained GDM authentication. A wrong journey
+receipt still refuses before input. Host checks also cover wrong-account
 and owner refusals, stale observations, immutable comparisons and independent
 shared-helper composition. Kiosk-to-overlay, interactive mute and complete
 cases 59–61 remain separate pending scope. Case 58 has independent
 [complete-case acceptance](#request-forms-and-remembered-choices).
 
-The qualifier and all six affected regressions (`check_e2e_overlay_valid_choices`,
+The historical qualifier additionally returned to Riley's retained desktop and
+repeated its transfer; that GDM branch is no longer a prerequisite of choice
+persistence qualification. That qualifier and all six affected regressions (`check_e2e_overlay_valid_choices`,
 `check_e2e_overlay_choices`, `check_e2e_kiosk_eligible_choices`,
 `check_e2e_request_flow`, `check_e2e_request_choices`, `check_e2e_request_exit`)
 passed on each selected VM in one grouped invocation:
-[Ubuntu report](../../output/test-runs/host/exports/onpc-artifact-export-1olks10c/report.md)
-and [Fedora report](../../output/test-runs/host/reports/20261009T213325Z-260b5ddc/report.md).
+Ubuntu run `20261009T213325Z-6d160963` and Fedora run
+`20261009T213325Z-260b5ddc` (reports outside retained history).
 Every execution passed collection, worker/callback shutdown, owned cleanup,
 baseline restoration and source/host preservation, with its lease complete.
 The shared source/fixture input bundle selects DEB or RPM from the verified VM
@@ -2027,6 +2063,8 @@ fixture user. INFO02 reads the public help/manual interface through bounded
 stdout. Neither route permits private product probes or Terminal GUI setup. Fixture package/path arguments come from
 verified prepared assets. Native/Snap/Flatpak and app names are parameters of
 these blocks, not copies of them.
+INFO02 validates each command's output without an intervening desktop UI check;
+the complete command-help case owns one final public desktop result.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
@@ -2035,7 +2073,7 @@ these blocks, not copies of them.
 | FILE06 | A | Read bounded stdout/stderr, exit status and required public product notice or launch denial. Command echo or generic failure cannot prove enforcement. | `PackageCommand.read_result` independently requires successful exit, actual completion and final reboot notice at the later checkpoint; [install qualification](#administrator-package-command-and-output) and [upgrade qualification](#genuine-package-upgrade). `read_identity` supplies independent public installed-version and preservation readback. Graphical management denial remains PARENT01. No terminal rendering or unrelated password exercise. | fixed install/genuine upgrade completion and [finite Ubuntu libc6 completion/system reboot result](#genuine-unrelated-package-reboot-request) ready; additional bindings pending |
 | FILE07 | C | Set a declared location only within an explicitly tested file-manager launch or product chooser handoff. Prefer direct directory launch or supported public location APIs, with minimal necessary shortcuts and independent destination readback. | Shared provider adapter with prepared exact-path/owner guards; no folder-browsing prerequisite. FILE03 owns real chooser Open/Save/Cancel; FILE04 opens Files directly at the target directory when its launch action is under test. | pending |
 | FILE03 | C | Supply declared files to the external chooser, save a named file, or cancel. Mode and files are explicit; observe closure and independently read the caller's result. No folder-browsing or per-row selection exercise. | Open: prepared FILE05/FIX04 fixtures → shared `AccessibleUI.chooser_operation` using public EditableText/Selection APIs and minimal Location/Enter shortcuts → Open → independent `feedback_snapshot`. `file_chooser.PLAN` / `onpc_feedback_read::run_file_chooser` implement the [qualified handoff](#attachment-chooser-handoff); `profile` adds the six [boundary batches](#attachment-rejection-boundaries) and [single-file draft](#formatted-one-file-draft-lifecycle). Save uses `save_chooser_operation`, shared `save_handoff` / `save_cancellation` and FILE05 exact output readback as described below. Exact-file/owner guards remain in the adapter. Cancel acts directly without candidate selection; unchanged caller attachments are required. | ready for Parent two-file Nautilus Open/Cancel, single-file Open, six declared boundary Open batches, named diagnostic Save/Cancel to `~/Downloads` and fixed `Unwritable` save-error/recovery; native GTK and other profiles pending |
-| FILE04 | C | Open the file manager directly at a declared directory only when the case tests that launch route or product file-picker integration. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands. | pending |
+| FILE04 | C | Open the file manager directly at a declared directory only when the case explicitly tests that app launch route. | Shared fixed command/URI launch → FILE07/UI13. Supporting file preparation uses commands; product attachment/export handoffs use FILE03's actual chooser without a separate Files window. | pending |
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text and diagnostic Save destination bindings ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). Work uses APP01/03/04; file reads cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP and named Parent diagnostic-export bindings ready; retained-work and other exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change). UI16/Ctrl-S/public saved state only for work observed by an enforcement/retention case. | standard/single synthetic source preparation ready; product snapshot/re-add belongs to the attachment UI matrix; retained-work binding pending |
@@ -2281,7 +2319,10 @@ Consumers must carry this handoff forward through the shared implementation:
 
 Case 152 (`parent_feedback_draft.PLAN`) passed the complete customer history in
 `20260928T030531Z-1c1850d6`, including collection, owned cleanup and baseline
-restoration. Formatting, reset and Privacy regressions passed in
+restoration. The shortened composition passed on Ubuntu 26.04 in
+`20261010T171847Z-0b1bc336` and Fedora 44 in `20261010T171847Z-310d8f89`,
+including collection, owned cleanup and baseline restoration. Formatting, reset
+and Privacy regressions passed in
 `20260928T022907Z-f877531d`; window-switch and chooser regressions passed in
 `20260928T025758Z-911df7f2`, with collection and owned cleanup.
 `synthetic_files.fixture_actions(('single',))` prepares only
@@ -2316,7 +2357,10 @@ so a renamed invocation cannot bypass identity or draft checks.
 FEED10 reuses `preserve_dialog` and `app_exit`; the latter and `onpc_window::close`
 accept a unique invocation prefix for repeated close proofs. Parent relaunch
 must expose empty body/reply, no user files, no block/link semantics and normal
-public inline attributes before any input. Thus FEED03/05/10 include this
+public inline attributes before any input. Case 152 uses that first complete
+fresh-app feedback observation as its reset result; no unchanged second read
+follows it. Fresh close-recipient proofs before earlier dialog closes remain
+required by the shared ownership contract. Thus FEED03/05/10 include this
 formatted, one-file Parent profile as well as `synthetic-first`. Other surfaces
 and undeclared profiles remain pending. `feedback_formats.all_formats(prefix)`
 and `onpc_format::apply_all(journey, prefix)` share the original finite selection
@@ -2632,11 +2676,11 @@ Wrong-account refusal on Parent and independently repeated child-desktop reads
 pass without observer preparation or input. No complete scenario is qualified.
 
 `AccessibleUI.child_countdown(present)` requires the active intended fixture
-child and one complete prompt-free usable Shell desktop. Presence resolves the
-owned IDs `child-screen-time-indicator`, `child-request-button` and
-`child-remaining-time` in the Shell owner and their expected ancestry, then
+child and a complete guarded product panel observation. Presence resolves the
+owned API IDs `child-screen-time-indicator`, `child-request-button` and
+`child-remaining-time` on the bound `child-panel` surface, then
 reads bounded horizontal `HH:MM` or final seconds. Complete absence of visible
-indicator/button/label must persist for at least two seconds; missing desktop,
+indicator/button/label must persist for at least two seconds; wrong session,
 incomplete or defunct reads restart that interval. Wrong owners, duplicate IDs,
 unknown prompts, inactive/wrong accounts and malformed text refuse.
 
@@ -2695,6 +2739,12 @@ its instance ID. Compare network XML exactly except its read-only root
 qualification; consumers use the isolation helper and
 `vm_internet_qualification.internet_result(transport)` for independent bounded
 TCP/UDP DNS observations. They do not inherit the qualification journey.
+The offline language composition requires at least one reachable baseline path,
+all declared probes blocked during isolation, and recovery of every path that
+worked before it. A previously unavailable external endpoint may recover without
+failing the product case. Exhaustive endpoint availability belongs to the
+network helper's qualification, not language/policy acceptance; the shortened
+language composition retains its pending live verification.
 `parent_setup_qualification.IndependentNetworkQualification` passed
 `tools/run-tests integration check_e2e_independent_network_management` in
 `20260930T225447Z-420cdcde` on every enabled VM (the configured Ubuntu VM). It proved
@@ -2730,7 +2780,7 @@ private command stderr without changing input, timeout or refusal checks.
 | ABOUT01 | C | Open the declared surface's About entry; read product/version and reach the license information. Parent, overlay and restricted kiosk bindings are ready. Kiosk reads plain legal information and proves external actions absent. | Parent: `onpc_about::open_about` / `AccessibleUI.open_about(version)`. Kiosk: `AccessibleUI.open_kiosk_about` / `read_kiosk_about(version)`; `onpc_window::close('station-about')` returns to the unchanged form. Overlay: `AccessibleUI.open_overlay_about` / `read_overlay_license` / `read_overlay_link`; `journey_blocks.overlay_license_read` / `onpc_about::overlay_license` close only owned About and return to captured choices. The finite `information` binding includes Help and every About link through `overlay_license.INFORMATION_PLAN`; complete case 191 uses `overlay_about.PLAN` / `onpc_parent_about::run_overlay` with shared `KioskRequestJourney` comparisons. UI01 → UI04(menu) → UI04(About) → UI01 → UI03 → UI09, plus kiosk UI11 exclusion. [About contracts](#about-block-contracts). | ready for Parent/kiosk/overlay; [Parent English/Hebrew inherited text and keyboard](#parent-inherited-dialog-qualification) qualified; full overlay information qualified by `check_e2e_read_overlay_about_and_links` in `20261002T045632Z-62a50e45`, license and website/privacy regressions passed in `20261002T050326Z-b8fd7de5`; complete case 191 passed on every enabled VM (Ubuntu 26.04) in `20261002T052623Z-0b463dbc` with collection and owned cleanup |
 | ABOUT02 | C | Check the owned license link is clickable without invoking it or inspecting its URI/destination. | `AccessibleUI.open_license` is a compatibility name for `clickable_link('about-license-value', root=about())`; overlay `read_overlay_license` uses the same reader under `overlay_about_scope(opened=True)`. No external handler/content dependency. `check_e2e_license_viewer` retains its selector name for Parent link-only qualification. [Scope](#about-block-contracts). | ready for Parent link-only scope in `20260929T220011Z-55987e7f` and overlay scope in `20261002T040745Z-84b460dd` |
 | ABOUT04 | C | Reach and read the About footer in the already open About window through semantic ID reveal. | `onpc_about::read_footer(journey, returned, 'semantic-reveal')` delegates to `AccessibleUI.about_footer`: UI09 → UI03(footer), with no preliminary positional keys. [About contracts](#about-block-contracts). | ready |
-| ABOUT03 | C | Read the owned About footer, close only About and compare the selected child/settings with the supplied earlier observation. | `onpc_about::return_to_parent` consumes the clickable-license observation, confirms About remains open, then composes ABOUT04 → UI18; `JourneyPlan.settings_checks` supplies UI12. No external window or handler is inspected/closed. | ready for Parent link-only scope in `20260929T220011Z-55987e7f`; other bindings pending |
+| ABOUT03 | C | Close only owned About and compare the selected child/settings with the supplied earlier observation. | Customer information return uses `onpc_about::close_information`, consuming the information observation and a fresh owned close proof before UI18; `JourneyPlan.settings_checks` supplies UI12. The historical `onpc_about::return_to_parent` link-only qualifier additionally composes ABOUT04 → UI18. Its footer read is not a prerequisite of the customer information return. No external window or handler is inspected/closed. | historical Parent link-only scope ready in `20260929T220011Z-55987e7f`; shortened information-return composition awaits live verification; other bindings pending |
 | FEED01 | C | Open ordinary Parent feedback through its Feedback action and observe editor/collection state. Error-report entry uses FEED15; no hidden error creation. | `AccessibleUI.open_feedback(projection='initial-empty', language=None)`: UI01 → UI04(`parent-feedback-button`) → UI01 → UI02 → UI03. `feedback_read.PLAN` / `onpc_feedback_read::run` qualified initial empty entry and independent reopen through `check_e2e_feedback_read` in run `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` additionally qualified preserved `synthetic-first` entry in `20260926T214728Z-4a3ca1b4`; collection, owned cleanup and baseline restoration passed. Send remains untouched. | ready for ordinary Parent initial-empty, synthetic-first and [English/Hebrew synthetic-rtl entry](#parent-inherited-dialog-qualification); other bindings pending |
 | FEED03 | C | Read the visible synthetic draft, exact attachment list and validation/control state into an explicit observation. | `AccessibleUI.feedback_snapshot(projection, language=None)` → explicit closed comparison: UI01 → UI02 → UI03 → UI13(attachments). `check_e2e_feedback_read` qualified `initial-empty` in `20260925T011124Z-21d4f936`. `check_e2e_feedback_privacy` qualified `synthetic-first` in `20260926T214728Z-4a3ca1b4`, including unchanged Privacy/dialog reopening. The [attachment handoff](#attachment-chooser-handoff), [boundary lists/statuses](#attachment-rejection-boundaries) and [formatted one-file lifecycle](#formatted-one-file-draft-lifecycle) add exact finite files, metadata and format comparisons. Never project arbitrary private text. | ready for Parent initial-empty, synthetic-first, [English/Hebrew synthetic-rtl](#parent-inherited-dialog-qualification), formatted single-file, fixed two-file and declared boundary readback; other bindings pending |
 | FEED04 | C | Set the retained editor selection using canonical UTF-16 index/length, apply an offered format through its fixed API value/action, then independently read document formatting and text. | `onpc_format`, `AccessibleUI.format_operation`, `block_operation` and shared format composites use `feedback-editor-selection`, formatting IDs and UI24. Synthetic link editing uses fixed link actions without navigation; document insertion and undo/redo use their fixed API operations. Historical qualification reports: `20260927T220402Z-60e41f1b`, `20260927T221053Z-796e5c0f`, `20260927T221352Z-4432e213`, `20260928T000001Z-b07e2a8f`, `20260928T000512Z-196ba37b`, `20260928T000805Z-44ce5cac`, `20260928T005139Z-951ec3ec`, `20260928T005856Z-1f56e149`, `20260928T010152Z-75515a1c`. | ready for declared Parent bold, four-format complex and `body-blocks` fixtures, linked inline and complete format/removal composition; other bindings and complete scenarios pending |
@@ -2741,7 +2791,7 @@ private command stderr without changing input, timeout or refusal checks.
 | FEED13 | C | Remove one explicitly identified attachment and observe the remaining list. | `AccessibleUI.remove_attachment` supplies `attachment_operation('attachment-remove')` → independent `attachment-remaining` and the explicit [boundary removals](#attachment-rejection-boundaries); [qualified item scope](#attachment-item-metadata-and-removal). UI01 → UI04(Remove) → FEED03 → UI12(expected list). | ready for declared Parent single-item and boundary-profile removals; other inputs/surfaces pending |
 | FEED08 | C | Explicitly save diagnostic output to a customer-selected location, inspect that exported artifact through the shared read-only SSH helper, and reobserve the preserved feedback draft. | `attachment_composition.diagnostic_export` / `onpc_feedback_read::diagnostic_export`: UI04(download) → shared `save_handoff(draft='synthetic-first')` → FILE08 through `diagnostic_export_actions` → FEED03 and same-dialog endpoint/PID comparison in `DiagnosticExportJourney`. Qualification revalidated two independent entries in `20260929T204158Z-388a25b4`; see [export scope](#customer-artifact-read-boundary). `parent_diagnostic_export.PLAN` / `onpc_feedback_privacy::_diagnostic_export` passed full case 155 in `20260929T203255Z-29d6637e`, including synthetic Cancel, `destination='unwritable'` app error before recovery, Privacy and preserved draft. No original product log/storage reads. | ready for named Parent Save/export inspection, Cancel, fixed unwritable-destination error/recovery and preserved synthetic-first draft; other surfaces/destinations pending |
 | FEED09 | C | Observe collection, validation, sending, retry, error or thank-you state and control availability. Collection waits for finished diagnostics and available Download; immediate completion passes without observing an intermediate state. Other modes retain their declared state assertions. | `UiObservations.observe('feedback-collection-ready')` → `AccessibleUI.wait_feedback_collection` reuses `AccessibleUI.wait` with complete public ID-owned snapshots. It advances only when collection is finished and Download is available; the deadline only fails a stuck attempt. `feedback_collection.PLAN` / `onpc_feedback_states::run_collection` qualified two independent Parent entries, separate readback, wrong-entry refusal and owned cleanup through `check_e2e_feedback_collection` in `20260929T170731Z-88b24b8a`. `AccessibleUI.feedback_snapshot(projection, states=True)` → immutable `FeedbackStateObservation`; `feedback_states.PLAN` / `check_e2e_feedback_states` qualify the [edit-only Parent snapshots](#feedback-validation-snapshots). `reject_invalid_feedback` / `rejection_operation` and `feedback_rejection.PLAN` additionally qualify the fixed [invalid-only rejection](#feedback-rejection) inputs and exact explanations. `length_operation` / `feedback_length.PLAN` qualify the [ASCII and mixed-emoji boundaries](#feedback-utf-16-boundaries). UI01 → UI02 → UI03 → UI10, or UI22 with the same projections. No provider receipt or delivery-internal assertion. | ready for Parent collection readiness and declared Parent edit-only snapshots, ASCII/mixed-emoji boundaries and empty/malformed/SOH/complex/excessive-text rejection; other validation inputs, sending/retry/success and other surfaces pending |
-| FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | `onpc_feedback_privacy::preserve_dialog(journey, before)` composes FEED03(before) → UI18(feedback) → FEED01 → FEED03 → UI12 against an explicit earlier observation. `app_exit(journey, before, invocation_prefix)` composes UI18(feedback) → LIFE01(Parent→management) → wrong-entry refusal → FEED01/03(`initial-empty`) before new input. `feedback_reset.PLAN` / `check_e2e_feedback_reset` qualified nonempty body/reply → empty body/reply, no customer-selected files and fresh default diagnostics in `20260927T205202Z-fc8560e8`. `check_e2e_feedback_privacy` requalified dialog preservation in `20260927T205545Z-2fd1c308`. The [formatted one-file lifecycle](#formatted-one-file-draft-lifecycle) extends both comparisons through `FeedbackDraftJourney` and complete case 152. Collection, owned cleanup and baseline restoration passed; Send untouched. | ready for Parent dialog/app-exit with synthetic-first and formatted one-file drafts; [Parent dialog synthetic-rtl across English/Hebrew changes](#parent-inherited-dialog-qualification) also qualified; other surfaces/profiles pending |
+| FEED10 | C | Close/reopen feedback and compare its in-memory draft. `dialog` preserves the supplied draft; `app-exit` explicitly closes/relaunches Parent and expects reset. Return with feedback open. | `onpc_feedback_privacy::preserve_dialog(journey, before)` composes FEED03(before) → UI18(feedback) → FEED01 → FEED03 → UI12 against an explicit earlier observation. `app_exit(journey, before, invocation_prefix)` composes UI18(feedback) → LIFE01(Parent→management) → FEED01/03(`initial-empty`) before new input. Wrong-entry refusal remains in the isolated `run_reset` qualification, outside the customer fragment. `feedback_reset.PLAN` / `check_e2e_feedback_reset` qualified nonempty body/reply → empty body/reply, no customer-selected files and fresh default diagnostics in `20260927T205202Z-fc8560e8`. `check_e2e_feedback_privacy` requalified dialog preservation in `20260927T205545Z-2fd1c308`. The [formatted one-file lifecycle](#formatted-one-file-draft-lifecycle) extends both comparisons through `FeedbackDraftJourney`; shortened complete case 152 passed on Ubuntu 26.04 and Fedora 44 with collection and owned cleanup. | ready for Parent dialog preservation, isolated reset and formatted one-file case 152; [Parent dialog synthetic-rtl across English/Hebrew changes](#parent-inherited-dialog-qualification) also qualified; other surfaces/profiles pending |
 | FEED11 | C | Submit one already reviewed synthetic report. Require explicit sending authorization and dedicated test-recipient configuration; activate the explicit `Send` or `Send without logs` action once and return. Observe the outcome and dismiss confirmation separately. | UI01 → UI02(enabled) → UI04(Send). Prior FEED03 → FEED05 evidence is supplied, not repeated inside this block. This document grants no sending authorization. | pending |
 | FEED14 | C | Dismiss an observed success confirmation normally and observe the expected return surface. | UI01 → UI04(Close) → UI11(confirmation) → UI01(return surface). FEED09 supplies the earlier success observation. | pending |
 
@@ -2922,7 +2972,7 @@ binding does not extend an existing callable's qualified scope.
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | UI17 on `child-countdown-animation-toggle`, independent PANEL01 readback and DESK01; no popup or Escape dependency. | pending |
 | PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | UI01 → UI03 through the shared panel API; local obligation 181h retains text/function assertions. | pending UI coverage |
 | INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link(identity, root=owned_surface)` checks the ID-owned visible/enabled control and sole public activation action without input. Parent: `check_parent_help`, `open_about(menu_open=True)` and `check_parent_information`; shared worker calls `onpc_about::read_help`, `open_from_help`, `check_link`, `return_to_parent`. `license_viewer_provider.INFORMATION_PLAN` / `ParentInformationJourney` and `check_e2e_read_parent_information_links` qualify the composite through `onpc_license_viewer_provider::run(exchange, 'information')`. Historical case 190 used `parent_information.PLAN` / `onpc_parent_about::run_links`; its link-only assertions are now [UI-owned](UI-and-E2E-Coverage.md#duplicate-review-and-allocation), with no E2E executable. Overlay: `check_overlay_help`, `open_overlay_about(menu_open=True)` and `read_overlay_link`; `journey_blocks.overlay_license_read(links='information')` / `onpc_about::overlay_license(..., 'information')` compose Help and all five About links with caller-owned immutable form comparisons. `overlay_license.INFORMATION_PLAN` / `OverlayLicenseJourney` and `onpc_request_flow::overlay_information` supply the qualification; legacy license and browser-link plans/selectors retain their finite scopes. Complete case 191 owns `overlay_about.PLAN` / `onpc_parent_about::run_overlay` and shared `KioskRequestJourney` capture/return comparisons. Fresh independent entry, wrong-entry proof refusal, owned About close and unchanged Parent selection/settings or overlay choices. No external handler dependency. Kiosk UI11 on recognized About. [About contracts](#about-block-contracts); E2E-042. | Parent Help and all five About links qualified in `20260930T192004Z-89316fef`; historical case 190 passed in `20260930T195316Z-5a8d360d`. Overlay Help and all five About links qualified in `20261002T045632Z-62a50e45` on every enabled VM (Ubuntu 26.04); license and website/privacy regressions passed in `20261002T050326Z-b8fd7de5`. Complete case 191 passed on every enabled VM (Ubuntu 26.04) in `20261002T052623Z-0b463dbc`, including unchanged-form return, collection and owned cleanup |
-| INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account; check the public desktop afterward. | `onpc_documentation::read(journey, binding)` composes `command_documentation.observe` and the registered public desktop-clear observation. The stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. All four bindings and independent desktop returns passed complete case 193 in run `20260923T194553Z-e2f16f7e`, with collection and owned cleanup. | ready |
+| INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account. | `onpc_documentation::read(journey, binding)` invokes `command_documentation.observe`; the stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. Case 193 composes all four bindings and one final independent desktop result. Its historical run `20260923T194553Z-e2f16f7e` also checked the desktop after every command; those extra checks are removed from the current contract. | ready stdout bindings; consolidated case return awaits live verification |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report` → FEED03/UI16 → FEED05 → guarded UI18 → independent destination/rule read. Direct closure: `parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report` → automatic-draft read → guarded UI18 → independent destination/rule read. See [automatic Parent error reports](#automatic-parent-error-reports). Parent has no report-choice toggle. E2E-045. | ready for the declared Parent review and edited/untouched report-close bindings; request surfaces and other bindings pending |
 | FEED16 | C | Retry an observed failed diagnostic collection and read its result and retained draft. | UI04(Retry collection) → FEED09 → FEED03 → UI12. Scheduled qualification is Parent retry, E2E-046 case 208; overlay/station retry bindings are no longer scheduled. Station without-logs submission reuses FEED11 in case 213; it is not hidden inside retry. | pending |
 | FEED17 | C | Attempt normal Close on a sending error report and read the stop-sending confirmation. Do not yet stop or exit. | UI04(Close) → UI01(confirmation) → UI03. E2E-047. | pending |
@@ -2950,8 +3000,8 @@ fragment skips an unsuccessful step or resumes a previous attempt.
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | FLOW15(entry=retained) → APP04(compare) → APP03. | pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. | pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | DESK11 → FLOW06 → FLOW15(child, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. | pending |
-| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and an independent retained entry. `check_e2e_choices_overlay_to_kiosk` passed the [exact both-child scope](#overlay-choices-transferred-to-kiosk) on Ubuntu 26.04 and Fedora 44. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors), still unimplemented. Interactive mute remains deferred outside this current-choice composite. | overlay-to-kiosk stated both-child and independent retained bindings ready; reverse pending |
-| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09 → PARENT17 → PARENT18(confirm) only if revocation is declared → PARENT09 → UI12(no grant) → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
+| FLOW12 | C | From an open request form, visit the other surface for that child and compare duration/custom/soft-app choices before editing. Compare the independently remembered parent for each requesting OS user, not parent equality across surfaces. Interactive mute is separate deferred scope. Finish with the second form open. | Overlay→kiosk: `request_flow.overlay_to_kiosk` / `onpc_request_flow::overlay_to_kiosk` compose REQUEST12(cancel) → DESK03 → REQUEST01 → REQUEST03. `KioskRequestJourney` compares immutable endpoints declared in `request_transfer_checks`; `choices_overlay_to_kiosk.PLAN` binds both children and same-kiosk persistence/isolation readbacks. The [both-child qualification](#overlay-choices-transferred-to-kiosk) passed the shortened scope on Ubuntu 26.04 and Fedora 44; its historical independent retained entry is no longer a prerequisite. Kiosk→overlay: REQUEST12(cancel) → FLOW15(child, declared fresh/retained entry) → REQUEST02 → REQUEST03 → UI12(shared values and user-local selectors), still unimplemented. Interactive mute remains deferred outside this current-choice composite. | overlay-to-kiosk both-child transfer and same-kiosk persistence/isolation ready; reverse pending |
+| FLOW13 | C | Establish a named time profile entirely through customer controls and finish at GDM. Entry/window arguments are explicit. Verify no grant or revoke it first; use the profile table below. | FLOW01 → PARENT09. If revocation is declared: PARENT17 → PARENT18(confirm) → PARENT09. Then UI12(no grant) on that observation, without another unchanged read → FLOW02(initial allowance) → DESK03. Grant profiles then FLOW06 → FLOW01(parent/window retained); daily-dominant adds PARENT06(larger allowance, still enabled) → PARENT08. All grant profiles finish PARENT09 → UI12(profile) → DESK03. | pending |
 | FLOW14 | C | Open apps/recognizable activities for a finite declared user list, retaining each desktop through Switch User. Inputs state each user's fresh/retained entry and usable-time/policy prerequisites. Start and finish at GDM. | For each user: FLOW15 → FLOW08 → APP04(capture) → DESK03. Earlier retained desktops must be revisited, not recreated. Multiple desktops for one identity require a supported customer route; see applicability notes. | pending |
 | FLOW16 | C | As the named parent, reach Parent for the named child and set a daily allowance and final limit state. This is the reusable “Set Jordan's daily allowance to zero” recipe; zero is an allowance, not an approval. | `onpc_parent::set_allowance(journey, source, parent, entry, window, child, initial, minutes, final)` composes FLOW01 → FLOW02. Qualified bindings: `gdm/parent/fresh/new/child/0/0/1`, `desktop/parent/same-user/new/child/1/15/1` and `gdm/parent/fresh/new/child/0/30/1`. `set_allowance.PLAN` binds zero/15-minute setup to `time-explanation-setup-zero-read` and `time-explanation-setup-positive-read`; `fresh_thirty_allowance.PLAN`, `FreshThirtyAllowanceQualification` and `onpc_fresh_thirty_allowance::run` bind fresh 30-minute setup to `time-explanation-setup-thirty-read`. FLOW02 owns Screen Limits navigation and saved-settings validation. `check_e2e_set_fresh_thirty_minute_allowance` passed saved enabled/30-minute settings, independent 1800/0/1800-second daily/grant/total reads and wrong-child/state/window refusals in `20260926T211055Z-daafbf03`. Existing zero/positive setup, independent rereads, persisted settings and wrong-child/window refusal passed `check_e2e_set_an_allowance_for_a_named_child` in `20260926T210708Z-8962d2d1`; affected Parent launch case 6 passed in `20260926T211422Z-3cda058b`. All passed collection, owned cleanup and baseline restoration. Setup finishes in Parent without implicit logout. Other allowances, enablement combinations, parents and retained-window bindings need separate qualification. Historical fresh-zero consumer E2E-036 case 161, now UI-owned with no E2E executable, passed in `20260925T065641Z-c6d3948b`; complete 30-minute consumers remain separate. | pending; fresh-zero, fresh-thirty and same-user-positive bindings ready |
 | FLOW17 | C | Leave a request with authentication pending by one declared supported action, observe its destination, then return and read cancellation before a new request. | Lock: shared DESK05 shortcut/command → DESK06 → DESK08; switch: DESK03 → FLOW15(return retained); sign-out: DESK04 → FLOW15(fresh); close: UI18(API surface close) → UI11(app), followed by REQUEST01/02 as declared. REQUEST03 → UI11(old prompt). E2E-039; system commands work independently of modal menu access. An unavailable tested app-close control remains gated. | pending |
@@ -4170,14 +4220,25 @@ Qualification belongs to each route's catalogue entry and retained runner
 result; the [execution plan](E2E-Execution-Plan.md#current-scope) records the
 completed initial migration. Composition checks alone supply no live credit.
 
+The current product-focused revision removes consecutive activity readbacks in
+cases 44–46, duplicate unavailable-form reads in cases 54/55 and their
+qualifications, and duplicate pre-request station restriction sweeps in cases
+51/52. Original activity is still compared before resuming; every forbidden
+station route is checked after denial/cancellation (before exit for approval).
+Both empty-account cases finish through normal Cancel and an independent
+usable-greeter result. Case 152 keeps wrong-entry exercises in isolated harness
+qualification. Cases 184/193/255 and retained-entry qualifications have the narrower
+contracts recorded above. Their changed compositions need scoped live validation;
+historical passes and ready inventory bindings alone do not establish it.
+
 | Established code | Shared composition | Preserved behavior |
 | --- | --- | --- |
 | [controller_qualification.py](../../tests/e2e/controller_qualification.py), `onpc_flow00::run` | `serial_harness.record_serial_journey` owns the product-free attempt envelope; FLOW00 composes GDM02/09 and HAR05/06/07/08, then HAR10/09 reconcile evidence. | No graphical secret; real serial authentication/command/logout; exactly one logout before fresh graphical return. Preserve all harness/backend safeguards and the existing wire stages. |
-| [parent_discovery.py](../../tests/e2e/parent_discovery.py), [onpc_parent_discovery.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm) | GDM07, SEARCH06, PARENT02/03/04/19, FIX01 in case 3 or FIX02 in case 4 and explicit UI12 comparisons. | Every picker resolves choices by ID, highlights before Enter and verifies selection afterward. Existing child starts limits-off/zero; each child's returned values compare with its own observation. FIX01 stays after visible initial settings; FIX02 stays after launchable search but before launching Parent. |
+| [parent_discovery.py](../../tests/e2e/parent_discovery.py), [onpc_parent_discovery.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_discovery.pm) | GDM07, SEARCH06, PARENT02/03/04/19, FIX01 in case 3 or FIX02 in case 4 and explicit UI12 comparisons. | Product pickers use stable IDs and canonical values through the shared API, with independent selected-child/settings readback. Existing child starts limits-off/zero; each child's returned values compare with its own observation. FIX01 stays after visible initial settings; FIX02 stays after launchable search but before launching Parent. |
 | [parent_access.py](../../tests/e2e/parent_access.py), [onpc_parent_access.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_access.pm) | GDM07(standard), SEARCH01 → UI21 → SEARCH03 → SEARCH04(unavailable). | Direct standard-account selection and two fresh intended-recipient checks; semantic focus then independent focus observation; one complete query then independent full readback; complete stable launcher/window absence; unrelated results remain unopened. |
 | [parent_terminal.py](../../tests/e2e/parent_terminal.py), [onpc_parent_terminal.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_terminal.pm) | GDM07(standard) → PARENT01(denied) → `onpc_window::close` (UI18). | Direct command once, management denial and exclusion, fresh active-window proof before close, desktop return with management absent. The legacy variant ID remains `terminal`. |
 | [parent_about.py](../../tests/e2e/parent_about.py), [onpc_parent_about.pm](../../tests/integration/graphical_smoke/lib/onpc_parent_about.pm) | FLOW01(GDM07, direct-command PARENT01), one product-information read/guarded About close and explicit settings observation. | Functional GDM goes straight to the intended account and retains two fresh recipient checks. Read owned product/version/legal information, close only About and compare child/switch/allowance; link controls belong in UI tests. |
-| [command_help.py](../../tests/e2e/command_help.py), [onpc_command_help.pm](../../tests/integration/graphical_smoke/lib/onpc_command_help.pm) | GDM07(Parent) → four explicit INFO02 bindings → final desktop-clear observation. | Parent/station help and manuals use bounded command stdout with identity/content checks, followed by independent desktop checks. No terminal or arbitrary command API. |
+| [command_help.py](../../tests/e2e/command_help.py), [onpc_command_help.pm](../../tests/integration/graphical_smoke/lib/onpc_command_help.pm) | GDM07(Parent) → four explicit INFO02 bindings → one final desktop-clear observation. | Parent/station help and manuals use bounded command stdout with identity/content checks, followed by one independent desktop result. No per-command desktop checks, terminal or arbitrary command API. |
 | [clean_install.py](../../tests/e2e/clean_install.py) | `package_journey.record_package_journey`, `journey_checks`, LIFE04/02 and shared Parent/station blocks. | The recipe declares result-check placement; the envelope stages assets and submits once. Independent completion, account preservation and nonempty Allowed rows must pass before the durable reply. |
 | [kiosk_no_child.py](../../tests/e2e/kiosk_no_child.py), [kiosk_no_approver.py](../../tests/e2e/kiosk_no_approver.py), [disabled_child.py](../../tests/e2e/disabled_child.py) | FIX03 `account_fixture.station_fixture_actions` for the two empty-account cases, `journey_blocks.parent_management` for disabled-child, `station_entry` and shared request operations. | Each empty-account attempt receives a fresh single-use fixture. No-child preparation remains at setup; no-approver preparation remains after its public baseline. Disabled-child never enables limits. |
 
@@ -4529,8 +4590,10 @@ Case 190 passed on Ubuntu 26.04 in `20260930T195316Z-5a8d360d`, including
 public results, reconciliation, collection, owned cleanup and baseline
 restoration. The other INFO01 surfaces remain separate unfinished scope.
 
-ABOUT03 consumes the link observation, confirms About remains open, reads
-ABOUT04's owned footer and closes only About through UI18. The legacy
+The historical ABOUT03 link-only qualifier consumes the link observation,
+confirms About remains open, reads ABOUT04's owned footer and closes only About
+through UI18. The customer information return closes through
+`onpc_about::close_information` without that additional footer read. The legacy
 `license-closed` stage observes the same About; it sends no external close.
 The final close reacquires Parent and reads its child, limit switch and
 allowance without changing selection/settings.
@@ -4702,7 +4765,10 @@ an upstream change. Qualification is limited to the exact scope recorded in a
 row; retained ready scenario bindings do not broaden it.
 
 For each supported route, qualify actual input/readback, application/surface
-ownership, ambiguous and wrong-target refusal, focus and result observation.
+ownership, ambiguous and wrong-target refusal and the required independent
+result. Qualify focus only when its input route requires keyboard delivery.
+An independently supplied entry or lifetime transition can warrant another
+qualification branch; an unchanged read or unrelated desktop tour cannot.
 Secret routes additionally require intended-recipient and wrong-recipient refusal guards, empty masked field,
 capture, single-use and uncertain-input checks. Refuse if those guards cannot be
 established. Do not present semantic or visual selectors as provider-owned IDs.
@@ -5137,8 +5203,9 @@ the owned runtime/session socket is validated before dropping privileges. No
 graphical password is submitted or authorized by this observation contract.
 When account rows expose no public action, use UI14's qualified provider
 keyboard navigation, verify the intended button's focus, press
-Enter and independently verify the selected account's prompt. Both this worker
-and the shared Parent selector use `onpc_journey::navigate_choice` to validate navigation replies.
+Enter and independently verify the selected account's prompt. This external GDM
+worker uses `onpc_journey::navigate_choice` to validate navigation replies;
+product Parent selectors use UI15's canonical API values without keyboard navigation.
 Its real serial authentication, command-output, session/boot, asset and cleanup
 checks remain harness qualification, with no customer feature coverage credit.
 The shared reconciler requires fresh controller results for each ordered worker
@@ -5428,7 +5495,7 @@ real Perl modules. Synthetic fixtures never count as customer coverage.
 | Installed greeter differs from the baseline account list | Use the qualified GDM adapter and independently prove the intended secret recipient; see external-provider qualification. |
 | A fullscreen overlay hides Shell desktop controls, or Shell metadata goes stale after desktop readiness (048c) | Discover the unique top-level Shell application on the active child's public bus through `AccessibleUI.shell_prompt_owner`, preserving PID/UID/session and protected-field guards; do not require Activities visibility to identify the authentication provider. Desktop readiness does not freeze the next tree: `shell_provider_metadata` retries only a complete fresh metadata observation under the existing deadline. Regress missing/ambiguous/nested/foreign/stale owners before Request input and transient versus persistent query failure. Keep this provider behavior in the shared adapter. |
 | GDM scrolls its account list | Reuse the qualified GDM provider's direct account selection or bounded keyboard navigation with observed identity/focus under the UI mandate. Reacquire the intended recipient before secret input; list order and image absence are not recipient proof. |
-| Parent search shows only an online suggestion for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the exact query, web-only suggestion and empty application-result area. Do not press Enter on the suggestion or invent a denial dialog. Executable denial belongs to the separate direct-command variant. |
+| Parent search returns no product launcher for a standard user | The [launcher contract](../SystemDesign/Broker.md#accounts-and-roles) intentionally restricts app-grid discovery to administrators. Match the full product query and complete stable absence of the product launcher and management window. Empty or unrelated results are acceptable; do not require a web suggestion, activate another result or invent a denial dialog. Executable denial belongs to the separate direct-command variant. |
 | Keyboard assumptions select the wrong child or menu item | Set the canonical UID or command through UI15 and independently verify the selected child/result. Product controls require no highlighted-row or Enter sequence. Ordinary Parent launch/reopening uses PARENT01's direct command and independent window result; only explicit app-grid discovery cases use whole-query SEARCH05/06. |
 | An acknowledged action has no durable evidence, or belongs to the wrong step | Store the observation and any required next-phase start before publishing the reply; guard ownership again after storage. An acknowledgement may immediately permit input. Storage or guard failure latches terminal failure. |
 | A stale observation appears to prove returning to the same child | Reconcile one fresh semantic result per ordered stage. Compare the returned child, switch state and allowance with the initial displayed settings. Missing, reused or reordered evidence refuses. Worker exit zero alone cannot pass. |
@@ -5565,10 +5632,12 @@ Before the first live attempt, check the changed boundary end to end on the host
    appropriate host regression before fixing it.
    Include the relevant preceding transition in that regression: a fresh widget
    may work while the same retained widget fails after session/window input.
-   Check package lifetime at every renewed entry: installed GDM list/focus
-   operations require the station account, while product-free operations prove
-   its absence. A reused login fragment must explicitly bind that lifetime
-   before authentication; a matching child row cannot satisfy the wrong list.
+   Bind package lifetime explicitly when installation/removal or a station entry
+   depends on it. Full installed/product-free account-set assertions belong to
+   those journeys; ordinary login needs the intended account/session and fresh
+   recipient guards. Existing list adapters still enforce their documented
+   fixture shape until a narrower binding is implemented and qualified; do not
+   add a station-account sweep to a consumer merely to navigate between apps.
    Record the hypothesis, the observation that would distinguish it, and the
    actual result in the existing attempt/handoff. If the added prerequisite
    passes but the same boundary still fails, retire that explanation as

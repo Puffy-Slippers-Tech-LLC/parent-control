@@ -42,7 +42,9 @@ follows the repository regression-failure contract rather than being reconciled
 as a documentation preference.
 
 When reconciling documents, correct the conflicting copy and link to the owner.
-Do not weaken an assertion or infer a new authorization from stale prose.
+Do not weaken a product assertion or infer a new authorization from stale prose.
+Apply the [product-focused review](E2E-Execution-Contracts.md#product-focused-journeys)
+when removing incidental external-provider requirements from existing coverage.
 Mandates constrain implementation; briefs add the selected task's finite scope
 and acceptance, and cannot override a mandate. Preserve historical evidence as
 historical, with current readiness in its inventory/catalogue owner.

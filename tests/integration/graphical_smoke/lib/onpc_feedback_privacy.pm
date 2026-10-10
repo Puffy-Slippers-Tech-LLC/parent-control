@@ -12,18 +12,22 @@ use onpc_feedback_read ();
 use onpc_lifecycle ();
 use onpc_format ();
 
-# FEED10(app-exit): consume a fresh nonempty draft proof, close feedback,
-# compose LIFE01, and compare the reopened draft before any field input.
-sub app_exit {
-    onpc_progress::operation('Reopening Parent and observing the empty feedback draft');
+# Shared preparation for customer reset and its isolated wrong-entry qualification.
+sub _restart_for_feedback {
     my ($journey, $before, $invocation) = @_;
     $invocation //= '';
     die 'feedback-reset:arguments' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
         && $invocation =~ /\A(?:[a-z][a-z0-9-]*-)?\z/;
     my $closed = onpc_window::close($journey, 'feedback', $before, $invocation);
     $journey->consume_observation($invocation . 'feedback-draft-closed', $closed);
-    onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
-    $journey->seen('feedback-wrong-entry');
+    return onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
+}
+
+# FEED10(app-exit): compare the reopened draft before any field input.
+sub app_exit {
+    onpc_progress::operation('Reopening Parent and observing the empty feedback draft');
+    _restart_for_feedback(@_);
+    my ($journey) = @_;
     return $journey->seen('feedback-reopen');
 }
 
@@ -39,7 +43,9 @@ sub run_reset {
     $journey->seen('feedback-open');
     onpc_text::replace_text($journey, $_) for ('body-first', 'reply-first');
     $journey->seen('feedback-draft');
-    app_exit($journey, $journey->seen('feedback-draft-reread'));
+    _restart_for_feedback($journey, $journey->seen('feedback-draft-reread'));
+    $journey->seen('feedback-wrong-entry');
+    $journey->seen('feedback-reopen');
     $journey->seen('feedback-reread');
     $journey->finish();
 }
@@ -142,7 +148,6 @@ sub _draft {
     review_privacy($journey);
     preserve_dialog($journey, $journey->seen('feedback-draft-reread'));
     app_exit($journey, $journey->seen('reset-feedback-draft-reread'), 'reset-');
-    $journey->seen('feedback-reread');
     $journey->finish();
 }
 

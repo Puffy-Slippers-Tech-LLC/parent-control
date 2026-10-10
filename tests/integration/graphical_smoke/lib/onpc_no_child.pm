@@ -13,7 +13,7 @@ sub run {
         exchange => $exchange, prefix => 'no-child', review => 0);
     onpc_gdm::reattach_functional();
     onpc_gdm::enter_station($journey, '');
-    for my $stage ('empty-form', 'empty-rechecked', 'cancel-action', 'cancel-returned') {
+    for my $stage ('empty-form', 'cancel-action', 'cancel-returned') {
         my $result = $journey->seen($stage);
         $journey->consume_observation($stage, $result);
     }

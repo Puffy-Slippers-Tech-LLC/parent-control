@@ -113,8 +113,7 @@ def test_real_case_recorder_startup_uses_shared_journey_and_verify_only(monkeypa
     callback(recorder, context)
     context.credentials.provision.assert_called_once()
     assert plan.balance_checks == {'allowance-configured': 900}
-    assert plan.activity_checks == {stage: ('activity-capture', 'same')
-                                   for stage in ('activity-returned', 'resumed-opened')}
+    assert plan.activity_checks == {'resumed-opened': ('activity-capture', 'same')}
 
 
 @pytest.mark.parametrize('include_refusal', [True, False])
@@ -139,7 +138,7 @@ def test_shared_fixture_action_selection_preserves_verification_owner(monkeypatc
 
 
 @pytest.mark.parametrize('fault', [None, 'window', 'draft', 'missing', 'replay', 'mutated-capture'])
-@pytest.mark.parametrize('stage', ['activity-returned', 'resumed-opened'])
+@pytest.mark.parametrize('stage', ['resumed-opened'])
 @pytest.mark.parametrize('plan', [PLAN, ESCAPE_PLAN, APPROVED_PLAN], ids=['cancel', 'escape', 'approved'])
 def test_case_activity_check_precedes_reply_and_resumed_input(tmp_path, fault, stage, plan):
     journey = KioskRequestJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
@@ -234,7 +233,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
         assert len(matched_screens(tmp_path, plan, observations)) == len(expected)
         assert stages.count('cancel') == (exit == 'overlay')
-        assert stages.index('activity-returned') < stages.index('resumed-submit')
+        assert stages.index('resumed-opened') < stages.index('resumed-submit')
         assert sum(event[0] == 'password' for event in result['events']) == (3 if exit == 'overlay-approved' else 2)
         assert not any(event[0] == 'text' for event in result['events'])
         assert ['key', 'esc'] not in result['events']

@@ -17,7 +17,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Compose the daily-only FLOW13 branch from fresh/same FLOW01, PARENT09, FLOW02 and DESK03. Require an already observed zero grant; refuse unexpected nonzero G. Optional revocation and retained Parent entry are qualified with the later grant-profile extension.
+Compose the daily-only FLOW13 branch from fresh/same FLOW01, PARENT09, FLOW02 and DESK03. Reuse the initial PARENT09 observation to establish zero grant; refuse unexpected nonzero G without another unchanged balance read. Independently observe the saved allowance and resulting balances after FLOW02. Optional revocation and retained Parent entry are qualified with the later grant-profile extension.
 
 ## Live VM acceptance
 

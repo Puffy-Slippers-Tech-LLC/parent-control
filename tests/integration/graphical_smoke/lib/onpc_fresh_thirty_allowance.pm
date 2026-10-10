@@ -24,18 +24,16 @@ sub run {
     }
     $journey->finish();
 }
-# Case composition: shared FLOW16, query/filter and complete-row leaves.
+# Case composition: shared Parent entry, query/filter and complete-row leaves.
 sub search_filters {
     onpc_progress::operation('Searching Jordan catalogue and checking unchanged app policies');
     my ($exchange) = @_;
     die 'search-filters:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'search-filters', review => 0);
     onpc_gdm::reattach_functional();
-    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
-        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
-    for my $stage ('balance-reread', 'saved-settings', 'apps-page') {
-        $journey->consume_observation($stage, $journey->seen($stage));
-    }
+    $journey->consume_observation('parent-selected', onpc_parent::open_for_child(
+        $journey, 'gdm', 'fresh', 'new', 'existing'));
+    $journey->consume_observation('apps-page', $journey->seen('apps-page'));
     onpc_app_rows::read_rows($journey, 'initial-rows');
     onpc_app_rows::search($journey, 'catalogue-name', 'name-rows');
     onpc_app_rows::filter($journey, 'match-rule', 2, 'precise');

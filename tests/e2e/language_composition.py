@@ -111,7 +111,9 @@ def enter_offline(journey, guard):
         require(not hasattr(journey, 'online_before'), 'language:offline-replay')
         guard()
         journey.online_before = internet_result(journey.transport)
-        require(all(probe['reachable'] for probe in journey.online_before['probes']), 'language:online-entry')
+        # A live path proves the subsequent isolation; unrelated provider
+        # outages do not prevent testing local language and policy behavior.
+        require(any(probe['reachable'] for probe in journey.online_before['probes']), 'language:online-entry')
         InternetIsolation(journey.context.lease).enter(journey.transport)
         guard()
         offline = internet_result(journey.transport)
@@ -128,7 +130,13 @@ def leave_offline(journey, guard):
         restore(journey.context.lease)
         guard()
         journey.online_after = internet_result(journey.transport)
-        require(journey.online_after == journey.online_before, 'language:online-recovery')
+        # The probe reader validates the fixed endpoint order for this route
+        # state. Restore every working path; an unavailable path may recover.
+        require(journey.online_after['ipv6_default_route'] == journey.online_before['ipv6_default_route']
+                and all(not before['reachable'] or after['reachable']
+                        for before, after in zip(journey.online_before['probes'],
+                                                 journey.online_after['probes'], strict=True)),
+                'language:online-recovery')
         return {'online_recovery': journey.online_after}
 
 

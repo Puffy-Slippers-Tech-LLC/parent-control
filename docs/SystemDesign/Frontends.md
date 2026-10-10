@@ -966,10 +966,19 @@ child overlay has its own OS user's approver selection. Sound settings are
 stored separately per child/surface but are not actionable while media is
 disabled.
 
-The custom unit menu floats over the form without contributing to its measured
-height. Its choices stay in the form's GTK overlay/snapshot, so the gateway yaw
-applies to the expanded menu too. Selecting a unit, clicking outside, or Escape
-closes it; Escape first dismisses an open unit menu before the form's exit action.
+The custom duration entry has inline grouped Minutes and Hours radio buttons.
+The row shares the duration tray and soft-app toggle's side margins inside the
+board, aligning the textbox with their outer borders. The entry stays four characters
+wide, leaving surplus width to the radio group. Each layout measures the current
+translated radio captions, indicators and entry using GTK requisitions; it stacks
+the entry and unit group, then the radios themselves when needed. Labels can wrap
+within narrow allocations, and language changes retain the entered value.
+Their normal toggle handler updates the shared unit value and persists changes
+through the existing request-choice path. The Application UI API retains
+`kiosk-custom-duration-units` with canonical `minutes`/`hours` values and selected
+caption text, while the individual choice IDs address the actual radios.
+Escape follows the form's normal exit action. New request processes load the
+change; saved values and translations need no migration.
 
 ## Related design
 

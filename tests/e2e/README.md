@@ -637,7 +637,7 @@ E2E-004/app-grid composes the shared installed setup, standard-user login,
 app-grid search and ordered screen evidence. The
 [administrator-only launcher](../../docs/SystemDesign/Broker.md#accounts-and-roles)
 is absent for standard users: case 5 uses public accessibility to read the full
-product query and web-only suggestion, and independently requires no Parent
+product query, and independently requires no Parent
 launcher or management window over a bounded interval of fresh complete reads.
 The `ui:standard-*` checkpoints connect only to the canonical other-child
 desktop's owned session bus. Missing/stale UI cannot prove absence; cosmetics
@@ -650,6 +650,9 @@ Prefer direct public actions
 and observed focus/results; geometry is permitted only within an explicitly
 qualified external adapter when the mandate's conditions are met. The current
 shared prompt middleware refuses prompts without cancelling keyring dialogs.
+Unrelated search suggestions, their wording and their order do not gate the
+product's launcher exclusion. The shared helper enters the whole query once;
+first-character and split-query exercises belong to historical qualification.
 Unknown prompts, uncertain input and replay refuse.
 Legacy needles and their refusal regressions confer no input authorization.
 Do not press Enter on an unrelated suggestion. No time policy is changed or
@@ -668,16 +671,19 @@ management-window expectation. Only explicit app-grid discovery cases use
 search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).
 The fresh standard denial and Parent management bindings passed complete cases
 6 and 151 in run `20260922T220454Z-80a92d46` (outside runner retention),
-including collection and cleanup. Case 151 uses the scoped GNOME Text Editor
-adapter to read the public `view` document, verify both GPL headings, close the
-active viewer and return through About to unchanged child/settings. Other entry
+including collection and cleanup. Case 151 reads the installed product's About
+information through the Application UI API and returns to unchanged
+child/settings. It requires no external license viewer. Other entry
 bindings and provider workflows retain their catalogue qualification limits.
 E2E-042/command-help is implemented by `command_help.PLAN` and
 `onpc_command_help::run`: as the administrator it reads bounded stdout from
 both installed `--help` commands and both manuals through the guarded VM SSH
-transport. It checks the public desktop after each read and requires no product
-window. This stream route passed complete case 193, including collection and
-cleanup, in run `20260922T225544Z-f49bdf46` (subject to runner retention).
+transport. Each command independently validates its own bounded output. One
+final desktop observation completes the case; no per-command desktop roundtrip
+or Terminal is needed. The earlier stream route with per-command desktop checks
+passed complete case 193, including collection and cleanup, in run
+`20260922T225544Z-f49bdf46` (subject to runner retention). That historical run
+does not qualify the shortened composition.
 The public `tools/run-tests e2e --vm NAME` route selects the ready set; a ready-suite pass
 is partial coverage while variants remain pending.
 

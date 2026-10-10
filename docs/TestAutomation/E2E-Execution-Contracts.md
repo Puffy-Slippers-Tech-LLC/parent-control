@@ -17,6 +17,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | --- | --- |
 | Selecting or resuming work | [Plan reading routes](E2E-Execution-Plan.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
+| Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | [Suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review); use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
@@ -75,6 +76,63 @@ Target selection follows the [VM mandate](../Mandates/VM-Mandate.MD#authority-an
 An explicit `--vm NAME` narrows diagnosis; report that limit without claiming other
 targets. Brief commands without it select the enabled registry queue. A real
 case command selects inventory `coverage_id`, never the task ID.
+
+## Product-focused journeys
+
+Apply the mandate's [three review questions](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+to new cases, existing executable cases, shared flows, completed qualifications,
+recipes and unfinished briefs. For each action, observation and acceptance condition,
+identify the product behavior it proves. Keep it when removing it would hide a
+distinct product failure, or when shared automation needs it to establish safe
+input or resource ownership. Otherwise remove it, combine it with a necessary
+observation, or use the simplest maintained system operation to reach the next
+product surface. A historical passing sequence does not make its incidental
+desktop behavior a future requirement.
+
+The journey should depend on the required destination and product result, not
+on an unrelated provider's exact path. In particular:
+
+- GDM's choice to show a password challenge or directly return a retained session
+  is incidental when the test only needs the next product surface. Do not force
+  a prompt, visit a locked desktop, or test a denial simply to move between apps.
+  Choose fresh entry or logout when retained work/session identity is irrelevant;
+  use a qualified retained-entry operation when preservation is the feature.
+  Shared entry helpers observe the actual supported branch before any input.
+- Preference-transfer tests need the right child, a save through the product,
+  and independent readback after the declared surface/account transition. They
+  need no additional authentication, zero-time restriction or desktop-provider
+  matrix. Use an allowance that permits necessary entry unless time enforcement
+  itself is under test.
+- Supporting commands need their bounded completion and required independent
+  result. Do not add a clear-desktop check after each help command, an unrelated
+  search suggestion, menu tours, or extra chooser/editor visits. Open supporting
+  tools only for a declared product integration or retained-work outcome.
+- Product authorization, time-limit denial, natural locking, saved work,
+  launch-route enforcement, installation and lifecycle persistence retain their
+  distinct public results. A successful navigation or selected widget cannot
+  replace them. Shared secret-recipient, ambiguity, ownership, single-use input
+  and uncertain-input guards remain mandatory whenever that input occurs.
+
+Before another repair of an intermittent external-provider failure, check
+whether the failing step is needed by those rules. Simplify an incidental step
+and its consumers before investigating or qualifying more provider behavior.
+When the provider boundary is the product integration under test, preserve its
+assertion and use the normal failure/diagnosis contract. Tolerance means accepting
+supported equivalent paths to the same result, never catching an unknown prompt,
+replaying uncertain input, accepting a generic login error as policy denial, or
+turning a missing product result into a pass.
+
+Update each changed rule's recipe, current catalogue contract and unfinished
+consumers together. Keep completed evidence historical, IDs and queue status
+intact; documentation review supplies no new live acceptance. Runtime changes
+still require their affected host checks and scoped live qualification.
+Review the actual shared callable and its consuming worker/declaration together:
+removing a recorded stage without removing the operation leaves the dependency
+in place, and removing an operation without updating its evidence/comparison
+endpoints can silently lose a product assertion. Reuse one independent read
+for adjacent unchanged checks, while keeping observations on both sides of a
+transition when they prove persistence, isolation or retained work. Report
+remaining necessary provider dependencies and unqualified changed routes.
 
 ## Task size and order
 

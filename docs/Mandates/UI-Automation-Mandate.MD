@@ -30,6 +30,27 @@ journey. Preserve distinct intermediate customer outcomes and shared target,
 ownership and input-safety guards. A capability's qualification matrix is not
 the recipe for each consuming customer case.
 
+For every step, observation and acceptance condition in a new case or E2E
+maintenance change, ask:
+
+1. Does it prove a core product behavior?
+2. Is it necessary to reach or observe that behavior safely?
+3. Can it be removed, combined or replaced with a simpler, more reliable
+   supported operation that preserves the same product result?
+
+Apply this review to implemented tests, shared flows, recipes, qualifications,
+completed-task requirements and unfinished briefs. Accept equivalent supported
+paths to the same result; require a particular desktop or provider path only
+when that integration is itself under test. Before adding an adapter, retry or
+longer timeout for an intermittent dependency, establish that the dependency
+is necessary. Remove incidental dependencies at their shared owner and update
+their consumers. Do not weaken enforcement, authorization, persistence, child
+isolation, retained work, recovery or lifecycle assertions. Credential-recipient,
+ownership and uncertain-input guards remain mandatory. The
+[journey review contract](../TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys)
+owns implementation and documentation reconciliation; historical completion
+does not qualify a changed route.
+
 In both layers, a toggle's final on/off state or a selector's final value is
 sufficient when that value is the feature being tested. When the choice controls
 another function, verify that function too; a selected radio indicator alone does not
@@ -157,6 +178,17 @@ product UI test, its setup or its result assertions.
   [qualified denial routes](../TestAutomation/E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification)
   only for their stated entry/result; never force a password field or activate
   a request-more-time action to dismiss a restriction.
+- **Incidental provider variance:** When login, unlock or desktop navigation only
+  transports the journey to a product surface, require the intended account and
+  usable destination, not a particular prompt sequence. Do not manufacture a
+  password challenge or a time-limit denial for a preference or app-navigation
+  test. Shared helpers may use a qualified direct-return or authentication branch
+  according to a fresh public observation; an absent challenge requires no secret
+  delivery. Explicit authentication/enforcement tests retain their required
+  challenge or denial result. Unknown prompts, ambiguous destinations and
+  uncertain input still refuse. Apply the
+  [product-focused journey review](../TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys)
+  before expanding provider work to accommodate unrelated variance.
 - **Observe the tested result:** System-command success establishes only that
   input was accepted. Independently check the required destination/session and
   the product's public result. Testing product behavior across logout, reboot,

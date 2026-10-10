@@ -1,10 +1,12 @@
 ## v1.4 -
 ### New Features
 - **Language Dialog**: You can search for a language by its English name as well as its localized name
-- **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences.
+- **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences. (feature asked by my son, in early days. Finally wish came true!)
 - **Parent App**: Revoke dialog shows list of running soft blocked apps that will be terminated.
-- **What's New**: Added metadata-driven What's new infra
+- **Parent App**: Smoother app loading experience; Neat app list loading overlay with percentage progress.
+- **What's New**: Added metadata-driven What's new infra for parent and child app. Parent version offers everything (no mercy to to parents, Grr!); child version only offers carefully crafted content relevant and appropriate to them (we're responsible parents, aren't we all?)
 - **Request Time Form**: You can customize the preset times in preferences!
+- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son, he even asked for seconds and days, without realizing the only response from his stonehearted Dad was kicking him out of Dad's home office)
 
 ### Bug Fixes
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.

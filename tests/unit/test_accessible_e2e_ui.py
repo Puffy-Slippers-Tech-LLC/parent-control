@@ -170,7 +170,7 @@ def test_account_selection_requires_the_complete_independent_eligible_set(fault,
         selector.setValue.assert_called_once_with('1000')
         ui.kiosk_request_form.assert_called_once_with(enabled=True,
             expected_selection=('approver', 'fixture-parent'), duration_seconds=1800,
-            custom_text=None, overlay=overlay, language='en')
+            custom_text=None, overlay=overlay, language='en', overlay_child=accessible_ui.CHILD)
 
 
 def test_kiosk_approver_mismatch_retains_private_diagnostics_without_authorizing_input(capsys):
@@ -1467,6 +1467,39 @@ def test_allowance_presets_require_independent_public_value(minutes, action):
     allowance.value = '15m' if minutes == 0 else '0m'
     with pytest.raises(UiError, match='allowance-selected-value'):
         ui.allowance_preset(accessible_ui.CHILD, minutes, action='read')
+
+
+@pytest.mark.parametrize('finish', [True, False])
+def test_allowance_selection_waits_for_pending_save_without_repeating_input(monkeypatch, finish):
+    ui, _root, picker, toggle, allowance = parent_save_ui()
+    ui.timeout = .01
+    label = Node('0 minutes', 'label')
+    label.parent = allowance
+    allowance.children = [label]
+    controls = (picker, toggle, allowance)
+    def select(_child, _minutes):
+        ui.invalidate_observation()
+        label.name = '30 minutes'
+        allowance.value = '30m'
+        for control in controls:
+            control.states.discard('sensitive')
+    ui.select_allowance = Mock(side_effect=select)
+    waits = []
+    def advance_save(_seconds):
+        waits.append('pending-save')
+        if finish:
+            for control in controls:
+                control.states.add('sensitive')
+    monkeypatch.setattr(accessible_ui.time, 'sleep', advance_save)
+    if finish:
+        assert ui.allowance_preset(accessible_ui.CHILD, 30, action='select') == {
+            'minutes': 30, 'saved': True}
+    else:
+        with pytest.raises(UiError, match='parent-save'):
+            ui.allowance_preset(accessible_ui.CHILD, 30, action='select')
+        assert ui.input_uncertain
+    assert waits
+    ui.select_allowance.assert_called_once_with(accessible_ui.CHILD, 30)
 
 
 @pytest.mark.parametrize('minutes', [True, '60', -1, 1, 59, 1440, 1441])
@@ -5002,6 +5035,9 @@ def test_fresh_desktop_refusal_retains_prompt_facts_without_private_ui_values(ki
         'application_id': 'missing', 'surface_id': 'missing',
         'role': 'dialog', 'password_control': kind in ('mate-polkit', 'shell-polkit', 'keyring'),
         'authentication_title': False,
+        'surface_showing': True, 'surface_modal': True,
+        'password_showing': kind in ('mate-polkit', 'shell-polkit', 'keyring'),
+        'lock_marker_showing': False,
     }]
     assert 'PRIVATE_' not in json.dumps(diagnostic)
     for control in controls:
@@ -5036,14 +5072,40 @@ def test_unknown_prompt_identity_diagnostic_preserves_refusal_without_private_va
         'password_control': False, 'authentication_title': False,
         'application_id': application.identity if known_ids else 'other',
         'surface_id': 'kiosk-system-notification' if known_ids else 'other',
+        'surface_showing': True, 'surface_modal': True,
+        'password_showing': False, 'lock_marker_showing': False,
     }]
     assert 'PRIVATE_' not in json.dumps(prompts)
     for control in controls:
         control.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('showing', [False, True])
+@pytest.mark.parametrize('lock_marker', [False, True])
+def test_prompt_failure_facts_use_the_refused_snapshot_without_changing_the_guard(showing, lock_marker):
+    ui, controls = semantic_prompt('shell-polkit')
+    application = ui.api.get_desktop(0).children[0]
+    application.children[0].name = ''
+    controls[0].states = {'visible', 'sensitive'} | ({'showing'} if showing else set())
+    if lock_marker:
+        hint = Node('Click or press a key to unlock', 'label')
+        hint.parent = application
+        application.children.append(hint)
+    ui.prompt_enabled, ui.prompt_session = True, 'desktop'
+    with pytest.raises(UiError, match='^ui:system-prompt-refused:desktop:shell-polkit$') as caught:
+        ui.handle_system_prompt()
+    item = accessible_ui.adapter_failure_diagnostic(caught.value)['system_prompts'][0]
+    assert item['password_control'] is True
+    assert item['password_showing'] is showing
+    assert item['lock_marker_showing'] is lock_marker
+    assert item['surface_showing'] is True and item['surface_modal'] is True
+    for control in controls:
+        control.action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', ['', 'kind', 'source', 'role', 'application_id',
-                                  'surface_id', 'boolean', 'extra', 'bound'])
+                                  'surface_id', 'boolean', 'surface_showing', 'surface_modal',
+                                  'password_showing', 'lock_marker_showing', 'extra', 'bound'])
 def test_prompt_failure_diagnostic_is_bounded_in_the_real_isolated_payload(tmp_path, fault):
     transport = SimpleNamespace(call=Mock(return_value=json.dumps({
         'operation': 'desktop', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
@@ -5051,11 +5113,15 @@ def test_prompt_failure_diagnostic_is_bounded_in_the_real_isolated_payload(tmp_p
     UiObservations(transport).observe('desktop')
     prompt = {'kind': 'unknown', 'source': 'directory-language', 'role': 'dialog',
               'application_id': 'missing', 'surface_id': 'missing',
-              'password_control': False, 'authentication_title': False}
+              'password_control': False, 'authentication_title': False,
+              'surface_showing': True, 'surface_modal': False,
+              'password_showing': False, 'lock_marker_showing': False}
     if fault in ('kind', 'source', 'role', 'application_id', 'surface_id'):
         prompt[fault] = 'PRIVATE_UI_VALUE'
     elif fault == 'boolean':
         prompt['password_control'] = 'PRIVATE_PASSWORD'
+    elif fault in ('surface_showing', 'surface_modal', 'password_showing', 'lock_marker_showing'):
+        prompt[fault] = 'PRIVATE_UI_VALUE'
     elif fault == 'extra':
         prompt['text'] = 'PRIVATE_DOCUMENT'
     prompts = [prompt] * (9 if fault == 'bound' else 1)

@@ -21,8 +21,7 @@ SCREENS = {
 CHALLENGES = {'initial': ('parent', 'recipient-qualified', 'recipient-rechecked')}
 LOGIN_STAGES = tuple(fresh_desktop('parent'))
 for prefix, child, role, entry in (('riley', 'riley', 'child', 'fresh'),
-                                  ('jordan', 'jordan', 'other-child', 'fresh'),
-                                  ('independent', 'riley', 'child', 'retained')):
+                                  ('jordan', 'jordan', 'other-child', 'fresh')):
     SCREENS.update(prefixed_stages(prefix + '-entry', desktop_entry(role, source='gdm', entry=entry)))
     login = prefixed_stages(prefix + '-entry', fresh_desktop(role))
     LOGIN_STAGES += tuple(login)
@@ -30,14 +29,19 @@ for prefix, child, role, entry in (('riley', 'riley', 'child', 'fresh'),
     CHALLENGES[prefix + '-entry'] = (role, prefix + '-entry-' + recipient + '-recipient-qualified',
                                     prefix + '-entry-' + recipient + '-recipient-rechecked')
     SCREENS[prefix + '-launch'] = f'ui:transfer-overlay-{child}-launch'
-    if prefix != 'independent':
-        SCREENS.update({prefix + '-' + action: f'ui:transfer-overlay-{child}-{action}'
-                        for action in ('default', 'refused', 'approver', 'custom', 'text', 'apps')})
+    SCREENS.update({prefix + '-' + action: f'ui:transfer-overlay-{child}-{action}'
+                    for action in ('default', 'refused', 'approver', 'custom', 'text', 'apps')})
     SCREENS[prefix + '-source'] = f'ui:transfer-overlay-{child}-read'
     SCREENS.update(overlay_to_kiosk(prefix + '-transfer', child=child))
-    if prefix != 'independent':
+    if prefix == 'riley':
         SCREENS.update({prefix + '-exit': 'ui:kiosk-request-cancel',
                         prefix + '-greeter': 'ui:gdm-station-returned'})
+for child in ('riley', 'jordan'):
+    SCREENS.update({child + '-revisit-select': f'ui:transfer-kiosk-{child}-select',
+                    child + '-revisit-read': f'ui:transfer-kiosk-{child}-read'})
+
+COMPARISONS = {**{child + '-transfer-read': child + '-source' for child in ('riley', 'jordan')},
+               **{child + '-revisit-read': child + '-source' for child in ('riley', 'jordan')}}
 
 PLAN = JourneyPlan(
     prefix='choices-overlay-to-kiosk', worker_mode='choices_overlay_to_kiosk', screen_tags=SCREENS,
@@ -46,10 +50,9 @@ PLAN = JourneyPlan(
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES), challenges=CHALLENGES,
     child_bindings={'riley-allowance': 'child', 'jordan-allowance': 'existing'},
     balance_checks={'riley-allowance': 1800, 'jordan-allowance': 1800},
-    request_transfer_checks={prefix + '-transfer-read': prefix + '-source'
-                             for prefix in ('riley', 'jordan', 'independent')},
-    assertions_after={prefix + '-transfer-read': prefix + '-shared-choices-local-approver'
-                      for prefix in ('riley', 'jordan', 'independent')},
+    request_transfer_checks=COMPARISONS,
+    assertions_after={stage: stage[:-5] + '-shared-choices-local-approver'
+                      for stage in COMPARISONS},
 )
 
 

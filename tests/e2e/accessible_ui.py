@@ -6080,6 +6080,11 @@ class AccessibleUI:
         """Retain finite stage bindings around API input and independent readback."""
         require((value, phase) in ALLOWANCE_KEYBOARD_OPERATIONS.values(),
                 'ui:allowance-binding')
+        if phase == 'selected':
+            # A successful preset setter starts an asynchronous save which
+            # temporarily disables both selectors. Wait for the existing
+            # independent saved-state result before checking readback usability.
+            self.parent_save_snapshot(child, True)
         self.allowance_entry(child)
         if phase == 'click':
             self.parent_save_snapshot(child, True)
@@ -8762,6 +8767,15 @@ class AccessibleUI:
         if overlay:
             self.require_child_overlay_session(child)
         if action == 'refused':
+            if self.application_ui is not None:
+                # This negative product-surface guard releases no input. Read
+                # the complete owner-pinned API catalog, not unrelated desktop
+                # providers which can exit during an AT-SPI traversal.
+                matches = self.application_ui.find_all(KIOSK_APPLICATION,
+                    owner_pids=self.owner_pids, application_owners=self.application_owners,
+                    application_ids=self.application_ids)
+                require(not matches, 'ui:transfer-wrong-surface-accepted')
+                return None
             try:
                 self.request_surface(self.read_snapshot(), overlay=False)
             except UiError as error:
@@ -10849,6 +10863,14 @@ class AccessibleUI:
                             'role': (facts[surface]['role'] if facts[surface]['role']
                                      in ('alert', 'dialog') else 'other-modal'),
                             'password_control': password, 'authentication_title': prompt_title,
+                            'surface_showing': facts[surface]['showing'],
+                            'surface_modal': facts[surface]['modal'],
+                            'password_showing': any(facts[node]['role'] == 'password text'
+                                                    and facts[node]['showing'] for node in descendants),
+                            'lock_marker_showing': any(facts[node]['showing']
+                                and facts[node]['role'] == 'label' and facts[node]['name'] in (
+                                    'Click or press a key to unlock', 'Screen Time Limit Reached')
+                                for node in application_nodes),
                         })
         if len(candidates) > 1:
             error = UiError('ui:ambiguous-system-prompt')
@@ -12546,14 +12568,17 @@ def adapter_failure_diagnostic(error):
     if type(prompts) is list and 0 < len(prompts) <= 8 and all(
             type(item) is dict and set(item) == {
                 'kind', 'source', 'role', 'password_control', 'authentication_title',
-                'application_id', 'surface_id'}
+                'application_id', 'surface_id', 'surface_showing', 'surface_modal',
+                'password_showing', 'lock_marker_showing'}
             and item['kind'] in ('mate-polkit', 'shell-polkit', 'keyring', 'unknown')
             and item['source'] in (*PROMPT_DIAGNOSTIC_SOURCES.values(), 'other')
             and item['application_id'] in (*PROMPT_DIAGNOSTIC_APPLICATION_IDS, 'other', 'missing')
             and item['surface_id'] in (*PROMPT_DIAGNOSTIC_SURFACE_IDS, 'other', 'missing')
             and item['role'] in ('alert', 'dialog', 'other-modal')
             and type(item['password_control']) is bool
-            and type(item['authentication_title']) is bool for item in prompts):
+            and all(type(item[key]) is bool for key in (
+                'authentication_title', 'surface_showing', 'surface_modal',
+                'password_showing', 'lock_marker_showing')) for item in prompts):
         diagnostic['system_prompts'] = [dict(item) for item in prompts]
     # Distinguish disappearing objects from transport/provider failures without
     # retaining the error message, bus name, object path or other UI values.

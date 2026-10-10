@@ -15,6 +15,19 @@ do not override those current rules or create future acceptance prerequisites.
 The [initial migration decision](E2E-Execution-Plan.md#current-scope) supplies no
 acceptance for later changes.
 
+For every checked or unfinished row, apply the
+[product-focused journey contract](E2E-Execution-Contracts.md#product-focused-journeys).
+Delivered scope records what passed historically; incidental GDM prompts,
+desktop checks and provider choreography in that evidence are not requirements
+to reproduce. Retain the product outcome and necessary shared safety guards.
+
+Review direct prerequisites after simplifying a route. A shared command that
+keeps the product window open does not require a desktop window-switch
+qualification. Keep dependencies for the operations still used, and preserve
+independent qualification of unchanged prerequisite slices rather than repeating
+their full histories in each consumer. A case still observes every distinct
+product result required by its own journey.
+
 ## Reallocated UI coverage
 
 Reallocated case: **161** (zero-total Revoke availability; Parent UI owner;
@@ -478,9 +491,9 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 102 | [Compose expiry recovery through kiosk approval](E2E-Tasks/102-replacement.md) | 062, 079a, 065 | FLOW11 | 20–30 |
 | [ ] | 103 | [E2E-009: excluded](E2E-Tasks/103-case-23.md) | 102, 079b | Cases 23 | 35–55 (exception) |
 | [ ] | 104 | [E2E-009: included](E2E-Tasks/104-case-24.md) | 102, 079b | Cases 24 | 35–55 (exception) |
-| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 044a, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 20–30 |
+| [ ] | 123 | [Keep an unsaved match draft across a fixture update](E2E-Tasks/123-catalog-change.md) | 079, 006, 028 | LIFE04 fixture update; PARENT15 retained-editor save; LIFE01 catalogue refresh | 20–30 |
 | [ ] | 124 | [E2E-020: update](E2E-Tasks/124-case-110.md) | 123, 079a, 180 | Cases 110 | 35–55 (exception) |
-| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 044a, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 (exception) |
+| [ ] | 123a | [Save a match draft after fixture removal](E2E-Tasks/123a-catalog-removal.md) | 079, 006, 028 | LIFE04 fixture remove/reinstall; PARENT15 retained-editor save; LIFE01 catalogue refresh | 30–50 (exception) |
 | [ ] | 125 | [E2E-020: remove](E2E-Tasks/125-case-111.md) | 123a, 079a, 180 | Cases 111 | 35–55 (exception) |
 | [ ] | 126p | [Prepare the declared offline game in the baseline](E2E-Tasks/126p-game-fixture.md) | 006, 077a | Offline-game baseline assets and FIX06 verification | 20–30 |
 | [ ] | 126a | [Launch and observe the prepared offline game](E2E-Tasks/126a-game-activity.md) | 126p, 047 | Game APP01/02/03/04 and FLOW08 usable activity | 20–30 |
@@ -492,7 +505,7 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 270 | [E2E-048: daily-dominant-kiosk](E2E-Tasks/270-case-228.md) | 197k, 052c, 132 | Cases 228; gate in brief | 20–30 |
 | [ ] | 129 | [Play fullscreen to natural lock](E2E-Tasks/129-game-fullscreen.md) | 126 | APP05/FLOW10 fullscreen play | 20–30 |
 | [ ] | 130 | [E2E-023: fullscreen](E2E-Tasks/130-case-127.md) | 102, 079b, 129 | Cases 127 | 40–60 (exception) |
-| [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen reveal; REQUEST13 panel launch and overlay/game return | 20–30 |
+| [ ] | 129a | [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md) | 129, 048a | DESK12 fullscreen panel API entry; REQUEST13 launch and overlay/game return | 20–30 |
 | [ ] | 131 | [E2E-024: grant-dominant-fullscreen](E2E-Tasks/131-case-131.md) | 048b, 079b, 129a | Cases 131 | 40–60 (exception) |
 | [ ] | 289 | [E2E-050: overlay-first-retained](E2E-Tasks/289-case-247.md) | 197, 197k, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 247; two complete cycles; gate in brief | 20–30 + ≤90 live (exception) |
 | [ ] | 290 | [E2E-050: overlay-first-fresh](E2E-Tasks/290-case-248.md) | 197, 197k, 196, 079b, 102, 155, 129a, 047a, 028 | Cases 248; two complete cycles; gate in brief | 20–30 + ≤90 live (exception) |
@@ -523,8 +536,8 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 212 | [E2E-038: revoke](E2E-Tasks/212-case-170.md) | 182, 047a | Cases 170 | 20–30 |
 | [ ] | 184 | [Create the registered spare child through shared account helpers](E2E-Tasks/184-change-disposable-accounts-through-users-settings.md) | 004 | ACCOUNT01/02 shared account read/create; AUTH04 protected-account guards | 20–30 |
 | [ ] | 184b | [Remove a logged-out spare child through shared account helpers](E2E-Tasks/184b-remove-disposable-child.md) | 184 | ACCOUNT02 remove-child | 20–30 |
-| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 044a, 014, 180, 044 | Cases 180; one removal, independent Parent and reopened-station fallback; absorbs case 183 | 40–60 (exception) |
-| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017, 044a | Cases 181 | 20–30 |
+| [ ] | 222 | [E2E-040: remove-selected](E2E-Tasks/222-case-180.md) | 184b, 017, 014, 180, 044 | Cases 180; one removal, independent Parent and reopened-station fallback; absorbs case 183 | 40–60 (exception) |
+| [ ] | 223 | [E2E-040: remove-last-child](E2E-Tasks/223-case-181.md) | 184b, 017 | Cases 181 | 20–30 |
 | [ ] | 184c | [Change a spare approver role through shared account helpers](E2E-Tasks/184c-change-spare-account-role.md) | 184 | ACCOUNT02 change-role | 20–30 |
 | [ ] | 224 | [E2E-040: ineligible-approver](E2E-Tasks/224-case-182.md) | 184c, 155 | Cases 182 | 20–30 |
 | [ ] | 312a | [Qualify overlay reminder editing and persistence](E2E-Tasks/312a-overlay-reminder-editing.md) | 300i | Installed overlay reminder CRUD, main Save/Cancel and empty-list readback; qualification pending | 20–30 |

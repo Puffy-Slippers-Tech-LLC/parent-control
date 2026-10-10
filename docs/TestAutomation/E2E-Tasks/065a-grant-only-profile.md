@@ -17,7 +17,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Compose real kiosk approval at daily=0 with retained Parent readback and final GDM return. Require explicit revoke-first input when clearing an existing grant.
+Compose real kiosk approval at daily=0 with retained Parent readback and final GDM return. Reuse the initial public PARENT09 observation when G is already zero. Require explicit revoke-first input when clearing an existing grant and fresh balance readback after that mutation; never clear it silently.
 
 ## Live VM acceptance
 

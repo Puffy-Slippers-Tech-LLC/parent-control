@@ -29,8 +29,7 @@ REVIEW = {
     'reset-feedback-draft-reread': 'ui:draft-feedback-draft-reread',
     'reset-feedback-draft-closed': 'ui:feedback-draft-closed',
     **parent_reopen(),
-    'feedback-wrong-entry': 'ui:feedback-wrong-entry',
-    'feedback-reopen': 'ui:draft-feedback-reopen', 'feedback-reread': 'ui:draft-feedback-reread',
+    'feedback-reopen': 'ui:draft-feedback-reopen',
 }
 SCREENS = {**ENTRY, **EDIT, **REVIEW}
 PLAN = JourneyPlan(
@@ -39,7 +38,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in (*ENTRY, *EDIT)}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in REVIEW}},
     advance_after={'feedback-draft': 'step-2'},
-    stage_actions={'parent-selected': 'chooser-fixtures', 'feedback-reread': 'chooser-cleanup'},
+    stage_actions={'parent-selected': 'chooser-fixtures', 'feedback-reopen': 'chooser-cleanup'},
     invocations=tuple(stage for stage, operation in SCREENS.items() if operation != 'ui:' + stage),
 )
 ACTIONS = fixture_actions(('single',))

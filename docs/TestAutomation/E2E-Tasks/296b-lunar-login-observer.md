@@ -37,11 +37,13 @@ shared observer, command transport and VM lease; no new capture loop or viewer.
 
 ## Live VM acceptance
 
-On the guarded VM, qualify working allowed autostart and a complete denied
-login interval, with a real original-AppImage launch and specific public denial
+On the guarded VM, qualify a complete denied login interval, with a real
+original-AppImage launch and specific public denial
 as the negative control. Missing samples, ambiguous ownership and transient usable
 surfaces must fail. Pass applicable recorder/secret/cleanup tests and the master's
-retained regressions. This slice does not register or pass complete case 253.
+retained regressions. Reuse 296f's unchanged allowed-autostart qualification;
+repeat that live branch only when shared changes affect it. Its evidence supplies
+no saved VM state. This slice does not register or pass complete case 253.
 
 Implement and register the following fixed qualification in the existing guarded
 envelope before invoking it. Pass the affected cleanup/ownership regressions in

@@ -7,7 +7,7 @@ Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **DESK12 fullscreen reveal; overlay/game return**. First scheduled consumer: [E2E-024, case 131](../E2E-Scenario-Recipes.md#e2e-024).
+Deliver **DESK12 fullscreen panel API entry; overlay/game return**. First scheduled consumer: [E2E-024, case 131](../E2E-Scenario-Recipes.md#e2e-024).
 Read the named [block contracts](../E2E-Building-Blocks.md#desktop-and-retained-session-entry) and only the selected consumer's recipe.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
@@ -17,11 +17,11 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 ## Implementation
 
-Qualify the game's supported normal Shell reveal sequence, then use REQUEST13 to open one overlay through the panel. This is the explicit graphical launch exception for E2E-024/fullscreen. Bind the route back to the same game via DESK10 and compare its earlier activity. A missing panel route blocks these request consumers without blocking fullscreen expiry.
+Use REQUEST13's existing shared `child-panel` Application UI API operation to activate `child-request-button` while the real game remains fullscreen. This preserves the recipe's panel-entry integration without a Shell reveal, focus or presentation prerequisite under [product-focused journeys](../E2E-Execution-Contracts.md#product-focused-journeys). Bind the return to the same game via DESK10 and compare its earlier activity. Keep logical availability and target ownership guards in the shared API operation.
 
 ## Live VM acceptance
 
-On the live VM, play fullscreen, capture activity, expose the panel normally and open the request overlay. Read the intended fixed child, cancel through the qualified form control and return to the same usable game activity. Repeat from an independent fullscreen entry and reject wrong-window proofs.
+On the live VM, play fullscreen, capture activity and open the request overlay through REQUEST13's panel API operation. Read the intended fixed child, cancel through the qualified form control and return to the same usable fullscreen game activity. Repeat from an independent fullscreen entry and reject wrong-window proofs. Hidden panel presentation alone is no blocker; an unavailable or refused product operation or missing same-game return remains pending.
 
 Qualification selector (implement and register before use):
 

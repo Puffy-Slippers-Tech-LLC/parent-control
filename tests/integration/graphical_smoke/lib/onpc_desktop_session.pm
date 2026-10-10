@@ -204,7 +204,6 @@ sub qualify_retained_entry {
     onpc_progress::operation('Visiting both original child desktops and the retained Parent window');
     my ($exchange, $declared, $challenges) = @_;
     die 'desk:retained-entry-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    require onpc_feedback_read;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-entry', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -244,7 +243,6 @@ sub qualify_retained_entry {
     $journey->consume_observation('return-parent-retained',
         onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return'));
     $journey->seen('session-returned');
-    onpc_feedback_read::prepare_window_switch($journey, 'focus-');
     $journey->seen('zero-configured');
     $journey->consume_observation('denial-switch-ready', $journey->seen('denial-switch-ready'));
     $journey->seen($_) for qw(denial-switch denial-greeter);
@@ -261,7 +259,6 @@ sub qualify_retained_parent {
     onpc_progress::operation('Returning to the same Parent desktop and existing window');
     my ($exchange, $declared, $challenges) = @_;
     die 'desk:retained-parent-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    require onpc_feedback_read;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-parent', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
@@ -279,7 +276,6 @@ sub qualify_retained_parent {
     $journey->consume_observation('return-parent-retained',
         onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'return'));
     $journey->seen('session-returned');
-    onpc_feedback_read::prepare_window_switch($journey, 'focus-');
     $journey->seen('second-before');
     $journey->consume_observation('second-desktop', $journey->seen('second-desktop'));
     $journey->seen($_) for qw(second-switch second-greeter);

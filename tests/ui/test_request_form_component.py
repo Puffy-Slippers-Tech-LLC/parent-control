@@ -12,6 +12,36 @@ from tests.support.request_form import launch_request, calls, events
 pytestmark = pytest.mark.ui
 
 
+def test_remembered_overlay_binding_uses_local_approver_and_native_shared_choices(
+        launch_ui, automation, wait_for_accessible_state, monkeypatch):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
+    from tests.e2e.ui_observations import RequestObservation
+
+    launch_ui('child_overlay_preview')
+    ui = automation
+    wait_for_accessible_state(lambda: ui.find('kiosk-request-submit') is not None,
+                              'overlay form available')
+    reader = AccessibleUI(ui.api, timeout=15, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners, application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
+        dispatch=lambda: GLib.MainContext.default().iteration(False))
+    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda child=CHILD: None)
+    monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
+    assert ui.find('kiosk-child-selector').get_description() == 'Selected account: ' + CHILD + '.'
+    # The preview's broker seed is Jamie; explicitly establish the installed
+    # journey's local overlay approver before checking the shared tuple.
+    assert ui.find('kiosk-approver-selector').get_description() == 'Selected account: ' + PARENT + '.'
+    for action in ('approver', 'custom', 'text', 'apps'):
+        reader.run('remembered-overlay-riley-' + action, '')
+    operation = 'remembered-overlay-riley-read'
+    request = RequestObservation.from_request(reader.run(operation, '')['request'], operation=operation)
+    assert request.child == 'fixture-child' and request.approver == 'other-fixture-parent'
+    assert request.duration_seconds == 150 and request.custom_text == '2.5' and request.allow_soft is False
+    assert reader.run('transfer-overlay-riley-refused', '')['outcome'] == 'passed'
+
+
 def test_overlay_about_license_shared_reader_and_unchanged_form(
         launch_ui, automation, wait_for_accessible_state, monkeypatch):
     from gi.repository import GLib
@@ -28,7 +58,7 @@ def test_overlay_about_license_shared_reader_and_unchanged_form(
         application_owners=ui.application_owners, application_owner_history=ui.application_owner_history,
         fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
         dispatch=lambda: GLib.MainContext.default().iteration(False))
-    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda child=CHILD: None)
     # This preview declares synthetic approvers, independent of host OS accounts.
     # Keep the shared reader's exact offered-account check against that fixture.
     monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
@@ -69,7 +99,7 @@ def test_shared_overlay_choice_adapter_and_fractional_text_on_native_gtk(
         fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002, PARENT: 1000, OTHER_PARENT: 1010},
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     # Host preview identity is supplied by its process owner, not a guest login.
-    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda: None)
+    monkeypatch.setattr(reader, 'require_child_overlay_session', lambda child=CHILD: None)
     # This preview declares synthetic approvers, independent of host OS accounts.
     # Keep the shared reader's exact offered-account check against that fixture.
     monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
@@ -136,8 +166,18 @@ def test_custom_hours_save_restore_and_submit(
     ready(ui, wait)
     ui.activate("kiosk-duration-custom")
     assert ui.getValue("kiosk-custom-duration-units") == "minutes"
-    ui.activate("kiosk-custom-duration-units")
+    assert ui.getChoices("kiosk-custom-duration-units") == ["minutes", "hours"]
+    assert ui.getText("kiosk-custom-duration-units") == "minutes"
+    assert ui.getValue("kiosk-custom-duration-unit-minutes") is True
+    assert ui.getValue("kiosk-custom-duration-unit-hours") is False
+    ui.setValue("kiosk-custom-duration-units", "hours")
+    assert ui.getValue("kiosk-custom-duration-unit-hours") is True
+    assert ui.getValue("kiosk-custom-duration-unit-minutes") is False
+    ui.activate("kiosk-custom-duration-unit-minutes")
+    assert ui.getValue("kiosk-custom-duration-units") == "minutes"
     ui.activate("kiosk-custom-duration-unit-hours")
+    assert ui.getValue("kiosk-custom-duration-units") == "hours"
+    assert ui.getText("kiosk-custom-duration-units") == "hours"
     ui.setText("kiosk-custom-duration", "1.5")
     wait(lambda: any(call["values"][1:] == ["custom", 90.0, False, 1000, "hours"]
                      for call in calls(path, "UpdateRequestPreferencesWithUnit")),
@@ -150,6 +190,8 @@ def test_custom_hours_save_restore_and_submit(
         ui.setValue("kiosk-child-selector", "1001")
         wait(lambda: ui.getValue("kiosk-custom-duration-units") == "hours",
              "first child's unit restored")
+        assert ui.getValue("kiosk-custom-duration-unit-hours") is True
+        assert ui.getValue("kiosk-custom-duration-unit-minutes") is False
         assert ui.getText("kiosk-custom-duration") == "1.5"
     ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
@@ -323,6 +365,21 @@ def test_shared_custom_duration_rejects_values_outside_range(
     assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_custom_hours_range_feedback(launch_ui, request_ui, wait_for_accessible_state,
+                                     tmp_path, overlay):
+    ui = request_ui
+    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
+                        overlay=overlay, scenario="custom-too-large")
+    ready(ui, wait_for_accessible_state)
+    ui.setValue("kiosk-custom-duration-units", "hours")
+    ui.setText("kiosk-custom-duration", "200")
+    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
+    ui.activate("kiosk-request-submit")
+    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
+
+
 def test_kiosk_child_selection_reloads_that_childs_preferences(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path):
     ui = request_ui
@@ -365,21 +422,6 @@ def test_local_selections_restore_only_eligible_accounts(
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_custom_hours_range_feedback(launch_ui, request_ui, wait_for_accessible_state,
-                                     tmp_path, overlay):
-    ui = request_ui
-    path = open_request(launch_ui, tmp_path, ui, wait_for_accessible_state,
-                        overlay=overlay, scenario="custom-too-large")
-    ready(ui, wait_for_accessible_state)
-    ui.setValue("kiosk-custom-duration-units", "hours")
-    ui.setText("kiosk-custom-duration", "200")
-    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
-    ui.activate("kiosk-request-submit")
-    status(ui, wait_for_accessible_state, "Allowed range: 0.0016666667 – 24 hours.")
-    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
-
-
 def test_local_selection_changes_are_saved_before_submission(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     selections = tmp_path / "request-selections.json"

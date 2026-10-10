@@ -194,17 +194,21 @@ class PublicAtspi:
                 context.pop_thread_default()
 
     @contextmanager
-    def application_state_events(self, bus, receive):
+    def application_state_events(self, bus, receive, *, states=('visible', 'sensitive')):
         """Observe bounded state transitions from one pinned application owner.
 
         Dynamic dialog children do not exist before input, so their paths cannot
         be subscribed individually. The caller resolves public IDs and ancestry
-        before accepting any signal as evidence.
+        before accepting any signal as evidence. Diagnostic callers may select
+        showing/modal alongside the default visible/sensitive finite scope;
+        no signal authorizes input or supplies an atomic tree observation.
         """
         from gi.repository import Gio, GLib
-        if not isinstance(bus, str) or not bus.startswith(':'):
+        if (not isinstance(bus, str) or not bus.startswith(':') or
+                type(states) is not tuple or not 1 <= len(states) <= 4 or
+                any(state not in ('visible', 'sensitive', 'showing', 'modal') for state in states) or
+                len(set(states)) != len(states)):
             raise ValueError('public-atspi:event-owner')
-        states = ('visible', 'sensitive')
         context = GLib.MainContext.new()
         context.push_thread_default()
         subscriptions = []

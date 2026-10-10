@@ -1599,9 +1599,6 @@ class RequestWindow(Adw.ApplicationWindow):
         # for the authentication agent instead of closing or logging out.
         if self._state.in_flight:
             return False
-        if (self._stack.get_visible_child_name() == "request"
-                and self._request_content.dismiss_custom_units()):
-            return True
         if self._stack.get_visible_child_name() == "result":
             self._result_dismissed()
         else:

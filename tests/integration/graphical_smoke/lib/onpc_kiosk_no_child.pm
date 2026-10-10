@@ -15,7 +15,7 @@ sub run {
     my $wrong = $journey->seen('wrong-entry');
     $journey->consume_observation('wrong-entry', $wrong);
     onpc_gdm::enter_station($journey, '');
-    for my $stage ('empty-form', 'empty-rechecked') {
+    for my $stage ('empty-form') {
         my $result = $journey->seen($stage);
         $journey->consume_observation($stage, $result);
     }

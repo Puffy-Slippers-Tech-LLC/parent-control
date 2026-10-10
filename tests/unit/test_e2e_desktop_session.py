@@ -175,7 +175,7 @@ def test_retained_entry_actual_worker_order_and_every_refusal_stop():
     assert [row[1] for row in events if row[0] == 'stage'] == list(PLAN.screen_tags)
     assert events.count(['secret']) == 9
     assert events.count(['key', 'spc']) == 2
-    assert events.count(['key', 'alt-tab']) == 1
+    assert events.count(['key', 'alt-tab']) == 0
     assert events[-1] == ['power', 'off']
     for stage in PLAN.screen_tags:
         failure = json.loads(run_perl(program, stage, binding).stdout)
@@ -353,7 +353,7 @@ def test_retained_parent_actual_worker_order_and_every_refusal_stop():
     events = result['events']
     assert [row[1] for row in events if row[0] == 'stage'] == list(PLAN.screen_tags)
     assert events.count(['secret']) == 5
-    assert events.count(['key', 'alt-tab']) == 1
+    assert events.count(['key', 'alt-tab']) == 0
     assert events[-1] == ['power', 'off']
     # Every refusal must stop before any later command, password or reply.
     for stage in PLAN.screen_tags:

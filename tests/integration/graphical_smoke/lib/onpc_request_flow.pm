@@ -338,14 +338,11 @@ sub qualify_choices_overlay_to_kiosk {
     onpc_gdm::enter_station($journey->scope('seed'), '');
     $journey->seen($_) for qw(seed-child seed-approver seed-cancel seed-returned);
     for my $binding (['riley', 'riley', 'child', 'fresh'],
-                     ['jordan', 'jordan', 'other-child', 'fresh'],
-                     ['independent', 'riley', 'child', 'retained']) {
+                     ['jordan', 'jordan', 'other-child', 'fresh']) {
         my ($prefix, $child, $role, $entry) = @$binding;
         onpc_desktop_session::enter_desktop($journey, 'gdm', $role, $entry, 'success', "$prefix-entry");
         $journey->seen("$prefix-launch");
-        if ($prefix ne 'independent') {
-            $journey->seen("$prefix-$_") for qw(default refused approver custom text apps);
-        }
+        $journey->seen("$prefix-$_") for qw(default refused approver custom text apps);
         my $source = $journey->seen("$prefix-source");
         # A wrong source receipt cannot release even the first Cancel.
         my $wrong = onpc_journey->new(exchange => $exchange, prefix => 'transfer-wrong', review => 0);
@@ -353,7 +350,11 @@ sub qualify_choices_overlay_to_kiosk {
         die 'request-transfer:wrong-entry-accepted' if $accepted;
         die 'request-transfer:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
         overlay_to_kiosk($journey, $source, "$prefix-source", "$prefix-transfer", $child);
-        $journey->seen("$prefix-$_") for $prefix eq 'independent' ? () : qw(exit greeter);
+        $journey->seen("$prefix-$_") for $prefix eq 'riley' ? qw(exit greeter) : ();
+    }
+    for my $child (qw(riley jordan)) {
+        $journey->seen("$child-revisit-select");
+        $journey->seen("$child-revisit-read");
     }
     $journey->finish();
 }

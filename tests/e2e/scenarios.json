@@ -905,7 +905,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Use this case's declared account profile. Enable available children through Parent except disabled-child and no-parent. No-parent enters the station directly with default limits off, observes a listed parent, then discovers and locks all eligible parents through the OS fixture, preserving children and the station. Cancel to GDM and reopen the station; no administrator or hidden enabled-policy setup is needed. Other profiles enter the station normally."},
           {"id": "step-2", "operation": "ui", "description": "Compare offered eligible child and parent choices. Select representative pairs covering both children and both eligible parents, and read the final selected accounts and loaded child settings; read the empty/ineligible/disabled explanation otherwise."},
-          {"id": "step-3", "operation": "ui", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control."}
+          {"id": "step-3", "operation": "ui", "description": "For an available enabled child, select Request, read the matching prompt and cancel. Otherwise observe disabled submission and its explanation without activating an unavailable control. For no-child and no-parent, cancel the unavailable request and independently observe the usable greeter."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}

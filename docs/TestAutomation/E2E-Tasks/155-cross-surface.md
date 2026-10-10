@@ -28,6 +28,12 @@ Cancel/Escape operations, retained desktop entry and public Parent allowance set
 
 Add the kiosk-to-overlay FLOW12 direction using 155a's shared request exit, entry and REQUEST03/UI12 comparison operations. Duration, custom value and soft-app choice follow the child; the station and each overlay keep their own approver. Qualify both child bindings and read the destination before editing. This composition performs no approval.
 
+Keep session entry to the minimum needed to reach the intended form under
+[product-focused journeys](../E2E-Execution-Contracts.md#product-focused-journeys).
+Use ample valid time and accept the qualified direct-return or authentication
+branch observed by the shared helper. A password prompt or time-limit denial is
+not an acceptance requirement for comparing saved choices.
+
 ## Live VM acceptance
 
 In fresh guarded VM attempts, publicly enable both children with ample time. Seed the recipe's different kiosk values and local approvers, then compare each child's kiosk-to-overlay result before changing any destination choice. Finish with that destination form open; preserve independent valid entry and wrong-child/surface refusal. Reuse 155a's unchanged exact overlay-to-kiosk qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Current mute absence has no interactive value; deferred mute does not block this task.

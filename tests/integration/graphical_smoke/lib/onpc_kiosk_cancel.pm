@@ -77,7 +77,6 @@ sub overlay_cancel {
         $journey->consume_observation('cancel', $journey->seen('cancel'));
         $journey->consume_observation('cancel-returned', $journey->seen('cancel-returned'));
     }
-    onpc_app_rows::native_read_activity($activity, 'returned');
     onpc_app_rows::native_activity_resume($journey, 'resumed');
     $journey->seen('countdown') if $exit eq 'approved';
     onpc_app_rows::native_finish_app($activity);

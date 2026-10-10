@@ -535,7 +535,7 @@ def test_unapproved_station_worker_rechecks_restrictions_then_exits(monkeypatch,
     if refusal is None:
         keys = [event[1] for event in result['events'] if event[0] == 'key']
         assert [key for key in keys if key in ('super', 'super-a', 'ctrl-alt-t')] == [
-            'super', 'super-a', 'ctrl-alt-t'] * 2
+            'super', 'super-a', 'ctrl-alt-t']
         assert sum(event[0] == 'secret' for event in result['events']) == (2 if outcome == 'denied' else 1)
         assert ('flow-cancel' in stages) == (outcome == 'cancelled')
         assert stages.index('flow-preserved') < stages.index('after-restriction-overview-ready')

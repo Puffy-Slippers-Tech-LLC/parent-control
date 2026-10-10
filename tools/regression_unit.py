@@ -511,9 +511,17 @@ from regression_ui import Bucket
 # Maintenance denial reproduction extends the existing worker, graphical lease,
 # credential and VM-control tests with mocked guests, private evidence and the
 # same owned sockets/children; no live VM, shared bus or resource owner is added.
-# Remembered-return diagnostic prefix checks use private requests and dispatcher
-# doubles; no live VM, bus, display, shared cache or new owner.
-# Worker checks use existing bounded Perl children and private fixtures.
+# Transfer-refusal maintenance boundary checks reuse private plan/request values
+# in vm_control_cleanup_safety; no new host resource or process lifetime.
+# Remembered-return diagnostic prefix checks use the same private requests and
+# dispatcher doubles; no live VM, bus, display, shared cache or new owner.
+# Short return diagnostic worker checks in e2e_overlay_valid_choices use the
+# existing bounded Perl children and private plan/request fixtures; compatible.
+# Prompt snapshot facts in accessible_e2e_ui use process-local tree doubles and
+# the existing bounded isolated payload children; no shared bus/display/cache.
+# Finite application-state scope checks in public_atspi reuse mocked connections,
+# local GVariants and private GLib contexts, without a live bus, display, process
+# or shared cache. The existing compatible unit classification remains valid.
 # Distribution admission boundaries create at most 257 tiny private pytest
 # files and use an injected small byte ceiling. e2e_needle_inputs adds no shared
 # cache, process, socket or live VM; its existing compatible classification holds.

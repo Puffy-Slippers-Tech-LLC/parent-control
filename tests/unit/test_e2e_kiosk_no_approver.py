@@ -230,6 +230,7 @@ def test_complete_case_stops_at_each_failed_result(monkeypatch, refusal):
     else:
         assert result['ok'], result['error']
         assert stages == expected
+        assert stages[-3:] == ['empty-form', 'final-cancel-action', 'final-cancel-returned']
         assert result['events'][-1] == ['power', 'off']
 
 

@@ -358,6 +358,35 @@ def test_shared_isolation_actions_use_owner_and_independent_probes(monkeypatch, 
             with pytest.raises(EvidenceError): shared.leave_offline(journey, Mock())
 
 
+@pytest.mark.parametrize('before,after,restored', [
+    ([True, False], [True, False], True),
+    ([True, False], [True, True], True),
+    ([True, False], [False, True], False),
+    ([True, True], [True, False], False),
+])
+def test_offline_language_requires_only_previously_reachable_paths_to_recover(
+        monkeypatch, before, after, restored):
+    def result(states):
+        return {'ipv6_default_route': False, 'probes': [
+            {'family': 4, 'address': address, 'protocol': 'tcp', 'reachable': reachable}
+            for address, reachable in zip(('1.1.1.1', '8.8.8.8'), states, strict=True)]}
+
+    probes = Mock(side_effect=[result(before), result([False, False]), result(after)])
+    owner, recovery = Mock(), Mock()
+    monkeypatch.setattr(shared, 'InternetIsolation', Mock(return_value=owner))
+    monkeypatch.setattr(shared, 'restore', recovery)
+    monkeypatch.setattr(shared, 'internet_result', probes)
+    journey = SimpleNamespace(context=SimpleNamespace(lease=object()), transport=object())
+    shared.enter_offline(journey, Mock())
+    owner.enter.assert_called_once_with(journey.transport)
+    if restored:
+        shared.leave_offline(journey, Mock())
+    else:
+        with pytest.raises(EvidenceError, match='language:online-recovery'):
+            shared.leave_offline(journey, Mock())
+    recovery.assert_called_once_with(journey.context.lease)
+
+
 @pytest.mark.parametrize('fault', ['', 'meaning', 'durability'])
 def test_actual_recorder_constructor_and_check_hook(session, tmp_path, monkeypatch, fault):
     expected = session.payload['assertions'][0]

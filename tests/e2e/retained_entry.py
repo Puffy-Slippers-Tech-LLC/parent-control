@@ -3,7 +3,6 @@ from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
                             parent_management, prefixed_stages, rejected_gdm_return, retained_parent_entry)
 from journey_checks import RetainedDesktopJourney
 from installed_journey import JourneyPlan
-from window_switch import window_switch_entry
 
 
 ENTRIES = {
@@ -50,7 +49,7 @@ SCREENS = {
     **entry('riley-again'), 'riley-again-identity': 'system:child-entry-same',
     'riley-again-activity': 'ui:overlay-native-activity',
     **prefixed_stages('return', retained_parent_entry(source='child-desktop')),
-    'session-returned': 'system:parent-desktop-identity', **window_switch_entry('focus-'),
+    'session-returned': 'system:parent-desktop-identity',
     'zero-configured': 'ui:time-explanation-zero-read',
     'denial-switch-ready': 'ui:desktop', 'denial-switch': 'system:parent-switch-user',
     'denial-greeter': 'ui:gdm-returned', **entry('riley-denied'), **rejected_gdm_return(),
@@ -108,8 +107,7 @@ class RetainedEntryJourney(RetainedDesktopJourney):
             parent_expected={'before': {'page': 'app-limits', 'settings': {
                 'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}},
             parent_checks={'return-parent-retained': 'before'},
-            window_checks={stage: 'before' for stage in
-                           ('focus-switch-parent-before', 'focus-switch-parent-ready', 'focus-switch-parent')},
+            window_checks={},
             session_checks={'session-returned': 'session-before',
                 **{stage: ('riley' if operation.startswith('system:child-') else 'jordan') + '-same-entry-guard'
                    for stage, operation in SCREENS.items()

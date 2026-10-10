@@ -493,6 +493,30 @@ button.reminder-fullscreen-row:focus-visible {
   font-size: 1em;
 }
 
+.oh-no-parent-control-custom-row checkbutton {
+  padding: 0;
+}
+
+.oh-no-parent-control-custom-row checkbutton radio {
+  min-width: 18px;
+  min-height: 18px;
+  margin-right: 6px;
+  border: 2px solid #b8bbb4;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: #7cf45b;
+}
+
+.oh-no-parent-control-custom-row checkbutton radio:checked {
+  border-color: #7cf45b;
+}
+
+.oh-no-parent-control-custom-row checkbutton:focus-visible {
+  outline: 2px solid #f4f4f4;
+  outline-offset: 2px;
+}
+
 entry.oh-no-parent-control-custom-entry {
   min-height: 28px;
   border: 2px solid #0c0c0c;

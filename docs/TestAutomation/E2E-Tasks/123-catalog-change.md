@@ -14,16 +14,15 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **079** — PARENT16 and FLOW03 public app-policy editing.
 - **006** — LIFE04 install only.
-- **044a** — DESK10 same-desktop window switching.
 - **028** — LIFE01.
 
 ## Implementation
 
-Bind a verified old/new fixture package pair and extend LIFE04(update). Leave the real Edit Match Rule draft open while the package changes, then foreground that same editor and Save normally.
+Bind a verified old/new fixture package pair and extend LIFE04(update). Leave the real Edit Match Rule draft open while the package changes, then Save through the same owned editor's Application UI API operation. Package commands run over SSH, so no supporting window or desktop focus change is needed.
 
 ## Live VM acceptance
 
-On the VM, type a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper, return to the same editor and Save. Close/reopen Parent through LIFE01, reselect the child and independently read the refreshed public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
+On the VM, set a nondefault unsaved match draft, update the fixture through the shared administrator SSH package helper and Save from that still-open editor. Close/reopen Parent through LIFE01, reselect the child and independently read the refreshed public app row and expected rule; save-time target resolution does not refresh existing rows. Preserve owned cleanup; no autosave pause or saved-preference probe.
 
 Qualification selector (implement and register before use):
 

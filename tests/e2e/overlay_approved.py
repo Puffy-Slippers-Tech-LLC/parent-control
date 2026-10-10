@@ -8,7 +8,6 @@ from request_composition import KioskRequestJourney
 
 
 RETURN_SCREENS = {
-    'activity-returned': 'ui:overlay-native-activity',
     'resumed-opened': 'ui:overlay-native-activity',
     'resumed-submit': 'ui:overlay-native-resubmit',
     'resumed-submitted': 'ui:overlay-native-submitted',
@@ -48,8 +47,7 @@ PLAN = JourneyPlan(
         'child-login': ('child', 'fresh-child-recipient-qualified', 'fresh-child-recipient-rechecked'),
     },
     balance_checks={'allowance-configured': 900},
-    activity_checks={stage: ('activity-capture', 'same')
-                     for stage in ('activity-returned', 'resumed-opened')},
+    activity_checks={'resumed-opened': ('activity-capture', 'same')},
     countdown_checks={'countdown': ('open-estimate', 'estimate', 1, 180)},
     assertions_after={'countdown': 'visible-result'},
 )

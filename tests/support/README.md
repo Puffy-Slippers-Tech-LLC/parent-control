@@ -405,6 +405,9 @@ in `AccessibleUI.transfer_choices` bind Riley or Jordan through every overlay
 reader/input/session guard. Qualification status belongs to FLOW12's catalogue
 row. The existing unit owner uses private values/files and bounded waited Perl
 children; resource classifications remain compatible with no new cleanup owner.
+The wrong-surface refusal reads the complete owner-pinned product API catalogue.
+It releases no input and does not traverse unrelated desktop providers; a
+disappearing external AT-SPI owner cannot prevent this product-only guard.
 The `choices='remembered'` declaration selects the recipe's Jordan 75-second /
 included and Riley 150-second / excluded values, with Jamie at the station and
 the other eligible parent on each overlay. The `remembered-*` operations reuse

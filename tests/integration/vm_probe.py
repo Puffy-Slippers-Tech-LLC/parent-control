@@ -44,6 +44,14 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_transfer_refusal(lease):
+    """Retain the shared transfer history before the overlay's wrong-surface read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from choices_overlay_to_kiosk import ChoicesOverlayToKioskJourney, PLAN
+    return reproduce_denial(lease, ChoicesOverlayToKioskJourney, PLAN,
+                            'riley-refused', 'transfer-refusal')
+
+
 def reproduce_remembered_return(lease):
     """Retain the historical return scene, separate from current case 58."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -111,6 +119,23 @@ def enter_remembered_return(lease):
     return reproduce_denial(lease, KioskRequestJourney, plan,
                             'jordan-return-entry-desktop', 'remembered-return',
                             boundary_operation='standard-desktop')
+
+
+def probe_transfer_refusal(lease):
+    """Run the original read-only refusal in the retained child's actual session."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading the retained overlay wrong-surface refusal'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-transfer-refusal-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('transfer-refusal-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('transfer-overlay-riley-refused')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('transfer-refusal-probe: guarded refusal read passed', flush=True)
 
 
 def probe_lock_curtain(lease):

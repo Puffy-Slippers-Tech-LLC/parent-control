@@ -102,7 +102,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     events = result['events']
     assert [row[1] for row in events if row[0] == 'stage'] == list(plan.screen_tags)
     assert events.count(['secret']) == (2 if case == 'repeat' else 1 if case == 'entry'
-                                      else 5 if case == 'diagnosis' else 3 if case else 4)
+                                      else 5 if case == 'diagnosis' else 3)
     for stage in plan.screen_tags:
         failed = json.loads(run_perl(program, stage, binding).stdout)
         assert not failed['ok'], failed
@@ -111,6 +111,14 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         # A refusal at either old retained desktop boundary cannot affect the
         # customer case: neither boundary is visited, and all core reads remain.
         for removed in ('jordan-return-entry-desktop', 'riley-return-entry-desktop'):
+            unaffected = json.loads(run_perl(program, removed, binding).stdout)
+            assert unaffected['ok'] and unaffected['events'] == events
+    if case is False:
+        assert plan.request_transfer_checks == {
+            **{child + '-transfer-read': child + '-source' for child in ('riley', 'jordan')},
+            **{child + '-revisit-read': child + '-source' for child in ('riley', 'jordan')},
+        }
+        for removed in ('independent-entry-entry-guard', 'independent-entry-desktop'):
             unaffected = json.loads(run_perl(program, removed, binding).stdout)
             assert unaffected['ok'] and unaffected['events'] == events
     (tmp_path / 'testresults').mkdir()

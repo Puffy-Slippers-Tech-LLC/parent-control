@@ -100,6 +100,9 @@ def test_complete_worker_matches_ordered_plan_without_terminal_input():
     result = json.loads(run_perl(RUN_PROBE).stdout)
     assert result['ok']
     assert [event[1] for event in result['events'] if event[0] == 'stage'] == list(PLAN.screen_tags)
+    assert [stage for stage in PLAN.screen_tags if stage.endswith('-desktop')] == []
+    assert PLAN.screen_tags['complete'] == 'ui:help-desktop-clear'
+    assert PLAN.advance_after['station-manual-content'] == 'step-3'
     assert result['events'].count(['key', 'q']) == 0
     assert result['events'].count(['key', 'ctrl-alt-t']) == 0
     assert result['events'][-1] == ['power', 'off']

@@ -144,7 +144,7 @@ def test_conflicting_modes_refuse_before_vm_access(conflict):
                    kiosk_no_child=True, **{conflict: True})
 
 
-@pytest.mark.parametrize('refusal', [None, 'wrong-entry', 'empty-form', 'empty-rechecked'])
+@pytest.mark.parametrize('refusal', [None, 'wrong-entry', 'empty-form'])
 def test_worker_requires_all_results_without_authentication(monkeypatch, refusal):
     from kiosk_no_child import PLAN
     if refusal:

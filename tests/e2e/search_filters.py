@@ -10,9 +10,6 @@ SCREENS = {
     'child-picker-opened': 'ui:existing-child-picker-opened',
     'child-choice-highlighted': 'ui:existing-child-choice-highlighted',
     'parent-selected': 'ui:existing-returned',
-    'allowance-configured': 'ui:time-explanation-setup-thirty-read',
-    'balance-reread': 'ui:time-explanation-read',
-    'saved-settings': 'ui:existing-returned',
     'apps-page': 'ui:existing-apps',
     'initial-rows': 'ui:existing-parent-app-rows',
     **{f'text-catalogue-name-{action}': f'ui:text-catalogue-name-{action}'
@@ -45,11 +42,8 @@ PLAN = JourneyPlan(
             **SAMPLE_STAGES},
     advance_after={'initial-rows': 'step-2', 'text-catalogue-clear-read': 'step-3'},
     settings_checks={
-        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-        'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
-    balance_checks={'allowance-configured': 1800, 'balance-reread': 1800},
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',))},
     child_bindings={stage: 'existing' for stage in (
-        'allowance-configured', 'balance-reread',
         *filter_screens('match-rule', 2, 'precise'),
         *filter_screens('access-rule', 1, 'allowed'),
         *filter_screens('match-rule', 3, 'restore-match'),

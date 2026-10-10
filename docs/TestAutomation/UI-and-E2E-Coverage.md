@@ -93,6 +93,25 @@ use the shortest qualified shared route that reaches the declared customer
 action and independent result. A completed supporting action is not itself a
 customer outcome.
 
+The retained implementations apply the same allocation. Case 193 reads four
+command results with one final desktop observation. Retained Parent/child
+qualification compares the original Parent window, policy and session directly;
+it needs no unrelated license-viewer launch or foreground-switch tour. The
+explicit feedback supporting-window handoff retains its separate draft result.
+Case 255 proves a working network path before isolation, requires every fixed
+probe blocked while offline, and restores every path known to work beforehand.
+Availability of every external DNS endpoint is a network-harness qualification,
+not a language-setting result. These shortened compositions require their own
+live validation; earlier reports remain historical evidence of their old scope.
+Cases 44–46 compare the original activity once immediately before resuming it.
+Cases 54/55 read the unavailable form once, then cancel to the greeter.
+Station restriction routes run once per case: before successful approval ends
+the station, or after rejection/cancellation preserves the prepared form.
+The original-work comparison, each forbidden route and the distinct request
+outcomes remain required; consecutive unchanged reads and repeated route sweeps
+add no customer result. Case 152's wrong-entry exercise stays in isolated
+qualification. Each changed composition needs scoped live validation.
+
 | Family / cases | Customer result and review disposition |
 | --- | --- |
 | E2E-001 / 1 | Retain runner-smoke transport/credential/continuity qualification; explicitly no customer acceptance. |

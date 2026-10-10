@@ -78,25 +78,16 @@ def test_duration_range_uses_request_unit(unit, expected):
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
-def test_escape_dismisses_unit_choices_before_exiting_request(overlay):
-    choices = Mock()
-    choices.get_visible.return_value = True
-    choices.set_visible.side_effect = lambda visible: setattr(
-        choices.get_visible, "return_value", visible)
-    form = bind_methods(SimpleNamespace(
-        _unit_choices=choices, _unit_button=Mock(),
-    ), RequestContent, ("dismiss_custom_units",))
+def test_escape_exits_request_with_inline_unit_choices(overlay):
     window = SimpleNamespace(
-        _child_overlay=overlay, _state=RequestState(), _request_content=form,
+        _child_overlay=overlay, _state=RequestState(),
         _stack=Mock(), _cancel=Mock(), _result_dismissed=Mock(),
     )
     window._stack.get_visible_child_name.return_value = "request"
     # The window handles Escape before descendant controllers see the key.
     assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
-    window._cancel.assert_not_called()
-    window._result_dismissed.assert_not_called()
-    assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
     window._cancel.assert_called_once_with()
+    window._result_dismissed.assert_not_called()
 
 
 @pytest.mark.parametrize("page, busy, key, consumed", [
@@ -104,7 +95,7 @@ def test_escape_dismisses_unit_choices_before_exiting_request(overlay):
     ("request", True, Gdk.KEY_Escape, False),
     ("result", False, Gdk.KEY_Escape, True),
 ])
-def test_unit_menu_does_not_intercept_other_keys_authentication_or_results(
+def test_escape_preserves_other_keys_authentication_and_results(
         page, busy, key, consumed):
     window = SimpleNamespace(
         _state=SimpleNamespace(in_flight=busy), _request_content=Mock(),
@@ -112,7 +103,6 @@ def test_unit_menu_does_not_intercept_other_keys_authentication_or_results(
     )
     window._stack.get_visible_child_name.return_value = page
     assert RequestWindow._escape_pressed(window, None, key, 0, 0) is consumed
-    window._request_content.dismiss_custom_units.assert_not_called()
     window._cancel.assert_not_called()
     assert window._result_dismissed.call_count == int(page == "result")
 

@@ -412,13 +412,19 @@ class RequestContent(MetalBoard):
                                  for b in self._duration_buttons],
                 aliases=("kiosk-duration",))
 
-        self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        self._custom_row = Gtk.Box(spacing=8, halign=Gtk.Align.FILL)
+        self._custom_row.set_margin_start(
+            self._choices.get_margin_start() + self._duration_box.get_margin_start())
+        self._custom_row.set_margin_end(
+            self._choices.get_margin_end() + self._duration_box.get_margin_end())
         set_automation_id(self._custom_row, "kiosk-custom-duration-row")
         self._custom_row.add_css_class("oh-no-parent-control-custom-row")
         self._custom_entry = localized(Gtk.Entry, 
             text=str(MIN_CUSTOM_MINUTES),
             input_purpose=Gtk.InputPurpose.NUMBER,
-            width_chars=5,
+            width_chars=4,
+            hexpand=True,
+            halign=Gtk.Align.FILL,
         )
         describe_control(
             self._custom_entry, m.CUSTOM_VALUE,
@@ -428,39 +434,31 @@ class RequestContent(MetalBoard):
         self._custom_entry.add_css_class("oh-no-parent-control-custom-entry")
         self._custom_row.append(self._custom_entry)
         self._custom_unit = "minutes"
-        self._unit_button = Gtk.Button()
-        unit_caption = Gtk.Box(spacing=6)
-        self._unit_label = localized(Gtk.Label, label=m.MINUTES)
-        set_automation_id(self._unit_label, "kiosk-custom-duration-unit-label")
-        unit_caption.append(self._unit_label)
-        unit_caption.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
-        self._unit_button.set_child(unit_caption)
-        describe_control(self._unit_button, m.CUSTOM_VALUE, m.CUSTOM_VALUE,
+        # Reserve the radios' measured caption/indicator widths at the right
+        # edge of the duration buttons; the entry receives all remaining width.
+        self._unit_selector = Gtk.Box(spacing=12, valign=Gtk.Align.CENTER,
+                                      hexpand=False, halign=Gtk.Align.END)
+        describe_control(self._unit_selector, m.CUSTOM_VALUE, m.CUSTOM_VALUE,
                          automation_id="kiosk-custom-duration-units")
-        self._unit_choices = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        set_automation_id(self._unit_choices, "kiosk-custom-duration-unit-choices")
-        self._unit_choices.add_css_class("oh-no-parent-control-account-choices")
-        self._unit_choices.set_halign(Gtk.Align.START)
-        self._unit_choices.set_valign(Gtk.Align.START)
-        self._unit_choices.set_visible(False)
-        self._form_overlay.add_overlay(self._unit_choices)
-        self._form_overlay.set_measure_overlay(self._unit_choices, False)
-        self._form_overlay.set_clip_overlay(self._unit_choices, False)
+        self._unit_buttons = {}
         for unit, caption in (("minutes", m.MINUTES), ("hours", m.HOURS)):
-            choice = localized(Gtk.Button, label=caption)
-            choice.add_css_class("oh-no-parent-control-account-choice")
+            choice = Gtk.CheckButton()
+            # Keep unit captions whole; _layout_custom_row stacks controls
+            # when their measured widths do not fit, including translations.
+            choice.set_child(localized(Gtk.Label, label=caption, xalign=0))
+            if self._unit_buttons:
+                choice.set_group(self._unit_buttons["minutes"])
             describe_control(choice, caption, caption,
                              automation_id=f"kiosk-custom-duration-unit-{unit}")
-            choice.connect("clicked", lambda _button, unit=unit: self._select_custom_unit(unit))
-            self._unit_choices.append(choice)
-        self._unit_button.connect("clicked", self._toggle_custom_units)
-        dismiss_units = Gtk.GestureClick()
-        dismiss_units.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        dismiss_units.connect("pressed", self._dismiss_custom_units_outside)
-        self._form_overlay.add_controller(dismiss_units)
-        bind_ui(self._unit_button, get_value=lambda: self._custom_unit,
-                set_value=self._select_custom_unit, choices=lambda: ["minutes", "hours"])
-        self._custom_row.append(self._unit_button)
+            choice.connect("toggled", self._custom_unit_toggled, unit)
+            self._unit_buttons[unit] = choice
+            self._unit_selector.append(choice)
+        self._unit_buttons["minutes"].set_active(True)
+        bind_ui(self._unit_selector, get_value=lambda: self._custom_unit,
+                set_value=self._select_custom_unit,
+                get_text=lambda: self._unit_buttons[self._custom_unit].get_child().get_text(),
+                choices=lambda: ["minutes", "hours"])
+        self._custom_row.append(self._unit_selector)
         self._custom_row.set_visible(False)
         self._request_form.append(self._custom_row)
 
@@ -675,6 +673,7 @@ class RequestContent(MetalBoard):
 
     def set_layout_width(self, width):
         """Stack account captions on narrow displays to keep names readable."""
+        self._layout_custom_row(width)
         columns = 2 if width >= 300 else 1
         self._duration_box.set_min_children_per_line(columns)
         self._duration_box.set_max_children_per_line(columns)
@@ -692,6 +691,27 @@ class RequestContent(MetalBoard):
             )
             detail.set_spacing(2 if narrow else 6)
             caption.set_width_chars(0 if narrow else 7)
+
+    def _layout_custom_row(self, width):
+        # Measure the current translations with GTK's actual font, indicator
+        # and spacing. Character counts cannot predict shaped label widths.
+        style = self.get_style_context()
+        padding, border = style.get_padding(), style.get_border()
+        available = max(1, width - padding.left - padding.right
+                        - border.left - border.right
+                        - self._custom_row.get_margin_start()
+                        - self._custom_row.get_margin_end())
+        unit_width = sum(button.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+                         for button in self._unit_buttons.values())
+        unit_width += self._unit_selector.get_spacing()
+        entry_width = self._custom_entry.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+        self._custom_row.set_orientation(
+            Gtk.Orientation.HORIZONTAL
+            if entry_width + self._custom_row.get_spacing() + unit_width <= available
+            else Gtk.Orientation.VERTICAL)
+        self._unit_selector.set_orientation(
+            Gtk.Orientation.HORIZONTAL if unit_width <= available
+            else Gtk.Orientation.VERTICAL)
 
     def _build_duration_choices(self, durations=DURATIONS):
         group = None
@@ -977,7 +997,6 @@ class RequestContent(MetalBoard):
             button.set_active(True)
             return
         custom = button.duration_seconds is None
-        self._unit_choices.set_visible(False)
         self._custom_row.set_visible(custom)
         if custom:
             self._custom_entry.grab_focus()
@@ -1013,46 +1032,15 @@ class RequestContent(MetalBoard):
     def custom_unit(self):
         return self._custom_unit
 
-    def _toggle_custom_units(self, _button):
-        if self._unit_choices.get_visible():
-            self._unit_choices.set_visible(False)
-            return
-        valid, bounds = self._unit_button.compute_bounds(self._form_overlay)
-        if not valid:
-            return
-        self._unit_choices.set_margin_start(max(0, round(bounds.get_x())))
-        self._unit_choices.set_margin_top(max(0, round(bounds.get_y())))
-        self._unit_choices.set_size_request(round(bounds.get_width()), -1)
-        self._unit_choices.set_visible(True)
-        self._unit_choices.get_first_child().grab_focus()
-
-    def _dismiss_custom_units_outside(self, _gesture, _count, x, y):
-        if not self._unit_choices.get_visible():
-            return
-        for widget in (self._unit_button, self._unit_choices):
-            valid, bounds = widget.compute_bounds(self._form_overlay)
-            if (valid and bounds.get_x() <= x <= bounds.get_x() + bounds.get_width()
-                    and bounds.get_y() <= y <= bounds.get_y() + bounds.get_height()):
-                return
-        self._unit_choices.set_visible(False)
-
-    def dismiss_custom_units(self):
-        """Let the window's capture handler dismiss choices before exiting."""
-        if not self._unit_choices.get_visible():
-            return False
-        self._unit_choices.set_visible(False)
-        self._unit_button.grab_focus()
-        return True
+    def _custom_unit_toggled(self, button, unit):
+        if button.get_active() and self._custom_unit != unit:
+            self._custom_unit = unit
+            self._emit_values_changed()
 
     def _select_custom_unit(self, unit):
         if unit not in {"minutes", "hours"}:
             raise ValueError("unknown custom duration unit")
-        changed = self._custom_unit != unit
-        self._custom_unit = unit
-        set_text(self._unit_label, 'label', m.HOURS if unit == "hours" else m.MINUTES)
-        self._unit_choices.set_visible(False)
-        if changed:
-            self._emit_values_changed()
+        self._unit_buttons[unit].set_active(True)
 
     def selected(self):
         account_index = self._accounts.get_selected()
@@ -1062,8 +1050,6 @@ class RequestContent(MetalBoard):
         if approver_index >= len(self._approver_uids):
             raise ValueError(m.SELECT_ADMINISTRATOR)
         selected = next(
-                    duration_range_message(MIN_CUSTOM_MINUTES * 60, MAX_CUSTOM_MINUTES * 60,
-                                           self._custom_unit) if self._custom_unit == 'hours' else
             (button for button in self._duration_buttons if button.get_active()), None
         )
         if selected is None:
@@ -1076,6 +1062,8 @@ class RequestContent(MetalBoard):
                 minutes *= 60
             if not math.isfinite(minutes) or not MIN_CUSTOM_MINUTES <= minutes <= MAX_CUSTOM_MINUTES:
                 raise ValueError(
+                    duration_range_message(MIN_CUSTOM_MINUTES * 60, MAX_CUSTOM_MINUTES * 60,
+                                           self._custom_unit) if self._custom_unit == 'hours' else
                     m.INVALID_REQUEST_MINUTES % {'minimum': MIN_CUSTOM_MINUTES, 'maximum': MAX_CUSTOM_MINUTES}
                 )
             seconds = round(minutes * 60)
@@ -1132,10 +1120,7 @@ class RequestContent(MetalBoard):
         if self._lock_child_selector:
             self._accounts.collapse()
         self._custom_entry.set_sensitive(request_available and time_limit_enabled)
-        self._unit_button.set_sensitive(request_available)
-        self._unit_choices.set_sensitive(request_available)
-        if not request_available:
-            self._unit_choices.set_visible(False)
+        self._unit_selector.set_sensitive(request_available)
         self._allow_soft.set_sensitive(request_available)
         self._filter_row.set_sensitive(request_available)
         self._approvers.set_sensitive(request_available)

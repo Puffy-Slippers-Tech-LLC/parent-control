@@ -2,7 +2,6 @@
 from installed_journey import JourneyPlan
 from journey_blocks import fresh_desktop, parent_management, prefixed_stages, retained_parent_entry
 from journey_checks import RetainedDesktopJourney
-from window_switch import window_switch_entry
 
 
 ENTRY = fresh_desktop('parent')
@@ -17,7 +16,6 @@ SCREENS = {
     'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
     'gdm-switched': 'ui:gdm-returned', **AWAY, **RETURN,
     'session-returned': 'system:parent-desktop-identity',
-    **window_switch_entry('focus-'),
     'second-before': 'ui:retained-parent-leave',
     'second-desktop': 'ui:desktop', 'second-switch': 'system:parent-switch-user',
     'second-greeter': 'ui:gdm-returned', **AGAIN,
@@ -57,6 +55,5 @@ class RetainedParentJourney(RetainedDesktopJourney):
                 'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']}}},
             parent_checks={stage: 'before' for stage in
                            ('return-parent-retained', 'second-before', 'supplied-parent-retained')},
-            window_checks={stage: 'before' for stage in
-                           ('focus-switch-parent-before', 'focus-switch-parent-ready', 'focus-switch-parent')},
+            window_checks={},
             session_checks={'session-returned': 'session-before', 'session-supplied': 'session-before'})

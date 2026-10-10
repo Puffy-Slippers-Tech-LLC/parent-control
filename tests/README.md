@@ -2036,6 +2036,12 @@ the unexecuted/failed selection with its original assertions.
    them into UI coverage. Keep real installed/customer coverage for the
    boundaries and causal journeys that require it. App approval denial must
    assert unchanged grants/policy and recovery, not just Ubuntu's error message.
+   For every new E2E case and maintenance change, apply the mandate's
+   [three review questions](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+   to steps, observations and acceptance, including shared flows and
+   qualifications. Reconcile recipes and unfinished consumers under the
+   [journey review contract](../docs/TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys);
+   remove an unnecessary dependency before adding adapters, retries or timeouts.
 2. Classify the tests, their affected components/shared dependencies, runner,
    environment and safety prerequisites. Add them to the authoritative suite
    inventory when implemented; they must not be silently absent from `test-all`.

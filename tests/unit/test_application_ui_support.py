@@ -174,6 +174,31 @@ def test_incomplete_inventory_or_foreign_launch_owner_refuses(fault):
     assert not any(operation == 'setValue' for _, operation, _ in client.calls)
 
 
+@pytest.mark.parametrize('fault', [None, 'station-present', 'wrong-owner', 'incomplete', 'uncertain'])
+def test_transfer_wrong_surface_refusal_ignores_departed_external_provider(monkeypatch, fault):
+    import accessible_ui as a
+    client = Client()
+    if fault == 'station-present':
+        client.application_id = a.KIOSK_APPLICATION
+        for metadata in client.elements.values():
+            metadata['application_id'] = client.application_id
+    elif fault == 'incomplete':
+        client.elements.pop('parent-window')
+    reader = a.AccessibleUI(SimpleNamespace(), root=Mock(side_effect=RuntimeError('departed-provider')),
+        owner_pids={99} if fault == 'wrong-owner' else {client.pid})
+    reader.application_ui = catalog(client)
+    reader.require_child_overlay_session = Mock()
+    if fault == 'uncertain':
+        reader.input_uncertain = True
+    if fault:
+        with pytest.raises((a.UiError, UIClientError)):
+            reader.run('transfer-overlay-riley-refused', '')
+    else:
+        assert reader.run('transfer-overlay-riley-refused', '')['outcome'] == 'passed'
+    reader.root.assert_not_called()
+    assert client.calls == []  # Refusal never dispatches product input.
+
+
 def test_uncertain_mutation_is_dispatched_once_without_fallback():
     client = Client()
     node = catalog(client).getElementById('parent-screen-limit-toggle')

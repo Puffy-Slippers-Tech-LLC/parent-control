@@ -67,27 +67,51 @@ def test_multi_state_subscription_pins_every_endpoint_and_cleans_up():
     assert api._connection.signal_unsubscribe.call_count == 2
 
 
-def test_application_state_subscription_pins_owner_and_cleans_up():
+@pytest.mark.parametrize('states', [('visible', 'sensitive'), ('showing', 'modal')])
+@pytest.mark.parametrize('fault', ['', 'sender', 'state', 'register', 'cancel'])
+def test_application_state_subscription_pins_owner_and_cleans_up(states, fault):
     from gi.repository import GLib
     api, _, rpc, _, _ = fixture_bus()
-    rpc.side_effect = None
+    rpc.side_effect = RuntimeError('registration failed') if fault == 'register' else None
     api._connection = Mock()
     api._connection.signal_subscribe.side_effect = (7, 8)
     events = []
-    with api.application_state_events(':1.10', lambda *args: events.append(args)):
-        callback = api._connection.signal_subscribe.call_args.args[-1]
-        signal = GLib.Variant('(siiva{sv})', ('visible', 1, 0,
-                                             GLib.Variant('s', ''), {}))
-        callback(api._connection, ':1.10', '/dynamic',
-                 PREFIX + 'Event.Object', 'StateChanged', signal)
-        callback(api._connection, ':1.11', '/dynamic',
-                 PREFIX + 'Event.Object', 'StateChanged', signal)
-    assert events[0] == ('/dynamic', 'visible', True, None)
-    assert events[1][:3] == (None, None, None)
-    assert isinstance(events[1][3], ValueError)
-    assert [call.args[3] for call in rpc.call_args_list].count('RegisterEvent') == 2
-    assert [call.args[3] for call in rpc.call_args_list].count('DeregisterEvent') == 2
-    assert api._connection.signal_unsubscribe.call_count == 2
+    try:
+        with api.application_state_events(':1.10', lambda *args: events.append(args), states=states):
+            callback = api._connection.signal_subscribe.call_args.args[-1]
+            signal = GLib.Variant('(siiva{sv})', (
+                'focused' if fault == 'state' else states[0], 1, 0,
+                GLib.Variant('s', ''), {}))
+            callback(api._connection, ':1.11' if fault == 'sender' else ':1.10', '/dynamic',
+                     PREFIX + 'Event.Object', 'StateChanged', signal)
+            if fault == 'cancel':
+                raise KeyboardInterrupt()
+    except (RuntimeError, KeyboardInterrupt):
+        assert fault in ('register', 'cancel')
+    if fault != 'register':
+        if fault in ('', 'cancel'):
+            assert events == [('/dynamic', states[0], True, None)]
+        else:
+            assert events[0][:3] == (None, None, None)
+            assert isinstance(events[0][3], ValueError)
+        assert [call.args[3] for call in rpc.call_args_list].count('RegisterEvent') == 2
+        assert [call.args[3] for call in rpc.call_args_list].count('DeregisterEvent') == 2
+        assert api._connection.signal_unsubscribe.call_count == 2
+    else:
+        # The first match is owned even if registry registration fails.
+        api._connection.signal_unsubscribe.assert_called_once_with(7)
+
+
+@pytest.mark.parametrize('states', [(), ('focused',), ('showing', 'showing'),
+                                  ['showing'], ('visible', 'sensitive', 'showing', 'modal', 'checked')])
+def test_application_state_subscription_refuses_unbounded_or_unsupported_scope(states):
+    api, _, rpc, _, _ = fixture_bus()
+    api._connection = Mock()
+    with pytest.raises(ValueError, match='public-atspi:event-owner'):
+        with api.application_state_events(':1.10', Mock(), states=states):
+            pytest.fail('invalid scope accepted')
+    rpc.assert_not_called()
+    api._connection.signal_subscribe.assert_not_called()
 
 
 def fixture_bus():

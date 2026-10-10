@@ -16,7 +16,6 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 - **079** — PARENT16 and FLOW03 public app-policy editing.
 - **006** — LIFE04 install only.
-- **044a** — DESK10 same-desktop window switching.
 - **028** — LIFE01.
 
 ## Implementation
@@ -25,7 +24,7 @@ Bind verified fixture removal/reinstallation commands. Save the real open draft 
 
 ## Live VM acceptance
 
-On the live VM, leave a nondefault match draft open, remove the fixture through the shared administrator SSH package helper, return and Save. Close/reopen Parent through LIFE01, reselect the child and observe exclusion from the refreshed public catalogue. Reinstall through the shared administrator SSH package helper, reopen Parent again and independently read the retained rule before editing it.
+On the live VM, leave a nondefault match draft open, remove the fixture through the shared administrator SSH package helper and Save through that same owned editor's Application UI API operation. No supporting window or desktop focus change is needed. Close/reopen Parent through LIFE01, reselect the child and observe exclusion from the refreshed public catalogue. Reinstall through the shared administrator SSH package helper, reopen Parent again and independently read the retained rule before editing it.
 
 Qualification selector (implement and register before use):
 

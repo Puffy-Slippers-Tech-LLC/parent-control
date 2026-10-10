@@ -7,7 +7,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **043c** — Public retained-child session unlock/resume.
 - **052** — Owned child countdown observations.
 - **300i** — Riley overlay language Save/Cancel and command relaunch.
-- **307a** — Installed Hebrew observation contract, requiring separate Shell qualification.
+- **307a** — Installed Hebrew logical-text observation contract; qualify the child-panel API binding here.
 
 Estimate: 20–30 minutes.
 
@@ -28,8 +28,8 @@ declared monotonic elapsed bounds; no reset, extra access or policy/app changes.
 This slice reads bounded countdown samples; task 310 composes qualified TIME02
 progression and TIME04 natural expiry. No tooltip/menu traversal or coordinate
 hover/click input is needed for this result. Apply the mandate's no-visual
-acceptance rule; missing public text or identity keeps a gate, and GTK qualification
-does not transfer to Shell.
+acceptance rule; missing public text or identity keeps a gate. Installed GTK
+language evidence alone does not qualify the distinct product child-panel endpoint.
 
 ## Shared implementation
 
@@ -44,4 +44,4 @@ binding, preserving active Riley, duplicate-ID and uncertain-input guards.
 Planned selector: `check_e2e_panel_language_refresh`; unregistered and unqualified.
 Register its fixed binding before invoking
 `tools/run-tests integration check_e2e_panel_language_refresh`.
-Retain affected shell-panel, overlay-language and countdown qualifications.
+Retain affected child-panel API, overlay-language and countdown qualifications.

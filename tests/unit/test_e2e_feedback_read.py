@@ -1501,6 +1501,11 @@ def test_draft_actual_worker_sequence_and_every_refusal(monkeypatch, flow):
     success = json.loads(run_perl(script).stdout)
     assert success['ok'], success['error']
     stages = list(PLAN.screen_tags)
+    assert 'feedback-wrong-entry' not in stages
+    if flow == 'draft':
+        assert stages[-1] == 'feedback-reopen'
+        assert 'feedback-reread' not in stages
+        assert PLAN.stage_actions['feedback-reopen'] == 'chooser-cleanup'
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
     assert not any(event[:2] == ['key', 'alt-f4'] for event in success['events'])
@@ -5451,6 +5456,8 @@ def test_reset_actual_worker_sequence_and_every_refusal(monkeypatch):
     success = json.loads(run_perl(script).stdout)
     assert success['ok'], success['error']
     stages = list(PLAN.screen_tags)
+    assert (stages.index('initial-selection') < stages.index('feedback-wrong-entry')
+            < stages.index('feedback-reopen'))
     assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
     assert all(tag.removeprefix('ui:') in OPERATION_LABELS for tag in PLAN.screen_tags.values())
     # The initial external greeter still commits its authenticated login once.

@@ -1865,10 +1865,10 @@ sub power {push @main::events,'power'} sub check_shutdown {1} sub console {bless
 package Console; sub disable {}
 package onpc_gdm; sub reattach_functional {}
 package onpc_parent;
-sub set_allowance {
-    my ($j,@args)=@_; die 'binding' unless join(',',@args) eq 'gdm,parent,fresh,new,existing,0,30,1';
+sub open_for_child {
+    my ($j,@args)=@_; die 'binding' unless join(',',@args) eq 'gdm,fresh,new,existing';
     for (ENTRY) {$j->consume_observation($_,$j->seen($_))}
-    return $j->seen('allowance-configured');
+    return $j->seen('parent-selected');
 }
 package main;
 require onpc_fresh_thirty_allowance;
@@ -1876,7 +1876,9 @@ eval {onpc_fresh_thirty_allowance::search_filters(sub {push @events,$_[0]; FAIL 
 print encode_json(\@events);
 '''
     expected = list(case_plan.screen_tags)
-    entry = expected[:expected.index('allowance-configured')]
+    entry = expected[:expected.index('parent-selected')]
+    assert not {'allowance-configured', 'balance-reread', 'saved-settings'} & set(expected)
+    assert not case_plan.balance_checks
     program = program.replace('ENTRY', ','.join("'" + stage + "'" for stage in entry))
     for boundary in (None, *expected):
         stop = "die 'refused' if $_[0] eq '" + boundary + "';" if boundary else ''

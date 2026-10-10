@@ -38,10 +38,21 @@ observe the app's discovery, empty-state, eligibility and selector fallback.
 Case 1 is harness qualification. Retired IDs 140–150 remain engineering checks
 in system-test tasks 169–179.
 
-All recipes use the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
+All recipes use [product-focused journeys](E2E-Execution-Contracts.md#product-focused-journeys)
+and the [bounded supporting-work contract](E2E-Building-Blocks.md#keep-supporting-work-bounded).
 Reuse verified local fixtures, direct supporting commands and existing helpers.
 Preparation ends when the declared prerequisite is established; the following
 product action and independent customer result supply acceptance.
+
+Apply that scope to every family and finite branch below, including retained
+completed cases. Desktop, greeter, authentication-agent and chooser observations
+establish only the required account/session, safe input recipient and product
+result. Do not add account-list tours, Shell-control inventories, prompt
+open/dismiss cycles, keyring exercises or desktop-language/rendering checks to
+ordinary transitions. Shared helpers own the provider details and refuse unsafe
+or ambiguous input. Keep real graphical authentication where the tested result
+is PAM enforcement or retained unlock; a recipe never requires a password field
+on a provider surface that instead refuses entry before authentication.
 
 Names, labels, roles, text and order below describe inputs/results, not selectors.
 Use the catalogue's shared [Application UI API](Application-UI-API.md) binding
@@ -62,8 +73,8 @@ exceptions must be explicit in metadata and recipe.
 
 Every ordinary child overlay launch or reopening uses REQUEST02's direct
 `oh-no-parent-control-child` command. It observes the single form and fixed
-child independently. E2E-012 tests repeated graphical panel launch and
-E2E-024/fullscreen tests graphical launch from fullscreen play; these cases
+child independently. E2E-012 tests one panel launch and
+E2E-024/fullscreen tests panel launch from fullscreen play; these cases
 use REQUEST13 where that route is under test and declare the exception in
 their metadata. The later E2E-012 reopen and the windowed E2E-024 cases use
 REQUEST02. Reusing an already open overlay does not launch it again.
@@ -88,7 +99,8 @@ outputs of this case's preceding blocks. Thread this ledger through every call.
 After an AppSet prefix the parent is retained: subsequent P/FLOW13 calls must
 use retained parent/new or retained window as observed, never P0's fresh entry.
 Where two activities share a desktop use DESK10 to return to its already-open
-window. Opening Parent again must be observed to present its one active window.
+window. Parent entry observes the intended management surface; singleton and
+repeated-launch matrices remain shared UI or harness qualification.
 
 AppSet is a mandatory public prefix for cases that assert hard/soft policy but
 do not configure those rules in their listed steps: E2E-007, 009, 011's combined
@@ -263,8 +275,8 @@ inventory bindings.
 Bindings: children = existing-and-new / none.
 
 1. Explicit app-grid discovery exception: V(parent,fresh) → SEARCH05(Parent, whole query) → PARENT02(existing child) → PARENT03(capture defaults) → PARENT04(App Limits); none: V(parent,fresh) → SEARCH06(Parent), no launch yet.
-2. Existing: PARENT04(Screen Limits) → PARENT03 → FIX01 (supporting account checkpoint) → UI13(new choice); none: FIX02 (supporting account checkpoint).
-3. Existing: PARENT02(new) → PARENT03 → PARENT04(App Limits) → PARENT04(Screen Limits) → PARENT03 → UI12 → PARENT02(original) → PARENT03 → UI12. None: UI05(Enter) → PARENT19.
+2. Existing: FIX01 (supporting account checkpoint) → UI13(new choice); none: FIX02 (supporting account checkpoint).
+3. Existing: PARENT02(new) → PARENT04(Screen Limits) → PARENT03 → PARENT04(App Limits) → UI13(new child's defaults) → PARENT02(original) → PARENT04(Screen Limits) → PARENT03 → UI12(original defaults). None: UI05(Enter once to the observed app-grid result) → PARENT19. Account creation and the result's actual launch remain required; unchanged page revisits add no acceptance.
 
 ### E2E-004
 
@@ -277,7 +289,7 @@ Bindings: launch = app-grid / terminal (the stable `terminal` ID now means
 direct command invocation, without opening Terminal).
 
 1. V(standard,fresh); app-grid alone then uses SEARCH01.
-2. Grid: UI21 → SEARCH03 → SEARCH04(unavailable), no Enter. Case 6: PARENT01(denied) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, then dismiss the denial and independently observe the desktop with no denial or management controls. Generic startup errors or successful command submission cannot establish access denial.
+2. Grid: UI21 → SEARCH03(full `Oh No! Parent Control` query once) → SEARCH04(unavailable product launcher and management window), no Enter. Unrelated web suggestions and intermediate split-query readbacks add no acceptance requirement. Case 6: PARENT01(denied) → UI11(management). Read **Administrator access required** and its administrator-sign-in explanation, require no management access, then close the denial normally. Generic startup errors or successful command submission cannot establish access denial; a separate clear-desktop assertion is unnecessary.
 
 ### E2E-005
 
@@ -619,7 +631,7 @@ restoration. Wrong-entry refusal is qualification-only.
 
 1. Account profile is the declared setup. Enable available targets with FLOW16 except disabled-child and no-parent. No-parent keeps default limits off: first enter the request station and observe a listed parent, detect all eligible parents through the OS account service, temporarily lock that detected set regardless of names/count, Cancel to GDM and reopen the station. The observed parent must belong to the detected set. Preserve children/station and restore accounts through outer cleanup. No inaccessible administrator setup or hidden enabled-policy fixture is needed. Other profiles use G → REQUEST01.
 2. Read each enabled selector's exact eligible set, then REQUEST04 for representative child/approver pairs covering both identities. Independently read the selected accounts and loaded child settings; the matching real approval prompt verifies the selected approver's effect. Use canonical selector values without popup/focus navigation. The API surface close ends the request form, including retained `escape` bindings. Disabled/empty uses UI02/03 without input.
-3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt). No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child.
+3. REQUEST03 → REQUEST08. Available: REQUEST09 → AUTH01 → AUTH02(cancel) → REQUEST11. Unavailable: UI02(disabled) → UI11(prompt); no-child/no-parent then use REQUEST12(Cancel) and independently observe usable GDM. No-parent specifically requires the missing-eligible-parent explanation and empty parent list; it makes no isolated screen-time enforcement claim with its also-disabled child. One complete unavailable-form read is sufficient; do not repeat it without an intervening product action.
 
 ### E2E-018
 
@@ -683,7 +695,7 @@ Bindings: change = update / remove.
 
 1. FLOW16(usable time) → PARENT10 → PARENT16(Hard Blocked) → PARENT13 → UI16(match draft covering the declared updated target).
 2. LIFE04(app update/remove through shared administrator SSH commands); Parent's editor stays open.
-3. DESK10(editor) → PARENT15(save) → LIFE01(Parent) → PARENT02. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01 → PARENT02 → PARENT12 → UI12(retained rule) → C → FLOW08.
+3. PARENT15(save in the still-open editor) → LIFE01(Parent) → PARENT02. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01 → PARENT02 → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step.
 
 ### E2E-021
 
@@ -707,10 +719,10 @@ Bindings: app-restart / sign-out-in / reboot / suspend-wake each retain active
 and expired returns. Idle has one active-to-expired journey (122), absorbing
 case 123; that removed ID must not be reused.
 
-1. FLOW16 → FLOW03 → FLOW13(grant-only with boundary-specific duration) → C → TIME01 → FLOW08(allowed) → APP04. Cases 116/118/120/124 also prepare both request surfaces with FLOW04/REQUEST12 to restore the declared saved choices after grant issuance → REQUEST03(capture before exit).
+1. FLOW16 → FLOW03 → FLOW13(grant-only with boundary-specific duration) → C → TIME01 → FLOW08(allowed) → APP04. Cases 116/118/120/124 also restore and capture each request surface's declared choices after grant issuance through FLOW04 → REQUEST03(capture) → REQUEST12.
 2. app-restart: LIFE01(Parent), request exit/entry on both surfaces; sign-out: DESK04; reboot: LIFE02; idle: TIME03; suspend: LIFE03. Routes use the current session ledger.
 3. TIME03 only for remaining expired wait; active return requires the original positive deadline.
-4. P → PARENT03/PARENT12 → UI12 before edits. Active cases read complete remembered choices on both forms through request-entry → REQUEST03 → UI12 before editing. Expired child denial → DESK11 → REQUEST01 → FLOW06(real 3-minute replacement). C → TIME01 → FLOW08; APP04 only on retained desktops.
+4. P → PARENT03/PARENT12 → UI12 before edits. Active cases read complete remembered choices on both forms through request-entry → REQUEST03 → UI12 before editing. Expired child denial → DESK11 → FLOW06(real 3-minute replacement, including station entry). C → TIME01 → FLOW08; APP04 only on retained desktops.
 
 For each paired boundary, the **active** case (116/118/120/124) owns the complete
 remembered-choice comparison on both forms: shared duration/custom text and soft
@@ -746,7 +758,7 @@ Case 122 uses one continuous preparation and the same original grant:
 3. TIME03(idle through original deadline) → DESK08(specific time denial).
    No reset, sign-out, clock change or intervening approval separates the returns.
 4. DESK11 → REQUEST01 → REQUEST03(compare saved choices before editing) →
-   FLOW06(real 3-minute replacement) → C(retained) → TIME01 → FLOW08 →
+   FLOW04(entry=open, real 3-minute replacement) → FLOW05 → C(retained) → TIME01 → FLOW08 →
    APP04(compare original work). Confirm saved allowance/app rules and positive
    usable time. Never compare old work on a newly created desktop.
 
@@ -777,7 +789,7 @@ Both time calculations, both game modes and fullscreen request access remain
 required, with unchanged game progress through the extended natural expiry.
 
 1. FLOW13(dominant profile) → C → TIME01 → FLOW08(game) → APP05(mode,level) → APP04.
-2. Windowed: REQUEST02. Fullscreen: REQUEST13(qualified panel reveal and graphical launch). Then REQUEST04(custom additional duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase).
+2. Windowed: REQUEST02. Fullscreen: REQUEST13(panel API launch while the game remains fullscreen). Then REQUEST04(custom additional duration) → REQUEST08 → FLOW05 → TIME01 → UI12(increase). Panel reveal, focus and fullscreen-window choreography add no acceptance requirement.
 3. DESK10(game) → APP04(compare) → APP03 → TIME04(extended natural expiry).
 
 ### E2E-025
@@ -886,8 +898,12 @@ composites. Supply the `single` fixture (`Synthetic note.txt`, 26 bytes)
 through the guarded chooser and independently read its metadata. The shared
 `FeedbackDraftJourney` compares the complete formatted draft and reply address
 after window switching, Privacy and dialog reopening, then observes empty text,
-reply address, formatting and customer-file list after Parent exits/relaunches,
-before any new input. Fresh diagnostics remain separate from the customer draft.
+reply address, formatting and customer-file list in the first feedback read after
+Parent exits/relaunches, before any new input. That complete read proves reset;
+another unchanged empty-state read adds no result. Fresh diagnostics remain
+separate from the customer draft. This shortened composition passed on Ubuntu
+26.04 in `20261010T171847Z-0b1bc336` and Fedora 44 in
+`20261010T171847Z-310d8f89`, including collection and owned cleanup.
 
 Case 153 rejects an empty send, then types the shared ordinary body and reply.
 Closing/reopening must retain the authored body/reply and recover the usable
@@ -946,7 +962,7 @@ Bindings: delivery = retry.
 
 1. P0 → FEED01 → UI16 → FEED06 → FEED03 → FEED05.
 2. LIFE06(disconnect).
-3. DESK10(feedback) → FEED11 → FEED09(retry).
+3. FEED11 on the still-open feedback surface → FEED09(retry). Internet isolation does not require leaving the dialog or activating it again.
 4. UI18(ordinary feedback only) → UI11(feedback); keep the same Parent running → LIFE06(reconnect before retry deadline). Require no unsolicited feedback/thanks window during the bounded background completion interval.
 5. FEED01 → FEED03(cleared after automatic completion). If sending remains active on reopening, observe FEED09 until explicit acceptance → FEED14 → FEED01 → FEED03(cleared). Never issue another Send or infer success from elapsed time alone.
 
@@ -1076,7 +1092,7 @@ settings. Shared account preparation remains for the branches below.
 
 1. V(parent,fresh) → ACCOUNT01 → ACCOUNT02 only for declared initial spare account preparation. Use FLOW16(on,declared allowance) for every child whose request form will be inspected (30 minutes unless the finite branch below specifies otherwise), then P or request-entry → PARENT03/REQUEST03(capture). For removal cases all removed children are logged out first; no personal account is borrowed from another test.
 2. ACCOUNT01 → ACCOUNT02(variant change). Parent stays open; request windows exit with REQUEST12 before the change.
-3. DESK10(Parent) → UI13/PARENT19 → PARENT03 → UI12, or request-entry → REQUEST03 → UI13(eligible fallback). Case 180 requires both results in order: automatic Parent fallback in the same window, then independent fallback on reopening the station, with each screen showing Riley's own values before editing.
+3. UI13/PARENT19 → PARENT03 → UI12 on the still-open Parent surface, or request-entry → REQUEST03 → UI13(eligible fallback). Account commands need no window switch. Case 180 requires both results in order: automatic Parent fallback in the same window, then independent fallback on reopening the station, with each screen showing Riley's own values before editing.
 
 Case 180 absorbs former case 183; that ID must not be reused. Prepare and remove
 the spare child once for both screens, using the finite data below. Cases 181
@@ -1097,11 +1113,13 @@ for fresh baseline verification and `check_catalogue()` for the public initial d
 preparation assigns no policy. Other E2E-041 bindings remain pending.
 The native profile belongs to Jordan; bind selection, App Limits entry and
 public row operations to that same child as described in the native contract.
-Case 184 requires the fresh Jordan 30-minute FLOW16 binding
-`gdm/parent/fresh/new/existing/0/30/1`, qualified by task 226a through
-`fresh_thirty_allowance.JORDAN_PLAN`, `FreshThirtyAllowanceJourney` and
-`onpc_parent::set_allowance`. Carry the explicit `existing` child binding through
-setup and independent balance readback. Task 226b qualified the public
+Case 184 opens Parent directly and selects Jordan through FLOW01, then reaches
+App Limits. Its shared child-selection read verifies Jordan's initial disabled,
+zero-allowance settings. Search/filter behavior needs no enabled time limit,
+allowance write, balance readback or child desktop. The historical 30-minute
+setup from task 226a remains a separate qualification, not this case's
+prerequisite. Carry the explicit `existing` child binding through selection and
+catalogue observations. Task 226b qualified the public
 access/match legend through `AccessibleUI.expand_policy_legend` /
 `read_policy_legend` and `onpc_app_rows::legend`, with independent full reads,
 wrong-entry refusals and unchanged policies. Reuse caller-owned stages from the
@@ -1115,14 +1133,18 @@ Case 184 owns `search_filters.PLAN`, composing the
 shared operations through `onpc_fresh_thirty_allowance::search_filters`.
 `native_fixtures.CataloguePolicyJourney` compares caller-declared immutable row
 endpoints and exact query/match/access intersections before durable replies;
-the plan's `catalogue_checks` declares the initial, name, filtered and unchanged row checks, saved
-settings and independent 1800/0/1800-second balances. Complete installed acceptance
+the plan's `catalogue_checks` declares the initial, name, filtered and unchanged
+row checks. Complete installed acceptance of the earlier time-prepared sequence
 passed in `20261001T054514Z-f7691e2f` on every enabled VM, including collection,
-owned cleanup and baseline restoration. This supplies no acceptance for other flows.
+owned cleanup and baseline restoration. The shortened setup passed on Ubuntu
+26.04 in `20261010T172702Z-f2ff759d`, including collection, owned cleanup and
+baseline restoration. Fedora 44 run `20261010T172703Z-e3e339fa` was cancelled
+at the developer's request; that target remains unverified for the shortened
+composition. This supplies no acceptance for other flows.
 
-1. FLOW16(ample daily) → PARENT04(App Limits) → PARENT12(assets).
+1. Search-filters: FLOW01(Jordan) → PARENT04(App Limits) → PARENT12(assets). Enforcement variants: FLOW16(ample daily) → PARENT04(App Limits) → PARENT12(assets).
 2. Run the corresponding finite catalogue subrecipe below using PARENT10/11/13/15/16, UI16, shared FILE05 commands and LIFE01.
-3. PARENT12 → UI12(saved/expected rule) → C → FLOW08(declared positive and negative targets). Search-only checks compare rules without changing them.
+3. PARENT12 → UI12(saved/expected rule). Search-filters ends with the complete unchanged-policy comparison. Enforcement variants then use C → FLOW08(declared positive and negative targets).
 
 ### E2E-042
 
@@ -1159,7 +1181,7 @@ Bindings: surface = parent-links / child-overlay / kiosk / command-help.
 
 1. Active request cases 191–192: FLOW16(on,30) → request-entry(surface) → REQUEST03(capture); command-help case 193: V(parent) → qualified desktop. Case 190 has no E2E composition.
 2. Overlay ABOUT01(product/version, license and legal notices); kiosk also reads its offered contact information within the restricted station. Link-control completeness/clickability belongs to shared UI coverage; no external links are invoked here. Command INFO02(each fixed command/manual).
-3. UI18(About, only where opened) → REQUEST03 → UI12. No external handler is launched or closed. INFO02 leaves the parent desktop clear.
+3. Request cases: UI18(About) → REQUEST03 → UI12. No external handler is launched or closed. Command-help observes no product window after the fixed command sequence.
 
 Kiosk binds FLOW16 to fresh Parent entry with limits initially off, a saved
 30-minute allowance and limits on. After GDM/station entry, FLOW04 selects
@@ -1175,8 +1197,9 @@ Command-help binds INFO02 to `/usr/bin/oh-no-parent-control-parent --help`,
 guarded VM SSH transport as the parent fixture account and capture its bounded
 stdout stream, without a terminal window or GUI text projection. Read each
 help's usage, identifying description and help option; read each manual's
-command identity, purpose, NAME, SYNOPSIS and DESCRIPTION. Independently check
-the desktop and absence of management/request windows after each command.
+command identity, purpose, NAME, SYNOPSIS and DESCRIPTION. Independently require
+no management/request window after the sequence; Shell-control or clear-desktop
+checks after every command are not additional customer outcomes.
 Each command has a 45-second deadline; durable observations retain only semantic
 results, never raw command text. The complete consumer is `command_help::execute` and
 `onpc_command_help::run`.
@@ -1192,8 +1215,8 @@ journey; case ID 195 must not be reused. Complete installed acceptance remains
 pending.
 
 1. P → LIFE06(disconnect) → FLOW16 → FLOW03(hard/soft/allowed).
-2. C → request-entry(child-overlay) → FLOW04(entry=open) → REQUEST08 → FLOW05(soft included) → C → FLOW08(allowed/soft usable,hard denied) → TIME02.
-3. G → request-entry(kiosk) → FLOW04(entry=open) → REQUEST08 → FLOW05(soft included) → FLOW15(child,fresh) → C → FLOW08(allowed/soft usable,hard denied) → TIME02.
+2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → FLOW08(allowed/soft usable,hard denied) → TIME02.
+3. DESK04(normal child logout) → request-entry(kiosk) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → C(fresh) → FLOW08(allowed/soft usable,hard denied) → TIME02.
 4. P → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → P → LIFE06(reconnect).
 
 Use one child, one parent and one ordinary native app per rule. Set a fresh
@@ -1224,7 +1247,7 @@ children in one continuous attempt, as specified in the
 on the two transition dates is no longer scheduled.
 
 1. V(parent,fresh) → TIME05 → FLOW13(calendar profile) → P → PARENT09(capture) → request-entry/REQUEST08/REQUEST12 only for the declared grant estimate → C → TIME01.
-2. TIME03(to declared real boundary) with APP03 where active use is needed; observe the child's expected countdown or lock first. G → V(parent,retained) → TIME05 → P → PARENT09 → UI12(calendar arithmetic). A child that locked at midnight cannot operate desktop calendar controls until legitimately admitted again.
+2. TIME03(to declared real boundary) with APP03 where active use is needed; observe the child's expected countdown or lock first. G → V(parent,retained) → TIME05 → P → PARENT09 → UI12(calendar arithmetic). TIME05 reads the clock through the shared command helper; no desktop calendar or Settings interaction is needed.
 3. C → TIME01 or GDM06(time denial), as specified by the calendar table; FLOW08(allowed) when usable.
 
 ### E2E-045
@@ -1301,7 +1324,7 @@ Bindings: flow = app-exit / overlay-stop / kiosk-stop / overlay-success / kiosk-
 Background reconnection is combined into [E2E-033 / case 157](#e2e-033),
 without a separate submission or task for former case 215.
 
-1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03 → FEED05; LIFE06(disconnect) for retry branches → DESK10(report) → FEED11.
+1. P → FEED01 or public-error prefix → FEED15. UI16 → FEED03 → FEED05; LIFE06(disconnect) for retry branches → FEED11 on the existing report surface. Internet isolation needs no report-reactivation step.
 2. Perform the precise send-lifetime subrecipe below; FEED09 supplies sending/retry/success observations.
 3. Use FEED14 only for observed thanks; FEED03 checks cleared/preserved/reset draft as specified, and LIFE06 restores connectivity.
 
@@ -1446,8 +1469,8 @@ approval uses retained unlock, then the next departure again follows the
 variant. Overlay requests alone never log out. Declare each window's lifetime
 in the ledger and branch APP04 versus FILE08 from that recorded action, not
 from whichever app happens to appear. Use a supported new-instance launch for
-S when an old S window is being preserved. For fullscreen, DESK12's qualified
-normal reveal route is mandatory. If navigation exhausts a required margin,
+S when an old S window is being preserved. Fullscreen panel entry uses DESK12's
+shared API binding without reveal/focus choreography. If navigation exhausts a required margin,
 preserve the failure instead of inserting an unplanned grant.
 
 ### E2E-051

@@ -43,7 +43,10 @@ The [shared task contract](E2E-Execution-Contracts.md#task-brief-contract)
 applies the required [Application UI API](Application-UI-API.md) route,
 [result-oriented mandate](../Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
 and [UI/E2E allocation](UI-and-E2E-Coverage.md) to retained implementations
-and unfinished briefs. Use it without changing case scope or queue order.
+and unfinished briefs. Apply its
+[product-focused review](E2E-Execution-Contracts.md#product-focused-journeys) to
+remove incidental provider steps while preserving each case's product outcomes
+and queue order.
 The queue owns exclusions and displaced UI obligations; the
 [status vocabulary](README.md#status-vocabulary) distinguishes historical
 completion from current route qualification and scenario registration.

@@ -9,18 +9,20 @@ from request_composition import KioskRequestJourney
 from private_artifacts import require
 
 
-def overlay_to_kiosk(prefix, *, child):
+def overlay_to_kiosk(prefix, *, child, choices='qualification'):
     """FLOW12: cancel an explicitly captured overlay and read the destination untouched."""
     from journey_blocks import prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
+    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
+    binding = 'transfer' if choices == 'qualification' else 'remembered'
     role = 'child' if child == 'riley' else 'standard'
     return prefixed_stages(prefix, {
-        'cancel': f'ui:transfer-overlay-{child}-cancel',
-        'desktop': f'ui:transfer-overlay-{child}-returned',
+        'cancel': f'ui:{binding}-overlay-{child}-cancel',
+        'desktop': f'ui:{binding}-overlay-{child}-returned',
         'switch': f'system:{role}-switch-user', 'greeter': 'ui:gdm-returned',
         **station_entry(),
-        'child': f'ui:transfer-kiosk-{child}-select',
-        'read': f'ui:transfer-kiosk-{child}-read',
+        'child': f'ui:{binding}-kiosk-{child}-select',
+        'read': f'ui:{binding}-kiosk-{child}-read',
     })
 
 

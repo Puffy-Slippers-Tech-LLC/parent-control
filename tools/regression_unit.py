@@ -511,6 +511,9 @@ from regression_ui import Bucket
 # Maintenance denial reproduction extends the existing worker, graphical lease,
 # credential and VM-control tests with mocked guests, private evidence and the
 # same owned sockets/children; no live VM, shared bus or resource owner is added.
+# Remembered-return diagnostic prefix checks use private requests and dispatcher
+# doubles; no live VM, bus, display, shared cache or new owner.
+# Worker checks use existing bounded Perl children and private fixtures.
 # Distribution admission boundaries create at most 257 tiny private pytest
 # files and use an injected small byte ceiling. e2e_needle_inputs adds no shared
 # cache, process, socket or live VM; its existing compatible classification holds.

@@ -74,6 +74,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # resource; those existing compatible classifications remain applicable.
 # Retained-entry boundary validation adds only plan values and private request
 # files to vm_control_cleanup_safety; no VM, display, bus or shared cache is used.
+# Remembered-return diagnostic prefix checks use private requests and dispatcher
+# doubles; no live VM, bus, display, shared cache or new owner.
+# Worker checks use existing bounded Perl children and private fixtures.
 # Restored-off maintenance audits use the same private lease/disk fixtures and
 # mocked VM/guest inspection, with no live VM, socket or shared state. Existing
 # VM-control compatible scheduling remains appropriate in both inventories.

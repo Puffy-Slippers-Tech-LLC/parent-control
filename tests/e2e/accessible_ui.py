@@ -920,7 +920,10 @@ TRANSFER_OPERATIONS = {
     for action in actions
 }
 TRANSFER_REQUESTS = {}
+TRANSFER_CHOICES = {}
 for _operation, (_overlay, _child, _action) in TRANSFER_OPERATIONS.items():
+    TRANSFER_CHOICES[_operation] = ((75, '1.25', True, PARENT) if _child == CHILD
+                                    else (150, '2.5', False, PARENT))
     if _action in ('default', 'approver', 'select-default', 'select', 'read'):
         _default = _action in ('default', 'approver', 'select-default')
         TRANSFER_REQUESTS[_operation] = (
@@ -928,6 +931,25 @@ for _operation, (_overlay, _child, _action) in TRANSFER_OPERATIONS.items():
             None if _default else '1.25' if _child == CHILD else '2.5',
             False if _default else _child == CHILD,
             PARENT if _overlay and _action != 'default' else OTHER_PARENT)
+        TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation]
+# Complete remembered-choice histories use the recipe's own finite values,
+# independently of the qualification's opposite child/approver assignments.
+for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
+    for _surface, _actions in (
+            ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
+            ('kiosk', ('select-default', 'approver', 'select', 'read'))):
+        for _action in _actions:
+            _operation = f'remembered-{_surface}-{_name}-{_action}'
+            _overlay = _surface == 'overlay'
+            _default = _action in ('default', 'approver', 'select-default')
+            _approver = OTHER_PARENT if _overlay or _action == 'select-default' else PARENT
+            _values = (1800 if _default else 75 if _child == EXISTING_CHILD else 150,
+                       None if _default else '1.25' if _child == EXISTING_CHILD else '2.5',
+                       False if _default else _child == EXISTING_CHILD, _approver)
+            TRANSFER_OPERATIONS[_operation] = (_overlay, _child, _action)
+            TRANSFER_CHOICES[_operation] = _values
+            if _action in ('default', 'approver', 'select-default', 'select', 'read'):
+                TRANSFER_REQUESTS[_operation] = _values
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
@@ -8755,8 +8777,7 @@ class AccessibleUI:
         if action == 'returned':
             self.overlay_desktop(child=child)
             return None
-        seconds, custom, soft, approver = TRANSFER_REQUESTS.get(operation,
-            (75, '1.25', True, PARENT) if child == CHILD else (150, '2.5', False, PARENT))
+        seconds, custom, soft, approver = TRANSFER_CHOICES[operation]
         if action in ('select', 'select-default'):
             return self.select_kiosk_account('child', child, expected=(CHILD, EXISTING_CHILD),
                 duration_seconds=seconds, custom_text=custom)
@@ -8767,7 +8788,7 @@ class AccessibleUI:
         if action in ('custom', 'text', 'apps'):
             identity = {'custom': 'kiosk-duration-choices', 'text': 'kiosk-custom-duration',
                         'apps': 'kiosk-soft-apps-toggle'}[action]
-            target = self.kiosk_valid_target(identity, child=child, approver=PARENT, overlay=overlay)
+            target = self.kiosk_valid_target(identity, child=child, approver=approver, overlay=overlay)
             self.input_uncertain = True
             if action == 'text':
                 # API text entry invokes the ordinary shared change handler.

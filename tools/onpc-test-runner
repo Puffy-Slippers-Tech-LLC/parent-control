@@ -132,7 +132,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
                                       'reproduce-gdm-denial', 'reproduce-lock-denial',
-                                      'reproduce-retained-entry', 'probe-lock-curtain'))
+                                      'reproduce-retained-entry', 'probe-lock-curtain',
+                                      'reproduce-remembered-return', 'probe-remembered-return',
+                                      'repeat-remembered-return', 'enter-remembered-return'))
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
     args = parser.parse_args(argv)

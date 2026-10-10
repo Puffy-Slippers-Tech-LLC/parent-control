@@ -945,7 +945,7 @@
       "category": "customer-journey",
       "owners": ["kiosk-form"],
       "requirements": ["ONPC-CORE-REQUEST-016", "ONPC-CORE-ACCOUNTS-004", "ONPC-CORE-REQUEST-018"],
-      "requirement_gap": "The current forms disable sound/lightning and expose no mute control. Retained legacy mute-action steps are unresolved acceptance work, not implemented behavior or passing coverage; approver selections are user-local while duration/custom/soft-app choices are shared per child.",
+      "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
       "components": ["parent", "child", "kiosk", "broker"],
       "environment": ["ubuntu26.04", "fedora44"],
@@ -960,7 +960,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice."},
           {"id": "step-2", "operation": "ui", "description": "Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing."},
-          {"id": "step-3", "operation": "ui", "description": "Set distinct choices for the other child and return to both children on both surfaces. Read before editing and compare per-child values and independent surface selectors."}
+          {"id": "step-3", "operation": "ui", "description": "Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -990,7 +990,7 @@
         "rationale": "Both starting directions by both children are combined. Interactive mute remains future-feature engineering scope."
       },
       "variants": [
-        {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
+        {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "overlay-to-kiosk-first"}},
         {"coverage_id": 59, "id": "overlay-to-kiosk-second", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 60, "id": "kiosk-to-overlay-first", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null},
         {"coverage_id": 61, "id": "kiosk-to-overlay-second", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Current request choices require implementation and installed acceptance; deferred interactive mute is separate future-feature work.", "executable": null}

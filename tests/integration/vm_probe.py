@@ -44,6 +44,75 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_remembered_return(lease):
+    """Retain the historical return scene, separate from current case 58."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from remembered_choices import DIAGNOSTIC_PLAN as PLAN
+    from request_composition import KioskRequestJourney
+    return reproduce_denial(lease, KioskRequestJourney, PLAN,
+                            'jordan-return-entry-desktop', 'remembered-return',
+                            boundary_operation='standard-desktop')
+
+
+def probe_remembered_return(lease):
+    """Read the same desktop adapter on the retained Jordan session's bus."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading the retained Jordan desktop'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-remembered-return-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('remembered-return-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('standard-desktop')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('remembered-return-probe: guarded desktop read passed', flush=True)
+
+
+def repeat_remembered_return(lease):
+    """Repeat only the Riley/station/Jordan return in the already reproduced scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from remembered_choices import DIAGNOSTIC_PLAN as PLAN
+    from installed_journey import JourneyPlan
+    from request_composition import KioskRequestJourney
+    screens = {'repeat-desktop': 'ui:standard-desktop',
+               'switch-user': 'system:standard-switch-user', 'gdm-switched': 'ui:gdm-returned'}
+    screens.update({stage: tag for stage, tag in PLAN.screen_tags.items()
+                    if stage.startswith('riley-return-')})
+    screens.update({'riley-return-exit': 'ui:kiosk-request-cancel',
+                    'riley-return-greeter': 'ui:gdm-station-returned'})
+    screens.update({stage: tag for stage, tag in PLAN.screen_tags.items()
+                    if stage.startswith('jordan-return-entry-')})
+    plan = JourneyPlan(prefix='remembered-return', worker_mode='remembered_return_diagnosis',
+        screen_tags=screens, phases={}, invocations=tuple(stage for stage in screens
+                                                         if stage in PLAN.invocations),
+        challenges={name: binding for name, binding in PLAN.challenges.items()
+                    if name in ('riley-return-entry', 'jordan-return-entry')},
+        request_transfer_checks={'riley-return-transfer-read': 'riley-return-source'})
+    return reproduce_denial(lease, KioskRequestJourney, plan,
+                            'jordan-return-entry-desktop', 'remembered-return',
+                            boundary_operation='standard-desktop')
+
+
+def enter_remembered_return(lease):
+    """A new guarded Jordan challenge from the owned reproduced greeter scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from remembered_choices import DIAGNOSTIC_PLAN as PLAN
+    from installed_journey import JourneyPlan
+    from request_composition import KioskRequestJourney
+    screens = {stage: tag for stage, tag in PLAN.screen_tags.items()
+               if stage.startswith('jordan-return-entry-')}
+    plan = JourneyPlan(prefix='remembered-return', worker_mode='remembered_return_entry_diagnosis',
+        screen_tags=screens, phases={}, invocations=tuple(stage for stage in screens
+                                                         if stage in PLAN.invocations),
+        challenges={'jordan-return-entry': PLAN.challenges['jordan-return-entry']})
+    return reproduce_denial(lease, KioskRequestJourney, plan,
+                            'jordan-return-entry-desktop', 'remembered-return',
+                            boundary_operation='standard-desktop')
+
+
 def probe_lock_curtain(lease):
     """Read the same guarded child curtain in a retained maintenance scene."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -61,7 +130,7 @@ def probe_lock_curtain(lease):
         print('lock-probe: guarded curtain read passed', flush=True)
 
 
-def reproduce_denial(lease, journey_type, plan, boundary, surface):
+def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -121,6 +190,14 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface):
             if (directory / (boundary + '.request.json')).exists():
                 guard()
                 validate()
+                if boundary_operation is not None:
+                    from ui_observations import UiObservations
+                    try:
+                        observed = UiObservations(transport).observe(boundary_operation)
+                    except Exception as error:
+                        observed = {'outcome': 'refused', 'error_type': type(error).__name__}
+                    (directory / 'boundary-observation.json').write_text(json.dumps(observed))
+                    guard()
                 return True
             journey.step(guard)
             return False

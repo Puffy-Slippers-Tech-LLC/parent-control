@@ -1854,7 +1854,8 @@ retained Riley entry passed the shared-field/local-approver comparison. A wrong
 journey receipt was refused before input. Host checks also cover wrong-account
 and owner refusals, stale observations, immutable comparisons and independent
 shared-helper composition. Kiosk-to-overlay, interactive mute and complete
-cases 58–61 remain separate pending scope.
+cases 59–61 remain separate pending scope. Case 58 has independent
+[complete-case acceptance](#request-forms-and-remembered-choices).
 
 The qualifier and all six affected regressions (`check_e2e_overlay_valid_choices`,
 `check_e2e_overlay_choices`, `check_e2e_kiosk_eligible_choices`,
@@ -3893,6 +3894,25 @@ entry, approval, exit, selection and persistence compositions. E2E-014 retains
 the [native-gesture exclusion](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures);
 its recipe records uncovered assertions, not reusable qualification or an
 implementation task.
+
+Case 58 uses `remembered_choices.PLAN` / `onpc_remembered_choices::run`.
+Jordan sets custom `1.25` minutes / 75 seconds with soft apps included; Riley
+sets `2.5` minutes / 150 seconds with soft apps excluded. Each overlay retains
+Casey (the Sam fixture binding), while the kiosk retains Jamie. One overlay
+visit and transfer per child supply immutable source captures. The kiosk then
+reselects both children and compares their saved values against those original
+captures: four comparisons cover transfer, persistence, child isolation and
+independent surface approvers. Neither retained child desktop is revisited;
+its GDM password behavior is outside this acceptance history. Initial account
+and credential-recipient guards are unchanged. The historical retained-return
+scene remains explicit maintenance-only `remembered_choices.DIAGNOSTIC_PLAN`.
+
+Independent complete-case acceptance passed on Ubuntu 26.04 in
+`20261010T163428Z-a8f26ba6` and Fedora 44 in `20261010T163428Z-b7f41533`.
+Both runs passed collection, owned shutdown/cleanup, baseline restoration and
+source/host preservation. Host composition checks also prove that either old
+retained-return failure checkpoint cannot interrupt the shortened case.
+Cases 59–61 remain pending.
 
 ### Application routes and complete customer journeys
 

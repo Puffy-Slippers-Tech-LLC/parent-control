@@ -364,7 +364,9 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
-                   'probe-lock-curtain'):
+                   'probe-lock-curtain',
+                   'reproduce-remembered-return', 'probe-remembered-return', 'repeat-remembered-return',
+                   'enter-remembered-return'):
         command = select(root, ['vm', action, *VM_ARGS])
         assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
         with pytest.raises(ValueError):
@@ -413,19 +415,24 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 
 @pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
-@pytest.mark.parametrize('retained_entry', [False, True])
-def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, retained_entry):
+@pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'remembered-return'])
+def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN
     from retained_entry import PLAN
-    plan = PLAN if retained_entry else CHILD_DENIAL_PLAN
-    boundary = 'riley-restricted-curtain' if retained_entry else 'time-denied'
+    from remembered_choices import DIAGNOSTIC_PLAN as REMEMBERED_PLAN
+    plan, boundary, previous = {
+        'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
+        'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
+        'remembered-return': (REMEMBERED_PLAN, 'jordan-return-entry-desktop',
+                              'jordan-return-entry-standard-recipient-rechecked'),
+    }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]
-    assert prefix[-1] == ('riley-restricted-entry-guard' if retained_entry else 'reveal-ready')
+    assert prefix[-1] == previous
     assert 'lock-recipient-qualified' not in prefix
     if fault == 'missing-history':
-        prefix.remove('zero-configured')
+        prefix.remove(previous)
     elif fault == 'advanced':
         prefix.append(boundary)
     journey = SimpleNamespace(plan=plan, failed=fault == 'failed',

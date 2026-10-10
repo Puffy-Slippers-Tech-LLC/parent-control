@@ -26,6 +26,7 @@ use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
+use onpc_remembered_choices ();
 use onpc_kiosk_cancel ();
 use onpc_kiosk_escape ();
 use onpc_request_choices ();
@@ -256,6 +257,24 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_cancel::run(\&exchange, 'overlay-approved', $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{remembered_return_entry_diagnosis}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_remembered_choices::enter_return_for_diagnosis(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{remembered_return_diagnosis}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_remembered_choices::repeat_return_for_diagnosis(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{remembered_choices}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_remembered_choices::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{choices_overlay_to_kiosk}) {

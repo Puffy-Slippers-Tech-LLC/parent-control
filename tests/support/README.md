@@ -405,6 +405,16 @@ in `AccessibleUI.transfer_choices` bind Riley or Jordan through every overlay
 reader/input/session guard. Qualification status belongs to FLOW12's catalogue
 row. The existing unit owner uses private values/files and bounded waited Perl
 children; resource classifications remain compatible with no new cleanup owner.
+The `choices='remembered'` declaration selects the recipe's Jordan 75-second /
+included and Riley 150-second / excluded values, with Jamie at the station and
+the other eligible parent on each overlay. The `remembered-*` operations reuse
+those same guarded leaves; complete cases own their order, return visits and
+immutable comparisons rather than importing the qualification plan.
+Case 58 visits each overlay once and compares both destination reads with the
+original captures, then reselects both children in the open kiosk and compares
+again. Its persistence/isolation result requires no retained child-desktop login.
+The historical full return scene is preserved only as `DIAGNOSTIC_PLAN` for
+explicit maintenance probes; it supplies no customer acceptance prerequisite.
 The qualification and its request-form regressions share VM-specific,
 fixture-source-bound package inputs. Their maintained preparation selects DEB or
 RPM from the verified baseline and preserves existing immutable bundles. Planning

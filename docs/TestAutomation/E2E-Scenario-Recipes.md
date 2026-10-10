@@ -623,7 +623,9 @@ restoration. Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status: All cases pending.
+Implementation status: Case 58 passed installed acceptance on Ubuntu 26.04 and
+Fedora 44; [exact scope and evidence](E2E-Building-Blocks.md#request-forms-and-remembered-choices).
+Cases 59–61 pending.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
 
@@ -633,11 +635,22 @@ Implementation context: compose `request_flow.overlay_to_kiosk` /
 Each case still owns its finite values, order and complete acceptance;
 kiosk-to-overlay remains pending.
 
+Case 58 composes `remembered_choices.PLAN` / `onpc_remembered_choices::run`:
+Jordan then Riley seed the recipe's own distinct values; one overlay visit and
+one transfer per child read both forms before editing. The station
+retains Jamie while each child overlay retains Casey (the Sam fixture binding).
+The open station then reselects Jordan and Riley, comparing each child's saved
+choices with its original overlay capture. These four immutable comparisons
+prove transfer, persistence and child isolation without returning to either
+retained desktop. Retained GDM login behavior and unrelated system prompts are
+outside this case's acceptance. Necessary initial login recipient guards remain.
+The case is independent of the qualification's opposite child values and local approvers.
+
 Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
 2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
-3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture). Return in both directions with FLOW12 and read/compare before editing.
+3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk, with no retained desktop return; reverse-direction implementation remains separate pending scope.
 
 ### E2E-019
 

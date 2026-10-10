@@ -99,7 +99,8 @@ class KioskRequestJourney(InstalledJourney):
         if stage in checks:
             before = self.transfer_requests.get(checks[stage])
             require(before is not None, 'request-transfer:missing-source')
-            require(before.surface == 'child-overlay' and request.surface == 'kiosk',
+            require((before.surface, request.surface) in (
+                        ('child-overlay', 'kiosk'), ('kiosk', 'child-overlay')),
                     'request-transfer:direction')
             require(all(getattr(before, field) == getattr(request, field) for field in
                         ('child', 'duration_seconds', 'custom_text', 'allow_soft')),

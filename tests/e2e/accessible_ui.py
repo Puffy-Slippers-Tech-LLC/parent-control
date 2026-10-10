@@ -951,6 +951,15 @@ for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-seco
                 TRANSFER_CHOICES[_operation] = _values
                 if _action in ('default', 'approver', 'select-default', 'select', 'read'):
                     TRANSFER_REQUESTS[_operation] = _values
+for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
+    TRANSFER_OPERATIONS[f'reverse-overlay-{_name}-wrong-child'] = (True, _child, 'wrong-child')
+    for _action in ('custom', 'text', 'apps', 'read'):
+        _operation = f'reverse-kiosk-{_name}-{_action}'
+        _values = (75, '1.25', True, OTHER_PARENT) if _child == CHILD else (150, '2.5', False, OTHER_PARENT)
+        TRANSFER_OPERATIONS[_operation] = (False, _child, _action)
+        TRANSFER_CHOICES[_operation] = _values
+        if _action == 'read':
+            TRANSFER_REQUESTS[_operation] = _values
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
@@ -8767,6 +8776,14 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         if overlay:
             self.require_child_overlay_session(child)
+        if action == 'wrong-child':
+            other = EXISTING_CHILD if child == CHILD else CHILD
+            try:
+                self.kiosk_valid_target('kiosk-soft-apps-toggle', child=other, overlay=True)
+            except UiError as error:
+                require(str(error) == 'ui:overlay-account', 'ui:transfer-refusal')
+                return None
+            raise UiError('ui:transfer-wrong-child-accepted')
         if action == 'refused':
             if self.application_ui is not None:
                 # This negative product-surface guard releases no input. Read

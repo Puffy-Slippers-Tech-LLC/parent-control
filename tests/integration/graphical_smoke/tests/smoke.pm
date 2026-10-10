@@ -277,6 +277,13 @@ sub run {
         onpc_remembered_choices::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{cross_surface}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::qualify_cross_surface(\&exchange,
+            $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{choices_overlay_to_kiosk}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

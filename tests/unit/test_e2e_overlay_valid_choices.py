@@ -30,6 +30,7 @@ from tests.support.e2e_kiosk import accounts_form
 from tests.support.perl import run_perl
 from ui_observations import UiObservations, RequestObservation, OPERATION_LABELS
 from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN, ChoicesOverlayToKioskJourney
+from cross_surface import PLAN as REVERSE_PLAN
 from remembered_choices import PLAN as REMEMBERED_PLAN, SECOND_PLAN
 from request_composition import KioskRequestJourney
 from tests.support.desktop_session import RUN_PROBE
@@ -47,7 +48,7 @@ def transfer_request(*, overlay=True, jordan=False, remembered=False):
         cancel_enabled=True, message='', mute=None)
 
 
-@pytest.mark.parametrize('case', [False, True, 'second', 'diagnosis', 'repeat', 'entry'])
+@pytest.mark.parametrize('case', [False, True, 'second', 'diagnosis', 'repeat', 'entry', 'reverse'])
 def test_transfer_worker_order_titles_refusal_and_registration(tmp_path, monkeypatch, case):
     import check_e2e_choices_overlay_to_kiosk as check
     import session_control
@@ -79,6 +80,12 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
     if case == 'second':
         plan = SECOND_PLAN
+    if case == 'reverse':
+        plan = REVERSE_PLAN
+        import check_e2e_cross_surface as check
+        from parent_setup_qualification import CrossSurfaceQualification as ChoicesOverlayToKioskQualification
+        program = program.replace('onpc_request_flow::qualify_choices_overlay_to_kiosk',
+                                  'onpc_request_flow::qualify_cross_surface')
     if case == 'diagnosis':
         from remembered_choices import DIAGNOSTIC_PLAN
         plan = DIAGNOSTIC_PLAN
@@ -92,7 +99,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
         assert capture.call_args.kwargs == {'boundary_operation': 'standard-desktop'}
         assert plan.request_transfer_checks == (
             {'riley-return-transfer-read': 'riley-return-source'} if case == 'repeat' else {})
-    if case:
+    if case and case != 'reverse':
         program = program.replace('require onpc_request_flow;', 'require onpc_remembered_choices;')
         program = program.replace('onpc_request_flow::qualify_choices_overlay_to_kiosk',
                                   'onpc_remembered_choices::repeat_return_for_diagnosis'
@@ -104,7 +111,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     events = result['events']
     assert [row[1] for row in events if row[0] == 'stage'] == list(plan.screen_tags)
     assert events.count(['secret']) == (2 if case == 'repeat' else 1 if case == 'entry'
-                                      else 5 if case == 'diagnosis' else 3)
+                                      else 5 if case in ('diagnosis', 'reverse') else 3)
     for stage in plan.screen_tags:
         failed = json.loads(run_perl(program, stage, binding).stdout)
         assert not failed['ok'], failed
@@ -133,47 +140,58 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     assert [row['stage'] for row in matched_screens(tmp_path, plan, observed)] == list(plan.screen_tags)
     assert all(tag[3:] in a.OPERATIONS and tag[3:] in OPERATION_LABELS if tag.startswith('ui:')
                else tag[7:] in session_control.BINDINGS for tag in plan.screen_tags.values())
-    if case:
+    if case == 'reverse':
+        assert plan.request_transfer_checks == {
+            child + '-transfer-read': child + '-source' for child in ('riley', 'jordan')}
+        assert not any('approval' in tag for tag in plan.screen_tags.values())
+    if case and case != 'reverse':
         return
     calls = []
     monkeypatch.setattr(check, 'smoke', lambda **kw: calls.append(kw) or 0)
-    assert check.main() == 0 and calls[0]['challenge_profile'] == 'choices-overlay-to-kiosk'
+    assert check.main() == 0 and calls[0]['challenge_profile'] == (
+        'cross-surface' if case == 'reverse' else 'choices-overlay-to-kiosk')
     assert calls[0]['assets'] == named_input(vm_source=True, fixture_source=True)
-    assert ChoicesOverlayToKioskQualification.journey(SimpleNamespace(), Mock()).plan is TRANSFER_PLAN
+    assert ChoicesOverlayToKioskQualification.journey(SimpleNamespace(), Mock()).plan is plan
     # Planning must not allocate an empty real named bundle that the next
     # installed attempt would mistake for already prepared inputs.
     output = tmp_path / 'planned-input'
     monkeypatch.setattr(test_commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=str(output))
     monkeypatch.setattr(test_commands, 'allocate_artifact_output', allocate)
-    command = test_commands.qualification_artifact_command(ROOT, 'integration', ['check_e2e_choices_overlay_to_kiosk'])
+    command = test_commands.qualification_artifact_command(ROOT, 'integration', [
+        'check_e2e_cross_surface' if case == 'reverse' else 'check_e2e_choices_overlay_to_kiosk'])
     assert 'vm_artifacts.py' in str(command)
     allocate.assert_called_once_with(str(calls[0]['assets']))
     assert not output.exists()
 
 
 @pytest.mark.parametrize('fault', ['', 'missing', 'replay', 'child', 'soft', 'approver', 'duration', 'source-mutated'])
-@pytest.mark.parametrize('remembered', [False, True, 'second'])
+@pytest.mark.parametrize('remembered', [False, True, 'second', 'reverse'])
 def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, remembered):
+    reverse = remembered == 'reverse'
+    if reverse:
+        remembered = False
     binding = 'remembered-second' if remembered == 'second' else 'remembered' if remembered else 'transfer'
+    source_op = 'reverse-kiosk-jordan-read' if reverse else f'{binding}-overlay-jordan-read'
+    destination_op = 'transfer-overlay-jordan-read' if reverse else f'{binding}-kiosk-jordan-read'
     plan = JourneyPlan('renamed-transfer', 'renamed-transfer', {
-        'capture': f'ui:{binding}-overlay-jordan-read', 'destination': f'ui:{binding}-kiosk-jordan-read'}, {},
+        'capture': 'ui:' + source_op, 'destination': 'ui:' + destination_op}, {},
         request_transfer_checks={'destination': 'capture'})
     journey = ChoicesOverlayToKioskJourney(SimpleNamespace(directory=tmp_path), Mock(), plan)
-    source = transfer_request(jordan=True, remembered=remembered)
+    source = transfer_request(overlay=not reverse, jordan=True, remembered=remembered)
     if fault != 'missing': journey.check_transferred_request('capture', {'ui': {'request': source}})
     if fault == 'source-mutated': source['allow_soft'] = not source['allow_soft']
-    value = transfer_request(overlay=False, jordan=True, remembered=remembered)
+    value = transfer_request(overlay=reverse, jordan=True, remembered=remembered)
     if fault in ('child', 'soft', 'approver', 'duration'):
         key, replacement = {'child': ('child', 'fixture-child'), 'soft': ('allow_soft', not value['allow_soft']),
-            'approver': ('approver', 'other-fixture-parent' if remembered else 'fixture-parent'),
+            'approver': ('approver', 'other-fixture-parent' if remembered or reverse else 'fixture-parent'),
             'duration': ('custom_text', '2.5' if remembered is True else '1.25')}[fault]
         value[key] = replacement
     if fault == 'replay': journey.check_transferred_request('destination', {'ui': {'request': value}})
     journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}, {'stage': 'capture'}]
     journey.boot = 'a' * 64
     journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
-        'operation': f'{binding}-kiosk-jordan-read', 'outcome': 'passed',
+        'operation': destination_op, 'outcome': 'passed',
         'interface': 'ApplicationUI+external-provider', 'request': value}))
     (tmp_path / 'destination.request.json').write_text(json.dumps({'stage': 'destination', 'screenshot': None}))
     if fault not in ('', 'source-mutated'):
@@ -184,12 +202,14 @@ def test_transfer_real_step_immutable_comparison_before_reply(tmp_path, fault, r
         assert journey.steps[-1]['comparison']['shared_child_choices_local_approver'] is True
 
 
-@pytest.mark.parametrize('case', [False, True, 'second'])
+@pytest.mark.parametrize('case', [False, True, 'second', 'reverse'])
 def test_transfer_recorder_constructor(tmp_path, monkeypatch, case):
     import installed_journey
     plan = REMEMBERED_PLAN if case else TRANSFER_PLAN
     if case == 'second':
         plan = SECOND_PLAN
+    if case == 'reverse':
+        plan = REVERSE_PLAN
     journey_type = KioskRequestJourney if case else ChoicesOverlayToKioskJourney
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(), guestfs=Mock(),
         commands=Mock(), verified=SimpleNamespace(inputs={}))
@@ -292,6 +312,98 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     assert not result['ok'] and 'stale-observation' in result['error']
     assert [row[1] for row in result['events'] if row[0] == 'stage'] == [
         'original', *overlay_to_kiosk('renamed', child='jordan')]
+
+
+@pytest.mark.parametrize('jordan', [False, True])
+def test_reverse_overlay_wrong_child_refuses_before_input(monkeypatch, jordan):
+    ui, _, _, _, custom = overlay(monkeypatch)
+    uid = 1002 if jordan else 1001
+    monkeypatch.setattr(a.pwd, 'getpwnam', lambda account: SimpleNamespace(pw_uid=
+        1002 if account == 'onpc-child-jordan' else 1001))
+    monkeypatch.setattr(a.os, 'getuid', lambda: uid)
+    monkeypatch.setattr(a.os, 'geteuid', lambda: uid)
+    operation = f'reverse-overlay-{"jordan" if jordan else "riley"}-wrong-child'
+    assert ui.run(operation, '')['outcome'] == 'passed'
+    custom.setText.assert_not_called()
+    ui.find_id('kiosk-soft-apps-toggle').setValue.assert_not_called()
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('entry', ['fresh', 'retained'])
+def test_reverse_transfer_shared_fragment_independent_named_caller(entry):
+    from request_flow import kiosk_to_overlay
+    from journey_blocks import fresh_desktop, prefixed_stages
+    stages = kiosk_to_overlay('renamed', child='jordan', entry=entry)
+    declaration = {'invocations': tuple(prefixed_stages('renamed-entry', fresh_desktop('other-child'))),
+                   'challenges': {'renamed-entry': ('other-child',
+                       'renamed-entry-standard-recipient-qualified', 'renamed-entry-standard-recipient-rechecked')}}
+    program = RUN_PROBE[:RUN_PROBE.index('my $ok = eval')] + r'''
+require onpc_request_flow;
+my $plan = decode_json($ARGV[1]);
+my $journey = onpc_journey->new(prefix => 'another-caller', review => 0, exchange => sub {
+    my ($stage) = @_; push @events, ['stage', $stage];
+    return {observed => $stage, ui_focused => 1} if $stage =~ /greeter$/;
+    my ($role, $first, $second) = @{$plan->{challenges}{'renamed-entry'}};
+    return {observed => $stage, challenge => {id => 'renamed-entry', role => $role,
+        surface => 'gdm', check => $stage eq $first ? 'qualified' : 'rechecked'}}
+        if $stage eq $first || $stage eq $second;
+    return {observed => $stage};
+});
+$journey->declare_invocations($plan->{invocations});
+$journey->declare_challenges($plan->{challenges});
+my $source = $journey->seen('original');
+onpc_request_flow::kiosk_to_overlay($journey, $source, 'original', 'renamed', 'jordan', $action);
+my $ok = eval { onpc_request_flow::kiosk_to_overlay($journey, $source, 'original', 'repeat', 'jordan', $action); 1 };
+print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
+'''
+    result = json.loads(run_perl(program, entry, json.dumps(declaration)).stdout)
+    assert not result['ok'] and 'stale-observation' in result['error']
+    assert [row[1] for row in result['events'] if row[0] == 'stage'] == ['original', *stages]
+
+
+@pytest.mark.parametrize('jordan', [False, True])
+@pytest.mark.parametrize('fault', ['', 'wrong-child', 'wrong-owner', 'disabled', 'prompt', 'uncertain'])
+def test_reverse_station_text_and_independent_decoder(monkeypatch, capsys, jordan, fault):
+    ui, application, child, _, custom = overlay(monkeypatch)
+    application.identity = a.KIOSK_APPLICATION
+    child.states.add('sensitive')
+    uid = 1002 if jordan else 1001
+    child.value = str(uid)
+    child.children[0].identity = 'kiosk-child-selected-' + str(uid)
+    child.description = f'Selected account: {a.EXISTING_CHILD if jordan else a.CHILD}.'
+    ui.find_id('kiosk-approver-selector').setValue(str(ui.fixture_uids[a.OTHER_PARENT]))
+    ui.find_id('kiosk-duration-custom').action.do_action(0)
+    custom.value = '2.5' if jordan else '1.25'
+    if not jordan:
+        ui.find_id('kiosk-soft-apps-toggle').states.add('checked')
+    unit = Node(identity='kiosk-custom-duration-units', value='minutes')
+    unit.parent = custom.parent
+    custom.parent.children.append(unit)
+    name = 'jordan' if jordan else 'riley'
+    if fault == 'wrong-child': child.value = str(1001 if jordan else 1002)
+    if fault == 'wrong-owner': application.identity = a.CHILD_APPLICATION
+    if fault == 'disabled': custom.states.discard('sensitive')
+    if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+    if fault == 'uncertain': custom.setText.side_effect = TimeoutError('uncertain')
+    operation = f'reverse-kiosk-{name}-text'
+    if fault:
+        with pytest.raises((a.UiError, TimeoutError)): ui.run(operation, '')
+    else:
+        ui.run(operation, '')
+    assert custom.setText.call_count == (1 if fault in ('', 'uncertain') else 0)
+    if fault == 'uncertain':
+        with pytest.raises(a.UiError, match='uncertain-input'): ui.run(operation, '')
+        custom.setText.assert_called_once()
+    if fault:
+        return
+    operation = f'reverse-kiosk-{name}-read'
+    value = ui.run(operation, '')
+    raw = capsys.readouterr().out.encode() + (json.dumps(value) + '\n').encode()
+    def call(*_args, on_output, **_kwargs):
+        for offset in range(0, len(raw), 17): on_output(raw[offset:offset + 17])
+        return raw
+    observer = UiObservations(SimpleNamespace(call=call, commands=SimpleNamespace(progress=None)))
+    assert observer.observe(operation)['request'] == transfer_request(overlay=False, jordan=jordan)
 
 
 def test_remembered_station_seeds_local_approver_from_distinct_default(monkeypatch):

@@ -644,8 +644,12 @@ Cases 60–61 pending.
 Implementation context: compose `request_flow.overlay_to_kiosk` /
 `onpc_request_flow::overlay_to_kiosk` and immutable endpoint checks for the
 [qualified overlay-to-kiosk bindings](E2E-Building-Blocks.md#overlay-choices-transferred-to-kiosk).
-Each case still owns its finite values, order and complete acceptance;
-kiosk-to-overlay remains pending.
+The reverse direction composes `request_flow.kiosk_to_overlay` /
+`onpc_request_flow::kiosk_to_overlay` and the same immutable endpoint checks;
+[both child bindings](E2E-Building-Blocks.md#kiosk-choices-transferred-to-overlays)
+are qualified through explicit fresh entry and destination reads before edits.
+Each case still owns its finite values, order and complete acceptance; cases
+60–61 remain pending.
 
 Case 58 composes `remembered_choices.PLAN` / `onpc_remembered_choices::run`:
 Jordan then Riley seed the recipe's own distinct values; one overlay visit and
@@ -669,7 +673,7 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 
 1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
 2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
-3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk, with no retained desktop return; reverse-direction implementation remains separate pending scope.
+3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk, with no retained desktop return; kiosk-to-overlay composes the qualified fresh child entry, with complete-case persistence comparisons remaining in cases 60–61.
 
 ### E2E-019
 

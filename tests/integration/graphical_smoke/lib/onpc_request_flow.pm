@@ -323,18 +323,7 @@ sub qualify_choices_overlay_to_kiosk {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'choices-overlay-to-kiosk', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
-    onpc_gdm::reattach_functional();
-    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
-        'installed-greeter', 'parent-focused', 'desktop');
-    onpc_parent::launch($journey, $desktop, 'management');
-    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'child',
-        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
-    $journey->seen('riley-allowance');
-    $journey->consume_observation('existing-returned', onpc_parent::select_child($journey, 'returned',
-        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
-        'existing-child-choice-highlighted', 'existing-returned'));
-    $journey->seen('jordan-allowance');
-    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    prepare_transfer_allowances($journey);
     onpc_gdm::enter_station($journey->scope('seed'), '');
     $journey->seen($_) for qw(seed-child seed-approver seed-cancel seed-returned);
     for my $binding (['riley', 'riley', 'child', 'fresh'],
@@ -355,6 +344,69 @@ sub qualify_choices_overlay_to_kiosk {
     for my $child (qw(riley jordan)) {
         $journey->seen("$child-revisit-select");
         $journey->seen("$child-revisit-read");
+    }
+    $journey->finish();
+}
+
+sub prepare_transfer_allowances {
+    onpc_progress::operation('Enabling both children with ample public daily time');
+    my ($journey) = @_;
+    die 'request-transfer:setup' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'child',
+        $journey->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen('riley-allowance');
+    $journey->consume_observation('existing-returned', onpc_parent::select_child($journey, 'returned',
+        $journey->seen('existing-child-picker-opened'), 'existing-child-picker-opened',
+        'existing-child-choice-highlighted', 'existing-returned'));
+    $journey->seen('jordan-allowance');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+}
+
+sub kiosk_to_overlay {
+    onpc_progress::operation('Carrying the selected child choices from kiosk to overlay');
+    my ($journey, $proof, $source_stage, $prefix, $child, $entry) = @_;
+    die 'request-transfer:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
+        && $source_stage =~ /\A[a-z][a-z0-9-]*\z/ && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+        && ($child eq 'riley' || $child eq 'jordan') && ($entry eq 'fresh' || $entry eq 'retained');
+    $journey->consume_observation($source_stage, $proof);
+    my $section = $journey->scope($prefix);
+    $section->seen($_) for qw(cancel greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm',
+        $child eq 'riley' ? 'child' : 'other-child', $entry, 'success', "$prefix-entry");
+    $section->seen('launch');
+    return $section->seen('read');
+}
+
+sub qualify_cross_surface {
+    onpc_progress::operation('Comparing both station choices with independently remembered overlay approvers');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'request-transfer:arguments' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'cross-surface', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    prepare_transfer_allowances($journey);
+    for my $binding (['riley', 'child'], ['jordan', 'other-child']) {
+        my ($child, $role) = @$binding;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, 'fresh', 'success', "$child-seed-entry");
+        $journey->seen("$child-seed-$_") for qw(launch default refused wrong-child approver cancel returned logout greeter);
+    }
+    onpc_gdm::enter_station($journey->scope('station'), '');
+    for my $child (qw(riley jordan)) {
+        $journey->seen("$child-$_") for qw(select approver custom text apps);
+        my $source = $journey->seen("$child-source");
+        my $wrong = onpc_journey->new(exchange => $exchange, prefix => 'transfer-wrong', review => 0);
+        my $accepted = eval { kiosk_to_overlay($wrong, $source, "$child-source", 'wrong-transfer', $child, 'fresh'); 1 };
+        die 'request-transfer:wrong-entry-accepted' if $accepted;
+        die 'request-transfer:wrong-entry-refusal' unless $@ =~ /journey:stale-observation/;
+        kiosk_to_overlay($journey, $source, "$child-source", "$child-transfer", $child, 'fresh');
+        if ($child eq 'riley') {
+            $journey->seen("$child-$_") for qw(exit desktop switch greeter);
+            onpc_gdm::enter_station($journey->scope('next-station'), '');
+        }
     }
     $journey->finish();
 }

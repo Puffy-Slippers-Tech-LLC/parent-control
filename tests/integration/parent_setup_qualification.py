@@ -819,6 +819,17 @@ class ChoicesOverlayToKioskQualification(ChallengesQualification):
         return ChoicesOverlayToKioskJourney(context, progress)
 
 
+class CrossSurfaceQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from cross_surface import PLAN
+        from request_composition import KioskRequestJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskRequestJourney(context, progress, PLAN)
+
+
 class OverlayLicenseQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

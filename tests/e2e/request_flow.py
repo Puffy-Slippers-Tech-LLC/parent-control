@@ -9,6 +9,35 @@ from request_composition import KioskRequestJourney
 from private_artifacts import require
 
 
+def transfer_allowances():
+    """Publicly enable both transfer children with ample independent daily time."""
+    return {
+        **fresh_desktop('parent'), **parent_management(),
+        'riley-allowance': 'ui:time-explanation-setup-thirty-read',
+        'existing-child-picker-opened': 'ui:existing-child-picker-opened',
+        'existing-child-choice-highlighted': 'ui:existing-child-choice-highlighted',
+        'existing-returned': 'ui:discovery-ready',
+        'jordan-allowance': 'ui:time-explanation-setup-thirty-read',
+        'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+    }
+
+
+def kiosk_to_overlay(prefix, *, child, entry):
+    """FLOW12: leave a captured station form and read the untouched child overlay."""
+    from journey_blocks import desktop_entry, prefixed_stages
+    require(child in ('riley', 'jordan'), 'request-transfer:child')
+    require(entry in ('fresh', 'retained'), 'request-transfer:entry')
+    role = 'child' if child == 'riley' else 'other-child'
+    return {
+        **prefixed_stages(prefix, {
+            'cancel': 'ui:kiosk-request-cancel', 'greeter': 'ui:gdm-station-returned'}),
+        **prefixed_stages(prefix + '-entry', desktop_entry(role, source='gdm', entry=entry)),
+        prefix + '-launch': f'ui:transfer-overlay-{child}-launch',
+        prefix + '-read': f'ui:transfer-overlay-{child}-read',
+    }
+
+
 def overlay_to_kiosk(prefix, *, child, choices='qualification'):
     """FLOW12: cancel an explicitly captured overlay and read the destination untouched."""
     from journey_blocks import prefixed_stages

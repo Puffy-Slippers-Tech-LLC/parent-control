@@ -36,7 +36,7 @@ APIS = {
                        'policy_projection', 'request_choices', 'checked_language',
                        'approval_estimate', 'public_checks', 'restart_instructions'},
     'real_interval': {'interval_action'},
-    'request_flow': {'prepared_request', 'overlay_to_kiosk', 'daily_station_entry', 'overlay_authentication', 'overlay_approved_request', 'overlay_rejected_request', 'CHOICES', 'chinese_request'},
+    'request_flow': {'prepared_request', 'overlay_to_kiosk', 'kiosk_to_overlay', 'transfer_allowances', 'daily_station_entry', 'overlay_authentication', 'overlay_approved_request', 'overlay_rejected_request', 'CHOICES', 'chinese_request'},
     'kiosk_approved_flow': {'approved_request', 'obtain_time', 'chinese_approval'},
     'chinese_current_install': {'current_actions'},
     'chinese_journey': {'chinese_journey'},

@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Kiosk-to-overlay FLOW12 extends e2e_overlay_valid_choices with private request
+snapshots, recorder files and bounded waited Perl workers. No VM, display,
+bus, shared cache or new cleanup owner; its compatible unit bucket still applies.
+Composition review remains process-local source/metadata inspection.
+
 Request-time estimate preview asset regressions use tiny pytest-private data
 trees and process-local path/presenter doubles. No display, bus, subprocess or
 shared mutable resource is added; the existing compatible unit bucket applies.

@@ -9,6 +9,7 @@
 - **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son, he even asked for seconds and days, without realizing the only response from his stonehearted Dad was kicking him out of Dad's home office)
 
 ### Bug Fixes
+- **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Broker**: Added automatic recovery when the fapolicyd service exits with an error.
 - **Parent App**: Parent app app grid column headers on some RTL languages overlap

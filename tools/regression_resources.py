@@ -61,6 +61,8 @@ DEMANDS = {
     # doubles; no desktop bus, persistent settings or subprocesses are touched.
     # Locked-session focus cases use synchronous signal/device doubles and
     # read-only module imports; they add no live seat, bus or cleanup resource.
+    # Resume-estimate cases own their fake manager, timer queue and usage store;
+    # no real bus, files, processes or additional resource demand are involved.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

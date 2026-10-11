@@ -502,6 +502,18 @@ credential replay. Ubuntu observed `account-list` after the first Escape;
 Fedora observed the renewed `child-prompt` and passed the guarded additional
 cancellation. The historical denial scope remains [documented above](#fresh-child-time-denial-and-return-qualification).
 
+The countdown/inactivity compatibility repair requalified both unchanged success
+routes on Ubuntu 26.04 in `20261011T203811Z-abef90a3` and Fedora 44 in
+`20261011T205617Z-5e6cac3a`. Both independently restored attempts per VM preserved
+and reused the original activity, then passed worker/callback shutdown, owned
+cleanup, baseline restoration, finalization and host/source preservation.
+Ubuntu's report is retained in export `onpc-artifact-export-64n6l35a/report.md`,
+with qualification allocations `onpc-graphical-smoke-nbvcmnmc` and
+`onpc-graphical-smoke-s5vbkab6`. Fedora's allocations are
+`onpc-graphical-smoke-vq_bn1hw` and `onpc-graphical-smoke-a5snf7va`.
+The separate [minute qualification](#minute-countdown-progression-qualification)
+owns numeric progression evidence; these success routes prove work continuation.
+
 These results qualify direct child lock-screen success, retained-child GDM
 reauthentication success and the pre-authentication locked-child greeter return.
 Configured-zero retained denial on GDM and the actual child lock screen are
@@ -2701,7 +2713,7 @@ and enforcement results.
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |
 | TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; new customer time/session bindings need qualification, local visibility is UI scope |
-| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable public minute endpoints bracketed by controller monotonic reads; TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney`, `onpc_challenges::countdown_minutes` and `check_e2e_countdown_minutes` compose daily-only four-minute preparation and independent child reads. No guest clock/usage manipulation. | minute implementation awaits live qualification; final-second and other customer bindings pending |
+| TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable public minute endpoints bracketed by controller monotonic reads; TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney`, `onpc_challenges::countdown_minutes` and `check_e2e_countdown_minutes` compose daily-only four-minute preparation and independent child reads. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification). | minute progression ready on Ubuntu 26.04 and Fedora 44; final-second and other customer bindings pending |
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | `real_interval.wait_real_interval(duration, deadline=absolute_monotonic, guard=attempt_guard, progress=callback)` accepts finite durations through 300 seconds, checks ownership/deadline between sleeps of at most 250 ms and publishes five checkpoints. `interval_action(duration)` binds it to an `InstalledJourney` stage action using the guard's attempt deadline. `real_interval_qualification.PLAN` / `onpc_parent_about::run_interval` passed `check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard` in `20260929T212620Z-9ce87d41`: five real seconds between independent unchanged About endpoint/PID/product/version reads, valid entry and wrong-entry refusal, collection, owned cleanup and baseline restoration. Host safety checks cover lost ownership, deadline, cancellation, recorder failure and durable reply refusal. No product state follows from elapsed time. | guarded elapsed-time helper ready; five-second About slice qualified; complete consumers remain separate |
 | TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | Bounded APP03 → TIME03 repetitions, with TIME02 only while the countdown is showing → UI01(lock) → UI05(harmless normal input) → UI01(owned lock surface)/UI02. A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. Do not require a visible countdown during fullscreen play or inspect the game underneath the lock. | pending |
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | `onpc_lifecycle::reopen(journey, 'parent', prior_window, 'management')` consumes `prior-window`, independently guards the active owned window, composes UI18 → PARENT01, then reads the initial child selection before edits. `app_restart.PLAN` / `onpc_app_restart::run` passed `check_e2e_app_restart` in report `20260925T070959Z-faca1de4`: fresh entry, already-closed and wrong named-window refusal without repair, complete old-window absence, new management window, initial selection, collection, owned cleanup and baseline restoration. Shared launch/close helpers are unchanged. Other ordinary apps use APP01 with the declared route; overlay/kiosk reopening uses their explicit exit/entry blocks. | Parent→management ready with the baseline eligible children; other apps/bindings pending |
@@ -2849,6 +2861,38 @@ The installed tuple is Ubuntu 26.04, Shell `50.1-0ubuntu1.2`, GDM
 Local lock/greeter presentation and explanation checks remain UI obligations
 052b/181h. Installed remaining-time observations, natural exhaustion and complete
 cases retain their own bindings; those UI obligations are not their prerequisites.
+
+#### Minute countdown progression qualification
+
+Task 052d's `check_e2e_countdown_minutes` passed clean restored attempts on both
+selected VMs after the [countdown compatibility repair](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement).
+`countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` publicly prepare
+four daily minutes with G=0, enter the child independently and compare two
+successive minute progressions in that same child session. Both observed
+`00:03` → `00:02` → `00:01`, using immutable endpoints and controller monotonic
+read brackets, with the unchanged 90-second bound and two-second tolerance.
+
+| VM | Report | First elapsed bracket (seconds) | Second elapsed bracket (seconds) |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `20261011T203216Z-010f7653` | 52.57–55.92 | 56.12–59.49 |
+| Fedora 44 | `20261011T205042Z-9c910e0d` | 51.65–55.43 | 55.24–60.35 |
+
+Ubuntu's report is retained in export `onpc-artifact-export-jwwf26g0/report.md`;
+its qualification allocation is `onpc-graphical-smoke-g827m184`, with worker
+`onpc-e2e-evidence-xfktfrvq`. Fedora's qualification allocation is
+`onpc-graphical-smoke-d5qrmyt_`, with worker `onpc-e2e-evidence-9k6fswlm`.
+Allocations use the shared privileged journal.
+The installed Shell/Malcontent tuples are `50.1-0ubuntu1.3` /
+`0.14.0-0ubuntu1.2` and `50.5-1.fc44` / `0.14.0-1.fc44`, respectively.
+
+Wrong-account refusal, independently supplied reads, collection, worker/callback
+shutdown, owned cleanup, baseline restoration, finalization and host/source
+preservation passed. Host regressions cover immutable capture, reversed/stale/
+wrong-owner samples, unchanged/increased values, elapsed bounds and lost guards.
+Acceptance uses no clock changes, usage probes or synthetic grants.
+Final-second progression remains task 052a, natural-expiry customer acceptance
+remains TIME04, and installed suspend/resume remains pending LIFE03. This slice
+supplies no complete-scenario credit.
 
 For LIFE06, `disconnect` and `reconnect` in recipes mean remove and restore
 Internet access, not disable a guest network adapter. Use the same qualified

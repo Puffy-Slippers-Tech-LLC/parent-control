@@ -14,6 +14,7 @@ import {queryEstimatedTimes, timerErrorCategory} from './timerQuery.js';
 import {calculateOwnRemainingTime} from './timeCalculationClient.js';
 import {prepareOwnSession} from './sessionPreparationClient.js';
 import {RemainingTimeNotifications} from './remainingTimeNotifications.js';
+import {ResumeEstimateRefresh} from './resumeEstimateRefresh.js';
 import {logDebug, logInfo, logWarning} from './logger.js';
 import {
     displayState,
@@ -31,6 +32,12 @@ const SCREEN_SAVER_NAME = 'org.gnome.ScreenSaver';
 const SCREEN_SAVER_PATH = '/org/gnome/ScreenSaver';
 const SCREEN_SAVER_INTERFACE = 'org.gnome.ScreenSaver';
 const COUNTDOWN_ANIMATION_KEY = 'one-minute-countdown-animation';
+
+// Diagnostics retain durations, never native wall-clock deadlines or identities.
+function diagnosticSeconds(value) {
+    return Number.isFinite(value)
+        ? Math.min(0xffffffff, Math.max(0, Math.ceil(value))) : 0;
+}
 
 function applyTextLanguage(text, language) {
     const attributes = text.get_attributes()?.copy() ?? new Pango.AttrList();
@@ -164,6 +171,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._refreshAgain = false;
         this._sessionPreparePending = false;
         this._sessionPrepared = false;
+        this._resumeEstimateRefresh = this._preview ? null : new ResumeEstimateRefresh(
+            Main.timeLimitsManager, error => this._onError?.(error));
         this._vertical = null;
         this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
@@ -471,6 +480,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         if (this._destroyed)
             return;
         this._destroyed = true;
+        this._resumeEstimateRefresh?.close();
+        this._resumeEstimateRefresh = null;
         this._notifications?.close();
         this._notifications = null;
         this._onRequest = null;
@@ -577,6 +588,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._refreshPending = true;
         let stage = 'timer-estimate';
+        const refreshStarted = GLib.get_monotonic_time();
         try {
             const estimates = await queryEstimatedTimes();
             if (this._destroyed)
@@ -590,10 +602,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             const effectiveAllowance = effectiveAllowanceRemaining(
                 estimate, currentTime, managerLimit);
             stage = 'broker-calculation';
+            const brokerStarted = GLib.get_monotonic_time();
             const calculated = await calculateOwnRemainingTime(
                 effectiveAllowance);
             if (this._destroyed)
                 return;
+            this._recordCountdownRefresh({estimate, currentTime, managerLimit,
+                effectiveAllowance, calculated, refreshStarted, brokerStarted});
             const next = nextEstimateState(
                 {calculatedEnd: this._calculatedEnd, statusLoaded: this._statusLoaded},
                 calculated, currentTime);
@@ -622,6 +637,62 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                     this._refreshEstimate();
                 }
             }
+        }
+    }
+
+    _recordCountdownRefresh({estimate, currentTime, managerLimit,
+        effectiveAllowance, calculated, refreshStarted, brokerStarted}) {
+        try {
+            const now = GLib.get_monotonic_time();
+            const nativeAvailable = Number.isFinite(managerLimit) && managerLimit > 0;
+            const timerEnd = Number(estimate?.[2]);
+            const previousRemaining = diagnosticSeconds(this._calculatedEnd - currentTime);
+            const remaining = diagnosticSeconds(calculated);
+            const source = nativeAvailable ? 'native' : 'timer';
+            const previous = this._countdownSample;
+            const reason = !previous ? 'initial'
+                : source !== previous.source ? 'source-changed'
+                : (remaining === 0) !== previous.zero ? 'zero-transition'
+                : remaining > previousRemaining + 2 ? 'deadline-increased'
+                : 'periodic';
+            if (previous && reason === 'periodic' && now - previous.at < 60_000_000)
+                return;
+            this._countdownSample = {at: now, source, zero: remaining === 0};
+            logInfo('child.countdown-sample', {
+                reason, source, timer_available: Number.isFinite(timerEnd) && timerEnd > 0,
+                native_available: nativeAvailable,
+                timer_remaining: diagnosticSeconds(timerEnd - currentTime),
+                native_remaining: nativeAvailable ? diagnosticSeconds(managerLimit - currentTime) : 0,
+                allowance: diagnosticSeconds(effectiveAllowance), remaining,
+                previous_remaining: previousRemaining,
+                elapsed_ms: previous ? diagnosticSeconds((now - previous.at) / 1000) : 0,
+                refresh_ms: diagnosticSeconds((now - refreshStarted) / 1000),
+                broker_ms: diagnosticSeconds((now - brokerStarted) / 1000),
+            });
+        } catch (_error) {
+            // Optional diagnostics must not invalidate a verified time estimate.
+        }
+    }
+
+    _recordCountdownState(manager, currentTime) {
+        try {
+            const nativeEnd = Number(manager.dailyLimitTime);
+            const fields = {
+                loaded: this._statusLoaded,
+                limit_enabled: Boolean(manager.dailyLimitEnabled),
+                native_available: Number.isFinite(nativeEnd) && nativeEnd > 0,
+                locked: Boolean(Main.sessionMode.isLocked),
+                greeter: Boolean(Main.sessionMode.isGreeter),
+            };
+            const key = JSON.stringify(fields);
+            if (key === this._countdownState)
+                return;
+            this._countdownState = key;
+            logInfo('child.countdown-state', {...fields,
+                native_remaining: fields.native_available ? diagnosticSeconds(nativeEnd - currentTime) : 0,
+                remaining: diagnosticSeconds(this._calculatedEnd - currentTime)});
+        } catch (_error) {
+            // No diagnostic failure may interrupt countdown or locking.
         }
     }
 
@@ -675,6 +746,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         const manager = Main.timeLimitsManager;
         const currentTime = manager.getCurrentTime();
+        if (!this._preview)
+            this._recordCountdownState(manager, currentTime);
         if (Main.sessionMode.isLocked || Main.sessionMode.isGreeter)
             this._sessionPrepared = false;
         else

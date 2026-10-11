@@ -265,6 +265,41 @@ accounting must preserve inactive intervals; a deadline cached before inactivity
 is not a fresh resume balance. The broker still reads the live grant and selects
 the longer remaining amount.
 
+GNOME Shell 50.1 and 50.5 do not refresh their cached parental-controls deadline
+on resume, and the native dispatcher can lock using that stale deadline. The
+[resume estimate controller](../../child/resumeEstimateRefresh.js) observes the
+manager's public `dailyLimitTime` notifications (zero while inactive), rather
+than implementing another activity tracker. At inactivity/resume boundaries,
+the existing [timer client](../../child/timerQuery.js) self-reads `QueryUsage`
+and replays one complete returned interval, with identical endpoints, through
+`RecordUsage`. Malcontent's documented overlap merging preserves accounting;
+its normal `EstimatedTimesChanged` signal refreshes Shell as well as the panel.
+No empty transaction, invented use, policy change or private Shell mutation is
+used. The relevant public contracts are
+[QueryUsage](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Parent.xml)
+and [RecordUsage](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/org.freedesktop.MalcontentTimer1.Child.xml).
+
+While inactive, the controller repeats before the cached deadline can expire,
+at half the returned remaining time with a 60-second maximum and subsecond
+scheduling near expiry. This is necessary because Shell also evaluates its old
+deadline during inactivity. A zero balance stops this maintenance until a native
+policy/state change, including the daily reset. Delayed estimate notifications
+do not rearm an exhausted balance or create a replay feedback loop.
+Continuous activity never repeats usage writes or retries
+a failed resume write: either would omit ongoing uncheckpointed use and restart
+the countdown. Activity/limit changes cancel obsolete reads before a write;
+shutdown cancels pending work and removes the controller's signals and timer.
+Disabling limits discards coalesced work before any later active enable.
+Cancellation prevents obsolete dispatch; it cannot retract an already dispatched
+D-Bus write. That write still contains only the identical recorded interval.
+The workaround remains asynchronous and cannot guarantee cache refresh during
+timer-service unavailability or make native deadline evaluation atomic with resume.
+Transient inactive failures back off; permanent failures use the existing child
+error reporter. This is a product compatibility workaround for the native cache
+defect, not a GNOME source fix or a second accounting/enforcement implementation.
+Remove it when the supported Shell implementation refreshes estimates before
+evaluating inactivity/resume deadlines.
+
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
 Estimate reads use bounded backoff for `Error.Busy`, which can occur while
 another supported client has the user's timer database open. The extension

@@ -12,6 +12,7 @@ export function createIndicator(dependencies = {}) {
     const context = vm.createContext({
         GObject: {registerClass: klass => klass},
         PanelMenu: {Button: class {}},
+        GLib: {get_monotonic_time: () => 0},
         ...dependencies,
     });
     vm.runInContext(source, context, {filename: 'remainingTimeIndicator.js'});

@@ -11,6 +11,10 @@ Add final-second remaining-time progression with its declared sample order and t
 
 Reuse the delivered scope of tasks **052d** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
+The [minute qualification](../E2E-Building-Blocks.md#minute-countdown-progression-qualification)
+owns the delivered scope and reports for Ubuntu 26.04 and Fedora 44. The
+[screen-time design](../../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+owns the installed countdown/inactivity compatibility repair.
 
 ## Scope and prerequisites
 
@@ -25,7 +29,8 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
 Extend 052d's TIME02 sampling with final-second progression, using TIME01, guarded TIME03 intervals and explicit UI12 elapsed-time comparisons. Declare public precision and tolerances before execution. Read the supported countdown format as needed to compare time; a separate formatting matrix remains in child UI coverage. Keep elapsed time distinct from an enforcement result.
 
-Use 052d's new immutable sample-comparison operation with exact final seconds;
+Extend `countdown.CountdownSample`, `check_countdown_progress` and
+`await_countdown_progress` with exact final seconds;
 `CountdownObservation` and the existing `check_countdown_balance` alone do not
 implement this progression. Bind the transition/sample schedule in the fixed
 qualification, preserving the original allowance/deadline if a window is missed.

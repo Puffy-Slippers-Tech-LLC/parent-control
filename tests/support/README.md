@@ -56,7 +56,8 @@ profile with independently supplied child entry and two progression invocations.
 The countdown host module uses only fake clocks, private pytest records, in-memory
 transport/UI doubles and bounded waited Perl children; its compatible unit
 classification remains applicable, with no new storage, VM, bus or display owner.
-Installed qualification remains pending until both selected VMs pass.
+The [minute progression slice](../../docs/TestAutomation/E2E-Building-Blocks.md#minute-countdown-progression-qualification)
+is qualified on Ubuntu 26.04 and Fedora 44; final seconds remain pending.
 
 `tools/test-vm --vm NAME reproduce-countdown-minutes` reuses that same journey
 in the maintenance envelope, stopping before the first progression invocation.

@@ -54,17 +54,42 @@ export function queryEstimatedTimes() {
     });
 }
 
-function callEstimatedTimes(timeoutMs) {
+// Replaying a returned interval is idempotent: Malcontent merges overlapping
+// records. Its public EstimatedTimesChanged signal also refreshes GNOME's cache.
+// Query as the actual child; never create an interval or send an empty record.
+export function replayOwnUsage(cancellable) {
+    return enqueue(async () => {
+        if (cancellable.is_cancelled()) return false;
+        const uid = Gio.Credentials.new().get_unix_user();
+        const [records] = await callTimer('org.freedesktop.MalcontentTimer1.Parent',
+            'QueryUsage', new GLib.Variant('(uss)', [uid, 'login-session', '']),
+            '(a(tt))', CALL_TIMEOUT_MS, cancellable);
+        if (cancellable.is_cancelled()) return false;
+        const now = Math.floor(GLib.get_real_time() / 1_000_000);
+        const record = records.findLast(([start, end]) =>
+            Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
+            start >= 0 && end >= start && end <= now);
+        if (!record) return false;
+        await callTimer(INTERFACE, 'RecordUsage', new GLib.Variant('(a(ttss))',
+            [[[record[0], record[1], 'login-session', '']]]), '()', CALL_TIMEOUT_MS, cancellable);
+        return true;
+    });
+}
+
+async function callEstimatedTimes(timeoutMs) {
+    const [, estimates] = await callTimer(INTERFACE, 'GetEstimatedTimes',
+        new GLib.Variant('(s)', ['login-session']), ESTIMATE_REPLY_TYPE, timeoutMs);
+    return estimates;
+}
+
+function callTimer(iface, method, parameters, replyType, timeoutMs, cancellable = null) {
     return new Promise((resolve, reject) => {
         Gio.DBus.system.call(
-            BUS_NAME, OBJECT_PATH, INTERFACE, 'GetEstimatedTimes',
-            new GLib.Variant('(s)', ['login-session']),
-            new GLib.VariantType(ESTIMATE_REPLY_TYPE),
-            Gio.DBusCallFlags.NONE, timeoutMs, null,
+            BUS_NAME, OBJECT_PATH, iface, method, parameters,
+            new GLib.VariantType(replyType), Gio.DBusCallFlags.NONE, timeoutMs, cancellable,
             (connection, result) => {
                 try {
-                    const [, estimates] = connection.call_finish(result).deepUnpack();
-                    resolve(estimates);
+                    resolve(connection.call_finish(result).deepUnpack());
                 } catch (error) {
                     reject(error);
                 }

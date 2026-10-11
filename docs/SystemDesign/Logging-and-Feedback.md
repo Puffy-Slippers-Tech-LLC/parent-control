@@ -32,6 +32,22 @@ ordinary history when export limits require trimming. Counters describe
 suppression, rotation, incidents, failed writes, invalid input, truncation, and missing
 component directories. In-memory counters describe the current broker process.
 
+Countdown troubleshooting also retains `child.countdown-sample` once a minute,
+on estimate-source changes, zero transitions and deadline increases exceeding
+two seconds. It records the native and fresh timer remaining durations, the
+selected input and broker result, the previous verified remaining duration,
+and monotonic refresh/broker/observation intervals. `child.countdown-state`
+records changes in loaded, limit-enabled, native-deadline-available, locked and
+greeter booleans, with the native and panel remaining durations. These distinguish
+a moving timer estimate, a cached native deadline and an already locked desktop.
+They do not assert that a native deadline is fresh or identify who caused a lock.
+All operands are bounded durations or closed categories derived from the existing
+countdown calculation; raw deadlines, usage intervals and account/session
+identities are excluded. No extra timer or policy query is made for logging.
+Diagnostic failure cannot interrupt a successful refresh, countdown or lock.
+The additive catalogue ships with the child and broker; session renewal and
+broker process restart load the new diagnostics. No saved-data migration is needed.
+
 Every new record includes the broker's UTC observation time as an ISO 8601
 timestamp with milliseconds and `Z`, for example `2026-09-12T18:42:03.337Z`.
 Readable exports place it immediately after severity. Source and incident file

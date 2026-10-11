@@ -6,16 +6,16 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">26800</span>/<span style="color: gray">0</span>/26800 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">27514</span>/<span style="color: gray">0</span>/27514 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">319</span>/<span style="color: gray">0</span>/319 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">256</span>/<span style="color: gray">0</span>/256 | Checks installed product behavior and lifecycle integration on the test VM. |
 | Child Node | <span style="color: green">7</span>/<span style="color: gray">0</span>/7 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| Integration qualification | <span style="color: green">157</span>/<span style="color: gray">0</span>/157 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">45</span>/<span style="color: gray">148</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">27758</span>/<span style="color: gray">148</span>/27906** | All test cases across the categories above, including pending E2E scenarios. |
+| Integration qualification | <span style="color: green">158</span>/<span style="color: gray">0</span>/158 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
+| E2E | <span style="color: green">46</span>/<span style="color: gray">147</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">28474</span>/<span style="color: gray">147</span>/28621** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">44</span>/<span style="color: gray">148</span>/192 |
+| customer-journey | <span style="color: green">45</span>/<span style="color: gray">147</span>/192 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -58,6 +58,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [59](#scenario-59) | Remember each child's choices across both request forms (child: second; direction: overlay to kiosk) | `E2E-018/overlay-to-kiosk-second` | ready |
 | [60](#scenario-60) | Remember each child's choices across both request forms (child: first; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
 | [61](#scenario-61) | Remember each child's choices across both request forms (child: second; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-second` | ready |
+| [62](#scenario-62) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid) | `E2E-019/native-grid-allowed-enabled` | ready |
 | [80](#scenario-80) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-enabled` | ready |
 | [81](#scenario-81) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-disabled` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
@@ -111,7 +112,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[41](#scenario-41)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[42](#scenario-42)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[43](#scenario-43)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-rest-of-day`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[62](#scenario-62)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[64](#scenario-64)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[68](#scenario-68)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-allowed-enabled`</span> | <span style="color: gray">pending</span> |
@@ -555,6 +555,20 @@ Variant: child: second; direction: kiosk to overlay
 - Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
 - Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing.
 - Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested.
+
+### Scenario 62
+
+**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid)**
+
+Case: `E2E-019/native-grid-allowed-enabled` · Category: customer-journey · Status: **ready**
+
+Variant: control: enabled; policy: allowed; route: native grid
+
+**Steps:**
+
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
 
 ### Scenario 80
 
@@ -1497,26 +1511,6 @@ Variant: choice: rest of day; surface: kiosk
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
 Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 62
-
-**Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid)**
-
-Case: `E2E-019/native-grid-allowed-enabled` · Category: customer-journey · Status: **pending**
-
-Variant: control: enabled; policy: allowed; route: native grid
-
-**Steps:**
-
-- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

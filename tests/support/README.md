@@ -720,7 +720,7 @@ Allowed native-launch histories compose `policy_edits.policy_edit` /
 `onpc_desktop_session::enter_desktop` and `journey_blocks.native_usable_app` /
 `onpc_app_rows::native_usable_app`. Use `AppPolicyJourney` with caller-declared
 `settings_checks`, `balance_checks`, `match_checks` and `access_checks` rather
-than a case-local comparison class. Cases 80–81 share these operations and one
+than a case-local comparison class. Cases 62 and 80–81 share these operations and one
 worker; their recipes retain control state, account order and assertion phases.
 The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
 owns the exact qualified fixture/route bindings.

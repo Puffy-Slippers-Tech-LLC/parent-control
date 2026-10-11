@@ -1,4 +1,4 @@
-"""Cases 80–81: Allowed native command use and independent child access."""
+"""Allowed native routes: saved policy, actual use and independent child access."""
 from dataclasses import replace
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, desktop_entry, native_usable_app, prefixed_stages
@@ -72,6 +72,23 @@ DISABLED_PLAN = replace(
     balance_checks={},
 )
 
+GRID_JORDAN = {
+    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+    **prefixed_stages('jordan-use', native_usable_app('grid', child='other-child')),
+}
+GRID_RILEY = {
+    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+    **prefixed_stages('riley-use', native_usable_app('grid', child='child')),
+}
+GRID_PLAN = replace(
+    PLAN, prefix='native-grid-allowed', worker_mode='native_grid_allowed',
+    screen_tags={**SETUP, **GRID_JORDAN, **GRID_RILEY},
+    phases={**{stage: phase for stage, phase in PLAN.phases.items()
+               if stage not in ('jordan-use-command', 'riley-use-command')},
+            **{stage: 'step-2' for stage in GRID_JORDAN},
+            **{stage: 'step-3' for stage in GRID_RILEY}},
+)
+
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
@@ -85,5 +102,12 @@ def execute_disabled(recorder, context):
                              journey_type=AppPolicyJourney)
 
 
+def execute_grid(recorder, context):
+    record_installed_journey(recorder, context, GRID_PLAN, timeout=1800,
+                             actions=fixture_actions(include_refusal=False, profile='riley-grid'),
+                             journey_type=AppPolicyJourney)
+
+
 E2E_CASES = {'native-command-allowed-enabled': execute,
-             'native-command-allowed-disabled': execute_disabled}
+             'native-command-allowed-disabled': execute_disabled,
+             'native-grid-allowed-enabled': execute_grid}

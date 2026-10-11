@@ -449,14 +449,15 @@ def test_retained_launch_route_policy_control_combinations_keep_exact_bindings(d
     assert actual == expected
     removed_ids = {63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101, 103}
     assert {v['coverage_id'] for v in chosen['variants']} == set(range(62, 110)) - removed_ids
-    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {80, 81}
-    for coverage_id, control in ((80, 'enabled'), (81, 'disabled')):
+    assert {v['coverage_id'] for v in chosen['variants'] if v['status'] == 'ready'} == {62, 80, 81}
+    for coverage_id, route, control in ((62, 'grid', 'enabled'),
+                                       (80, 'command', 'enabled'), (81, 'command', 'disabled')):
         variant = next(v for v in chosen['variants'] if v['coverage_id'] == coverage_id)
         assert variant['pending_reason'] is None
         assert variant['executable'] == {'path': 'tests/e2e/app_launch.py',
-                                         'test_id': 'native-command-allowed-' + control}
+                                         'test_id': 'native-' + route + '-allowed-' + control}
     assert all(v['status'] == 'pending' and v['executable'] is None
-               for v in chosen['variants'] if v['coverage_id'] not in (80, 81))
+               for v in chosen['variants'] if v['coverage_id'] not in (62, 80, 81))
 
 
 def test_lifecycle_pairs_keep_one_combined_idle_journey(document):

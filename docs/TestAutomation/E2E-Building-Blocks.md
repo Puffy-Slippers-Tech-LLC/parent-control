@@ -3833,7 +3833,8 @@ Native-fixture, Jordan native-grid and Parent search-launch regressions passed
 on both VMs in `20261011T011810Z-fb8975ed` / `20261011T011810Z-f6ff9c04`.
 All four selections passed collection, worker shutdown, owned cleanup,
 baseline restoration and host/source preservation. Policy denial and complete
-cases 62/64/66 retain their separate acceptance.
+cases 64/66 retain their separate acceptance. Case 62's separate complete
+acceptance is recorded under [application journeys](#application-routes-and-complete-customer-journeys).
 
 `native_app.PLAN` / `NativeAppJourney` and `onpc_app_rows::native_app`
 qualified the same APP01/02/03 usable scope through the fixed command route in
@@ -4199,6 +4200,28 @@ Use the [E2E-019–027 recipes](E2E-Scenario-Recipes.md#e2e-019) for launch,
 catalogue mutation, retained-session, gameplay, update and removal journeys.
 Their finite route sets, ordered outcomes and applicability gates remain in
 those recipes and their selected task briefs.
+
+Task 090 delivered case 62 through `app_launch.GRID_PLAN` /
+`onpc_app_launch::run(..., 'enabled', 'grid')`. It shares the enabled 30-minute,
+zero-grant setup and precise Allowed save/readback with case 80, then explicitly
+binds Jordan to `other-child` and Riley to `child` for fresh desktop entry and
+grid-only launch/use. Both children independently expose the intended window
+and exact submitted-draft effect for the same executable. The read-only
+`riley-grid` profile verifies the shared executable/GUI and Riley launcher;
+baseline preparation owns launcher placement. Riley's policy is untouched and
+no approval or alternative launch is prepared.
+
+Case 62 passed on Ubuntu 26.04 in `20261011T013815Z-3a652bb6` and Fedora 44 in
+`20261011T013815Z-91efd169`. Affected command cases 80 and 81 passed on both VMs
+in `20261011T014639Z-c50a592c` / `20261011T014639Z-eda36595` and
+`20261011T015514Z-cd0d6de0` / `20261011T015514Z-4359effa`, respectively.
+All six attempts passed product, infrastructure, collection, worker/suite
+cleanup, completed leases, baseline restoration and host/source preservation.
+Host regressions cover actual worker titles/order, every checkpoint refusal,
+explicit route/child bindings, fixture-profile selection and the real recorder
+constructor. Coverage was regenerated after each case. This acceptance covers
+only native fixture A's Allowed/enabled grid binding; other route/rule/control
+bindings retain their own acceptance.
 
 Task 099 delivered E2E-019 case 80 through `app_launch.PLAN` /
 `onpc_app_launch::run`: Parent's fresh Jordan setup enables limits with 30 daily

@@ -10,14 +10,16 @@ use onpc_desktop_session ();
 use onpc_app_rows ();
 
 sub run {
-    onpc_progress::operation('Using the allowed native command independently as both children');
-    my ($exchange, $declared, $challenges, $control) = @_;
+    onpc_progress::operation('Using the allowed native route independently as both children');
+    my ($exchange, $declared, $challenges, $control, $route) = @_;
     $control = 'enabled' unless defined($control);
-    die 'app-launch:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+    $route = 'command' unless defined($route);
+    die 'app-launch:arguments' unless (@_ == 3 || @_ == 4 || @_ == 5) && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
-        && ($control eq 'enabled' || $control eq 'disabled');
+        && ($control eq 'enabled' || $control eq 'disabled')
+        && ($route eq 'command' || ($route eq 'grid' && $control eq 'enabled'));
     my $journey = onpc_journey->new(
-        exchange => $exchange, prefix => 'native-command-allowed', review => 0);
+        exchange => $exchange, prefix => "native-$route-allowed", review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -39,12 +41,12 @@ sub run {
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
     my $jordan = $journey->scope('jordan-use');
-    onpc_app_rows::native_usable_app($jordan, 'command', $jordan->seen('desktop'));
+    onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child');
     $journey->seen('jordan-logout');
     onpc_desktop_session::enter_desktop(
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
-    onpc_app_rows::native_usable_app($riley, 'command', $riley->seen('desktop'));
+    onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child');
     $journey->finish();
 }
 1;

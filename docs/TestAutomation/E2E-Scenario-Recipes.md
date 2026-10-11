@@ -709,7 +709,9 @@ Implementation status: Case 80 is registered through `app_launch.PLAN` /
 Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
 explicit disabled binding and passed installed acceptance on both platforms.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
-records accepted scopes. Other cases remain pending.
+records accepted scopes. Case 62 is registered through `app_launch.GRID_PLAN`
+and the same worker's explicit enabled/grid binding and passed installed
+acceptance on both platforms. Other cases remain pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 
@@ -742,6 +744,16 @@ Jordan's clean limits-off and zero-allowance settings before the app-policy save
 it does not enable limits or prepare an allowance or approval. Riley's policy
 and disabled limits remain untouched. The shared worker's disabled binding skips
 only the enabled-case allowance setup and its readback.
+
+Case 62 uses the same enabled setup, precise Allowed rule and Jordan/Riley order,
+but both children launch fixture A through native-grid exclusively. Each freshly
+entered desktop searches `ONPC Allowed Fixture`, launches its intended window
+and submits the normal draft before independent result readback. The read-only
+`riley-grid` fixture profile verifies Riley's launcher for the shared executable;
+baseline preparation owns both children's launchers. Jordan binds `other-child`
+and Riley binds `child` in both declaration and worker. Riley's policy remains
+untouched; no approval, alternative launch or qualification refusal history is
+part of the case.
 
 ### E2E-020
 

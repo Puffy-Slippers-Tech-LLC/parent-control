@@ -18,7 +18,7 @@ from installed_journey import (InstalledJourney, JourneyPlan, matched_screens,
                                record_installed_journey)
 from journey_blocks import native_usable_app
 from native_activity import PLAN, NativeActivityJourney
-from app_launch import PLAN as CASE_PLAN, DISABLED_PLAN
+from app_launch import PLAN as CASE_PLAN, DISABLED_PLAN, GRID_PLAN
 from policy_edits import AppPolicyJourney
 from native_fixtures import fixture_actions
 from owned_commands import CommandError
@@ -279,23 +279,32 @@ print encode_json(\@events);
 
 CASE_WORKER = WORKER.replace('require onpc_app_rows;', 'require onpc_app_launch;').replace(
     'onpc_app_rows::app_activity', 'onpc_app_launch::run').replace(
-        '}, $declared, $challenges);', '}, $declared, $challenges, shift @ARGV);')
+        '}, $declared, $challenges);', '}, $declared, $challenges, shift @ARGV, shift @ARGV);').replace(
+        "my $ok = eval", r"""my $usable = \&onpc_app_rows::native_usable_app;
+*onpc_app_rows::native_usable_app = sub {
+    push @events, ['usable-binding', $_[1], $_[3]];
+    return $usable->(@_);
+};
+my $ok = eval""")
 
 
-def test_allowed_command_worker_invalid_control_refuses_before_entry():
+@pytest.mark.parametrize('control,route', [('invalid', 'command'), ('enabled', 'invalid'),
+                                        ('disabled', 'grid')])
+def test_allowed_command_worker_invalid_control_refuses_before_entry(control, route):
     result = json.loads(run_perl(CASE_WORKER, '', json.dumps(CASE_PLAN.invocations),
-                                 json.dumps(CASE_PLAN.challenges), 'invalid').stdout)
+                                 json.dumps(CASE_PLAN.challenges), control, route).stdout)
     assert not result['ok'] and 'app-launch:arguments' in result['error']
     assert result['events'] == []
 
 
-@pytest.mark.parametrize('plan,control,fault', [
-    (plan, control, fault) for plan, control in
-    ((CASE_PLAN, 'enabled'), (DISABLED_PLAN, 'disabled'))
+@pytest.mark.parametrize('plan,control,route,fault', [
+    (plan, control, route, fault) for plan, control, route in
+    ((CASE_PLAN, 'enabled', 'command'), (DISABLED_PLAN, 'disabled', 'command'),
+     (GRID_PLAN, 'enabled', 'grid'))
     for fault in ('', *plan.screen_tags)])
-def test_allowed_command_case_worker_order_and_every_refusal_stops(plan, control, fault, tmp_path):
+def test_allowed_command_case_worker_order_and_every_refusal_stops(plan, control, route, fault, tmp_path):
     result = json.loads(run_perl(CASE_WORKER, fault, json.dumps(CASE_PLAN.invocations),
-                                 json.dumps(CASE_PLAN.challenges), control).stdout)
+                                 json.dumps(CASE_PLAN.challenges), control, route).stdout)
     stages = list(plan.screen_tags)
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
@@ -305,7 +314,12 @@ def test_allowed_command_case_worker_order_and_every_refusal_stops(plan, control
         assert ['finish'] not in events
     else:
         assert sum(event[0] == 'password' for event in events) == 3
-        assert not any(event[0] == 'query' for event in events)
+        assert [event[1] for event in events if event[0] == 'query'] == (
+            ['ONPC Allowed Fixture'] * 2 if route == 'grid' else [])
+        assert [event for event in events if event[0] == 'usable-binding'] == [
+            ['usable-binding', route, 'other-child'], ['usable-binding', route, 'child']]
+        if route == 'grid':
+            assert not {'ui:native-command-launch', 'ui:overlay-native-command-launch'} & set(plan.screen_tags.values())
         assert events[-1] == ['finish']
         details = [{'title': event[1], 'result': 'ok'} for event in events if event[0] == 'marker']
         observations = []
@@ -323,29 +337,34 @@ def test_allowed_command_case_worker_order_and_every_refusal_stops(plan, control
         assert [screen['stage'] for screen in matched_screens(tmp_path, plan, observations)] == stages
 
 
-@pytest.mark.parametrize('plan', [CASE_PLAN, DISABLED_PLAN])
+@pytest.mark.parametrize('plan', [CASE_PLAN, DISABLED_PLAN, GRID_PLAN])
 def test_allowed_case_declares_both_accounts_same_command_and_registered_sessions(plan):
     import session_control
     assert plan.access_checks == {'allowed-access': 'allowed'}
-    if plan is CASE_PLAN:
+    if plan is not DISABLED_PLAN:
         assert plan.balance_checks == {'allowance-configured': 1800}
         assert plan.child_bindings['allowance-configured'] == 'existing'
     else:
         assert plan.balance_checks == {}
         assert plan.settings_checks['parent-selected'].limit_enabled is False
         assert not {'allowance-configured', 'saved-settings'} & plan.screen_tags.keys()
-    assert plan.screen_tags['jordan-use-command'] == 'ui:native-command-launch'
-    assert plan.screen_tags['riley-use-command'] == 'ui:overlay-native-command-launch'
+    stage = 'app-grid' if plan is GRID_PLAN else 'command'
+    operation = 'grid' if plan is GRID_PLAN else 'command-launch'
+    assert plan.screen_tags['jordan-use-' + stage] == 'ui:native-' + operation
+    assert plan.screen_tags['riley-use-' + stage] == 'ui:overlay-native-' + operation
     assert plan.screen_tags['riley-use-submitted'] == 'ui:overlay-native-submitted'
     assert {tag[7:] for tag in plan.screen_tags.values() if tag.startswith('system:')} <= session_control.BINDINGS.keys()
     assert not any('approval' in tag or 'blocked' in tag for tag in plan.screen_tags.values())
 
 
-@pytest.mark.parametrize('control', ['enabled', 'disabled'])
-def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path, control):
+@pytest.mark.parametrize('control,route,plan', [('enabled', 'command', CASE_PLAN),
+    ('disabled', 'command', DISABLED_PLAN), ('enabled', 'grid', GRID_PLAN)])
+def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path, monkeypatch, control, route, plan):
+    import native_fixtures
+    fixtures = Mock()
+    monkeypatch.setattr(native_fixtures, 'NativeFixtures', fixtures)
     from app_launch import E2E_CASES
-    execute = E2E_CASES['native-command-allowed-' + control]
-    plan = CASE_PLAN if control == 'enabled' else DISABLED_PLAN
+    execute = E2E_CASES['native-' + route + '-allowed-' + control]
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
                               verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
     recorder = MagicMock(assertion=Mock())
@@ -354,6 +373,12 @@ def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path, 
         journey = options['guarded_observe'].__self__
         assert type(journey) is AppPolicyJourney and journey.plan is plan
         assert set(journey.actions) == {'native-verify'}
+        guard = Mock()
+        journey.actions['native-verify'](journey, guard)
+        guard.assert_called_once_with()
+        fixtures.assert_called_once_with(journey.transport, context.verified,
+                                        profile='riley-grid' if route == 'grid' else 'native')
+        fixtures.return_value.verify.assert_called_once_with()
         assert options['validate'].__self__ is journey
         assert options['authenticate'] is True and options['timeout'] == 1800
         raise EvidenceError('synthetic-worker-stop')

@@ -1044,6 +1044,15 @@ def show_completion(task, task_sessions, duration):
     sys.stdout.flush()
 
 
+def publish_completion(run, key, heading, sessions, duration, keys):
+    """Replace finished task or optimization sessions with the same green recap."""
+    from launcher_progress import publish_progress
+    publish_progress(run, 'complete-' + key,
+                     [f'\033[32m{heading} '
+                      f'(sessions={sessions}, duration={format_duration(duration, short=True)})\033[0m'],
+                     replaces=keys)
+
+
 def task_session_limit_reached(state):
     return (state['phase'] != 'complete'
             and state.get('task_sessions', 0) >= state.get('task_session_limit', MAX_TASK_SESSIONS))
@@ -1096,10 +1105,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
 
     def compact_completions():
         for task_id, task_sessions, duration, keys, heading in completions:
-            publish_progress(run, 'complete-' + task_id,
-                             [f'\033[32m{heading} '
-                              f'(sessions={task_sessions}, duration={format_duration(duration, short=True)})\033[0m'],
-                             replaces=keys)
+            publish_completion(run, task_id, heading, task_sessions, duration, keys)
 
     try:
         if state.get('closeout_recovery_run'):
@@ -1219,7 +1225,13 @@ def worker(root, run, owner, sessions, tasks, state_json):
             if final_stall:
                 status, reason = 1, 'reasoning stalled at GPT-6.1 Sol Max; inspect the retained evidence'
                 break
-            if state['phase'] == 'complete' and not optimizing:
+            if state['phase'] == 'complete' and optimizing:
+                batch = state['optimization']['last_checkpoint']['tasks']
+                publish_completion(run, f'optimization-{batch[0]}-{batch[-1]}',
+                                   progress_lines[0], state['task_sessions'],
+                                   state['completed_at'] - state['started_at'],
+                                   state['progress_keys'])
+            elif state['phase'] == 'complete':
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
                                     state['completed_at'] - state['started_at'], keys, progress_lines[0]))

@@ -1023,6 +1023,8 @@ and staging by `Task ID: Title (sessions=N, duration=D)`, preserving the bold
 task-label link and title from its live update and using that task's
 session count and duration (`12m` below an hour, `1h 31m` from an hour onward).
 Current-task updates keep their existing format.
+Completed optimization sessions use the same green compact summary, retaining
+their optimization batch heading and their own session count and duration.
 These compact summaries survive attachment and replace the completed task's
 controller scrollback too. At launcher exit, the final recap includes every
 task completed in that run, in order, with the existing detailed format:

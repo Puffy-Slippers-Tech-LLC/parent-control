@@ -41,6 +41,25 @@ def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
     }
 
 
+def revocation_entry(*, child, approver, duration_seconds, allow_soft):
+    """Real kiosk approval and retained Parent return for the fixed revoke slice.
+
+    The caller owns response history, saved-policy assertions and balance reads.
+    This declaration matches onpc_time_explanation::revoke_entry.
+    """
+    from kiosk_approved_flow import obtain_time
+    return {
+        **fresh_desktop('parent'), **parent_management(),
+        'allowance-configured': 'ui:time-explanation-positive-read',
+        'before-window': 'ui:retained-parent-leave',
+        'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned',
+        **obtain_time(initial='default', child=child, approver=approver,
+                      duration_seconds=duration_seconds, allow_soft=allow_soft, exit='automatic'),
+        **prefixed_stages('return', fresh_desktop('parent')),
+        **prefixed_stages('supplied', retained_parent_entry(source='same-user')),
+    }
+
+
 def lock_challenge(prefix='', *, entry='curtain', account='parent'):
     """DESK06 declared curtain, fresh reveal guard and independent challenge."""
     import re

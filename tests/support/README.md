@@ -43,7 +43,9 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 FLOW13 daily-only composes `journey_blocks.daily_time_profile` and
 `onpc_parent::daily_time_profile`; `DailyTimeProfileJourney` owns the exact
-zero-grant gate before edits and caller-declared saved balance checks.
+zero-grant gate before edits and caller-declared saved balance checks. Reuse that
+initial PARENT09 result as the gate; do not add an unchanged balance reread or
+silently clear an unexpected grant to reach the desired profile.
 FLOW02's short 2/4-minute bindings reuse PARENT06 Custom selection, public text
 and validation, then independent saved settings and PARENT09 balances. They
 never revoke or approve. `time_profiles_daily.PLAN` / `SAME_PLAN` own separate
@@ -427,18 +429,27 @@ brackets balance reads before allowing a durable reply. `confirm_revoke` require
 explicit Confirm authority and rechecks the same owned warning; Cancel continues
 to refuse confirmation. `saved_revoke_balances` waits for idle management,
 reads complete public app rows and exact match values, returns to Screen Limits,
-and independently awaits G=0 when requested. `RevocationJourney` accepts
-caller-declared capture/comparison endpoints and retains immutable settings,
-app rules and controller read bounds. `RevokeConfirmJourney` / `REVOKE_CONFIRM_PLAN`
-use the same kiosk-grant and retained-Parent entry as Cancel, with one Confirm.
+and independently awaits G=0 when requested. `request_composition.RevocationJourney`
+accepts caller-declared read comparisons, retained-window pairs and approval
+capture endpoints, and retains immutable settings, app rules and controller read
+bounds. Consumers import that shared owner, keeping only finite histories and
+assertions in their recipes. `RevokeConfirmJourney` / `REVOKE_CONFIRM_PLAN` and
+Cancel compose `journey_blocks.revocation_entry` /
+`onpc_time_explanation::revoke_entry`, with separate response histories;
+Confirm never derives its entry by filtering another response plan. Endpoint
+renaming retains the fixed qualified child/15-minute/75-second binding.
 Both balance readers use `reload_revoke_settings` to reselect the fixed child
 through the public selector after a wrong-entry check. Loading the policy/time
 inside the controller read bracket avoids treating Parent's 30-second cached
-display as freshly calculated. Selector navigation changes neither grant nor
+display as freshly calculated. Before changing elapsed-time tolerances or adding
+waits, check when the public status was actually loaded; an independent API read
+can still return a cached displayed balance. Reuse the guarded reload inside the
+read bracket for this binding. Selector navigation changes neither grant nor
 saved policy; elapsed limits and mutation/refusal assertions remain unchanged.
 These operations add no process, storage, bus,
-display or cleanup owner; existing private unit/cleanup/preview classifications
-remain applicable. The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#app-grid-search-and-parent-launch)
+display or cleanup owner. Renamed-endpoint, immutable-window and durable-reply
+regressions use the existing private recorder fixtures; existing unit/cleanup/
+preview classifications remain applicable. The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#revocation-warning-and-cancel-qualification)
 owns qualification status.
 
 Both-child request-transfer histories reuse `request_flow.transfer_allowances` /

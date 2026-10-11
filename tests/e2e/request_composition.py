@@ -107,3 +107,95 @@ class KioskRequestJourney(InstalledJourney):
                     'request-transfer:changed-child-choices')
             observed.setdefault('comparison', {})['shared_child_choices_local_approver'] = True
         self.transfer_requests[stage] = request
+
+
+class RevocationJourney(KioskRequestJourney):
+    """Fixed qualified grant/policy checks with caller-declared endpoints.
+
+    Read checks declare (earlier invocation or None, cancel/confirm result).
+    Window checks pair retained Parent observations; approval_stage captures the
+    public estimate. Endpoint renaming does not qualify another account/profile.
+    """
+
+    def __init__(self, context, progress, plan, *, read_checks, window_checks,
+                 approval_stage, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        require(all(stage in plan.screen_tags and mode in ('cancel', 'confirm')
+                    and (before is None or before in plan.screen_tags
+                         and plan.stages.index(before) < plan.stages.index(stage))
+                    for stage, (before, mode) in read_checks.items()), 'revocation:read-plan')
+        require(all(before in plan.screen_tags and stage in plan.screen_tags
+                    and plan.screen_tags[before] == 'ui:retained-parent-leave'
+                    and plan.screen_tags[stage] == 'ui:retained-parent-read'
+                    and plan.stages.index(before) < plan.stages.index(stage)
+                    for stage, before in window_checks.items()), 'revocation:window-plan')
+        require(approval_stage is None or approval_stage in plan.screen_tags
+                and plan.screen_tags[approval_stage] == 'ui:kiosk-valid-fraction-soft-read',
+                'revocation:approval-plan')
+        self.read_checks = dict(read_checks)
+        self.window_checks = dict(window_checks)
+        self.approval_stage = approval_stage
+        self.revoke_reads = {}
+        self.windows = {}
+        self.grant_estimate = None
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in self.window_checks.values():
+            require(stage not in self.windows, 'revoke-cancel:read-replay')
+            self.windows[stage] = deepcopy(observed['ui']['retained_parent'])
+        elif stage in self.window_checks:
+            before = self.window_checks[stage]
+            require(before in self.windows and
+                    observed['ui']['retained_parent'] == self.windows[before],
+                    'revoke-cancel:retained-parent')
+        elif stage == self.approval_stage:
+            self.grant_estimate = deepcopy(observed['ui']['valid_choice'])
+        if stage not in self.read_checks:
+            return
+        capture, mode = self.read_checks[stage]
+        require(stage not in self.revoke_reads, 'revoke-cancel:read-replay')
+        value = observed['ui']['revoke_cancel']
+        require(value['settings'] == {'child': 'fixture-child', 'limit_enabled': True,
+                                     'allowance': ['15 minutes']}, 'revoke-cancel:settings')
+        balances = value['balances']
+        start, end = value['read_bounds']
+        require(type(start) is int and type(end) is int and 0 < start <= end,
+                'revoke-cancel:read-bounds')
+        daily, grant, total = (balances[key]['seconds'] for key in ('daily', 'one_time', 'total'))
+        precision = max(balances[key]['precision_seconds'] for key in ('daily', 'one_time', 'total'))
+        require((abs(daily - 900) < precision if capture is None or mode == 'cancel' else daily >= 0)
+                and (grant > 0 if capture is None or mode == 'cancel' else grant == 0)
+                and abs(total - max(daily, grant)) < precision, 'revoke-cancel:real-grant')
+        if capture is None:
+            require(self.grant_estimate is not None, 'revoke-cancel:missing-approval')
+            elapsed = (balances['observed_monotonic_ns'] -
+                       self.grant_estimate['observed_monotonic_ns']) / 1e9
+            expected = self.grant_estimate['estimate']['seconds']
+            require(0 <= elapsed <= 600 and expected - elapsed - precision <= grant <= expected + precision,
+                    'revoke-cancel:approved-balance')
+        else:
+            earlier = self.revoke_reads.get(capture)
+            require(earlier is not None, 'revoke-cancel:missing-baseline')
+            require(value['settings'] == earlier['settings'], 'revoke-cancel:changed-settings')
+            if mode == 'confirm':
+                require(value['apps'] == earlier['apps'] and value['rules'] == earlier['rules'],
+                        'revocation:changed-app-rules')
+            minimum = (start - earlier['read_bounds'][1]) / 1e9
+            maximum = (end - earlier['read_bounds'][0]) / 1e9
+            require(0 <= minimum <= maximum <= 120, 'revoke-cancel:elapsed-bound')
+            for key in ('daily', 'one_time', 'total'):
+                if mode == 'confirm' and key == 'one_time':
+                    continue
+                baseline_key = 'daily' if mode == 'confirm' and key == 'total' else key
+                old, new = earlier['balances'][baseline_key], balances[key]
+                tolerance = old['precision_seconds'] + new['precision_seconds']
+                require(max(0, old['seconds'] - maximum) - tolerance <= new['seconds']
+                        <= old['seconds'] + tolerance, 'revoke-cancel:changed-balance')
+            observed.setdefault('comparison', {}).update(unchanged_settings=True)
+            if mode == 'confirm':
+                observed['comparison'].update(grant_cleared=True, unchanged_app_rules=True,
+                                             unchanged_daily_with_elapsed_bounds=True)
+            else:
+                observed['comparison']['unchanged_balances_with_elapsed_bounds'] = True
+        self.revoke_reads[stage] = deepcopy(value)

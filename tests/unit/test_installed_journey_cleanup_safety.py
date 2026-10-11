@@ -204,14 +204,22 @@ def test_revocation_real_step_requires_cleared_grant_and_unchanged_saved_policy(
 
 def test_revocation_comparisons_allow_independent_caller_endpoints(tmp_path):
     from copy import deepcopy
-    from time_explanation import RevocationJourney
+    from request_composition import RevocationJourney
     from installed_journey import JourneyPlan
     plan = JourneyPlan(prefix='independent', worker_mode='revocation',
-        screen_tags={'capture': 'ui:revoke-saved-balances', 'result': 'ui:revoke-cleared-balances'},
-        phases={'ready': 'setup', 'capture': 'step-1', 'result': 'step-1'})
+        screen_tags={'decision': 'ui:kiosk-valid-fraction-soft-read',
+                     'capture': 'ui:revoke-saved-balances', 'result': 'ui:revoke-cleared-balances'},
+        phases={'ready': 'setup', 'decision': 'step-1', 'capture': 'step-1', 'result': 'step-1'})
     journey = RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
-        read_checks={'capture': (None, 'confirm'), 'result': ('capture', 'confirm')})
-    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
+        read_checks={'capture': (None, 'confirm'), 'result': ('capture', 'confirm')},
+        window_checks={}, approval_stage='decision')
+    journey.balance = {'observed_monotonic_ns': 1,
+                      'daily': {'seconds': 900, 'precision_seconds': 1},
+                      'one_time': {'seconds': 0, 'precision_seconds': 1}}
+    choice = {'estimate': {'kind': 'fixed', 'seconds': 975},
+              'request': {'duration_seconds': 75}, 'observed_monotonic_ns': 1}
+    journey.check_settings('decision', {'ui': {'valid_choice': choice}})
+    choice['estimate']['seconds'] = 1  # Capturing cannot retain mutable decoder data.
     value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
         'apps': [], 'rules': [], 'read_bounds': [1_000_000_000, 2_000_000_000],
         'balances': {'observed_monotonic_ns': 1_000_000_000,
@@ -225,6 +233,38 @@ def test_revocation_comparisons_allow_independent_caller_endpoints(tmp_path):
     observed = {'ui': {'revoke_cancel': current}}
     journey.check_settings('result', observed)
     assert observed['comparison']['grant_cleared']
+
+
+@pytest.mark.parametrize('fault', ['', 'window', 'missing', 'replay', 'plan'])
+def test_revocation_retained_window_uses_caller_endpoints_and_immutable_capture(tmp_path, fault):
+    from request_composition import RevocationJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='independent', worker_mode='revocation',
+        screen_tags={'leaving': 'ui:retained-parent-leave',
+                     'returning': 'ui:retained-parent-read'},
+        phases={'ready': 'setup', 'leaving': 'step-1', 'returning': 'step-1'})
+    if fault == 'plan':
+        with pytest.raises(EvidenceError, match='revocation:window-plan'):
+            RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
+                read_checks={}, window_checks={'leaving': 'returning'}, approval_stage=None)
+        return
+    journey = RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
+        read_checks={}, window_checks={'returning': 'leaving'}, approval_stage=None)
+    original = {'window': {'pid': 101, 'object_path': '/public/window'},
+                'page': 'Screen Limits', 'settings': {'child': 'fixture-child'}}
+    expected = copy.deepcopy(original)
+    if fault != 'missing':
+        journey.check_settings('leaving', {'ui': {'retained_parent': original}})
+    original['window']['pid'] = 202
+    if fault == 'window': expected['window']['pid'] = 303
+    if fault == 'replay':
+        with pytest.raises(EvidenceError, match='revoke-cancel:read-replay'):
+            journey.check_settings('leaving', {'ui': {'retained_parent': original}})
+    elif fault:
+        with pytest.raises(EvidenceError, match='revoke-cancel:retained-parent'):
+            journey.check_settings('returning', {'ui': {'retained_parent': expected}})
+    else:
+        journey.check_settings('returning', {'ui': {'retained_parent': expected}})
 
 
 import fresh_thirty_allowance

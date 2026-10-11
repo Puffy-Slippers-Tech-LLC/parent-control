@@ -256,6 +256,15 @@ The tooltip retains the full time explanation on compact panels, displaying
 [right-click preference](Frontends.md#child-panel-preference) controls only
 countdown effects, not the estimate, request action or enforcement.
 
+During uninterrupted active use, Shell's finite positive `dailyLimitTime`
+supplies the countdown deadline, including at expiry. Fresh Malcontent reads can
+omit ongoing usage until it is checkpointed, so taking the later deadline would
+restart the displayed countdown on every query. When Shell has no active
+deadline, the public timer estimate supplies the recorded-use fallback. Daily
+accounting must preserve inactive intervals; a deadline cached before inactivity
+is not a fresh resume balance. The broker still reads the live grant and selects
+the longer remaining amount.
+
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
 Estimate reads use bounded backoff for `Error.Busy`, which can occur while
 another supported client has the user's timer database open. The extension

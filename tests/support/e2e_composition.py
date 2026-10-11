@@ -18,7 +18,8 @@ CASE_MODULES = {Path(variant['executable']['path']).stem for _, variant in READY
 # is sufficient to exercise it. New mechanics belong behind a shared API.
 APIS = {
     'dataclasses': {'replace'},
-    'countdown': {'CountdownObservation', 'check_countdown_balance'},
+    'countdown': {'CountdownObservation', 'CountdownSample', 'check_countdown_balance',
+                  'check_countdown_progress', 'await_countdown_progress'},
     'access_choices': {'AccessChoiceJourney'},
     'policy_edits': {'policy_edit', 'AppPolicyJourney'},
     'match_rules': {'MatchRuleJourney', 'MATCH_RULES', 'match_edit'},

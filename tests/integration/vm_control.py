@@ -374,6 +374,8 @@ def main(argv=None):
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
+                                          'reproduce-countdown-minutes',
+                                          'reproduce-countdown-resume',
                                           'reproduce-retained-app-visits',
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
@@ -437,6 +439,8 @@ def main(argv=None):
             rename_disk(lease)
         elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
+                             'reproduce-countdown-minutes',
+                             'reproduce-countdown-resume',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
                              'enter-remembered-return', 'reproduce-riley-native-grid'):
@@ -446,11 +450,14 @@ def main(argv=None):
                                   enter_remembered_return, reproduce_riley_native_grid)
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
+            from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
+             'reproduce-countdown-minutes': reproduce_countdown_minutes,
+             'reproduce-countdown-resume': reproduce_countdown_resume,
              'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
              'reproduce-riley-native-grid': reproduce_riley_native_grid,

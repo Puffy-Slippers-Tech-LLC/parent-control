@@ -474,15 +474,51 @@ test('display state changes cadence at the final minute and locks only at zero',
 });
 
 test('calculates allowance and preserves a verified estimate on a transient failure', () => {
-    assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, 140), 60);
+    assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, 140), 40);
     assert.equal(effectiveAllowanceRemaining(null, 100, 90), 0);
+    for (const unavailable of [0, undefined, Number.NaN, Number.POSITIVE_INFINITY])
+        assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, unavailable), 60);
+    assert.equal(effectiveAllowanceRemaining(['', 0, 160], 100, 200), 100);
     const previous = {calculatedEnd: 900, statusLoaded: true};
     assert.deepEqual(nextEstimateState(previous, Number.NaN, 100), previous);
     assert.deepEqual(nextEstimateState(previous, 45, 100), {calculatedEnd: 145, statusLoaded: true});
 });
 
+test('fresh uncheckpointed estimates cannot restart the active daily countdown', async () => {
+    let now = 100;
+    let dailyEnd = 340;
+    let grantEnd = 0;
+    const indicator = createIndicator({
+        queryEstimatedTimes: async () => ({'': [false, 0, now + 240]}),
+        effectiveAllowanceRemaining, nextEstimateState,
+        calculateOwnRemainingTime: async daily => Math.max(daily, grantEnd - now, 0),
+        Main: {timeLimitsManager: {getCurrentTime: () => now,
+            get dailyLimitTime() { return dailyEnd; }}},
+        logInfo() {},
+    });
+    Object.assign(indicator, {_calculatedEnd: 0, _statusLoaded: false,
+        _onError() { assert.fail('successful timer refresh must not fail'); }, _sync() {}});
+    for (now of [100, 160, 220, 340, 341]) {
+        await indicator._refreshEstimate();
+        assert.equal(indicator._calculatedEnd, Math.max(dailyEnd, now));
+        assert.equal(indicator._statusLoaded, true);
+    }
+    now = 350;
+    dailyEnd = 500; // A newly configured allowance replaces the old deadline.
+    await indicator._refreshEstimate();
+    assert.equal(indicator._calculatedEnd, 500);
+    grantEnd = 600; // The broker still selects the longer live grant.
+    await indicator._refreshEstimate();
+    assert.equal(indicator._calculatedEnd, 600);
+    now = 610;
+    dailyEnd = 700;
+    await indicator._refreshEstimate();
+    assert.equal(indicator._calculatedEnd, 700, 'expired grants preserve remaining daily time');
+});
+
 test('refresh diagnostics identify the failing stage and preserve verified state', async () => {
-    for (const stage of ['timer-estimate', 'allowance-calculation', 'broker-calculation']) {
+    for (const [stage, loaded] of ['timer-estimate', 'allowance-calculation', 'broker-calculation']
+        .flatMap(stage => [true, false].map(loaded => [stage, loaded]))) {
         const error = new Error('private@example.test /home/private');
         const logs = [];
         const reports = [];
@@ -503,15 +539,16 @@ test('refresh diagnostics identify the failing stage and preserve verified state
                 timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 110}},
             logWarning: (event, fields) => logs.push({event, ...fields}),
         });
-        Object.assign(indicator, {_calculatedEnd: 150, _statusLoaded: true,
+        const previousEnd = loaded ? 150 : 0;
+        Object.assign(indicator, {_calculatedEnd: previousEnd, _statusLoaded: loaded,
             _onError: failure => reports.push(failure), _sync() {}});
         await indicator._refreshEstimate();
-        assert.equal(indicator._calculatedEnd, 150);
-        assert.equal(indicator._statusLoaded, true);
+        assert.equal(indicator._calculatedEnd, previousEnd);
+        assert.equal(indicator._statusLoaded, loaded);
         assert.equal(indicator._refreshPending, false);
         assert.deepEqual(reports, [error]);
         assert.deepEqual(logs, [{event: 'child.refresh-failed', stage,
-            category: 'other', loaded: true, locked: true, greeter: false}]);
+            category: 'other', loaded, locked: true, greeter: false}]);
     }
 });
 

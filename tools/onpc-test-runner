@@ -138,6 +138,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                       'reproduce-riley-native-grid', 'probe-riley-native-grid',
                                       'reproduce-revoke-cancel', 'probe-revoke-balances',
+                                      'reproduce-countdown-minutes',
+                                      'reproduce-countdown-resume',
                                       'reproduce-remembered-return', 'probe-remembered-return',
                                       'repeat-remembered-return', 'enter-remembered-return'))
     vm.add_argument('keys', nargs='*', type=int)

@@ -1112,6 +1112,8 @@ class UiObservations:
                 result = self._observe(operation, **({'child': child} if child else {}))
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
                     result['revoke_cancel']['read_bounds'] = [read_started, time.monotonic_ns()]
+                if operation in accessible_ui.COUNTDOWN_OPERATIONS:
+                    result['countdown_read_bounds'] = [read_started, time.monotonic_ns()]
                 if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
                     require(time.monotonic() - self.lock_recipient_checked < 30,
                             'ui:lock-recipient-stale-proof')

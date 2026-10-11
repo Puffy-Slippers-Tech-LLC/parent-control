@@ -9,7 +9,12 @@ export function remainingSeconds(endTime, currentTime) {
 
 export function effectiveAllowanceRemaining(estimate, currentTime, managerLimit) {
     const sessionEnd = estimate ? Number(estimate[2]) : 0;
-    return Math.max(0, Math.ceil(Math.max(Number(managerLimit) || 0, sessionEnd) - currentTime));
+    // Shell's active-session deadline includes ongoing usage which Malcontent
+    // has not yet checkpointed. A fresh daemon query can otherwise move the
+    // end forward on every tick. An expired positive deadline remains binding.
+    const activeEnd = Number(managerLimit);
+    const end = Number.isFinite(activeEnd) && activeEnd > 0 ? activeEnd : sessionEnd;
+    return Math.max(0, Math.ceil(end - currentTime));
 }
 
 export function nextEstimateState(previous, calculatedRemaining, currentTime) {

@@ -36,7 +36,7 @@ a separate acceptance result. A stalled countdown must still fail the bound.
 
 Publicly prepare short daily-only time, enter the child and observe successive minute samples over real intervals. Qualify independently supplied child entry and refuse reversed, stale or wrong-owner samples.
 
-Planned qualification selector (implement and register before use):
+Implemented qualification selector:
 
 ```sh
 tools/run-tests integration check_e2e_countdown_minutes

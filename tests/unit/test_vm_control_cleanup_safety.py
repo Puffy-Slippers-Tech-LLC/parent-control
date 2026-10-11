@@ -366,6 +366,8 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
+                   'reproduce-countdown-minutes',
+                   'reproduce-countdown-resume',
                    'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
                    'reproduce-riley-native-grid', 'probe-riley-native-grid',
@@ -420,16 +422,18 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 @pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
-                                  'riley-native-grid', 'retained-app-visits', 'revoke-cancel'])
-def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, scene):
+                                  'riley-native-grid', 'retained-app-visits', 'revoke-cancel',
+                                  'countdown-minutes', 'countdown-resume'])
+def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
-    from desktop_session import CHILD_DENIAL_PLAN
+    from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
     from retained_entry import PLAN
     from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN
     from remembered_choices import DIAGNOSTIC_PLAN as REMEMBERED_PLAN
     from riley_native_grid import PLAN as RILEY_GRID_PLAN
     from retained_app_visits import PLAN as RETAINED_APP_PLAN
     from time_explanation import REVOKE_PLAN
+    from countdown_qualification import MINUTE_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -439,11 +443,13 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
         'riley-native-grid': (RILEY_GRID_PLAN, 'repeat-refusals', 'repeat-search-entered'),
         'retained-app-visits': (RETAINED_APP_PLAN, 'riley-activity-command', 'riley-activity-desktop'),
         'revoke-cancel': (REVOKE_PLAN, 'second-balances', 'second-cancel'),
+        'countdown-minutes': (MINUTE_PLAN, 'minute-progression', 'fresh-desktop'),
+        'countdown-resume': (CHILD_UNLOCK_PLAN, 'returned-activity', 'unlock-desktop'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]
     assert prefix[-1] == previous
-    assert 'lock-recipient-qualified' not in prefix
+    assert ('lock-recipient-qualified' in prefix) == (scene == 'countdown-resume')
     if fault == 'missing-history':
         prefix.remove(previous)
     elif fault == 'advanced':

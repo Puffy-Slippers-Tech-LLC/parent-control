@@ -91,6 +91,38 @@ sub countdown {
     $journey->finish();
 }
 
+# TIME02 consumes an independently supplied child desktop. Countdown reads/waits
+# stay in the shared controller, with no input or minute-edge sleep in the worker.
+sub countdown_minutes {
+    onpc_progress::operation('Qualifying displayed minute countdown progression');
+    my ($exchange, $declared, $challenges) = @_;
+    my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
+        wrong-account-refused fresh-installed-greeter fresh-child-focused
+        fresh-child-recipient-qualified fresh-child-recipient-rechecked fresh-desktop
+        minute-progression independent-minute-progression);
+    die 'countdown:minute-plan' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
+        && ref($challenges->{'parent-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'parent-login'}}) eq 'parent/recipient-qualified/recipient-rechecked'
+        && ref($challenges->{'child-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'child-login'}}) eq
+            'child/fresh-child-recipient-qualified/fresh-child-recipient-rechecked';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-minutes', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    $journey->invoke('wrong-account-refused');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->invoke('minute-progression');
+    $journey->invoke('independent-minute-progression');
+    $journey->finish();
+}
+
 sub fresh_child_allowed {
     onpc_progress::operation('Qualifying fresh child login with saved daily time');
     my $ok = eval { _fresh_child_allowed(@_); 1 };

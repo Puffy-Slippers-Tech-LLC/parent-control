@@ -53,6 +53,45 @@ def reproduce_revoke_cancel(lease):
                             boundary_operation='revoke-balances')
 
 
+def reproduce_countdown_minutes(lease):
+    """Retain the real daily-only child desktop before minute sampling."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from countdown_qualification import CountdownMinutesJourney, MINUTE_PLAN
+    return reproduce_denial(lease, CountdownMinutesJourney, MINUTE_PLAN,
+                            'minute-progression', 'countdown-minutes',
+                            boundary_operation='child-countdown-present')
+
+
+def reproduce_countdown_resume(lease):
+    """Inspect countdown use/pause/return through the qualified lock journey."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from dataclasses import replace
+    from desktop_session import RetainedUnlockJourney, CHILD_UNLOCK_PLAN
+    from real_interval import interval_action
+    from ui_observations import UiObservations
+    from tools.test_storage import named_input
+
+    def active_interval(journey, guard):
+        observed = UiObservations(journey.transport).observe('child-countdown-present')
+        elapsed = interval_action(20)(journey, guard)
+        return {'countdown': observed, 'elapsed_seconds': elapsed}
+
+    plan = replace(CHILD_UNLOCK_PLAN, stage_actions={
+        'lock-ready': 'active-interval', 'independent-challenge': 'inactive-interval'})
+    assets = named_input(vm_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('countdown-resume-diagnosis: prepare fixture inputs with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              flush=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, RetainedUnlockJourney, plan,
+        'returned-activity', 'countdown-resume',
+        assets=assets,
+        boundary_operation='child-countdown-present',
+        actions={'active-interval': active_interval,
+                 'inactive-interval': interval_action(70)})
+
+
 def probe_revoke_balances(lease):
     """Exercise the maintained fresh public read on the retained Parent scene."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -250,7 +289,7 @@ def probe_lock_curtain(lease):
 
 
 def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
-                     assets=None):
+                     assets=None, actions=None):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -311,7 +350,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
         journey = Reproduction(context, progress,
-                               **({'plan': plan} if plan is not None else {}))
+                               **({'plan': plan} if plan is not None else {}),
+                               **({'actions': actions} if actions is not None else {}))
 
         def validate():
             validate_boundary(journey, directory, boundary)

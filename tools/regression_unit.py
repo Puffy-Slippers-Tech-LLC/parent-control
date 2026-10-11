@@ -448,6 +448,10 @@ from pathlib import PurePosixPath
 
 # TIME03 uses fake clocks and process-local guard/UI doubles, private tmp_path
 # records and bounded waited Perl children. No VM, bus, display or shared cache.
+# TIME02's countdown module adds the same fake-clock/private-record ownership
+# and bounded waited Perl children for worker order/refusal. It introduces no
+# sockets, buses, displays, external service, shared cache or expensive workload;
+# the existing compatible countdown unit classification remains applicable.
 # VM Internet ownership/recovery checks use only tiny tmp_path journals and
 # in-memory libvirt/SSH/UI doubles, with no sockets, live VM or host mutations.
 # Watch transport regressions use private socketpairs, managed short socket

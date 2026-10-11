@@ -41,6 +41,37 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+TIME02 minute consumers reuse `countdown.CountdownSample`,
+`check_countdown_progress` and `await_countdown_progress`. Each sample copies the
+public countdown, controller monotonic read brackets and boot identity; comparisons
+retain both immutable endpoints. `UiObservations.observe` brackets each TIME01
+read on the controller, independently of the guest's monotonic freshness marker.
+The wait reacquires only public child reads under the original 90-second bound
+and TIME03 `interval_action`, retaining attempt ownership/deadline/cancellation.
+Unchanged reads supply no separate assertion; the changed endpoint must decrease
+consistently with elapsed/read latency, minute-flooring intervals and the caller's
+explicit two-second estimate tolerance. Final seconds remain a separate binding.
+`CountdownMinutesJourney` composes the qualified same-user four-minute daily-only
+profile with independently supplied child entry and two progression invocations.
+The countdown host module uses only fake clocks, private pytest records, in-memory
+transport/UI doubles and bounded waited Perl children; its compatible unit
+classification remains applicable, with no new storage, VM, bus or display owner.
+Installed qualification remains pending until both selected VMs pass.
+
+`tools/test-vm --vm NAME reproduce-countdown-minutes` reuses that same journey
+in the maintenance envelope, stopping before the first progression invocation.
+It retains the public boundary read and child desktop for guarded guest probes;
+diagnosis supplies no acceptance result. The existing VM-control safety module
+uses private pytest files and mocked VM calls for this boundary, without adding
+shared storage, processes, sockets, buses, displays or cleanup ownership.
+
+`reproduce-countdown-resume` reuses the qualified child lock/unlock journey,
+including native activity and guarded password recipients. Its fixed 20-second
+active and 70-second locked intervals use TIME03; public reads before Lock and
+after authenticated return are retained in the maintenance allocation. It stops
+before the activity comparison and supplies no acceptance credit. Both routes
+reuse the existing maintenance lease, worker cleanup and evidence allocation.
+
 FLOW13 daily-only composes `journey_blocks.daily_time_profile` and
 `onpc_parent::daily_time_profile`; `DailyTimeProfileJourney` owns the exact
 zero-grant gate before edits and caller-declared saved balance checks. Reuse that

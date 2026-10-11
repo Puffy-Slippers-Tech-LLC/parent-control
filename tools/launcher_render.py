@@ -781,17 +781,19 @@ class AgentRenderer:
 
     def command_result(self, item):
         # Retain full evidence while bounding the visible output preview.
+        # App-server commands without captured output may explicitly return null.
+        output = item.get('aggregated_output') or ''
         if self.command_log is not None:
             with self.command_log.open('a', encoding='utf-8') as archive:
                 archive.write(f'\nCommand {clean(item["id"])}: {clean(item["command"])}\n')
-                archive.write(clean(item.get('aggregated_output', '')) + '\n')
+                archive.write(clean(output) + '\n')
                 archive.write(f'Exit: {clean(item.get("exit_code"))}\n')
         status = item.get('exit_code')
         if self.last_command != item['id']:
             self.command_heading(item)
         if status == 0 and self.exploration(item):
             return
-        output = clean(item.get('aggregated_output', '').replace('\r\n', '\n')
+        output = clean(output.replace('\r\n', '\n')
                        .replace('\r', '\n')).rstrip()
         self.exploring = False
         lines = [row for line in output.splitlines()

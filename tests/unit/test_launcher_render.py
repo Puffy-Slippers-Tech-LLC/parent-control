@@ -53,6 +53,32 @@ def test_completion_rule_follows_terminal_width_on_resize(terminal):
     assert '─' * 46 in replay and '─' * 47 not in replay
 
 
+@pytest.mark.parametrize('explicit_null', [False, True])
+@pytest.mark.parametrize('exit_code', [0, 1, None])
+def test_outputless_command_completion_keeps_rendering(tmp_path, explicit_null, exit_code):
+    from rich.text import Text
+    stream = io.StringIO()
+    archive = tmp_path / 'commands.log'
+    renderer = AgentRenderer(stream, command_log=archive)
+    item = {'id': 'empty', 'type': 'command_execution', 'command': 'tools/read-only links',
+            'exit_code': exit_code, 'status': 'completed'}
+    if explicit_null:
+        item['aggregated_output'] = None
+    renderer.event({'type': 'item.started', 'item': item})
+    renderer.event({'type': 'item.completed', 'item': item})
+    renderer.event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': 'Continue validation.'}})
+    rendered = Text.from_ansi(stream.getvalue()).plain
+    assert 'Continue validation.' in rendered
+    assert 'empty' not in renderer.started
+    assert '\nNone\n' not in archive.read_text()
+    assert f'Exit: {exit_code}\n' in archive.read_text()
+    if exit_code == 1:
+        assert 'Exit 1' in rendered
+    elif exit_code is None:
+        assert 'completed' in rendered
+
+
 def test_reasoning_stall_renders_summary_and_handoff_without_raw_progress():
     from rich.text import Text
     from tests.support.write_e2e_fixtures import reply

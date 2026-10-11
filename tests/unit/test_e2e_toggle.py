@@ -207,6 +207,77 @@ def test_time_explanation_selector_and_prerequisites(monkeypatch, tmp_path, sele
     assert TimeExplanationQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is PLAN
 
 
+def test_revoke_cancel_selector_uses_guarded_snapshot_and_finite_plan(monkeypatch, tmp_path):
+    import check_e2e_revoke_cancel as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from time_explanation import REVOKE_PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert run.call_args.kwargs == dict(assets=named_input(package_source=True),
+        provision_credentials=True, revoke_cancel=True)
+    with pytest.raises(CommandError, match='revoke-cancel-prerequisites'):
+        smoke.main(revoke_cancel=True)
+    assert parent_setup_qualification.RevokeCancelQualification.journey(
+        SimpleNamespace(directory=tmp_path), Mock()).plan is REVOKE_PLAN
+
+
+def test_revoke_cancel_actual_worker_order_and_stop_at_every_boundary(monkeypatch):
+    from time_explanation import REVOKE_PLAN
+    from kiosk_approved_flow import obtain_time
+    from request_flow import CHOICES
+    # These helpers are unchanged and qualified; the actual new worker owns
+    # only their composition and the two Cancel entries. No new resource owner.
+    script = r'''
+use strict; use warnings; use JSON::PP;
+our (@events, @titles);
+BEGIN { $INC{'testapi.pm'}=1; $INC{'onpc_gdm.pm'}=1;
+        $INC{'onpc_parent.pm'}=1; $INC{'onpc_request_flow.pm'}=1; }
+package testapi;
+sub record_info { push @main::titles, $_[0]; } sub console { bless {}, 'Console' }
+sub power { } sub check_shutdown { 1 }
+package Console; sub disable { }
+package onpc_gdm;
+sub reattach_functional { }
+sub sign_in_challenge {
+    my $stages = $_[1] eq 'parent-login' ? $ENV{ONPC_TEST_INITIAL} : $ENV{ONPC_TEST_RETURN};
+    my $reply;
+    $reply = $_[0]->invoke($_) for @{JSON::PP::decode_json($stages)};
+    return $reply;
+}
+package onpc_parent;
+sub launch { $_[0]->seen('parent-command'); return $_[0]->seen('parent-window'); }
+sub select_child { $_[0]->seen('child-choice-highlighted'); return $_[0]->seen('parent-selected'); }
+sub open_for_child {
+    if ($_[3] eq 'retained') { $_[0]->seen('supplied-desktop'); return $_[0]->seen('supplied-parent-retained'); }
+    die 'unexpected new Parent';
+}
+package onpc_request_flow;
+sub obtain_time { $_[0]->seen($_) for @{JSON::PP::decode_json($ENV{ONPC_TEST_GRANT})}; }
+package main;
+require onpc_time_explanation;
+my $exchange = sub { push @events, $_[0]; die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE}; return {observed=>$_[0]}; };
+my $ok = eval { onpc_time_explanation::revoke_cancel($exchange,
+    JSON::PP::decode_json($ENV{ONPC_TEST_INVOCATIONS}), JSON::PP::decode_json($ENV{ONPC_TEST_CHALLENGES})); 1; };
+print encode_json({ok=>$ok ? 1:0, events=>\@events, titles=>\@titles, error=>"$@"});
+'''
+    stages = list(REVOKE_PLAN.screen_tags)
+    from journey_blocks import fresh_desktop
+    monkeypatch.setenv('ONPC_TEST_INITIAL', json.dumps(list(fresh_desktop('parent'))))
+    monkeypatch.setenv('ONPC_TEST_GRANT', json.dumps(list(obtain_time(initial='default', **CHOICES, exit='automatic'))))
+    monkeypatch.setenv('ONPC_TEST_RETURN', json.dumps([s for s in stages if s.startswith('return-')]))
+    monkeypatch.setenv('ONPC_TEST_INVOCATIONS', json.dumps(REVOKE_PLAN.invocations))
+    monkeypatch.setenv('ONPC_TEST_CHALLENGES', json.dumps(REVOKE_PLAN.challenges))
+    for refused in ('', *stages):
+        monkeypatch.setenv('ONPC_TEST_REFUSE', refused)
+        result = json.loads(run_perl(script).stdout)
+        assert result['events'] == (stages[:stages.index(refused)+1] if refused else stages), result['error']
+        assert [title.removeprefix('revoke-cancel-') for title in result['titles']
+                if title.startswith('revoke-cancel-')] == result['events']
+        assert bool(result['ok']) == (not refused), result['error']
+
+
 def test_time_explanation_checks_all_balances_and_monotonic_order():
     from time_explanation import TimeExplanationJourney
     from private_artifacts import EvidenceError

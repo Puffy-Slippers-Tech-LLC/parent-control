@@ -30,6 +30,19 @@ Extend the same shared PARENT17/18 operation, then use
 elapsed-bounded unchanged daily time and unchanged saved allowance/app rules.
 No child entry or application launch belongs to this balance-only capability.
 
+Start with `AccessibleUI.open_revoke_warning`, `revoke_warning` and
+`cancel_revoke` in `tests/e2e/accessible_ui.py`; Cancel currently refuses a
+confirmation response before discovery. `RevokeCancelJourney` / `REVOKE_PLAN`
+in `tests/e2e/time_explanation.py` and
+`onpc_time_explanation::revoke_cancel` compose the real fixed grant and retained
+Parent return. Reuse that composition with explicit Confirm authority and its
+own independent results; keep shared sealed password bindings finite.
+Host guards/decoder, durable-reply and worker-order regressions are in
+`test_accessible_e2e_ui.py`, `test_installed_journey_cleanup_safety.py`,
+`test_e2e_toggle.py` and `test_challenges_cleanup_safety.py`.
+The [warning/Cancel qualification](../E2E-Building-Blocks.md#revocation-warning-and-cancel-qualification)
+owns its exact scope and reports.
+
 ## Live VM acceptance
 
 In a fresh guarded VM attempt with a real kiosk-approved grant, open the owned warning, verify its child target, Confirm once and independently read the new daily/one-time explanation and saved settings. Qualify independent valid entry and wrong-child/confirmation refusal. Reuse 050a's unchanged exact warning/Cancel qualification, rerunning affected branches when necessary; its evidence supplies no saved VM state. Child effects remain separate later observations.

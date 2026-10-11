@@ -456,6 +456,9 @@ REVOKE_DISABLED_OPERATIONS = {
     'parent-revoke-disabled-off': False,
 }
 OPERATIONS |= REVOKE_DISABLED_OPERATIONS.keys()
+REVOKE_CANCEL_OPERATIONS = frozenset('revoke-' + action for action in (
+    'balances', 'open', 'warning', 'cancel', 'wrong-child', 'wrong-confirmation'))
+OPERATIONS |= REVOKE_CANCEL_OPERATIONS
 OPERATIONS |= frozenset({'parent-new-window-absent', 'parent-new-window-refused'})
 OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused',
                          'parent-restart-wrong-refused', 'parent-initial-selection'})
@@ -5909,6 +5912,58 @@ class AccessibleUI:
                 'idle': True, 'sensitive': sensitive,
                 **{key + '_seconds': balances[key]['seconds']
                    for key in ('daily', 'one_time', 'total')}}
+
+    def revoke_warning(self, child):
+        """PARENT17: fresh selected-child and owned warning proof, without input."""
+        self.time_explanation_entry(child)
+        # GTK dialogs are separate surfaces. The shared resolver verifies the
+        # transient Parent owner; they are not descendants of parent-window.
+        dialog = self.id_target('parent-revoke-dialog')
+        require(self.surface_available(dialog), 'ui:revoke-dialog')
+        warning = self.id_target('parent-revoke-warning', root=dialog).get_name()
+        expected = ('This will revoke one-time screen time and access to soft blocked apps '
+                    'granted to ' + child + ', close their running blocked apps, and lock their '
+                    'desktop when no time remains. Their remaining daily time allowance is not impacted.')
+        require(warning == expected, 'ui:revoke-warning')
+        for identity in ('parent-revoke-cancel', 'parent-revoke-confirm'):
+            self.id_target(identity, root=dialog, sensitive=True)
+        return {'child': CHILD_IDENTITIES[child], 'warning': 'time-apps-daily-preserved'}
+
+    def open_revoke_warning(self, child):
+        self.time_explanation_entry(child)
+        self.id_target('parent-revoke-button', root=self.parent(), sensitive=True)
+        self.activate_id('parent-revoke-button')
+        return self.revoke_warning(child)
+
+    def cancel_revoke(self, child, response='parent-revoke-cancel'):
+        """PARENT18 Cancel only; refuse confirmation before any UI discovery."""
+        require(response == 'parent-revoke-cancel', 'ui:revoke-response')
+        self.revoke_warning(child)
+        self.activate_id(response)
+        self.wait(lambda: self.absent_id('parent-revoke-dialog', within='parent-window'),
+                  'revoke-cancelled')
+        return {'child': CHILD_IDENTITIES[child], 'cancelled': True}
+
+    def revoke_cancel_operation(self, operation):
+        require(operation in REVOKE_CANCEL_OPERATIONS, 'ui:revoke-operation')
+        if operation == 'revoke-balances':
+            return {'settings': self.settings(CHILD),
+                    'balances': self.reach_time_explanation(CHILD)}
+        if operation in ('revoke-wrong-child', 'revoke-wrong-confirmation'):
+            try:
+                self.cancel_revoke(EXISTING_CHILD if operation.endswith('child') else CHILD,
+                    'parent-revoke-confirm' if operation.endswith('confirmation') else
+                    'parent-revoke-cancel')
+            except UiError as error:
+                require(str(error) == ('ui:wrong-child' if operation.endswith('child') else
+                                       'ui:revoke-response'), 'ui:revoke-refusal')
+                return {'refusal': operation.removeprefix('revoke-')}
+            raise UiError('ui:revoke-refusal-missing')
+        if operation == 'revoke-open':
+            return self.open_revoke_warning(CHILD)
+        if operation == 'revoke-warning':
+            return self.revoke_warning(CHILD)
+        return self.cancel_revoke(CHILD)
 
     def time_explanation_entry(self, child):
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
@@ -11493,6 +11548,8 @@ class AccessibleUI:
             result['time_explanation'] = self.time_explanation_operation(operation, child=child)
         elif operation in REVOKE_DISABLED_OPERATIONS:
             result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
+        elif operation in REVOKE_CANCEL_OPERATIONS:
+            result['revoke_cancel'] = self.revoke_cancel_operation(operation)
         elif operation in INVALID_ALLOWANCE_OPERATIONS:
             result['allowance_validation'] = self.invalid_allowance(
                 INVALID_ALLOWANCE_OPERATIONS[operation])

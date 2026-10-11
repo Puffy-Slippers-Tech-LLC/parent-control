@@ -821,6 +821,8 @@ def test_rejected_parent_rule_report_review_and_confirmed_policy(
 @pytest.mark.parametrize("running", (True, False), ids=("running-apps", "no-running-apps"))
 def test_parent_app_search_rule_edit_and_revocation_confirmation(
         launch_ui, automation, wait_for_accessible_state, tmp_path, running):
+    from gi.repository import GLib
+    from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD
     path = tmp_path / "app-events.jsonl"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       events_path=path, scenario="normal" if running else "no-running-apps")
@@ -852,7 +854,17 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     ui.activate("parent-page-screen-limits")
     wait_for_accessible_state(lambda: ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE),
                               "revoke action is ready")
-    ui.activate("parent-revoke-button")
+    reader = AccessibleUI(
+        ui.api, timeout=10, query_errors=ui.query_errors,
+        owner_pids=ui.owner_pids, application_ids=ui.application_ids,
+        application_owners=ui.application_owners,
+        application_owner_history=ui.application_owner_history,
+        fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
+        dispatch=lambda: GLib.MainContext.default().iteration(False),
+    )
+    before_settings = reader.settings(CHILD)
+    before_balances = reader.reach_time_explanation(CHILD)
+    reader.open_revoke_warning(CHILD)
     wait_for_accessible_state(lambda: ui.showing("parent-revoke-dialog"),
                               "revoke confirmation opens")
     assert audit_product_controls(ui, "parent-revoke-dialog")
@@ -868,6 +880,12 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     else:
         assert ui.find("parent-revoke-apps-heading") is None
         assert ui.find("parent-revoke-apps") is None
+    reader.cancel_revoke(CHILD)
+    assert reader.settings(CHILD) == before_settings
+    after_balances = reader.reach_time_explanation(CHILD)
+    assert all(after_balances[key] == before_balances[key] for key in ('daily', 'one_time', 'total'))
+    assert all(record['event'] != 'revoke_one_time_grant' for record in read_events(path))
+    reader.open_revoke_warning(CHILD)
     ui.activate("parent-revoke-confirm")
     wait_for_accessible_state(
         lambda: any(record["event"] == "revoke_one_time_grant"

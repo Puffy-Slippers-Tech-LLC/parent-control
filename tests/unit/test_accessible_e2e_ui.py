@@ -870,6 +870,65 @@ def time_explanation_ui():
     return ui, root, picker, section, explanation, collapse
 
 
+@pytest.mark.parametrize('fault', ['', 'child', 'warning', 'disabled', 'duplicate', 'confirmation'])
+def test_revoke_cancel_proves_target_and_refuses_before_input(fault):
+    ui, root, picker, *_ = time_explanation_ui()
+    warning = Node('This will revoke one-time screen time and access to soft blocked apps '
+        'granted to Riley (Child), close their running blocked apps, and lock their desktop '
+        'when no time remains. Their remaining daily time allowance is not impacted.',
+        'label', identity='parent-revoke-warning')
+    cancel = Node(identity='parent-revoke-cancel')
+    confirm = Node(identity='parent-revoke-confirm')
+    dialog = Node(identity='parent-revoke-dialog', children=[warning, cancel, confirm],
+                  states=('showing', 'visible', 'sensitive', 'active', 'modal'))
+    application = ui.root()
+    application.children.append(dialog)
+    dialog.parent = application
+    dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: root)]
+    cancel.action.do_action.side_effect = lambda _: (application.children.remove(dialog) or True)
+    if fault == 'child': picker.children[0].identity = 'parent-child-selected-1002'
+    if fault == 'warning': warning.name = warning.name.replace('Riley', 'Jordan')
+    if fault == 'disabled': cancel.states.remove('sensitive')
+    if fault == 'duplicate': dialog.children.append(Node(identity='parent-revoke-cancel'))
+    if fault == 'confirmation':
+        ui.revoke_warning = Mock(side_effect=AssertionError('discovery must not occur'))
+    if fault:
+        with pytest.raises(UiError):
+            ui.cancel_revoke(accessible_ui.CHILD,
+                'parent-revoke-confirm' if fault == 'confirmation' else 'parent-revoke-cancel')
+        cancel.action.do_action.assert_not_called()
+    else:
+        assert ui.revoke_warning(accessible_ui.CHILD) == {
+            'child': 'fixture-child', 'warning': 'time-apps-daily-preserved'}
+        cancel.action.do_action.assert_not_called()
+        assert ui.cancel_revoke(accessible_ui.CHILD) == {'child': 'fixture-child', 'cancelled': True}
+        cancel.action.do_action.assert_called_once()
+    confirm.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'seconds', 'precision', 'child', 'extra'])
+def test_revoke_balance_projection_crosses_real_decoder_with_controller_bounds(fault):
+    ui, *_ = time_explanation_ui()
+    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
+             'balances': ui.time_explanation(accessible_ui.CHILD)}
+    if fault == 'seconds': value['balances']['daily']['seconds'] = 42
+    if fault == 'precision': value['balances']['daily']['precision_seconds'] = 60
+    if fault == 'child': value['settings']['child'] = 'other-child'
+    if fault == 'extra': value['balances']['unreviewed'] = 'private'
+    result = {'operation': 'revoke-balances', 'outcome': 'passed',
+              'interface': 'ApplicationUI+external-provider', 'revoke_cancel': value}
+    transport = Mock()
+    transport.call.return_value = json.dumps(result).encode()
+    if fault:
+        with pytest.raises(EvidenceError): UiObservations(transport).observe('revoke-balances')
+    else:
+        observed = UiObservations(transport).observe('revoke-balances')['revoke_cancel']
+        start, end = observed.pop('read_bounds')
+        assert 0 < start <= end
+        assert observed == value
+
+
 def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch):
     ui, root, _picker, _section, _explanation, _collapse = time_explanation_ui()
     monkeypatch.setattr(accessible_ui.time, 'monotonic_ns', Mock(side_effect=[123, 456]))

@@ -116,6 +116,44 @@ import named_child_custom_saves
 import allowance_presets
 import allowance
 import time_explanation
+
+
+@pytest.mark.parametrize('fault', ['', 'grant', 'settings', 'clock', 'missing', 'replay'])
+def test_revoke_cancel_real_step_preserves_checks_before_durable_reply(tmp_path, fault):
+    # Existing private files/recorders only; no new process, bus or cleanup owner.
+    from copy import deepcopy
+    from time_explanation import RevokeCancelJourney, REVOKE_PLAN
+    journey = RevokeCancelJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
+    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
+        'balances': {'child': 'fixture-child', 'expanded': True, 'observed_monotonic_ns': 1_000_000_000,
+            **{key: {'text': text, 'seconds': seconds, 'precision_seconds': 1}
+               for key, text, seconds in (('daily', '15m', 900), ('one_time', '16m 15s', 975),
+                                          ('total', '16m 15s', 975))}},
+        'read_bounds': [1_000_000_000, 2_000_000_000]}
+    if fault != 'missing': journey.check_settings('before', {'ui': {'revoke_cancel': value}})
+    current = deepcopy(value)
+    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
+    current['balances']['observed_monotonic_ns'] = 3_000_000_000
+    if fault == 'grant': current['balances']['one_time']['seconds'] = 0
+    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
+    if fault == 'clock': current['read_bounds'] = [1, 2]
+    if fault == 'replay': journey.check_settings('first-balances', {'ui': {'revoke_cancel': current}})
+    # A caller mutation cannot rewrite the stored baseline.
+    value['settings']['allowance'].clear()
+    stage = 'first-balances'
+    journey.steps = [{'stage': s} for s in REVOKE_PLAN.stages[:REVOKE_PLAN.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': 'revoke-balances', 'outcome': 'passed', 'revoke_cancel': current}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert journey.steps[-1]['comparison']['unchanged_balances_with_elapsed_bounds']
 import fresh_thirty_allowance
 import parent_discovery
 import shell_search_results

@@ -237,16 +237,16 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 '''
 
 
-@pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review'])
+@pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing'])
 @pytest.mark.parametrize('binding', ['approval', 'rejection'])
 @pytest.mark.parametrize('credential', ['fixture-only-canary', 'onpc-wrong-fixture-password'])
-@pytest.mark.parametrize('flow', [False, True])
-def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, flow):
+@pytest.mark.parametrize('scope', ['base', 'flow', 'package-removal', 'revoke-cancel', 'unknown'])
+def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, scope):
     program = r'''
 use strict; use warnings; use JSON::PP;
 our $fault = shift @ARGV; our @events;
 our $binding = shift @ARGV; our $credential = shift @ARGV;
-our $flow = shift @ARGV;
+our $scope = shift @ARGV;
 BEGIN { $INC{'testapi.pm'} = 1; }
 package testapi;
 sub record_info { }
@@ -260,12 +260,13 @@ sub type_password {
 }
 package main;
 require onpc_journey; require onpc_password;
-my $journey = onpc_journey->new(prefix => $flow ? 'kiosk-approval-flow' : 'kiosk-' . $binding, review => ($fault eq 'review' ? 1 : 0),
+my $journey = onpc_journey->new(prefix => $scope eq 'flow' ? 'kiosk-approval-flow' : $scope eq 'base' ? 'kiosk-' . $binding : $scope, review => ($fault eq 'review' ? 1 : 0),
     exchange => sub {
         my ($stage) = @_;
         push @events, $stage;
         die 'fixture-only-canary' if $stage eq $binding . '-' . $fault;
-        return {observed => $stage};
+        return {} if $fault eq 'missing';
+        return {observed => $fault eq 'stale' ? $binding . '-qualified' : $stage};
     });
 my @args = $binding eq 'rejection' ? ($journey, 'wrong') : ($journey);
 my $ok = eval { onpc_password::enter_kiosk_mate_password(@args); 1 };
@@ -275,13 +276,18 @@ my $capture = eval { onpc_password::capture_before_authentication(); 1 };
 print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     retry => $retry ? 1 : 0, capture => $capture ? 1 : 0, events => \@events});
 '''
-    raw = run_perl(program, fault, binding, credential, '1' if flow else '0').stdout
+    raw = run_perl(program, fault, binding, credential, scope).stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
-    assert bool(value['ok']) == (not fault), value
+    allowed = scope in ('base', 'flow') or (scope in ('package-removal', 'revoke-cancel') and binding == 'approval')
+    assert bool(value['ok']) == (allowed and not fault), value
     assert value['retry'] == value['capture'] == 0
     assert len(value['events']) == value['before']
-    assert value['events'].count('type') == (1 if fault in ('', 'typing') else 0)
+    assert value['events'].count('type') == (1 if allowed and fault in ('', 'typing') else 0)
+    if not allowed:
+        assert value['events'] == []
+    elif not fault:
+        assert value['events'] == [binding + '-qualified', binding + '-rechecked', 'read', 'type']
 
 
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'cancel-authority', 'stale'])

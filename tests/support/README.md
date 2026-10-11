@@ -403,6 +403,18 @@ after a product restart.
 
 ## Extend without hiding the scenario
 
+Revocation warning/Cancel uses `AccessibleUI.open_revoke_warning`,
+`revoke_warning` and `cancel_revoke` in both the host preview and installed
+qualification. Separate GTK dialog surfaces use the shared transient-owner
+resolver, never a parent-window subtree assumption. `RevokeCancelJourney`
+declares a real fixed kiosk grant, retained Parent return and two independent
+Cancel entries; the controller validates public settings/time projections and
+brackets balance reads before allowing a durable reply. Confirmation remains
+unsupported by this slice. These operations add no process, storage, bus,
+display or cleanup owner; existing private unit/cleanup/preview classifications
+remain applicable. The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#app-grid-search-and-parent-launch)
+owns qualification status.
+
 Both-child request-transfer histories reuse `request_flow.transfer_allowances` /
 `onpc_request_flow::prepare_transfer_allowances` for public allowance setup,
 independent child reads and the guarded greeter return. Forward and reverse

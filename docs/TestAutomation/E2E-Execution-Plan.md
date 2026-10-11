@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **050a — [Read a revocation warning and Cancel](E2E-Tasks/050a-revoke-cancel.md)**.
+Next task: **050 — [Confirm grant revocation and read balances](E2E-Tasks/050-revocation.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

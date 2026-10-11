@@ -28,3 +28,8 @@ def sources():
     return tuple('fixtures/image-root' + PREFIX + '/' + item
                  for item in (*[asset[1] for asset in ASSETS], *GUI_FILES)) + tuple(
                      'fixtures/native-launchers/' + desktop_id(asset[0]) for asset in ASSETS)
+
+
+def riley_grid_sources():
+    """Same shared executables/GUI and only Riley's declared A launcher."""
+    return (*sources()[:6], sources()[6])

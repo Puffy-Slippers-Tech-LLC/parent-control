@@ -411,6 +411,9 @@ def category_run(root, category, argv, *, pipe=True):
     elif category == 'artifacts' and argv[:2] == ['build', '--output']:
         directory = test_commands.allocate_artifact_output(argv[2])
         print('run-tests: output=' + directory, flush=True)
+    elif category == 'artifacts' and argv[:3] == ['prepare', '--for-vm', '--output']:
+        directory = test_commands.allocate_artifact_output(argv[3])
+        print('run-tests: output=' + directory, flush=True)
     if category == 'child-gjs':
         directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-gjs-coverage-', dir='/tmp')
         for command in commands:

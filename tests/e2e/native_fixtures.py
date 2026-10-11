@@ -13,7 +13,7 @@ from ui_observations import AppRowsObservation
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import ASSETS, desktop_id, sources
+from tests.fixtures.native_assets import ASSETS, desktop_id, sources, riley_grid_sources
 
 
 def guest_source():
@@ -36,7 +36,7 @@ def guest_source():
 
 class NativeFixtures:
     def __init__(self, transport, verified, *, profile='native'):
-        require(profile in ('native', 'chinese'), 'native:profile')
+        require(profile in ('native', 'chinese', 'riley-grid'), 'native:profile')
         self.profile = profile
         self.transport, self.verified = transport, verified
         self.attempt = dict(transport.config)
@@ -48,9 +48,10 @@ class NativeFixtures:
         require(self.transport.config == self.attempt, 'native:wrong-attempt')
         self.transport.guard(self.attempt)
         self.verified.recheck()
-        expected = ({name: self.verified.asset_files[name] for name in sources()}
-                    if self.profile == 'native' else {})
-        if self.profile == 'native':
+        names = riley_grid_sources() if self.profile == 'riley-grid' else sources()
+        expected = ({name: self.verified.asset_files[name] for name in names}
+                    if self.profile != 'chinese' else {})
+        if self.profile != 'chinese':
             require(len({expected[name] for name in sources()[:4]}) == 4, 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action, self.profile,
                                    json.dumps(expected, sort_keys=True)],
@@ -88,13 +89,15 @@ class NativeFixtures:
                 self.receipt = value
                 self.failed = False
                 return {**value, 'independent_readback': True}
-            require(set(value) == {'files', 'launchers'} and set(value['files']) == set(sources())
-                    and value['launchers'] == [desktop_id(asset[0]) for asset in ASSETS],
+            names = riley_grid_sources() if self.profile == 'riley-grid' else sources()
+            launchers = [desktop_id('A')] if self.profile == 'riley-grid' else [desktop_id(asset[0]) for asset in ASSETS]
+            require(set(value) == {'files', 'launchers'} and set(value['files']) == set(names)
+                    and value['launchers'] == launchers,
                     'native:receipt')
             require(self.command('read') == value, 'native:independent-readback')
             self.receipt = value
         self.failed = False
-        return {'verified': 4, 'verified_files': len(value['files']), 'independent_readback': True}
+        return {'verified': len(launchers), 'verified_files': len(value['files']), 'independent_readback': True}
 
 
 def fixture_actions(*, include_refusal=True, profile='native'):
@@ -102,9 +105,7 @@ def fixture_actions(*, include_refusal=True, profile='native'):
     require(type(include_refusal) is bool, 'native:action-binding')
     def controller(journey):
         if not hasattr(journey, 'native_fixtures'):
-            journey.native_fixtures = (NativeFixtures(journey.transport, journey.context.verified)
-                                      if profile == 'native' else NativeFixtures(
-                                          journey.transport, journey.context.verified, profile=profile))
+            journey.native_fixtures = NativeFixtures(journey.transport, journey.context.verified, profile=profile)
         return journey.native_fixtures
 
     def refuse(journey, guard):

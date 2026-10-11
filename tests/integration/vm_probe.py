@@ -52,6 +52,38 @@ def reproduce_transfer_refusal(lease):
                             'riley-refused', 'transfer-refusal')
 
 
+def reproduce_riley_native_grid(lease):
+    """Retain Riley's second grid entry after the actual first launch/use/close."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from riley_native_grid import RileyNativeGridJourney, PLAN
+    from tools.test_storage import named_input
+    assets = named_input(vm_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('riley-native-grid-diagnosis: prepare fixture inputs with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              flush=True)
+    return reproduce_denial(lease, RileyNativeGridJourney, PLAN,
+                            'repeat-refusals', 'riley-native-grid',
+                            assets=assets, boundary_operation='overlay-native-grid-refusals')
+
+
+def probe_riley_native_grid(lease):
+    """Exercise the shared refusal observer on the retained Riley session bus."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Probing Riley second native grid refusal'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-riley-native-grid-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('riley-native-grid-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('overlay-native-grid-refusals')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('riley-native-grid-probe: guarded refusal passed', flush=True)
+
+
 def reproduce_remembered_return(lease):
     """Retain the historical return scene, separate from current case 58."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -155,7 +187,8 @@ def probe_lock_curtain(lease):
         print('lock-probe: guarded curtain read passed', flush=True)
 
 
-def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None):
+def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
+                     assets=None):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -170,6 +203,16 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         transport = connect(lease)
         credentials = FixtureCredentials()
         credentials.provision_online(lease, transport)
+        context = SimpleNamespace(directory=directory, lease=lease)
+        expected_inputs = {}
+        if assets is not None:
+            from provenance import VerifiedInputs, preflight_source
+            staged = directory / 'input'
+            system.stage_assets(system.artifact_source(assets), staged, lease.commands)
+            staged.chmod(0o700)
+            preflight_source(staged)
+            context.verified = VerifiedInputs(lease=lease, assets=staged)
+            expected_inputs = context.verified.source_files
 
         class Reproduction(journey_type):
             def _step(self, guard):
@@ -205,7 +248,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 stream.write(json.dumps({'stage': stage, 'observed': observed}) + '\n')
             print(surface + '-diagnosis: ' + stage, file=sys.stderr, flush=True)
 
-        journey = Reproduction(SimpleNamespace(directory=directory, lease=lease), progress,
+        journey = Reproduction(context, progress,
                                **({'plan': plan} if plan is not None else {}))
 
         def validate():
@@ -228,7 +271,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             return False
 
         result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
-            expected_inputs={}, observe=lambda: None, validate=validate,
+            expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
             guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
         system.require(result['worker_stopped'] and result['callback_closed'],
                        'diagnosis:cleanup-incomplete')

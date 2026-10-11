@@ -250,3 +250,73 @@ def test_qualification_reuses_baseline_without_asset_transfer():
     qualification = object.__new__(NativeFixtureQualification)
     journey = qualification.journey(context, Mock())
     assert isinstance(journey, NativeFixtureJourney) and journey.plan is PLAN
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'bytes', 'mode', 'link', 'foreign-owner', 'wrong-target'])
+def test_riley_same_target_readback_preserves_shared_owner_and_never_repairs(payload, monkeypatch, fault):
+    from tests.fixtures.native_assets import riley_grid_sources
+    shared, all_expected = payload
+    home = Path(shared.pw_dir).parent / 'riley-home'
+    launcher = home / '.local/share/applications' / desktop_id('A')
+    private_directories(launcher.parent, guest.ROOT_DIRECTORY)
+    launcher.write_bytes(desktop_entry(ASSETS[0]).encode())
+    launcher.chmod(0o644)
+    riley = SimpleNamespace(pw_dir=str(home), pw_uid=os.getuid() + 1000, pw_gid=os.getgid() + 1000)
+    monkeypatch.setattr(guest.pwd, 'getpwnam', lambda name: riley if name == guest.session_control.ACCOUNTS['child'] else shared)
+    real_directory = guest.directory
+    # Host-private directories physically belong to the test runner. Leaf
+    # metadata below separately checks the declared guest ownership split.
+    monkeypatch.setattr(guest, 'directory', lambda path, owner: real_directory(path, shared))
+    expected = {source: all_expected[source] for source in riley_grid_sources()}
+    real_read = guest.read_regular
+    calls = []
+    def read(fd, name, *, owner, **options):
+        calls.append((name, owner))
+        data, info = real_read(fd, name, owner=os.getuid(), **options)
+        if owner == riley.pw_uid:
+            assert name == desktop_id('A')
+            if fault == 'foreign-owner': raise ValueError('files:refused')
+            info = SimpleNamespace(**{key: getattr(info, key) for key in
+                ('st_dev', 'st_ino', 'st_mode', 'st_size', 'st_mtime_ns', 'st_ctime_ns')},
+                st_uid=riley.pw_uid, st_gid=riley.pw_gid)
+        return data, info
+    monkeypatch.setattr(guest, 'read_regular', read)
+    if fault == 'missing': launcher.unlink()
+    if fault == 'bytes': launcher.write_bytes(b'changed')
+    if fault == 'mode': launcher.chmod(0o777)
+    if fault == 'link':
+        launcher.rename(launcher.with_suffix('.preserved'))
+        launcher.symlink_to(launcher.with_suffix('.preserved'))
+    if fault == 'wrong-target':
+        launcher.write_bytes(desktop_entry(ASSETS[1]).encode())
+        # Even a caller digest matching a different launcher cannot change A's target.
+        expected[riley_grid_sources()[-1]] = hashlib.sha256(launcher.read_bytes()).hexdigest()
+    before = {path: path.lstat() for path in home.rglob('*')}
+    if fault:
+        with pytest.raises((ValueError, OSError)): guest.execute('read', expected, 'riley-grid')
+    else:
+        first = guest.execute('read', expected, 'riley-grid')
+        assert guest.execute('read', expected, 'riley-grid') == first
+        assert set(first['files']) == set(riley_grid_sources()) and first['launchers'] == [desktop_id('A')]
+        assert all(owner == shared.pw_uid for name, owner in calls if name != desktop_id('A'))
+        assert (desktop_id('A'), riley.pw_uid) in calls
+    # Read access may change atime; no contents, identity or write clocks change.
+    signature = lambda info: (info.st_dev, info.st_ino, info.st_mode, info.st_size,
+                              info.st_mtime_ns, info.st_ctime_ns)
+    assert {path: signature(path.lstat()) for path in before} == {path: signature(info) for path, info in before.items()}
+
+
+def test_riley_controller_reads_its_finite_profile_twice(monkeypatch):
+    from tests.fixtures.native_assets import riley_grid_sources
+    expected = {source: hashlib.sha256(source.encode()).hexdigest() for source in sources()}
+    value = {'files': {source: {} for source in riley_grid_sources()}, 'launchers': [desktop_id('A')]}
+    transport = SimpleNamespace(config={'run': 'owned'}, guard=Mock(), call=Mock(
+        return_value=(json.dumps(value, sort_keys=True) + '\n').encode()))
+    verified = SimpleNamespace(recheck=Mock(), asset_files=expected)
+    fixture = controller.NativeFixtures(transport, verified, profile='riley-grid')
+    assert fixture.verify() == {'verified': 1, 'verified_files': 7, 'independent_readback': True}
+    assert transport.call.call_count == 2
+    for call in transport.call.call_args_list:
+        assert call.args[0][4] == 'riley-grid'
+        assert json.loads(call.args[0][5]) == {source: expected[source] for source in riley_grid_sources()}
+    with pytest.raises(EvidenceError, match='replay'): fixture.verify()

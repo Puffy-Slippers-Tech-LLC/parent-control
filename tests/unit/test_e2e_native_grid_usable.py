@@ -334,3 +334,268 @@ print encode_json({ok => $ok ? 1 : 0, error => $@, events => \@events});
     else:
         assert ['finish'] not in events
         assert not any(event[0] == 'seen' and event[1].startswith('repeat-') for event in events)
+
+
+def test_riley_grid_registration_decoder_and_real_recorder_startup(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+    import check_e2e_riley_native_grid as riley_check
+    from riley_native_grid import PLAN as plan, RileyNativeGridJourney
+    from installed_journey import record_installed_journey
+    from parent_setup_qualification import RileyNativeGridQualification
+    from journey_blocks import native_usable_app
+
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
+    assert isinstance(RileyNativeGridQualification.journey(context, Mock()), RileyNativeGridJourney)
+    assert context.installed_snapshot.startswith('onpc-v')
+    assert {tag[3:] for tag in plan.screen_tags.values() if tag.startswith('ui:')} <= accessible_ui.OPERATIONS
+    assert accessible_ui.OVERLAY_NATIVE_OPERATIONS <= OPERATION_LABELS.keys()
+    assert native_usable_app('grid', child='child')['app-grid'] == 'ui:overlay-native-grid'
+    assets = object()
+    monkeypatch.setattr(riley_check, 'named_input', Mock(return_value=assets))
+    monkeypatch.setattr(riley_check, 'smoke', Mock(return_value=0))
+    assert riley_check.main() == 0
+    riley_check.named_input.assert_called_once_with(vm_source=True, fixture_source=True)
+    riley_check.smoke.assert_called_once_with(assets=assets, provision_credentials=True, riley_native_grid=True)
+    for changes in ({}, {'assets': assets, 'provision_credentials': True, 'native_grid_usable': True}):
+        with pytest.raises(CommandError, match='riley-native-grid-prerequisites'):
+            smoke.main(riley_native_grid=True, **changes)
+    provider = {'version': '50.1', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    for operation in ('overlay-native-grid', 'overlay-native-grid-refusals'):
+        raw = json.dumps({'operation': operation, 'outcome': 'passed',
+                          'interface': 'ApplicationUI+external-provider', 'provider': provider}).encode()
+        assert UiObservations(SimpleNamespace(call=Mock(return_value=raw))).observe(operation)['provider'] == provider
+    recorder = MagicMock(assertion=Mock())
+    context.recorder = recorder
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is RileyNativeGridJourney and journey.plan is plan
+        assert set(journey.actions) == {'native-refuse', 'native-verify'}
+        assert options['validate'].__self__ is journey and options['authenticate'] is True
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(recorder, context, plan, journey_type=RileyNativeGridJourney)
+    context.run_worker.assert_called_once()
+    recorder.assertion.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'allowance-configured', 'wrong-account-refused',
+    'repeat-parent-desktop', 'switch-user', 'gdm-switched',
+    'first-search-ready', 'first-search-focused', 'first-search-entered', 'first-app-grid',
+    'uncertain', 'first-opened', 'first-submit', 'first-submitted', 'first-close',
+    'repeat-refusals', 'repeat-app-grid', 'repeat-opened'])
+def test_riley_actual_worker_order_markers_and_no_fallback(fault, tmp_path):
+    from riley_native_grid import PLAN as plan
+    result = json.loads(run_perl(r'''
+use strict; use warnings; use JSON::PP;
+our @events; our $fault = shift @ARGV;
+BEGIN { $INC{'testapi.pm'}=1; }
+package testapi;
+sub record_info { push @main::events, ['marker', $_[0]] }
+sub type_string { push @main::events, ['query', $_[0]] }
+sub send_key { push @main::events, ['key', $_[0]];
+    die 'uncertain' if $main::fault eq 'uncertain' && $_[0] eq 'ret'; }
+package main;
+require onpc_app_rows;
+require onpc_desktop_session;
+no warnings 'redefine';
+*onpc_gdm::reattach_functional = sub {};
+*onpc_gdm::sign_in_challenge = sub {
+    my($j,$binding,$list,$focus,$desktop)=@_;
+    $j->seen($list); $j->seen($focus);
+    $j->seen($_) for @{$j->{challenges}{$binding}}[1,2];
+    return $j->seen($desktop);
+};
+*onpc_parent::launch = sub {$_[0]->seen('parent-command'); $_[0]->seen('parent-window');};
+*onpc_parent::select_child = sub {
+    die 'wrong child' unless $_[1] eq 'child';
+    $_[0]->seen('child-choice-highlighted'); return $_[0]->seen('parent-selected');
+};
+*onpc_journey::finish = sub {push @events, ['finish']};
+my $declared=decode_json(shift @ARGV); my $challenges=decode_json(shift @ARGV);
+my $ok=eval {onpc_app_rows::riley_native_grid(sub {
+    my($stage)=@_; push @events, ['seen',$stage];
+    die 'refused' if $fault ne '' && $stage eq $fault;
+    return {};
+}, $declared, $challenges); 1;};
+print encode_json({ok=>$ok?1:0,error=>$@,events=>\@events});
+''', fault, json.dumps(plan.invocations), json.dumps(plan.challenges)).stdout)
+    events = result['events']
+    assert bool(result['ok']) == (not fault), result['error']
+    assert not any(event == ['seen', 'first-command'] or event == ['seen', 'repeat-command'] for event in events)
+    expected_launches = (2 if not fault or fault == 'repeat-opened' else
+                         1 if fault == 'uncertain' or (fault.startswith('repeat-') and fault != 'repeat-parent-desktop') or fault in
+                         ('first-opened', 'first-submit', 'first-submitted', 'first-close') else 0)
+    assert events.count(['key', 'ret']) == expected_launches
+    if not fault:
+        assert events.count(['key', 'ret']) == 2
+        assert events.count(['query', accessible_ui.NATIVE_PRODUCT]) == 2
+        assert [event[1] for event in events if event[0] == 'seen'] == list(plan.screen_tags)
+        details = [{'title': event[1], 'result': 'ok'} for event in events if event[0] == 'marker']
+        observations = [{'stage': stage, 'ui': {'operation': tag[3:], 'outcome': 'passed',
+            'interface': 'ApplicationUI+external-provider'}} for stage, tag in plan.screen_tags.items()]
+        for observation in observations:
+            tag = plan.screen_tags[observation['stage']]
+            if tag.startswith('system:'):
+                observation['system'] = {'operation': tag[7:], 'outcome': 'passed'}
+                del observation['ui']
+            if plan.challenge_at(observation['stage']) is not None:
+                observation['challenge'] = plan.challenge_at(observation['stage'])
+        results = tmp_path / 'testresults'
+        results.mkdir()
+        (results / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
+        assert [item['stage'] for item in matched_screens(tmp_path, plan, observations)] == list(plan.screen_tags)
+        assert events[-1] == ['finish']
+    else:
+        assert ['finish'] not in events
+        if fault != 'uncertain':
+            assert [event[1] for event in events if event[0] == 'seen'] == list(plan.screen_tags)[:list(plan.screen_tags).index(fault) + 1]
+
+
+def test_riley_grid_account_and_result_refuse_before_unrelated_discovery(monkeypatch):
+    ui = ui_for(Node())
+    discovery = Mock(side_effect=AssertionError('discovery must not run'))
+    ui.shell_search_snapshot = discovery
+    ui.require_child_overlay_session = Mock(side_effect=UiError('ui:overlay-account'))
+    with pytest.raises(UiError, match='ui:overlay-account'):
+        ui.run('overlay-native-grid', '')
+    discovery.assert_not_called()
+    ui.require_child_overlay_session = Mock()
+    for product, uncertain, expected in (('ONPC Hard Fixture', False, 'ui:search-binding'),
+                                        (accessible_ui.NATIVE_PRODUCT, True, 'ui:uncertain-input')):
+        ui.input_uncertain = uncertain
+        with pytest.raises(UiError, match=expected): ui.focus_search_result(product)
+        discovery.assert_not_called()
+
+
+@pytest.mark.parametrize('route', ['semantic', 'ids'])
+@pytest.mark.parametrize('fault', ['incomplete', 'departed', 'persistent', 'missing',
+                                  'ambiguous', 'delivery'])
+def test_grid_final_recipient_reacquires_only_reads_before_single_focus(monkeypatch, route, fault):
+    from gi.repository import Gio, GLib
+    ui = ui_for(Node())
+    ui.provider_contracts['gnome-shell']['application_id'] = '' if route == 'semantic' else 'test-shell'
+    ui.handle_system_prompt = Mock()
+    ui.search_query = Mock(return_value=True)
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 1
+    clock = [0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: clock.__setitem__(0, clock[0] + .5))
+    target = Node(accessible_ui.NATIVE_PRODUCT, 'button')
+    departed = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'departed provider')
+    reads = []
+
+    def fresh(*_args):
+        reads.append(True)
+        if not target.component.grab_focus.called:
+            if len(reads) == 2 or fault == 'persistent' and len(reads) >= 2:
+                if fault in ('departed', 'persistent'):
+                    raise departed
+                if fault == 'incomplete':
+                    raise UiError('ui:incomplete-tree')
+                if fault == 'missing':
+                    return None
+                if fault == 'ambiguous':
+                    raise UiError('ui:shell-result-ambiguous')
+        return target
+
+    if route == 'semantic':
+        ui.launchable_result = Mock(side_effect=fresh)
+    else:
+        ui.launchable_result = Mock(return_value=target)
+        # Count the initial result proof and the independent final ID recheck.
+        ui.launchable_result.side_effect = lambda _product: (fresh() if not reads else target)
+        ui.fresh_owned_target = Mock(side_effect=fresh)
+    if fault == 'delivery':
+        target.component.grab_focus.side_effect = departed
+    if fault in ('persistent', 'missing', 'ambiguous'):
+        expected = {'persistent': 'ui:timeout:parent-search-recipient',
+                    'missing': 'ui:search-result-stale', 'ambiguous': 'ui:shell-result-ambiguous'}[fault]
+        with pytest.raises(UiError, match=expected):
+            ui.focus_search_result(accessible_ui.NATIVE_PRODUCT)
+        target.component.grab_focus.assert_not_called()
+    elif fault == 'delivery':
+        with pytest.raises(GLib.Error) as caught:
+            ui.focus_search_result(accessible_ui.NATIVE_PRODUCT)
+        assert caught.value is departed
+        with pytest.raises(UiError, match='ui:uncertain-input'):
+            ui.focus_search_result(accessible_ui.NATIVE_PRODUCT)
+        target.component.grab_focus.assert_called_once()
+    else:
+        ui.focus_search_result(accessible_ui.NATIVE_PRODUCT)
+        target.component.grab_focus.assert_called_once()
+        assert len(reads) >= 3 and not ui.input_uncertain
+
+
+@pytest.mark.parametrize('fault', ['departed', 'incomplete', 'persistent', 'query', 'focus', 'ambiguous'])
+def test_grid_refusal_comparison_reacquires_whole_reads_without_refocusing(monkeypatch, fault):
+    from gi.repository import Gio, GLib
+    ui = ui_for(Node())
+    ui.provider_contracts['gnome-shell']['application_id'] = ''
+    ui.handle_system_prompt = Mock()
+    ui.query_errors = (GLib.Error,)
+    ui.timeout = 1
+    clock = [0]
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: clock.__setitem__(0, clock[0] + .5))
+    target = Node(accessible_ui.NATIVE_PRODUCT, 'button')
+    departed = Gio.DBusError.new_for_dbus_error(
+        'org.freedesktop.DBus.Error.ServiceUnknown', 'departed provider')
+    queries = []
+
+    def query(_product):
+        queries.append(True)
+        if len(queries) == 1:
+            return True
+        target.component.grab_focus.assert_called_once()
+        if len(queries) == 2 or fault == 'persistent':
+            if fault in ('departed', 'persistent'):
+                raise departed
+            if fault == 'incomplete':
+                raise UiError('ui:incomplete-tree')
+            if fault == 'query':
+                return False
+            if fault == 'focus':
+                target.states.discard('focused')
+            if fault == 'ambiguous':
+                raise UiError('ui:shell-result-ambiguous')
+        return True
+
+    ui.search_query = Mock(side_effect=query)
+    ui.launchable_result = Mock(return_value=target)
+    if fault in ('persistent', 'query', 'focus', 'ambiguous'):
+        expected = {'persistent': 'ui:timeout:native-refusal-entry',
+                    'query': 'ui:native-refusal-query', 'focus': 'ui:native-refusal-focus',
+                    'ambiguous': 'ui:shell-result-ambiguous'}[fault]
+        with pytest.raises(UiError, match=expected):
+            ui.native_app_operation('native-grid-refusals', child=accessible_ui.CHILD)
+    else:
+        ui.native_app_operation('native-grid-refusals', child=accessible_ui.CHILD)
+        assert len(queries) == 3
+    target.component.grab_focus.assert_called_once()
+    target.action.do_action.assert_not_called()
+    assert not ui.input_uncertain
+
+
+@pytest.mark.parametrize('operation', ['native-grid', 'overlay-native-grid',
+                                     'native-grid-refusals', 'overlay-native-grid-refusals'])
+def test_grid_metadata_uses_the_same_complete_read_reacquisition(monkeypatch, operation):
+    from gi.repository import Gio, GLib
+    ui = ui_for(Node())
+    ui.query_errors = (GLib.Error,)
+    ui.native_app_operation = Mock()
+    ui.require_child_overlay_session = Mock()
+    owner = Node(role='application')
+    metadata = {'version': '50.5', 'locale': 'en_US.UTF-8', 'keyboard': [['xkb', 'us']]}
+    ui._shell_provider_metadata = Mock(return_value=metadata)
+    ui.shell_search_snapshot = Mock(side_effect=[
+        Gio.DBusError.new_for_dbus_error('org.freedesktop.DBus.Error.ServiceUnknown', 'departed'),
+        (owner, [], {}, {})])
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _: None)
+    assert ui.run(operation, '')['provider'] == metadata
+    assert ui.shell_search_snapshot.call_count == 2
+    ui.native_app_operation.assert_called_once()

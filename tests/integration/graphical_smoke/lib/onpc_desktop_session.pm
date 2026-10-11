@@ -15,7 +15,7 @@ sub switch_user {
     my ($journey, $desktop, $stage) = @_;
     $stage //= 'desktop';
     die 'desk:switch-binding' unless (@_ == 2 || @_ == 3) && ref($journey) eq 'onpc_journey'
-        && ($stage eq 'desktop' || $stage eq 'repeat-desktop');
+        && ($stage eq 'desktop' || $stage eq 'repeat-desktop' || $stage eq 'repeat-parent-desktop');
     $journey->consume_observation($stage, $desktop);
     $journey->seen('switch-user');
     return $journey->seen('gdm-switched');

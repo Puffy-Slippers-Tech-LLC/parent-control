@@ -1512,7 +1512,7 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             AppActivityObservation.from_value(result['activity'])
             expected['activity'] = result['activity']
-        if operation in ('native-grid', 'native-grid-refusals'):
+        if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
         if operation in accessible_ui.COUNTDOWN_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')

@@ -11,9 +11,9 @@ import sys
 
 from guest_files import identity, read_regular, require
 if __name__ == '__main__':
-    from native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources
+    from native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources, riley_grid_sources
 else:
-    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources
+    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources, riley_grid_sources
 import session_control
 
 LIMIT = 2 * 1024 * 1024
@@ -86,6 +86,32 @@ def readback(child, expected):
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in ASSETS]}
 
 
+def riley_readback(shared_owner, expected):
+    """Read only; executable ownership stays Jordan's, launcher ownership Riley's."""
+    require(type(expected) is dict and set(expected) == set(riley_grid_sources())
+            and all(type(value) is str and len(value) == 64
+                    and all(c in '0123456789abcdef' for c in value) for value in expected.values())
+            and len({expected[source] for source in sources()[:4]}) == 4)
+    riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
+    require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)
+    targets = {source: (path, mode, shared_owner)
+               for source, (path, mode) in destinations(shared_owner).items()
+               if source in sources()[:6]}
+    launcher = riley_grid_sources()[-1]
+    targets[launcher] = (Path(riley.pw_dir) / '.local/share/applications' / desktop_id('A'),
+                         0o644, riley)
+    result = {}
+    for source, (target, mode, owner) in targets.items():
+        with directory(target.parent, owner) as (fd, guard):
+            data, info = read_regular(fd, target.name, owner=owner.pw_uid, mode=mode, limit=LIMIT)
+            require(info.st_gid == owner.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
+            if source == launcher:
+                require(data == desktop_entry(ASSETS[0]).encode())
+            guard()
+        result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
+    return {'files': result, 'launchers': [desktop_id('A')]}
+
+
 def product_tree(g, path, parent):
     """Bounded read-only preservation witness for installed product directories.
 
@@ -135,7 +161,7 @@ def product_tree(g, path, parent):
 
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
-    require(profile in ('native', 'chinese'))
+    require(profile in ('native', 'chinese', 'riley-grid'))
     if action == 'refuse':
         try:
             authority()
@@ -183,6 +209,8 @@ def execute(action, expected, profile='native'):
         result = verify(g)
         require(state() == before)
         result.update(unchanged_state=True)
+    elif profile == 'riley-grid':
+        result = riley_readback(child, expected)
     else:
         result = readback(child, expected)
     require(session_control.source_session(session_control.sessions(), parent.pw_uid) == entry)

@@ -410,9 +410,11 @@ sub native_use_app {
 # FLOW08: explicitly qualified native usable routes, no denial fallback.
 sub native_usable_app {
     onpc_progress::operation('Launching and using the declared native app route');
-    my ($journey, $route, $desktop) = @_;
-    die 'native:usable-binding' unless @_ == 3 && ref($journey) eq 'onpc_journey'
-        && defined($route) && ($route eq 'command' || $route eq 'grid');
+    my ($journey, $route, $desktop, $child) = @_;
+    $child //= 'other-child';
+    die 'native:usable-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
+        && defined($route) && ($route eq 'command' || $route eq 'grid')
+        && ($child eq 'child' || $child eq 'other-child');
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
                                    : native_open_grid($journey, $desktop);
     return native_use_app($journey, $opened);
@@ -504,6 +506,42 @@ sub native_grid_usable {
     # under the original operation's single-use observation identity.
     my $grid = $repeat->seen('app-grid');
     $opened = native_launch_grid($repeat, $grid);
+    native_close_app($repeat, native_use_app($repeat, $opened));
+    $journey->finish();
+}
+
+sub riley_native_grid {
+    onpc_progress::operation('Qualifying Riley same-target native grid access');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'riley-native-grid', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->seen('wrong-account-refused');
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-parent-desktop'),
+                                      'repeat-parent-desktop');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    my $first = _native_activity_scope($journey, 'first');
+    native_close_app($first, native_usable_app($first, 'grid', $first->seen('desktop'), 'child'));
+
+    # Independent valid entry, plus a mismatched result proof and focused
+    # controller refusals. A refused/uncertain grid never falls back to command.
+    my $repeat = _native_activity_scope($journey, 'repeat');
+    my $grid = native_search($repeat, $repeat->seen('desktop'), 'refusals');
+    my $accepted = eval { native_launch_grid($repeat, $grid); 1; };
+    die 'native:wrong-result-accepted' if $accepted;
+    die 'native:wrong-refusal' unless $@ =~ /journey:stale-observation/;
+    my $opened = native_launch_grid($repeat, $repeat->seen('app-grid'));
     native_close_app($repeat, native_use_app($repeat, $opened));
     $journey->finish();
 }

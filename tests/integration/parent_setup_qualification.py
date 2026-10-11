@@ -1536,6 +1536,16 @@ class NativeAppQualification(KioskEntryQualification):
         return NativeAppJourney(context, progress)
 
 
+class RileyNativeGridQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from riley_native_grid import RileyNativeGridJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RileyNativeGridJourney(context, progress)
+
+
 class NativeGridQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

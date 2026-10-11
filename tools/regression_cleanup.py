@@ -149,6 +149,12 @@ from regression_resources import HOST_WORKERS
 # Fedora package/transfer/platform regressions retain those same private files,
 # process-local command/account/OS doubles and bounded waited Perl children.
 # Existing package_authority, package_upgrade, e2e_asset_transfer,
+# Riley's native fixture readback uses private descriptor trees and ownership
+# doubles, adding no VM, bus, shared path or lifecycle owner; compatible here
+# and in the unit inventory.
+# Qualification clock/secret checks retain pytest-private collector files and
+# process-local clock doubles; graphical-smoke safety remains compatible in
+# this prerequisite inventory and the unit inventory.
 # native_fixtures and desktop_language cleanup classifications stay compatible;
 # live attempts inherit the unchanged envelope's lease and collection owner.
 # Chinese lifecycle shares private pytest/recorder files and waited Perl only;

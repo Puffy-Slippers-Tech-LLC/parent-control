@@ -374,6 +374,7 @@ def main(argv=None):
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
+                                          'reproduce-riley-native-grid', 'probe-riley-native-grid',
                                           'reproduce-remembered-return', 'probe-remembered-return',
                                           'repeat-remembered-return', 'enter-remembered-return'))
     parser.add_argument('keys', nargs='*', type=int)
@@ -433,16 +434,17 @@ def main(argv=None):
             rename_disk(lease)
         elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
-                             'enter-remembered-return'):
+                             'enter-remembered-return', 'reproduce-riley-native-grid'):
             from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial,
                                   reproduce_retained_entry, reproduce_transfer_refusal,
                                   reproduce_remembered_return, repeat_remembered_return,
-                                  enter_remembered_return)
+                                  enter_remembered_return, reproduce_riley_native_grid)
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
+             'reproduce-riley-native-grid': reproduce_riley_native_grid,
              'reproduce-remembered-return': reproduce_remembered_return,
              'repeat-remembered-return': repeat_remembered_return,
              'enter-remembered-return': enter_remembered_return}[args.action](lease)
@@ -462,6 +464,10 @@ def main(argv=None):
             from vm_probe import probe_transfer_refusal
             resume(lease)
             probe_transfer_refusal(lease)
+        elif args.action == 'probe-riley-native-grid':
+            from vm_probe import probe_riley_native_grid
+            resume(lease)
+            probe_riley_native_grid(lease)
         elif args.action == 'probe-remembered-return':
             from vm_probe import probe_remembered_return
             resume(lease)

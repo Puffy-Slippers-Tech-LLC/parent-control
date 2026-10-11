@@ -1005,9 +1005,10 @@ def test_session_workers_consume_fresh_desktop_proofs_once(block, fault):
 
 
 @pytest.mark.parametrize('fault', ['', 'stale', 'replay'])
-def test_switch_after_parent_work_consumes_the_new_desktop_proof(fault):
-    program = LEAF.replace("seen('desktop')", "seen('repeat-desktop')").replace(
-        'switch_user($journey, $desktop)', "switch_user($journey, $desktop, 'repeat-desktop')")
+@pytest.mark.parametrize('stage', ['repeat-desktop', 'repeat-parent-desktop'])
+def test_switch_after_parent_work_consumes_the_new_desktop_proof(fault, stage):
+    program = LEAF.replace("seen('desktop')", f"seen('{stage}')").replace(
+        'switch_user($journey, $desktop)', f"switch_user($journey, $desktop, '{stage}')")
     result = json.loads(run_perl(program, 'switch_user', fault).stdout)
     assert result['ok'] == (not fault)
     assert result['events'] == ([] if fault == 'stale' else

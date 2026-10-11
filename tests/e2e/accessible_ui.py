@@ -179,7 +179,8 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
-    'desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
+    'desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
+    'search-ready', 'search-focused', 'search-entered', 'grid', 'grid-refusals'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
     'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
@@ -10267,10 +10268,16 @@ class AccessibleUI:
         require(product in (PRODUCT, NATIVE_PRODUCT), 'ui:search-binding')
         self.wait(lambda: self.search_query(product), 'parent-search-query')
         target = self.wait(lambda: self.launchable_result(product), 'parent-search-result')
-        target = (self.launchable_result(product)
-                  if not self.provider_contracts['gnome-shell']['application_id'] else
-                  self.fresh_owned_target(target))
-        require(target is not None, 'ui:search-result-stale')
+        def fresh_recipient():
+            current = (self.launchable_result(product)
+                       if not self.provider_contracts['gnome-shell']['application_id'] else
+                       self.fresh_owned_target(target))
+            require(current is not None, 'ui:search-result-stale')
+            return current
+        # Providers can become defunct after the result wait. Discard an
+        # incomplete final read before focus input; complete absence still
+        # refuses immediately, and focus itself is never replayed.
+        target = self.wait(fresh_recipient, 'parent-search-recipient')
         component = target.get_component_iface()
         require(component is not None, 'ui:search-focus-unavailable')
         self.input_uncertain = True
@@ -10478,6 +10485,21 @@ class AccessibleUI:
         elif operation == 'native-search-entered':
             self.wait_search(lambda: self.search_query(NATIVE_PRODUCT), 'native-search-query')
         elif operation in ('native-grid', 'native-grid-refusals'):
+            if operation == 'native-grid-refusals' and child == CHILD:
+                # Wrong declared result and uncertain input refuse before any
+                # provider discovery or focus/input. Never launch a substitute.
+                for product, uncertain, expected in (
+                        ('ONPC Hard Fixture', False, 'ui:search-binding'),
+                        (NATIVE_PRODUCT, True, 'ui:uncertain-input')):
+                    self.input_uncertain = uncertain
+                    try:
+                        self.focus_search_result(product)
+                    except UiError as error:
+                        require(str(error) == expected, 'ui:native-wrong-refusal')
+                    else:
+                        raise UiError('ui:native-refusal-missing')
+                    finally:
+                        self.input_uncertain = False
             self.focus_search_result(NATIVE_PRODUCT)
             if operation == 'native-grid-refusals':
                 for instance, uncertain, expected in (
@@ -10493,10 +10515,16 @@ class AccessibleUI:
                     finally:
                         self.input_uncertain = False
                 # Neither refusal may change the independently supplied grid entry.
-                require(self.search_query(NATIVE_PRODUCT), 'ui:native-refusal-query')
-                node = self.launchable_result(NATIVE_PRODUCT)
-                require(node is not None and self.has_state(node, self.api.StateType.FOCUSED),
-                        'ui:native-refusal-focus')
+                def unchanged_entry():
+                    require(self.search_query(NATIVE_PRODUCT), 'ui:native-refusal-query')
+                    node = self.launchable_result(NATIVE_PRODUCT)
+                    require(node is not None and self.has_state(node, self.api.StateType.FOCUSED),
+                            'ui:native-refusal-focus')
+                    return True
+                # A departing provider invalidates the complete read, not the
+                # entry. Reacquire only this read-only comparison; a complete
+                # changed query or recipient still refuses without new input.
+                self.wait(unchanged_entry, 'native-refusal-entry')
         elif operation == 'native-wrong-entry':
             require(self.native_app_closed(), 'ui:native-wrong-entry')
             try:
@@ -10998,10 +11026,8 @@ class AccessibleUI:
                                              child=CHILD if overlay_native else EXISTING_CHILD)
             if value is not None:
                 result['activity'] = value
-            if operation in ('native-grid', 'native-grid-refusals'):
-                owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
-                require(owner is not None, 'ui:shell-provider-owner')
-                result['provider'] = self._shell_provider_metadata(owner)
+            if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
+                result['provider'] = self.shell_provider_metadata()
         elif operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
         elif operation == 'station-default-entry':
@@ -12395,7 +12421,8 @@ def main():
     # These probes preserve traversal, retry/input policy and the first failure.
     ui.api.provider_diagnostics = sys.argv[1] in (
         'switch-parent-before', 'attachment-remaining', 'chooser-accept',
-        'denied-export-save-chooser-open', 'standard-parent-unavailable')
+        'denied-export-save-chooser-open', 'standard-parent-unavailable',
+        'native-grid-refusals', 'overlay-native-grid-refusals')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except ui.query_errors as error:

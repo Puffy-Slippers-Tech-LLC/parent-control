@@ -132,6 +132,26 @@ def test_vm_preparation_plan_uses_selected_vm():
     assert not safety
 
 
+def test_named_vm_preparation_registers_before_platform_builder(monkeypatch):
+    import regression_process
+    output = str(ROOT / 'output/test-runs/host/allocations/onpc-native-diagnosis-input')
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    args = ['prepare', '--for-vm', '--output', output]
+    planned, safety = commands.plan(ROOT, 'artifacts', args)
+    expected = commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
+    assert planned == [expected] and not safety
+    allocate = Mock(return_value=output)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(ROOT, 'artifacts', args, pipe=False) == 0
+    allocate.assert_called_once_with(output)
+    assert execute.call_args.args[0] == expected
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
+    with pytest.raises(ValueError, match='artifact output must be a new'):
+        commands.plan(ROOT, 'artifacts', args)
+
+
 @pytest.mark.parametrize('status,expected', [(3, 'deb'), (5, 'rpm')])
 @pytest.mark.parametrize('profile', ['', 'fixture_source=True', 'package_source=True'])
 def test_new_wrapper_automatically_uses_verified_vm_builder(
@@ -390,6 +410,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_match_editor', 'check_e2e_match_editor.py',
                                      'check_e2e_policy', 'check_e2e_policy.py',
                                      'check_e2e_native_fixtures', 'check_e2e_native_fixtures.py',
+                                     'check_e2e_riley_native_grid', 'check_e2e_riley_native_grid.py',
                                      'check_e2e_native_grid_usable', 'check_e2e_native_grid_usable.py',
                                      'check_e2e_native_app', 'check_e2e_native_app.py',
                                      'check_e2e_app_activity', 'check_e2e_app_activity.py',

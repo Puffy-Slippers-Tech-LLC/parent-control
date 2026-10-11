@@ -557,6 +557,39 @@ def qualification(tmp_path, local_preparation_source):
             yield controller, lease
 
 
+def test_checkpoint_uses_millisecond_precision_without_weakening_secret_scan(
+        tmp_path, monkeypatch):
+    # A numeric fixture secret can occur in unrelated sub-millisecond clock
+    # digits. The scanner must still refuse it; the producer owns precision.
+    secret = '654321'
+    elapsed = 107.654321987
+    with smoke.PrivateCollector(run_id='qualification-clock', secrets=[secret],
+                                parent=tmp_path) as collector:
+        with pytest.raises(smoke.EvidenceError, match='artifact:secret-detected'):
+            collector.save_report('unrounded', {'monotonic_seconds': elapsed})
+        assert list(collector.path.iterdir()) == []
+        ledger = smoke.runner.RunLedger()
+        result = {'steps': [{'stage': 'desktop', 'outcome': 'passed',
+                            'fixture': {'independent_readback': True, 'verified_files': 7}}]}
+        controller = smoke.Qualification(tmp_path, Mock(), ledger, collector, result, 'host')
+        controller.started = 0
+        controller.active_stage = 'desktop'
+        monkeypatch.setattr(smoke.time, 'monotonic', lambda: elapsed)
+        controller.checkpoint('stage-observed')
+        report = json.loads((collector.path / 'event-000001.json').read_text())
+        assert report['monotonic_seconds'] == 107.654
+        assert report['active_stage'] == 'desktop' and report['result'] == result
+        assert ledger.outcomes['collection']['outcome'] == 'not-run'
+        collector.verify([])
+
+        result['unexpected'] = secret
+        with pytest.raises(smoke.EvidenceError, match='artifact:secret-detected'):
+            controller.checkpoint('stage-observed')
+        assert not (collector.path / 'event-000002.json').exists()
+        assert ledger.outcomes['collection'] == {
+            'outcome': 'failed', 'category': 'smoke:checkpoint-failed'}
+
+
 def reports(controller):
     return [json.loads(path.read_text()) for path in sorted(controller.collector.path.glob('event-*.json'))]
 

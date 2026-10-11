@@ -592,6 +592,12 @@ sub run {
         onpc_app_rows::native_grid_usable(\&exchange);
         return;
     }
+    if ($ready->{riley_native_grid}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::riley_native_grid(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{parent_terminal_provider}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -1,5 +1,14 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Riley native-grid checks extend e2e_native_grid_usable with private recorder
+files, process-local UI/transport doubles and bounded waited Perl children.
+Native fixture readback extends its existing private descriptor trees and
+ownership doubles. No VM, bus, display, shared cache or new lifecycle owner;
+the existing compatible unit/cleanup classifications remain applicable.
+Qualification clock/secret checks use pytest-private collector files and a
+process-local clock double, retaining the graphical-smoke safety module's
+existing compatible classification without a shared clock or cleanup owner.
+
 Kiosk-to-overlay FLOW12 extends e2e_overlay_valid_choices with private request
 snapshots, recorder files and bounded waited Perl workers. No VM, display,
 bus, shared cache or new cleanup owner; its compatible unit bucket still applies.

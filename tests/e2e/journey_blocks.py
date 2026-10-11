@@ -101,8 +101,7 @@ def overlay_license_read(prefix='', *, links='license'):
 def native_usable_app(route, *, child='other-child'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
-    require(child in ('child', 'other-child') and (child != 'child' or route == 'command'),
-            'journey:native-child-binding')
+    require(child in ('child', 'other-child'), 'journey:native-child-binding')
     stages = {
         'desktop': 'ui:native-desktop',
         **({'command': 'ui:native-command-launch'} if route == 'command' else {

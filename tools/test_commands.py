@@ -261,6 +261,7 @@ Aggregate aliases (no suite selectors)
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
+  Add --output PATH to prepare a new named input without replacing existing data.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
   for fixed integration consumers; existing paths are never overwritten.
@@ -557,6 +558,10 @@ def plan(root, category, argv):
             from vm_selection import arguments
             candidate = ['--candidate', artifact_path(argv[3])] if len(argv) == 4 else []
             return [python_file(root, 'tools/vm_artifacts.py', *candidate, *arguments())], False
+        if category == 'artifacts' and len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--output']:
+            from vm_selection import arguments
+            return [python_file(root, 'tools/vm_artifacts.py', '--output',
+                                artifact_output(argv[3]), *arguments())], False
         if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
             return [[*command, '--package-format', 'deb', '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
@@ -667,6 +672,9 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             print('run-tests: output=' + directory, flush=True)
         elif category == 'artifacts' and args[:2] == ['build', '--output']:
             directory = allocate_artifact_output(args[2])
+            print('run-tests: output=' + directory, flush=True)
+        elif category == 'artifacts' and args[:3] == ['prepare', '--for-vm', '--output']:
+            directory = allocate_artifact_output(args[3])
             print('run-tests: output=' + directory, flush=True)
         if category == 'coverage':
             from test_retention import allocate

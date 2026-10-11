@@ -50,6 +50,15 @@ repaired automatically through maintained routes within existing authorization.
 Prepare absent named qualification inputs with the artifact builder and resume
 validation; choosing whether to build or restore them is an implementation detail,
 not a developer question. Preserve existing inputs and all validation guards.
+For a recorded interrupted qualification build with no published manifest,
+`tools/cleanup-e2e --vm NAME --discard-unpublished-input CHECK` recovers only that
+exact host allocation under the [storage contract](Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
+It preserves valid bundles, reports and journals and performs no VM operation.
+For an evidenced input wrongly registered to the batch rather than its VM,
+`tools/cleanup-e2e --vm NAME --transfer-batch-input CHECK` preserves the verified
+bundle and transfers its cleanup ownership under that same storage contract.
+Its baseline probe is read-only; it does not start or restore a VM. Pending
+transfers require the identical guarded recovery, never manual journal edits.
 Prerequisites that cannot be repaired within that scope, and missing grants, are
 blockers, not invitations to bypass controls or retry authentication. Report the
 exact blocker and required external action; continue independent authorized work.

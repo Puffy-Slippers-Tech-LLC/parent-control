@@ -21,6 +21,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # compatible unit and cleanup classifications remain appropriate.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
+# Batch-input transfer coverage adds paired private journals/local locks and
+# synchronous verifier/interruption doubles to those same fixtures. No live VM,
+# shared path or child lifetime is added; its compatible classification holds.
 # Unrelated-package package_authority/package_install checks use private markers,
 # recorder files, package/metadata doubles and bounded waited Perl/Python children.
 # No live package manager, VM, bus, display, shared cache or new cleanup owner;
@@ -518,6 +521,8 @@ def buckets(nodeids):
 # Completed-result discard checks retain private pytest journals and local locks
 # with mocked privileged dispatch. No live VM, workflow or shared path is touched;
 # test_retention keeps its existing compatible unit and cleanup classification.
+# Unpublished-input recovery adds only private journal/identity/refusal fixtures
+# and process-local command doubles; the same compatible classification applies.
 # Oversized execution recovery uses tiny pytest-private journals, real local
 # locks and process-local VM-lease/reference doubles. No live VM, shared path
 # or new subprocess is used; retention remains compatible in both inventories.

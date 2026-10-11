@@ -68,17 +68,10 @@ def run(root, argv):
             if status:
                 return status
         with test_retention.Store(test_activity.retention_path(root)).session():
-            # Fixed qualification bundles have shared immutable names. Build
-            # missing inputs once, before concurrent consumers can observe a
-            # partially prepared directory.
-            from test_commands import selections, qualification_artifact_command
-            for category, options in selections(root, guest_args):
-                preparation = qualification_artifact_command(root, category, options)
-                if preparation is not None:
-                    status = control.run(preparation, cwd=root,
-                                         env=test_launcher.environment(root), cooperative=True)
-                    if status:
-                        return status
+            # Named inputs are VM-bound. Each worker prepares them inside its
+            # own retention session, before its independent guest execution.
+            # A batch-owned allocation would conflict with that VM's old claim
+            # after an interrupted input was removed and recreated.
             evidence = Path(test_retention.allocate(tempfile.mkdtemp, prefix='onpc-vm-queue-'))
             output_lock = threading.Lock()
             frames = {}

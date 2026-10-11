@@ -502,15 +502,14 @@ credential replay. Ubuntu observed `account-list` after the first Escape;
 Fedora observed the renewed `child-prompt` and passed the guarded additional
 cancellation. The historical denial scope remains [documented above](#fresh-child-time-denial-and-return-qualification).
 
-The countdown/inactivity compatibility repair requalified both unchanged success
-routes on Ubuntu 26.04 in `20261011T203811Z-abef90a3` and Fedora 44 in
-`20261011T205617Z-5e6cac3a`. Both independently restored attempts per VM preserved
-and reused the original activity, then passed worker/callback shutdown, owned
-cleanup, baseline restoration, finalization and host/source preservation.
-Ubuntu's report is retained in export `onpc-artifact-export-64n6l35a/report.md`,
-with qualification allocations `onpc-graphical-smoke-nbvcmnmc` and
-`onpc-graphical-smoke-s5vbkab6`. Fedora's allocations are
-`onpc-graphical-smoke-vq_bn1hw` and `onpc-graphical-smoke-a5snf7va`.
+Final validation of the countdown/inactivity compatibility repair requalified
+both unchanged success routes on Ubuntu 26.04 in `20261011T223700Z-cca5264a`
+and Fedora 44 in `20261011T223700Z-c62e01e6`. Both reports are retained under
+`output/test-runs/host/reports/` and also contain the independent TIME01
+enabled/off regression. Both independently restored unlock attempts per VM
+preserved and reused the original activity, then passed worker/callback
+shutdown, owned cleanup, baseline restoration, finalization and host/source
+preservation.
 The separate [minute qualification](#minute-countdown-progression-qualification)
 owns numeric progression evidence; these success routes prove work continuation.
 
@@ -2862,6 +2861,14 @@ Local lock/greeter presentation and explanation checks remain UI obligations
 052b/181h. Installed remaining-time observations, natural exhaustion and complete
 cases retain their own bindings; those UI obligations are not their prerequisites.
 
+Task 052d's final affected regression requalified the unchanged enabled/off
+plans on Ubuntu 26.04 (`20261011T223700Z-cca5264a`) and Fedora 44
+(`20261011T223700Z-c62e01e6`). Each report is retained under
+`output/test-runs/host/reports/` with its two separate restored attempts,
+independent repeated presence/absence assertions and the two successful unlock
+routes. Collection, worker/callback shutdown, owned cleanup, baseline restoration,
+finalization and host/source preservation passed on both VMs.
+
 #### Minute countdown progression qualification
 
 Task 052d's `check_e2e_countdown_minutes` passed clean restored attempts on both
@@ -2877,11 +2884,11 @@ read brackets, with the unchanged 90-second bound and two-second tolerance.
 | Ubuntu 26.04 | `20261011T203216Z-010f7653` | 52.57–55.92 | 56.12–59.49 |
 | Fedora 44 | `20261011T205042Z-9c910e0d` | 51.65–55.43 | 55.24–60.35 |
 
-Ubuntu's report is retained in export `onpc-artifact-export-jwwf26g0/report.md`;
-its qualification allocation is `onpc-graphical-smoke-g827m184`, with worker
-`onpc-e2e-evidence-xfktfrvq`. Fedora's qualification allocation is
-`onpc-graphical-smoke-d5qrmyt_`, with worker `onpc-e2e-evidence-9k6fswlm`.
-Allocations use the shared privileged journal.
+The full reports are retained in
+`output/test-runs/host/exports/onpc-artifact-export-_60f7wto/report.md` (Ubuntu)
+and `output/test-runs/host/exports/onpc-artifact-export-pkrjno2f/report.md` (Fedora).
+The original privileged allocations have rotated; the retained reports contain
+the assertion, collection, lifecycle and preservation results.
 The installed Shell/Malcontent tuples are `50.1-0ubuntu1.3` /
 `0.14.0-0ubuntu1.2` and `50.5-1.fc44` / `0.14.0-1.fc44`, respectively.
 

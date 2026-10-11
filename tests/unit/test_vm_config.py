@@ -759,7 +759,7 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     hosts = []
     monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
     monkeypatch.setattr(test_commands, 'qualification_artifact_command',
-                        lambda root, category, options: ['prepare-input'] if category == 'system' else None)
+                        lambda *args: pytest.fail('batch must not allocate VM-owned inputs'))
     calls, active, peak = [], 0, 0
     gate = threading.Lock()
     class FakeControl:
@@ -769,10 +769,6 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
             yield self
         def run(self, command, *, env, output=None, **kwargs):
             nonlocal active, peak
-            if command == ['prepare-input']:
-                assert active == 0
-                calls.append(('prepare-input', 'host'))
-                return 0
             mode, name = command[3:5]
             assert env[vm_selection.VARIABLE] == name
             assert vm_selection.BATCH not in env
@@ -785,7 +781,6 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
                 active += 1
                 peak = max(peak, active)
             assert command[5:] == ['system', 'e2e']
-            assert ('prepare-input', 'host') in calls
             time.sleep(.02)
             if name == 'guest-0':
                 handoff = tmp_path / 'guest-failure.json'

@@ -610,8 +610,9 @@ using the same compact session transcript as `fix-tests`: agent messages,
 commands and their results remain visually separate, including without color.
 `--stop` finishes the current session, including test cleanup and its handoff or
 task close-out, then starts no further session. In the interactive chat composer,
-Cancel or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
-the same session open for further instructions. Ctrl+C again while waiting for
+Cancel, Escape or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
+the same session open for further instructions. Escape preserves the session when
+already waiting. Ctrl+C again while waiting for
 input cancels the entire launcher. Piped observers retain signal cancellation.
 
 After each completed task, the launcher stages its owned paths and commits them
@@ -1001,9 +1002,11 @@ the running-tests/fixing-errors status.
 `write-e2e` uses a [specialized display](../tools/write_e2e_display.py): the lower
 frame divides output on the left from task information and chat on the right.
 Its initial width ratio is 75:25; dragging the vertical divider changes the
-ratio, which survives terminal resizing. Hover requests the standard horizontal
+ratio, which survives terminal resizing. The divider turns blue while dragging
+and returns to its normal color on release. Hover requests the standard horizontal
 resize pointer using OSC 22; terminals without pointer-shape support keep their
-own pointer. Mouse motion reporting is enabled for this display; use the host
+own pointer, including VS Code's integrated terminal (xterm.js does not implement
+OSC 22). Mouse motion reporting is enabled for this display; use the host
 terminal's Shift selection override for native text selection.
 The right upper panel shows the current task ID/title, session count/duration,
 session phase and selected model/effort. Below a horizontal separator, the
@@ -1012,13 +1015,15 @@ the task scope changes. The agent writes it once rather than repeating it in
 progress output. A separate status shows `Running session 1.` initially; later
 sessions explain the previous failure and attempted resolution in parent/child
 scenario language. These updates are presentation only, never acceptance evidence.
-The bottom-right composer accepts typing during work. Enter sends, Alt+Enter,
-Ctrl+J or supported Shift+Enter inserts a newline; multiline paste never sends
+The bottom-right composer accepts typing during work. Enter sends; Shift+Enter
+inserts a newline in terminals supporting modified-key reporting, which the
+display enables while attached. Alt+Enter and Ctrl+J also insert a newline;
+multiline paste never sends
 automatically. Arrow keys, Home/End, Backspace/Delete and Ctrl+U/Ctrl+K edit
 the draft. Its height follows the content, scrolling around the caret when
 space is limited. Messages steer an active turn or start a continuation in the
 same session after interruption. Replies appear in the left transcript. The
-composer owns Cancel/Ctrl+C; the output pane has no termination shortcut.
+composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
 rule. Mouse wheels scroll the panel under the pointer.
@@ -1422,6 +1427,23 @@ still needed for close-out. Reuse an existing retained export, preserve required
 reports before their execution journal rotates, and verify their actual paths
 after the final export/preparation/check. A remembered export path is not a
 retention guarantee; see [artifact access](#prompt-free-test-artifact-access).
+
+When retained builder output establishes an interruption before manifest
+publication, use `tools/cleanup-e2e --vm NAME --discard-unpublished-input CHECK`
+for its exact named qualification input, then resume normal preparation. The
+[storage mandate](../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes)
+owns the identity, completed-owner and publication guards. This action preserves
+reports and journals and supplies no test acceptance; normal nonempty input
+verification/refusal remains unchanged.
+
+An evidenced batch/per-VM input ownership conflict has a separate nondeleting
+recovery: `tools/cleanup-e2e --vm NAME --transfer-batch-input CHECK`. The
+[storage mandate](../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes)
+owns its two-owner audit, published-input verification and resumable transaction.
+Inputs normally prepare inside their VM worker's retention session. This route
+preserves reports and original records; it neither rotates evidence nor supplies
+acceptance. Pending transfers refuse ordinary retention writes until recovery
+finishes with the original selector.
 
 When the developer explicitly authorizes discarding saved results, use
 `tools/cleanup-e2e --vm NAME --discard-completed` for all completed registered

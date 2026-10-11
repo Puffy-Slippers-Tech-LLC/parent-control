@@ -1034,6 +1034,11 @@ def buckets(nodeids):
 # Completed-result discard tests use private pytest journals, local descriptor
 # locks and process-local dispatcher/VM doubles. No live VM or shared storage;
 # test_test_retention_cleanup_safety remains compatible in both inventories.
+# Targeted unpublished-input recovery uses private journals/local locks and
+# process-local command doubles. Batch-input transfers add paired journals and
+# synchronous
+# interruption/verification doubles. VM queue checks use existing private
+# dispatch doubles; no live guest, bus, shared state or new child owner is added.
 # Oversized recovery adds tiny private journals/local locks and mocked VM
 # leases/live references; transfer fingerprints use bounded in-memory archives
 # and private files. Retention and vm_transport stay compatible; no live guest,

@@ -40,6 +40,31 @@ fresh generation; the launcher registers that new allocation before building.
 Nonempty inputs retain normal manifest/tree verification and refusal, even when
 incomplete. Do not reclaim an empty slot without its recorded identity.
 
+After retained evidence establishes an interrupted artifact build, recover its
+unpublished named input with `tools/cleanup-e2e --vm NAME --discard-unpublished-input CHECK`.
+This explicit action derives the input from that qualification's current literal
+declaration. It requires one VM, checkout ownership and a finished, unmarked host
+journal; it audits the latest recorded allocation identity and refuses any existing
+completion manifest, unknown/replaced root, link or mount. It removes only that
+unpublished allocation, preserving reports and journal records for retry. It opens
+no retention session and changes no VM state. Never use it merely because a
+nonempty bundle fails verification; establish the interrupted build first.
+
+Qualification inputs are VM-bound. A batch controller must leave their
+preparation and registration to each VM worker's retention session. If retained
+evidence establishes that an older batch controller registered a replacement
+over a VM journal's stale claim, use
+`tools/cleanup-e2e --vm NAME --transfer-batch-input CHECK`. This nondeleting
+recovery derives both journals and the input, holds checkout/host activity and
+both completed owners, verifies the published bundle and audits unrelated
+allocations and projected budgets. It preserves original records and reports,
+appends the live identity to the VM owner and retires the batch's cleanup claim.
+Durable intents block ordinary retention mutations until both commits complete;
+an interrupted transfer must resume with the same VM and selector. It refuses
+changed owners, roots or competing intents. It opens no session, rotates no
+evidence and supplies no acceptance. Do not use a transfer to adopt an
+unregistered or invalid input or to bypass a refusal.
+
 ## Prohibited storage choices
 
 - Test producers must not choose `/tmp`, `/var/tmp`, a caller-supplied `TMPDIR`

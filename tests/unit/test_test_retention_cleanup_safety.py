@@ -490,12 +490,387 @@ def test_host_discard_leaves_vm_and_workflow_stores_untouched(tmp_path, monkeypa
     assert (tmp_path / 'workflow-result').exists() and (tmp_path / 'vm-result').exists()
 
 
+def test_unpublished_input_recovery_keeps_reports_and_reuses_the_named_path(tmp_path):
+    from tools import test_storage
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        partial = allocated(tmp_path, 'partial')
+        report = allocated(tmp_path, 'report')
+    unknown = tmp_path / 'unknown'
+    unknown.mkdir()
+    (unknown / 'keep').write_text('unregistered')
+    journal = (store.path / 'current.json').read_bytes()
+    assert store.discard_unpublished_input(partial)
+    assert not partial.exists() and (report / 'test.log').exists()
+    assert (unknown / 'keep').read_text() == 'unregistered'
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert not store.discard_unpublished_input(partial)
+    assert test_storage.named_input_slot(partial) == partial
+    with store.session():
+        new = allocated(tmp_path, 'partial')
+        (new / 'artifact-manifest.json').write_text('completed bundle')
+    assert test_storage.named_input_slot(partial) == new
+    with pytest.raises(ValueError, match='published artifact'):
+        store.discard_unpublished_input(partial)
+    assert (new / 'artifact-manifest.json').read_text() == 'completed bundle'
+
+
+@pytest.mark.parametrize('fault', ['active', 'unfinished', 'marked', 'unknown',
+                                  'replaced', 'symlink', 'mount', 'manifest',
+                                  'corrupt-manifest', 'linked-manifest', 'child-link'])
+def test_unpublished_input_recovery_refuses_unsafe_or_published_inputs(tmp_path, monkeypatch, fault):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        partial = allocated(tmp_path, 'partial')
+        report = allocated(tmp_path, 'report')
+        if fault == 'unfinished':
+            retention.preserve_for_recovery()
+    if fault == 'unfinished':
+        (store.path / 'recovery-required').unlink()
+    if fault == 'marked':
+        (store.path / 'recovery-required').touch(mode=0o600)
+    if fault == 'unknown':
+        partial = tmp_path / 'unknown'
+        partial.mkdir(mode=0o700)
+        (partial / 'test.log').write_text('unknown')
+    if fault in ('replaced', 'symlink'):
+        partial.rename(tmp_path / 'original')
+        if fault == 'symlink':
+            partial.symlink_to(tmp_path / 'original', target_is_directory=True)
+        else:
+            partial.mkdir(mode=0o700)
+            (partial / 'test.log').write_text('replacement')
+    if fault == 'mount':
+        mount = retention.mount_id
+        monkeypatch.setattr(retention, 'mount_id', lambda fd:
+            'foreign' if Path(os.readlink(f'/proc/self/fd/{fd}')) == partial else mount(fd))
+    if fault in ('manifest', 'corrupt-manifest'):
+        (partial / 'artifact-manifest.json').write_text('{}' if fault == 'manifest' else 'invalid')
+    if fault == 'linked-manifest':
+        (partial / 'artifact-manifest.json').symlink_to(tmp_path / 'missing')
+    if fault == 'child-link':
+        (partial / 'child').symlink_to(report)
+    journal = (store.path / 'current.json').read_bytes()
+    if fault == 'active':
+        with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+            with pytest.raises(ValueError, match='another owner'):
+                store.discard_unpublished_input(partial)
+    else:
+        with pytest.raises((ValueError, OSError)):
+            store.discard_unpublished_input(partial)
+    assert (partial / 'test.log').exists() and (report / 'test.log').exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+
+
+def test_unpublished_input_recovery_retries_partial_deletion_and_latest_identity(tmp_path, monkeypatch):
+    store = retention.Store(tmp_path / 'state')
+    with store.session():
+        original = allocated(tmp_path, 'partial')
+    original.rename(tmp_path / 'preserved')
+    with store.session():
+        partial = allocated(tmp_path, 'partial')
+    journal = (store.path / 'current.json').read_bytes()
+    remove = retention.remove
+    def interrupted(record, *, validate_only=False):
+        if not validate_only:
+            (partial / 'test.log').unlink()
+            raise OSError('interrupted deletion')
+        return remove(record, validate_only=True)
+    monkeypatch.setattr(retention, 'remove', interrupted)
+    with pytest.raises(OSError, match='interrupted deletion'):
+        store.discard_unpublished_input(partial)
+    monkeypatch.setattr(retention, 'remove', remove)
+    assert store.discard_unpublished_input(partial)
+    assert (tmp_path / 'preserved/test.log').exists()
+    assert (store.path / 'current.json').read_bytes() == journal
+
+
+def test_unpublished_input_cli_derives_exact_selection_under_checkout_ownership(tmp_path, monkeypatch):
+    import cleanup_e2e
+    import test_commands
+    import test_storage
+    from contextlib import contextmanager
+    calls = []
+    partial = tmp_path / 'partial'
+    @contextmanager
+    def activity(root, **kwargs):
+        assert kwargs == {'includes_host': True}
+        calls.append('owned')
+        yield
+        calls.append('released')
+    monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(cleanup_e2e.vm_config, 'execution',
+                        lambda selection: (1, [SimpleNamespace(name='selected')]))
+    monkeypatch.setattr(cleanup_e2e, 'select', lambda name: calls.append(name))
+    monkeypatch.setattr(test_commands, 'qualification_input_options',
+                        lambda root, selector: {} if selector == 'check_e2e_countdown' else None)
+    monkeypatch.setattr(test_storage, 'named_input', lambda **options: partial)
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'activity', activity)
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'retention_path', lambda root: tmp_path / 'state')
+    monkeypatch.setattr(cleanup_e2e.test_retention, 'Store', lambda path:
+        SimpleNamespace(discard_unpublished_input=lambda selected: calls.append(selected) or True))
+    monkeypatch.setattr(cleanup_e2e, 'cleanup', lambda root: pytest.fail('input recovery touched VM'))
+    assert cleanup_e2e.main(['--vm', 'selected', '--discard-unpublished-input', 'check_e2e_countdown']) == 0
+    assert calls == ['selected', 'owned', partial, 'released']
+    for args in (['--discard-unpublished-input', 'check_e2e_countdown'],
+                 ['--vm', 'all', '--discard-unpublished-input', 'check_e2e_countdown'],
+                 ['--vm', 'selected', '--discard-completed', '--discard-unpublished-input', 'check_e2e_countdown'],
+                 ['--vm', 'selected', '--discard-unpublished-input', '../check_e2e_countdown'],
+                 ['--vm', 'selected', '--discard-unpublished-input', 'check_unavailable']):
+        assert cleanup_e2e.main(args) == 2
+    assert calls == ['selected', 'owned', partial, 'released']
+
+
 def test_recovery_safety_uses_shared_parallel_cleanup_coordinator():
     import regression_process
     root = Path(__file__).resolve().parents[2]
     command = regression_process.safety_command(root)
     assert command == ['/usr/bin/python3', '-IB', str(root / 'tools/regression_process.py'),
                        '--cleanup-prerequisites']
+
+
+def input_transfer_scene(tmp_path):
+    from tools import test_input_transfer
+    source = retention.Store(tmp_path / 'retention-batch')
+    destination = retention.Store(tmp_path / 'retention-selected')
+    with destination.session():
+        path = allocated(tmp_path, 'input')
+        destination_report = allocated(tmp_path, 'destination-report')
+    # Keep the unlinked inode pinned so the new allocation has a distinct
+    # identity even on filesystems which aggressively reuse directory inodes.
+    old = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        destination.discard_unpublished_input(path)
+        with source.session():
+            path = allocated(tmp_path, 'input')
+            (path / 'artifact-manifest.json').write_text('published')
+            source_report = allocated(tmp_path, 'source-report')
+    finally:
+        os.close(old)
+    def perform(verify=lambda path: 0):
+        return test_input_transfer.transfer(source, destination, path,
+            selector='check_e2e_countdown', vm='selected', verify=verify)
+    return source, destination, path, source_report, destination_report, perform
+
+
+def test_input_transfer_preserves_evidence_and_changes_only_cleanup_owner(tmp_path):
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    original = [json.loads((store.path / 'current.json').read_text()) for store in (source, destination)]
+    calls = []
+    assert perform(lambda candidate: calls.append(candidate) or 0)
+    assert calls == [path] and not perform()
+    current = [json.loads((store.path / 'current.json').read_text()) for store in (source, destination)]
+    assert [state['run'] for state in current] == [state['run'] for state in original]
+    assert current[1]['paths'][:-1] == original[1]['paths']
+    assert current[0]['paths'][1:] == original[0]['paths'][1:]
+    assert current[0]['paths'][0]['retired']['destination'] == str(destination.path)
+    assert not any(record['path'] == str(path) for _, record in
+                   retention.latest_allocations([*current[0]['history'], current[0]]))
+    assert sr.exists() and dr.exists() and (path / 'artifact-manifest.json').exists()
+    for _ in range(3):
+        with source.session():
+            pass
+    assert path.exists()  # The former owner cannot evict the transferred input.
+    for _ in range(3):
+        with destination.session():
+            pass
+    assert not path.exists()  # Its recipient owns normal eventual expiration.
+
+
+@pytest.mark.parametrize('step', range(1, 9))
+def test_input_transfer_recovers_each_durable_boundary(tmp_path, monkeypatch, step):
+    from tools import test_input_transfer
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    save, unlink = retention.Store.save, test_input_transfer.os.unlink
+    writes = 0
+    def boundary():
+        nonlocal writes
+        writes += 1
+        if writes == step:
+            raise OSError('interrupted durable transfer')
+    def interrupted_save(store, fd, value, *, name='current.json'):
+        save(store, fd, value, name=name)
+        boundary()
+    def interrupted_unlink(name, **kwargs):
+        unlink(name, **kwargs)
+        if name == test_input_transfer.MARKER:
+            boundary()
+    monkeypatch.setattr(retention.Store, 'save', interrupted_save)
+    monkeypatch.setattr(test_input_transfer.os, 'unlink', interrupted_unlink)
+    with pytest.raises(OSError, match='interrupted durable transfer'):
+        perform()
+    monkeypatch.setattr(retention.Store, 'save', save)
+    monkeypatch.setattr(test_input_transfer.os, 'unlink', unlink)
+    if step <= 5:
+        for store in (source, destination):
+            with pytest.raises(ValueError):
+                with store.session():
+                    pytest.fail('incomplete transfer allowed execution')
+    perform()
+    assert not perform()
+    assert sr.exists() and dr.exists() and path.exists()
+    assert not (source.path / test_input_transfer.MARKER).exists()
+    assert not (destination.path / test_input_transfer.MARKER).exists()
+    with source.session(), destination.session():
+        pass
+
+
+@pytest.mark.parametrize('fault', ['active-source', 'active-destination', 'unfinished', 'marked',
+                                  'unregistered', 'replacement', 'symlink', 'mount',
+                                  'bad-bundle', 'budget', 'other-replacement'])
+def test_input_transfer_refuses_without_mutation(tmp_path, monkeypatch, fault):
+    from tools import test_input_transfer
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    if fault == 'unfinished':
+        state = json.loads((source.path / 'current.json').read_text())
+        state['finished'] = False
+        with source.opened() as fd:
+            source.save(fd, state)
+    if fault == 'marked':
+        (destination.path / 'recovery-required').touch(mode=0o600)
+    if fault == 'unregistered':
+        state = json.loads((source.path / 'current.json').read_text())
+        state['paths'] = state['paths'][1:]
+        with source.opened() as fd:
+            source.save(fd, state)
+    if fault in ('replacement', 'symlink'):
+        path.rename(tmp_path / 'kept-original')
+        if fault == 'symlink':
+            path.symlink_to(tmp_path / 'kept-original', target_is_directory=True)
+        else:
+            path.mkdir(mode=0o700)
+    if fault == 'other-replacement':
+        dr.rename(tmp_path / 'kept-report')
+        dr.mkdir(mode=0o700)
+    if fault == 'mount':
+        mount = retention.mount_id
+        monkeypatch.setattr(retention, 'mount_id', lambda fd:
+            'foreign' if Path(os.readlink(f'/proc/self/fd/{fd}')) == path else mount(fd))
+    if fault == 'budget':
+        monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', 1)
+    before = [(store.path / 'current.json').read_bytes() for store in (source, destination)]
+    active = source if fault == 'active-source' else destination
+    owner = active.opened() if fault.startswith('active-') else nullcontext(None)
+    with owner as fd:
+        lock = active.locked(fd, 'owner.lock', blocking=False) if fd is not None else nullcontext()
+        with lock, pytest.raises((ValueError, OSError)):
+            perform(lambda path: 2 if fault == 'bad-bundle' else 0)
+    assert before == [(store.path / 'current.json').read_bytes() for store in (source, destination)]
+    assert sr.exists() and dr.exists()
+    assert not (source.path / test_input_transfer.MARKER).exists()
+    assert not (destination.path / test_input_transfer.MARKER).exists()
+
+
+def test_retirement_never_resurrects_an_older_claim_and_invalid_receipts_refuse(tmp_path):
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    assert perform()
+    state = json.loads((source.path / 'current.json').read_text())
+    live = dict(state['paths'][0])
+    del live['retired']
+    state['history'].append(dict(run=uuid.uuid4().hex, paths=[live]))
+    assert not any(record['path'] == str(path) for _, record in retention.latest_allocations(
+        [*state['history'], state]))
+    state['paths'][0]['retired']['transaction'] = 'invalid'
+    with pytest.raises(ValueError, match='retirement'):
+        retention.latest_allocations([*state['history'], state])
+
+
+def test_pending_transfer_refuses_changed_identity_and_competing_selector(tmp_path, monkeypatch):
+    from tools import test_input_transfer
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    save = destination.save
+    monkeypatch.setattr(destination, 'save', lambda *args, **kwargs: (_ for _ in ()).throw(
+        OSError('second intent interrupted')))
+    with pytest.raises(OSError):
+        perform()
+    monkeypatch.setattr(destination, 'save', save)
+    before = (source.path / test_input_transfer.MARKER).read_bytes()
+    with pytest.raises(ValueError, match='intent changed'):
+        test_input_transfer.transfer(source, destination, path,
+            selector='check_other', vm='selected', verify=lambda path: 0)
+    path.rename(tmp_path / 'kept-original')
+    path.mkdir(mode=0o700)
+    with pytest.raises(ValueError, match='replaced'):
+        perform()
+    assert (source.path / test_input_transfer.MARKER).read_bytes() == before
+    assert (tmp_path / 'kept-original/artifact-manifest.json').exists()
+
+
+@pytest.mark.parametrize('operation', ['session', 'discard', 'unpublished', 'reconcile', 'retain', 'mark'])
+def test_pending_transfer_blocks_all_ordinary_retention_writers(tmp_path, monkeypatch, operation):
+    source, destination, path, sr, dr, perform = input_transfer_scene(tmp_path)
+    save = destination.save
+    monkeypatch.setattr(destination, 'save', lambda *args, **kwargs: (_ for _ in ()).throw(OSError('interrupted')))
+    with pytest.raises(OSError):
+        perform()
+    monkeypatch.setattr(destination, 'save', save)
+    state = json.loads((source.path / 'current.json').read_text())
+    monkeypatch.setenv(retention.VARIABLE, json.dumps([str(source.path), state['run']]))
+    with pytest.raises(ValueError, match='transfer pending'):
+        if operation == 'session':
+            with source.session():
+                pass
+        elif operation == 'discard':
+            source.discard_completed(lambda paths: None)
+        elif operation == 'unpublished':
+            source.discard_unpublished_input(path)
+        elif operation == 'reconcile':
+            source.reconcile(lambda: None)
+        elif operation == 'retain':
+            retention.retain(sr)
+        else:
+            retention.preserve_for_recovery()
+    assert path.exists() and sr.exists() and dr.exists()
+    assert not (source.path / 'recovery-required').exists()
+
+
+def test_batch_input_cli_derives_journals_and_runs_normal_verification_under_ownership(tmp_path, monkeypatch):
+    import cleanup_e2e
+    import test_commands
+    import test_storage
+    import test_input_transfer
+    import vm_artifacts
+    import regression_process
+    from contextlib import contextmanager
+    calls = []
+    path = tmp_path / 'input'
+    @contextmanager
+    def activity(root, **kwargs):
+        assert kwargs == {'includes_host': True}
+        calls.append('owned')
+        yield
+        calls.append('released')
+    monkeypatch.setattr(cleanup_e2e.os, 'geteuid', lambda: 1000)
+    monkeypatch.setattr(cleanup_e2e.vm_config, 'execution', lambda selection:
+        (1, [SimpleNamespace(name='selected')]))
+    monkeypatch.setattr(cleanup_e2e, 'select', lambda name: calls.append(name))
+    monkeypatch.setattr(test_commands, 'qualification_input_options', lambda root, selector: {})
+    monkeypatch.setattr(test_storage, 'named_input', lambda **kwargs: path)
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'activity', activity)
+    monkeypatch.setattr(cleanup_e2e.test_activity, 'retention_path', lambda root: tmp_path / 'retention-selected')
+    monkeypatch.setattr(regression_process.Control, 'installed', lambda self, **kwargs: nullcontext(self))
+    def verify(root, control, environment, **kwargs):
+        assert calls[-1] == 'owned'
+        assert kwargs == {'candidate': path, 'output': path}
+        calls.append('verified')
+        return 0
+    monkeypatch.setattr(vm_artifacts, 'prepare', verify)
+    def transfer(source, destination, selected, **kwargs):
+        assert selected == path and source.path == tmp_path / 'retention-batch'
+        assert destination.path == tmp_path / 'retention-selected'
+        assert kwargs['vm'] == 'selected' and kwargs['selector'] == 'check_e2e_countdown'
+        assert kwargs['verify'](selected) == 0
+        return True
+    monkeypatch.setattr(test_input_transfer, 'transfer', transfer)
+    monkeypatch.setattr(cleanup_e2e, 'cleanup', lambda root: pytest.fail('transfer started ordinary VM cleanup'))
+    assert cleanup_e2e.main(['--vm', 'selected', '--transfer-batch-input', 'check_e2e_countdown']) == 0
+    assert calls == ['selected', 'owned', 'verified', 'released']
+    for args in (['--transfer-batch-input', 'check_e2e_countdown'],
+                 ['--vm', 'all-enabled', '--transfer-batch-input', 'check_e2e_countdown'],
+                 ['--vm', 'selected', '--discard-completed', '--transfer-batch-input', 'check_e2e_countdown'],
+                 ['--vm', 'selected', '--transfer-batch-input', '../check_e2e_countdown']):
+        assert cleanup_e2e.main(args) == 2
+    assert calls == ['selected', 'owned', 'verified', 'released']
 
 
 def test_idle_reconciliation_retries_after_marker_archive_and_failed_commit(tmp_path, monkeypatch):

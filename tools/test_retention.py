@@ -36,7 +36,31 @@ def latest_allocations(entries):
     for index, entry in enumerate(entries):
         for record in entry['paths']:
             latest[record['path']] = (index, record)
-    return list(latest.values())
+    result = []
+    for index, record in latest.values():
+        if 'retired' in record:
+            retirement = record['retired']
+            if (not isinstance(retirement, dict) or set(retirement) != {'transaction', 'destination', 'run'}
+                    or not valid_token(retirement['transaction'])
+                    or not valid_token(retirement['run'])
+                    or not journal_path(retirement['destination'])):
+                raise ValueError('retention: invalid ownership retirement')
+            # Select latest first: an earlier claim must never regain cleanup
+            # authority after a recorded transfer retires its successor.
+            continue
+        result.append((index, record))
+    return result
+
+
+def valid_token(value):
+    return isinstance(value, str) and len(value) == 32 and all(c in '0123456789abcdef' for c in value)
+
+
+def journal_path(value):
+    import re
+    path = Path(value) if isinstance(value, str) else Path('.')
+    return (path.is_absolute() and '..' not in path.parts
+            and re.fullmatch(r'retention-[A-Za-z0-9_.-]+', path.name) is not None)
 
 
 def directory(path):
@@ -82,6 +106,45 @@ def ensure_directory(path):
 class Store:
     def __init__(self, path):
         self.path = Path(path)
+
+    def discard_unpublished_input(self, path):
+        """Explicit recovery of one recorded, interrupted artifact build.
+
+        The caller establishes the interruption and holds checkout activity.
+        Keep journals/reports intact; never infer recovery from a directory name.
+        """
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            with self.locked(fd, 'writer.lock'):
+                state = self.read(fd)
+                if (state is None or 'recovery-required' in os.listdir(fd)
+                        or not state['finished']):
+                    raise ValueError('retention: unpublished input requires a finished, unmarked owner')
+                records = [record for _, record in latest_allocations([*state['history'], state])
+                           if record['path'] == str(path)]
+                if len(records) != 1:
+                    raise ValueError('retention: unpublished input is not registered')
+                record = records[0]
+                remove(record, validate_only=True)
+                try:
+                    target = directory(path)
+                except FileNotFoundError:
+                    return False  # Retry after completed or partial owned deletion.
+                try:
+                    info = os.fstat(target)
+                    allocation_identity(info, record.get('mode', 0o700))
+                    if (info.st_dev, info.st_ino) != (record['device'], record['inode']):
+                        raise ValueError('retention: recorded allocation was replaced')
+                    check_tree(target, info.st_dev, regular_only=True)
+                    try:
+                        os.stat('artifact-manifest.json', dir_fd=target, follow_symlinks=False)
+                    except FileNotFoundError:
+                        pass
+                    else:
+                        raise ValueError('retention: published artifact input must be preserved')
+                finally:
+                    os.close(target)
+                remove(record)
+                return True
 
     def discard_completed(self, guard):
         """Explicitly discard registered results, never active or unknown storage.
@@ -159,7 +222,7 @@ class Store:
             os.close(fd)
 
     @contextmanager
-    def locked(self, fd, name, *, blocking=True):
+    def locked(self, fd, name, *, blocking=True, transfer=False):
         lock = os.open(name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
                        0o600, dir_fd=fd)
         try:
@@ -169,6 +232,12 @@ class Store:
             except BlockingIOError as error:
                 raise ValueError('retention: another owner is active') from error
             _locks.add(lock)
+            if name == 'writer.lock' and not transfer:
+                if __package__:
+                    from .test_input_transfer import mutation_guard
+                else:
+                    from test_input_transfer import mutation_guard
+                mutation_guard(self, fd)
             yield
         finally:
             _locks.discard(lock)
@@ -651,17 +720,20 @@ def namespace_main(argv):
         print(allocation_bytes(record))
 
 
-def check_tree(fd, device):
+def check_tree(fd, device, *, regular_only=False):
     for name in os.listdir(fd):
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
         if info.st_dev != device:
             raise ValueError('retention: mounted storage is not disposable')
+        if regular_only and (info.st_uid != os.geteuid() or not (
+                stat.S_ISDIR(info.st_mode) or (stat.S_ISREG(info.st_mode) and info.st_nlink == 1))):
+            raise ValueError('retention: unpublished input contains unsafe files')
         if stat.S_ISDIR(info.st_mode):
             child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
             try:
                 if os.fstat(child).st_dev != device or mount_id(child) != mount_id(fd):
                     raise ValueError('retention: mounted storage is not disposable')
-                check_tree(child, device)
+                check_tree(child, device, regular_only=regular_only)
             finally:
                 os.close(child)
 

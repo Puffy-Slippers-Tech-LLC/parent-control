@@ -5,7 +5,7 @@ import copy
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -927,6 +927,124 @@ def test_revoke_balance_projection_crosses_real_decoder_with_controller_bounds(f
         start, end = observed.pop('read_bounds')
         assert 0 < start <= end
         assert observed == value
+
+
+@pytest.mark.parametrize('fault', ['', 'authority', 'child', 'warning', 'disabled', 'duplicate', 'uncertain'])
+def test_revoke_confirm_requires_explicit_authority_and_fresh_owned_target(fault):
+    ui, root, picker, *_ = time_explanation_ui()
+    warning = Node('This will revoke one-time screen time and access to soft blocked apps '
+        'granted to Riley (Child), close their running blocked apps, and lock their desktop '
+        'when no time remains. Their remaining daily time allowance is not impacted.',
+        'label', identity='parent-revoke-warning')
+    cancel, confirm = Node(identity='parent-revoke-cancel'), Node(identity='parent-revoke-confirm')
+    dialog = Node(identity='parent-revoke-dialog', children=[warning, cancel, confirm],
+                  states=('showing', 'visible', 'sensitive', 'active', 'modal'))
+    application = ui.root()
+    application.children.append(dialog)
+    dialog.parent = application
+    dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: root)]
+    confirm.action.do_action.side_effect = lambda _: (application.children.remove(dialog) or True)
+    if fault == 'authority': ui.revoke_warning = Mock(side_effect=AssertionError('no discovery'))
+    if fault == 'child': picker.children[0].identity = 'parent-child-selected-1002'
+    if fault == 'warning': warning.name = warning.name.replace('Riley', 'Jordan')
+    if fault == 'disabled': confirm.states.remove('sensitive')
+    if fault == 'duplicate': dialog.children.append(Node(identity='parent-revoke-confirm'))
+    if fault == 'uncertain': ui.input_uncertain = True
+    if fault:
+        with pytest.raises(UiError): ui.confirm_revoke(accessible_ui.CHILD, confirm=fault != 'authority')
+        confirm.action.do_action.assert_not_called()
+    else:
+        assert ui.confirm_revoke(accessible_ui.CHILD, confirm=True) == {
+            'child': 'fixture-child', 'confirmed': True}
+        confirm.action.do_action.assert_called_once()
+    cancel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['revoke-saved-balances', 'revoke-cleared-balances'])
+@pytest.mark.parametrize('fault', ['', 'rule', 'identity', 'access', 'extra'])
+def test_saved_revocation_projection_decodes_complete_rules_and_realistic_size(fault, operation):
+    ui, *_ = time_explanation_ui()
+    rows = [[f'parent-app-{index:016x}', 'allowed', 'precise'] for index in range(50)]
+    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
+        'balances': ui.time_explanation(accessible_ui.CHILD), 'apps': rows,
+        'rules': [[row[0], '/usr/bin/onpc-fixture-' + str(index)] for index, row in enumerate(rows)]}
+    if fault == 'rule': value['rules'][0][1] = ''
+    if fault == 'identity': value['rules'][0][0] = 'parent-app-ffffffffffffffff'
+    if fault == 'access': value['apps'][0][1] = 'unknown'
+    if fault == 'extra': value['unexpected'] = True
+    result = {'operation': operation, 'outcome': 'passed',
+              'interface': 'ApplicationUI+external-provider', 'revoke_cancel': value}
+    raw = json.dumps(result).encode()
+    assert len(raw) > 4096
+    transport = Mock(call=Mock(return_value=raw))
+    if fault:
+        with pytest.raises(EvidenceError): UiObservations(transport).observe(operation)
+    else:
+        observed = UiObservations(transport).observe(operation)['revoke_cancel']
+        assert 0 < observed.pop('read_bounds')[0]
+        assert observed == value
+
+
+def test_saved_revocation_reader_uses_shared_public_pages_rules_and_balances():
+    ui = object.__new__(accessible_ui.AccessibleUI)
+    ui.reload_revoke_settings = Mock()
+    ui.parent_page = Mock()
+    ui.parent_save_snapshot = Mock()
+    ui.app_rows = Mock(return_value=[('parent-app-0000000000000000', 'conditional', 'pattern')])
+    ui.get_value = Mock(side_effect=[True, '/opt/onpc-fixture/*'])
+    ui.settings = Mock(return_value={'saved': True})
+    ui.reach_time_explanation = Mock(return_value={'remaining': 0})
+    result = ui.saved_revoke_balances(accessible_ui.CHILD)
+    assert ui.parent_page.call_args_list == [call(accessible_ui.CHILD, 'App Limits'),
+                                           call(accessible_ui.CHILD, 'Screen Limits')]
+    ui.get_value.assert_has_calls([call('parent-screen-limit-toggle'),
+                                  call('parent-app-0000000000000000-match-rule')])
+    assert result['rules'] == [['parent-app-0000000000000000', '/opt/onpc-fixture/*']]
+    assert result['settings'] == {'saved': True} and result['balances'] == {'remaining': 0}
+    ui.reload_revoke_settings.assert_called_once_with(accessible_ui.CHILD)
+
+
+def test_revocation_awaits_independent_cleared_balance_without_replaying_input():
+    ui = object.__new__(accessible_ui.AccessibleUI)
+    ui.reload_revoke_settings = Mock()
+    ui.parent_save_snapshot = Mock()
+    ui.parent_page = Mock()
+    ui.app_rows = Mock(return_value=[])
+    ui.get_value = Mock(return_value=True)
+    ui.settings = Mock(return_value={'saved': True})
+    ui.reach_time_explanation = Mock(side_effect=[{'one_time': {'seconds': 3}},
+                                                {'one_time': {'seconds': 0}}])
+    def wait(predicate, code):
+        assert code == 'revoke-cleared-balance'
+        assert predicate() is False
+        return predicate()
+    ui.wait = wait
+    result = ui.saved_revoke_balances(accessible_ui.CHILD, grant_cleared=True)
+    assert result['balances']['one_time']['seconds'] == 0
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+    assert ui.parent_page.call_count == 2 and ui.app_rows.call_count == 1
+
+
+@pytest.mark.parametrize('child', [accessible_ui.CHILD, accessible_ui.EXISTING_CHILD])
+@pytest.mark.parametrize('wrong_entry', [False, True])
+def test_revocation_reload_checks_entry_and_reselects_once_without_policy_input(child, wrong_entry):
+    ui = object.__new__(accessible_ui.AccessibleUI)
+    events = Mock()
+    for name in ('time_explanation_entry', 'open_child_picker', 'child_selection', 'parent_page'):
+        setattr(ui, name, getattr(events, name))
+    if wrong_entry:
+        ui.time_explanation_entry.side_effect = UiError('ui:wrong-child')
+        with pytest.raises(UiError, match='wrong-child'):
+            ui.reload_revoke_settings(child)
+        assert events.mock_calls == [call.time_explanation_entry(child)]
+    else:
+        other = accessible_ui.EXISTING_CHILD if child == accessible_ui.CHILD else accessible_ui.CHILD
+        assert ui.reload_revoke_settings(child) is events.parent_page.return_value
+        assert events.mock_calls == [call.time_explanation_entry(child),
+            call.open_child_picker(other), call.child_selection(other),
+            call.open_child_picker(child), call.child_selection(child),
+            call.parent_page(child, 'Screen Limits')]
 
 
 def test_time_explanation_reads_public_balances_twice_without_input(monkeypatch):

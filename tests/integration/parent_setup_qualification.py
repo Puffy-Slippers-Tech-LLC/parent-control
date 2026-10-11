@@ -1076,6 +1076,16 @@ class RevokeCancelQualification(KioskEntryQualification):
         return RevokeCancelJourney(context, progress)
 
 
+class RevocationQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from time_explanation import RevokeConfirmJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return RevokeConfirmJourney(context, progress)
+
+
 class TimeExplanationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

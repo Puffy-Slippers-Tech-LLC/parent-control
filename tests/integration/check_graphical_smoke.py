@@ -664,7 +664,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          catalogue_search=False, catalogue_filters=False, policy_legend=False, match_save_cancel=False,
          match_editor=False, access_choices=False, policy_edit=False, rejected_parent_rule=False,
          feedback_read=False, text_qualification=False, allowance_presets=False, allowance=False,
-         time_explanation=False, revoke_cancel=False, set_allowance=False, app_restart=False,
+         time_explanation=False, revoke_cancel=False, revocation=False, set_allowance=False, app_restart=False,
          allowance_boundaries=False, kiosk_valid_duration=False, request_duration=False,
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
@@ -1035,7 +1035,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(revoke_cancel) is bool and (not revoke_cancel or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, parent_setup, time_explanation,
-                     kiosk_approved_flow, approval_flow)))), 'smoke:revoke-cancel-prerequisites')
+                     kiosk_approved_flow, approval_flow, revocation)))), 'smoke:revoke-cancel-prerequisites')
+    require(type(revocation) is bool and (not revocation or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+                    if name not in ('assets', 'provision_credentials', 'revocation')
+                    and isinstance(value, bool)))), 'smoke:revocation-prerequisites')
     require(type(time_explanation) is bool and (not time_explanation or (
         assets is not None and provision_credentials and fresh_desktop is None
         and not any((serial, install, install_refusal, vt6_prompt, vt6_auth,
@@ -1585,6 +1591,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-time-explanation-qualification'
         if revoke_cancel:
             result['scope'] = 'installed-revoke-cancel-qualification'
+        if revocation:
+            result['scope'] = 'installed-revocation-qualification'
         if set_allowance:
             result['scope'] = 'installed-set-allowance-qualification'
         if fresh_thirty_allowance:
@@ -1669,7 +1677,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
-                        or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or set_allowance or kiosk_eligible_choices or request_choices
+                        or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'])
                     staged = directory / 'input'
@@ -2070,6 +2078,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if revoke_cancel:
                     from parent_setup_qualification import RevokeCancelQualification
                     qualification_class = RevokeCancelQualification
+                if revocation:
+                    from parent_setup_qualification import RevocationQualification
+                    qualification_class = RevocationQualification
                 if time_explanation:
                     from parent_setup_qualification import TimeExplanationQualification
                     qualification_class = TimeExplanationQualification

@@ -365,6 +365,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
+                   'reproduce-revoke-cancel', 'probe-revoke-balances',
                    'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
                    'reproduce-riley-native-grid', 'probe-riley-native-grid',
@@ -419,7 +420,7 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 @pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
-                                  'riley-native-grid', 'retained-app-visits'])
+                                  'riley-native-grid', 'retained-app-visits', 'revoke-cancel'])
 def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN
@@ -428,6 +429,7 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
     from remembered_choices import DIAGNOSTIC_PLAN as REMEMBERED_PLAN
     from riley_native_grid import PLAN as RILEY_GRID_PLAN
     from retained_app_visits import PLAN as RETAINED_APP_PLAN
+    from time_explanation import REVOKE_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -436,6 +438,7 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
                               'jordan-return-entry-standard-recipient-rechecked'),
         'riley-native-grid': (RILEY_GRID_PLAN, 'repeat-refusals', 'repeat-search-entered'),
         'retained-app-visits': (RETAINED_APP_PLAN, 'riley-activity-command', 'riley-activity-desktop'),
+        'revoke-cancel': (REVOKE_PLAN, 'second-balances', 'second-cancel'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]

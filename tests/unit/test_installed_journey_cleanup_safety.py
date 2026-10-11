@@ -154,6 +154,79 @@ def test_revoke_cancel_real_step_preserves_checks_before_durable_reply(tmp_path,
         journey.step(Mock())
         assert (tmp_path / (stage + '.reply.json')).exists()
         assert journey.steps[-1]['comparison']['unchanged_balances_with_elapsed_bounds']
+@pytest.mark.parametrize('fault', ['', 'grant', 'daily', 'total', 'settings', 'apps', 'rules',
+                                   'clock', 'missing', 'replay'])
+def test_revocation_real_step_requires_cleared_grant_and_unchanged_saved_policy(tmp_path, fault):
+    from copy import deepcopy
+    from time_explanation import RevokeConfirmJourney, REVOKE_CONFIRM_PLAN
+    journey = RevokeConfirmJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
+    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
+        'apps': [['parent-app-0000000000000000', 'conditional', 'pattern']],
+        'rules': [['parent-app-0000000000000000', '/opt/fixture/*']],
+        'balances': {'child': 'fixture-child', 'expanded': True, 'observed_monotonic_ns': 1_000_000_000,
+            **{key: {'text': text, 'seconds': seconds, 'precision_seconds': 1}
+               for key, text, seconds in (('daily', '15m', 900), ('one_time', '16m 15s', 975),
+                                          ('total', '16m 15s', 975))}},
+        'read_bounds': [1_000_000_000, 2_000_000_000]}
+    if fault != 'missing': journey.check_settings('before', {'ui': {'revoke_cancel': value}})
+    current = deepcopy(value)
+    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
+    current['balances']['observed_monotonic_ns'] = 3_000_000_000
+    current['balances']['one_time'] = {'text': '0m', 'seconds': 0, 'precision_seconds': 1}
+    current['balances']['total'] = deepcopy(current['balances']['daily'])
+    if fault == 'grant': current['balances']['one_time']['seconds'] = 1
+    if fault == 'daily': current['balances']['daily']['seconds'] = 850
+    if fault == 'total': current['balances']['total']['seconds'] = 975
+    if fault == 'settings': current['settings']['allowance'] = ['30 minutes']
+    if fault == 'apps': current['apps'][0][1] = 'permanent'
+    if fault == 'rules': current['rules'][0][1] = '/opt/other/*'
+    if fault == 'clock': current['read_bounds'] = [1, 2]
+    if fault == 'replay': journey.check_settings('after', {'ui': {'revoke_cancel': current}})
+    value['settings']['allowance'].clear()
+    value['apps'].clear()
+    value['rules'].clear()
+    stage = 'after'
+    journey.steps = [{'stage': s} for s in REVOKE_CONFIRM_PLAN.stages[:REVOKE_CONFIRM_PLAN.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': 'revoke-cleared-balances', 'outcome': 'passed', 'revoke_cancel': current}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert journey.steps[-1]['comparison']['grant_cleared']
+        assert journey.steps[-1]['comparison']['unchanged_app_rules']
+
+
+def test_revocation_comparisons_allow_independent_caller_endpoints(tmp_path):
+    from copy import deepcopy
+    from time_explanation import RevocationJourney
+    from installed_journey import JourneyPlan
+    plan = JourneyPlan(prefix='independent', worker_mode='revocation',
+        screen_tags={'capture': 'ui:revoke-saved-balances', 'result': 'ui:revoke-cleared-balances'},
+        phases={'ready': 'setup', 'capture': 'step-1', 'result': 'step-1'})
+    journey = RevocationJourney(SimpleNamespace(directory=tmp_path), Mock(), plan,
+        read_checks={'capture': (None, 'confirm'), 'result': ('capture', 'confirm')})
+    journey.grant_estimate = {'estimate': {'seconds': 975}, 'observed_monotonic_ns': 1}
+    value = {'settings': {'child': 'fixture-child', 'limit_enabled': True, 'allowance': ['15 minutes']},
+        'apps': [], 'rules': [], 'read_bounds': [1_000_000_000, 2_000_000_000],
+        'balances': {'observed_monotonic_ns': 1_000_000_000,
+            **{key: {'seconds': seconds, 'precision_seconds': 1}
+               for key, seconds in (('daily', 900), ('one_time', 975), ('total', 975))}}}
+    journey.check_settings('capture', {'ui': {'revoke_cancel': value}})
+    current = deepcopy(value)
+    current['read_bounds'] = [3_000_000_000, 4_000_000_000]
+    current['balances']['one_time']['seconds'] = 0
+    current['balances']['total']['seconds'] = 900
+    observed = {'ui': {'revoke_cancel': current}}
+    journey.check_settings('result', observed)
+    assert observed['comparison']['grant_cleared']
+
+
 import fresh_thirty_allowance
 import parent_discovery
 import shell_search_results

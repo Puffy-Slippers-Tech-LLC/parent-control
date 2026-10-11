@@ -44,6 +44,32 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_revoke_cancel(lease):
+    """Retain the real second Cancel before its controller balance comparison."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from time_explanation import RevokeCancelJourney, REVOKE_PLAN
+    return reproduce_denial(lease, RevokeCancelJourney, REVOKE_PLAN,
+                            'second-balances', 'revoke-cancel',
+                            boundary_operation='revoke-balances')
+
+
+def probe_revoke_balances(lease):
+    """Exercise the maintained fresh public read on the retained Parent scene."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Reading fresh balances in the retained Parent window'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-revoke-balance-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('revoke-balance-probe: evidence=' + str(directory), flush=True)
+        observed = UiObservations(connect(lease)).observe('revoke-balances')
+        (directory / 'observed.json').write_text(json.dumps(observed))
+        lease.guard()
+        print('revoke-balance-probe: fresh public read passed', flush=True)
+
+
 def reproduce_retained_app_visits(lease):
     """Retain 047a's actual Parent capture and Riley entry before command launch."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

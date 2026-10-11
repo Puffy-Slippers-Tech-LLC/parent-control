@@ -1142,8 +1142,8 @@ The same Parent control inventory below serves both entry routes.
 | PARENT13 | C | Open a named app's Edit Match Rule dialog and read its current rule. | `AccessibleUI.open_match_rule` / `read_match_rule(editor=True)` through `onpc_app_rows::match_editor`; owned Parent, selected child, complete row and app-bound dialog guards. See [Match editor Save and Cancel](#match-editor-save-and-cancel). | ready for the declared native fixture binding; other app bindings pending |
 | PARENT15 | C | Apply Save, Cancel or Reset to the open match editor and observe the explicitly expected result. Empty/unrelated precise text stays in the editor; a rejected wildcard closes it and opens a failure report. Do not close that report implicitly. | `AccessibleUI.respond_match_rule` through `onpc_app_rows::match_response`: one guarded Save/Cancel/Reset response → UI11(editor) → `parent_app_save_snapshot` (PARENT08) → independent public row read. Local invalid Save instead reads the retained exact draft and rejection description. `MatchRuleJourney` compares the caller's captured old rule after Cancel, exact supplied new rule after Save and detected default after Reset. See [Match editor Save and Cancel](#match-editor-save-and-cancel). The `rejected` response proves the declared rejected draft, invokes Save once, observes editor disappearance and leaves the automatic report open; see [automatic Parent error reports](#automatic-parent-error-reports). Caller uses FEED15/UI18 before reading restored rows. | ready for ordinary Save/Cancel/Reset, local invalid drafts and the declared rejected-directory/report slice; other bindings pending |
 | PARENT16 | C | Choose Allowed, Hard blocked or Soft blocked for one displayed app; observe save and displayed choice. | `onpc_app_rows::access_choice(journey, save, row)` composes `AccessibleUI.choose_app_access` (UI15/PARENT08) and `read_app_access` (PARENT12); `AccessChoiceJourney` compares the caller's exact expected public choice. See [Public access choices](#public-access-choices). | ready for native fixture A and the existing child; other app bindings pending |
-| PARENT17 | C | Open revocation confirmation and read its target and warning about time, blocked apps and daily allowance. | `AccessibleUI.open_revoke_warning(child)` / `revoke_warning(child)` bind the selected child and owned dialog before reading its public warning and responses. `RevokeCancelJourney` / `onpc_time_explanation::revoke_cancel` compose a real 75-second soft-included kiosk grant and retained Parent return; `check_e2e_revoke_cancel` qualifies two independent warning/Cancel entries and target refusals. See [qualification](#revocation-warning-and-cancel-qualification). | ready for the fixed warning/target binding |
-| PARENT18 | C | Cancel or confirm the open revocation dialog and observe its closure and displayed time/settings. Child effects are checked by later app/access blocks. | `AccessibleUI.cancel_revoke(child)` supports only the explicit Cancel response, rechecks the owned warning and refuses confirmation before discovery/input. `revoke-balances` independently reuses public settings and PARENT09 reads; the controller brackets reads and compares all operands with elapsed-time/display-precision bounds. See [qualification](#revocation-warning-and-cancel-qualification). Confirmation remains task 050; child effects remain later consumers. | Cancel ready for the fixed binding; confirm pending |
+| PARENT17 | C | Open revocation confirmation and read its target and warning about time, blocked apps and daily allowance. | `AccessibleUI.open_revoke_warning(child)` / `revoke_warning(child)` bind the selected child and owned dialog before reading its public warning and responses. `RevokeCancelJourney` and `RevokeConfirmJourney` compose a real 75-second soft-included kiosk grant and retained Parent return. See [warning/Cancel qualification](#revocation-warning-and-cancel-qualification) and [Confirm qualification](#revocation-confirm-qualification) for independent entries and target/authority refusals. | ready for the fixed warning/target binding |
+| PARENT18 | C | Cancel or confirm the open revocation dialog and observe its closure and displayed time/settings. Child effects are checked by later app/access blocks. | `AccessibleUI.cancel_revoke(child)` admits Cancel only; `confirm_revoke(child, confirm=True)` requires explicit authority, rechecks the child-bound owned warning and activates Confirm once. `reload_revoke_settings` reloads the selected child's public status within the controller read bracket; `saved_revoke_balances` independently reads balances, saved allowance, complete app access/match triples and exact rules. See [Cancel](#revocation-warning-and-cancel-qualification) and [Confirm](#revocation-confirm-qualification) qualifications. Child effects remain later consumers. | Cancel and Confirm ready for the fixed balance/policy binding; child effects pending |
 | PARENT19 | C | Observe Parent's no-eligible-child explanation together with the `(None)` picker placeholder. Never activate the disabled picker. | `AccessibleUI.parent_empty()` reacquires the Parent window and showing picker, then uses UI03's registered projections for the explanation and sole `(None)` label in one bounded read-only wait. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 
 ### Revocation warning and Cancel qualification
@@ -1170,8 +1170,39 @@ worker-composition and source checks passed. Private capture reconciliation,
 collection, worker/callback shutdown, owned cleanup, baseline restoration and
 finalization passed on both VMs; both were independently verified off.
 This qualifies warning/Cancel only, with no complete-scenario credit.
-Confirm and its saved balance result remain task 050; child effects remain later
-consumers. Existing private unit/cleanup/preview resource classifications apply.
+Confirm and its saved balance result are qualified below; child effects remain
+later consumers. Existing private unit/cleanup/preview resource classifications apply.
+
+### Revocation Confirm qualification
+
+`check_e2e_revocation` passed on Ubuntu 26.04 and Fedora 44 through
+`RevokeConfirmJourney` / `REVOKE_CONFIRM_PLAN` in
+`tests/e2e/time_explanation.py` and `onpc_time_explanation::revocation`.
+The fixed binding shares the real kiosk approval and retained Parent entry
+described above. The independently read warning binds the selected child;
+wrong-child and missing Confirm authority refuse before input. One explicit
+Confirm closes the dialog, followed by independent G=0, elapsed-bounded
+unchanged daily time, unchanged saved allowance, complete app access/match
+triples and exact match rules. No child session or app launch is included.
+
+Parent's periodic displayed status can be 30 seconds old. Both revocation
+balance readers use guarded public child reselection to load fresh status
+within the controller's read bracket. Saved policy and grants are not modified;
+elapsed-time and display-precision assertions remain unchanged. The affected
+`check_e2e_revoke_cancel` regression passed both independent warning/Cancel
+entries and balance comparisons on both VMs in the same invocation.
+
+| VM | Confirm and Cancel report | Retained export |
+| --- | --- | --- |
+| Ubuntu 26.04 | `output/test-runs/host/reports/20261011T043126Z-d5ef50e7/report.md` | `output/test-runs/host/exports/onpc-artifact-export-08rnuzx2/report.md` |
+| Fedora 44 | `output/test-runs/host/reports/20261011T043126Z-7be0f83a/report.md` | `output/test-runs/host/exports/onpc-artifact-export-yjarfdc_/report.md` |
+
+Host authority/identity guards, decoder, durable comparisons, worker composition,
+sealed password bindings, maintenance dispatch guards, source and native GTK
+preview checks passed. Collection, worker/callback shutdown, owned cleanup,
+baseline restoration and finalization passed for Confirm and Cancel on both VMs;
+both were independently verified off. This balance/policy capability supplies
+no complete-scenario credit; child effects and other bindings remain pending.
 
 ### App-row observations
 

@@ -240,7 +240,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, events => \@events,
 @pytest.mark.parametrize('fault', ['', 'qualified', 'rechecked', 'typing', 'capture', 'review', 'stale', 'missing'])
 @pytest.mark.parametrize('binding', ['approval', 'rejection'])
 @pytest.mark.parametrize('credential', ['fixture-only-canary', 'onpc-wrong-fixture-password'])
-@pytest.mark.parametrize('scope', ['base', 'flow', 'package-removal', 'revoke-cancel', 'unknown'])
+@pytest.mark.parametrize('scope', ['base', 'flow', 'package-removal', 'revoke-cancel', 'revocation', 'unknown'])
 def test_mate_secret_is_single_use_sealed_and_terminal_on_uncertainty(fault, binding, credential, scope):
     program = r'''
 use strict; use warnings; use JSON::PP;
@@ -279,7 +279,7 @@ print encode_json({ok => $ok ? 1 : 0, error => $error, before => $before,
     raw = run_perl(program, fault, binding, credential, scope).stdout
     assert 'fixture-only-canary' not in raw
     value = json.loads(raw)
-    allowed = scope in ('base', 'flow') or (scope in ('package-removal', 'revoke-cancel') and binding == 'approval')
+    allowed = scope in ('base', 'flow') or (scope in ('package-removal', 'revoke-cancel', 'revocation') and binding == 'approval')
     assert bool(value['ok']) == (allowed and not fault), value
     assert value['retry'] == value['capture'] == 0
     assert len(value['events']) == value['before']

@@ -373,6 +373,7 @@ def main(argv=None):
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
+                                          'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-retained-app-visits',
                                           'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
@@ -435,6 +436,7 @@ def main(argv=None):
             from vm_disk_rename import rename_disk
             rename_disk(lease)
         elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+                             'reproduce-revoke-cancel',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
                              'enter-remembered-return', 'reproduce-riley-native-grid'):
@@ -443,10 +445,12 @@ def main(argv=None):
                                   reproduce_remembered_return, repeat_remembered_return,
                                   enter_remembered_return, reproduce_riley_native_grid)
             from vm_probe import reproduce_retained_app_visits
+            from vm_probe import reproduce_revoke_cancel
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
+             'reproduce-revoke-cancel': reproduce_revoke_cancel,
              'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
              'reproduce-riley-native-grid': reproduce_riley_native_grid,
@@ -481,6 +485,10 @@ def main(argv=None):
             from vm_probe import probe_remembered_return
             resume(lease)
             probe_remembered_return(lease)
+        elif args.action == 'probe-revoke-balances':
+            from vm_probe import probe_revoke_balances
+            resume(lease)
+            probe_revoke_balances(lease)
         else:
             operate(lease, args.action, args.keys)
         event('Maintenance: ' + args.action + ' complete')

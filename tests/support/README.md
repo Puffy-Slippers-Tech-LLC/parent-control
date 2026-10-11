@@ -409,8 +409,20 @@ qualification. Separate GTK dialog surfaces use the shared transient-owner
 resolver, never a parent-window subtree assumption. `RevokeCancelJourney`
 declares a real fixed kiosk grant, retained Parent return and two independent
 Cancel entries; the controller validates public settings/time projections and
-brackets balance reads before allowing a durable reply. Confirmation remains
-unsupported by this slice. These operations add no process, storage, bus,
+brackets balance reads before allowing a durable reply. `confirm_revoke` requires
+explicit Confirm authority and rechecks the same owned warning; Cancel continues
+to refuse confirmation. `saved_revoke_balances` waits for idle management,
+reads complete public app rows and exact match values, returns to Screen Limits,
+and independently awaits G=0 when requested. `RevocationJourney` accepts
+caller-declared capture/comparison endpoints and retains immutable settings,
+app rules and controller read bounds. `RevokeConfirmJourney` / `REVOKE_CONFIRM_PLAN`
+use the same kiosk-grant and retained-Parent entry as Cancel, with one Confirm.
+Both balance readers use `reload_revoke_settings` to reselect the fixed child
+through the public selector after a wrong-entry check. Loading the policy/time
+inside the controller read bracket avoids treating Parent's 30-second cached
+display as freshly calculated. Selector navigation changes neither grant nor
+saved policy; elapsed limits and mutation/refusal assertions remain unchanged.
+These operations add no process, storage, bus,
 display or cleanup owner; existing private unit/cleanup/preview classifications
 remain applicable. The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#app-grid-search-and-parent-launch)
 owns qualification status.

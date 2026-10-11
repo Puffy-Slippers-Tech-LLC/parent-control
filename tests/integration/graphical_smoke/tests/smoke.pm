@@ -925,6 +925,12 @@ sub run {
         onpc_time_explanation::revoke_cancel(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{revocation}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_time_explanation::revocation(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{time_explanation}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

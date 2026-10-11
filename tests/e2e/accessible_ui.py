@@ -459,6 +459,11 @@ OPERATIONS |= REVOKE_DISABLED_OPERATIONS.keys()
 REVOKE_CANCEL_OPERATIONS = frozenset('revoke-' + action for action in (
     'balances', 'open', 'warning', 'cancel', 'wrong-child', 'wrong-confirmation'))
 OPERATIONS |= REVOKE_CANCEL_OPERATIONS
+REVOKE_CONFIRM_OPERATIONS = frozenset({
+    'revoke-confirm', 'revoke-confirm-wrong-child', 'revoke-confirm-refused',
+    'revoke-saved-balances', 'revoke-cleared-balances',
+})
+OPERATIONS |= REVOKE_CONFIRM_OPERATIONS
 OPERATIONS |= frozenset({'parent-new-window-absent', 'parent-new-window-refused'})
 OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused',
                          'parent-restart-wrong-refused', 'parent-initial-selection'})
@@ -5944,10 +5949,70 @@ class AccessibleUI:
                   'revoke-cancelled')
         return {'child': CHILD_IDENTITIES[child], 'cancelled': True}
 
+    def confirm_revoke(self, child, *, confirm=False):
+        """PARENT18: explicit Confirm authority and a fresh owned-child warning."""
+        require(confirm is True, 'ui:revoke-confirm-authority')
+        self.revoke_warning(child)
+        self.activate_id('parent-revoke-confirm')
+        self.wait(lambda: self.absent_id('parent-revoke-dialog', within='parent-window'),
+                  'revoke-confirmed')
+        return {'child': CHILD_IDENTITIES[child], 'confirmed': True}
+
+    def saved_revoke_balances(self, child, *, grant_cleared=False):
+        """Independent public policy and time readback, with no child entry."""
+        require(type(grant_cleared) is bool, 'ui:revoke-read-binding')
+        self.reload_revoke_settings(child)
+        self.parent_save_snapshot(child, self.get_value('parent-screen-limit-toggle'))
+        self.parent_page(child, 'App Limits')
+        rows = self.app_rows(child)
+        rules = [[identity, self.get_value(identity + '-match-rule')]
+                 for identity, _access, _match in rows]
+        require(all(type(rule) is str and 0 < len(rule) <= 1024
+                    for _identity, rule in rules), 'ui:revoke-saved-rule')
+        self.parent_page(child, 'Screen Limits')
+        def cleared():
+            value = self.reach_time_explanation(child)
+            return value if value['one_time']['seconds'] == 0 else False
+        balances = (self.wait(cleared, 'revoke-cleared-balance') if grant_cleared else
+                    self.reach_time_explanation(child))
+        return {'settings': self.settings(child), 'apps': rows, 'rules': rules,
+                'balances': balances}
+
+    def reload_revoke_settings(self, child):
+        """Reload the fixed child's public policy/time within the read bracket.
+
+        Parent's periodic display can be 30 seconds old. Reselect through the
+        ordinary selector so elapsed comparisons bracket the actual status load,
+        rather than enlarging their tolerance for an unknown cached value.
+        This changes only navigation, never saved policy or the grant.
+        """
+        require(child in (CHILD, EXISTING_CHILD), 'ui:revoke-read-binding')
+        self.time_explanation_entry(child)  # Refuse wrong entry before any input.
+        other = EXISTING_CHILD if child == CHILD else CHILD
+        self.open_child_picker(other)
+        self.child_selection(other)
+        self.open_child_picker(child)
+        self.child_selection(child)
+        return self.parent_page(child, 'Screen Limits')
+
     def revoke_cancel_operation(self, operation):
-        require(operation in REVOKE_CANCEL_OPERATIONS, 'ui:revoke-operation')
+        require(operation in REVOKE_CANCEL_OPERATIONS | REVOKE_CONFIRM_OPERATIONS,
+                'ui:revoke-operation')
+        if operation in ('revoke-saved-balances', 'revoke-cleared-balances'):
+            return self.saved_revoke_balances(CHILD, grant_cleared=operation == 'revoke-cleared-balances')
+        if operation in ('revoke-confirm-wrong-child', 'revoke-confirm-refused'):
+            try:
+                self.confirm_revoke(EXISTING_CHILD if operation.endswith('child') else CHILD,
+                                    confirm=operation.endswith('child'))
+            except UiError as error:
+                require(str(error) == ('ui:wrong-child' if operation.endswith('child') else
+                                       'ui:revoke-confirm-authority'), 'ui:revoke-refusal')
+                return {'refusal': operation.removeprefix('revoke-')}
+            raise UiError('ui:revoke-refusal-missing')
+        if operation == 'revoke-confirm':
+            return self.confirm_revoke(CHILD, confirm=True)
         if operation == 'revoke-balances':
-            return {'settings': self.settings(CHILD),
+            return {'settings': self.reload_revoke_settings(CHILD),
                     'balances': self.reach_time_explanation(CHILD)}
         if operation in ('revoke-wrong-child', 'revoke-wrong-confirmation'):
             try:
@@ -11548,7 +11613,7 @@ class AccessibleUI:
             result['time_explanation'] = self.time_explanation_operation(operation, child=child)
         elif operation in REVOKE_DISABLED_OPERATIONS:
             result['revoke'] = self.revoke_disabled(CHILD, REVOKE_DISABLED_OPERATIONS[operation])
-        elif operation in REVOKE_CANCEL_OPERATIONS:
+        elif operation in REVOKE_CANCEL_OPERATIONS | REVOKE_CONFIRM_OPERATIONS:
             result['revoke_cancel'] = self.revoke_cancel_operation(operation)
         elif operation in INVALID_ALLOWANCE_OPERATIONS:
             result['allowance_validation'] = self.invalid_allowance(

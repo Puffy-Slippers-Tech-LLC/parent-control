@@ -69,6 +69,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # VM-control and app-snapshot cleanup buckets remain compatible.
 # Retained-app diagnostic boundaries extend the same private plan/request
 # fixtures and dispatcher doubles; no real guest or new cleanup owner is added.
+# Revocation diagnostic boundaries use those same private request/dispatcher
+# fixtures; VM-control retains compatible unit and cleanup scheduling.
 # Clipboard snapshot-policy checks use process-local configuration and XML only;
 # app-snapshot's existing compatible cleanup classification remains appropriate.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,

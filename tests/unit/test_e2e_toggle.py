@@ -207,24 +207,31 @@ def test_time_explanation_selector_and_prerequisites(monkeypatch, tmp_path, sele
     assert TimeExplanationQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is PLAN
 
 
-def test_revoke_cancel_selector_uses_guarded_snapshot_and_finite_plan(monkeypatch, tmp_path):
+@pytest.mark.parametrize('mode', ['revoke_cancel', 'revocation'])
+def test_revoke_cancel_selector_uses_guarded_snapshot_and_finite_plan(monkeypatch, tmp_path, mode):
     import check_e2e_revoke_cancel as check
+    import check_e2e_revocation
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
-    from time_explanation import REVOKE_PLAN
+    from time_explanation import REVOKE_PLAN, REVOKE_CONFIRM_PLAN
+    if mode == 'revocation': check = check_e2e_revocation
     run = Mock(return_value=0)
     monkeypatch.setattr(check, 'smoke', run)
     assert check.main() == 0
     assert run.call_args.kwargs == dict(assets=named_input(package_source=True),
-        provision_credentials=True, revoke_cancel=True)
-    with pytest.raises(CommandError, match='revoke-cancel-prerequisites'):
-        smoke.main(revoke_cancel=True)
-    assert parent_setup_qualification.RevokeCancelQualification.journey(
-        SimpleNamespace(directory=tmp_path), Mock()).plan is REVOKE_PLAN
+        provision_credentials=True, **{mode: True})
+    with pytest.raises(CommandError, match=mode.replace('_', '-') + '-prerequisites'):
+        smoke.main(**{mode: True})
+    qualification = (parent_setup_qualification.RevocationQualification if mode == 'revocation'
+                     else parent_setup_qualification.RevokeCancelQualification)
+    assert qualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is (
+        REVOKE_CONFIRM_PLAN if mode == 'revocation' else REVOKE_PLAN)
 
 
-def test_revoke_cancel_actual_worker_order_and_stop_at_every_boundary(monkeypatch):
-    from time_explanation import REVOKE_PLAN
+@pytest.mark.parametrize('mode', ['revoke_cancel', 'revocation'])
+def test_revoke_cancel_actual_worker_order_and_stop_at_every_boundary(monkeypatch, mode):
+    from time_explanation import REVOKE_PLAN, REVOKE_CONFIRM_PLAN
+    plan = REVOKE_CONFIRM_PLAN if mode == 'revocation' else REVOKE_PLAN
     from kiosk_approved_flow import obtain_time
     from request_flow import CHOICES
     # These helpers are unchanged and qualified; the actual new worker owns
@@ -258,23 +265,26 @@ sub obtain_time { $_[0]->seen($_) for @{JSON::PP::decode_json($ENV{ONPC_TEST_GRA
 package main;
 require onpc_time_explanation;
 my $exchange = sub { push @events, $_[0]; die 'fixture:refused' if $_[0] eq $ENV{ONPC_TEST_REFUSE}; return {observed=>$_[0]}; };
-my $ok = eval { onpc_time_explanation::revoke_cancel($exchange,
+my $method = $ENV{ONPC_TEST_REVOKE_MODE} eq 'revocation'
+    ? \&onpc_time_explanation::revocation : \&onpc_time_explanation::revoke_cancel;
+my $ok = eval { $method->($exchange,
     JSON::PP::decode_json($ENV{ONPC_TEST_INVOCATIONS}), JSON::PP::decode_json($ENV{ONPC_TEST_CHALLENGES})); 1; };
 print encode_json({ok=>$ok ? 1:0, events=>\@events, titles=>\@titles, error=>"$@"});
 '''
-    stages = list(REVOKE_PLAN.screen_tags)
+    stages = list(plan.screen_tags)
     from journey_blocks import fresh_desktop
     monkeypatch.setenv('ONPC_TEST_INITIAL', json.dumps(list(fresh_desktop('parent'))))
     monkeypatch.setenv('ONPC_TEST_GRANT', json.dumps(list(obtain_time(initial='default', **CHOICES, exit='automatic'))))
     monkeypatch.setenv('ONPC_TEST_RETURN', json.dumps([s for s in stages if s.startswith('return-')]))
-    monkeypatch.setenv('ONPC_TEST_INVOCATIONS', json.dumps(REVOKE_PLAN.invocations))
-    monkeypatch.setenv('ONPC_TEST_CHALLENGES', json.dumps(REVOKE_PLAN.challenges))
+    monkeypatch.setenv('ONPC_TEST_INVOCATIONS', json.dumps(plan.invocations))
+    monkeypatch.setenv('ONPC_TEST_CHALLENGES', json.dumps(plan.challenges))
+    monkeypatch.setenv('ONPC_TEST_REVOKE_MODE', mode)
     for refused in ('', *stages):
         monkeypatch.setenv('ONPC_TEST_REFUSE', refused)
         result = json.loads(run_perl(script).stdout)
         assert result['events'] == (stages[:stages.index(refused)+1] if refused else stages), result['error']
-        assert [title.removeprefix('revoke-cancel-') for title in result['titles']
-                if title.startswith('revoke-cancel-')] == result['events']
+        assert [title.removeprefix(plan.prefix + '-') for title in result['titles']
+                if title.startswith(plan.prefix + '-')] == result['events']
         assert bool(result['ok']) == (not refused), result['error']
 
 

@@ -1564,6 +1564,13 @@ same maintenance envelope and supplies no acceptance credit.
 child curtain observer against that owned scene and retains its command evidence.
 It cannot reveal, unlock, authenticate or supply acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-revoke-cancel` runs the shared real kiosk
+grant and two Cancel entries, retaining `second-balances` before the controller
+comparison. Its boundary observation retains the public balance read and host
+read bracket. `probe-revoke-balances` uses the same maintained reader on that
+Parent scene. Inspect the grant and session with guarded `exec`, then finish
+with `tools/test-vm stop`; neither route supplies acceptance credit.
+
 `tools/test-vm --vm NAME reproduce-retained-app-visits` retains Task 047a's
 shared Parent activity capture and Riley login at `riley-activity-command`.
 It exercises the current guarded native command once and retains its result

@@ -15,6 +15,8 @@ import system_runner as system
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
+    'revoke-saved-balances': 327680,
+    'revoke-cleared-balances': 327680,
     **{operation: 8192 for operation in accessible_ui.CHINESE_MATE_ORDER},
     **{operation: 8192 for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS},
     **{operation: 8192 for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
@@ -145,6 +147,8 @@ OPERATION_LABELS = {
        for operation in accessible_ui.REVOKE_DISABLED_OPERATIONS},
     **{operation: 'Reading and cancelling the owned revocation warning without changing time'
        for operation in accessible_ui.REVOKE_CANCEL_OPERATIONS},
+    **{operation: 'Confirming revocation and independently reading saved policy and time'
+       for operation in accessible_ui.REVOKE_CONFIRM_OPERATIONS},
     **{operation: 'Qualifying saved time controls and non-collapsing balance reads'
        for operation in accessible_ui.TIME_EXPLANATION_OPERATIONS},
     **{operation: 'Qualifying custom daily allowance commits and saved readback'
@@ -1106,7 +1110,7 @@ class UiObservations:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 read_started = time.monotonic_ns()
                 result = self._observe(operation, **({'child': child} if child else {}))
-                if operation == 'revoke-balances':
+                if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
                     result['revoke_cancel']['read_bounds'] = [read_started, time.monotonic_ns()]
                 if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
                     require(time.monotonic() - self.lock_recipient_checked < 30,
@@ -2068,14 +2072,25 @@ class UiObservations:
                               {'refusal': operation.removeprefix('time-explanation-')})
                 require(value == projection, 'ui:time-response')
             expected['time_explanation'] = value
-        if operation in accessible_ui.REVOKE_CANCEL_OPERATIONS:
+        if operation in accessible_ui.REVOKE_CANCEL_OPERATIONS | accessible_ui.REVOKE_CONFIRM_OPERATIONS:
             require(type(result) is dict and set(result) == {*expected, 'revoke_cancel'},
                     'ui:revoke-response')
             value = result['revoke_cancel']
-            if operation == 'revoke-balances':
-                require(type(value) is dict and set(value) == {'settings', 'balances'},
+            if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
+                fields = {'settings', 'balances'}
+                if operation != 'revoke-balances':
+                    fields |= {'apps', 'rules'}
+                require(type(value) is dict and set(value) == fields,
                         'ui:revoke-response')
                 SettingsObservation.from_settings(value['settings'])
+                if operation != 'revoke-balances':
+                    rows = AppRowsObservation.from_rows(value['apps']).rows
+                    rules = value['rules']
+                    require(type(rules) is list and len(rules) == len(rows)
+                            and all(type(rule) is list and len(rule) == 2
+                                    and rule[0] == row[0] and type(rule[1]) is str
+                                    and 0 < len(rule[1]) <= 1024
+                                    for row, rule in zip(rows, rules)), 'ui:revoke-saved-rule')
                 balances = value['balances']
                 require(type(balances) is dict and set(balances) == {
                     'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
@@ -2091,9 +2106,12 @@ class UiObservations:
                             'ui:revoke-response')
             else:
                 projection = ({'refusal': operation.removeprefix('revoke-')}
-                              if operation.startswith('revoke-wrong-') else
+                              if operation.startswith('revoke-wrong-') or operation in (
+                                  'revoke-confirm-wrong-child', 'revoke-confirm-refused') else
                               {'child': 'fixture-child', 'cancelled': True}
                               if operation == 'revoke-cancel' else
+                              {'child': 'fixture-child', 'confirmed': True}
+                              if operation == 'revoke-confirm' else
                               {'child': 'fixture-child', 'warning': 'time-apps-daily-preserved'})
                 require(value == projection, 'ui:revoke-response')
             expected['revoke_cancel'] = value

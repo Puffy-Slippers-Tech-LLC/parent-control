@@ -154,6 +154,10 @@ bounded joined threads, process-local command doubles and the existing owned
 session children. No live VM, setup, privilege or shared output is touched.
 vm_config, prepare_baseline_tool, appsnapshot_cleanup_safety and regression_session
 retain compatible unit scheduling; app-snapshot cleanup coverage stays compatible too.
+Revocation diagnostic boundaries and selector reload checks use existing private
+request files and process-local UI/dispatcher doubles. VM-control, accessible UI
+and installed-journey retain their current unit buckets; no real guest, process,
+bus, display, shared cache or new cleanup owner is added.
 Combined preparation and snapshot-free backup checks in vm_backup_cleanup_safety
 use private registry/disks/journals and real advisory locks on those private files.
 Build, app preparation and privilege dispatch are process-local doubles; no live

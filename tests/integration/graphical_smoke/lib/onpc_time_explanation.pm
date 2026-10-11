@@ -38,6 +38,17 @@ sub revoke_cancel {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'revoke-cancel', review => 0);
     $journey->declare_invocations($invocations);
     $journey->declare_challenges($challenges);
+    revoke_entry($journey);
+    $journey->seen('before');
+    for my $prefix ('first', 'second') {
+        $journey->seen("$prefix-$_") for ('open', 'warning', 'wrong-child', 'wrong-confirmation', 'cancel', 'balances');
+    }
+    $journey->finish();
+}
+sub revoke_entry {
+    onpc_progress::operation('Obtaining a real kiosk grant and returning to the owned Parent window');
+    my ($journey) = @_;
+    die 'revocation:entry-arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     onpc_gdm::reattach_functional();
     my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
@@ -51,10 +62,18 @@ sub revoke_cancel {
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
     $journey->consume_observation('supplied-parent-retained',
         onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'supplied'));
-    $journey->seen('before');
-    for my $prefix ('first', 'second') {
-        $journey->seen("$prefix-$_") for ('open', 'warning', 'wrong-child', 'wrong-confirmation', 'cancel', 'balances');
-    }
+}
+sub revocation {
+    onpc_progress::operation('Qualifying Confirm and independent cleared-grant and saved-policy results');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'revocation:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'revocation', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    revoke_entry($journey);
+    $journey->seen($_) for ('before', 'confirm-open', 'confirm-warning',
+        'confirm-wrong-child', 'confirm-refused', 'confirmed', 'after');
     $journey->finish();
 }
 1;

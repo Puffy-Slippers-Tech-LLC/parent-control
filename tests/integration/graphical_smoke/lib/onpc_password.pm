@@ -119,7 +119,8 @@ sub enter_kiosk_mate_password {
             && ($chinese || ($journey->{prefix} // '') eq 'kiosk-' . $binding
                 || ($journey->{prefix} // '') eq 'kiosk-approval-flow'
                 || (!$reject && (($journey->{prefix} // '') eq 'package-removal'
-                    || ($journey->{prefix} // '') eq 'revoke-cancel')))
+                    || ($journey->{prefix} // '') eq 'revoke-cancel'
+                    || ($journey->{prefix} // '') eq 'revocation')))
             && !$journey->{review} && !$challenges_used{$id};
         $challenges_used{$id} = 1;
         $authentication_started = 1;

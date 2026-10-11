@@ -885,13 +885,18 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
     after_balances = reader.reach_time_explanation(CHILD)
     assert all(after_balances[key] == before_balances[key] for key in ('daily', 'one_time', 'total'))
     assert all(record['event'] != 'revoke_one_time_grant' for record in read_events(path))
+    before_saved = reader.saved_revoke_balances(CHILD)
     reader.open_revoke_warning(CHILD)
-    ui.activate("parent-revoke-confirm")
+    reader.confirm_revoke(CHILD, confirm=True)
     wait_for_accessible_state(
         lambda: any(record["event"] == "revoke_one_time_grant"
                     for record in read_events(path)),
         "confirmed revocation reaches broker",
     )
+    # The recording preview backend has a fixed time status. Actual grant
+    # clearance is an installed result; this component owns action and policy.
+    after_saved = reader.saved_revoke_balances(CHILD)
+    assert all(after_saved[key] == before_saved[key] for key in ('settings', 'apps', 'rules'))
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))

@@ -605,9 +605,9 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             return regression_main(root, **phases, **({'checkpoint': checkpoint} if checkpoint else {}))
         if detached:
             selected = selections(root, argv)
-            serial_host = (len(selected) == 1 and selected[0][0] in ('unit', 'component', 'ui')
-                           and selected[0][1][:1] == ['--unattended'])
-            if selected[0][0] not in AGGREGATES and not serial_host and not any(
+            # --unattended selects child control, not a raw-output observer.
+            # Detached owners must still publish the shared live dashboard.
+            if selected[0][0] not in AGGREGATES and not any(
                     '--list' in args or '--help' in args or '-h' in args or '--collect-only' in args
                     for _, args in selected):
                 from regression import main as regression_main

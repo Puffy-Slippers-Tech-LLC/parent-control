@@ -56,7 +56,8 @@ def test_edits_during_a_category_do_not_block_later_categories(tmp_path, monkeyp
 
 @pytest.mark.parametrize('category', [kind for kind in test_commands.CATEGORIES
                                      if kind not in test_commands.AGGREGATES])
-def test_detached_categories_use_the_shared_report(monkeypatch, category):
+@pytest.mark.parametrize('unattended', [False, True])
+def test_detached_categories_use_the_shared_report(monkeypatch, category, unattended):
     monkeypatch.setattr(test_commands, 'validate_one', lambda *_: None)
     run = Mock(return_value=7)
     monkeypatch.setattr(regression, 'main', run)
@@ -65,8 +66,9 @@ def test_detached_categories_use_the_shared_report(monkeypatch, category):
     monkeypatch.setattr(regression_process, 'host_run',
                         Mock(side_effect=AssertionError('raw output route')))
     vm_args = ['--vm', vm_name()] if category in ('integration', 'system', 'e2e', 'fast') else []
-    assert test_commands._main([category, 'selection', *vm_args], detached=True) == 7
-    run.assert_called_once_with(ROOT, selections=[(category, ['selection'])])
+    options = ['--unattended', 'selection'] if unattended else ['selection']
+    assert test_commands._main([category, *options, *vm_args], detached=True) == 7
+    run.assert_called_once_with(ROOT, selections=[(category, options)])
 
 
 @pytest.mark.parametrize('argv, expected', [
@@ -90,6 +92,28 @@ def test_multiple_categories_preserve_each_selection(argv, expected):
 def test_invalid_or_mixed_listing_selection_is_refused_before_execution(argv):
     with pytest.raises(ValueError):
         test_commands.validate(ROOT, argv)
+
+
+@pytest.mark.parametrize('checkpoint', [None, Mock()])
+def test_unattended_unit_selection_keeps_one_serial_execution(tmp_path, monkeypatch, checkpoint):
+    (tmp_path / 'tests/unit').mkdir(parents=True)
+    report = regression.Report(tmp_path)
+    try:
+        run = regression_selection.SelectedRun(tmp_path, report, regression.Control(),
+                                               [('unit', ['--unattended', '-q'])])
+        run.checkpoint = checkpoint
+        item = run.categories[0]
+        item.total = 2
+        item.state = 'Passed'
+        execute = Mock(return_value=(0, ''))
+        monkeypatch.setattr(run, 'execute', execute)
+        monkeypatch.setattr(run, 'host_jobs', Mock(side_effect=AssertionError('parallel direct launcher')))
+        assert run.run_pytest('unit', item, ['-q']) == 0
+        assert execute.call_count == (2 if checkpoint else 1)
+        assert execute.call_args.args[1] == run.command('unit', '-q')
+        assert execute.call_args.kwargs == {'events': True}
+    finally:
+        report.close()
 
 
 @pytest.mark.parametrize('failed', [False, True])

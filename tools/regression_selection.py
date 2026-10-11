@@ -25,6 +25,8 @@ class SelectedRun(Run):
         includes_vm = any(kind in ('system', 'e2e', 'integration') for kind, _ in selections)
         super().__init__(root, report, control, host_only=not includes_vm,
                          scope='selected categories only', continue_on_errors=not stop_on_error)
+        self.serial_host = (len(selections) == 1 and selections[0][0] in ('unit', 'component', 'ui')
+                            and selections[0][1][:1] == ['--unattended'])
         self.selections = [(kind, args[1:] if args[:1] == ['--unattended'] else args)
                            for kind, args in selections]
         self.dashboard.controller_category = (self.selections[0][0], 1, len(self.selections))
@@ -76,8 +78,11 @@ class SelectedRun(Run):
         else:
             command = pytest_command(self.root, args, kind)
             options = command[command.index('no:cacheprovider') + 1:command.index('--')]
-        if serial_options(options) and self.checkpoint is None:
-            self.report.write(f'\n{kind.upper()} selection: serial execution preserves the requested failure limit.\n')
+        serial = self.serial_host or serial_options(options)
+        if serial and self.checkpoint is None:
+            reason = ('preserves the direct launcher contract' if self.serial_host else
+                      'preserves the requested failure limit')
+            self.report.write(f'\n{kind.upper()} selection: serial execution {reason}.\n')
             inventory.branch = 1
             inventory.launch_order = self.sequence + 1
             status, _ = self.execute(inventory, self.command(kind, *args), events=True)
@@ -92,7 +97,7 @@ class SelectedRun(Run):
         if inventory.state == 'Passed' and not inventory.total:
             inventory.retry_category = kind
             return 0
-        if serial_options(options):
+        if serial:
             inventory.branch = 1
             inventory.launch_order = self.sequence + 1
             status, _ = self.execute(inventory, self.command(kind, *args), events=True)

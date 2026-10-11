@@ -2326,11 +2326,22 @@ class ParentWindow(Adw.ApplicationWindow):
         child_name = self._users[selected][1]
         dialog = localized(Gtk.Dialog, 
             transient_for=self, modal=True, title=m.REVOKE_ONE_TIME_GRANT,
+            resizable=False,
         )
+        dialog.add_css_class("parent-revoke-dialog")
         set_automation_id(dialog, "parent-revoke-dialog")
         header = Gtk.HeaderBar()
         add_identified_window_controls(header, "parent-revoke-window-controls")
         dialog.set_titlebar(header)
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        scroll = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            propagate_natural_width=True,
+            propagate_natural_height=True, max_content_height=420,
+            child=body,
+        )
+        dialog.get_content_area().append(scroll)
         warning = localized(Gtk.Label, 
             label=(m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED % {'child_name': child_name}),
             wrap=True, max_width_chars=72, xalign=0,
@@ -2339,7 +2350,7 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
         set_automation_id(warning, "parent-revoke-warning")
-        dialog.get_content_area().append(warning)
+        body.append(warning)
         replacements = replacement_policy_ids(self._preferences["apps"], self._app_catalog)
         running = set(applications)
         apps = [app for app in self._app_catalog
@@ -2351,7 +2362,7 @@ class ParentWindow(Adw.ApplicationWindow):
                 margin_start=18, margin_end=18, margin_bottom=8,
             )
             set_automation_id(heading, "parent-revoke-apps-heading")
-            dialog.get_content_area().append(heading)
+            body.append(heading)
             app_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                                margin_start=18, margin_end=18, margin_bottom=18)
             set_automation_id(app_list, "parent-revoke-apps")
@@ -2368,12 +2379,8 @@ class ParentWindow(Adw.ApplicationWindow):
                 set_automation_id(name, identity)
                 row.append(name)
                 app_list.append(row)
-            scroll = Gtk.ScrolledWindow(
-                hscrollbar_policy=Gtk.PolicyType.NEVER,
-                propagate_natural_height=True, max_content_height=240,
-            )
-            scroll.set_child(app_list)
-            dialog.get_content_area().append(scroll)
+            body.append(app_list)
+        dialog.get_content_area().append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         add_dialog_button(
             dialog, m.CANCEL, Gtk.ResponseType.CANCEL, "parent-revoke-cancel",
             description=m.KEEP_THE_CURRENT_ONE_TIME_GRANT,

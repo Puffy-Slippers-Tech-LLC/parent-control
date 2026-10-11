@@ -51,6 +51,10 @@
   background: alpha(#292934, 0.32);
 }
 
+.parent-revoke-dialog .dialog-action-area {
+  padding: 10px;
+}
+
 .parent-whats-new-dialog,
 .parent-whats-new-dialog:backdrop {
   background: #fcfcfd;

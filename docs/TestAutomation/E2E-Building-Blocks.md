@@ -5908,6 +5908,13 @@ Before the first live attempt, check the changed boundary end to end on the host
    including defaults in nested helpers and asynchronous input receipts. Test
    the nondefault identity and a mismatched receipt before live qualification;
    a renamed stage alone does not prove the input targets the intended child.
+   Recheck existing consumers' success/refusal tables and fixture-constructor
+   mocks when expanding a shared role, route or profile. Tasks 047g/047a added
+   qualified Riley-grid and Parent-command bindings, while older overlay tests
+   still classified them as unsupported and omitted the explicit native profile.
+   Cover newly supported bindings positively and retain genuine unsupported
+   role/route refusals; run the affected consumer regressions, not only the new
+   qualification's tests.
    Trace each post-transition usability assertion to the public input that
    establishes its required policy and selected accounts. A reboot does not
    enable fresh-install child controls, and preserved eligible administrators

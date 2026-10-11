@@ -27,22 +27,24 @@ ACTIVITY_STAGES = ('original-desktop', 'original-command', 'original-opened',
 
 
 @pytest.mark.parametrize('route,child', [('command', 'child'), ('command', 'other-child'),
-                                        ('grid', 'other-child')])
+                                        ('grid', 'other-child'), ('grid', 'child'),
+                                        ('command', 'parent')])
 def test_activity_declaration_matches_shared_leaves_and_has_caller_owned_names(route, child):
     from journey_blocks import native_activity_entry, native_usable_app
     entry = native_activity_entry('independent', route=route, child=child)
     assert list(entry) == ['independent-' + stage for stage in native_usable_app(route, child=child)] + [
         'independent-capture']
     assert list(entry.values())[:-1] == list(native_usable_app(route, child=child).values())
-    assert entry['independent-capture'] == ('ui:overlay-native-activity' if child == 'child'
-                                           else 'ui:native-activity')
+    assert entry['independent-capture'] == {
+        'child': 'ui:overlay-native-activity', 'parent': 'ui:parent-native-activity',
+        'other-child': 'ui:native-activity'}[child]
     entry.clear()
     assert native_activity_entry('another', route=route, child=child)
 
 
 @pytest.mark.parametrize('prefix,route,child', [('', 'command', 'child'),
     ('foreign/path', 'command', 'child'), (None, 'command', 'child'),
-    ('valid', 'unknown', 'child'), ('valid', 'grid', 'child'), ('valid', 'command', 'parent')])
+    ('valid', 'unknown', 'child'), ('valid', 'grid', 'parent'), ('valid', 'command', 'foreign')])
 def test_activity_declaration_refuses_unsupported_bindings(prefix, route, child):
     from journey_blocks import native_activity_entry
     with pytest.raises(EvidenceError):
@@ -130,7 +132,8 @@ def test_shared_fixture_action_selection_preserves_verification_owner(monkeypatc
     if include_refusal:
         actions['native-refuse'](journey, guard)
         controller.refuse.assert_called_once()
-    native_fixtures.NativeFixtures.assert_called_once_with(journey.transport, journey.context.verified)
+    native_fixtures.NativeFixtures.assert_called_once_with(
+        journey.transport, journey.context.verified, profile='native')
     assert guard.call_count == len(actions)
     assert set(fixture_actions()) == {'native-refuse', 'native-verify'}
     with pytest.raises(EvidenceError, match='action-binding'):

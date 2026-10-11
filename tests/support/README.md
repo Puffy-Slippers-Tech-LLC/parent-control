@@ -243,6 +243,15 @@ terminal; the refusal check delivers no input.
 Native command launch acquires its session, desktop, window-absence and prompt
 proofs inside the shared bounded read wait. A query error discards that complete
 observation and retries only the preflight; a complete refusal remains terminal.
+Desktop preparation can itself retire an accessibility provider, so
+`AccessibleUI.native_launch_command` invalidates its earlier observation and
+reacquires the whole preflight after `prepare_launch_desktop`, before submission.
+Keep preparation outside the retry predicate too. The
+[native command regressions](../unit/test_e2e_native_app.py) exercise transient
+and persistent post-preparation reads, positive prompt refusals, existing windows
+and uncertain submission for Parent, Jordan and Riley. Retain these focused
+checks when repairing this boundary; an earlier successful desktop read is not
+a current launch proof.
 The launch command runs once outside the wait, with the uncertain-input latch
 set before submission and independent window/activity readback afterward.
 
@@ -668,6 +677,19 @@ reread and close. Invocation prefixes determine both controller checkpoints and
 actual worker titles. The helpers add no process, storage or cleanup owner and
 never relaunch during resume. Keep the existing complete-order/failure-stop
 checks alongside an independent caller with renamed prefixes.
+
+Distinct-user retained histories compose `journey_blocks.retained_app_activities`
+/ `onpc_app_rows::retained_app_activities` for a finite user/entry list, then
+`retained_app_visit` in those same owners for each return. Use
+`RetainedDesktopJourney` with caller-declared session comparisons;
+`JourneyPlan.activity_entries` requires the earlier capture before entry input,
+and `activity_checks` compares the original window and draft before resumed
+Submit. Do not copy `retained_app_visits.PLAN` or run its qualification as setup.
+The [qualified scope](../../docs/TestAutomation/E2E-Building-Blocks.md#distinct-user-retained-app-qualification)
+owns available bindings; same-child multiple desktops remain separate. The
+existing [app-activity regressions](../unit/test_e2e_app_activity.py) cover missing
+captures, changed/replayed windows, actual worker order and renamed independent
+consumers without adding a resource or cleanup owner.
 
 Shell authentication declarations reuse `request_flow.overlay_authentication`
 for Cancel, fixed approval or rejection, paired with `onpc_request_flow::shell_cancel` /

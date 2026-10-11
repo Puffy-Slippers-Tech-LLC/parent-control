@@ -65,6 +65,7 @@ def test_registered_selector_snapshot_worker_and_shared_fragment(monkeypatch, tm
     import e2e_worker
     import tools.test_commands as commands
     from tools.test_storage import named_input
+    from vm_selection import arguments
     from parent_setup_qualification import KioskLanguageQualification, KioskEntryQualification
     from journey_blocks import language_selection
     import parent_language
@@ -77,7 +78,8 @@ def test_registered_selector_snapshot_worker_and_shared_fragment(monkeypatch, tm
     assert KioskLanguageQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is language.PLAN
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(selector.ASSETS)))
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_kiosk_language'])[-1] == str(selector.ASSETS)
+    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_kiosk_language']) == commands.python_file(
+        Path.cwd(), 'tools/vm_artifacts.py', '--output', str(selector.ASSETS), *arguments())
     assert set(language.PLAN.phases) == set(language.PLAN.stages)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in language.SCREENS.values() if tag.startswith('ui:'))
@@ -93,11 +95,15 @@ def test_registered_selector_snapshot_worker_and_shared_fragment(monkeypatch, tm
 @pytest.mark.parametrize('name', ['check_e2e_kiosk_language', 'check_e2e_kiosk_language.py'])
 def test_valid_existing_inputs_are_preserved(monkeypatch, name):
     import tools.test_commands as commands
+    from vm_selection import arguments
     validate, allocate = Mock(), Mock()
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
     monkeypatch.setattr(commands, 'artifact_path', validate)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name]) is None
+    # Existing inputs still need pinned-baseline verification without replacement.
+    assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name]) == commands.python_file(
+        Path.cwd(), 'tools/vm_artifacts.py', '--candidate', str(selector.ASSETS),
+        '--output', str(selector.ASSETS), *arguments())
     validate.assert_called_once_with(str(selector.ASSETS))
     allocate.assert_not_called()
 

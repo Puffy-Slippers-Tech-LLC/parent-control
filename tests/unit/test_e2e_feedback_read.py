@@ -290,6 +290,50 @@ def test_collection_input_rejects_changed_source_before_opening():
     ui.open_feedback.assert_not_called()
 
 
+@pytest.mark.parametrize('outcome', ['recovers', 'unavailable', 'prompt'])
+def test_collection_entry_reacquires_complete_read_before_source_or_input(monkeypatch, outcome):
+    button = Node(identity='parent-feedback-button')
+    parent = Node(identity='parent-window', children=[button])
+    ui = ui_for(parent)
+    application = ui.root()
+    application.bus = parent.bus = button.bus = ':1.2'
+    parent.path, button.path = '/parent', '/feedback'
+    if outcome == 'prompt':
+        prompt = Node(role='dialog', states=('showing', 'visible', 'modal'))
+        external = Node(role='application', children=[prompt])
+        desktop = Node(children=[application, external])
+        ui.root = lambda: desktop
+    complete = ui.read_snapshot()
+    now = [0.0]
+    ui.timeout = .4
+    ui.query_errors = (LookupError,)
+    ui.prompt_enabled = True
+    ui.prompt_session = 'desktop'
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda delay: now.__setitem__(0, now[0] + delay))
+    error = LookupError('departed cache provider')
+    ui.read_snapshot = Mock(side_effect=error if outcome == 'unavailable' else [error, complete])
+    ui.open_feedback = Mock()
+    if outcome == 'recovers':
+        import hashlib
+        expected = hashlib.sha256(json.dumps([
+            (':1.2', '/parent'), (':1.2', '/feedback')]).encode()).hexdigest()
+        assert ui.feedback_collection_source() == expected
+        assert ui.collection_owner == (':1.2', '/parent')
+        assert ui.collection_application is application
+        assert ui.read_snapshot.call_count == 2
+        assert now[0] == .2
+    else:
+        expected = ('^ui:timeout:feedback-collection-entry$' if outcome == 'unavailable'
+                    else '^ui:system-prompt-refused:desktop:unknown$')
+        with pytest.raises(accessible_ui.UiError, match=expected):
+            ui.feedback_collection_source()
+        assert not hasattr(ui, 'collection_owner')
+        assert now[0] == (.4 if outcome == 'unavailable' else .2)
+    button.action.do_action.assert_not_called()
+    ui.open_feedback.assert_not_called()
+
+
 @pytest.mark.parametrize('download_exposed', [True, False])
 @pytest.mark.parametrize('fault', ['', 'owner', 'duplicate', 'stale', 'stale-control', 'incomplete'])
 def test_collection_sample_public_ids_and_owner(fault, download_exposed):

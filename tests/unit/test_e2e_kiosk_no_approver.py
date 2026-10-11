@@ -177,6 +177,12 @@ def test_every_conflicting_mode_refuses_before_vm_access(monkeypatch):
         # Either conflicting mode may be validated first. The safety contract
         # is refusal before preparation, independent of validator source order.
         for arguments in bindings.get(name, [{name: True}]):
+            # Keep the exact synthetic binding in the failure evidence; the
+            # function signature grows independently of this conflict matrix.
+            credentials.side_effect = AssertionError(
+                f'conflict reached credential preparation: {arguments!r}')
+            storage.side_effect = AssertionError(
+                f'conflict reached VM run allocation: {arguments!r}')
             with pytest.raises(CommandError, match=r'^smoke:[a-z-]+-prerequisites$'):
                 smoke.main(assets='/unused', provision_credentials=True,
                            kiosk_no_approver=True, **arguments)

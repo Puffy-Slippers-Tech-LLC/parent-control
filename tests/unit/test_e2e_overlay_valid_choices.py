@@ -6,7 +6,7 @@ Perl children; no live displays, VMs, sockets, shared files or caches.
 from copy import deepcopy
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, call
 
 import pytest
 
@@ -805,7 +805,10 @@ def test_native_child_command_binds_actual_overlay_account_and_single_input(monk
     assert submit.call_count == (0 if fault == 'wrong-account' else 1)
     assert ui.prepare_launch_desktop.call_count == (0 if fault == 'wrong-account' else 1)
     if fault != 'wrong-account':
-        ui.desktop_result.assert_called_once_with(a.CHILD, 'success')
+        # Read-only preflight runs before and after desktop preparation;
+        # both observations must bind the actual overlay child account.
+        assert ui.desktop_result.call_args_list == [
+            call(a.CHILD, 'success'), call(a.CHILD, 'success')]
         with pytest.raises(a.UiError): ui.run('overlay-native-command-launch', '')
         submit.assert_called_once()
 

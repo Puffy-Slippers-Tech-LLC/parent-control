@@ -1108,7 +1108,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_eligible_choices, request_choices, kiosk_no_child,
                          repeated_operations, challenges, product_free_entry,
                          package_authority, package_install, customer_reboot,
-                         app_row_observations, feedback_read)))),
+                         app_row_observations, feedback_read, revoke_cancel)))),
             'smoke:kiosk-no-approver-prerequisites')
     require(type(feedback_read) is bool and (not feedback_read or (
         assets is not None and provision_credentials and fresh_desktop is None

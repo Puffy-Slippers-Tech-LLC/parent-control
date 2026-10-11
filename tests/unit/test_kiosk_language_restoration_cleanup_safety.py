@@ -161,6 +161,7 @@ def test_registration_inputs_shared_fragment_and_worker_distribution(monkeypatch
     import e2e_worker
     import tools.test_commands as commands
     from tools.test_storage import named_input
+    from vm_selection import arguments
     from parent_setup_qualification import KioskLanguageRestorationQualification, KioskEntryQualification
     from journey_blocks import language_selection
     launch = Mock(return_value=0)
@@ -171,12 +172,26 @@ def test_registration_inputs_shared_fragment_and_worker_distribution(monkeypatch
     assert KioskLanguageRestorationQualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
     assert KioskLanguageRestorationQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is recipe.PLAN
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(selector.ASSETS)))
-    for name in ('check_e2e_kiosk_language_restoration', 'check_e2e_kiosk_eligible_choices'):
-        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(selector.ASSETS)
+    allocate = Mock(side_effect=lambda output: output)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    inputs = (
+        ('check_e2e_kiosk_language_restoration', str(selector.ASSETS)),
+        ('check_e2e_kiosk_eligible_choices', str(named_input(vm_source=True, fixture_source=True))),
+    )
+    for name, output in inputs:
+        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name]) == commands.python_file(
+            Path.cwd(), 'tools/vm_artifacts.py', '--output', output, *arguments())
+        allocate.assert_called_once_with(output)
+        allocate.reset_mock()
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
-    monkeypatch.setattr(commands, 'artifact_path', Mock())
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_kiosk_language_restoration']) is None
+    validate = Mock()
+    monkeypatch.setattr(commands, 'artifact_path', validate)
+    for name, output in inputs:
+        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name]) == commands.python_file(
+            Path.cwd(), 'tools/vm_artifacts.py', '--candidate', output, '--output', output, *arguments())
+        validate.assert_called_once_with(output)
+        validate.reset_mock()
+        allocate.assert_not_called()
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in recipe.SCREENS.values() if tag.startswith('ui:'))
     assert set(recipe.PLAN.phases) == set(recipe.PLAN.stages)

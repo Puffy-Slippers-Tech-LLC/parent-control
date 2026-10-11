@@ -85,7 +85,7 @@ def test_selector_snapshot_and_automatic_inputs(monkeypatch, tmp_path):
     allocate = Mock(return_value=str(selector.ASSETS))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     command = commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_chinese_native_auth'])
-    assert command[-1] == str(selector.ASSETS)
+    assert command[command.index('--output') + 1] == str(selector.ASSETS)
     allocate.assert_called_once_with(str(selector.ASSETS))
 
 

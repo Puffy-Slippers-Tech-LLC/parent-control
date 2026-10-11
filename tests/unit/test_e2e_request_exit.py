@@ -296,7 +296,7 @@ def test_request_exit_qualification_reuses_the_prepared_app_snapshot():
     import check_e2e_request_exit as check
     from parent_setup_qualification import RequestExitQualification
 
-    assert check.ASSETS == named_input()
+    assert check.ASSETS == named_input(vm_source=True, fixture_source=True)
     context = type('Context', (), {})()
     RequestExitQualification.journey(context, lambda *_: None)
     # The prepared snapshot follows the app release, not the release at which
@@ -372,7 +372,7 @@ def test_worker_uses_direct_station_entries_for_cancel_and_escape():
 
 def test_request_exit_is_the_fixed_argument_free_integration_selector():
     source = (ROOT / 'tests/integration/check_e2e_request_exit.py').read_text()
-    assert "ASSETS = named_input()" in source
+    assert "ASSETS = named_input(vm_source=True, fixture_source=True)" in source
     assert 'request_exit=True' in source
     assert 'sys.argv' not in source
 

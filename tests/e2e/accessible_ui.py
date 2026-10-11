@@ -4747,7 +4747,12 @@ class AccessibleUI:
     def feedback_collection_source(self):
         """Pin the owned management entry before the dialog exists."""
         import hashlib
-        observation = self.read_snapshot()
+        # The desktop scan is required for the prompt guard, but an external
+        # provider may retire between enumeration and its cache read. Discard
+        # that incomplete observation and reacquire under the existing deadline.
+        # Only reads repeat; source checks and the later Open input stay outside.
+        observation = self.wait(self.read_snapshot, 'feedback-collection-entry',
+                                prompt_in_predicate=True)
         root = self.snapshot_owned_target('parent-window', observation=observation, check_prompt=True)
         require(root is not None, 'ui:collection-entry')
         require(self.snapshot_owned_target('feedback-dialog', observation=observation,
@@ -5634,7 +5639,7 @@ class AccessibleUI:
                 'limit_enabled': toggle.get_state_set().contains(self.api.StateType.CHECKED),
                 'allowance': labels}
 
-    def set_toggle(self, identity, desired, *, root):
+    def set_toggle(self, identity, desired, *, root, diagnostic=False):
         """UI17: set a registered owned switch to an explicit state."""
         require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle',
                 *(f'parent-filter-{kind}-{option}' for kind, options in FILTER_OPTIONS.items()
@@ -5654,17 +5659,109 @@ class AccessibleUI:
                 'ui:unusable-target')
         initial = self.has_state(target, self.api.StateType.CHECKED)
         activated = initial != desired
+        last = {}
+        diagnostic_started = time.monotonic()
+        read_attempts = complete_reads = state_changes = 0
+        previous_state = None
+        read_failures = 0
+        read_stage = 'snapshot'
+
+        def emit_diagnostic(phase, **fields):
+            # Fixed control ID, boolean public state and bounded timing/counts;
+            # no account values, provider text, errors or private product state.
+            print(json.dumps({'event': 'ui-toggle-readback', 'control_id': identity,
+                              'phase': phase, 'initial': initial, 'desired': desired,
+                              'input_required': activated,
+                              'elapsed_ms': round((time.monotonic() - diagnostic_started) * 1000, 3),
+                              'read_attempts': read_attempts, 'complete_reads': complete_reads,
+                              'read_failures': read_failures,
+                              **fields}, sort_keys=True),
+                  file=sys.stderr, flush=True)
+
+        if diagnostic:
+            emit_diagnostic('before-input')
         if activated:
             self.set_value(identity, desired)
+        if diagnostic:
+            emit_diagnostic('input-acknowledged')
 
-        def desired_state():
+        def observe_desired_state():
+            nonlocal last, read_attempts, complete_reads, state_changes, previous_state
+            nonlocal read_stage
+            if diagnostic:
+                if read_attempts == 0:
+                    # Keep the original input-to-readback call sequence. An
+                    # extra public getValue round trip here could mask a race
+                    # by giving pending save/load callbacks time to complete.
+                    # Canonical failure context is read only after refusal.
+                    emit_diagnostic('before-readback')
+                read_attempts += 1
+            read_stage = 'snapshot'
+            observation = self.read_snapshot() if diagnostic else None
+            read_stage = 'owned-target'
             current = self.snapshot_owned_target(
-                identity, root=root, showing=False, check_prompt=True)
+                identity, root=root, showing=False, check_prompt=True,
+                observation=observation)
+            read_stage = 'target-state'
+            if diagnostic:
+                nodes, _, identities, facts = observation
+                last = {'target_present': current is not None,
+                        'error_report_visible': any(
+                            identities[node] in ('feedback-dialog', 'error-report-unavailable-dialog')
+                            and facts[node]['showing'] for node in nodes)}
+                if current is not None:
+                    last.update(checked=self.has_state(current, self.api.StateType.CHECKED),
+                                enabled=self.has_state(current, self.api.StateType.SENSITIVE),
+                                visible=self.has_state(current, self.api.StateType.VISIBLE))
+                complete_reads += 1
+                if last != previous_state:
+                    state_changes += 1
+                    if state_changes <= 8:
+                        emit_diagnostic('observed-state', **last)
+                    previous_state = dict(last)
             if current is None:
                 return None
             return current if self.has_state(current, self.api.StateType.CHECKED) == desired else None
 
-        current = self.wait(desired_state, 'toggle-state', prompt_in_predicate=True)
+        def desired_state():
+            nonlocal read_failures
+            try:
+                return observe_desired_state()
+            except Exception as error:
+                if diagnostic:
+                    # A timeout drops earlier read exceptions from its own
+                    # traceback. Retain their stage and fixed refusal category
+                    # before the existing wait handles them. Never publish
+                    # exception text, provider identities or account values.
+                    read_failures += 1
+                    if read_failures <= 8:
+                        category = 'query-error' if isinstance(error, self.query_errors) else 'other'
+                        if isinstance(error, UiError) and str(error) in (
+                                'ui:incomplete-tree', 'ui:system-prompt-observation-failed',
+                                'ui:wrong-owner', 'ui:wrong-application-owner',
+                                'ui:wrong-scope', 'ui:unidentified-scope',
+                                'ui:ambiguous-application', 'ui:ambiguous-automation-id',
+                                'ui:missing-application-owner', 'ui:product-api-required'):
+                            category = str(error)
+                        emit_diagnostic('read-error', stage=read_stage, category=category)
+                raise
+
+        try:
+            current = self.wait(desired_state, 'toggle-state', prompt_in_predicate=True)
+        except UiError:
+            if diagnostic:
+                # One independent canonical read from the pinned public control.
+                # Never retry input, replace its owner or conceal the first error.
+                canonical = None
+                try:
+                    value = target.getValue()
+                    canonical = value if type(value) is bool else None
+                except Exception:
+                    pass
+                emit_diagnostic('readback-failed', canonical_value=canonical, **last)
+            raise
+        if diagnostic:
+            emit_diagnostic('readback-passed', **last)
         require(self.has_state(current, self.api.StateType.CHECKED) == desired,
                 'ui:toggle-state')
         return {'state': desired, 'activated': activated}
@@ -5683,7 +5780,7 @@ class AccessibleUI:
                     'ui:trace-source-changed')
         if operation == 'multiple-other-enable':
             self.parent_save_snapshot(EXISTING_CHILD, False)
-            return self.set_toggle('parent-screen-limit-toggle', True, root=root)
+            return self.set_toggle('parent-screen-limit-toggle', True, root=root, diagnostic=True)
         if operation == 'parent-toggle-wrong-refused':
             try:
                 self.set_toggle('parent-legend-toggle', True, root=root)
@@ -10196,7 +10293,12 @@ class AccessibleUI:
                 'kiosk-child-selector', 'kiosk-approver-selector',
                 'kiosk-soft-apps-row', 'kiosk-soft-apps-toggle',
                 'kiosk-request-submit', 'kiosk-request-cancel', 'kiosk-menu-button',
+                # Documented title-bar entry to the request Preferences action.
+                'kiosk-preferences-button',
                 'kiosk-menu-item-about', 'kiosk-custom-duration',
+                # Inline request-unit radios required by ONPC-CORE-REQUEST-004.
+                'kiosk-custom-duration-unit-minutes',
+                'kiosk-custom-duration-unit-hours',
                 'kiosk-request-scrollbar',
                 *('kiosk-duration-' + str(value) for value in
                   (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')),
@@ -10217,6 +10319,29 @@ class AccessibleUI:
             require(len(menu_toggles) <= 1, 'ui:station-forbidden-control')
             for node in self.snapshot_scope(nodes, edges, window):
                 if facts[node]['showing'] and facts[node]['role'] in controls:
+                    if identities[node] not in allowed and node not in menu_toggles:
+                        # Failure-only context from this already complete read.
+                        # Publish fixed IDs, never provider names, text, values
+                        # or arbitrary identities that could contain user data.
+                        diagnostic_ids = {
+                            'kiosk-custom-duration-unit-minutes',
+                            'kiosk-custom-duration-unit-hours',
+                            'kiosk-custom-duration-units',
+                            'kiosk-custom-duration-row',
+                            'kiosk-duration-choices', 'kiosk-request-form',
+                            'kiosk-menu-button', 'kiosk-preferences-button',
+                            'kiosk-mute-button', 'kiosk-request-status',
+                            'kiosk-result-action', 'kiosk-report-toggle',
+                        }
+                        parents = [parent for parent in nodes if node in edges[parent]]
+                        print(json.dumps({
+                            'event': 'ui-station-control-refusal',
+                            'prepared': prepared,
+                            'control_id': prompt_diagnostic_id(identities[node], diagnostic_ids),
+                            'role': facts[node]['role'],
+                            'parent_id': (prompt_diagnostic_id(identities[parents[0]], diagnostic_ids)
+                                          if len(parents) == 1 else 'ambiguous'),
+                        }, sort_keys=True), file=sys.stderr, flush=True)
                     require(identities[node] in allowed or node in menu_toggles,
                             'ui:station-forbidden-control')
             if started is None:
@@ -12557,12 +12682,13 @@ def main():
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     # Identify a disappearing external owner at the retained failure boundaries,
     # including the attachment Open preflight, fresh attachment read and
-    # diagnostic Save after cancellation.
+    # diagnostic Save after cancellation and the collection entry preflight.
     # These probes preserve traversal, retry/input policy and the first failure.
     ui.api.provider_diagnostics = sys.argv[1] in (
         'switch-parent-before', 'attachment-remaining', 'chooser-accept',
         'denied-export-save-chooser-open', 'standard-parent-unavailable',
-        'native-grid-refusals', 'overlay-native-grid-refusals')
+        'native-grid-refusals', 'overlay-native-grid-refusals',
+        'feedback-collection-events', 'feedback-collection-open')
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
     except ui.query_errors as error:

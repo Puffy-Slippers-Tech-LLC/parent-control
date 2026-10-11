@@ -12,6 +12,11 @@ private mailboxes. Broken-input and interrupt cleanup checks reuse the same
 recorded children and nested owners, with bounded waits and fixture teardown;
 no new shared resource, service or cleanup lifetime is introduced.
 
+Repair failure-context checks extend fix_tests with tiny pytest-private report,
+queue and command files plus a process-local artifact-reader double. No live
+Polkit, VM, bus, display, shared path/cache or new child lifetime is introduced;
+its existing compatible unit classification remains appropriate.
+
 FLOW13 short-daily checks extend accessible_e2e_ui/toggle with in-memory UI
 doubles, pytest-private recorder evidence and bounded waited Perl workers.
 No VM, bus, display, shared path/cache or external service is added; their

@@ -425,13 +425,50 @@ def test_station_shortcut_ready_preserves_owned_window_without_product_input():
     cancel.action.do_action.assert_not_called()
 
 
+@pytest.mark.parametrize('identity, reported', [
+    ('kiosk-mute-button', 'kiosk-mute-button'),
+    ('private-identity-canary', 'other'),
+    ('', 'missing'),
+])
+def test_station_control_refusal_diagnostic_preserves_assertion_and_privacy(capsys, identity, reported):
+    from tests.support.e2e_kiosk import request_form
+    ui, _ = request_form()
+    form = ui.find_id('kiosk-request-form')
+    control = Node('private-name-canary', 'check box', identity=identity)
+    form.children.append(control)
+    with pytest.raises(UiError, match='ui:station-forbidden-control'):
+        ui.kiosk_restrictions(stable_seconds=0, prepared=True)
+    captured = capsys.readouterr()
+    diagnostic = json.loads(captured.err)
+    assert diagnostic == {
+        'event': 'ui-station-control-refusal', 'prepared': True,
+        'control_id': reported, 'role': 'check box', 'parent_id': 'kiosk-request-form',
+    }
+    assert 'private-identity-canary' not in captured.err
+    assert 'private-name-canary' not in captured.err
+    assert not captured.out
+    control.action.do_action.assert_not_called()
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+
+
 @pytest.mark.parametrize('phase', ['ready', 'read'])
-@pytest.mark.parametrize('fault', [None, 'duration', 'custom', 'soft', 'surface', 'control'])
+@pytest.mark.parametrize('fault', [None, 'duration', 'custom', 'soft', 'surface', 'control',
+                                  'unit-control'])
 def test_station_restrictions_after_rejection_validate_prepared_form(phase, fault):
     ui, _, custom = valid_form()
     ui.timeout = 3
     ui.kiosk_valid_choice('kiosk-valid-custom-open')
     ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
+    # The real custom row exposes both radios after the request is rejected.
+    # Keep an unknown descendant covered: allowing these IDs is not a subtree exemption.
+    unit_radios = [Node(role='radio button', identity=f'kiosk-custom-duration-unit-{unit}',
+                        states=('showing', 'visible', 'sensitive', 'checked')
+                        if unit == 'minutes' else ('showing', 'visible', 'sensitive'))
+                   for unit in ('minutes', 'hours')]
+    units = Node(identity='kiosk-custom-duration-units', children=unit_radios)
+    form = ui.find_id('kiosk-request-form')
+    units.parent = form
+    form.children.append(units)
     window = ui.find_id('kiosk-request-window')
     cancel = ui.find_id('kiosk-request-cancel')
     window.action.get_action_name = lambda _: 'focus.kiosk-request-cancel'
@@ -449,6 +486,8 @@ def test_station_restrictions_after_rejection_validate_prepared_form(phase, faul
     elif fault == 'control':
         ui.find_id('kiosk-request-form').children.append(
             Node('Settings', 'push button', identity='kiosk-settings-launch'))
+    elif fault == 'unit-control':
+        units.children.append(Node('Settings', 'push button', identity='kiosk-settings-launch'))
     operation = DENIED_PLAN.screen_tags[f'after-restriction-overview-{phase}'].removeprefix('ui:')
     if fault:
         with pytest.raises(UiError):
@@ -463,6 +502,9 @@ def test_station_restrictions_after_rejection_validate_prepared_form(phase, faul
     window.close.assert_not_called()
     cancel.action.do_action.assert_not_called()
     ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+    for radio in unit_radios:
+        radio.action.do_action.assert_not_called()
+        radio.setValue.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'named-toggle', 'extra-toggle', 'outside-menu',

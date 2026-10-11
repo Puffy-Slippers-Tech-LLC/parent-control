@@ -62,7 +62,9 @@ def test_v1_4_configuration_upgrades_legacy_policy_without_losing_choices(packag
     assert saved['version'] == 4
     assert saved['parent_control_enabled'] is True
     assert saved['daily_time_limit_minutes'] == 75
-    assert saved['request'] == legacy['request']
+    # The current reader supplies the compatible unit default for legacy records.
+    # Compare every saved choice as well as that documented normalized field.
+    assert saved['request'] == {**legacy['request'], 'last_custom_unit': 'minutes'}
     assert saved['apps'] == {'game.desktop': {
         **entry, 'patterns': ['/opt/game/*'] if schema >= 2 else [],
         'user_saved_match_rule': schema >= 2,

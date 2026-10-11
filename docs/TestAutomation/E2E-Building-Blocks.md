@@ -1999,8 +1999,11 @@ Both reports retain the new qualifier and the unchanged exact
 `check_e2e_choices_overlay_to_kiosk` regression from one grouped invocation:
 
 ```sh
-tools/run-tests --vm onpc-Ubuntu26.04,onpc-Fedora44 integration check_e2e_cross_surface integration check_e2e_choices_overlay_to_kiosk
+tools/run-tests --vm 'UBUNTU_VM,FEDORA_VM' integration 'check_e2e_cross_surface' integration 'check_e2e_choices_overlay_to_kiosk'
 ```
+
+Replace `UBUNTU_VM` and `FEDORA_VM` with the corresponding registered names or
+IDs from [the VM registry](../../config/test-vm.json).
 
 Each qualifier passed both immutable child comparisons; each regression passed
 all four transfer/reselection comparisons. Collection, worker/callback shutdown,
@@ -4352,7 +4355,7 @@ policy and disabled limits untouched. The shared policy edit, desktop entry and
 native usable-app helpers own mechanics; `AppPolicyJourney` compares declared
 settings, balances, match and access before acknowledging input.
 
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' e2e --id '80'` passed in
+Case 80 passed on the registered Ubuntu 26.04 and Fedora 44 VMs in
 `20261010T232729Z-5c7cdbab` (Ubuntu) and `20261010T232729Z-7ef82c63` (Fedora).
 Both independent attempts passed product, infrastructure, collection and cleanup,
 completed their leases, and passed suite cleanup and baseline restoration.
@@ -4374,7 +4377,7 @@ invalid-control refusal before entry, the real recorder constructor and rejected
 enabled/allowance/wrong-child readbacks before any durable reply. Existing
 private test resources and lifecycle guards remain unchanged.
 
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' e2e --id '81'` passed in
+Case 81 passed on the registered Ubuntu 26.04 and Fedora 44 VMs in
 `20261010T234213Z-33318586` (Ubuntu) and `20261010T234213Z-660679cb` (Fedora).
 The affected enabled-case-80 regression passed in `20261010T235019Z-d9980371`
 and `20261010T235019Z-78d726a3`, respectively. All four attempts passed product,

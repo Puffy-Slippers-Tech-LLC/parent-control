@@ -69,7 +69,10 @@ def test_selector_and_automatic_asset_preparation(monkeypatch):
     allocate = Mock(return_value=str(selector.ASSETS))
     monkeypatch.setattr(launchers, 'allocate_artifact_output', allocate)
     result = launchers.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_package_upgrade'])
-    assert '--upgrade-inputs' in result and result[-1] == str(selector.ASSETS)
+    from vm_selection import arguments
+    assert result[3:] == ['--upgrade-inputs', '--output', str(selector.ASSETS), *arguments()]
+    assert 'tools/vm_artifacts.py' in result[2]
+    allocate.assert_called_once_with(str(selector.ASSETS))
 
 
 @pytest.mark.parametrize('extra', [{}, {'install': True}, {'package_install': True},

@@ -52,8 +52,11 @@ For VM qualifications, use the maintained runner, which derives that choice
 from pinned baseline provenance and prepares the declared input automatically:
 
 ```sh
-tools/run-tests --vm 'onpc-Fedora44' integration 'check_e2e_riley_native_grid'
+tools/run-tests --vm NAME integration 'check_e2e_riley_native_grid'
 ```
+
+Replace `NAME` with the registered VM name or ID from
+[config/test-vm.json](../../config/test-vm.json).
 
 For an independent host build, `tools/run-tests artifacts build` explicitly
 uses the Debian builder; `tools/run-tests artifacts prepare --for-vm --vm NAME`

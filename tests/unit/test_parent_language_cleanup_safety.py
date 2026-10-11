@@ -72,7 +72,8 @@ def test_rtl_selector_assets_and_worker_registration(monkeypatch, tmp_path):
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(rtl_selector.ASSETS)))
     for name in ('check_e2e_parent_rtl', 'check_e2e_parent_rtl.py'):
-        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(rtl_selector.ASSETS)
+        command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
+        assert command[command.index('--output') + 1] == str(rtl_selector.ASSETS)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in language.RTL_SCREENS.values())
     distribution = e2e_worker.distribution_inputs()
@@ -103,7 +104,8 @@ def test_dialog_selector_registration_decoder_and_distribution(monkeypatch, tmp_
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(dialog_selector.ASSETS)))
     for name in ('check_e2e_parent_dialog_language', 'check_e2e_parent_dialog_language.py'):
-        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(dialog_selector.ASSETS)
+        command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
+        assert command[command.index('--output') + 1] == str(dialog_selector.ASSETS)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in language.DIALOG_SCREENS.values())
     distribution = e2e_worker.distribution_inputs()
@@ -257,7 +259,7 @@ def test_selector_snapshot_assets_and_all_operation_registration(monkeypatch, tm
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(selector.ASSETS)))
     command = commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_parent_language'])
-    assert command[-1] == str(selector.ASSETS)
+    assert command[command.index('--output') + 1] == str(selector.ASSETS)
     assert set(language.PLAN.phases) == set(language.PLAN.stages)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in language.PLAN.screen_tags.values())
@@ -284,7 +286,7 @@ def test_isolation_selector_and_complete_registered_composition(monkeypatch, tmp
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(isolation_selector.ASSETS)))
     for name in ('check_e2e_parent_language_isolation', 'check_e2e_parent_language_isolation.py'):
         command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
-        assert command[-1] == str(isolation_selector.ASSETS)
+        assert command[command.index('--output') + 1] == str(isolation_selector.ASSETS)
     assert set(language.ISOLATION_PLAN.phases) == set(language.ISOLATION_PLAN.stages)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in language.ISOLATION_SCREENS.values())
@@ -317,11 +319,15 @@ def test_automatic_inputs_bind_current_source_and_preserve_existing(monkeypatch,
     command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
     assert inspected == [expected]
     if existing:
-        assert command is None
+        from vm_selection import arguments
+        # Cache hits must verify the pinned VM's format without replacing inputs.
+        assert command == commands.python_file(
+            Path.cwd(), 'tools/vm_artifacts.py', '--candidate', expected,
+            '--output', expected, *arguments())
         validate.assert_called_once_with(expected)
         allocate.assert_not_called()
     else:
-        assert command[-1] == expected
+        assert command[command.index('--output') + 1] == expected
         allocate.assert_called_once_with(expected)
         validate.assert_not_called()
 
@@ -666,7 +672,8 @@ def test_hebrew_policy_selector_and_complete_composition(monkeypatch, tmp_path):
     monkeypatch.setattr(commands, 'allocate_artifact_output',
                         Mock(return_value=str(hebrew_policy_selector.ASSETS)))
     for name in ('check_e2e_parent_hebrew_policy', 'check_e2e_parent_hebrew_policy.py'):
-        assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name])[-1] == str(hebrew_policy_selector.ASSETS)
+        command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
+        assert command[command.index('--output') + 1] == str(hebrew_policy_selector.ASSETS)
     assert set(journey.plan.phases) == set(journey.plan.stages)
     assert all(tag[3:] in public.OPERATIONS and tag[3:] in OPERATION_LABELS
                for tag in journey.plan.screen_tags.values())

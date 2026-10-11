@@ -20,6 +20,106 @@ def failure(prompt, *categories):
     return {'prompt': prompt, 'categories': list(categories)}
 
 
+def test_failure_context_survives_original_report_and_command_removal(tmp_path):
+    import repair_evidence
+    storage = tmp_path / 'output/test-runs'
+    queue = storage / 'host/allocations/onpc-vm-queue-example'
+    report = storage / 'host/reports/example'
+    private = storage / 'privileged/allocations/onpc-graphical-smoke-example/private'
+    run = storage / 'host/fix-tests/example'
+    for path in (queue, report, private, run):
+        path.mkdir(parents=True)
+    handoff = queue / 'failure.json'
+    handoff.write_text(json.dumps(failure('original failure', 'e2e')))
+    child_handoff = report / 'failure.json'
+    child_handoff.write_text(json.dumps(failure('guest failure', 'e2e')))
+    (queue / 'results.json').write_text(json.dumps({
+        'guest': {'status': 1, 'handoffs': [str(child_handoff)]}}))
+    category = report / 'category-003.log'
+    category.write_text(json.dumps({'attempts': [{
+        'outcome': 'failed', 'raw_directory': str(private.parent)}]}) + '\n')
+    error = private / 'command-0153-stderr.txt'
+    error.write_text('ui:timeout:toggle-state\noriginal read failure\n')
+    (private / 'command-0153.txt').write_text('public operation result\n')
+    (run / 'last-test.log').write_text(f'Failure handoff: {handoff}\n')
+
+    result = fix_tests.handoff(run, root=tmp_path)
+    saved, = run.glob('failure-evidence-*.json')
+    assert str(saved) in result['prompt']
+    evidence = json.loads(saved.read_text())
+    assert evidence['read_failures'] == []
+    assert not evidence['limit_reached']
+    copies = {item['source']: item['tail'] for item in evidence['files']}
+    assert copies[str(error)] == error.read_text()
+    assert copies[str(child_handoff)] == child_handoff.read_text()
+    # Model execution-journal retirement without rerunning or weakening a test.
+    error.unlink()
+    category.unlink()
+    child_handoff.unlink()
+    handoff.unlink()
+    assert json.loads(saved.read_text()) == evidence
+
+
+def test_failure_context_bounds_data_and_refuses_linked_sources(tmp_path, monkeypatch):
+    import repair_evidence
+    report = tmp_path / 'output/test-runs/host/reports/example'
+    report.mkdir(parents=True)
+    handoff = report / 'failure.json'
+    handoff.write_text('{}')
+    outside = tmp_path / 'unrelated-secret'
+    outside.write_text('do not copy this')
+    (report / 'category-001.log').symlink_to(outside)
+    (report / 'category-002.log').write_text('x' * 100)
+    monkeypatch.setattr(repair_evidence, 'MAX_BYTES', 32)
+    saved = tmp_path / 'snapshot.json'
+    repair_evidence.capture(tmp_path, saved, handoff, 'runner output')
+    evidence = json.loads(saved.read_text())
+    assert evidence['limit_reached']
+    assert sum(len(item['tail'].encode()) for item in evidence['files']) <= 32
+    assert any(item['source'].endswith('category-001.log')
+               for item in evidence['read_failures'])
+    assert 'do not copy this' not in saved.read_text()
+
+
+def test_failure_context_uses_scoped_privileged_reader(tmp_path, monkeypatch):
+    import repair_evidence
+    report = tmp_path / 'output/test-runs/host/reports/example'
+    report.mkdir(parents=True)
+    handoff = report / 'failure.json'
+    handoff.write_text('{}')
+    original = repair_evidence.directory
+    def refuse(path):
+        if path == report:
+            raise PermissionError()
+        return original(path)
+    monkeypatch.setattr(repair_evidence, 'directory', refuse)
+    reader = Mock(return_value=type('Result', (), {'returncode': 0, 'stdout': b'{}'})())
+    monkeypatch.setattr(repair_evidence.subprocess, 'run', reader)
+    saved = tmp_path / 'snapshot.json'
+    repair_evidence.capture(tmp_path, saved, handoff, '')
+    assert reader.call_args_list[0].args[0] == [
+        'pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts',
+        'tail', str(handoff), '--bytes', str(repair_evidence.FILE_BYTES)]
+    assert json.loads(saved.read_text())['files'][0]['tail'] == '{}'
+
+
+def test_failure_context_does_not_retry_a_denied_reader(tmp_path, monkeypatch):
+    import repair_evidence
+    report = tmp_path / 'output/test-runs/host/reports/example'
+    report.mkdir(parents=True)
+    handoff = report / 'failure.json'
+    handoff.write_text('{}')
+    monkeypatch.setattr(repair_evidence, 'directory', Mock(side_effect=PermissionError()))
+    reader = Mock(return_value=type('Result', (), {'returncode': 126})())
+    monkeypatch.setattr(repair_evidence.subprocess, 'run', reader)
+    saved = tmp_path / 'snapshot.json'
+    repair_evidence.capture(tmp_path, saved, handoff, 'original failure')
+    assert reader.call_count == 1
+    evidence = json.loads(saved.read_text())
+    assert evidence['read_failures']
+    assert evidence['output_tail'] == 'original failure'
+
+
 def test_category_status_uses_the_discovered_inventory_position():
     categories = ['unit', 'future-suite', 'e2e']
     assert fix_tests.category_status('future-suite', categories) == (

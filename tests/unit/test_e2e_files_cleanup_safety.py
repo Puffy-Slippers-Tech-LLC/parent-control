@@ -31,7 +31,7 @@ def exported_format_validation_on_development_host(monkeypatch):
     monkeypatch.setattr(guest.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
 
 
-def diagnostic_bytes(*, maximum=False, os_id='ubuntu'):
+def diagnostic_bytes(*, maximum=False, os_id='ubuntu', display_status='complete'):
     from common.oh_no_parent_control_ui.diagnostic_report import build_report
     from common.oh_no_parent_control_ui.diagnostic_events import event
     from tests.support.system_info import sample_info
@@ -42,6 +42,11 @@ def diagnostic_bytes(*, maximum=False, os_id='ubuntu'):
             if maximum else {'broker/2026-09-12.log': [record]})
     system = sample_info()
     system['os'] = {'id': os_id, 'version': '44' if os_id == 'fedora' else '26.04'}
+    # Match current frontend exports rather than the shared legacy sample.
+    system['displays'] = {'status': display_status,
+        'monitors': ([{'width': 1920, 'height': 1080, 'scale': 1.0, 'primary': True}]
+                     if display_status == 'complete' else []),
+        'text_scale': 1.0 if display_status == 'complete' else None}
     return build_report(logs, system_info=system)
 
 
@@ -58,10 +63,12 @@ def saved_diagnostics(home, content, *, mode=0o700):
 
 @pytest.mark.parametrize('mode', [0o700, 0o755])
 @pytest.mark.parametrize('os_id', ['ubuntu', 'fedora'])
-def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(home, monkeypatch, mode, os_id):
+@pytest.mark.parametrize('display_status', ['complete', 'unavailable'])
+def test_diagnostic_export_exact_maximum_inventory_decoder_and_original_owner(home, monkeypatch, mode, os_id, display_status):
     # Both tuples retain exact inventory, original-owner and cleanup checks.
     monkeypatch.setattr(guest.platform, 'freedesktop_os_release', lambda: {'ID': os_id})
-    receipt = saved_diagnostics(home, diagnostic_bytes(maximum=True, os_id=os_id), mode=mode)
+    receipt = saved_diagnostics(home, diagnostic_bytes(
+        maximum=True, os_id=os_id, display_status=display_status), mode=mode)
     calls = []
     def call(argv, **kwargs):
         calls.append(argv[7])
@@ -151,7 +158,8 @@ def test_diagnostic_reader_identity_refuses_and_preserves_output(home, monkeypat
 
 @pytest.mark.parametrize('fault', ['system-null', 'summary', 'inventory', 'header', 'count',
     'content', 'folder', 'date', 'duplicate', 'unsafe', 'archive-limit', 'member-limit',
-    'expanded-limit', 'count-limit', 'deadline', 'crc'])
+    'expanded-limit', 'count-limit', 'deadline', 'crc', 'system-field', 'display-missing',
+    'display-private', 'display-scale'])
 def test_diagnostic_archive_refuses_bad_contents_and_bounds(monkeypatch, fault):
     import io
     import zipfile
@@ -161,6 +169,11 @@ def test_diagnostic_archive_refuses_bad_contents_and_bounds(monkeypatch, fault):
     info = json.loads(entries['system-info.json'])
     log = 'broker/2026-09-12.log'
     if fault == 'system-null': info['system'] = None
+    if fault == 'system-field': info['system']['private'] = 'private@example.test'
+    if fault == 'display-missing': del info['system']['displays']
+    if fault == 'display-private':
+        info['system']['displays']['monitors'][0]['serial'] = 'private@example.test'
+    if fault == 'display-scale': info['system']['displays']['monitors'][0]['scale'] = 17
     if fault == 'summary': info['private'] = 'private@example.test'
     if fault == 'inventory': info['logs'] = {}
     if fault == 'header': entries[log] = b'Wrong heading\n'
@@ -214,6 +227,59 @@ def test_diagnostic_content_and_uncertain_decoder_latch(home):
             controller.read_declared_zip(transport, receipt, attempt='owned',
                                          artifact='diagnostic-export', owner=owner)
         transport.call.assert_called_once()
+
+
+@pytest.mark.parametrize('outcome', ['valid', 'header', 'filesystem', 'wrong-entry'])
+def test_saved_zip_failure_diagnostic_preserves_result_files_and_privacy(home, monkeypatch, capsys, outcome):
+    import io
+    import pwd
+    import zipfile
+    content = diagnostic_bytes()
+    if outcome == 'header':
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            entries = {name: archive.read(name) for name in archive.namelist()}
+        entries['broker/2026-09-12.log'] = b'private@example.test /home/private\n'
+        content = guest.make_zip(entries.items())
+    receipt = saved_diagnostics(home, content)
+    request = {'receipt': receipt,
+               'artifact': 'unrelated' if outcome == 'wrong-entry' else 'diagnostic-export'}
+    original = guest.operate
+
+    def operate(_home, operation, previous, profile):
+        if outcome == 'filesystem':
+            raise OSError('private@example.test /home/private')
+        return original(home, operation, previous, profile)
+
+    monkeypatch.setattr(guest, 'operate', operate)
+    monkeypatch.setattr(pwd, 'getpwnam', lambda _: SimpleNamespace(
+        pw_uid=os.getuid(), pw_dir='/home/onpc-parent-jamie'))
+    monkeypatch.setattr(guest.sys, 'argv', ['worker', 'open-zip', json.dumps(request), 'save'])
+    guest.main()
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+    if outcome == 'valid':
+        assert result['matched'] is True and result['checks']['records'] == 1
+        assert output.err == ''
+    else:
+        assert output.out == '{"refused": true}\n' and result == {'refused': True}
+        if outcome == 'wrong-entry':
+            assert output.err == ''
+        else:
+            prefix = 'diagnostic-zip:refusal '
+            assert output.err.startswith(prefix) and output.err.count('\n') == 1
+            diagnostic = json.loads(output.err[len(prefix):])
+            assert diagnostic['category'] == ('filesystem' if outcome == 'filesystem' else 'validation')
+            assert set(diagnostic) == {'category', 'frames'}
+            assert len(output.err) < 1024 and len(diagnostic['frames']) <= 8
+            if outcome == 'header':
+                assert diagnostic['frames'][-1]['function'] == 'compare_diagnostic_contents'
+            assert all(set(frame) == {'function', 'offset'} and
+                       type(frame['offset']) is int and 0 <= frame['offset'] <= 4096
+                       for frame in diagnostic['frames'])
+    assert 'private@example.test' not in output.out + output.err
+    assert '/home/private' not in output.out + output.err
+    assert (home / 'Downloads' / guest.SAVE_NAME).read_bytes() == content
+    assert original(home, 'read', receipt, 'save') == receipt
 
 
 def test_exact_copy_rename_and_independent_cleanup(home):

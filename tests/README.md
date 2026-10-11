@@ -391,6 +391,13 @@ each fresh session. Selected tiers survive blocker answers and returns to an
 unresolved case; neither a blocker nor a diagnostic experiment is a failed repair.
 A newly exposed case starts with Low classification for unit failures and Medium
 otherwise, even in the same category.
+Before a repair or diagnostic retry, the launcher copies bounded private failure
+context into `failure-evidence-*.json` beside its control files. These snapshots
+include the runner handoff, per-VM report logs and recent failed-attempt command
+output/error tails, read through the scoped artifact reader when privileged.
+They survive ordinary execution-journal rotation for the repair run's lifetime;
+missing/refused reads and size limits remain explicit. Bulk captures retain their
+normal retention policy. A snapshot is investigation evidence, never a pass.
 The runner's `failure.json` includes `failures` entries with category, case ID
 and VM name; host cases have an empty VM name. Worker bucket names, report paths
 and model-generated labels never define a case. Multi-VM handoffs retain each

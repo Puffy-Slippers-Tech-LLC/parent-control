@@ -108,7 +108,8 @@ def test_registration_installed_envelope_and_shared_fragments(monkeypatch, tmp_p
     assert OverlayLanguageQualification.journey(SimpleNamespace(directory=tmp_path), Mock()).plan is language.PLAN
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(entry.ASSETS)))
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_overlay_language'])[-1] == str(entry.ASSETS)
+    command = commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_overlay_language'])
+    assert command[command.index('--output') + 1] == str(entry.ASSETS)
     assert set(language.PLAN.phases) == set(language.PLAN.stages)
     assert language.SCREENS['direct-form'] == 'ui:overlay-language-initial'
     assert language.SCREENS['initial-form'] == 'ui:overlay-language-form-en'
@@ -176,12 +177,19 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 @pytest.mark.parametrize('name', ['check_e2e_overlay_language', 'check_e2e_overlay_language.py'])
 def test_valid_existing_inputs_are_preserved(monkeypatch, name):
     import tools.test_commands as commands
+    from tools.test_storage import named_input
+    from vm_selection import arguments
+    expected = str(named_input(package_source=True))
     validate, allocate = Mock(), Mock()
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
     monkeypatch.setattr(commands, 'artifact_path', validate)
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    assert commands.qualification_artifact_command(Path.cwd(), 'integration', [name]) is None
-    validate.assert_called_once_with(str(selector.ASSETS))
+    command = commands.qualification_artifact_command(Path.cwd(), 'integration', [name])
+    # Recheck the cached bundle's VM format without allocating replacement inputs.
+    assert command == commands.python_file(
+        Path.cwd(), 'tools/vm_artifacts.py', '--candidate', expected,
+        '--output', expected, *arguments())
+    validate.assert_called_once_with(expected)
     allocate.assert_not_called()
 
 

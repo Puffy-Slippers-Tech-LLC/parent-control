@@ -299,11 +299,17 @@ def test_shell_panel_prepares_current_inputs_and_preserves_existing(monkeypatch,
     monkeypatch.setattr(commands, 'artifact_path', validate)
     result = commands.qualification_artifact_command(ROOT, 'integration', [name])
     if exists:
-        assert result is None
+        from tools.vm_selection import selected
+        assert result == commands.python_file(
+            ROOT, 'tools/vm_artifacts.py', '--candidate', expected,
+            '--output', expected, '--vm', selected().name)
         validate.assert_called_once_with(expected)
         allocate.assert_not_called()
     else:
-        assert result[-2:] == ['--output', expected]
+        from tools.vm_selection import selected
+        assert result == commands.python_file(
+            ROOT, 'tools/vm_artifacts.py', '--output', expected,
+            '--vm', selected().name)
         allocate.assert_called_once_with(expected)
         validate.assert_not_called()
 

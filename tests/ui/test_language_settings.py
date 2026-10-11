@@ -930,7 +930,7 @@ def test_installed_kiosk_chooser_and_form_readers_through_real_gtk(
     if surface == 'overlay':
         # Host preview has no installed Riley session. Only that transport guard
         # is doubled; all application ownership, public IDs and GTK reads are real.
-        monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda: None)
+        monkeypatch.setattr(ui.reader, 'require_child_overlay_session', lambda child=None: None)
     operation = ui.reader.overlay_language_operation if surface == 'overlay' else ui.reader.kiosk_language_operation
     reader = ui.reader.read_overlay_language if surface == 'overlay' else ui.reader.read_kiosk_language
     initial = operation(surface + '-language-initial')['language']

@@ -75,7 +75,8 @@ def test_selector_missing_generated_assets_and_shared_envelope(monkeypatch):
     monkeypatch.setattr(launchers, 'allocate_artifact_output', Mock(return_value=str(selector.ASSETS)))
     command = launchers.qualification_artifact_command(Path.cwd(), 'integration',
         ['check_e2e_chinese_kiosk_lifecycle'])
-    assert '--upgrade-inputs' in command and command[-1] == str(selector.ASSETS)
+    assert '--upgrade-inputs' in command
+    assert command[command.index('--output') + 1] == str(selector.ASSETS)
 
 
 def test_current_selector_prepares_only_source_bound_current_inputs(monkeypatch):
@@ -92,7 +93,8 @@ def test_current_selector_prepares_only_source_bound_current_inputs(monkeypatch)
     monkeypatch.setattr(launchers, 'allocate_artifact_output', Mock(return_value=str(current_selector.ASSETS)))
     command = launchers.qualification_artifact_command(Path.cwd(), 'integration',
         ['check_e2e_chinese_current_install'])
-    assert '--upgrade-inputs' not in command and command[-1] == str(current_selector.ASSETS)
+    assert '--upgrade-inputs' not in command
+    assert command[command.index('--output') + 1] == str(current_selector.ASSETS)
 
 
 @pytest.mark.parametrize('extra', [{}, {'package_upgrade': True}, {'chinese_kiosk_lifecycle': True},

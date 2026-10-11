@@ -219,7 +219,7 @@ def read_tail(path):
         return stream.read().decode('utf-8', errors='replace')
 
 
-def handoff(run):
+def handoff(run, *, root=None):
     lines = read_tail(run / 'last-test.log').splitlines()
     paths = [line.removeprefix('Failure handoff: ') for line in lines
              if line.startswith('Failure handoff: ')]
@@ -229,6 +229,12 @@ def handoff(run):
     if (not isinstance(value, dict) or not isinstance(value.get('prompt'), str)
             or not value['prompt'].strip() or not isinstance(value.get('categories'), list)):
         raise ValueError('invalid test failure handoff')
+    if root is not None:
+        from repair_evidence import capture
+        evidence = capture(root, run / f'failure-evidence-{uuid.uuid4().hex}.json',
+                           paths[-1], read_tail(run / 'last-test.log'))
+        value['prompt'] += ('\nRetained private failure context (bounded log tails): '
+                            + evidence + '\nRead this copy if execution evidence has rotated.')
     return value
 
 
@@ -528,12 +534,12 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 if recovery_status:
                     if status_line is not None:
                         print(status_line, flush=True)
-                    return handoff(run)
+                    return handoff(run, root=root)
                 recovered = True
                 continue
             if status_line is not None:
                 print(status_line, flush=True)
-            return handoff(run)
+            return handoff(run, root=root)
 
     def repair(prompt, *, failure_key, previous=None):
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'

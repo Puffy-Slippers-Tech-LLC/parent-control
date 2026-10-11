@@ -45,6 +45,9 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Non-case diagnostic/repair replay uses those same private checkpoints and
 # waited children, including resumed entry. It changes no resource lifetime;
 # fix_tests_cleanup_safety remains compatible in both inventories.
+# Failure-context snapshots add only small files in those same private launcher
+# runs. Existing test children remain recorded and waited; no live artifact
+# reader, privilege, VM or additional cleanup owner is introduced. Compatible.
 # Fresh child denial recorder/worker coverage uses only existing private pytest
 # evidence and waited Perl doubles. No new cleanup resource or live access;
 # challenges and installed-journey remain compatible in cleanup and unit scopes.

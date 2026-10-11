@@ -280,8 +280,11 @@ def compare_diagnostic_contents(archive, contents):
     # The shared reader runs on both registered packaging targets.
     os_id = platform.freedesktop_os_release().get('ID')
     require(os_id in ('ubuntu', 'fedora'))
+    # Fresh frontend collections always include the reviewed display section.
+    # read_report below validates its closed fields and bounds; legacy reports
+    # without displays remain readable by the product parser, outside this case.
     require(type(system) is dict and set(system) == {'schema', 'app_version', 'os', 'kernel',
-        'architecture', 'timezone', 'session_type', 'accounts', 'dependencies'}
+        'architecture', 'timezone', 'session_type', 'accounts', 'dependencies', 'displays'}
         and type(system['schema']) is int and system['schema'] == 1
         and system['os']['id'] == os_id and system['session_type'] == 'wayland'
         and system['app_version'] != 'unknown')
@@ -670,6 +673,32 @@ def _operate(home, operation, previous, profile):
     return snapshot(root, contents)
 
 
+def diagnostic_zip_refusal(error):
+    """Locate a refused export read without exposing exceptions or artifact data.
+
+    Function-relative offsets survive the controller's in-memory module prefix.
+    Only reviewed function names and bounded integers leave the guest; never
+    traceback filenames, source lines, locals or exception messages.
+    """
+    scopes = {'operate', 'save_operate', 'read_saved_zip', 'save_snapshot',
+              'directory', 'read_pinned', 'read_regular', 'inspect_zip',
+              'compare_diagnostic_contents', 'read_report', '_component',
+              'contents', '_manifest', 'validate_record', 'validate_system_info'}
+    frames = []
+    trace = error.__traceback__
+    while trace is not None:
+        code = trace.tb_frame.f_code
+        offset = trace.tb_lineno - code.co_firstlineno
+        if code.co_name in scopes and 0 <= offset <= 4096:
+            frames.append({'function': code.co_name, 'offset': offset})
+            frames = frames[-8:]
+        trace = trace.tb_next
+    print('diagnostic-zip:refusal ' + json.dumps({
+        'category': 'filesystem' if isinstance(error, OSError) else 'validation',
+        'frames': frames,
+    }, sort_keys=True), file=sys.stderr, flush=True)
+
+
 def main():
     import pwd
     require(len(sys.argv) in (3, 4))
@@ -680,7 +709,10 @@ def main():
     try:
         result = operate(Path(account.pw_dir), sys.argv[1], previous,
                          sys.argv[3] if len(sys.argv) == 4 else 'standard')
-    except (ValueError, OSError):
+    except (ValueError, OSError) as error:
+        if (sys.argv[1] == 'open-zip' and len(sys.argv) == 4 and sys.argv[3] == 'save'
+                and type(previous) is dict and previous.get('artifact') == 'diagnostic-export'):
+            diagnostic_zip_refusal(error)
         result = {'refused': True}
     print(json.dumps(result, sort_keys=True))
 

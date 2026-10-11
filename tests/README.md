@@ -1014,7 +1014,10 @@ Mouse capture is off by default: plain dragging selects text and right-click
 uses the host terminal's configured behavior, including VS Code's context menu.
 The divider shows `m: scroll`; press `m` to enable pane clicks, wheel scrolling
 and scrollbar dragging. The scrollbar is shown only in this mode, and the
-divider changes to `m: select text`. Press `m` again to restore native selection
+divider changes to `m: select text`. A pinned **↓** button at the lower pane's
+bottom-right corner returns to the newest output and resumes following it.
+The button stays outside the scrolling transcript and follows terminal resizing.
+Press `m` again to restore native selection
 and menus. Mouse reporting applies to the whole terminal, so plain native
 selection and scrollbar dragging use separate modes. Use Up/Down or Page Up/Page Down to scroll,
 Tab to switch panes (initially the lower pane), and End to return to the newest

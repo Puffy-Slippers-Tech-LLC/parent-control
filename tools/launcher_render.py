@@ -83,6 +83,7 @@ class LauncherDisplay:
         self.input_pending = b''
         self.scrollbar = None
         self.scrollbar_grab = None
+        self.bottom_button = None
         self.mouse_capture = False
         self.question = None
 
@@ -238,16 +239,23 @@ class LauncherDisplay:
                             self.offsets['bottom'] = round(limit * (travel - position) / travel)
                             self.draw()
                 elif match[4] == b'M':
-                    if (button & ~28) == 0 and self.size and column == self.size.columns:
+                    if (button & ~28) == 0 and (column, row) == self.bottom_button:
                         self.scrollbar_grab = None
-                        if self.scrollbar and self.top_height + 1 < row <= self.size.lines:
+                        self.focus = 'bottom'
+                        self.offsets['bottom'] = 0
+                        self.draw()
+                    elif (button & ~28) == 0 and self.size and column == self.size.columns:
+                        self.scrollbar_grab = None
+                        if self.scrollbar:
                             first, start, thumb, travel, limit = self.scrollbar
+                            height = thumb + travel
+                            if not first <= row < first + height:
+                                continue
                             position = row - first
                             self.focus = 'bottom'
                             if start <= position < start + thumb:
                                 self.scrollbar_grab = position - start
                                 continue
-                            height = self.size.lines - self.top_height - 1
                             if limit:
                                 self.offsets['bottom'] = round(limit * (height - 1 - position) / max(1, height - 1))
                                 self.draw()
@@ -408,17 +416,27 @@ class LauncherDisplay:
         rows = top + [divider] + body + question_rows
         total = len(self.row_cache['bottom'][1])
         self.scrollbar = None
-        if self.mouse_capture and available > 0 and total > available:
-            thumb = max(1, min(available - 1, round(available * available / total)))
-            travel = available - thumb
+        self.bottom_button = None
+        if self.mouse_capture and available > 0 and self.question is None and size.columns > 1:
+            self.bottom_button = (size.columns, height)
+        track_height = available - bool(self.bottom_button)
+        if self.mouse_capture and track_height > 0 and total > available:
+            thumb = max(1, min(track_height, round(track_height * available / total)))
+            travel = track_height - thumb
             start = round(travel * (total - available - self.offsets['bottom']) / (total - available))
             self.scrollbar = (len(top) + 2, start, thumb, travel, total - available)
-            for index in range(available):
+            for index in range(track_height):
                 row_index = len(top) + 1 + index
                 row = rows[row_index].copy()
                 row.pad_right(max(0, width - row.cell_len))
                 rows[row_index] = row + Text(
                     '█' if start <= index < start + thumb else '░', style='dim')
+        if self.bottom_button:
+            # The reserved rightmost column belongs to fixed pane controls,
+            # never to the transcript. Recompute it on every resize/reflow.
+            row = rows[-1].copy()
+            row.pad_right(max(0, width - row.cell_len))
+            rows[-1] = row + Text('↓', style='bold reverse')
         # Compare styled text before encoding. Rich creates fresh OSC 8 link IDs
         # during reflow; comparing encoded bytes repaints unchanged linked rows
         # on every poll and accumulates terminal hyperlink registrations.

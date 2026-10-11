@@ -245,17 +245,68 @@ def test_bottom_scrollbar_shows_position_and_accepts_track_clicks(terminal):
     display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(''.join(f'output {index}\n' for index in range(30)))
-    assert terminal.cells[-1][-1] == '█'
+    assert terminal.cells[-2][-1] == '█'
+    assert terminal.cells[-1][-1] == '↓'
     assert terminal.cells[2][-1] == '░'
 
     display.handle_input(b'\x1b[<0;50;3M')
     assert 'output 0' in terminal.visible()
     assert terminal.cells[2][-1] == '█'
-    assert terminal.cells[-1][-1] == '░'
+    assert terminal.cells[-2][-1] == '░'
+    assert terminal.cells[-1][-1] == '↓'
 
     display.handle_input(b'\x1b[<0;50;10M')
     assert 'output 29' in terminal.visible()
-    assert terminal.cells[-1][-1] == '█'
+    assert terminal.cells[-2][-1] == '█'
+    assert terminal.cells[-1][-1] == '↓'
+
+
+def test_bottom_button_stays_pinned_and_resumes_following_after_resize(terminal):
+    display = LauncherDisplay(terminal)
+    display.handle_input(b'm')
+    display.update([{'key': 'task', 'lines': ['Task: A heading that wraps on narrow terminals']}], [])
+    display.write(''.join(f'output {index}\n' for index in range(100)))
+    for width, height in [(50, 10), (18, 8), (80, 16), (40, 2)]:
+        terminal.resize(width, height)
+        display.draw()  # Quiet workers must still reposition the control.
+        display.handle_input(b'\x1b[5~')
+        assert display.offsets['bottom'] > 0
+        assert display.bottom_button == (width, height)
+        assert [(x + 1, y + 1) for y, row in enumerate(terminal.cells)
+                for x, cell in enumerate(row) if cell == '↓'] == [(width, height)]
+        display.write('more output\n')
+        assert terminal.cells[-1][-1] == '↓'
+        assert display.offsets['bottom'] > 0
+        # The button changes focus as well as returning to the latest rows.
+        display.handle_input(b'\t')
+        for byte in f'\x1b[<0;{width};{height}M'.encode():
+            display.handle_input(bytes([byte]))
+        assert display.focus == 'bottom'
+        assert display.offsets['bottom'] == 0
+        assert display.scrollbar_grab is None
+        assert 'more output' in terminal.visible()
+        display.write('newest output\n')
+        assert 'newest output' in terminal.visible()
+        assert terminal.cells[-1][-1] == '↓'
+        before = terminal.getvalue()
+        display.draw()
+        assert terminal.getvalue() == before
+
+
+def test_bottom_button_is_available_without_scrollbar_and_hides_in_selection_mode(terminal):
+    terminal.resize(50, 10)
+    display = LauncherDisplay(terminal)
+    display.write('short output\n')
+    display.handle_input(b'm')
+    assert display.scrollbar is None
+    assert terminal.cells[-1][-1] == '↓'
+    display.handle_input(b'm')
+    assert display.bottom_button is None
+    assert terminal.cells[-1][-1] == ' '
+    # Stale reports after capture is disabled cannot activate the button.
+    display.focus = 'top'
+    display.handle_input(b'\x1b[<0;50;10M')
+    assert display.focus == 'top'
 
 
 @pytest.mark.parametrize('width', [12, 50])
@@ -265,9 +316,10 @@ def test_bottom_scrollbar_stays_at_right_edge_for_different_line_lengths(termina
     display.handle_input(b'm')
     display.update([{'key': 'task', 'lines': ['Task']}], [])
     display.write(('short\n\n界界\n' + 'wrapped output ' * 8 + '\n') * 5)
-    for row in terminal.cells[2:]:
+    for row in terminal.cells[2:-1]:
         assert row[-1] in ('░', '█')
         assert not {'░', '█'}.intersection(row[:-1])
+    assert terminal.cells[-1][-1] == '↓'
 
 
 def test_scrollbar_thumb_drags_without_jumping_and_stops_on_release(terminal):
@@ -281,7 +333,7 @@ def test_scrollbar_thumb_drags_without_jumping_and_stops_on_release(terminal):
     assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
     initial = terminal.visible()
     # Grab the lower cell of the two-cell thumb without moving the viewport.
-    display.handle_input(b'\x1b[<0;50;10M')
+    display.handle_input(b'\x1b[<0;50;9M')
     assert terminal.visible() == initial
     # Motion remains captured when the pointer leaves the scrollbar column.
     for byte in b'\x1b[<32;25;1M':
@@ -468,9 +520,10 @@ def test_native_selection_and_scrollbar_modes_have_matching_controls(terminal, w
     assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()
     assert 'm: select' in terminal.visible()
     assert display.scrollbar is not None
-    assert terminal.cells[-1][-1] == '█'
+    assert terminal.cells[-2][-1] == '█'
+    assert terminal.cells[-1][-1] == '↓'
     # Start a real thumb drag, then release mouse ownership mid-drag.
-    display.handle_input(f'\x1b[<0;{width};10M'.encode())
+    display.handle_input(f'\x1b[<0;{width};9M'.encode())
     assert display.scrollbar_grab is not None
     before = len(terminal.getvalue())
     display.handle_input(b'm')
@@ -491,7 +544,8 @@ def test_native_selection_and_scrollbar_modes_have_matching_controls(terminal, w
     display.handle_input(b'm')
     assert display.mouse_capture
     assert '\x1b[?1002h\x1b[?1006h' in terminal.getvalue()[before:]
-    assert terminal.cells[-1][-1] == '█'
+    assert terminal.cells[-2][-1] == '█'
+    assert terminal.cells[-1][-1] == '↓'
 
 
 def test_progress_reconnects_with_two_steps_and_coalesces_minor_updates(tmp_path):

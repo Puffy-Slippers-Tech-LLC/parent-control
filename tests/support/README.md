@@ -715,6 +715,29 @@ the [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md) owns binding
 scope and qualification. Reuse these fragments in both cases and qualifications
 instead of copying their stage maps or creating a plan-only comparison subclass.
 
+Allowed native-launch histories compose `policy_edits.policy_edit` /
+`onpc_app_rows::edit_policy`, `journey_blocks.desktop_entry` /
+`onpc_desktop_session::enter_desktop` and `journey_blocks.native_usable_app` /
+`onpc_app_rows::native_usable_app`. Use `AppPolicyJourney` with caller-declared
+`settings_checks`, `balance_checks`, `match_checks` and `access_checks` rather
+than a case-local comparison class. Cases 80–81 share these operations and one
+worker; their recipes retain control state, account order and assertion phases.
+The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
+owns the exact qualified fixture/route bindings.
+
+For the clean disabled binding, compose `onpc_parent::open_for_child` and check
+the selected child's untouched limits-off/zero-allowance result before editing
+app policy. The enabled binding instead uses `onpc_parent::set_allowance` and
+independent saved settings/balance reads. Do not copy enabled preparation into
+the disabled history or enable then disable limits to reach its starting state.
+Prove the other child's unaffected access through the same target and route
+with its own window/Submit/result, leaving its policy untouched. The existing
+[app-activity regressions](../unit/test_e2e_app_activity.py) check both complete
+worker orders, every refusal stop, real recorder construction and rejected
+settings/policy readbacks before durable replies. They retain private evidence,
+process-local doubles and bounded waited Perl children; the existing compatible
+unit classification applies, with no new resource or cleanup owner.
+
 Keep expected outcomes, case tables, fault injection and independent oracles in
 the owning tests. The broker state-machine model intentionally has independent
 state and assertions. Standard `tmp_path`, `monkeypatch`, `unittest.mock` and

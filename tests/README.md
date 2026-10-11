@@ -630,6 +630,9 @@ and merges useful guidance into the owning instructions/mandates without
 duplicates. It also audits the batch's delivered or affected ready E2E cases:
 cases compose shared building blocks, harness and libraries with finite case
 data, ordering and assertions; one-off mechanics move to their reusable owners.
+It also cleans up code delivered or affected by each task that became messy
+across progressive sessions of that same task, including redundant or obsolete
+code, temporary workarounds and inconsistent structure left by successive attempts.
 It preserves behavior, qualifications and guards, completes affected validation
 and resource review, then the launcher stages the fix and commits it as
 `TA: Refactored task FIRST to LAST`, then runs `git push` through the same

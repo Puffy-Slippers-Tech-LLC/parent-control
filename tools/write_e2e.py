@@ -553,6 +553,14 @@ maximize reuse across cases. Preserve customer assertions, provider qualificatio
 ownership, guards and acceptance; do not broaden this batch to unrelated cases.
 Use tests/support/README.md and the shared task contract in
 docs/TestAutomation/E2E-Execution-Contracts.md. Read applicable mandates before edits.
+
+## Ask 3
+Review code delivered or affected by each task in this batch for mess accumulated
+across progressive sessions of the same task. Clean up redundant or obsolete code,
+temporary workarounds and inconsistent structure left by successive attempts.
+Keep the cleanup within the batch's affected code and preserve behavior,
+customer assertions, provider qualifications, ownership, guards and acceptance.
+
 Complete affected regressions and resource review. Runtime/provider changes need
 their required live qualification; documentation-only changes need no live run.
 Validate changed Markdown through tools/read-only links. Wait for owned cleanup.
@@ -568,7 +576,7 @@ using the retained runner evidence before continuing. Missing authority or a
 required behavior decision returns blocked with a concrete question.
 
 Return the existing structured result with task_id {state['task_id']}.
-Use task_complete only when both asks, affected validation and cleanup are done,
+Use task_complete only when all three asks, affected validation and cleanup are done,
 host_validated true, live_result passed or not_run as appropriate, progress outcome
 not_applicable, and explicit optimization-owned stage_paths (deletions included).
 After failed live validation, completion requires a subsequent clean live pass;

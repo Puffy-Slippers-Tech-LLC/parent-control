@@ -34,7 +34,7 @@ WORKER_APIS = {
     'onpc_gdm': {'select_prompt', 'dismiss_product_free_prompt', 'reattach_functional',
                  'sign_in_challenge', 'named_login', 'enter_station', 'return_from_time_denial'},
     'onpc_parent': {'login_functional', 'login_standard_functional', 'enter_desktop',
-                    'sign_in', 'launch', 'select_child', 'open_for_child',
+                    'sign_in', 'launch', 'select_child', 'open_for_child', 'daily_time_profile',
                     'open_from_app_grid', 'search_whole_query', 'launch_search_result',
                     'open_search', 'focus_search', 'enter_search_query', 'set_allowance', 'language_selection',
                     'named_management', 'language_presentation_roundtrip', 'language_save',

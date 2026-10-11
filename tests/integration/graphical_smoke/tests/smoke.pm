@@ -901,6 +901,12 @@ sub run {
         onpc_fresh_thirty_allowance::run(\&exchange, 'existing');
         return;
     }
+    if ($ready->{time_profiles_daily} || $ready->{time_profiles_same}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_set_allowance::qualify_daily(\&exchange, $ready->{time_profiles_same} ? 1 : 0);
+        return;
+    }
     if ($ready->{set_allowance}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -25,4 +25,21 @@ sub run {
     $journey->seen('final-settings');
     $journey->finish();
 }
+sub qualify_daily {
+    onpc_progress::operation('Qualifying daily-only time from a new Parent window');
+    my ($exchange, $same) = @_;
+    die 'time-profile:arguments' unless @_ == 2 && ref($exchange) eq 'CODE'
+        && ($same eq '0' || $same eq '1');
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $same ? 'time-profiles-same' : 'time-profiles-daily', review => 0);
+    onpc_gdm::reattach_functional();
+    if ($same) {
+        $journey->consume_observation('parent-selected', onpc_parent::open_for_child(
+            $journey, 'gdm', 'fresh', 'new', 'child'));
+        $journey->seen($_) for qw(wrong-child wrong-window close-ready closed);
+    }
+    onpc_parent::daily_time_profile($journey, $same ? 'desktop' : 'gdm', 'parent',
+        $same ? 'same-user' : 'fresh', 'new', 'child', 0, $same ? 4 : 2);
+    $journey->finish();
+}
 1;

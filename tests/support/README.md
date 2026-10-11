@@ -41,6 +41,20 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
+FLOW13 daily-only composes `journey_blocks.daily_time_profile` and
+`onpc_parent::daily_time_profile`; `DailyTimeProfileJourney` owns the exact
+zero-grant gate before edits and caller-declared saved balance checks.
+FLOW02's short 2/4-minute bindings reuse PARENT06 Custom selection, public text
+and validation, then independent saved settings and PARENT09 balances. They
+never revoke or approve. `time_profiles_daily.PLAN` / `SAME_PLAN` own separate
+fresh-2/same-user-4 qualification histories and finish through DESK03.
+Other profiles, children and retained windows remain outside this slice.
+The existing toggle/unit modules use pytest-private evidence, in-memory doubles
+and bounded waited Perl children; the accessible-adapter preview uses its
+existing private display/process group. No shared path/cache, socket/bus,
+external service or additional cleanup owner is introduced; existing unit/UI
+parallelism classifications remain applicable.
+
 Synthetic implementation contracts remain separate from product UI operations.
 `tests/ui/test_translation_widget_contracts.py` constructs helper GTK objects to
 check translation weak-reference/context lifetime and native Pango attributes;

@@ -1116,6 +1116,26 @@ class SetAllowanceQualification(KioskEntryQualification):
         return SetAllowanceJourney(context, progress)
 
 
+class DailyTimeProfileQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from time_profiles_daily import journey
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress)
+
+
+class SameDailyTimeProfileQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from time_profiles_daily import journey, SAME_PLAN
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return journey(context, progress, SAME_PLAN)
+
+
 class RealIntervalQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

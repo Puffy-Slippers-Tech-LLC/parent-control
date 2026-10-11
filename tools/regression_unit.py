@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+FLOW13 short-daily checks extend accessible_e2e_ui/toggle with in-memory UI
+doubles, pytest-private recorder evidence and bounded waited Perl workers.
+No VM, bus, display, shared path/cache or external service is added; their
+existing compatible classifications and module grouping remain appropriate.
+
 Riley native-grid checks extend e2e_native_grid_usable with private recorder
 files, process-local UI/transport doubles and bounded waited Perl children.
 Native fixture readback extends its existing private descriptor trees and

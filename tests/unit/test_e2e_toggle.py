@@ -573,6 +573,157 @@ def test_set_allowance_actual_worker_stops_before_later_input_at_every_boundary(
         assert result['events'] == success['events'][:boundary + 1]
 
 
+@pytest.mark.parametrize('same', [False, True])
+def test_daily_profile_actual_worker_order_and_every_refusal(monkeypatch, tmp_path, same):
+    from time_profiles_daily import PLAN, SAME_PLAN
+    from accessible_ui import OPERATIONS
+    from ui_observations import OPERATION_LABELS
+    from tests.support.paths import ROOT
+    from installed_journey import matched_screens
+    plan = SAME_PLAN if same else PLAN
+    script = ALLOWANCE_WORKER.replace('onpc_set_allowance::run($exchange)',
+                                     f'onpc_set_allowance::qualify_daily($exchange, {int(same)})')
+    script = script.replace('sub record_info { }',
+                            "sub record_info { push @main::events, ['title', $_[0]]; }")
+    monkeypatch.setenv('ONPC_TEST_REFUSE', '')
+    success = json.loads(run_perl(script).stdout)
+    assert success['ok'], success['error']
+    stages = list(plan.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == stages
+    titles = [{'title': row[1], 'result': 'ok'} for row in success['events'] if row[0] == 'title']
+    observations = [{'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
+        'operation': tag.split(':', 1)[1], 'outcome': 'passed'}}
+        for stage, tag in plan.screen_tags.items()]
+    (tmp_path / 'testresults').mkdir()
+    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': titles}))
+    assert [item['stage'] for item in matched_screens(tmp_path, plan, observations)] == stages
+    for tag in plan.screen_tags.values():
+        if tag.startswith('ui:'):
+            assert tag[3:] in OPERATIONS and tag[3:] in OPERATION_LABELS
+    dispatch = (ROOT / 'tests/integration/graphical_smoke/tests/smoke.pm').read_text()
+    assert '$ready->{' + plan.worker_mode + '}' in dispatch
+    import session_control
+    for tag in plan.screen_tags.values():
+        if tag.startswith('system:'):
+            binding = tag[7:]
+            assert binding in session_control.BINDINGS
+            result = {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                      'source_retained': True, 'destination': 'greeter'}
+            assert session_control.observe(Mock(call=Mock(return_value=json.dumps(result).encode())),
+                                           binding) == result
+    for stage in stages:
+        monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
+        result = json.loads(run_perl(script).stdout)
+        assert not result['ok'] and 'fixture:refused' in result['error']
+        boundary = success['events'].index(['stage', stage])
+        assert result['events'] == success['events'][:boundary + 1]
+
+
+def test_daily_profile_selector_restores_both_entries_and_stops_on_failure(monkeypatch, tmp_path, snapshot_version):
+    import check_e2e_time_profiles_daily as check
+    import check_graphical_smoke as smoke
+    from owned_commands import CommandError
+    from parent_setup_qualification import DailyTimeProfileQualification, SameDailyTimeProfileQualification, KioskEntryQualification
+    from time_profiles_daily import PLAN, SAME_PLAN
+    run = Mock(return_value=0)
+    monkeypatch.setattr(check, 'smoke', run)
+    assert check.main() == 0
+    assert [call.kwargs['time_profiles_daily'] for call in run.call_args_list] == ['fresh', 'same-user']
+    run.reset_mock()
+    run.return_value = 1
+    assert check.main() == 1 and run.call_count == 1
+    for inputs in ({'time_profiles_daily': 'fresh'}, {'assets': tmp_path, 'provision_credentials': True,
+                   'time_profiles_daily': 'other'}, {'assets': tmp_path, 'provision_credentials': True,
+                   'time_profiles_daily': 'fresh', 'set_allowance': True}):
+        with pytest.raises(CommandError, match='time-profiles-daily-prerequisites'):
+            smoke.main(**inputs)
+    for cls, plan in ((DailyTimeProfileQualification, PLAN), (SameDailyTimeProfileQualification, SAME_PLAN)):
+        context = SimpleNamespace(directory=tmp_path)
+        assert cls.journey(context, Mock()).plan is plan
+        assert context.installed_snapshot == 'onpc-v9.8.7'
+        assert cls.finalize is KioskEntryQualification.finalize
+        assert cls.prepare_context is KioskEntryQualification.prepare_context
+
+
+@pytest.mark.parametrize('stage,fault', [
+    ('profile-before', None), ('profile-before', 'grant'),
+    ('profile-configured', None), ('profile-configured', 'grant'),
+    ('profile-configured', 'daily'), ('profile-configured', 'total'),
+    ('profile-settings', None), ('profile-settings', 'allowance'),
+    ('profile-settings', 'child'), ('profile-settings', 'enabled'),
+])
+def test_daily_profile_real_step_checks_before_reply(tmp_path, stage, fault):
+    from time_profiles_daily import PLAN, journey
+    from private_artifacts import EvidenceError
+    controller = journey(SimpleNamespace(directory=tmp_path), Mock())
+    controller.steps = [{'stage': name} for name in PLAN.stages[:PLAN.stages.index(stage)]]
+    value = {'time_explanation': {
+        'daily': {'seconds': 119 if fault == 'daily' else 120, 'precision_seconds': 1},
+        'one_time': {'seconds': 1 if fault == 'grant' else 0, 'precision_seconds': 60},
+        'total': {'seconds': 119 if fault == 'total' else 120, 'precision_seconds': 1},
+        'observed_monotonic_ns': 11}}
+    if stage == 'profile-settings':
+        value = {'settings': {'child': 'other' if fault == 'child' else 'fixture-child',
+                             'limit_enabled': fault != 'enabled',
+                             'allowance': ['4 minutes' if fault == 'allowance' else '2 minutes']}}
+    controller.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value=value))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError):
+            controller.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        controller.progress.assert_not_called()
+    else:
+        controller.step(Mock())
+        assert json.loads((tmp_path / (stage + '.reply.json')).read_bytes()) == {'observed': stage}
+        assert controller.progress.call_count == 1
+
+
+def test_daily_profile_shared_declaration_and_worker_refuse_unsupported_entries():
+    from journey_blocks import daily_time_profile
+    from private_artifacts import EvidenceError
+    for values in ({'source': 'desktop', 'entry': 'retained'}, {'window': 'retained'},
+                   {'minutes': 15}, {'initial_enabled': 0}):
+        with pytest.raises(EvidenceError, match='daily-profile-binding'):
+            daily_time_profile(**{'source': 'gdm', 'entry': 'fresh', 'window': 'new',
+                                  'initial_enabled': False, 'minutes': 2, **values})
+    script = ALLOWANCE_WORKER[:ALLOWANCE_WORKER.index('my $ok = eval')]
+    script += r'''
+my $journey = onpc_journey->new(exchange => $exchange, prefix => 'independent-daily', review => 0);
+my @bindings = (
+ ['gdm', 'parent', 'fresh', 'retained', 'child', 0, 2],
+ ['desktop', 'parent', 'retained', 'new', 'child', 0, 2],
+ ['gdm', 'parent', 'fresh', 'new', 'existing', 0, 2],
+ ['gdm', 'parent', 'fresh', 'new', 'child', 0, 15]);
+for my $binding (@bindings) {
+ my $ok = eval { onpc_parent::daily_time_profile($journey, @$binding); 1; };
+ die 'fixture:missing-refusal' if $ok || $@ !~ /parent:daily-profile-binding/;
+}
+print encode_json(\@events);
+'''
+    assert json.loads(run_perl(script).stdout) == []
+
+
+def test_daily_profile_real_recorder_constructs_shared_comparisons(tmp_path):
+    from unittest.mock import MagicMock
+    from time_profiles_daily import PLAN, journey
+    from journey_checks import DailyTimeProfileJourney
+    from installed_journey import record_installed_journey
+    from private_artifacts import EvidenceError
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+        verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
+    context.recorder = MagicMock(assertion=Mock())
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is DailyTimeProfileJourney and controller.plan is PLAN
+        assert controller.no_grant_checks == ('profile-before',)
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(context.recorder, context, PLAN, journey_type=journey)
+    context.run_worker.assert_called_once()
+
+
 @pytest.mark.parametrize('child', ['child', 'existing'])
 def test_fresh_thirty_actual_worker_stops_at_every_refused_boundary(monkeypatch, child):
     from fresh_thirty_allowance import PLAN, JORDAN_PLAN

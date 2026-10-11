@@ -405,6 +405,26 @@ sub set_allowance {
     return $journey->seen($prefix . 'allowance-configured');
 }
 
+# FLOW13 daily-only. Initial PARENT09 must pass its zero-grant comparison before
+# FLOW02 may edit policy. The controller independently checks saved settings and
+# balances; DESK03 consumes a newly observed Parent desktop, never an old proof.
+sub daily_time_profile {
+    onpc_progress::operation('Preparing daily-only time for [Child user]');
+    my ($journey, $source, $parent, $entry, $window, $child, $initial, $minutes) = @_;
+    die 'parent:daily-profile-binding' unless @_ == 8 && ref($journey) eq 'onpc_journey'
+        && $parent eq 'parent' && $child eq 'child' && $window eq 'new'
+        && ($initial eq '0' || $initial eq '1') && ($minutes eq '2' || $minutes eq '4')
+        && (($source eq 'gdm' && $entry eq 'fresh')
+            || ($source eq 'desktop' && $entry eq 'same-user'));
+    require onpc_desktop_session;
+    my $selected = open_for_child($journey, $source, $entry, $window, $child);
+    $journey->consume_observation($entry eq 'same-user' ? 'same-parent-selected' : 'parent-selected', $selected);
+    $journey->consume_observation('profile-before', $journey->seen('profile-before'));
+    $journey->consume_observation('profile-configured', $journey->seen('profile-configured'));
+    $journey->consume_observation('profile-settings', $journey->seen('profile-settings'));
+    return onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+}
+
 # PARENT02/UI15: canonical choice inventory -> API selection -> independent result.
 # The caller may already hold the inventory proof at a recorder phase boundary.
 sub select_child {

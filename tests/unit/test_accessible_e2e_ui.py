@@ -1266,6 +1266,61 @@ def test_fresh_thirty_refuses_nonzero_initial_allowance_before_input():
     ui.activate_id.assert_not_called()
 
 
+@pytest.mark.parametrize('minutes', [2, 4])
+@pytest.mark.parametrize('initial', [False, True])
+def test_short_daily_time_configuration_uses_shared_custom_save(minutes, initial):
+    ui, *_ = time_explanation_ui()
+    events = []
+    ui.activate_id = Mock(side_effect=lambda identity: events.append(('page', identity)))
+    ui.settings = Mock(side_effect=[{'limit_enabled': initial}, {
+        'child': 'fixture-child', 'limit_enabled': True, 'allowance': [str(minutes) + ' minutes']}])
+    ui.set_toggle = Mock(side_effect=lambda _id, state, **_kw: events.append(('toggle', state)))
+    ui.parent_save_snapshot = Mock(side_effect=lambda _child, state: events.append(('save', state)))
+    ui.custom_allowance = Mock(side_effect=lambda child, value, **kw:
+                               events.append(('custom', child, value, kw['action'])))
+    ui.set_text = Mock(side_effect=lambda identity, value, **kw:
+                       events.append(('text', identity, value, kw)))
+    ui.allowance_preset = Mock()
+    ui.reach_time_explanation = Mock(return_value={'independent': True})
+    operation = f'time-explanation-daily-{minutes}-' + ('on' if initial else 'off') + '-read'
+    assert ui.time_explanation_operation(operation) == {'independent': True}
+    assert events == [('page', 'parent-page-screen-limits')] + (
+        [('toggle', True), ('save', True)] if not initial else []) + [
+        ('custom', accessible_ui.CHILD, minutes, 'open'),
+        ('text', 'parent-custom-daily-limit', str(minutes), {'child': accessible_ui.CHILD, 'activate': True}),
+        ('custom', accessible_ui.CHILD, minutes, 'saved'),
+        ('save', True), ('toggle', True), ('save', True)]
+    ui.allowance_preset.assert_not_called()
+    ui.reach_time_explanation.assert_called_once_with(accessible_ui.CHILD)
+
+
+@pytest.mark.parametrize('fault', ['child', 'initial', 'custom-save', 'settings'])
+@pytest.mark.parametrize('minutes', [2, 4])
+def test_short_daily_configuration_refuses_before_dependent_input(fault, minutes):
+    ui, *_ = time_explanation_ui()
+    ui.activate_id = Mock()
+    ui.settings = Mock(side_effect=[{'limit_enabled': fault == 'initial'}, {
+        'child': 'fixture-child', 'limit_enabled': True,
+        'allowance': ['15 minutes' if fault == 'settings' else str(minutes) + ' minutes']}])
+    ui.parent_save_snapshot = Mock()
+    ui.set_toggle = Mock()
+    ui.custom_allowance = Mock(side_effect=lambda *a, **kw:
+        (_ for _ in ()).throw(UiError('ui:save')) if fault == 'custom-save' and kw['action'] == 'saved' else None)
+    ui.set_text = Mock()
+    ui.reach_time_explanation = Mock()
+    with pytest.raises(UiError):
+        ui.configure_time_controls(accessible_ui.EXISTING_CHILD if fault == 'child' else accessible_ui.CHILD,
+                                   initial_enabled=False, minutes=minutes, final_enabled=True)
+    if fault in ('child', 'initial'):
+        ui.custom_allowance.assert_not_called()
+        ui.set_text.assert_not_called()
+        ui.set_toggle.assert_not_called()
+    if fault == 'custom-save':
+        assert ui.set_toggle.call_count == 1
+        assert ui.set_text.call_count == 1
+    ui.reach_time_explanation.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'riley-receipt'])
 @pytest.mark.parametrize('operation', ['time-explanation-setup-thirty-read', 'time-explanation-read'])
 def test_jordan_time_controller_carries_identity_and_rejects_wrong_child(operation, fault):

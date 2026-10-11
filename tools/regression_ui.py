@@ -1,5 +1,9 @@
 """Partition the discovered UI inventory without splitting shared fixtures.
 
+FLOW02 short-daily saves reuse accessible_adapter's private GTK preview,
+display/bus and owned process group. No new shared state or cleanup owner;
+the Accessible adapter bucket and its existing reservation remain appropriate.
+
 Known modules have private compositor/bus/settings and per-attempt evidence.
 Restart-modal error_feedback checks use that same owned private preview/bus and
 the existing stubbed reboot callback, never a host reboot. No shared resource

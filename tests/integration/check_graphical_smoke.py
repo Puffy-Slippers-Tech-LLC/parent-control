@@ -669,7 +669,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          request_flow=False, mate_prompt=False, kiosk_approval=False, kiosk_rejection=False,
          auth_result=False, kiosk_approved_flow=False, approval_flow=None, kiosk_multiple=False,
          kiosk_ineligible=False, restricted_station_about=False, fresh_thirty_allowance=False,
-         fresh_thirty_child='child',
+         fresh_thirty_child='child', time_profiles_daily=None,
          feedback_privacy=False, feedback_states=False, format_qualification=False,
          trace_stable_state=False, trace_transition=False, compose_observation=False,
          accessibility_input_trace=False, parent_save_trace=False, custom_save_trace=False,
@@ -686,6 +686,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None):
+    require(time_profiles_daily in (None, 'fresh', 'same-user') and (time_profiles_daily is None or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials') and isinstance(value, bool)))),
+        'smoke:time-profiles-daily-prerequisites')
     require(parent_entry in (None, 'retained', 'retained-children') and (parent_entry is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and approval_flow is None
@@ -943,7 +949,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(fresh_thirty_child in ('child', 'existing') and
             (fresh_thirty_allowance or fresh_thirty_child == 'child'),
             'smoke:fresh-thirty-child-prerequisites')
-    set_allowance = set_allowance or fresh_thirty_allowance
+    set_allowance = set_allowance or fresh_thirty_allowance or time_profiles_daily is not None
     require(type(restricted_station_about) is bool and not (restricted_station_about and (
         kiosk_ineligible or kiosk_multiple or kiosk_valid_duration or request_duration
         or request_flow or mate_prompt or kiosk_approval or kiosk_rejection or auth_result
@@ -1599,6 +1605,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = ('installed-fresh-thirty-allowance-qualification'
                                if fresh_thirty_child == 'child' else
                                'installed-jordan-thirty-allowance-qualification')
+        if time_profiles_daily:
+            result['scope'] = 'installed-time-profiles-' + time_profiles_daily + '-qualification'
         if app_restart:
             result['scope'] = 'installed-app-restart-qualification'
         if real_interval:
@@ -2091,6 +2099,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import FreshThirtyAllowanceQualification, JordanThirtyAllowanceQualification
                     qualification_class = (FreshThirtyAllowanceQualification if fresh_thirty_child == 'child'
                                            else JordanThirtyAllowanceQualification)
+                if time_profiles_daily:
+                    from parent_setup_qualification import DailyTimeProfileQualification, SameDailyTimeProfileQualification
+                    qualification_class = (DailyTimeProfileQualification if time_profiles_daily == 'fresh'
+                                           else SameDailyTimeProfileQualification)
                 if app_restart:
                     from parent_setup_qualification import AppRestartQualification
                     qualification_class = AppRestartQualification

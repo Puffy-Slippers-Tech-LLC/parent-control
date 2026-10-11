@@ -31,6 +31,29 @@ class AllowanceJourney(InstalledJourney):
             check_balances(self, observed, self.plan.balance_checks[stage])
 
 
+class DailyTimeProfileJourney(AllowanceJourney):
+    """FLOW13 comparisons with caller-owned initial and final endpoints."""
+
+    def __init__(self, context, progress, plan, *, no_grant_checks, actions=None):
+        super().__init__(context, progress, plan, actions=actions)
+        require(type(no_grant_checks) is tuple and bool(no_grant_checks)
+                and all(stage in plan.screen_tags and plan.screen_tags[stage]
+                        == 'ui:time-explanation-reach-read' for stage in no_grant_checks),
+                'time-profile:comparison-plan')
+        self.no_grant_checks = no_grant_checks
+
+    def check_settings(self, stage, observed):
+        super().check_settings(stage, observed)
+        if stage in self.no_grant_checks:
+            value = observed['ui']['time_explanation']
+            require(value['one_time']['seconds'] == 0, 'time-profile:unexpected-grant')
+            observed['comparison'] = {'zero_grant_before_edits': True}
+        if stage in self.plan.balance_checks:
+            value = observed['ui']['time_explanation']
+            require(value['daily']['seconds'] > 0 and value['one_time']['seconds'] == 0,
+                    'time-profile:daily-only-balances')
+
+
 class RetainedSessionJourney(AllowanceJourney):
     """Compare caller-declared locked-session endpoints before durable replies."""
 

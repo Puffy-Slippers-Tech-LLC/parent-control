@@ -15,6 +15,32 @@ def prefixed_stages(prefix, screens):
     return {prefix + '-' + stage: tag for stage, tag in screens.items()}
 
 
+def daily_time_profile(*, source, entry, window, initial_enabled, minutes):
+    """FLOW13 daily-only: explicit new Parent entry, zero grant, save, GDM.
+
+    The caller compares the initial grant, saved settings and resulting balances
+    before the worker receives a reply. No revocation or approval is implicit.
+    """
+    require(window == 'new' and type(initial_enabled) is bool
+            and type(minutes) is int and minutes in (2, 4)
+            and (source, entry) in (('gdm', 'fresh'), ('desktop', 'same-user')),
+            'journey:daily-profile-binding')
+    same = entry == 'same-user'
+    return {
+        **({'same-window-absent': 'ui:parent-new-window-absent',
+            'same-desktop': 'ui:desktop',
+            **prefixed_stages('same', parent_management())} if same else {
+                **fresh_desktop('parent'), **parent_management()}),
+        'profile-before': 'ui:time-explanation-reach-read',
+        'profile-configured': f'ui:time-explanation-daily-{minutes}-'
+                              + ('on' if initial_enabled else 'off') + '-read',
+        'profile-settings': 'ui:parent-selected',
+        'repeat-desktop': 'ui:desktop',
+        'switch-user': 'system:parent-switch-user',
+        'gdm-switched': 'ui:gdm-returned',
+    }
+
+
 def lock_challenge(prefix='', *, entry='curtain', account='parent'):
     """DESK06 declared curtain, fresh reveal guard and independent challenge."""
     import re

@@ -506,6 +506,32 @@ def test_empty_parent_functional_adapter_at_display_scales(
         raise
 
 
+def test_short_daily_profile_saves_custom_allowances_through_shared_api(launch_ui):
+    """Existing private preview/display; no new resource or cleanup owner."""
+    spec = importlib.util.spec_from_file_location('e2e_daily_ui', ROOT / 'tests/e2e/accessible_ui.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    launch_ui('parent_component_preview', wait_for_application=False)
+    from gi.repository import Atspi, GLib
+    ui = module.AccessibleUI(Atspi, timeout=10, query_errors=(GLib.Error,),
+                            application_ids=(module.PARENT_APPLICATION,),
+                            application_owners=launch_ui.application_owners,
+                            provider_contracts=_qualified_absent_prompt_contracts(module),
+                            dispatch=lambda: GLib.MainContext.default().iteration(False))
+    ui.fixture_uids = {module.CHILD: 1001, module.EXISTING_CHILD: 1002}
+    version = json.loads((ROOT / 'data/app.json').read_text())['version']
+    ui.run('child-picker-opened', version)
+    ui.run('child-choice-highlighted', version)
+    selected = ui.run('parent-selected', version)['settings']
+    for minutes in (2, 4):
+        state = 'on' if selected['limit_enabled'] else 'off'
+        result = ui.run(f'time-explanation-daily-{minutes}-{state}-read', version)
+        assert result['time_explanation']['child'] == 'fixture-child'
+        selected = ui.run('parent-selected', version)['settings']
+        assert selected == {'child': 'fixture-child', 'limit_enabled': True,
+                            'allowance': [str(minutes) + ' minutes']}
+
+
 def test_parent_checked_api_observer_around_public_toggle(launch_ui, monkeypatch):
     """Public API result observation with the ordinary UI17 setter as caller."""
     from gi.repository import Atspi, GLib

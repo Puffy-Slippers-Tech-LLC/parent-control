@@ -173,6 +173,8 @@ class LauncherDisplay:
                 self.stream.write('\n'.join(details) + '\n')
             self.stream.flush()
         for step in steps:
+            if step.get('pinned'):
+                continue
             for key in step.get('replaces', ()):
                 self.step_history.pop(key, None)
             self.step_history[step['key']] = list(retained_tail(step['lines']))
@@ -336,6 +338,7 @@ class LauncherDisplay:
         question = self.question
         state = (size, tuple(tuple(step['lines']) for step in self.steps),
                  tuple(bool(step.get('replaces')) for step in self.steps),
+                 tuple(bool(step.get('pinned')) for step in self.steps),
                  tuple(tuple(lines) for lines in self.step_history.values()),
                  tuple(self.details), tuple(self.transcript), self.pending,
                  tuple(self.offsets.items()), self.mouse_capture, self.input_fd is not None,
@@ -343,13 +346,16 @@ class LauncherDisplay:
         if self.screen and state == self.draw_state:
             return
         width, height = max(1, size.columns - 1), max(1, size.lines)
-        active = [step for step in self.steps if not step.get('replaces')][-2:]
+        pinned = self.wrapped([line for step in self.steps if step.get('pinned')
+                               for line in step['lines']], width)[:max(0, height - 2)]
+        journey = [step for step in self.steps if not step.get('pinned')]
+        active = [step for step in journey if not step.get('replaces')][-2:]
         if (len(active) == 2 and active[0]['lines'] and active[1]['lines']
                 and active[0]['lines'][0] == active[1]['lines'][0]):
             # A task's rolling status replaces its previous session line.
             # Completed summaries remain independent entries in the top pane.
             active = active[-1:]
-        recent = [step for step in self.steps if step.get('replaces') or step in active]
+        recent = [step for step in journey if step.get('replaces') or step in active]
         steps = []
         previous_lines = []
         for step in recent:
@@ -364,20 +370,21 @@ class LauncherDisplay:
         # Reflow the entire newest step before spending space on its predecessor.
         # Keep even extremely small terminals on the alternate screen: falling
         # back to ordinary output would permanently leak panes into scrollback.
-        while len(steps) > 1 and sum(map(len, steps)) + 3 > height:
+        while len(steps) > 1 and len(pinned) + sum(map(len, steps)) + 3 > height:
             # Drop the oldest row group first, restoring the first survivor's
             # heading if it previously shared context with that group.
             recent = recent[1:]
             steps = [self.wrapped(recent[0]['lines'], width), *steps[2:]]
         top = [row for step in steps for row in step]
-        if len(top) + 3 > height:
-            top = top[:max(0, height - 2)]
-        self.top_height = len(top)
+        if len(pinned) + len(top) + 3 > height:
+            top = top[:max(0, height - len(pinned) - 2)]
+        self.top_height = len(pinned) + len(top)
         if self.offsets['top']:
             history = [line for lines in self.step_history.values() for line in lines]
-            scrolled_top = self.scroll_rows('top', history, width, self.top_height)
+            scrolled_top = self.scroll_rows('top', history, width, len(top))
             if self.offsets['top']:
                 top = scrolled_top
+        top = pinned + top
         available = height - len(top) - 1
         question_rows = []
         if self.question is not None and available > 0:

@@ -988,8 +988,11 @@ loop. The upper pane pins the controller journey: `run-tests` shows the selected
 category and position with overall progress; `fix-tests` adds the current round number and
 the running-tests/fixing-errors status; `write-e2e` shows the task ID/title and
 the session's implementation, recovery or numbered live-test phase, followed by
-the model and reasoning effort selected for that session. Category and
-session transitions update immediately. Routine overall counts refresh at most
+the model and reasoning effort selected for that session.
+`write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
+launcher runtime plus one, and y is this runtime's task maximum, refreshed when
+another invocation adjusts `--tasks`. The counter stays pinned while scrolling.
+Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.
 

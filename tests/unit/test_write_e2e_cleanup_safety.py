@@ -1188,13 +1188,18 @@ def test_attached_adjustments_control_next_boundary(
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
     run, _ = select_vm(root, initial)
     wait_for(root / 'agent-ready-1')
+    initial_total = json.loads((run / 'limits.json').read_text())['tasks']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{initial_total}']
     assert select_vm(root, adjustment) == (run, False)
+    adjusted_total = json.loads((run / 'limits.json').read_text())['tasks']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{adjusted_total}']
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed + 1}/{adjusted_total}']
     if completed:
         assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
             workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
@@ -1216,10 +1221,13 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(
            {'result': reply(task_id='002'), 'wait': True})
     run, _ = select_vm(root, ['--tasks', '2', '--sessions', '4'])
     wait_for(root / 'agent-ready-3')
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/2']
     with ThreadPoolExecutor(max_workers=4) as pool:
         attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1', '--sessions', '2']), range(4)))
     assert attached == [(run, False)] * 4
-    assert json.loads((run / 'limits.json').read_text()) == {'tasks': 6, 'sessions': 12, 'started': 3}
+    assert json.loads((run / 'limits.json').read_text()) == {
+        'tasks': 6, 'sessions': 12, 'started': 3, 'completed': 1}
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/6']
     select_vm(root, ['--tasks', '-6', '--sessions', '-12'])
     (root / 'release').touch()
     output = io.StringIO()

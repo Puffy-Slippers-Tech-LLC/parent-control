@@ -259,6 +259,17 @@ def session_progress(root, state, count):
 
 
 def task_progress(run, steps):
+    """Pin runtime task counts above the refreshed task recap."""
+    steps = task_recap(run, steps)
+    path = run / 'limits.json'
+    if not path.exists():
+        return steps
+    limits = json.loads(path.read_text())
+    return [{'key': 'runtime-tasks', 'pinned': True,
+             'lines': [f"Tasks: {limits.get('completed', 0) + 1}/{limits['tasks']}"]}, *steps]
+
+
+def task_recap(run, steps):
     """Refresh the current task recap without changing durable controller lines."""
     checkpoint = run / 'checkpoint.json'
     if not steps or not checkpoint.exists():
@@ -1225,6 +1236,10 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 updated = finish_completion(root, run, state, result, updated)
                 if not optimizing:
                     completed += 1
+                    with launcher.lock(run / 'limits-gate') as gate:
+                        fcntl.flock(gate, fcntl.LOCK_EX)
+                        limits = json.loads((run / 'limits.json').read_text())
+                        launcher.atomic(run / 'limits.json', dict(limits, completed=completed))
             state = updated
             state.pop('worktree_before', None)
             if state['phase'] == 'complete':
@@ -1418,7 +1433,7 @@ def select(root, argv):
             args.sessions = 5
         if args.tasks is None:
             args.tasks = 1
-        initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0)
+        initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0, completed=0)
         state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         # Preflight transport/rendering only; do not spend a model session here.

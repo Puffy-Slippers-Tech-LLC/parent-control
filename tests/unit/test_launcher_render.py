@@ -108,6 +108,26 @@ def test_observer_reflow_keeps_explored_tree_continuations_indented(terminal, wi
     assert 'category-001.log' in ' '.join(' '.join(tree).split())
 
 
+def test_pinned_counter_survives_top_scrolling_resize_and_live_updates(terminal):
+    display = LauncherDisplay(terminal)
+    counter = {'key': 'runtime-tasks', 'pinned': True, 'lines': ['Tasks: 2/3']}
+    for index in range(8):
+        display.update([counter, {'key': str(index), 'lines': [f'Task {index}', 'Session 1']}], [])
+    display.focus = 'top'
+    display.handle_input(b'\x1b[5~')
+    assert display.offsets['top'] > 0
+    assert terminal.visible().startswith('Tasks: 2/3\n')
+    assert 'runtime-tasks' not in display.step_history
+    counter = dict(counter, lines=['Tasks: 2/6'])
+    display.update([counter, *display.steps[1:]], [])
+    assert terminal.visible().startswith('Tasks: 2/6\n')
+    for height in (5, 3, 24):
+        terminal.resize(35, height)
+        display.draw()
+        assert terminal.visible().startswith('Tasks: 2/6\n')
+    display.close()
+
+
 def test_latest_two_steps_wrap_and_survive_resize_without_ellipsis(terminal):
     display = LauncherDisplay(terminal)
     steps = [{'key': str(index), 'lines': [f'Task {index}: A long customer task title that must stay visible',

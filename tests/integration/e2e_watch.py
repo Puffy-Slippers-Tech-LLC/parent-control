@@ -29,6 +29,8 @@ def configuration_digest(xml):
     configured maximum memory, device identities and ownership metadata bound.
     Carrier state can change during guarded online-snapshot DHCP renewal; it
     does not change the interface's network, MAC, model or display authority.
+    Virtio channel state reports whether the guest agent has connected, rather
+    than a configuration change. Keep the channel's type/name/address bound.
     """
     root = ET.fromstring(xml)
     reports = root.findall('currentMemory')
@@ -51,6 +53,11 @@ def configuration_digest(xml):
                     and len(link) == 0 and not (link.text or '').strip(),
                     'session-network-link')
             interface.remove(link)
+    for target in root.findall('devices/channel/target'):
+        if target.get('type') == 'virtio':
+            state = target.attrib.pop('state', None)
+            require(state is None or state in ('connected', 'disconnected'),
+                    'session-channel-state')
     return hashlib.sha256(ET.tostring(root)).hexdigest()
 
 

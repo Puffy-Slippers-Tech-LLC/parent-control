@@ -35,6 +35,29 @@ def test_detach_preserves_collector_without_signalling():
     assert item.control is item.child is item.pidfd is None
 
 
+def test_keeper_retains_its_log_storage_until_it_exits(tmp_path, monkeypatch):
+    import tools.test_storage as storage
+    import vm_config
+    adapter = Mock(run='a' * 32)
+    adapter.lease.commands.directory = tmp_path
+    adapter.lease.source.domain.XMLDesc.return_value = '<domain><devices/></domain>'
+    display = adapter.open_display.return_value
+    display.fileno.return_value = 101
+    local, remote = Mock(), Mock()
+    local.recv.return_value = b'ready'
+    remote.fileno.return_value = 102
+    monkeypatch.setattr(storage, 'scratch_descriptors', lambda: (103,))
+    monkeypatch.setattr(vm_config, 'arguments', lambda: [])
+    with patch.object(session.socket, 'socketpair', return_value=(local, remote)), \
+            patch.object(session.subprocess, 'Popen') as spawn, \
+            patch.object(session.os, 'pidfd_open', return_value=42), \
+            patch.object(session.os, 'close'):
+        item = session.Session(adapter, 1000)
+        assert spawn.call_args.kwargs['pass_fds'] == (102, 101, 103)
+        item.detach()
+    spawn.return_value.wait.assert_not_called()
+
+
 @pytest.mark.parametrize('pinned', [False, True])
 def test_keeper_cleanup_only_signals_its_pinned_child(pinned):
     item = handle()
@@ -151,3 +174,25 @@ def test_carrier_renewal_keeps_viewing_but_network_identity_remains_bound():
                  '<link state="up"><other/></link>', '<link state="up"/><link state="down"/>'):
         with pytest.raises(ValueError, match='session-network-link'):
             session.configuration_digest(xml.replace('</interface>', link + '</interface>'))
+
+
+def test_guest_agent_reconnection_keeps_viewing_but_channel_identity_remains_bound():
+    connection = Mock()
+    connection.getURI.return_value = 'qemu:///system'
+    domain = connection.lookupByUUIDString.return_value
+    domain.UUIDString.return_value, domain.ID.return_value = 'pinned', 71
+    xml = ('<domain><devices><channel type="spicevmc">'
+           '<target type="virtio" name="com.redhat.spice.0" state="disconnected"/>'
+           '<address type="virtio-serial" controller="0" port="1"/>'
+           '</channel></devices></domain>')
+    digest = session.configuration_digest(xml)
+    for replacement in ('state="connected"', ''):
+        domain.XMLDesc.return_value = xml.replace('state="disconnected"', replacement)
+        assert session.matches(connection, 'pinned', 71, digest)
+    for original, replacement in [('type="spicevmc"', 'type="unix"'),
+            ('name="com.redhat.spice.0"', 'name="other"'),
+            ('port="1"', 'port="2"'), ('type="virtio"', 'type="guestfwd"')]:
+        domain.XMLDesc.return_value = xml.replace(original, replacement)
+        assert not session.matches(connection, 'pinned', 71, digest)
+    with pytest.raises(ValueError, match='session-channel-state'):
+        session.configuration_digest(xml.replace('state="disconnected"', 'state="invalid"'))

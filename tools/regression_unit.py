@@ -193,6 +193,9 @@ doubles; prepare_baseline keeps its existing compatible resource classification.
 Borrowed watch-feed coverage in e2e_watch_cleanup_safety uses only process-local
 observer doubles and context state; no collector, socket, display or subprocess
 is created. Its compatible unit/cleanup classification remains unchanged.
+Maintenance keeper scratch-lifetime coverage uses a private tmp_path log and
+mocked sockets, process and descriptor handoff; vm_watch_session_cleanup_safety
+adds no live child, VM, display or shared storage to either inventory.
 Preparation-digest scheduling regressions add only private copied source/config
 files to vm_config. No live VM or helper refresh runs; compatible overlap remains valid.
 

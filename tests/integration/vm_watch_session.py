@@ -53,13 +53,14 @@ class Session:
                     '--uid', str(uid), '--run', adapter.run, '--uuid', source.uuid,
                     '--domain-id', str(adapter.lease.view.domain_id), '--xml-sha256', digest]
             from vm_config import arguments
+            from tools.test_storage import scratch_descriptors
             argv.extend(arguments())
             log = adapter.lease.commands.directory / ('watch-' + adapter.run + '.log')
             with log.open('xb') as output:
                 os.fchmod(output.fileno(), 0o600)
                 self.child = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                    pass_fds=(remote.fileno(), display.fileno()),
+                    pass_fds=(remote.fileno(), display.fileno(), *scratch_descriptors()),
                     env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8'})
             self.pidfd = os.pidfd_open(self.child.pid)
             self.control.settimeout(10)

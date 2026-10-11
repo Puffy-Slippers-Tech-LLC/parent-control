@@ -414,7 +414,7 @@ sub native_usable_app {
     $child //= 'other-child';
     die 'native:usable-binding' unless (@_ == 3 || @_ == 4) && ref($journey) eq 'onpc_journey'
         && defined($route) && ($route eq 'command' || $route eq 'grid')
-        && ($child eq 'child' || $child eq 'other-child');
+        && ($child eq 'child' || $child eq 'other-child' || $child eq 'parent' && $route eq 'command');
     my $opened = $route eq 'command' ? native_open_command($journey, $desktop)
                                    : native_open_grid($journey, $desktop);
     return native_use_app($journey, $opened);
@@ -445,11 +445,13 @@ sub _native_activity_scope {
 # transition. Return the same scope for independent reread and normal closure.
 sub native_activity_entry {
     onpc_progress::operation('Establishing and capturing the original native activity');
-    my ($journey, $prefix, $route) = @_;
-    die 'native:activity-entry' unless @_ == 3 && defined($route)
-        && ($route eq 'command' || $route eq 'grid');
+    my ($journey, $prefix, $route, $account) = @_;
+    $account //= 'other-child';
+    die 'native:activity-entry' unless (@_ == 3 || @_ == 4) && defined($route)
+        && ($route eq 'command' || $route eq 'grid')
+        && ($account eq 'child' || $account eq 'other-child' || $account eq 'parent' && $route eq 'command');
     my $activity = _native_activity_scope($journey, $prefix);
-    native_usable_app($activity, $route, $activity->seen('desktop'));
+    native_usable_app($activity, $route, $activity->seen('desktop'), $account);
     native_read_activity($activity, 'capture');
     return $activity;
 }
@@ -462,6 +464,71 @@ sub native_activity_resume {
     die 'native:activity-resume' unless @_ == 2;
     my $activity = _native_activity_scope($journey, $prefix);
     return native_use_app($activity, $activity->seen('opened'));
+}
+
+# FLOW09 consumes only the caller's ledger and current surface, never a qualifier.
+sub retained_app_visit {
+    onpc_progress::operation('Returning legitimately to the original usable app activity');
+    my ($journey, $prefix, $account, $source, $source_account) = @_;
+    die 'native:retained-visit' unless (@_ == 4 || @_ == 5)
+        && ref($journey) eq 'onpc_journey';
+    onpc_desktop_session::enter_desktop($journey, $source, $account, 'retained', 'success',
+                                      $prefix, $source_account);
+    return native_activity_resume($journey, $prefix . '-activity');
+}
+
+# FLOW14 starts/ends at GDM; one existing or fresh desktop per distinct user.
+sub retained_app_activities {
+    onpc_progress::operation('Capturing distinct user activities and preserving their desktops');
+    my ($journey, $users) = @_;
+    die 'native:activity-users' unless @_ == 2 && ref($journey) eq 'onpc_journey'
+        && ref($users) eq 'ARRAY' && @$users;
+    my (%accounts, %prefixes);
+    for my $user (@$users) {
+        die 'native:activity-users' unless ref($user) eq 'ARRAY' && @$user == 3;
+        my ($prefix, $account, $entry) = @$user;
+        die 'native:activity-users' unless defined($prefix) && $prefix =~ /\A[a-z][a-z0-9-]*\z/
+            && defined($account) && ($account eq 'parent' || $account eq 'child' || $account eq 'other-child')
+            && defined($entry) && ($entry eq 'fresh' || $entry eq 'retained')
+            && !$accounts{$account}++ && !$prefixes{$prefix}++;
+    }
+    for my $user (@$users) {
+        my ($prefix, $account, $entry) = @$user;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $account, $entry, 'success', $prefix);
+        native_activity_entry($journey, $prefix . '-activity', 'command', $account);
+        my $section = $journey->scope($prefix);
+        $section->seen('desktop-identity');
+        $section->consume_observation('switch-ready', $section->seen('switch-ready'));
+        $section->seen($_) for qw(switch greeter);
+    }
+}
+
+sub retained_app_visits {
+    onpc_progress::operation('Qualifying distinct retained user app visits');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'native:retained-visits' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-app-visits', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'initial',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen('allowance-configured');
+    $journey->consume_observation('setup-switch-ready', $journey->seen('setup-switch-ready'));
+    $journey->seen($_) for qw(setup-switch setup-greeter);
+    retained_app_activities($journey, [['jamie', 'parent', 'retained'], ['riley', 'child', 'fresh']]);
+    retained_app_visit($journey, 'parent-return', 'parent', 'gdm');
+    $journey->seen('parent-usable-activity');
+    retained_app_visit($journey, 'child-return', 'child', 'desktop', 'parent');
+    $journey->seen('child-usable-activity');
+    $journey->seen('wrong-mode-refused');
+    retained_app_visit($journey, 'independent-return', 'parent', 'desktop', 'child');
+    $journey->seen('independent-usable-activity');
+    $journey->finish();
 }
 
 sub native_close_app {

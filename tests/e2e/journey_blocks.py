@@ -101,7 +101,8 @@ def overlay_license_read(prefix='', *, links='license'):
 def native_usable_app(route, *, child='other-child'):
     """FLOW08 finite native usable scope; caller owns stages and later activity."""
     require(route in ('command', 'grid'), 'journey:native-route')
-    require(child in ('child', 'other-child'), 'journey:native-child-binding')
+    require(child in ('parent', 'child', 'other-child') and
+            (child != 'parent' or route == 'command'), 'journey:native-child-binding')
     stages = {
         'desktop': 'ui:native-desktop',
         **({'command': 'ui:native-command-launch'} if route == 'command' else {
@@ -113,7 +114,8 @@ def native_usable_app(route, *, child='other-child'):
         'submit': 'ui:native-submit',
         'submitted': 'ui:native-submitted',
     }
-    return {stage: tag.replace('ui:native-', 'ui:overlay-native-') if child == 'child' else tag
+    operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
+    return {stage: tag.replace('ui:native-', 'ui:' + operation)
             for stage, tag in stages.items()}
 
 
@@ -124,14 +126,14 @@ def native_activity_entry(prefix, *, route='command', child='child'):
             'journey:native-activity-prefix')
     return {**{f'{prefix}-{stage}': tag for stage, tag in
                native_usable_app(route, child=child).items()},
-            f'{prefix}-capture': 'ui:overlay-native-activity' if child == 'child'
-            else 'ui:native-activity'}
+            f'{prefix}-capture': 'ui:' + {'child': 'overlay-native-',
+                'parent': 'parent-native-', 'other-child': 'native-'}[child] + 'activity'}
 
 
 def native_activity_resume(prefix, *, child):
     """APP04 existing-window input/readback; callers compare their own captures."""
-    require(child in ('child', 'other-child'), 'journey:native-child-binding')
-    operation = 'overlay-native-' if child == 'child' else 'native-'
+    require(child in ('parent', 'child', 'other-child'), 'journey:native-child-binding')
+    operation = {'child': 'overlay-native-', 'parent': 'parent-native-', 'other-child': 'native-'}[child]
     return prefixed_stages(prefix, {stage: 'ui:' + operation + action for stage, action in (
         ('opened', 'activity'), ('submit', 'resubmit'), ('submitted', 'submitted'))})
 
@@ -287,6 +289,35 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
             screens.update({'curtain': 'ui:child-lock-curtain',
                             'reveal-ready': 'ui:child-lock-reveal-ready',
                             'time-denied': 'ui:child-lock-time-denied'})
+    return screens
+
+
+def retained_app_visit(prefix, *, account, source, source_account=None):
+    """FLOW09: retained entry, immutable comparison, then original-window use.
+
+    The caller binds the opened activity to its earlier capture in activity_checks
+    and the first stage in activity_entries, before any entry input is released.
+    """
+    return {**prefixed_stages(prefix, desktop_entry(account, source=source, entry='retained',
+                         source_account=source_account)),
+            **native_activity_resume(prefix + '-activity', child=account)}
+
+
+def retained_app_activities(users):
+    """FLOW14: finite distinct users, explicit entry, capture, Switch User to GDM."""
+    require(type(users) is tuple and bool(users) and all(type(user) is tuple and len(user) == 3
+            for user in users), 'journey:activity-users')
+    require(len({user[1] for user in users}) == len(users)
+            and len({user[0] for user in users}) == len(users), 'journey:activity-distinct-users')
+    screens = {}
+    for prefix, account, entry in users:
+        require(entry in ('fresh', 'retained'), 'journey:activity-entry')
+        screens.update(prefixed_stages(prefix, desktop_entry(account, source='gdm', entry=entry)))
+        screens.update(native_activity_entry(prefix + '-activity', child=account))
+        role = 'standard' if account == 'other-child' else account
+        screens.update(prefixed_stages(prefix, {'desktop-identity': 'system:' + role + '-entry-same',
+            'switch-ready': fresh_desktop(account)['desktop'],
+            'switch': 'system:' + role + '-switch-user', 'greeter': 'ui:gdm-returned'}))
     return screens
 
 

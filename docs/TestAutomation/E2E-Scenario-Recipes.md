@@ -376,6 +376,12 @@ Bindings: foreground = parent / other-child.
 2. repeat until original interval passed: APP03 → TIME03(bounded interval).
 3. C(retained,denied) → DESK11 → FLOW09(foreground).
 
+The shared FLOW09/FLOW14 declarations and workers now qualify the finite
+Jamie/Parent and Riley native submitted-draft history under
+[distinct-user retained apps](E2E-Building-Blocks.md#distinct-user-retained-app-qualification).
+Use the caller's earlier activity capture and retained entry; the qualification
+history does not supply this family's expiry or complete-case acceptance.
+
 ### E2E-011
 
 Implementation status: All cases pending.

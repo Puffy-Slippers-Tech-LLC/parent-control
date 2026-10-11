@@ -26,7 +26,7 @@ WORKER_APIS = {
                       'native_search', 'native_launch_grid', 'native_open_grid',
                       'native_open_command', 'native_use_app', 'native_close_app',
                       'native_usable_app', 'native_read_activity', 'native_finish_app',
-                      'native_activity_entry', 'native_activity_resume'},
+                      'native_activity_entry', 'native_activity_resume', 'retained_app_visit', 'retained_app_activities'},
     'onpc_progress': {'operation'},
     'testapi': {'record_info'},
     'onpc_harness': {'select_console'},

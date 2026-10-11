@@ -373,6 +373,8 @@ def main(argv=None):
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
                                           'reproduce-gdm-denial', 'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
+                                          'reproduce-retained-app-visits',
+                                          'probe-retained-app-launch',
                                           'reproduce-transfer-refusal', 'probe-transfer-refusal',
                                           'reproduce-riley-native-grid', 'probe-riley-native-grid',
                                           'reproduce-remembered-return', 'probe-remembered-return',
@@ -433,16 +435,19 @@ def main(argv=None):
             from vm_disk_rename import rename_disk
             rename_disk(lease)
         elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+                             'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
                              'enter-remembered-return', 'reproduce-riley-native-grid'):
             from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial,
                                   reproduce_retained_entry, reproduce_transfer_refusal,
                                   reproduce_remembered_return, repeat_remembered_return,
                                   enter_remembered_return, reproduce_riley_native_grid)
+            from vm_probe import reproduce_retained_app_visits
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
+             'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,
              'reproduce-riley-native-grid': reproduce_riley_native_grid,
              'reproduce-remembered-return': reproduce_remembered_return,
@@ -460,6 +465,10 @@ def main(argv=None):
             from vm_probe import probe_lock_curtain
             resume(lease)
             probe_lock_curtain(lease)
+        elif args.action == 'probe-retained-app-launch':
+            from vm_probe import probe_retained_app_launch
+            resume(lease)
+            probe_retained_app_launch(lease)
         elif args.action == 'probe-transfer-refusal':
             from vm_probe import probe_transfer_refusal
             resume(lease)

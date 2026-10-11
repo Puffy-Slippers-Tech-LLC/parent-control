@@ -83,7 +83,8 @@ def test_allowance_selected_reads_saved_value_without_popup_state(preset_ui):
     selector.states.add('expanded')  # This metadata is not an acceptance oracle.
     assert ui.allowance_keyboard(accessible_ui.CHILD, 15, 'selected') == {
         'value': 15, 'phase': 'selected'}
-    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+    assert ui.parent_save_snapshot.call_args_list == [
+        ((accessible_ui.CHILD, True),), ((accessible_ui.CHILD, True),)]
 
 
 def custom_result_editor(window, selector):
@@ -120,7 +121,8 @@ def test_allowance_custom_selected_waits_for_public_editor_without_replay(preset
             'value': 'custom', 'phase': 'selected'}
     assert sleeps == [.2]
     assert 'focused' not in editors[0].states
-    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
+    assert ui.parent_save_snapshot.call_args_list == [
+        ((accessible_ui.CHILD, True),), ((accessible_ui.CHILD, True),)]
     ui.select_allowance.assert_not_called()
     for node in (window, selector, choice, editors[0]):
         node.action.do_action.assert_not_called()
@@ -147,7 +149,7 @@ def test_allowance_custom_selected_missing_editor_times_out_without_replay(prese
     with pytest.raises(UiError, match='^ui:timeout:allowance-custom-editor$'):
         ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
     assert sleeps == [.2, .2]
-    ui.parent_save_snapshot.assert_not_called()
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
     ui.select_allowance.assert_not_called()
     for node in (window, selector, choice):
         node.action.do_action.assert_not_called()
@@ -186,7 +188,7 @@ def test_allowance_custom_selected_preserves_present_editor_guards(preset_ui, mo
     with pytest.raises(UiError, match='^ui:' + code + '$'):
         ui.allowance_keyboard(accessible_ui.CHILD, 'custom', 'selected')
     sleep.assert_not_called()
-    ui.parent_save_snapshot.assert_not_called()
+    ui.parent_save_snapshot.assert_called_once_with(accessible_ui.CHILD, True)
     ui.select_allowance.assert_not_called()
     for node in (window, selector, choice, editor):
         node.action.do_action.assert_not_called()

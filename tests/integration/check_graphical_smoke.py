@@ -681,7 +681,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          feedback_formats=False, feedback_link_semantics=False, real_interval=False,
          independent_network=False, public_connectivity_controls=False, native_grid_usable=False,
          riley_native_grid=False,
-         native_app=False, app_activity=False, chinese_language_assets=False, desktop_language=False,
+         native_app=False, app_activity=False, retained_app_visits=False, chinese_language_assets=False, desktop_language=False,
          chinese_native_auth=False, parent_language=False, kiosk_language=False, overlay_language=False,
          kiosk_language_restoration=False, chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
@@ -778,6 +778,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and approval_flow is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'chinese_language_assets')
             and isinstance(value, bool)))), 'smoke:chinese-language-prerequisites')
+    require(type(retained_app_visits) is bool and (not retained_app_visits or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and parent_entry is None and lock_surface is None and approval_flow is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'retained_app_visits')
+            and isinstance(value, bool)))), 'smoke:retained-app-visits-prerequisites')
     require(type(app_activity) is bool and (not app_activity or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
@@ -1471,6 +1477,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-native-app-qualification'
         if app_activity:
             result['scope'] = 'installed-app-activity-qualification'
+        if retained_app_visits:
+            result['scope'] = 'installed-retained-app-visits-qualification'
         if catalogue_search:
             result['scope'] = 'installed-catalogue-search-qualification'
         if catalogue_filters:
@@ -1653,7 +1661,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity
+                        or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
@@ -1899,6 +1907,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if app_activity:
                     from parent_setup_qualification import NativeActivityQualification
                     qualification_class = NativeActivityQualification
+                if retained_app_visits:
+                    from parent_setup_qualification import RetainedAppVisitsQualification
+                    qualification_class = RetainedAppVisitsQualification
                 if catalogue_search:
                     from parent_setup_qualification import CatalogueSearchQualification
                     qualification_class = CatalogueSearchQualification

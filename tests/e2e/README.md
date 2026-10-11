@@ -1564,6 +1564,17 @@ same maintenance envelope and supplies no acceptance credit.
 child curtain observer against that owned scene and retains its command evidence.
 It cannot reveal, unlock, authenticate or supply acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-retained-app-visits` retains Task 047a's
+shared Parent activity capture and Riley login at `riley-activity-command`.
+It exercises the current guarded native command once and retains its result
+and private command evidence for probes in Riley's actual session. Verified
+VM-bound fixture inputs and the same maintenance envelope apply. Finish with
+`tools/test-vm stop`; this route supplies no acceptance credit.
+`tools/test-vm --vm NAME probe-retained-app-launch` exercises the same single
+guarded launch followed by independent window, Submit and submitted-draft
+observations. A refusal stops the probe without retrying input. It requires the
+fixture to be closed in the retained Riley desktop and supplies no acceptance credit.
+
 `tools/test-vm --vm NAME reproduce-riley-native-grid` uses
 `RileyNativeGridJourney` / `PLAN` with verified VM-bound fixture inputs and retains
 the second search at `repeat-refusals`, after the first grid launch, draft

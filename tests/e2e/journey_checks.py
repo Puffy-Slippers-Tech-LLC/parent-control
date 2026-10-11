@@ -68,7 +68,7 @@ class RetainedSessionJourney(AllowanceJourney):
         self.session_observations[stage] = identity
 
 
-class RetainedDesktopJourney(InstalledJourney):
+class RetainedDesktopJourney(AllowanceJourney):
     """Caller-declared Parent/window/session comparisons before durable replies."""
 
     def __init__(self, context, progress, plan, *, parent_expected, parent_checks,
@@ -76,7 +76,7 @@ class RetainedDesktopJourney(InstalledJourney):
         super().__init__(context, progress, plan, actions=actions)
         stages = list(plan.screen_tags)
         parents = set(parent_expected) | set(parent_checks)
-        require(bool(parent_expected) and not set(parent_expected) & set(parent_checks)
+        require((bool(parent_expected) or bool(session_checks)) and not set(parent_expected) & set(parent_checks)
                 and all(stage in stages and
                 plan.screen_tags[stage] in ('ui:retained-parent-leave', 'ui:retained-parent-read')
                 for stage in parents), 'retained-parent:comparison-plan')

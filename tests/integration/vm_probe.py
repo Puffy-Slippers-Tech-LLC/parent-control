@@ -44,6 +44,42 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_retained_app_visits(lease):
+    """Retain 047a's actual Parent capture and Riley entry before command launch."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from retained_app_visits import RetainedAppVisitsJourney, PLAN
+    from tools.test_storage import named_input
+    return reproduce_denial(lease, RetainedAppVisitsJourney, PLAN,
+                            'riley-activity-command', 'retained-app-visits',
+                            assets=named_input(vm_source=True, fixture_source=True),
+                            boundary_operation='overlay-native-command-launch')
+
+
+def probe_retained_app_launch(lease):
+    """Probe the native launch and independent usable result in retained Riley."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Probing the retained Riley native launch'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-retained-app-launch-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('retained-app-launch-probe: evidence=' + str(directory), flush=True)
+        transport = connect(lease)
+        observer = UiObservations(transport)
+        results = []
+        for item in ('command-launch', 'opened', 'submit', 'submitted'):
+            try:
+                results.append(observer.observe('overlay-native-' + item))
+            except Exception as error:
+                results.append({'operation': item, 'outcome': 'refused', 'error_type': type(error).__name__})
+                break
+        (directory / 'observed.json').write_text(json.dumps(results))
+        lease.guard()
+        print('retained-app-launch-probe: ' + results[-1]['outcome'], flush=True)
+
+
 def reproduce_transfer_refusal(lease):
     """Retain the shared transfer history before the overlay's wrong-surface read."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

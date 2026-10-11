@@ -414,6 +414,7 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
                                      'check_e2e_native_grid_usable', 'check_e2e_native_grid_usable.py',
                                      'check_e2e_native_app', 'check_e2e_native_app.py',
                                      'check_e2e_app_activity', 'check_e2e_app_activity.py',
+                                     'check_e2e_retained_app_visits', 'check_e2e_retained_app_visits.py',
                                      'check_e2e_overlay_approved_exit', 'check_e2e_overlay_approved_exit.py',
                                      'check_e2e_overlay_approval', 'check_e2e_overlay_approval.py',
                                      'check_e2e_read_overlay_about_and_links',

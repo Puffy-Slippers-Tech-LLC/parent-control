@@ -57,8 +57,9 @@ def test_immutable_capture_and_each_comparison_field(field):
         compare_app_activity(captured, captured, result='replaced')
 
 
+@pytest.mark.parametrize('operation', ['native-activity', 'parent-native-activity'])
 @pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'pid', 'bus', 'path', 'text', 'state-extra'])
-def test_real_controller_decoder_validates_complete_public_activity(fault):
+def test_real_controller_decoder_validates_complete_public_activity(fault, operation):
     value = activity()
     if fault == 'missing': del value['state']
     if fault == 'extra': value['private'] = 'canary'
@@ -67,18 +68,19 @@ def test_real_controller_decoder_validates_complete_public_activity(fault):
     if fault == 'path': value['endpoint'][1] = 'not-a-path'
     if fault == 'text': value['state']['submitted'] = 'No submitted draft'
     if fault == 'state-extra': value['state']['private'] = 'canary'
-    reply = {'operation': 'native-activity', 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
+    reply = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider',
              'activity': value, 'boot_sha256': 'b' * 64}
     observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(reply).encode())))
     observer.boot_guard = ''
     if fault:
-        with pytest.raises(EvidenceError): observer.observe('native-activity')
+        with pytest.raises(EvidenceError): observer.observe(operation)
     else:
-        assert observer.observe('native-activity')['activity'] == value
+        assert observer.observe(operation)['activity'] == value
 
 
+@pytest.mark.parametrize('operation', ['native-activity', 'parent-native-activity'])
 @pytest.mark.parametrize('fault', [None, 'inactive', 'owner', 'absent', 'endpoint', 'text'])
-def test_public_read_resolves_owned_window_and_never_inputs(fault):
+def test_public_read_resolves_owned_window_and_never_inputs(fault, operation):
     scope = 'onpc-fixture-native-primary'
     nodes = {name: Node(text, 'label', identity=scope + '-' + name)
              for name, text in {'status': 'Ready', 'draft': 'ONPC fixture draft',
@@ -102,9 +104,9 @@ def test_public_read_resolves_owned_window_and_never_inputs(fault):
     if fault == 'endpoint': surface.bus = None
     if fault == 'text': nodes['submitted'].name = 'No submitted draft'
     if fault:
-        with pytest.raises(UiError): ui.run('native-activity', '')
+        with pytest.raises(UiError): ui.run(operation, '')
     else:
-        assert ui.run('native-activity', '')['activity'] == activity()
+        assert ui.run(operation, '')['activity'] == activity()
     ui.activate_id.assert_not_called()
 
 
@@ -448,3 +450,163 @@ def test_allowed_case_real_step_checks_policy_and_balances_before_reply(tmp_path
         assert (tmp_path / (stage + '.reply.json')).exists()
         assert journey.steps[-1]['comparison']
         journey.progress.assert_called_once()
+
+
+from retained_app_visits import PLAN as RETAINED_PLAN, RetainedAppVisitsJourney
+
+RETAINED_WORKER = WORKER.replace('require onpc_app_rows;',
+    'require onpc_app_rows; require onpc_desktop_session;').replace(
+    'onpc_app_rows::app_activity', 'onpc_app_rows::retained_app_visits')
+
+
+@pytest.mark.parametrize('fault', ['', *RETAINED_PLAN.screen_tags])
+def test_retained_app_actual_worker_order_and_every_refusal_stops(fault, tmp_path):
+    result = json.loads(run_perl(RETAINED_WORKER, fault, json.dumps(RETAINED_PLAN.invocations),
+                                 json.dumps(RETAINED_PLAN.challenges)).stdout)
+    stages = list(RETAINED_PLAN.screen_tags)
+    assert bool(result['ok']) == (not fault), result['error']
+    events = result['events']
+    assert [e[1] for e in events if e[0] == 'seen'] == (
+        stages[:stages.index(fault) + 1] if fault else stages)
+    if fault:
+        assert ['finish'] not in events
+    else:
+        assert sum(e[0] == 'password' for e in events) == 6
+        assert not any(e[0] == 'query' for e in events)
+        details = [{'title': e[1], 'result': 'ok'} for e in events if e[0] == 'marker']
+        observations = []
+        for stage, tag in RETAINED_PLAN.screen_tags.items():
+            item = {'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
+                'operation': tag.split(':', 1)[1], 'outcome': 'passed'}}
+            challenge = RETAINED_PLAN.challenge_at(stage)
+            if challenge: item['challenge'] = challenge
+            observations.append(item)
+        directory = tmp_path / 'testresults'
+        directory.mkdir()
+        (directory / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
+        assert [item['stage'] for item in matched_screens(tmp_path, RETAINED_PLAN, observations)] == stages
+
+
+@pytest.mark.parametrize('stage,capture', RETAINED_PLAN.activity_entries.items())
+def test_retained_entry_missing_capture_refuses_before_any_observation(tmp_path, stage, capture):
+    journey = RetainedAppVisitsJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.steps = [{'stage': earlier} for earlier in
+                     RETAINED_PLAN.stages[:RETAINED_PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(observe=Mock())
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    with pytest.raises(EvidenceError, match='missing-app-activity'):
+        journey.step(Mock())
+    journey.ui.observe.assert_not_called()
+    journey.progress.assert_not_called()
+    assert not (tmp_path / (stage + '.reply.json')).exists()
+
+
+@pytest.mark.parametrize('stage,binding', RETAINED_PLAN.activity_checks.items())
+@pytest.mark.parametrize('fault', [None, 'window', 'missing', 'replay'])
+def test_retained_activity_comparison_is_immutable_and_before_reply(tmp_path, stage, binding, fault):
+    journey = RetainedAppVisitsJourney(SimpleNamespace(directory=tmp_path), Mock())
+    capture = binding[0]
+    value = activity()
+    if fault != 'missing': journey.check_activity(capture, {'ui': {'activity': value}})
+    value['endpoint'][1] = '/mutated'
+    if fault == 'replay': journey.check_activity(stage, {'ui': {'activity': activity()}})
+    journey.steps = [{'stage': earlier} for earlier in
+                     RETAINED_PLAN.stages[:RETAINED_PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': RETAINED_PLAN.screen_tags[stage][3:],
+        'activity': activity(path='/new-window') if fault == 'window' else activity()}))
+    journey.boot = 'b' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert journey.steps[-1]['comparison']['same_window'] is True
+        assert (tmp_path / (stage + '.reply.json')).exists()
+
+
+def test_retained_registration_real_constructor_and_composition(tmp_path, monkeypatch):
+    import check_e2e_retained_app_visits as retained_check
+    from parent_setup_qualification import RetainedAppVisitsQualification
+    from tests.support.e2e_composition import CASE_MODULES, composition_errors
+    from tests.support.paths import ROOT
+    assert not composition_errors((ROOT / 'tests/e2e/retained_app_visits.py').read_text(), CASE_MODULES)
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+                              verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
+    assert type(RetainedAppVisitsQualification.journey(context, Mock())) is RetainedAppVisitsJourney
+    assets = object()
+    monkeypatch.setattr(retained_check, 'named_input', Mock(return_value=assets))
+    monkeypatch.setattr(retained_check, 'smoke', Mock(return_value=0))
+    assert retained_check.main() == 0
+    retained_check.smoke.assert_called_once_with(assets=assets, provision_credentials=True, retained_app_visits=True)
+    with pytest.raises(CommandError, match='retained-app-visits-prerequisites'):
+        smoke.main(retained_app_visits=True)
+    assert {tag[3:] for tag in RETAINED_PLAN.screen_tags.values() if tag.startswith('ui:')} <= accessible_ui.OPERATIONS
+    import session_control
+    assert {tag[7:] for tag in RETAINED_PLAN.screen_tags.values() if tag.startswith('system:')} <= session_control.BINDINGS.keys()
+    assert accessible_ui.PARENT_NATIVE_OPERATIONS <= OPERATION_LABELS.keys()
+    context.recorder = MagicMock(assertion=Mock())
+    def worker(**options):
+        journey = options['guarded_observe'].__self__
+        assert type(journey) is RetainedAppVisitsJourney and journey.plan is RETAINED_PLAN
+        assert set(journey.actions) == {'native-verify'}
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = Mock(side_effect=worker)
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(context.recorder, context, RETAINED_PLAN, journey_type=RetainedAppVisitsJourney)
+    context.run_worker.assert_called_once()
+
+
+def test_retained_shared_fragments_refuse_duplicate_users_and_wrong_modes():
+    from journey_blocks import retained_app_activities, retained_app_visit, native_activity_entry
+    with pytest.raises(EvidenceError, match='distinct-users'):
+        retained_app_activities((('a', 'child', 'fresh'), ('b', 'child', 'retained')))
+    with pytest.raises(EvidenceError):
+        retained_app_activities((('a', 'child', 'same'),))
+    with pytest.raises(EvidenceError):
+        retained_app_visit('return', account='parent', source='desktop', source_account='parent')
+    with pytest.raises(EvidenceError): native_usable_app('grid', child='parent')
+    assert native_activity_entry('independent', child='parent')['independent-capture'] == 'ui:parent-native-activity'
+
+
+@pytest.mark.parametrize('account', ['parent', 'child', 'other-child'])
+def test_retained_composites_accept_independent_renamed_consumer(account):
+    from journey_blocks import retained_app_activities, retained_app_visit
+    users = (('renamed', account, 'fresh'),)
+    screens = {**retained_app_activities(users),
+               **retained_app_visit('return', account=account, source='gdm')}
+    program = r'''
+use strict; use warnings; use JSON::PP;
+our @events; my $account = shift @ARGV;
+our $bindings = decode_json(shift @ARGV);
+BEGIN { $INC{'testapi.pm'}=1; }
+package testapi;
+sub record_info {} sub send_key {} sub type_password {} sub current_console {'sut'}
+sub get_var {'1'} sub get_required_var {'synthetic-secret'}
+package main;
+require onpc_app_rows; require onpc_desktop_session;
+my $journey = onpc_journey->new(exchange => sub {
+    my ($stage) = @_; push @events, $stage;
+    my $reply = {observed=>$stage, ($stage =~ /greeter$/ ? (ui_focused=>JSON::PP::true):())};
+    for my $id (keys %$bindings) {
+        my ($role,$first,$second)=@{$bindings->{$id}};
+        $reply->{challenge}={id=>$id,role=>$role,surface=>'gdm',check=>$stage eq $first?'qualified':'rechecked'}
+            if $stage eq $first || $stage eq $second;
+    }
+    return $reply;
+}, prefix=>'independent', review=>0);
+$journey->declare_invocations(decode_json(shift @ARGV));
+$journey->declare_challenges($bindings);
+onpc_app_rows::retained_app_activities($journey, [['renamed',$account,'fresh']]);
+onpc_app_rows::retained_app_visit($journey,'return',$account,'gdm');
+print encode_json(\@events);
+'''
+    recipient = {'parent': 'recipient-', 'child': 'child-recipient-',
+                 'other-child': 'standard-recipient-'}[account]
+    challenges = {prefix: (account, prefix + '-' + recipient + 'qualified',
+                          prefix + '-' + recipient + 'rechecked') for prefix in ('renamed', 'return')}
+    from journey_blocks import fresh_desktop
+    logins = {prefix + '-' + stage for prefix in ('renamed', 'return') for stage in fresh_desktop(account)}
+    invocations = [stage for stage in screens if stage in logins]
+    assert json.loads(run_perl(program, account, json.dumps(challenges), json.dumps(invocations)).stdout) == list(screens)

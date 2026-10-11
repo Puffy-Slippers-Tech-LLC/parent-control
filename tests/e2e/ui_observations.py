@@ -317,6 +317,8 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Using and independently reading the Parent native activity'
+                         for operation in accessible_ui.PARENT_NATIVE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Setting and reading doubled synthetic editor text'
                          for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
@@ -1504,11 +1506,11 @@ class UiObservations:
                     result['entry'] == {'destination': 'initial-request-window'}, 'ui:initial-entry-response')
             expected['entry'] = result['entry']
         if operation in ('native-opened', 'native-submitted', 'overlay-native-opened',
-                         'overlay-native-submitted'):
+                         'overlay-native-submitted', 'parent-native-opened', 'parent-native-submitted'):
             expected['activity'] = {'draft': 'ONPC fixture draft',
                 'submitted': 'No submitted draft' if operation.endswith('native-opened') else 'ONPC fixture draft',
                 'score': 'Moves: 0; token: 0'}
-        if operation in ('native-activity', 'overlay-native-activity'):
+        if operation in ('native-activity', 'overlay-native-activity', 'parent-native-activity'):
             require(type(result) is dict and set(result) == {*expected, 'activity'}, 'ui:response')
             AppActivityObservation.from_value(result['activity'])
             expected['activity'] = result['activity']

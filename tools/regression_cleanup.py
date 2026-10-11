@@ -67,6 +67,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.
+# Retained-app diagnostic boundaries extend the same private plan/request
+# fixtures and dispatcher doubles; no real guest or new cleanup owner is added.
 # Clipboard snapshot-policy checks use process-local configuration and XML only;
 # app-snapshot's existing compatible cleanup classification remains appropriate.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,

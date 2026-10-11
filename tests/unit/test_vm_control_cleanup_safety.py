@@ -364,6 +364,8 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+                   'reproduce-retained-app-visits',
+                   'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
                    'reproduce-riley-native-grid', 'probe-riley-native-grid',
                    'reproduce-remembered-return', 'probe-remembered-return', 'repeat-remembered-return',
@@ -417,7 +419,7 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
 @pytest.mark.parametrize('fault', [None, 'failed', 'missing-history', 'advanced',
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
-                                  'riley-native-grid'])
+                                  'riley-native-grid', 'retained-app-visits'])
 def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN
@@ -425,6 +427,7 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
     from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN
     from remembered_choices import DIAGNOSTIC_PLAN as REMEMBERED_PLAN
     from riley_native_grid import PLAN as RILEY_GRID_PLAN
+    from retained_app_visits import PLAN as RETAINED_APP_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -432,6 +435,7 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
         'remembered-return': (REMEMBERED_PLAN, 'jordan-return-entry-desktop',
                               'jordan-return-entry-standard-recipient-rechecked'),
         'riley-native-grid': (RILEY_GRID_PLAN, 'repeat-refusals', 'repeat-search-entered'),
+        'retained-app-visits': (RETAINED_APP_PLAN, 'riley-activity-command', 'riley-activity-desktop'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]
@@ -456,6 +460,33 @@ def test_lock_reproduction_retains_only_complete_precredential_history(tmp_path,
             validate_boundary(journey, tmp_path, boundary)
     else:
         validate_boundary(journey, tmp_path, boundary)
+
+
+@pytest.mark.parametrize('failure', [None, 'command-launch', 'opened', 'submit', 'submitted'])
+def test_retained_app_probe_stops_at_first_refusal_and_retains_independent_results(tmp_path, monkeypatch, failure):
+    from contextlib import nullcontext
+    import vm_probe
+    import ui_observations
+    import qualification_storage
+    operations = ['overlay-native-' + item for item in ('command-launch', 'opened', 'submit', 'submitted')]
+    def observe(operation):
+        if operation == 'overlay-native-' + str(failure):
+            raise runner.Error('synthetic-refusal')
+        return {'operation': operation, 'outcome': 'passed'}
+    observer = SimpleNamespace(observe=Mock(side_effect=observe))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
+    monkeypatch.setattr(vm_probe, 'connect', Mock())
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    vm_probe.probe_retained_app_launch(lease)
+    expected = operations if failure is None else operations[:operations.index('overlay-native-' + failure) + 1]
+    assert [call.args[0] for call in observer.observe.call_args_list] == expected
+    results = json.loads((tmp_path / 'observed.json').read_text())
+    assert [item['outcome'] for item in results] == (
+        ['passed'] * len(expected) if failure is None else ['passed'] * (len(expected) - 1) + ['refused'])
+    assert lease.commands.directory == tmp_path / 'private'
+    lease.guard.assert_called_once()
 
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):

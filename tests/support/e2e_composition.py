@@ -28,7 +28,7 @@ APIS = {
     'journey_blocks': {'fresh_desktop', 'desktop_entry', 'retained_parent_entry', 'parent_management', 'parent_reopen', 'parent_search', 'observed_text', 'language_selection',
                        'product_free_desktop', 'package_installation', 'restart_reentry', 'restart_kiosk_usability', 'restart_request_usability', 'reboot_desktop', 'station_entry',
                        'custom_child_selection', 'custom_save_entry', 'ordinary_custom_save', 'allowance_selection',
-                       'filter_screens', 'rejected_gdm_return', 'native_usable_app', 'native_activity_entry', 'native_activity_resume', 'overlay_entry',
+                       'filter_screens', 'rejected_gdm_return', 'native_usable_app', 'native_activity_entry', 'native_activity_resume', 'retained_app_visit', 'retained_app_activities', 'overlay_entry',
                        'overlay_license_read', 'prefixed_stages', 'custom_allowance', 'lock_challenge', 'lock_recipient'},
     'native_fixtures': {'fixture_actions', 'check_catalogue', 'expected_rows', 'search_rows', 'catalogue_rows',
                         'CataloguePolicyJourney'},

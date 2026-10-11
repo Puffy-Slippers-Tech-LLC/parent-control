@@ -235,6 +235,9 @@ Guest-probe additions to VM-control, snapshot, configuration and transport tests
 use existing private pytest lease/scratch trees and process-local SSH/libvirt,
 stream and clock doubles. They add no live guest, socket, display, credentials,
 shared state or heavy construction; their compatible unit classifications hold.
+# Retained-app reproduction adds only finite plan/request fixtures and mocked
+# dispatcher selections to vm_control_cleanup_safety. Native final-preflight
+# retries use process-local trees, clocks and command doubles; no new resource.
 
 Always-enabled clipboard checks use those same process-local configuration/libvirt
 doubles and private fixtures. Graphical-lease, VM-config, baseline-guest and
@@ -389,6 +392,10 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # children. No live VM, display, socket, shared cache or new resource lifetime.
 # Case 80 adds policy/balance reply checks and the two-child command composition
 # in the same e2e_app_activity module with these private resources; compatible.
+# FLOW09/FLOW14 Parent/child retention extends those same private recorder files,
+# immutable values, transport doubles and bounded waited Perl children. Parent
+# command guards reuse e2e_native_app's process-local doubles. No VM, display,
+# bus, shared cache or cleanup owner is added; both remain compatible.
 
 # Diagnostic export retains test_e2e_files_cleanup_safety's private tmp_path files,
 # bounded in-memory archives and mocked SSH. Feedback composition retains private

@@ -171,6 +171,9 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'activity', 'activity-wrong-entry', 'command-blocked'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
+PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
+    'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
+OPERATIONS |= PARENT_NATIVE_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
 CHILD_DESKTOP_OPERATIONS = frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
@@ -10297,7 +10300,8 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
-        require(child in (CHILD, EXISTING_CHILD), 'ui:native-child-binding')
+        require(child in (PARENT, CHILD, EXISTING_CHILD) and
+                (child != PARENT or not blocked), 'ui:native-child-binding')
         def ready():
             require_active_launch_session()
             if child == CHILD:
@@ -10316,9 +10320,12 @@ class AccessibleUI:
             # Prepare the desktop before the single supporting-app launch;
             # APP02 still independently requires the usable foreground window.
             self.prepare_launch_desktop()
-            require_active_launch_session()
             self.invalidate_observation()
-            self.handle_system_prompt()
+            # Overview/session startup can retire an accessibility provider
+            # after preparation. Reacquire the entire read-only preflight;
+            # incomplete prompt reads never authorize input, and preparation
+            # or the eventual single launch is never replayed by this wait.
+            self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
         # Identify this one service for failure-only journal reads. The
         # executable, session, service type and single submission stay the same.
         unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
@@ -11018,12 +11025,13 @@ class AccessibleUI:
                 return {'surface': surface, 'status': 'acknowledged'}
             if value is not None:
                 result['restart'] = value
-        elif operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS:
+        elif operation in NATIVE_APP_OPERATIONS or operation in OVERLAY_NATIVE_OPERATIONS or operation in PARENT_NATIVE_OPERATIONS:
             overlay_native = operation in OVERLAY_NATIVE_OPERATIONS
             if overlay_native:
                 self.require_child_overlay_session()
-            value = self.native_app_operation(operation.removeprefix('overlay-'),
-                                             child=CHILD if overlay_native else EXISTING_CHILD)
+            value = self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
+                                             child=CHILD if overlay_native else
+                                             PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD)
             if value is not None:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):

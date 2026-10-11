@@ -61,6 +61,7 @@ class JourneyPlan:
     match_checks: dict = field(default_factory=dict)
     access_checks: dict = field(default_factory=dict)
     activity_checks: dict = field(default_factory=dict)
+    activity_entries: dict = field(default_factory=dict)
 
     def __post_init__(self):
         # Invocation IDs are filenames and immutable observation identities,
@@ -82,13 +83,17 @@ class JourneyPlan:
         used = set()
         stages = list(self.screen_tags)
         require(all(stage in stages and self.screen_tags[stage] in (
-                    'ui:native-activity', 'ui:overlay-native-activity')
+                    'ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity')
                     and type(binding) is tuple and len(binding) == 2
                     and binding[0] in stages and stages.index(binding[0]) < stages.index(stage)
                     and self.screen_tags[binding[0]] == self.screen_tags[stage]
                     and binding[1] in ('same', 'replaced')
                     for stage, binding in self.activity_checks.items()),
                 self.prefix + ':activity-plan')
+        require(all(stage in stages and capture in stages and stages.index(capture) < stages.index(stage)
+                    and self.screen_tags[capture] in ('ui:native-activity', 'ui:overlay-native-activity',
+                                                       'ui:parent-native-activity')
+                    for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
                 self.prefix + ':balance-plan')
@@ -348,7 +353,7 @@ class InstalledJourney:
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
-        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity'):
+        if self.plan.screen_tags.get(stage) not in ('ui:native-activity', 'ui:overlay-native-activity', 'ui:parent-native-activity'):
             return
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
         current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'))
@@ -477,6 +482,8 @@ class InstalledJourney:
         require(not os.path.lexists(pending) and not os.path.lexists(destination),
                 plan.prefix + ':reply-replay')
         guard()
+        if stage in plan.activity_entries:
+            require(plan.activity_entries[stage] in self.activity_observations, 'ui:missing-app-activity')
         observed = {'stage': stage, 'outcome': 'observed' if self.review else 'passed'}
         if stage == 'ready':
             reply = {plan.worker_mode: True}

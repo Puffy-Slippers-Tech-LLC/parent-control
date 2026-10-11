@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **047a — [Compose retained app visits for distinct users](E2E-Tasks/047a-retained-app-visits.md)**.
+Next task: **050a — [Read a revocation warning and Cancel](E2E-Tasks/050a-revoke-cancel.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

@@ -38,7 +38,8 @@ def test_retained_declarations_are_independent_shared_fragments():
         assert all(SCREENS[stage] == operation for stage, operation in fragment.items())
         assert list(fragment.values()) == list(native_activity_resume('independent', child=child).values())
     with pytest.raises(EvidenceError): retained_parent_entry(source='locked')
-    with pytest.raises(EvidenceError): native_activity_resume('independent', child='parent')
+    assert native_activity_resume('independent', child='parent')['independent-opened'] == 'ui:parent-native-activity'
+    with pytest.raises(EvidenceError): native_activity_resume('independent', child='other-parent')
 
 
 @pytest.mark.parametrize('fault', ['', 'window', 'page', 'settings', 'missing', 'replay'])

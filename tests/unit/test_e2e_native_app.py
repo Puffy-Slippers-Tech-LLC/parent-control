@@ -61,10 +61,12 @@ def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
     assert ui.prepare_launch_desktop.call_count == int(fault in (
         None, 'preparation', 'final-session', 'final-prompt', 'submission'))
     if fault not in ('instance', 'uncertain', 'session'):
-        ui.desktop_result.assert_called_once_with(accessible_ui.EXISTING_CHILD, 'success')
+        assert all(call.args == (accessible_ui.EXISTING_CHILD, 'success')
+                   for call in ui.desktop_result.call_args_list)
+        assert ui.desktop_result.call_count == (2 if fault in (None, 'final-prompt', 'submission') else 1)
 
 
-@pytest.mark.parametrize('child', [accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
+@pytest.mark.parametrize('child', [accessible_ui.PARENT, accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
 @pytest.mark.parametrize('failure', ['query', 'incomplete', 'persistent', 'window', 'submission'])
 def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatch, child, failure):
     ui = ui_for(Node())
@@ -72,7 +74,7 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
     ui.query_errors = (LookupError,)
     monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _seconds: None)
     # Two possible observations, then the original deadline expires.
-    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, .5, 1]))
+    monkeypatch.setattr(accessible_ui.time, 'monotonic', Mock(side_effect=[0, .5, 1, 1]))
     session = Mock()
     monkeypatch.setattr(accessible_ui, 'require_active_launch_session', session)
     ui.require_child_overlay_session = Mock()
@@ -81,7 +83,7 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
     ui.prepare_launch_desktop = Mock()
     first = UiError('ui:incomplete-tree') if failure == 'incomplete' else LookupError()
     second = LookupError() if failure == 'persistent' else failure != 'window'
-    ui.native_app_closed = Mock(side_effect=[first, second])
+    ui.native_app_closed = Mock(side_effect=[first, second, True])
     submit = Mock(side_effect=TimeoutError() if failure == 'submission' else None)
     monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
 
@@ -93,16 +95,61 @@ def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatc
     else:
         ui.native_launch_command(child=child)
 
-    assert ui.desktop_result.call_count == ui.native_app_closed.call_count == 2
+    assert ui.desktop_result.call_count == ui.native_app_closed.call_count == (
+        2 + int(failure not in ('persistent', 'window')))
     assert session.call_count == 2 + int(failure not in ('persistent', 'window'))
     assert ui.prepare_launch_desktop.call_count == int(failure not in ('persistent', 'window'))
-    assert ui.require_child_overlay_session.call_count == (2 if child == accessible_ui.CHILD else 0)
+    assert ui.require_child_overlay_session.call_count == (
+        ui.desktop_result.call_count if child == accessible_ui.CHILD else 0)
     assert submit.call_count == (0 if failure in ('persistent', 'window') else 1)
     assert ui.input_uncertain == (submit.call_count == 1)
     if submit.call_count:
         with pytest.raises(UiError, match='uncertain-input'):
             ui.native_launch_command(child=child)
         assert submit.call_count == 1
+
+
+@pytest.mark.parametrize('child', [accessible_ui.PARENT, accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
+@pytest.mark.parametrize('fault', ['transient', 'persistent', 'prompt', 'window', 'submission'])
+def test_post_preparation_launch_reacquires_reads_and_never_replays(monkeypatch, child, fault):
+    ui = ui_for(Node())
+    ui.timeout = .02
+    ui.query_errors = (LookupError,)
+    monkeypatch.setattr(accessible_ui.time, 'sleep', lambda _seconds: None)
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.require_child_overlay_session = Mock()
+    ui.desktop_result = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    ui.prepare_launch_desktop = Mock()
+    final_reads = []
+    def prompt():
+        if not ui.prepare_launch_desktop.called:
+            return
+        final_reads.append(True)
+        if fault == 'prompt':
+            raise UiError('ui:system-prompt-refused:desktop:unknown')
+        if fault == 'persistent' or len(final_reads) == 1:
+            raise UiError('ui:system-prompt-observation-failed')
+    ui.handle_system_prompt = Mock(side_effect=prompt)
+    if fault == 'window':
+        ui.native_app_closed.side_effect = [True, True, False]
+    submit = Mock(side_effect=TimeoutError() if fault == 'submission' else None)
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    if fault == 'transient':
+        ui.native_launch_command(child=child)
+        assert len(final_reads) == 2
+        assert ui.desktop_result.call_count == ui.native_app_closed.call_count == 3
+    else:
+        with pytest.raises((UiError, TimeoutError)):
+            ui.native_launch_command(child=child)
+    ui.prepare_launch_desktop.assert_called_once()
+    assert submit.call_count == int(fault in ('transient', 'submission'))
+    if submit.called:
+        with pytest.raises(UiError, match='uncertain-input'):
+            ui.native_launch_command(child=child)
+        assert submit.call_count == 1
+    else:
+        assert not ui.input_uncertain
 
 
 @pytest.mark.parametrize('returncode,stderr,stdout,out_markers,err_markers', [

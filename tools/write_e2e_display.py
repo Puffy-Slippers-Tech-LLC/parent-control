@@ -30,6 +30,7 @@ class WriteE2EDisplay(LauncherDisplay):
         self.editor = ChatEditor(self.submit)
         self.divider_column = 0
         self.chat_top = 0
+        self.output_height = 0
         self.summary_bottom = 0
         self.cancel_button = None
         self.escape_since = None
@@ -128,8 +129,8 @@ class WriteE2EDisplay(LauncherDisplay):
             if key:
                 self.input_pending = self.input_pending[len(key):]
                 self.offsets['bottom'] = max(0, self.offsets['bottom'] +
-                    (max(1, self.size.lines - self.top_height - 1) if key == navigation[0] else
-                     -max(1, self.size.lines - self.top_height - 1)))
+                    (max(1, self.output_height) if key == navigation[0] else
+                     -max(1, self.output_height)))
                 continue
             if any(key.startswith(self.input_pending) for key in navigation):
                 break
@@ -168,10 +169,13 @@ class WriteE2EDisplay(LauncherDisplay):
             if self.bottom_button == (column, row):
                 self.offsets['bottom'] = 0
                 self.draw()
-            elif self.cancel_button and row == self.cancel_button[1] and column >= self.cancel_button[0]:
+            elif (self.cancel_button and row == self.cancel_button[1]
+                  and self.cancel_button[0] <= column < self.divider_column):
                 send_input(self.run, 'interrupt')
-            self.focus = 'bottom' if column < self.divider_column else 'chat'
+            self.focus = 'bottom' if column < self.divider_column and row < self.chat_top else 'chat'
         elif base in (64, 65):
+            if column < self.divider_column and row >= self.chat_top:
+                return
             pane = ('top' if row <= self.top_height else 'bottom' if column < self.divider_column else
                     'summary' if row <= self.summary_bottom else 'info')
             delta = 3 if base == 64 else -3
@@ -206,20 +210,17 @@ class WriteE2EDisplay(LauncherDisplay):
         available = max(0, height - len(top) - 1)
         left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
         right_width = max(1, width - left_width - 1)
-        boxed = right_width >= 5
+        boxed = left_width >= 5
         separator = [Text('─' * right_width, style='dim')] if available >= 5 else []
         show_hint = available >= 4
-        # Reserve the complete composer before allocating task information.
-        # Very short terminals give up the separator and hint first.
-        chrome_height = len(separator) + 1 + int(boxed) + int(show_hint)
+        # Reserve the bottom composer independently of session-output scrolling.
+        # Very short terminals give up the hint first.
+        chrome_height = 1 + int(boxed) + int(show_hint)
         self.divider_column = left_width + 1
-        logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
-        left = self.scroll_rows('bottom', logs, left_width, available)
-        left += [Text('')] * (available - len(left))
 
         summary = self.wrapped(current['lines'] if current else ['Waiting for task…'], right_width)
         summary_height = min(len(summary), max(0, available // 2),
-                             max(0, available - chrome_height - 1))
+                             max(0, available - len(separator) - 1))
         summary_lines = current['lines'] if current else ['Waiting for task…']
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
@@ -246,25 +247,29 @@ class WriteE2EDisplay(LauncherDisplay):
                            *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
                            'Type a number or your own instructions below.']
 
-        editor_width = max(1, right_width - 4) if boxed else right_width
+        editor_width = max(1, left_width - 4) if boxed else left_width
         editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
         # Grow and shrink with content; a long draft scrolls around its caret
-        # rather than covering the task summary or escaping the terminal.
-        editor_capacity = max(0, available - summary_height - chrome_height)
+        # rather than escaping the terminal; leave room for output when possible.
+        editor_capacity = max(0, available - chrome_height)
         editor_room = min(len(editor_rows), max(1, editor_capacity - 1) if editor_capacity else 0)
         start = max(0, caret_row - editor_room + 1)
         editor_rows = editor_rows[start:start + editor_room]
-        remaining = max(0, available - summary_height - len(editor_rows) - chrome_height)
+        self.output_height = max(0, available - len(editor_rows) - chrome_height)
+        logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
+        left = self.scroll_rows('bottom', logs, left_width, self.output_height)
+        left += [Text('')] * (self.output_height - len(left))
+        remaining = max(0, available - summary_height - len(separator))
         info = self.from_top('info', info_lines, right_width, remaining)
         info += [Text('')] * (remaining - len(info))
         hint = Text('Enter: send · Shift+Enter: newline', style='dim')
-        hint.truncate(right_width, overflow='crop')
+        hint.truncate(left_width, overflow='crop')
         if self.editor.error:
             hint = Text(self.editor.error, style='red')
-            hint.truncate(right_width, overflow='crop')
+            hint.truncate(left_width, overflow='crop')
         label = ' Chat [Cancel] '
-        cancel = Text('╭' + label[:max(0, right_width - 2)].ljust(max(0, right_width - 2), '─') + '╮', style='dim')
-        cancel.truncate(right_width, overflow='crop')
+        cancel = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
+        cancel.truncate(left_width, overflow='crop')
         bottom = []
         if boxed:
             bordered = []
@@ -273,17 +278,20 @@ class WriteE2EDisplay(LauncherDisplay):
                 row.pad_right(max(0, editor_width - row.cell_len))
                 bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
             editor_rows = bordered
-            bottom = [Text('╰' + '─' * (right_width - 2) + '╯', style='dim')]
-        right = summary + separator + info + [cancel] + editor_rows + bottom + ([hint] if show_hint else [])
+            bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
+        left += [cancel] + editor_rows + bottom + ([hint] if show_hint else [])
+        left = left[:available]
+        right = summary + separator + info
         right = right[:available]
         right += [Text('')] * (available - len(right))
-        self.chat_top = len(top) + 1 + summary_height + len(separator) + remaining + 1
-        self.cancel_button = (self.divider_column + 8, self.chat_top)
-        self.bottom_button = (left_width, height) if available > 0 and left_width > 1 else None
+        self.chat_top = len(top) + 1 + self.output_height + 1
+        self.cancel_button = (9, self.chat_top) if left_width >= 14 and available else None
+        self.bottom_button = ((left_width, self.chat_top - 1)
+                              if self.output_height > 0 and left_width > 1 else None)
         rows = top + [Text('─' * width, style='dim')]
         for index in range(available):
             row = left[index].copy()
-            if self.bottom_button and index == available - 1:
+            if self.bottom_button and index == self.output_height - 1:
                 row.truncate(left_width - 1, overflow='crop')
                 row.pad_right(max(0, left_width - 1 - row.cell_len))
                 row += Text('↓', style='bold reverse')
@@ -300,7 +308,7 @@ class WriteE2EDisplay(LauncherDisplay):
         self.paint(rows, size)
         if self.focus == 'chat' and editor_rows and width >= 3:
             cursor_row = min(height, self.chat_top + 1 + caret_row - start)
-            cursor_column = min(width, self.divider_column + 1 + (2 if boxed else 0) + caret_column)
+            cursor_column = min(left_width, 1 + (2 if boxed else 0) + caret_column)
             # DECSCUSR: use the standard blinking I-beam for text editing.
             self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[5 q\033[?25h')
         else:

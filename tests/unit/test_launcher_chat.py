@@ -407,17 +407,17 @@ def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(tm
         display.editor.text = draft
         display.editor.cursor = len(draft)
         display.draw()
-        right = [line[display.divider_column:] for line in terminal.visible().splitlines()]
-        border_index = next((index for index, line in enumerate(right) if line.startswith('╰')), None)
+        left = [line[:display.divider_column - 1] for line in terminal.visible().splitlines()]
+        border_index = next((index for index, line in enumerate(left) if line.startswith('╰')), None)
         assert border_index is not None, terminal.visible()
-        border = right[border_index]
+        border = left[border_index]
         assert border.endswith('╯')
         assert border[1:-1] and set(border[1:-1]) == {'─'}
-        assert len(border) == len(right[border_index - 1])
-        assert right[border_index - 1].startswith('│ ')
-        assert right[border_index - 1].endswith(' │')
+        assert len(border) == len(left[border_index - 1])
+        assert left[border_index - 1].startswith('│ ')
+        assert left[border_index - 1].endswith(' │')
         if height > 5:
-            assert right[border_index + 1].startswith('Enter:')
+            assert left[border_index + 1].startswith('Enter:')
 
 
 def test_chat_ctrl_c_does_not_signal_output_and_cancel_button_uses_same_mailbox(tmp_path):
@@ -499,14 +499,26 @@ def test_escape_prefixes_and_paste_do_not_interrupt(tmp_path, monkeypatch):
 def test_output_scrolling_returns_to_latest_without_losing_draft(tmp_path):
     display, terminal = display_fixture(tmp_path)
     display.write(''.join(f'output {index}\n' for index in range(100)))
-    display.handle_input(b'keep this draft\x1b[5~')
+    display.handle_input(b'keep this draft')
+    chat_top = display.chat_top
+    composer = terminal.visible().splitlines()[chat_top - 1:]
+    display.handle_input(b'\x1b[5~')
     assert display.offsets['bottom'] > 0
     assert display.editor.text == 'keep this draft'
+    assert display.chat_top == chat_top
+    assert terminal.visible().splitlines()[chat_top - 1:] == composer
+    display.write('new session output\n')
+    assert terminal.visible().splitlines()[chat_top - 1:] == composer
+    offset = display.offsets['bottom']
+    display.mouse(64, 3, chat_top + 1, False)
+    assert display.offsets['bottom'] == offset
     column, row = display.bottom_button
+    assert row < chat_top
     display.mouse(0, column, row, False)
     assert display.offsets['bottom'] == 0
     assert 'output 99' in terminal.visible()
     assert display.editor.text == 'keep this draft'
+    assert terminal.visible().splitlines()[chat_top - 1:] == composer
 
 
 def test_input_flags_restore_after_exception(tmp_path, monkeypatch):

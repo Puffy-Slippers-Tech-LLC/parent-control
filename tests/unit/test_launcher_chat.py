@@ -51,6 +51,7 @@ def ready(session):
     assert initialized['method'] == 'initialized'
     assert request['params']['ephemeral'] is True
     assert request['params']['approvalPolicy'] == 'never'
+    assert request['params']['sandbox'] == 'workspace-write'
     respond(session, request, {'thread': {'id': 'thread'}})
     request, = packets(session)
     assert request['params']['outputSchema']['type'] == 'object'
@@ -398,6 +399,27 @@ def test_typing_anywhere_grows_and_shrinks_composer_without_changing_explanation
     assert terminal.getvalue() == previous
 
 
+@pytest.mark.parametrize('width,height', [(120, 36), (200, 40), (40, 20), (120, 7), (120, 5)])
+def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(tmp_path, width, height):
+    display, terminal = display_fixture(tmp_path)
+    terminal.resize(width, height)
+    for draft in ('', 'first\nsecond\nthird', '\n'.join(['long draft'] * 80), ''):
+        display.editor.text = draft
+        display.editor.cursor = len(draft)
+        display.draw()
+        right = [line[display.divider_column:] for line in terminal.visible().splitlines()]
+        border_index = next((index for index, line in enumerate(right) if line.startswith('╰')), None)
+        assert border_index is not None, terminal.visible()
+        border = right[border_index]
+        assert border.endswith('╯')
+        assert border[1:-1] and set(border[1:-1]) == {'─'}
+        assert len(border) == len(right[border_index - 1])
+        assert right[border_index - 1].startswith('│ ')
+        assert right[border_index - 1].endswith(' │')
+        if height > 5:
+            assert right[border_index + 1].startswith('Enter:')
+
+
 def test_chat_ctrl_c_does_not_signal_output_and_cancel_button_uses_same_mailbox(tmp_path):
     display, _ = display_fixture(tmp_path)
     launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
@@ -408,6 +430,70 @@ def test_chat_ctrl_c_does_not_signal_output_and_cancel_button_uses_same_mailbox(
     column, row = display.cancel_button
     display.mouse(0, column, row, False)
     assert len(json.loads((tmp_path / 'chat-inbox.json').read_text())) == 2
+
+
+def test_escape_interrupts_turn_and_preserves_session_and_draft(conversation, tmp_path, monkeypatch):
+    session, _, cleanups = conversation
+    ready(session)
+    display, _ = display_fixture(tmp_path)
+    clock = [0.0]
+    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    display.handle_input(b'keep this draft\x1b')
+    display.poll_input()
+    assert packets(session) == []
+    clock[0] = .2
+    display.poll_input()
+    session.poll()
+    interrupt, = packets(session)
+    assert interrupt['method'] == 'turn/interrupt'
+    respond(session, interrupt, {})
+    notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'interrupted'})
+    session.poll()
+    assert cleanups == [True]
+    assert read_state(tmp_path)['status'] == 'waiting'
+    display.handle_input(b'\x1b')
+    clock[0] = .4
+    display.poll_input()
+    assert not (tmp_path / 'cancel').exists()
+    assert display.editor.text == 'keep this draft'
+    display.handle_input(b'\r')
+    session.poll()
+    continuation, = packets(session)
+    assert continuation['method'] == 'turn/start'
+    assert continuation['params']['threadId'] == 'thread'
+    assert continuation['params']['input'][0]['text'] == 'keep this draft'
+
+
+@pytest.mark.parametrize('status', ['interrupting', 'cleaning', 'waiting', 'blocked', 'finished'])
+def test_escape_never_exits_idle_or_interrupted_launcher(tmp_path, monkeypatch, status):
+    display, _ = display_fixture(tmp_path)
+    launcher.atomic(tmp_path / 'chat-state.json', dict(display.chat_state, status=status))
+    clock = [0.0]
+    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    display.handle_input(b'\x1b')
+    clock[0] = .2
+    display.poll_input()
+    assert not (tmp_path / 'cancel').exists()
+    assert not (tmp_path / 'chat-inbox.json').exists()
+
+
+def test_escape_prefixes_and_paste_do_not_interrupt(tmp_path, monkeypatch):
+    display, _ = display_fixture(tmp_path)
+    launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
+    clock = [0.0]
+    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    display.handle_input(b'ab\x1b')
+    clock[0] = .05
+    display.handle_input(b'[D!\x1b')
+    display.handle_input(b'\rnext\x1b')
+    display.handle_input(b'[200~pasted\x1b')
+    clock[0] = 1.0
+    display.poll_input()
+    display.handle_input(b'\x03\rtext\x1b[201~')
+    display.poll_input()
+    assert display.editor.text == 'a!\nnextpasted\ntextb'
+    assert not (tmp_path / 'chat-inbox.json').exists()
+    assert not (tmp_path / 'cancel').exists()
 
 
 def test_output_scrolling_returns_to_latest_without_losing_draft(tmp_path):
@@ -432,16 +518,30 @@ def test_input_flags_restore_after_exception(tmp_path, monkeypatch):
             monkeypatch.setattr('os.tcgetpgrp', lambda _: os.getpgrp())
             monkeypatch.setenv('TERM', 'xterm')
             with pytest.raises(RuntimeError):
-                with WriteE2EDisplay(stream, run=tmp_path):
+                with WriteE2EDisplay(stream, run=tmp_path) as display:
                     assert not termios.tcgetattr(slave)[3] & termios.ISIG
+                    sent = []
+                    display.editor.send = sent.append
+                    # Exercise the line discipline, not just the byte parser:
+                    # normal terminals send CR for Enter and LF for Ctrl+J.
+                    for data in (b'first\r', b'second\nline\r',
+                                 b'third\x1b[13;2uline\r',
+                                 b'fourth\x1b[27;2;13~line\r'):
+                        os.write(master, data)
+                        display.handle_input(os.read(slave, len(data)))
+                    assert sent == ['first', 'second\nline', 'third\nline', 'fourth\nline']
                     raise RuntimeError('observer failed')
             assert termios.tcgetattr(slave) == original
+            os.set_blocking(master, False)
+            output = os.read(master, 65536)
+            assert b'\x1b[>4;2m\x1b[>1u' in output
+            assert b'\x1b[<u\x1b[>4;0m' in output
     finally:
         os.close(master)
         os.close(slave)
 
 
-def test_installed_app_server_protocol_fields(tmp_path):
+def test_installed_app_server_protocol_fields(tmp_path, conversation):
     codex = shutil.which('codex')
     if codex is None:
         # The maintained unit environment omits user Node installations from
@@ -458,6 +558,13 @@ def test_installed_app_server_protocol_fields(tmp_path):
     assert result.returncode == 0, result.stderr
     thread = json.loads((destination / 'v2/ThreadStartParams.json').read_text())
     assert {'ephemeral', 'sandbox', 'approvalPolicy', 'model', 'cwd'} <= thread['properties'].keys()
+    session, _, _ = conversation
+    initialize, = packets(session)
+    respond(session, initialize, {})
+    _, request = packets(session)
+    # Check emitted values, not just field names: sandboxPolicy uses camelCase
+    # variants, but thread/start's sandbox is a separate kebab-case enum.
+    assert request['params']['sandbox'] in thread['definitions']['SandboxMode']['enum']
     turn = json.loads((destination / 'v2/TurnStartParams.json').read_text())
     assert {'outputSchema', 'threadId', 'input'} <= turn['properties'].keys()
     steer = json.loads((destination / 'v2/TurnSteerParams.json').read_text())

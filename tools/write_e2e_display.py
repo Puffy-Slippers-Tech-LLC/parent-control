@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 import termios
+import time
 
 from rich.cells import get_character_cell_size
 from rich.text import Text
@@ -31,6 +32,7 @@ class WriteE2EDisplay(LauncherDisplay):
         self.chat_top = 0
         self.summary_bottom = 0
         self.cancel_button = None
+        self.escape_since = None
 
     def __enter__(self):
         super().__enter__()
@@ -39,9 +41,15 @@ class WriteE2EDisplay(LauncherDisplay):
                 # Deliver Ctrl+C to the conversation instead of the observer's
                 # process signal handler. Restore the original flags on every exit.
                 attributes = termios.tcgetattr(self.input_fd)
+                # Keep Enter (CR) distinct from Ctrl+J (LF), including inside
+                # modified-key sequences sent by the terminal.
+                attributes[0] &= ~(termios.ICRNL | termios.INLCR | termios.IGNCR)
                 attributes[3] &= ~termios.ISIG
                 termios.tcsetattr(self.input_fd, termios.TCSANOW, attributes)
-                self.stream.write('\033[?2004h')
+                # Request Shift+Enter reporting from xterm-compatible and
+                # Kitty-protocol terminals; unsupported requests are ignored.
+                self.stream.write('\033[?2004h\033[>4;2m\033[>1u')
+                self.stream.flush()
         except BaseException:
             self.__exit__(*sys.exc_info())
             raise
@@ -84,6 +92,17 @@ class WriteE2EDisplay(LauncherDisplay):
             self.stream.write('\033]22;' + ('ew-resize' if resize else '') + '\033\\')
             self.stream.flush()
 
+    def poll_input(self):
+        super().poll_input()
+        # Escape also prefixes navigation, mouse and modified-key sequences.
+        # Allow fragmented reads to complete before treating it as a shortcut.
+        if self.escape_since is not None and time.monotonic() - self.escape_since >= .1:
+            self.input_pending = b''
+            self.escape_since = None
+            self.focus = 'chat'
+            send_input(self.run, 'interrupt', cancel_waiting=False)
+            self.draw()
+
     def handle_input(self, data):
         self.input_pending += data
         while self.input_pending:
@@ -123,6 +142,11 @@ class WriteE2EDisplay(LauncherDisplay):
                 # All typing goes to the composer even while output is focused.
                 self.focus = 'chat'
                 self.editor.feed(byte)
+        if self.input_pending == b'\x1b' and not self.editor.paste:
+            if self.escape_since is None:
+                self.escape_since = time.monotonic()
+        else:
+            self.escape_since = None
         self.draw()
 
     def mouse(self, button, column, row, released):
@@ -132,9 +156,11 @@ class WriteE2EDisplay(LauncherDisplay):
         if released:
             self.dragging = False
             self.set_pointer(over)
+            self.draw()
             return
         if base == 0 and over:
             self.dragging = True
+            self.draw()
         elif base == 32 and self.dragging and self.size:
             self.ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
             self.draw()
@@ -159,7 +185,7 @@ class WriteE2EDisplay(LauncherDisplay):
             size = self.terminal_size() if self.terminal_size else os.get_terminal_size(self.stream.fileno())
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
-        state = (size, self.ratio, tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
+        state = (size, self.ratio, self.dragging, tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
                  self.editor.text, self.editor.cursor, self.editor.error,
@@ -180,13 +206,20 @@ class WriteE2EDisplay(LauncherDisplay):
         available = max(0, height - len(top) - 1)
         left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
         right_width = max(1, width - left_width - 1)
+        boxed = right_width >= 5
+        separator = [Text('─' * right_width, style='dim')] if available >= 5 else []
+        show_hint = available >= 4
+        # Reserve the complete composer before allocating task information.
+        # Very short terminals give up the separator and hint first.
+        chrome_height = len(separator) + 1 + int(boxed) + int(show_hint)
         self.divider_column = left_width + 1
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         left = self.scroll_rows('bottom', logs, left_width, available)
         left += [Text('')] * (available - len(left))
 
         summary = self.wrapped(current['lines'] if current else ['Waiting for task…'], right_width)
-        summary_height = min(len(summary), max(0, available // 2))
+        summary_height = min(len(summary), max(0, available // 2),
+                             max(0, available - chrome_height - 1))
         summary_lines = current['lines'] if current else ['Waiting for task…']
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
@@ -213,18 +246,18 @@ class WriteE2EDisplay(LauncherDisplay):
                            *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
                            'Type a number or your own instructions below.']
 
-        boxed = right_width >= 5
         editor_width = max(1, right_width - 4) if boxed else right_width
         editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
         # Grow and shrink with content; a long draft scrolls around its caret
         # rather than covering the task summary or escaping the terminal.
-        editor_room = min(len(editor_rows), max(1, available - summary_height - 4))
+        editor_capacity = max(0, available - summary_height - chrome_height)
+        editor_room = min(len(editor_rows), max(1, editor_capacity - 1) if editor_capacity else 0)
         start = max(0, caret_row - editor_room + 1)
         editor_rows = editor_rows[start:start + editor_room]
-        remaining = max(0, available - summary_height - len(editor_rows) - 3)
+        remaining = max(0, available - summary_height - len(editor_rows) - chrome_height)
         info = self.from_top('info', info_lines, right_width, remaining)
         info += [Text('')] * (remaining - len(info))
-        hint = Text('Enter: send · Alt+Enter/Ctrl+J: newline', style='dim')
+        hint = Text('Enter: send · Shift+Enter: newline', style='dim')
         hint.truncate(right_width, overflow='crop')
         if self.editor.error:
             hint = Text(self.editor.error, style='red')
@@ -232,6 +265,7 @@ class WriteE2EDisplay(LauncherDisplay):
         label = ' Chat [Cancel] '
         cancel = Text('╭' + label[:max(0, right_width - 2)].ljust(max(0, right_width - 2), '─') + '╮', style='dim')
         cancel.truncate(right_width, overflow='crop')
+        bottom = []
         if boxed:
             bordered = []
             for row in editor_rows:
@@ -239,12 +273,11 @@ class WriteE2EDisplay(LauncherDisplay):
                 row.pad_right(max(0, editor_width - row.cell_len))
                 bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
             editor_rows = bordered
-            hint.truncate(max(1, right_width - 2), overflow='crop')
-            hint = Text('╰', style='dim') + hint + Text('╯', style='dim')
-        right = summary + [Text('─' * right_width, style='dim')] + info + [cancel] + editor_rows + [hint]
+            bottom = [Text('╰' + '─' * (right_width - 2) + '╯', style='dim')]
+        right = summary + separator + info + [cancel] + editor_rows + bottom + ([hint] if show_hint else [])
         right = right[:available]
         right += [Text('')] * (available - len(right))
-        self.chat_top = len(top) + 1 + summary_height + 1 + remaining + 1
+        self.chat_top = len(top) + 1 + summary_height + len(separator) + remaining + 1
         self.cancel_button = (self.divider_column + 8, self.chat_top)
         self.bottom_button = (left_width, height) if available > 0 and left_width > 1 else None
         rows = top + [Text('─' * width, style='dim')]
@@ -256,7 +289,7 @@ class WriteE2EDisplay(LauncherDisplay):
                 row += Text('↓', style='bold reverse')
             row.truncate(left_width, overflow='crop')
             row.pad_right(max(0, left_width - row.cell_len))
-            rows.append(row + Text('│', style='dim') + right[index])
+            rows.append(row + Text('│', style='#0098ff' if self.dragging else 'dim') + right[index])
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height
@@ -265,10 +298,11 @@ class WriteE2EDisplay(LauncherDisplay):
         for row in rows:
             row.truncate(width, overflow='crop')
         self.paint(rows, size)
-        if self.focus == 'chat' and available > 3:
+        if self.focus == 'chat' and editor_rows and width >= 3:
             cursor_row = min(height, self.chat_top + 1 + caret_row - start)
             cursor_column = min(width, self.divider_column + 1 + (2 if boxed else 0) + caret_column)
-            self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[?25h')
+            # DECSCUSR: use the standard blinking I-beam for text editing.
+            self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[5 q\033[?25h')
         else:
             self.stream.write('\033[?25l')
         self.stream.flush()
@@ -277,17 +311,17 @@ class WriteE2EDisplay(LauncherDisplay):
     def editor_rows(self, width):
         rows = []
         caret_row = caret_column = 0
-        row = Text('')
+        row = Text('', style='default not dim')
         for index, char in enumerate(self.editor.text + '\0'):
             cells = get_character_cell_size(char)
             if row.cell_len + cells > width or (index == self.editor.cursor and row.cell_len == width):
                 rows.append(row)
-                row = Text('')
+                row = Text('', style='default not dim')
             if index == self.editor.cursor:
                 caret_row, caret_column = len(rows), row.cell_len
             if char in ('\n', '\0'):
                 rows.append(row)
-                row = Text('')
+                row = Text('', style='default not dim')
             else:
                 row.append(char)
         return rows, caret_row, caret_column
@@ -317,6 +351,8 @@ class WriteE2EDisplay(LauncherDisplay):
     def restore_terminal(self):
         try:
             if self.screen or self.input_fd is not None:
-                self.stream.write('\033[?1003l\033]22;\033\\')
+                self.stream.write('\033[?1003l\033]22;\033\\\033[0 q')
+            if self.input_fd is not None:
+                self.stream.write('\033[<u\033[>4;0m')
         finally:
             super().restore_terminal()

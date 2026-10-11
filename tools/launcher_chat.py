@@ -24,7 +24,7 @@ def read_state(run):
         return {'session': None, 'status': 'starting'}
 
 
-def send_input(run, kind, text=''):
+def send_input(run, kind, text='', *, cancel_waiting=True):
     if kind not in ('message', 'interrupt') or len(text.encode('utf-8')) > MAX_INPUT:
         raise ValueError('chat message is too large or invalid')
     with launcher.lock(run / 'chat-gate') as gate:
@@ -35,7 +35,8 @@ def send_input(run, kind, text=''):
             # become a fresh interrupt after cleanup has reopened the session.
             return
         if kind == 'interrupt' and state['status'] in ('waiting', 'blocked', 'finished'):
-            (run / 'cancel').touch(mode=0o600)
+            if cancel_waiting:
+                (run / 'cancel').touch(mode=0o600)
             return
         path = run / 'chat-inbox.json'
         entries = json.loads(path.read_text()) if path.exists() else []
@@ -204,7 +205,7 @@ class AppSession:
             if method == 'initialize':
                 self.encode({'method': 'initialized', 'params': {}})
                 self.request('thread/start', {'model': self.model, 'cwd': str(self.root),
-                             'approvalPolicy': 'never', 'sandbox': 'workspaceWrite',
+                             'approvalPolicy': 'never', 'sandbox': 'workspace-write',
                              'ephemeral': True})
             elif method == 'thread/start':
                 self.thread = result['thread']['id']

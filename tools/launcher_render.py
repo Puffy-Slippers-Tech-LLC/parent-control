@@ -148,7 +148,7 @@ class LauncherDisplay:
             self.unsaved = retained_tail(self.unsaved)
         lines = (self.pending + value).split('\n')
         if self.offsets['bottom'] and self.size:
-            width = max(1, self.size.columns - 1)
+            width = self.output_width()
             incoming = lines[:-1] + ([lines[-1]] if lines[-1] else [])
             previous = [self.pending] if self.pending else []
             self.offsets['bottom'] += (len(self.wrapped(incoming, width))
@@ -163,6 +163,9 @@ class LauncherDisplay:
             self.pending = retained.pop()
         self.transcript = deque(retained, maxlen=SCROLLBACK_LINES)
         self.draw()
+
+    def output_width(self):
+        return max(1, self.size.columns - 1) if self.size else 1
 
     def update(self, steps, details):
         if not self.tty:

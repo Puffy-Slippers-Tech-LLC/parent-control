@@ -1,5 +1,17 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+launcher_chat uses tiny pytest-private protocol/mailbox trees, in-memory VT
+screens, a private PTY with restored terminal flags, and one bounded, waited
+Codex schema-generator process (no model inference). It has no VM, network,
+display, bus, shared mutable cache or cleanup-inventory entry; compatible.
+write_e2e_cleanup_safety's agent double now speaks app-server over its existing
+private pipes. Its detached children, nested owner lifetimes, Git fixtures and
+serial cleanup remain unchanged; existing unit/cleanup classifications apply.
+Conversation race checks use deterministic in-process protocol orderings and
+private mailboxes. Broken-input and interrupt cleanup checks reuse the same
+recorded children and nested owners, with bounded waits and fixture teardown;
+no new shared resource, service or cleanup lifetime is introduced.
+
 FLOW13 short-daily checks extend accessible_e2e_ui/toggle with in-memory UI
 doubles, pytest-private recorder evidence and bounded waited Perl workers.
 No VM, bus, display, shared path/cache or external service is added; their
@@ -692,7 +704,7 @@ graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
 installed_journey_cleanup_safety installer integration_harness kiosk_model kiosk_rendering
-launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
+launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client

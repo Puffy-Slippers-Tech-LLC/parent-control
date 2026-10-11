@@ -602,8 +602,10 @@ Closing the terminal detaches. Another invocation attaches to its styled output,
 using the same compact session transcript as `fix-tests`: agent messages,
 commands and their results remain visually separate, including without color.
 `--stop` finishes the current session, including test cleanup and its handoff or
-task close-out, then starts no further session. Ctrl+C cancels immediately and
-waits for owned cleanup.
+task close-out, then starts no further session. In the interactive chat composer,
+Cancel or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
+the same session open for further instructions. Ctrl+C again while waiting for
+input cancels the entire launcher. Piped observers retain signal cancellation.
 
 After each completed task, the launcher stages its owned paths and commits them
 as `TA: Completed task ID`, then runs `git push` before selecting another task.
@@ -946,8 +948,10 @@ never bypassed. The launcher preserves session/model history, staging ownership
 and retained evidence, and requires cleanup verification in recovery. Exclusion
 earns no acceptance credit; current briefs supersede excluded-task handoffs.
 
-Each session is a new `exec --ephemeral` process with history and memories
-disabled. Only the latest standalone handoff crosses sessions. Existing CLI
+Each session is a new Codex `app-server` process with an ephemeral thread,
+history and memories disabled. Follow-up chat and interrupted-turn continuation
+use that same thread and consume no new launcher session. Only the latest
+standalone handoff crosses sessions. Existing CLI
 authentication, sandbox and command grants apply; missing grants or unresolved
 behavior decisions pause with a blocker. No live Codex or VM work is performed
 by the launcher's regression tests.
@@ -983,12 +987,34 @@ task asks for its answer before doing more work.
 
 The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
-All three launchers use its two-pane terminal display and the same output-following
-loop. The upper pane pins the controller journey: `run-tests` shows the selected
+All three launchers use the same output-following loop. `run-tests` and `fix-tests`
+use its two-pane terminal display. The upper pane pins the controller journey: `run-tests` shows the selected
 category and position with overall progress; `fix-tests` adds the current round number and
-the running-tests/fixing-errors status; `write-e2e` shows the task ID/title and
-the session's implementation, recovery or numbered live-test phase, followed by
-the model and reasoning effort selected for that session.
+the running-tests/fixing-errors status.
+`write-e2e` uses a [specialized display](../tools/write_e2e_display.py): the lower
+frame divides output on the left from task information and chat on the right.
+Its initial width ratio is 75:25; dragging the vertical divider changes the
+ratio, which survives terminal resizing. Hover requests the standard horizontal
+resize pointer using OSC 22; terminals without pointer-shape support keep their
+own pointer. Mouse motion reporting is enabled for this display; use the host
+terminal's Shift selection override for native text selection.
+The right upper panel shows the current task ID/title, session count/duration,
+session phase and selected model/effort. Below a horizontal separator, the
+plain-language task explanation stays fixed across retries and reconnects unless
+the task scope changes. The agent writes it once rather than repeating it in
+progress output. A separate status shows `Running session 1.` initially; later
+sessions explain the previous failure and attempted resolution in parent/child
+scenario language. These updates are presentation only, never acceptance evidence.
+The bottom-right composer accepts typing during work. Enter sends, Alt+Enter,
+Ctrl+J or supported Shift+Enter inserts a newline; multiline paste never sends
+automatically. Arrow keys, Home/End, Backspace/Delete and Ctrl+U/Ctrl+K edit
+the draft. Its height follows the content, scrolling around the caret when
+space is limited. Messages steer an active turn or start a continuation in the
+same session after interruption. Replies appear in the left transcript. The
+composer owns Cancel/Ctrl+C; the output pane has no termination shortcut.
+Pending blocker questions appear above the composer: send a suggested number
+or type your own instructions. Multiple observers share the existing first-answer
+rule. Mouse wheels scroll the panel under the pointer.
 `write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
 launcher runtime plus one, and y is this runtime's task maximum, refreshed when
 another invocation adjusts `--tasks`. The counter stays pinned while scrolling.
@@ -1013,7 +1039,7 @@ cleanup. Replay uses the run log rather than the bounded live pane, and leaves
 existing shell history intact. Full output remains in the existing run log,
 subject to its storage limits. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
-Mouse capture is off by default: plain dragging selects text and right-click
+For `run-tests` and `fix-tests`, mouse capture is off by default: plain dragging selects text and right-click
 uses the host terminal's configured behavior, including VS Code's context menu.
 The divider shows `m: scroll`; press `m` to enable pane clicks, wheel scrolling
 and scrollbar dragging. The scrollbar is shown only in this mode, and the

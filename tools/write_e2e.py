@@ -786,6 +786,8 @@ def wait_for_answer(run, state, progress_key):
     state.setdefault('blocker_id', uuid.uuid4().hex)
     steps = read_progress(run)
     heading = steps[-1]['lines'][0] if steps else f"Task {state['task_id']}"
+    launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
+                    'task_session': state['task_sessions'], 'task_id': state['task_id'], 'status': 'blocked'})
     answer = wait_for_developer(
         run, blocker, state['blocker_id'], progress_key, label='write-e2e', heading=heading,
         on_wait=lambda: save_handoff(run, state, 'waiting for your answer', display=False))
@@ -1107,6 +1109,26 @@ def execute(root, run, owner, phase, live_attempts=0):
     return json.loads((run / 'agent-result.json').read_text())
 
 
+def task_info_instructions(run, task):
+    """Retain task prose rather than asking the model to repeat it each turn."""
+    path = run / 'task-info.json'
+    info = json.loads(path.read_text()) if path.exists() else {}
+    explanation = info.get('explanation') if info.get('task_id') == task else None
+    return ("\nThe launcher has a separate reader-facing task panel. In your first commentary, "
+            "send a single line beginning LAUNCHER_STATUS followed by a JSON object. "
+            "Use everyday, non-technical, end-user scenario language. "
+            + ("The task explanation is already saved: " + json.dumps(explanation) +
+               ". Omit explanation unless the task's scope has actually changed. " if explanation else
+               "Include explanation: briefly describe what this task checks for a parent or child. " )
+            + "For session 1 omit status; the launcher displays Running session 1. "
+            "For later sessions include status: describe the previous failure's effect on the "
+            "parent or child and what you are trying to resolve it, without commands, paths, "
+            "test-system terms or error codes. Update status only when the situation changes. "
+            "Never repeat the explanation in progress updates. This commentary is independent "
+            "of your required final workflow JSON. Chat messages from the developer can steer "
+            "your current work; preserve the original task and acceptance requirements.\n")
+
+
 def worker(root, run, owner, sessions, tasks, state_json):
     from launcher_progress import publish_progress, read_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -1203,6 +1225,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             state.setdefault('progress_keys', []).append(str(count))
             prompt = session_prompt(state)
+            prompt += task_info_instructions(run, state['task_id'])
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
             state.setdefault('stage_baseline', worktree_snapshot(root))
             if 'protected_staged' not in state:
@@ -1390,6 +1413,7 @@ def select(root, argv):
     binding = execution_binding()
     initial_limits = {}
     initial_checkpoint = {}
+    initial_info = {}
 
     def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
@@ -1436,6 +1460,11 @@ def select(root, argv):
         initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0, completed=0)
         state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
+        previous = launcher.current_run(run.parent)
+        if previous is not None and (previous / 'task-info.json').exists():
+            info = json.loads((previous / 'task-info.json').read_text())
+            if info.get('task_id') == state.get('task_id'):
+                initial_info.update(info)
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
         session_command(root, state)
@@ -1443,11 +1472,18 @@ def select(root, argv):
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                 str(root), str(run), str(owner), json.dumps(args.sessions),
                 json.dumps(args.tasks), json.dumps(state)]
+
+    def start(run):
+        launcher.atomic(run / 'limits.json', initial_limits)
+        launcher.atomic(run / 'checkpoint.json', initial_checkpoint)
+        save_binding(run, binding)
+        # Read before retention can expire the previous run; write only after
+        # select() has safely allocated the new destination.
+        if initial_info:
+            launcher.atomic(run / 'task-info.json', initial_info)
+
     return launcher.select(root, 'write-e2e', command, stop='--stop' in argv, stop_marker='stop',
-                           on_attach=attach,
-                           on_start=lambda run: (launcher.atomic(run / 'limits.json', initial_limits),
-                                                 launcher.atomic(run / 'checkpoint.json', initial_checkpoint),
-                                                 save_binding(run, binding)))
+                           on_attach=attach, on_start=start)
 
 
 def main(argv=None):
@@ -1471,7 +1507,8 @@ def main(argv=None):
             cancel()
         print(f"write-e2e: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}",
               flush=True)
-        print('Closing the terminal detaches. Ctrl+C cancels; --stop waits for a session boundary.',
+        print('Closing the terminal detaches. Chat Ctrl+C interrupts; again while waiting exits. '
+              '--stop waits for a session boundary.',
               flush=True)
         return launcher.follow(run, label='write-e2e')
     except BrokenPipeError:
@@ -1509,5 +1546,6 @@ if __name__ == '__main__':
             command[-1:-1] = ['-c', 'shell_environment_policy.set.' + BATCH + '=' + json.dumps(os.environ[BATCH])]
         sys.exit(launcher.supervise(root, run, int(owner), 'agent', command, nested=True,
                                     hide_task_completion=True,
+                                    interactive=True,
                                     on_usage=lambda usage: record_usage(run, metadata, usage)))
     raise SystemExit('private write-e2e worker entry point')

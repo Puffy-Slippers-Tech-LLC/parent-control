@@ -75,6 +75,103 @@ def calls(root):
     return [json.loads(line) for line in (root / 'calls.jsonl').read_text().splitlines()]
 
 
+def test_chat_steers_interrupts_and_continues_without_new_session(checkout):
+    from launcher_chat import read_state, send_input
+    root, spawned = checkout
+    script(root, {'result': reply(), 'interactive': True}, {'result': reply()})
+    run, _ = select_vm(root, ['--sessions', '1'])
+    wait_for(root / 'agent-ready-1')
+    send_input(run, 'message', 'Check what the child sees when the minute changes.')
+    wait_for(root / 'steering.json')
+    assert json.loads((root / 'steering.json').read_text())[0]['text'].startswith('Check what the child sees')
+    send_input(run, 'interrupt')
+    deadline = time.monotonic() + 15
+    while read_state(run)['status'] != 'waiting':
+        assert time.monotonic() < deadline, 'interrupted conversation never became ready'
+        time.sleep(.02)
+    assert not (run / 'cancel').exists()
+    assert len(calls(root)) == 1
+    send_input(run, 'message', 'Continue this task with the same child session.')
+    spawned[-1].wait(timeout=20)
+    assert launcher.follow(run, io.StringIO()) == 0
+    invocations = calls(root)
+    assert len(invocations) == 2 and invocations[0]['pid'] == invocations[1]['pid']
+    assert invocations[1]['prompt'] == 'Continue this task with the same child session.'
+    assert json.loads((run / 'result.json').read_text())['sessions'] == 1
+
+
+def test_chat_second_interrupt_exits_entire_launcher(checkout):
+    from launcher_chat import read_state, send_input
+    root, spawned = checkout
+    script(root, {'result': reply(), 'interactive': True})
+    run, _ = select_vm(root, ['--sessions', '1'])
+    wait_for(root / 'agent-ready-1')
+    send_input(run, 'interrupt')
+    deadline = time.monotonic() + 15
+    while read_state(run)['status'] != 'waiting':
+        assert time.monotonic() < deadline
+        time.sleep(.02)
+    send_input(run, 'interrupt')
+    spawned[-1].wait(timeout=20)
+    assert launcher.follow(run, io.StringIO()) == 130
+    assert json.loads((run / 'checkpoint.json').read_text())['in_flight'] is True
+
+
+def test_chat_interrupt_cleans_owned_tests_before_continuing(checkout):
+    from launcher_chat import read_state, send_input
+    root, spawned = checkout
+    script(root, {'result': reply(), 'interactive': True, 'nested': True}, {'result': reply()})
+    run, _ = select_vm(root, ['--sessions', '1'])
+    wait_for(root / 'agent-ready-1')
+    send_input(run, 'interrupt')
+    deadline = time.monotonic() + 15
+    while read_state(run)['status'] != 'waiting':
+        assert time.monotonic() < deadline
+        time.sleep(.02)
+    assert (root / 'nested-cleaned').exists()
+    assert json.loads((run / 'nested.json').read_text()) == []
+    assert not (run / 'nested-closed').exists()
+    send_input(run, 'message', 'Continue after the owned test has cleaned up.')
+    spawned[-1].wait(timeout=20)
+    assert launcher.follow(run, io.StringIO()) == 0
+    assert len(calls(root)) == 2
+
+
+def test_chat_broken_input_fails_and_cleans_owned_tests(checkout):
+    from launcher_chat import send_input
+    root, spawned = checkout
+    script(root, {'result': reply(), 'close_input': True, 'nested': True})
+    run, _ = select_vm(root, ['--sessions', '1'])
+    wait_for(root / 'input-closed')
+    send_input(run, 'message', 'The transport must report failure.')
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 1
+    assert 'Codex conversation input closed' in output.getvalue()
+    assert (root / 'nested-cleaned').exists()
+
+
+@pytest.mark.parametrize('saved_task', ['001', '002'])
+def test_task_explanation_is_reused_only_for_same_task_after_launcher_restart(checkout, saved_task):
+    root, spawned = checkout
+    script(root, {'result': reply()}, {'result': reply()})
+    first, _ = select_vm(root, ['--sessions', '1'])
+    spawned[-1].wait(timeout=20)
+    assert launcher.follow(first, io.StringIO()) == 0
+    info = {'task_id': saved_task, 'explanation': 'Checks what the child sees as each minute passes.'}
+    launcher.atomic(first / 'task-info.json', info)
+    second, _ = select_vm(root, ['--sessions', '1'])
+    spawned[-1].wait(timeout=20)
+    assert launcher.follow(second, io.StringIO()) == 0
+    if saved_task == '001':
+        assert json.loads((second / 'task-info.json').read_text()) == info
+        assert info['explanation'] in calls(root)[1]['prompt']
+        assert 'Omit explanation unless' in calls(root)[1]['prompt']
+    else:
+        assert not (second / 'task-info.json').exists()
+        assert 'Include explanation:' in calls(root)[1]['prompt']
+
+
 def finish_answered_run(run, spawned, output=None):
     # A broken resume must fail this regression instead of hanging the suite.
     spawned[-1].wait(timeout=20)
@@ -128,7 +225,8 @@ def test_three_completed_tasks_commit_then_optimize_before_fourth_task(
     assert json.loads((run / 'result.json').read_text())['tasks'] == 3
     invocation = calls(root)[-1]
     assert '## Ask 1' in invocation['prompt'] and '## Ask 2' in invocation['prompt']
-    assert 'gpt-6.1-sol' in invocation['args'] and 'model_reasoning_effort="high"' in invocation['args']
+    assert invocation['thread_start']['model'] == 'gpt-6.1-sol'
+    assert 'model_reasoning_effort="high"' in invocation['args']
     assert 'features.multi_agent=false' in invocation['args']
     staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
                             capture_output=True, text=True, check=True).stdout
@@ -239,7 +337,7 @@ def test_first_session_success_closes_and_stages_without_another_session(
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
     invocation = calls(root)[0]
-    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6.1-sol'
+    assert invocation['thread_start']['model'] == 'gpt-6.1-sol'
     assert 'model_reasoning_effort="high"' in invocation['args']
     assert 'features.multi_agent=true' in invocation['args']
     assert 'agents.enabled=true' in invocation['args']
@@ -535,7 +633,7 @@ def test_diagnostic_continuation_survives_restart_without_new_acceptance_or_stag
     invocations = calls(root)
     assert len(invocations) == 4 and 'Probe B found stale session identity' in invocations[-1]['prompt']
     assert 'Previous diagnostic progress:' in invocations[-1]['prompt']
-    assert all(call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol' for call in invocations)
+    assert all(call['thread_start']['model'] == 'gpt-6.1-sol' for call in invocations)
     state = json.loads((second / 'checkpoint.json').read_text())
     assert state['task_sessions'] == 4 and state['live_attempts'] == state['failed_attempts'] == 2
     assert state['model_tier'] == 1 and not state['diagnostic_continuation']
@@ -643,14 +741,14 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     assert len({call['pid'] for call in invocations}) == 2
     for index, call in enumerate(invocations):
         assert call['thread'] is None
-        assert '--ephemeral' in call['args']
+        assert 'app-server' in call['args'] and call['thread_start']['ephemeral'] is True
         assert not {'resume', 'fork', '--last'} & set(call['args'])
-        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
+        assert call['thread_start']['model'] == 'gpt-6.1-sol'
         assert 'model_reasoning_effort="high"' in call['args']
         assert 'agents.max_concurrent_threads_per_session=1' in call['args']
         assert 'agents.max_depth=1' in call['args']
         assert 'features.multi_agent=true' in call['args']
-        assert '--output-schema' in call['args']
+        assert call['turn_start']['outputSchema']['type'] == 'object'
     assert 'LATEST LIVE HANDOFF' in invocations[1]['prompt']
     assert workflow.queue_state(root)[0] == '002'
     assert workflow.git_output(root, 'log', '--format=%s').stdout.splitlines() == [
@@ -687,7 +785,7 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
     assert launcher.follow(second, output) == 0, output.getvalue()
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
-    assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
+    assert [call['thread_start']['model'] for call in invocations] == [
         'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
     for call, effort in zip(invocations, ['high', 'high', 'xhigh', 'high'], strict=True):
         assert f'model_reasoning_effort="{effort}"' in call['args']
@@ -727,7 +825,7 @@ def test_failed_sol_xhigh_repair_promotes_real_child_transport_and_restarts_at_m
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
     invocation = calls(root)[-1]
-    assert invocation['args'][invocation['args'].index('--model') + 1] == 'gpt-6.1-sol'
+    assert invocation['thread_start']['model'] == 'gpt-6.1-sol'
     assert 'model_reasoning_effort="max"' in invocation['args']
     assert 'You are the GPT-6.1-Sol Max coordinator' in invocation['prompt']
     assert 'features.multi_agent=false' in invocation['args']
@@ -747,7 +845,7 @@ def test_reasoning_stalls_promote_then_stop_at_final_tier_without_acceptance(che
     assert launcher.follow(run, io.StringIO()) == 1
     invocations = calls(root)
     assert len(invocations) == 3
-    assert [call['args'][call['args'].index('--model') + 1] for call in invocations] == [
+    assert [call['thread_start']['model'] for call in invocations] == [
         'gpt-6.1-sol', 'gpt-6.1-sol', 'gpt-6.1-sol']
     for call, effort in zip(invocations, ['high', 'xhigh', 'max'], strict=True):
         assert f'model_reasoning_effort="{effort}"' in call['args']
@@ -1020,7 +1118,7 @@ def test_first_limit_stops_after_accepted_completion(
     assert launcher.follow(run, output) == 0, output.getvalue()
     assert len(calls(root)) == sessions
     for index, call in enumerate(calls(root)):
-        assert call['args'][call['args'].index('--model') + 1] == 'gpt-6.1-sol'
+        assert call['thread_start']['model'] == 'gpt-6.1-sol'
         assert 'model_reasoning_effort="high"' in call['args']
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}

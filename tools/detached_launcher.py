@@ -142,7 +142,7 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
 
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
-              on_usage=None):
+              on_usage=None, interactive=False):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -171,7 +171,21 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
         from launcher_render import AgentRenderer
         renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log',
                                  hide_task_completion=hide_task_completion, on_usage=on_usage)
-    source = (run / 'prompt.txt').open('rb') if kind == 'agent' else None
+    conversation = None
+    if interactive:
+        from launcher_chat import AppSession, app_command
+
+        def interrupted_cleanup():
+            if nested:
+                finish_nested(root, run)
+                with lock(run / 'nested-gate') as gate:
+                    fcntl.flock(gate, fcntl.LOCK_EX)
+                    atomic(run / 'nested.json', [])
+                    (run / 'nested-closed').unlink(missing_ok=True)
+
+        conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup)
+        command = app_command(command)
+    source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = environment()
     if nested:
@@ -179,7 +193,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     if kind != 'agent':
         child_env[FRAME_DIRECTORY] = str(run)
     child = subprocess.Popen(command, cwd=root, env=child_env,
-                             stdin=source if source is not None else subprocess.DEVNULL,
+                             stdin=subprocess.PIPE if interactive else source if source is not None else subprocess.DEVNULL,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
                              start_new_session=True,
@@ -190,6 +204,10 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     try:
         descriptor = os.pidfd_open(child.pid)
         sent = None
+        finished_at = None
+        input_registered = False
+        if conversation:
+            os.set_blocking(child.stdin.fileno(), False)
         ready = kind != 'test'
         pending = b''
         with selectors.DefaultSelector() as poller:
@@ -202,6 +220,20 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             output_open = 2 if renderer else 1
             while not exited or output_open:
                 requested = requested or (run / 'cancel').exists()
+                if conversation and not requested and not conversation.done:
+                    conversation.poll()
+                if conversation and not requested and not child.stdin.closed and not exited:
+                    if conversation.done:
+                        if input_registered:
+                            poller.unregister(child.stdin)
+                            input_registered = False
+                        child.stdin.close()
+                        finished_at = time.monotonic()
+                    elif conversation.outgoing and not input_registered:
+                        poller.register(child.stdin, selectors.EVENT_WRITE, 'input')
+                        input_registered = True
+                if finished_at is not None and time.monotonic() - finished_at >= AGENT_GRACE:
+                    os.killpg(child.pid, signal.SIGTERM if time.monotonic() - finished_at < 2 * AGENT_GRACE else signal.SIGKILL)
                 if requested and sent is None and ready:
                     sent = time.monotonic()
                     try:
@@ -214,7 +246,19 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 if kind == 'agent' and sent is not None and time.monotonic() - sent >= AGENT_GRACE:
                     os.killpg(child.pid, signal.SIGKILL)
                 for key, _ in poller.select(.1):
-                    if key.data == 'parent':
+                    if key.data == 'input':
+                        try:
+                            written = os.write(key.fd, conversation.outgoing)
+                            del conversation.outgoing[:written]
+                        except BlockingIOError:
+                            continue
+                        except BrokenPipeError as error:
+                            raise ValueError('Codex conversation input closed before a workflow result; '
+                                             'see retained output') from error
+                        if not conversation.outgoing:
+                            poller.unregister(key.fileobj)
+                            input_registered = False
+                    elif key.data == 'parent':
                         if not os.read(key.fd, 1):
                             poller.unregister(key.fileobj)
                         requested = True
@@ -236,7 +280,10 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                             log.write(data)
                             log.flush()
                         if renderer and key.data == 'output':
-                            renderer.feed(data)
+                            if conversation:
+                                conversation.feed(data)
+                            else:
+                                renderer.feed(data)
                         else:
                             sys.stdout.buffer.write(data)
                         sys.stdout.flush()
@@ -247,10 +294,15 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 # Close any same-session subprocess left behind by the agent.
                 os.killpg(child.pid, signal.SIGKILL)
         status = child.wait()
+        if conversation and conversation.done and finished_at is not None and status in (
+                -signal.SIGTERM, -signal.SIGKILL):
+            status = 0  # The result was accepted before bounded server shutdown.
         if renderer and (run / 'agent-commands.log').exists():
             compact_log(run / 'agent-commands.log')
         if nested and finish_nested(root, run):
             status = status or 1
+        if conversation and not requested and not conversation.done:
+            raise ValueError('Codex conversation ended without a workflow result; see retained output')
         return 130 if requested else status if status >= 0 else 128 - status
     finally:
         # Failure while supervising must not release ownership over a live child.
@@ -259,8 +311,12 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 os.killpg(child.pid, signal.SIGKILL)
             else:
                 child.send_signal(signal.SIGINT)
+            if child.stdin is not None and child.stdin.closed:
+                child.stdin = None
             child.communicate()
         child.stdout.close()
+        if child.stdin is not None:
+            child.stdin.close()
         if child.stderr is not None:
             child.stderr.close()
         if descriptor is not None:
@@ -268,9 +324,11 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
         if log is not None:
             log.close()
             atomic(run / 'frame.json', [])
-        if nested:
-            finish_nested(root, run)
-        os.close(owner)
+        try:
+            if nested:
+                finish_nested(root, run)
+        finally:
+            os.close(owner)
 
 
 def select(root, name, command, *, stop=False, stop_marker='cancel',
@@ -374,7 +432,12 @@ def finish_nested(root, run):
 def follow(run, stream=None, *, label='launcher'):
     from launcher_render import LauncherDisplay
     stream = stream or sys.stdout
-    with LauncherDisplay(stream, log_path=run / 'output') as display:
+    if label == 'write-e2e':
+        from write_e2e_display import WriteE2EDisplay
+        display = WriteE2EDisplay(stream, run=run, log_path=run / 'output')
+    else:
+        display = LauncherDisplay(stream, log_path=run / 'output')
+    with display:
         return follow_output(run, stream, display, label=label)
 
 
@@ -392,6 +455,8 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
         if offset:
             output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
+            if label == 'write-e2e' and hasattr(display, 'refresh_chat'):
+                display.refresh_chat()
             if label in ('write-e2e', 'fix-tests'):
                 from launcher_question import pending, submit
                 display.update_question(pending(run), lambda identity, choice, text:

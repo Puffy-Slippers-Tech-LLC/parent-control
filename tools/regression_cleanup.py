@@ -5,6 +5,12 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# write_e2e_cleanup_safety's app-server double retains the existing private
+# pipes, recorded child/nested-test owners and waited cleanup. No live model,
+# VM, shared cache or new lifetime is introduced; compatible in both inventories.
+# Interrupt/resume and broken-input regressions reuse these recorded test owners,
+# private pipes and bounded waits. Fixture teardown cancels and waits for failed
+# runs too; existing compatible classifications remain appropriate.
 # Clipboard baseline reconciliation and snapshot freshness checks use in-memory
 # XML and existing process-local libvirt doubles. Baseline-guest and app-snapshot
 # remain compatible in both inventories; no live guest or new resource is added.

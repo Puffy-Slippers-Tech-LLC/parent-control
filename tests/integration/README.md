@@ -47,14 +47,21 @@ table as evidence of the installed guest's environment.
 ## Package and fixture inputs
 
 `tools/build_test_artifacts.py` builds without installing the product on the
-host. Use a new empty output directory under `/tmp`, outside the checkout:
+host. Its API and CLI require an explicit `deb` or `rpm` package format.
+For VM qualifications, use the maintained runner, which derives that choice
+from pinned baseline provenance and prepares the declared input automatically:
 
 ```sh
-make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts/run-input
+tools/run-tests --vm 'onpc-Fedora44' integration 'check_e2e_riley_native_grid'
 ```
 
-Choose a different empty directory for another build. Output contains
-`artifact-manifest.json`, the named Debian package in `package/`, and
+For an independent host build, `tools/run-tests artifacts build` explicitly
+uses the Debian builder; `tools/run-tests artifacts prepare --for-vm --vm NAME`
+selects the registered VM's required builder. Direct Make builds require
+`PACKAGE_FORMAT=deb` or `PACKAGE_FORMAT=rpm` and a new registered test output.
+See [qualification preparation](../README.md#scripted-repair-loop) for declaration
+and cache validation rules. Output contains
+`artifact-manifest.json`, the selected package in `package/`, and
 deterministic native/Flatpak fixture assets in `fixtures/`. The manifest records
 source revision/content digest, source date epoch, architecture, build inputs,
 tool versions, and package/stable-fixture digests.

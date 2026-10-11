@@ -270,8 +270,9 @@ def test_restart_selector_and_generated_preparation(monkeypatch):
     allocate = Mock(return_value=str(selector.ASSETS))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     command = commands.qualification_artifact_command(Path.cwd(), 'integration', ['check_e2e_restart_notice'])
-    assert command[-1] == str(selector.ASSETS)
-    assert 'tools/build_test_artifacts.py' in command[2]
+    from vm_selection import arguments
+    assert command[3:] == ['--output', str(selector.ASSETS), *arguments()]
+    assert 'tools/vm_artifacts.py' in command[2]
     allocate.assert_called_once_with(str(selector.ASSETS))
 
 

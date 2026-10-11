@@ -389,255 +389,52 @@ def allocate_artifact_output(value):
     return test_retention.allocate(create)
 
 
+def qualification_input_options(root, selector):
+    """Read the wrapper's literal input declaration without importing its code."""
+    import ast
+
+    path = host.confined_file(root, 'tests/integration/' + selector.removesuffix('.py') + '.py')
+    tree = ast.parse(Path(path).read_text())
+    declarations = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == 'named_input'):
+            if node.args or any(keyword.arg not in (
+                    'package_source', 'fixture_source', 'upgrade_source', 'vm_source')
+                    or not isinstance(keyword.value, ast.Constant)
+                    or type(keyword.value.value) is not bool for keyword in node.keywords):
+                raise ValueError('qualification input declaration must use literal boolean options')
+            options = {keyword.arg: keyword.value.value for keyword in node.keywords}
+            if len(options) != len(node.keywords):
+                raise ValueError('duplicate qualification input option')
+            declarations.append(options)
+    if not declarations:
+        return None
+    if any(options != declarations[0] for options in declarations):
+        raise ValueError('qualification must declare one input profile')
+    return declarations[0]
+
+
 def qualification_artifact_command(root, category, args):
-    """Prepare fixed Parent inputs in this run, including after retention expiry."""
-    if category == 'integration' and args in (
-            ['check_e2e_upgrade_assets'], ['check_e2e_upgrade_assets.py'],
-            ['check_e2e_package_upgrade'], ['check_e2e_package_upgrade.py'],
-            ['check_e2e_chinese_kiosk_lifecycle'], ['check_e2e_chinese_kiosk_lifecycle.py']):
-        from test_storage import named_input
-        output = str(named_input(upgrade_source=True))
-        if os.path.lexists(output):
-            artifact_path(output)
-            return None
-        directory = allocate_artifact_output(output)
-        print('run-tests: output=' + directory, flush=True)
-        return python_file(root, 'tools/build_test_artifacts.py', '--upgrade-inputs', '--output', directory)
-    if category != 'integration' or args not in (
-            ['check_parent_setup'], ['check_parent_setup.py'],
-            ['check_parent_access'], ['check_parent_access.py'],
-            ['check_parent_input'], ['check_parent_input.py'],
-            ['check_parent_standard_input'], ['check_parent_standard_input.py'],
-            ['check_parent_about'], ['check_parent_about.py'],
-            ['check_e2e_desktop_session'], ['check_e2e_desktop_session.py'],
-            ['check_e2e_lock_surface'], ['check_e2e_lock_surface.py'],
-            ['check_e2e_lock_recipient'], ['check_e2e_lock_recipient.py'],
-            ['check_e2e_retained_unlock_success'], ['check_e2e_retained_unlock_success.py'],
-            ['check_e2e_retained_unlock'], ['check_e2e_retained_unlock.py'],
-            ['check_e2e_retained_parent'], ['check_e2e_retained_parent.py'],
-            ['check_e2e_retained_entry'], ['check_e2e_retained_entry.py'],
-            ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
-            ['check_e2e_request_exit'], ['check_e2e_request_exit.py'],
-            ['check_e2e_read_restricted_station_about'], ['check_e2e_read_restricted_station_about.py'],
-            ['check_e2e_file_chooser'], ['check_e2e_file_chooser.py'],
-            ['check_e2e_save_chooser'], ['check_e2e_save_chooser.py'],
-            ['check_e2e_attachment_items'], ['check_e2e_attachment_items.py'],
-            ['check_e2e_attachment_preview'], ['check_e2e_attachment_preview.py'],
-            ['check_e2e_attachments'], ['check_e2e_attachments.py'],
-            ['check_e2e_gdm_navigation'], ['check_e2e_gdm_navigation.py'],
-            ['check_e2e_gdm_recipient'], ['check_e2e_gdm_recipient.py'],
-            ['check_e2e_challenges'], ['check_e2e_challenges.py'],
-            ['check_e2e_fresh_child_allowed'], ['check_e2e_fresh_child_allowed.py'],
-            ['check_e2e_countdown'], ['check_e2e_countdown.py'],
-            ['check_e2e_unlock'], ['check_e2e_unlock.py'],
-            ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
-            ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
-            ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
-            ['check_e2e_choices_overlay_to_kiosk'], ['check_e2e_choices_overlay_to_kiosk.py'],
-            ['check_e2e_cross_surface'], ['check_e2e_cross_surface.py'],
-            ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
-            ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
-            ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
-            ['check_e2e_overlay_approval'], ['check_e2e_overlay_approval.py'],
-            ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
-            ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],
-            ['check_e2e_read_overlay_about_and_links'], ['check_e2e_read_overlay_about_and_links.py'],
-            ['check_e2e_fresh_desktop'], ['check_e2e_fresh_desktop.py'],
-            ['check_e2e_desktop_keyring'], ['check_e2e_desktop_keyring.py'],
-            ['check_e2e_shell_search_results'], ['check_e2e_shell_search_results.py'],
-            ['check_e2e_shell_search'], ['check_e2e_shell_search.py'],
-            ['check_e2e_parent_search_launch'], ['check_e2e_parent_search_launch.py'],
-            ['check_e2e_parent_language'], ['check_e2e_parent_language.py'],
-            ['check_e2e_parent_rtl'], ['check_e2e_parent_rtl.py'],
-            ['check_e2e_parent_dialog_language'], ['check_e2e_parent_dialog_language.py'],
-            ['check_e2e_parent_language_isolation'], ['check_e2e_parent_language_isolation.py'],
-            ['check_e2e_parent_hebrew_policy'], ['check_e2e_parent_hebrew_policy.py'],
-            ['check_e2e_kiosk_language'], ['check_e2e_kiosk_language.py'],
-            ['check_e2e_kiosk_language_restoration'], ['check_e2e_kiosk_language_restoration.py'],
-            ['check_e2e_overlay_language'], ['check_e2e_overlay_language.py'],
-            ['check_e2e_terminal_provider'], ['check_e2e_terminal_provider.py'],
-            ['check_e2e_license_viewer'], ['check_e2e_license_viewer.py'],
-            ['check_e2e_parent_website'], ['check_e2e_parent_website.py'],
-            ['check_e2e_parent_privacy'], ['check_e2e_parent_privacy.py'],
-            ['check_e2e_parent_support'], ['check_e2e_parent_support.py'],
-            ['check_e2e_read_parent_information_links'], ['check_e2e_read_parent_information_links.py'],
-            ['check_e2e_give_repeated_public_operations_distinct_stages'],
-            ['check_e2e_give_repeated_public_operations_distinct_stages.py'],
-            ['check_e2e_gdm_product_free'], ['check_e2e_gdm_product_free.py'],
-            ['check_e2e_product_free_entry'], ['check_e2e_product_free_entry.py'],
-            ['check_e2e_chinese_language_assets'], ['check_e2e_chinese_language_assets.py'],
-            ['check_e2e_desktop_language'], ['check_e2e_desktop_language.py'],
-            ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
-            ['check_e2e_restart_notice'], ['check_e2e_restart_notice.py'],
-            ['check_e2e_package_authority'], ['check_e2e_package_authority.py'],
-            ['check_e2e_package_command'], ['check_e2e_package_command.py'],
-            ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
-            ['check_e2e_unrelated_reboot_request'], ['check_e2e_unrelated_reboot_request.py'],
-            ['check_e2e_toggle'], ['check_e2e_toggle.py'],
-            ['check_e2e_app_row_observations'], ['check_e2e_app_row_observations.py'],
-            ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
-            ['check_e2e_native_grid_usable'], ['check_e2e_native_grid_usable.py'],
-            ['check_e2e_native_app'], ['check_e2e_native_app.py'],
-            ['check_e2e_app_activity'], ['check_e2e_app_activity.py'],
-            ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
-            ['check_e2e_catalogue'], ['check_e2e_catalogue.py'],
-            ['check_e2e_match_save_cancel'], ['check_e2e_match_save_cancel.py'],
-            ['check_e2e_match_editor'], ['check_e2e_match_editor.py'],
-            ['check_e2e_review_a_rejected_parent_rule_s_report'],
-            ['check_e2e_review_a_rejected_parent_rule_s_report.py'],
-            ['check_e2e_access_choices'], ['check_e2e_access_choices.py'],
-            ['check_e2e_policy'], ['check_e2e_policy.py'],
-            ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py'],
-            ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
-            ['check_e2e_feedback_reset'], ['check_e2e_feedback_reset.py'],
-            ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
-            ['check_e2e_feedback_states'], ['check_e2e_feedback_states.py'],
-            ['check_e2e_trace_stable_state'], ['check_e2e_trace_stable_state.py'],
-            ['check_e2e_trace'], ['check_e2e_trace.py'],
-            ['check_e2e_compose_observation_around_one_caller_input'],
-            ['check_e2e_compose_observation_around_one_caller_input.py'],
-            ['check_e2e_accessibility_input_trace'], ['check_e2e_accessibility_input_trace.py'],
-            ['check_e2e_parent_save_trace'], ['check_e2e_parent_save_trace.py'],
-            ['check_e2e_feedback_collection'], ['check_e2e_feedback_collection.py'],
-            ['check_e2e_diagnostic_export'], ['check_e2e_diagnostic_export.py'],
-            ['check_e2e_custom_save_trace'], ['check_e2e_custom_save_trace.py'],
-            ['check_e2e_named_child_custom_saves'], ['check_e2e_named_child_custom_saves.py'],
-            ['check_e2e_feedback_rejection'], ['check_e2e_feedback_rejection.py'],
-            ['check_e2e_feedback_length'], ['check_e2e_feedback_length.py'],
-            ['check_e2e_format'], ['check_e2e_format.py'],
-            ['check_e2e_feedback_block_semantics'], ['check_e2e_feedback_block_semantics.py'],
-            ['check_e2e_feedback_formats'], ['check_e2e_feedback_formats.py'],
-            ['check_e2e_feedback_link_semantics'], ['check_e2e_feedback_link_semantics.py'],
-            ['check_e2e_window_switch'], ['check_e2e_window_switch.py'],
-            ['check_e2e_text'], ['check_e2e_text.py'],
-            ['check_e2e_files'], ['check_e2e_files.py'],
-            ['check_e2e_document_open'], ['check_e2e_document_open.py'],
-            ['check_e2e_open_a_customer_document_or_archive'],
-            ['check_e2e_open_a_customer_document_or_archive.py'],
-            ['check_e2e_edit_and_save_an_open_synthetic_document'],
-            ['check_e2e_edit_and_save_an_open_synthetic_document.py'],
-            ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],
-            ['check_e2e_kiosk_valid_duration'], ['check_e2e_kiosk_valid_duration.py'],
-            ['check_e2e_request_duration'], ['check_e2e_request_duration.py'],
-            ['check_e2e_request_flow'], ['check_e2e_request_flow.py'],
-            ['check_e2e_mate_prompt'], ['check_e2e_mate_prompt.py'],
-            ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
-            ['check_e2e_auth_result'], ['check_e2e_auth_result.py'],
-            ['check_e2e_kiosk_approved_flow'], ['check_e2e_kiosk_approved_flow.py'],
-            ['check_e2e_chinese_native_auth'], ['check_e2e_chinese_native_auth.py'],
-            ['check_e2e_approval_flow'], ['check_e2e_approval_flow.py'],
-            ['check_e2e_kiosk_rejection'], ['check_e2e_kiosk_rejection.py'],
-            ['check_e2e_auth_prompt'], ['check_e2e_auth_prompt.py'],
-            ['check_e2e_request_choices'], ['check_e2e_request_choices.py'],
-            ['check_e2e_kiosk_no_child'], ['check_e2e_kiosk_no_child.py'],
-            ['check_e2e_kiosk_fixtures'], ['check_e2e_kiosk_fixtures.py'],
-            ['check_e2e_kiosk_multiple'], ['check_e2e_kiosk_multiple.py'],
-            ['check_e2e_eligible_kiosk_fixtures'], ['check_e2e_eligible_kiosk_fixtures.py'],
-            ['check_e2e_parent_save'], ['check_e2e_parent_save.py'],
-            ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py'],
-            ['check_e2e_allowance'], ['check_e2e_allowance.py'],
-            ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'],
-            ['check_e2e_read_an_expanded_time_explanation'],
-            ['check_e2e_read_an_expanded_time_explanation.py'],
-            ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
-            ['check_e2e_set_an_allowance_for_a_named_child'],
-            ['check_e2e_set_an_allowance_for_a_named_child.py'],
-            ['check_e2e_set_fresh_thirty_minute_allowance'],
-            ['check_e2e_set_fresh_thirty_minute_allowance.py'],
-            ['check_e2e_set_jordan_thirty_minute_allowance'],
-            ['check_e2e_set_jordan_thirty_minute_allowance.py'],
-            ['check_e2e_app_restart'], ['check_e2e_app_restart.py'],
-            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard'],
-            ['check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard.py'],
-            ['check_e2e_independent_network_management'],
-            ['check_e2e_independent_network_management.py'],
-            ['check_e2e_operate_public_connectivity_controls'],
-            ['check_e2e_operate_public_connectivity_controls.py']):
+    """Prepare every declared qualification input for the selected VM."""
+    if category != 'integration' or len(args) != 1 or args[0] in HELP_ARGV[0] + HELP_ARGV[1]:
+        return None
+    options = qualification_input_options(root, args[0])
+    if options is None:
         return None
     from test_storage import named_input
-    if args[0].removesuffix('.py') in (
-            'check_e2e_retained_unlock_success', 'check_e2e_retained_entry',
-            'check_e2e_choices_overlay_to_kiosk', 'check_e2e_cross_surface', 'check_e2e_overlay_valid_choices',
-            'check_e2e_overlay_choices', 'check_e2e_kiosk_eligible_choices',
-            'check_e2e_request_flow', 'check_e2e_request_choices', 'check_e2e_request_exit'):
-        output = str(named_input(vm_source=True, fixture_source=True))
-        if os.path.lexists(output):
-            artifact_path(output)
-            return None
-        directory = allocate_artifact_output(output)
-        print('run-tests: output=' + directory, flush=True)
-        from vm_selection import arguments
-        return python_file(root, 'tools/vm_artifacts.py', '--output', directory, *arguments())
-    vm_source = args[0].removesuffix('.py') in (
-        'check_e2e_retained_parent',
-        'check_e2e_window_switch', 'check_e2e_set_an_allowance_for_a_named_child',
-        'check_e2e_retained_unlock',
-        'check_e2e_lock_recipient', 'check_e2e_lock_surface',
-        'check_e2e_desktop_session', 'check_e2e_challenges',
-        'check_e2e_unlock', 'check_e2e_fresh_child_allowed')
-    output = str(named_input(vm_source=True) if vm_source else
-        named_input(fixture_source=True) if args in (
-        ['check_e2e_overlay_valid_choices'], ['check_e2e_overlay_valid_choices.py'],
-        ['check_e2e_overlay_approved_exit'], ['check_e2e_overlay_approved_exit.py'],
-        ['check_e2e_overlay_approval'], ['check_e2e_overlay_approval.py'],
-        ['check_e2e_overlay_choices'], ['check_e2e_overlay_choices.py'],
-        ['check_e2e_overlay_license'], ['check_e2e_overlay_license.py'],
-        ['check_e2e_overlay_browser_links'], ['check_e2e_overlay_browser_links.py'],
-        ['check_e2e_read_overlay_about_and_links'], ['check_e2e_read_overlay_about_and_links.py'],
-        ['check_e2e_native_fixtures'], ['check_e2e_native_fixtures.py'],
-        ['check_e2e_native_grid_usable'], ['check_e2e_native_grid_usable.py'],
-        ['check_e2e_native_app'], ['check_e2e_native_app.py'],
-        ['check_e2e_app_activity'], ['check_e2e_app_activity.py'],
-        ['check_e2e_catalogue_search'], ['check_e2e_catalogue_search.py'],
-        ['check_e2e_catalogue'], ['check_e2e_catalogue.py'],
-        ['check_e2e_match_save_cancel'], ['check_e2e_match_save_cancel.py'],
-        ['check_e2e_match_editor'], ['check_e2e_match_editor.py'],
-        ['check_e2e_review_a_rejected_parent_rule_s_report'],
-        ['check_e2e_review_a_rejected_parent_rule_s_report.py'],
-        ['check_e2e_access_choices'], ['check_e2e_access_choices.py'],
-        ['check_e2e_policy'], ['check_e2e_policy.py'],
-        ['check_e2e_policy_legend'], ['check_e2e_policy_legend.py']) else
-        named_input(package_source=True) if args in (
-        ['check_e2e_named_child_custom_saves'], ['check_e2e_named_child_custom_saves.py'],
-        ['check_e2e_custom_save_trace'], ['check_e2e_custom_save_trace.py'],
-        ['check_e2e_allowance_presets'], ['check_e2e_allowance_presets.py'],
-        ['check_e2e_allowance'], ['check_e2e_allowance.py'],
-        ['check_e2e_time_explanation'], ['check_e2e_time_explanation.py'],
-        ['check_e2e_chinese_current_install'], ['check_e2e_chinese_current_install.py'],
-        ['check_e2e_restart_notice'], ['check_e2e_restart_notice.py'],
-        ['check_e2e_customer_reboot'], ['check_e2e_customer_reboot.py'],
-        ['check_e2e_unrelated_reboot_request'], ['check_e2e_unrelated_reboot_request.py'],
-        ['check_e2e_shell_panel'], ['check_e2e_shell_panel.py'],
-        ['check_e2e_kiosk_entry'], ['check_e2e_kiosk_entry.py'],
-        ['check_e2e_parent_language'], ['check_e2e_parent_language.py'],
-        ['check_e2e_parent_rtl'], ['check_e2e_parent_rtl.py'],
-        ['check_e2e_parent_dialog_language'], ['check_e2e_parent_dialog_language.py'],
-        ['check_e2e_parent_language_isolation'], ['check_e2e_parent_language_isolation.py'],
-        ['check_e2e_parent_hebrew_policy'], ['check_e2e_parent_hebrew_policy.py'],
-        ['check_e2e_read_parent_information_links'], ['check_e2e_read_parent_information_links.py'],
-        ['check_e2e_feedback_read'], ['check_e2e_feedback_read.py'],
-        ['check_e2e_text'], ['check_e2e_text.py'],
-        ['check_e2e_feedback_privacy'], ['check_e2e_feedback_privacy.py'],
-        ['check_e2e_kiosk_language'], ['check_e2e_kiosk_language.py'],
-        ['check_e2e_kiosk_language_restoration'], ['check_e2e_kiosk_language_restoration.py'],
-        ['check_e2e_kiosk_eligible_choices'], ['check_e2e_kiosk_eligible_choices.py'],
-        ['check_e2e_overlay_language'], ['check_e2e_overlay_language.py'],
-        ['check_e2e_chinese_native_auth'], ['check_e2e_chinese_native_auth.py'],
-        ['check_e2e_kiosk_approved_flow'], ['check_e2e_kiosk_approved_flow.py'],
-        ['check_e2e_overlay_prompt'], ['check_e2e_overlay_prompt.py'],
-        ['check_e2e_overlay_rejection'], ['check_e2e_overlay_rejection.py'],
-        ['check_e2e_kiosk_approval'], ['check_e2e_kiosk_approval.py'],
-        ['check_e2e_allowance_boundaries'], ['check_e2e_allowance_boundaries.py'])
-        else named_input())
+    from vm_selection import arguments
+
+    output = str(named_input(**options))
+    flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
     if os.path.lexists(output):
         artifact_path(output)
-        return None  # The privileged consumer verifies the frozen manifest.
+        # Recheck format against pinned baseline provenance, even on a cache hit.
+        return python_file(root, 'tools/vm_artifacts.py', *flags,
+                           '--candidate', output, '--output', output, *arguments())
     directory = allocate_artifact_output(output)
     print('run-tests: output=' + directory, flush=True)
-    if vm_source:
-        from vm_selection import arguments
-        return python_file(root, 'tools/vm_artifacts.py', '--output', directory, *arguments())
-    return python_file(root, 'tools/build_test_artifacts.py', '--output', directory)
+    return python_file(root, 'tools/vm_artifacts.py', *flags, '--output', directory, *arguments())
 
 
 def make_command(root, target, assignments=()):
@@ -752,16 +549,16 @@ def plan(root, category, argv):
                 else 'tools/build_test_artifacts.py')
         command = python_file(root, path)
         if action == 'build' and len(argv) <= 1:
-            return [command], False
+            return [[*command, *(['--package-format', 'deb'] if category == 'artifacts' else [])]], False
         if category == 'artifacts' and argv == ['prepare']:
-            return [[*command, '--reuse']], False
+            return [[*command, '--package-format', 'deb', '--reuse']], False
         if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
                 len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
             from vm_selection import arguments
             candidate = ['--candidate', artifact_path(argv[3])] if len(argv) == 4 else []
             return [python_file(root, 'tools/vm_artifacts.py', *candidate, *arguments())], False
         if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
-            return [[*command, '--output', artifact_output(argv[2])]], False
+            return [[*command, '--package-format', 'deb', '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
             return [[*command, '--verify', '--output', artifact_path(argv[1])]], False
         if category == 'artifacts' and action == 'compare' and len(argv) == 3:

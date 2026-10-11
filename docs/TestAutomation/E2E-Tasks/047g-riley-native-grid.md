@@ -23,6 +23,13 @@ single launch, public owned window and normal draft-submission operations.
 Current code permits Riley only through `command`; Jordan's grid qualification
 does not supply this binding. Do not fall back to command after a grid failure.
 
+Package preparation follows the shared
+[qualification input contract](../../../tests/README.md#scripted-repair-loop).
+All named inputs now bind automatically to the selected VM, and preparation
+reads the wrapper's declaration without a per-selector builder list. Preserve
+this shared route when continuing the task; the builder requires an explicit
+format and cached inputs are checked against pinned baseline provenance.
+
 The [native fixture contract](../E2E-Building-Blocks.md#native-fixture-preparation)
 currently places per-user launchers only in Jordan's baseline home. Add only
 Riley's launcher for the same `A.desktop`/`Exact Fixture.AppImage` target through

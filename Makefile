@@ -362,18 +362,19 @@ build-test-fixtures:
 	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-fixtures OUTPUT_DIR=/tmp/onpc-test-fixtures-.../payload' >&2; exit 2)
 	@$(PYTHON) tests/fixtures/build_test_applications.py --output "$(OUTPUT_DIR)"
 
-# Produces the exact .deb and fixture payload consumed by check-system in Task
-# 13B. The explicit output directory must be empty and outside this checkout.
+# Build the explicitly selected package format and deterministic fixture payload.
+# The output directory must be a new registered test allocation.
 build-test-artifacts:
-	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-artifacts OUTPUT_DIR=/tmp/onpc-test-artifacts-.../first' >&2; exit 2)
-	@$(PYTHON) tools/build_test_artifacts.py --output "$(OUTPUT_DIR)"
+	@test "$(PACKAGE_FORMAT)" = deb -o "$(PACKAGE_FORMAT)" = rpm || (echo 'build-test-artifacts requires PACKAGE_FORMAT=deb or PACKAGE_FORMAT=rpm' >&2; exit 2)
+	@test -n "$(OUTPUT_DIR)" || (echo 'Usage: make build-test-artifacts PACKAGE_FORMAT=deb|rpm OUTPUT_DIR=...' >&2; exit 2)
+	@$(PYTHON) tools/build_test_artifacts.py --package-format "$(PACKAGE_FORMAT)" --output "$(OUTPUT_DIR)"
 
 # Build twice in separate explicit directories, then compare package bytes,
 # package metadata/contents, fixture digests, and recorded source inputs.
 verify-test-artifacts:
 	@test -n "$(FIRST_OUTPUT)" && test -n "$(SECOND_OUTPUT)" || (echo 'Usage: make verify-test-artifacts FIRST_OUTPUT=/tmp/onpc-test-artifacts-.../first SECOND_OUTPUT=/tmp/onpc-test-artifacts-.../second' >&2; exit 2)
-	@$(MAKE) --no-print-directory build-test-artifacts OUTPUT_DIR="$(FIRST_OUTPUT)"
-	@$(MAKE) --no-print-directory build-test-artifacts OUTPUT_DIR="$(SECOND_OUTPUT)"
+	@$(MAKE) --no-print-directory build-test-artifacts PACKAGE_FORMAT="$(PACKAGE_FORMAT)" OUTPUT_DIR="$(FIRST_OUTPUT)"
+	@$(MAKE) --no-print-directory build-test-artifacts PACKAGE_FORMAT="$(PACKAGE_FORMAT)" OUTPUT_DIR="$(SECOND_OUTPUT)"
 	@$(PYTHON) tools/build_test_artifacts.py --compare "$(FIRST_OUTPUT)" "$(SECOND_OUTPUT)"
 
 check-child-shell:

@@ -308,7 +308,8 @@ def test_receipt_fifo_is_refused_without_waiting_for_a_writer(private_cache, mon
 def artifact_builder(private_cache, monkeypatch):
     metadata = {'source': {'revision': 'one'}, 'build_inputs': {}, 'tools': {}}
     identity = [{'package': {'source': 'one'}, 'fixtures': {'source': 'one'}}]
-    def build(output, *, reuse):
+    def build(output, *, package_format, reuse):
+        assert package_format == 'deb'
         for part in ('package', 'fixtures'):
             if part in reuse:
                 cache.shutil.copytree(reuse[part], output / part)
@@ -336,7 +337,7 @@ def test_artifact_hit_copies_all_bytes_into_new_owned_output(artifact_builder):
     first, second = output(), output()
     cache.prepare_artifacts(builder, first)
     cache.prepare_artifacts(builder, second)
-    builder.build.assert_called_once_with(first, reuse={})
+    builder.build.assert_called_once_with(first, package_format='deb', reuse={})
     assert cache.tree_digest(first) == cache.tree_digest(second)
     assert (first / 'package/payload').stat().st_ino != (second / 'package/payload').stat().st_ino
     with cache.receipt(builder.REPOSITORY, 'artifacts') as (record, _):
@@ -351,7 +352,7 @@ def test_only_changed_component_builds_and_records_the_current_bundle(artifact_b
     identity[0] = {**identity[0], part: {'source': 'changed'}}
     cache.prepare_artifacts(builder, second)
     other = 'fixtures' if part == 'package' else 'package'
-    builder.build.assert_called_with(second, reuse={other: first / other})
+    builder.build.assert_called_with(second, package_format='deb', reuse={other: first / other})
     assert cache.tree_digest(first / other) == cache.tree_digest(second / other)
     cache.prepare_artifacts(builder, third)
     assert builder.build.call_count == 2

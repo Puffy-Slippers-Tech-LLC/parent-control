@@ -42,10 +42,12 @@ def test_vm_named_inputs_keep_other_vm_and_legacy_bundles(tmp_path, monkeypatch)
     monkeypatch.setattr(storage, 'BASE', tmp_path / 'outputs')
     monkeypatch.setattr(package_inputs, 'paths', lambda _: [Path('product.py')])
     (tmp_path / 'product.py').write_text('product')
-    selected = SimpleNamespace(name='first')
+    selected = None
     monkeypatch.setattr(vm_selection, 'selected', lambda **kwargs: selected)
     legacy = storage.named_input()
-    first = storage.named_input(vm_source=True)
+    selected = SimpleNamespace(name='first')
+    first = storage.named_input()
+    assert first == storage.named_input(vm_source=True)
     first.mkdir(parents=True)
     (first / 'preserved').write_text('first VM package')
     selected.name = 'second'
@@ -53,6 +55,8 @@ def test_vm_named_inputs_keep_other_vm_and_legacy_bundles(tmp_path, monkeypatch)
     assert len({legacy, first, second}) == 3
     assert not second.exists()
     assert (first / 'preserved').read_text() == 'first VM package'
+    assert storage.named_input() == second
+    selected = None
     assert storage.named_input() == legacy
 
 

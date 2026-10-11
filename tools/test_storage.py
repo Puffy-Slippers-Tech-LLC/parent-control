@@ -92,12 +92,15 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     identity = package_inputs.digest(ROOT, paths)
     prefix = ('onpc-upgrade-v1.2-' if upgrade_source else
               'onpc-native-fixtures-' if fixture_source else 'onpc-parent-setup-')
-    if vm_source:
-        if __package__:
-            from .vm_selection import selected
-        else:
-            from vm_selection import selected
-        prefix += selected().name + '-'
+    # Platform binding is infrastructure policy, never an opt-in per scenario.
+    # Retain vm_source for existing callers, including its required-VM guard.
+    if __package__:
+        from .vm_selection import selected
+    else:
+        from vm_selection import selected
+    vm = selected(required=vm_source)
+    if vm is not None:
+        prefix += vm.name + '-'
     return named_input_slot(BASE / ('host/allocations/' + prefix + identity))
 
 

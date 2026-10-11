@@ -170,7 +170,7 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     }
 
 
-def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format='deb') -> Path:
+def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None) -> Path:
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     source_paths = package_inputs.paths(REPOSITORY)
@@ -180,8 +180,9 @@ def build(output: Path, *, reuse: dict[str, Path] | None = None, package_format=
                   reuse=reuse, package_format=package_format)
 
 
-def _build(output, source_root, source_paths, source_digest, metadata, *, reuse=None,
-           package_format='deb'):
+def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None):
+    if package_format not in ('deb', 'rpm'):
+        raise ArtifactError('unsupported package format')
     output = _require_empty_output(output)
     reuse = reuse or {}
     if package_format == 'rpm':
@@ -275,10 +276,12 @@ def release_identity(root):
             'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
 
 
-def build_upgrade(output):
+def build_upgrade(output, *, package_format):
     """Finite v1.2/current preparation; exclusively created output, no overwrite."""
+    if package_format != 'deb':
+        raise ArtifactError('genuine v1.2 upgrade inputs support DEB only')
     output = _require_empty_output(output)
-    build(output / 'current')
+    build(output / 'current', package_format=package_format)
     with released_source() as root:
         selected = package_inputs.paths(root)
         source = release_identity(root)
@@ -286,7 +289,8 @@ def build_upgrade(output):
         metadata['source'] = source
         metadata['build_inputs']['source_date_epoch'] = int(_run(
             ['git', 'show', '-s', '--format=%ct', RELEASE_COMMIT], cwd=REPOSITORY).stdout.strip())
-        _build(output / 'previous', root, selected, source['digest_sha256'], metadata)
+        _build(output / 'previous', root, selected, source['digest_sha256'], metadata,
+               package_format=package_format)
     verify_upgrade(output)
 
 
@@ -406,16 +410,19 @@ def main() -> int:
     parser.add_argument("--output", type=Path, help="an empty output directory outside the checkout")
     parser.add_argument("--verify", action="store_true", help="verify an existing artifact manifest")
     parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
-    parser.add_argument('--package-format', choices=('deb', 'rpm'), default='deb')
+    parser.add_argument('--package-format', choices=('deb', 'rpm'),
+                        help='required for every build; no default package format')
     parser.add_argument('--upgrade-inputs', action='store_true', help='build the fixed v1.2/current inputs')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
+    if not (arguments.verify or arguments.compare) and arguments.package_format is None:
+        parser.error('--package-format deb|rpm is required when building')
     try:
         if arguments.upgrade_inputs:
             if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
                     or arguments.package_format != 'deb'):
-                raise ArtifactError('--upgrade-inputs requires only --output')
-            build_upgrade(arguments.output)
+                raise ArtifactError('--upgrade-inputs requires --output and --package-format deb')
+            build_upgrade(arguments.output, package_format=arguments.package_format)
         elif arguments.reuse:
             if arguments.package_format != 'deb':
                 raise ArtifactError('--reuse currently requires Debian artifacts')

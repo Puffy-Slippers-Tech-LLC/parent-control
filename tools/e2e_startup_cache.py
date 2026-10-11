@@ -297,7 +297,7 @@ def prepare_artifacts(builder, output):
                 raise ValueError('startup cache: payload changed during copy')
             print('run-tests: verified artifact bundle reused; content identity=' + before, flush=True)
         else:
-            builder.build(output, reuse=reuse)
+            builder.build(output, package_format='deb', reuse=reuse)
             for part, path in reuse.items():
                 if tree_digest(output / part) != tree_digest(path):
                     raise ValueError('startup cache: payload changed during copy')

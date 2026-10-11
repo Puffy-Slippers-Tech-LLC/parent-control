@@ -15,6 +15,37 @@ MODULE_PATH = ROOT / "tools/build_test_artifacts.py"
 artifacts = load_module('onpc_test_build_artifacts', MODULE_PATH)
 
 
+@pytest.mark.parametrize('flags', [[], ['--reuse'], ['--upgrade-inputs']])
+def test_build_cli_requires_explicit_format_before_writing(tmp_path, monkeypatch, capsys, flags):
+    output = tmp_path / 'must-not-exist'
+    monkeypatch.setattr(artifacts.sys, 'argv', [str(MODULE_PATH), '--output', str(output), *flags])
+    with pytest.raises(SystemExit) as failure:
+        artifacts.main()
+    assert failure.value.code == 2
+    assert '--package-format deb|rpm is required' in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_build_api_has_no_implicit_deb_builder(tmp_path):
+    output = tmp_path / 'must-not-exist'
+    with pytest.raises(TypeError, match='package_format'):
+        artifacts.build(output)
+    with pytest.raises(artifacts.ArtifactError, match='unsupported package format'):
+        artifacts.build(output, package_format=None)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_build_cli_forwards_the_explicit_builder(tmp_path, monkeypatch, package_format):
+    output = tmp_path / 'output'
+    build = mock.Mock()
+    monkeypatch.setattr(artifacts, 'build', build)
+    monkeypatch.setattr(artifacts.sys, 'argv', [str(MODULE_PATH), '--output', str(output),
+                                             '--package-format', package_format])
+    assert artifacts.main() == 0
+    build.assert_called_once_with(output, package_format=package_format)
+
+
 @pytest.mark.parametrize('fault', [None, 'extra', 'missing', 'empty'])
 def test_rpm_public_identity_retains_epoch_release_architecture_and_digest(tmp_path, monkeypatch, fault):
     package = tmp_path / 'package.rpm'
@@ -101,7 +132,7 @@ class TestBuildTestArtifacts(unittest.TestCase):
                  mock.patch.object(artifacts.package_inputs, "digest", return_value="b" * 64), \
                  mock.patch.object(artifacts, "_metadata", return_value=metadata), \
                  mock.patch.object(artifacts, "_run", side_effect=fake_run):
-                manifest_path = artifacts.build(output)
+                manifest_path = artifacts.build(output, package_format='deb')
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(manifest["source"], metadata["source"])
@@ -174,7 +205,7 @@ def test_partial_build_runs_only_the_changed_component(tmp_path, monkeypatch, re
     monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
     monkeypatch.setattr(artifacts, '_run', run)
     output = tmp_path / 'output'
-    artifacts.build(output, reuse={reused: prior / reused})
+    artifacts.build(output, package_format='deb', reuse={reused: prior / reused})
     assert len(calls) == 1
     assert (calls[0] == ['dpkg-buildpackage']) == (reused == 'fixtures')
     assert artifacts.verify(output)['artifacts'] == artifacts.verify(prior)['artifacts']

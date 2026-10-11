@@ -111,7 +111,9 @@ def test_unrelated_selector_and_missing_input_preparation(monkeypatch):
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     prepared = commands.qualification_artifact_command(Path.cwd(), 'integration',
         ['check_e2e_unrelated_reboot_request'])
-    assert prepared[-1] == str(selector.ASSETS) and 'tools/build_test_artifacts.py' in prepared[2]
+    from vm_selection import arguments
+    assert prepared[3:] == ['--output', str(selector.ASSETS), *arguments()]
+    assert 'tools/vm_artifacts.py' in prepared[2]
     allocate.assert_called_once_with(str(selector.ASSETS))
 
 

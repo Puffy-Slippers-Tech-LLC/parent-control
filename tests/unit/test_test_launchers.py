@@ -34,12 +34,15 @@ def named_qualification_inputs():
 @pytest.mark.parametrize(('name', 'options'), list(named_qualification_inputs()))
 @pytest.mark.parametrize('suffix', ['', '.py'])
 @pytest.mark.parametrize('build_status', [0, 7])
+@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
 def test_every_named_input_consumer_prepares_before_dispatch(
-        monkeypatch, synthetic_package_identity, name, options, suffix, build_status):
+        monkeypatch, synthetic_package_identity, name, options, suffix, build_status, target):
     import dev_privileges
     import regression_process
     import test_storage
 
+    monkeypatch.setenv('ONPC_TEST_VM', target)
+    vm_args = ['--vm', target]
     output = str(test_storage.named_input(**options))
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=output)
@@ -53,10 +56,8 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         ROOT, 'integration', [selector], pipe=False) == build_status
     allocate.assert_called_once_with(output)
     flags = ['--upgrade-inputs'] if options.get('upgrade_source') else []
-    assert execute.call_args_list[0].args[0] == (commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
-        if options.get('vm_source') else commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', *flags, '--output', output))
+    assert execute.call_args_list[0].args[0] == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', *flags, '--output', output, *vm_args)
     if build_status:
         assert execute.call_count == 1
         authorize.assert_not_called()
@@ -65,7 +66,7 @@ def test_every_named_input_consumer_prepares_before_dispatch(
         authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
         assert execute.call_args.args[0] == [
             '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *VM_ARGS]
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'integration', selector, *vm_args]
 
 
 def test_named_artifact_build_uses_existing_builder_without_creating_output(monkeypatch):
@@ -73,7 +74,7 @@ def test_named_artifact_build_uses_existing_builder_without_creating_output(monk
     output = str(ROOT / 'output/test-runs/host/allocations/onpc-parent-setup-input')
     planned, safety = commands.plan(ROOT, 'artifacts', ['build', '--output', output])
     assert planned == [commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--output', output)]
+        ROOT, 'tools/build_test_artifacts.py', '--package-format', 'deb', '--output', output)]
     assert not safety
 
 
@@ -131,6 +132,70 @@ def test_vm_preparation_plan_uses_selected_vm():
     assert not safety
 
 
+@pytest.mark.parametrize('status,expected', [(3, 'deb'), (5, 'rpm')])
+@pytest.mark.parametrize('profile', ['', 'fixture_source=True', 'package_source=True'])
+def test_new_wrapper_automatically_uses_verified_vm_builder(
+        tmp_path, monkeypatch, status, expected, profile):
+    import vm_artifacts
+    import test_storage
+
+    wrapper = tmp_path / 'check_future_qualification.py'
+    wrapper.write_text('from tools.test_storage import named_input\nASSETS = named_input(' + profile + ')\n')
+    # No selector list or vm_source opt-in exists for this brand-new wrapper.
+    confined = commands.host.confined_file
+    monkeypatch.setattr(commands.host, 'confined_file',
+                        lambda root, path: str(wrapper) if path.startswith('tests/integration/')
+                        else confined(root, path))
+    output = tmp_path / 'new-bundle'
+    monkeypatch.setattr(test_storage, 'named_input', Mock(return_value=output))
+    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
+    monkeypatch.setattr(commands, 'allocate_artifact_output', Mock(return_value=str(output)))
+    planned = commands.qualification_artifact_command(ROOT, 'integration', ['check_future_qualification'])
+    assert planned == commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', str(output), *VM_ARGS)
+    monkeypatch.setattr(vm_artifacts, 'check', Mock())
+    control = Mock()
+    control.run.side_effect = [status, 0]
+    assert vm_artifacts.prepare(ROOT, control, {}, output=output) == 0
+    build = control.run.call_args.args[0]
+    assert build[build.index('--package-format') + 1] == expected
+    assert '--upgrade-inputs' not in build
+
+
+@pytest.mark.parametrize('declaration', ['named_input(fixture_source=choose())',
+    'named_input(**options)', 'named_input("rpm")',
+    'named_input()\nnamed_input(fixture_source=True)'])
+def test_ambiguous_input_declaration_refuses_before_allocation(tmp_path, monkeypatch, declaration):
+    wrapper = tmp_path / 'check_future.py'
+    wrapper.write_text(declaration)
+    monkeypatch.setattr(commands.host, 'confined_file', lambda root, path: str(wrapper))
+    allocate = Mock()
+    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
+    with pytest.raises(ValueError, match='qualification'):
+        commands.qualification_artifact_command(ROOT, 'integration', ['check_future'])
+    allocate.assert_not_called()
+
+
+@pytest.mark.parametrize('upgrade', [False, True])
+def test_fedora_refuses_wrong_cached_format_or_deb_only_upgrade_before_build(
+        tmp_path, monkeypatch, upgrade):
+    import vm_artifacts
+    import build_test_artifacts
+    candidate = tmp_path / 'existing'
+    candidate.mkdir()
+    preserved = candidate / 'preserved'
+    preserved.write_bytes(b'existing DEB evidence')
+    monkeypatch.setattr(vm_artifacts, 'check', Mock())
+    verify = Mock(return_value={'artifacts': {'package': {'path': 'package.deb'}}})
+    monkeypatch.setattr(build_test_artifacts, 'verify', verify)
+    control = Mock()
+    control.run.return_value = 5
+    assert vm_artifacts.prepare(ROOT, control, {}, candidate=candidate, output=candidate,
+                                upgrade_inputs=upgrade) == 2
+    assert control.run.call_count == 1
+    assert preserved.read_bytes() == b'existing DEB evidence'
+    assert verify.call_count == (0 if upgrade else 1)
+
+
 @pytest.mark.parametrize('output', [
     '/etc/onpc-input', '/tmp/unrelated', '/tmp/onpc-input/nested',
     '/tmp/../tmp/onpc-input', 'onpc-input', '/tmp//onpc-input',
@@ -174,7 +239,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
         ROOT, 'artifacts', ['build', '--output', output], pipe=False) == 0
     allocate.assert_called_once_with(output)
     assert execute.call_args.args[0] == commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--output', output)
+        ROOT, 'tools/build_test_artifacts.py', '--package-format', 'deb', '--output', output)
 
 
 @pytest.mark.parametrize('selector', [
@@ -302,9 +367,8 @@ def test_toggle_qualification_prepares_missing_inputs_before_privileged_dispatch
     allocate.assert_called_once_with(output)
     # A failed prerequisite never enters the privileged runner or the VM.
     assert execute.call_count == 1
-    assert execute.call_args.args[0] == (commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS) if vm_source else
-        commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', output))
+    assert execute.call_args.args[0] == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
 
 
 @pytest.mark.parametrize('selector', ['check_e2e_allowance_boundaries', 'check_e2e_allowance_boundaries.py',
@@ -341,19 +405,9 @@ def test_boundary_qualification_prepares_current_package_inputs(monkeypatch, sel
     monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=str(output))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == (
-        commands.python_file(ROOT, 'tools/build_test_artifacts.py', '--output', str(output)))
-    if selector.startswith(('check_e2e_native_fixtures', 'check_e2e_native_grid_usable',
-                            'check_e2e_native_app', 'check_e2e_app_activity',
-                            'check_e2e_overlay_approved_exit',
-                            'check_e2e_overlay_approval',
-                            'check_e2e_match_editor', 'check_e2e_policy',
-                            'check_e2e_read_overlay_about_and_links')):
-        named.assert_called_once_with(fixture_source=True)
-    elif selector.startswith('check_e2e_save_chooser'):
-        named.assert_called_once_with()
-    else:
-        named.assert_called_once_with(package_source=True)
+    expected = commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', str(output), *VM_ARGS)
+    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == expected
+    named.assert_called_once_with(**dict(named_qualification_inputs())[selector.removesuffix('.py')])
     allocate.assert_called_once_with(str(output))
 
 
@@ -381,7 +435,8 @@ def test_request_regressions_preserve_current_inputs_and_ignore_legacy_bundle(mo
     monkeypatch.setattr(commands, 'artifact_path', validate)
     monkeypatch.setattr(commands, 'allocate_artifact_output',
                         Mock(side_effect=AssertionError('existing inputs replaced')))
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) is None
+    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--candidate', str(current), '--output', str(current), *VM_ARGS)
     named.assert_called_once_with(package_source=True)
     validate.assert_called_once_with(str(current))
 
@@ -411,7 +466,8 @@ def test_overlay_information_reuses_valid_existing_fixture_inputs(monkeypatch, s
     monkeypatch.setattr(commands, 'artifact_path', validate)
     monkeypatch.setattr(commands, 'allocate_artifact_output',
                         Mock(side_effect=AssertionError('existing inputs replaced')))
-    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) is None
+    assert commands.qualification_artifact_command(ROOT, 'integration', [selector]) == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--candidate', str(output), '--output', str(output), *VM_ARGS)
     named.assert_called_once_with(fixture_source=True)
     validate.assert_called_once_with(str(output))
 
@@ -429,7 +485,9 @@ def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
     allocate = Mock(side_effect=AssertionError('existing inputs replaced'))
     monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
     assert commands.qualification_artifact_command(
-        ROOT, 'integration', [selector]) is None
+        ROOT, 'integration', [selector]) == commands.python_file(
+            ROOT, 'tools/vm_artifacts.py', '--candidate', str(named_input()),
+            '--output', str(named_input()), *VM_ARGS)
     validate.assert_called_once_with(str(named_input()))
 
 

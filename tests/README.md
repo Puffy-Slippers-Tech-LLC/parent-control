@@ -765,9 +765,19 @@ A preparation failure before VM access does not count as a failed live
 attempt: repair authorized mechanical defects or prepare missing generated inputs
 through the maintained artifact builder and resume validation in the same session.
 Do not ask the developer to choose between building and restoring qualification
-inputs. Integration qualifications using `named_input()` register automatic
-preparation in `tools/test_commands.py`; launcher coverage discovers consumers
-independently so new wrappers cannot silently omit preparation.
+inputs. Integration qualification wrappers declare their input profile with
+literal `named_input()` options. `tools/test_commands.py` reads that declaration
+without importing the wrapper; no separate selector/preparation lists are
+maintained. All profiles bind automatically to the selected VM, including
+callers omitting `vm_source`. The shared `tools/vm_artifacts.py` route selects
+an explicit `deb` or `rpm` builder from pinned baseline provenance before
+dispatch, and rechecks cached bundles against that format. A wrong cached
+format refuses without replacing evidence or entering the journey. Genuine
+v1.2 upgrade inputs remain DEB-only and explicitly refuse RPM qualification
+during preparation. The low-level builder API and CLI require a package format;
+no DEB fallback is permitted. Host Debian reproducibility/cache routes supply
+`deb` explicitly. Launcher coverage discovers consumers independently and
+checks a new unlisted wrapper against both verified platform results.
 Current-package authentication regressions use `named_input(package_source=True)`
 in both selector and launcher preparation. A fixed legacy input can select an
 older version snapshot even after current app preparation succeeds. Preserve

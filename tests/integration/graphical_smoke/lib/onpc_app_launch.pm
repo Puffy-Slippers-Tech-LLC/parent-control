@@ -11,17 +11,26 @@ use onpc_app_rows ();
 
 sub run {
     onpc_progress::operation('Using the allowed native command independently as both children');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'app-launch:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
-        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my ($exchange, $declared, $challenges, $control) = @_;
+    $control = 'enabled' unless defined($control);
+    die 'app-launch:arguments' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
+        && ($control eq 'enabled' || $control eq 'disabled');
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'native-command-allowed', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
-        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
-    $journey->seen('saved-settings');
+    if ($control eq 'enabled') {
+        $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+            $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+        $journey->seen('saved-settings');
+    } else {
+        # The independent Parent read proves the clean child's disabled limits
+        # and zero allowance before any policy edit or child input.
+        $journey->consume_observation('parent-selected', onpc_parent::open_for_child(
+            $journey, 'gdm', 'fresh', 'new', 'existing'));
+    }
     $journey->seen('apps-page');
     my $app = 'parent-app-' . substr(sha256_hex('com.puffyslippers.ONPCTest.A.desktop'), 0, 16);
     onpc_app_rows::edit_policy($journey, $app,

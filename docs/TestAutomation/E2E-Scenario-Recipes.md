@@ -706,8 +706,10 @@ Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / secon
 
 Implementation status: Case 80 is registered through `app_launch.PLAN` /
 `onpc_app_launch::run` and passed installed acceptance on Ubuntu and Fedora.
+Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
+explicit disabled binding and passed installed acceptance on both platforms.
 The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
-records its exact accepted scope. Other cases remain pending.
+records accepted scopes. Other cases remain pending.
 
 **Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
 
@@ -733,6 +735,13 @@ prove use. Log out Jordan and enter Riley fresh; the same command and independen
 submitted-draft result prove unaffected access with Riley's policy untouched.
 `AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
 order and recorder phases. It prepares no approval and requires no retained work.
+
+Case 81 uses the same fixture, precise Allowed rule, Jordan/Riley order and
+native command/window/Submit/result operations. Parent independently verifies
+Jordan's clean limits-off and zero-allowance settings before the app-policy save;
+it does not enable limits or prepare an allowance or approval. Riley's policy
+and disabled limits remain untouched. The shared worker's disabled binding skips
+only the enabled-case allowance setup and its readback.
 
 ### E2E-020
 

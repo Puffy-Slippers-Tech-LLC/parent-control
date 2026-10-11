@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">26742</span>/<span style="color: gray">0</span>/26742 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">26800</span>/<span style="color: gray">0</span>/26800 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">172</span>/<span style="color: gray">0</span>/172 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">319</span>/<span style="color: gray">0</span>/319 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -14,8 +14,8 @@
 | Child Node | <span style="color: green">7</span>/<span style="color: gray">0</span>/7 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | Integration qualification | <span style="color: green">157</span>/<span style="color: gray">0</span>/157 | Checks installed-runner prerequisites, safety guards and integration building blocks. |
-| E2E | <span style="color: green">44</span>/<span style="color: gray">149</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">27699</span>/<span style="color: gray">149</span>/27848** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">45</span>/<span style="color: gray">148</span>/193 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">27758</span>/<span style="color: gray">148</span>/27906** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count repeated phases and prerequisites once. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -23,7 +23,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">43</span>/<span style="color: gray">149</span>/192 |
+| customer-journey | <span style="color: green">44</span>/<span style="color: gray">148</span>/192 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -59,6 +59,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [60](#scenario-60) | Remember each child's choices across both request forms (child: first; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
 | [61](#scenario-61) | Remember each child's choices across both request forms (child: second; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-second` | ready |
 | [80](#scenario-80) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-enabled` | ready |
+| [81](#scenario-81) | Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command) | `E2E-019/native-command-allowed-disabled` | ready |
 | [139](#scenario-139) | Install through remove, reinstall and purge | `E2E-027/continuous` | ready |
 | [151](#scenario-151) | Identify the installed product and return to management | `E2E-030/parent` | ready |
 | [152](#scenario-152) | Feedback drafts, validation and attachment review (flow: draft reopen) | `E2E-031/draft-reopen` | ready |
@@ -119,7 +120,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[76](#scenario-76)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[78](#scenario-78)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[81](#scenario-81)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-allowed-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[82](#scenario-82)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[83](#scenario-83)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: disabled; policy: hard blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-hard-blocked-disabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[84](#scenario-84)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native command)</span> | <span style="color: gray">`E2E-019/native-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
@@ -563,6 +563,20 @@ Variant: child: second; direction: kiosk to overlay
 Case: `E2E-019/native-command-allowed-enabled` · Category: customer-journey · Status: **ready**
 
 Variant: control: enabled; policy: allowed; route: native command
+
+**Steps:**
+
+- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
+- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
+- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
+
+### Scenario 81
+
+**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command)**
+
+Case: `E2E-019/native-command-allowed-disabled` · Category: customer-journey · Status: **ready**
+
+Variant: control: disabled; policy: allowed; route: native command
 
 **Steps:**
 
@@ -1655,26 +1669,6 @@ Pending: Customer recipe is documented; required public blocks and full installe
 Case: `E2E-019/native-file-manager-soft-blocked-enabled` · Category: customer-journey · Status: **pending**
 
 Variant: control: enabled; policy: soft blocked; route: native file manager
-
-**Steps:**
-
-- Sign in as a parent and configure the declared screen-limit state and app rule for the prepared native, Snap or Flatpak app. With limits on, give enough daily time; keep one-time access empty.
-- Sign in as the child and try the declared route. Use the app when allowed. For blocked, observe the named denial or hidden launcher; a hidden launcher requires the separately declared command attempt to prove the app cannot be used.
-- Sign in as the unrelated standard user and launch and use the same app through the corresponding route.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 81
-
-**Use supported launch routes under each app rule (control: disabled; policy: allowed; route: native command)**
-
-Case: `E2E-019/native-command-allowed-disabled` · Category: customer-journey · Status: **pending**
-
-Variant: control: disabled; policy: allowed; route: native command
 
 **Steps:**
 

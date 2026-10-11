@@ -18,7 +18,7 @@ from installed_journey import (InstalledJourney, JourneyPlan, matched_screens,
                                record_installed_journey)
 from journey_blocks import native_usable_app
 from native_activity import PLAN, NativeActivityJourney
-from app_launch import PLAN as CASE_PLAN
+from app_launch import PLAN as CASE_PLAN, DISABLED_PLAN
 from policy_edits import AppPolicyJourney
 from native_fixtures import fixture_actions
 from owned_commands import CommandError
@@ -278,14 +278,25 @@ print encode_json(\@events);
 
 
 CASE_WORKER = WORKER.replace('require onpc_app_rows;', 'require onpc_app_launch;').replace(
-    'onpc_app_rows::app_activity', 'onpc_app_launch::run')
+    'onpc_app_rows::app_activity', 'onpc_app_launch::run').replace(
+        '}, $declared, $challenges);', '}, $declared, $challenges, shift @ARGV);')
 
 
-@pytest.mark.parametrize('fault', ['', *CASE_PLAN.screen_tags])
-def test_allowed_command_case_worker_order_and_every_refusal_stops(fault, tmp_path):
+def test_allowed_command_worker_invalid_control_refuses_before_entry():
+    result = json.loads(run_perl(CASE_WORKER, '', json.dumps(CASE_PLAN.invocations),
+                                 json.dumps(CASE_PLAN.challenges), 'invalid').stdout)
+    assert not result['ok'] and 'app-launch:arguments' in result['error']
+    assert result['events'] == []
+
+
+@pytest.mark.parametrize('plan,control,fault', [
+    (plan, control, fault) for plan, control in
+    ((CASE_PLAN, 'enabled'), (DISABLED_PLAN, 'disabled'))
+    for fault in ('', *plan.screen_tags)])
+def test_allowed_command_case_worker_order_and_every_refusal_stops(plan, control, fault, tmp_path):
     result = json.loads(run_perl(CASE_WORKER, fault, json.dumps(CASE_PLAN.invocations),
-                                 json.dumps(CASE_PLAN.challenges)).stdout)
-    stages = list(CASE_PLAN.screen_tags)
+                                 json.dumps(CASE_PLAN.challenges), control).stdout)
+    stages = list(plan.screen_tags)
     events = result['events']
     assert bool(result['ok']) == (not fault), result['error']
     assert [event[1] for event in events if event[0] == 'seen'] == (
@@ -298,41 +309,50 @@ def test_allowed_command_case_worker_order_and_every_refusal_stops(fault, tmp_pa
         assert events[-1] == ['finish']
         details = [{'title': event[1], 'result': 'ok'} for event in events if event[0] == 'marker']
         observations = []
-        for stage, tag in CASE_PLAN.screen_tags.items():
+        for stage, tag in plan.screen_tags.items():
             item = {'stage': stage, 'ui' if tag.startswith('ui:') else 'system': {
                 'operation': tag.split(':', 1)[1], 'outcome': 'passed',
                 'interface': 'ApplicationUI+external-provider' if tag.startswith('ui:') else 'system session'}}
-            challenge = CASE_PLAN.challenge_at(stage)
+            challenge = plan.challenge_at(stage)
             if challenge:
                 item['challenge'] = challenge
             observations.append(item)
         directory = tmp_path / 'testresults'
         directory.mkdir()
         (directory / 'result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
-        assert [screen['stage'] for screen in matched_screens(tmp_path, CASE_PLAN, observations)] == stages
+        assert [screen['stage'] for screen in matched_screens(tmp_path, plan, observations)] == stages
 
 
-def test_allowed_case_declares_both_accounts_same_command_and_registered_sessions():
+@pytest.mark.parametrize('plan', [CASE_PLAN, DISABLED_PLAN])
+def test_allowed_case_declares_both_accounts_same_command_and_registered_sessions(plan):
     import session_control
-    assert CASE_PLAN.access_checks == {'allowed-access': 'allowed'}
-    assert CASE_PLAN.balance_checks == {'allowance-configured': 1800}
-    assert CASE_PLAN.child_bindings['allowance-configured'] == 'existing'
-    assert CASE_PLAN.screen_tags['jordan-use-command'] == 'ui:native-command-launch'
-    assert CASE_PLAN.screen_tags['riley-use-command'] == 'ui:overlay-native-command-launch'
-    assert CASE_PLAN.screen_tags['riley-use-submitted'] == 'ui:overlay-native-submitted'
-    assert {tag[7:] for tag in CASE_PLAN.screen_tags.values() if tag.startswith('system:')} <= session_control.BINDINGS.keys()
-    assert not any('approval' in tag or 'blocked' in tag for tag in CASE_PLAN.screen_tags.values())
+    assert plan.access_checks == {'allowed-access': 'allowed'}
+    if plan is CASE_PLAN:
+        assert plan.balance_checks == {'allowance-configured': 1800}
+        assert plan.child_bindings['allowance-configured'] == 'existing'
+    else:
+        assert plan.balance_checks == {}
+        assert plan.settings_checks['parent-selected'].limit_enabled is False
+        assert not {'allowance-configured', 'saved-settings'} & plan.screen_tags.keys()
+    assert plan.screen_tags['jordan-use-command'] == 'ui:native-command-launch'
+    assert plan.screen_tags['riley-use-command'] == 'ui:overlay-native-command-launch'
+    assert plan.screen_tags['riley-use-submitted'] == 'ui:overlay-native-submitted'
+    assert {tag[7:] for tag in plan.screen_tags.values() if tag.startswith('system:')} <= session_control.BINDINGS.keys()
+    assert not any('approval' in tag or 'blocked' in tag for tag in plan.screen_tags.values())
 
 
-def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path):
-    from app_launch import execute
+@pytest.mark.parametrize('control', ['enabled', 'disabled'])
+def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path, control):
+    from app_launch import E2E_CASES
+    execute = E2E_CASES['native-command-allowed-' + control]
+    plan = CASE_PLAN if control == 'enabled' else DISABLED_PLAN
     context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
                               verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock())
     recorder = MagicMock(assertion=Mock())
     context.recorder = recorder
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert type(journey) is AppPolicyJourney and journey.plan is CASE_PLAN
+        assert type(journey) is AppPolicyJourney and journey.plan is plan
         assert set(journey.actions) == {'native-verify'}
         assert options['validate'].__self__ is journey
         assert options['authenticate'] is True and options['timeout'] == 1800
@@ -342,7 +362,34 @@ def test_allowed_case_uses_real_recorder_constructor_and_owned_worker(tmp_path):
         execute(recorder, context)
     context.run_worker.assert_called_once()
     recorder.assertion.assert_not_called()
-    assert {tag[3:] for tag in CASE_PLAN.screen_tags.values() if tag.startswith('ui:')} <= accessible_ui.OPERATIONS
+    assert {tag[3:] for tag in plan.screen_tags.values() if tag.startswith('ui:')} <= accessible_ui.OPERATIONS
+
+
+@pytest.mark.parametrize('fault', [None, 'enabled', 'allowance', 'child'])
+def test_disabled_case_real_step_requires_disabled_selected_child_before_reply(tmp_path, fault):
+    stage = 'parent-selected'
+    settings = {'child': 'existing-fixture-child', 'limit_enabled': False,
+                'allowance': ['0 minutes']}
+    if fault == 'enabled': settings['limit_enabled'] = True
+    if fault == 'allowance': settings['allowance'] = ['30 minutes']
+    if fault == 'child': settings['child'] = 'fixture-child'
+    journey = AppPolicyJourney(SimpleNamespace(directory=tmp_path), Mock(), DISABLED_PLAN,
+                              actions=fixture_actions(include_refusal=False))
+    journey.steps = [{'stage': earlier} for earlier in
+                     DISABLED_PLAN.stages[:DISABLED_PLAN.stages.index(stage)]]
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': DISABLED_PLAN.screen_tags[stage][3:], 'settings': settings}))
+    journey.boot = 'b' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises(EvidenceError): journey.step(Mock())
+        assert journey.failed and not (tmp_path / (stage + '.reply.json')).exists()
+        journey.progress.assert_not_called()
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        assert journey.steps[-1]['comparison']
+        journey.progress.assert_called_once()
 
 
 @pytest.mark.parametrize('stage', ['allowance-configured', 'allowed-access', 'allowed-match'])

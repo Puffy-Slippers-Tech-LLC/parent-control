@@ -1,4 +1,5 @@
-"""Case 80: Allowed native command use with enabled limits and child isolation."""
+"""Cases 80–81: Allowed native command use and independent child access."""
+from dataclasses import replace
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, desktop_entry, native_usable_app, prefixed_stages
 from native_fixtures import fixture_actions
@@ -58,6 +59,19 @@ PLAN = JourneyPlan(
                         'riley-entry-child-recipient-rechecked')},
 )
 
+DISABLED_PLAN = replace(
+    PLAN, worker_mode='native_command_allowed_disabled',
+    screen_tags={stage: tag for stage, tag in SCREENS.items()
+                 if stage not in ('allowance-configured', 'saved-settings')},
+    phases={stage: phase for stage, phase in PLAN.phases.items()
+            if stage not in ('allowance-configured', 'saved-settings')},
+    child_bindings={stage: child for stage, child in PLAN.child_bindings.items()
+                    if stage != 'allowance-configured'},
+    settings_checks={
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',))},
+    balance_checks={},
+)
+
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
@@ -65,4 +79,11 @@ def execute(recorder, context):
                              journey_type=AppPolicyJourney)
 
 
-E2E_CASES = {'native-command-allowed-enabled': execute}
+def execute_disabled(recorder, context):
+    record_installed_journey(recorder, context, DISABLED_PLAN, timeout=1800,
+                             actions=fixture_actions(include_refusal=False),
+                             journey_type=AppPolicyJourney)
+
+
+E2E_CASES = {'native-command-allowed-enabled': execute,
+             'native-command-allowed-disabled': execute_disabled}

@@ -4195,6 +4195,27 @@ and resource guards and the Parent composite UI check also passed. This scope
 qualifies the native-command/Allowed/enabled case for this finite fixture only;
 other E2E-019 route, rule and control bindings retain their own acceptance.
 
+Task 099b delivered case 81 through `app_launch.DISABLED_PLAN` and
+`onpc_app_launch::run(..., 'disabled')`. It reuses fresh Parent/Jordan entry and
+independently verifies limits off with zero allowance before the precise Allowed
+policy edit. It prepares neither an allowance nor an approval. The same finite
+native command/window/Submit/result operations then prove Jordan's use and
+Riley's unaffected same-target access after fresh entry; Riley's settings remain
+untouched. The disabled worker binding skips only enabled allowance setup and
+its readback. Host checks exercise both worker orders, every checkpoint refusal,
+invalid-control refusal before entry, the real recorder constructor and rejected
+enabled/allowance/wrong-child readbacks before any durable reply. Existing
+private test resources and lifecycle guards remain unchanged.
+
+`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' e2e --id '81'` passed in
+`20261010T234213Z-33318586` (Ubuntu) and `20261010T234213Z-660679cb` (Fedora).
+The affected enabled-case-80 regression passed in `20261010T235019Z-d9980371`
+and `20261010T235019Z-78d726a3`, respectively. All four attempts passed product,
+infrastructure, collection, worker/suite cleanup and baseline restoration with
+complete leases. Coverage was regenerated after each case. Cases 80–81 qualify
+only the declared native-command/Allowed fixture bindings; all other E2E-019
+bindings retain their separate acceptance.
+
 ### Recovery, information and feedback
 
 Use the [E2E-030–033 recipes](E2E-Scenario-Recipes.md#e2e-030) for installed

@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **099b — [E2E-019: native-command-allowed-disabled](E2E-Tasks/099b-case-81.md)**.
+Next task: **047g — [Launch the native target from Riley's app grid](E2E-Tasks/047g-riley-native-grid.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

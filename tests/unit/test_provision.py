@@ -87,6 +87,23 @@ class ProvisionTests(unittest.TestCase):
             "/usr/share/oh-no-parent-control/kiosk_account_icon.png",
         ], check=True)
 
+    @mock.patch("tools.provision.subprocess.run")
+    def test_kiosk_session_and_transport_are_set_and_verified(self, run):
+        run.return_value = SimpleNamespace(stdout='s "oh-no-parent-control"\ns "wayland"\n')
+        provision.accounts_service_set_kiosk_session("/org/freedesktop/Accounts/User1002")
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual([cmd[-3:] for cmd in commands[:2]], [
+            ["SetSession", "s", "oh-no-parent-control"],
+            ["SetSessionType", "s", "wayland"],
+        ])
+        self.assertEqual(commands[2][-2:], ["Session", "SessionType"])
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_successful_setter_with_wrong_readback_fails_provisioning(self, run):
+        run.return_value = SimpleNamespace(stdout='s "ubuntu"\ns "wayland"\n')
+        with self.assertRaisesRegex(SystemExit, "routing failed verification"):
+            provision.accounts_service_set_kiosk_session("/org/freedesktop/Accounts/User1002")
+
 
 if __name__ == "__main__":
     unittest.main()

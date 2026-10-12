@@ -78,6 +78,23 @@ def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE, user_path=No
     ], check=True)
 
 
+def accounts_service_set_kiosk_session(user_path):
+    """Set and verify both public routing properties, including the transport."""
+    for method, value in (("SetSession", "oh-no-parent-control"),
+                          ("SetSessionType", "wayland")):
+        subprocess.run([
+            "busctl", "--system", "call", "org.freedesktop.Accounts",
+            user_path, "org.freedesktop.Accounts.User", method, "s", value,
+        ], check=True)
+    result = subprocess.run([
+        "busctl", "--system", "get-property", "org.freedesktop.Accounts",
+        user_path, "org.freedesktop.Accounts.User", "Session", "SessionType",
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    if shlex.split(result.stdout) != ["s", "oh-no-parent-control", "s", "wayland"]:
+        fail("kiosk session routing failed verification")
+    print("Verified [Kiosk user] session=dedicated type=wayland", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--kiosk-user", required=True)
@@ -129,11 +146,7 @@ def main():
             kiosk_path,
             "com.endlessm.ParentalControls.SessionLimits", "LimitType", "u", "0",
         ], check=True)
-        subprocess.run([
-            "busctl", "--system", "call", "org.freedesktop.Accounts",
-            kiosk_path,
-            "org.freedesktop.Accounts.User", "SetSession", "s", "oh-no-parent-control",
-        ], check=True)
+        accounts_service_set_kiosk_session(kiosk_path)
     print("Provisioned [Kiosk user]")
     return 0
 

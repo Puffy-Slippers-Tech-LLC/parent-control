@@ -53,6 +53,8 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
     assert stack.index('pam_malcontent.so') < stack.rindex('pam_oh_no_parent_control.so')
     assert stack.index('oh-no-parent-control-login-check') < stack.index('pam_malcontent.so')
+    assert 'account required pam_oh_no_parent_control.so kiosk\n' in stack
+    assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
     manifest = json.loads((payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     files = {entry['path']: entry for entry in manifest['files']}
     assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
@@ -101,6 +103,7 @@ def test_fedora_pam_policy_tracks_both_shared_profiles(tmp_path):
     stack = stage['pam_stack'](tmp_path)
     assert stack.startswith('account required pam_exec.so quiet debug ')
     assert stack.index('oh-no-parent-control-login-check') < stack.index('success=5')
+    assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
     assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
     gate.write_text('Name: empty profile\nAccount:\n')
     with pytest.raises(ValueError, match='empty managed PAM profile'):

@@ -64,6 +64,30 @@ Existing `.log` files are never imported, exported, modified, or pruned by the
 new diagnostic pipeline. No journal, raw subprocess output, saved preference
 file, application inventory, or other arbitrary file becomes an attachment.
 
+### Kiosk admission diagnostics
+
+The PAM module and fixed-purpose login helper emit local journal/syslog records
+with the `onpc.pam` prefix before the kiosk application can start. These are
+integration diagnostics, separate from the broker's event-file pipeline, and
+are not automatically attached to feedback reports or imported as raw journal
+text. Inspect them using the maintained system diagnostics reader.
+
+Routing records identify the account or session stage, armed/allowed/denied/
+unavailable outcome, dedicated/other/unset session category, wayland/other/unset
+transport category, none/restored/failed default recovery, and a fixed failure
+reason (timeout, bus-failed, identity, verification or unavailable). Native records
+also identify denied services, unsafe/busy locks, an unbound session check and
+numeric PAM results, helper failure and helper timeout. Successful arming and
+admission are retained so a missing session-stage record can distinguish an interrupted login from a completed
+admission. Wrong saved defaults and wrong selected sessions produce separate
+stage records. Recovery never changes the failed attempt into an allowed login.
+
+No username, UID, session ID, arbitrary desktop name, metadata value, command
+stderr or exception text is formatted by these call sites. System journal
+envelopes remain operating-system data and are not approved automatic exports.
+These diagnostics and the confinement guard activate with the changed PAM
+profile at the required reboot; an already running desktop is not terminated.
+
 ### Schema and field provenance
 
 [diagnostic_catalog.json](../../common/oh_no_parent_control_ui/diagnostic_catalog.json)

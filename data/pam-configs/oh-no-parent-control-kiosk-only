@@ -4,3 +4,7 @@ Priority: 1000
 Account-Type: Additional
 Account:
  required pam_exec.so quiet /usr/libexec/oh-no-parent-control-login-check
+ required pam_oh_no_parent_control.so kiosk
+Session-Type: Additional
+Session:
+ required pam_oh_no_parent_control.so kiosk

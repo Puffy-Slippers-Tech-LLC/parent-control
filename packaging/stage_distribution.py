@@ -13,6 +13,8 @@ def pam_profile(root: Path, name: str) -> list[str]:
             kind = 'auth'
         elif line == 'Account:':
             kind = 'account'
+        elif line == 'Session:':
+            kind = 'session'
         elif not line.startswith((' ', '\t')):
             kind = None
         elif kind:

@@ -658,6 +658,15 @@ from regression_ui import Bucket
 # pytest files. They introduce no display, bus, VM, socket or shared cache owner.
 # DESK07 recipient proofs retain those doubles, waited Perl probes and private
 # recorder files; no live session, display, socket or shared resource is added.
+# kiosk_login compiles one private PAM module and runs bounded, reaped helper
+# children with pytest-owned configuration/lock/status files. Its abort check
+# signals and joins only its own multiprocessing worker; the bounded helper
+# exits itself and its inherited lock is observed released before fixture reuse.
+# libpam loads only that private stack; AccountsService, NSS and syslog use
+# process-local doubles. The interpreter-isolation probe executes the fixed
+# helper as an ordinary account with a private cwd/PYTHONPATH and waited child.
+# No real session, system bus, display, root lock, shared cache or service mutates.
+# It is compatible with other unit modules; its module fixture stays together.
 REVIEWED = frozenset("""
 application_ui_support
 test_checkpoint
@@ -711,7 +720,7 @@ feedback_transport fedora_pam fedora_execution_policy fix_tests fix_tests_cleanu
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
-installed_journey_cleanup_safety installer integration_harness kiosk_model kiosk_rendering
+installed_journey_cleanup_safety installer integration_harness kiosk_login kiosk_model kiosk_rendering
 launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap

@@ -201,13 +201,53 @@ of Ubuntu's `sudo` group from the Malcontent account check.
 For other accounts, the public AccountsService `LimitType` helper skips
 `pam_malcontent` only when the account is positively confirmed unrestricted;
 unknown or malformed state continues through the enforcing module. The kiosk
-account is additionally confined to the dedicated GNOME session. The
+account additionally has dedicated-session admission checks. The
 [login helper](../../tools/oh-no-parent-control-login-check) admits that account
-only for `gdm-password` and `systemd-user`; the owned
-[GDM hook](../../data/gdm3/PreSession/Default) checks the selected session.
+only for `gdm-password` and `systemd-user`. The shared PAM profile also requires
+the [native module](../../tools/pam_oh_no_parent_control.c) in both account and
+session stacks. Other accounts and `systemd-user` do not query routing metadata
+or acquire a station lock. A root-owned, no-follow, private-mode `/run` lock
+serializes station authentication from the account check through session opening;
+contention, unsafe lock files and missing account-stage state deny admission.
+
+Provisioning sets and reads back AccountsService `Session=oh-no-parent-control`
+and `SessionType=wayland`. During account authorization the helper verifies
+that default, then replaces the saved session with a pending marker. GDM has
+already loaded its selection and must save it again before opening the session.
+At session opening, the helper requires the saved selection to be the dedicated
+session and the PAM `XDG_SESSION_TYPE` to be `wayland`. The pending marker makes
+a failed GDM settings save fail closed rather than accepting a stale default.
+The lock prevents another station authentication substituting its settings save.
+The helper uses an isolated Python interpreter, bounded, noninteractive
+system-bus calls and a fixed child environment; the module bounds
+and reaps its helper child. That child retains the lock if its PAM worker aborts,
+until its bounded routing work ends. Failed checks never become success after recovery.
+A wrong default, rejected selection or interrupted transaction is repaired
+through public AccountsService setters and denied; a subsequent login can retry
+with the dedicated default. Unavailable metadata or failed verification denies
+admission. PAM teardown releases the lock without deleting its inode.
+
+This ordering follows GDM 50's
+[worker](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-worker.c) and
+[settings save](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-settings.c).
+`GDMSESSION` arrives after PAM session opening, so it cannot enforce that boundary.
+GDM and its privileged greeter remain trusted session selectors. The transaction
+verifies GDM's saved choice at PAM session opening; it does not inspect the later
+exec command. Validation against a supported GDM/greeter must therefore include
+selection timing as well as default routing, especially when their ordering changes.
+The retained legacy [PreSession hook](../../data/gdm3/PreSession/Default) is only
+compatibility defense for GDM versions that invoke it; GDM 50 does not invoke it.
+Session preference, the account's shell and that obsolete hook are insufficient
+to confine a graphical GDM login. Local routing diagnostics are described in
+[Logging](Logging-and-Feedback.md#kiosk-admission-diagnostics).
 The product Polkit rule denies the station changing its own AccountsService
 metadata. These layers complement the kiosk compositor and disabled XDG
 autostart files; hiding desktop controls is not the account confinement mechanism.
+The admission guard is not an account-wide execution sandbox. It does not add
+an executable allowlist, confine the account's user manager, or prevent arbitrary
+interpreter execution. Those boundaries and GDM's later exec selection still
+require implementation and installed-system qualification before the account
+can be described as permitting only the kiosk application and its required services.
 
 Saved-data migration completes before provisioning and package-update activation.
 See [Data migration](Data-Migration.md#package-lifecycle) for broker exclusion,
@@ -278,7 +318,7 @@ shared; Fedora live acceptance remains pending.
 /usr/libexec/oh-no-parent-control-query-usage         child/approver-scoped usage read helper
 /usr/libexec/oh-no-parent-control-migrate-state       saved-data migration runner
 /usr/libexec/oh-no-parent-control-session-limit-check PAM limit-state gate
-/usr/libexec/oh-no-parent-control-login-check         kiosk PAM service gate
+/usr/libexec/oh-no-parent-control-login-check         kiosk PAM service/routing gate
 /usr/libexec/oh-no-parent-control-execution-policy-{ready,probe}
 /usr/libexec/oh-no-parent-control-uninstall            verified removal helper
 /usr/libexec/oh-no-parent-control-{provision,package-activation}

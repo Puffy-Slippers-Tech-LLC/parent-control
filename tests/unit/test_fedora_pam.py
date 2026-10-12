@@ -23,6 +23,8 @@ def pam_machine(tmp_path, monkeypatch):
     helper.STACK.parent.mkdir(parents=True)
     helper.PAM_DIR.mkdir(parents=True)
     helper.STACK.write_text('account required pam_exec.so /usr/libexec/oh-no-parent-control-login-check\n'
+                            'account required pam_oh_no_parent_control.so kiosk\n'
+                            'session required pam_oh_no_parent_control.so kiosk\n'
                             'auth required pam_oh_no_parent_control.so\n')
     original = 'auth sufficient pam_unix.so nullok\naccount required pam_unix.so\n'
     for name in helper.PAM_FILES:
@@ -89,6 +91,17 @@ def test_upgrade_replaces_only_owned_managed_stack_and_keeps_original_profile(pa
         assert contents.split(helper.END, 1)[1] == original[name]
         assert contents.count(helper.BEGIN) == contents.count(helper.END) == 1
     assert [cmd[0] for cmd in commands].count('create-profile') == 1
+
+
+@pytest.mark.parametrize('kind', ['account', 'session'])
+def test_verification_requires_both_kiosk_admission_stages(pam_machine, kind):
+    helper, _current, _commands = pam_machine
+    helper.configure('install')
+    path = helper.PAM_DIR / 'system-auth'
+    path.write_text(path.read_text().replace(
+        f'{kind} required pam_oh_no_parent_control.so kiosk\n', ''))
+    with pytest.raises(ValueError, match='integration does not match'):
+        helper.verify_pam(installed=True)
 
 
 @pytest.mark.parametrize('action', ['install', 'remove'])

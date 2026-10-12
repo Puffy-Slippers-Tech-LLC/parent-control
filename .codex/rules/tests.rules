@@ -180,8 +180,7 @@ prefix_rule(
     justification = "Use direct approved commands; tools/read-only handles quoted --path-glob searches, links and words, and native apply_patch handles workspace edits. General shell scripts need separate approval.",
 )
 prefix_rule(
-    pattern = [["sort", "/usr/bin/sort",
-                "uniq", "/usr/bin/uniq", "gzip", "/usr/bin/gzip",
+    pattern = [["gzip", "/usr/bin/gzip",
                 "wget", "/usr/bin/wget"]],
     decision = "prompt",
     justification = "Use tools/read-only for searches, filters and HTTPS reads; unrestricted arguments can run preprocessors, overwrite files, or send modifying network requests.",
@@ -191,14 +190,18 @@ prefix_rule(
 # overrides it even for a quoted, direct public GET. Do not duplicate or widen
 # that grant here. It is a prefix, not trailing-argument validation: use it only
 # for trusted public reads, and use tools/read-only fetch for untrusted inputs.
-# The user explicitly authorizes rg -n across all paths. A blanket rg prompt
+# Preserve saved sort/uniq reader allows too: ordinary pipelines are explicitly
+# authorized across paths, filters and counts. Do not shadow them with a prompt
+# or add duplicate allows. Prefix grants do not validate trailing output options;
+# use tools/read-only for untrusted arguments or argument-confined operations.
+# The user explicitly authorizes rg -n and rg --files across all paths. A blanket rg prompt
 # overrides that machine-wide allow, so keep direct execution options separate.
 # Prefix rules cannot validate trailing options: use tools/read-only search for
 # untrusted arguments and use the direct allowance only for ordinary reads.
 prefix_rule(
     pattern = [["rg", "/usr/bin/rg"], ["--pre", "--hostname-bin"]],
     decision = "prompt",
-    justification = "These ripgrep options execute another program; ordinary rg -n searches are allowed globally.",
+    justification = "These ripgrep options execute another program; ordinary rg -n searches and rg --files discovery are allowed globally.",
 )
 prefix_rule(
     pattern = [["sed", "/usr/bin/sed"], ["-i", "--in-place"]],

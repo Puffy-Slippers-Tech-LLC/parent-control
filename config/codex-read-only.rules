@@ -8,9 +8,9 @@ prefix_rule(
     not_match = ["sed -i s/old/new/ file", "bash -c 'sed -n 1p file'"],
 )
 prefix_rule(
-    pattern = [["rg", "/usr/bin/rg"], "-n"],
+    pattern = [["rg", "/usr/bin/rg"], ["-n", "--files"]],
     decision = "allow",
-    justification = "User-authorized line-numbered text searches across any system path or repository.",
+    justification = "User-authorized text searches and file discovery across any system path or repository.",
     # These examples check argv prefixes, not Codex's shell parser. Unquoted
     # filename globs keep the enclosing shell opaque to this rule. Use quoted
     # --glob filters and literal roots; never add a shell grant to cover them.
@@ -18,6 +18,8 @@ prefix_rule(
         "rg -n needle /etc /tmp",
         "rg -n 'setup|install' setup.sh tools",
         "/usr/bin/rg -n needle /var/log",
+        "rg --files output/test-runs/host/reports --glob 'category-*.log'",
+        "/usr/bin/rg --files --hidden --glob '*.py' /tmp/another-checkout",
         "rg -n '^(def|class) |environment|provenance|accepted' --glob '/tools/*baseline*' --glob '/tools/*baseline*/**' --glob '/tests/integration/baseline*' --glob '/tests/integration/baseline*/**' .",
     ],
     not_match = ["rg --pre /tmp/program needle", "bash -c 'rg -n needle'"],

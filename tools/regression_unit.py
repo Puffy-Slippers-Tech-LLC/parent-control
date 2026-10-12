@@ -472,6 +472,10 @@ from pathlib import PurePosixPath
 # and bounded waited Perl children for worker order/refusal. It introduces no
 # sockets, buses, displays, external service, shared cache or expensive workload;
 # the existing compatible countdown unit classification remains applicable.
+# PANEL01/02 adds only synthetic trees/JSON, private recorder files and the
+# existing bounded waited Perl worker double in countdown/challenges modules.
+# No shared paths/caches, sockets, buses, displays, external services or new
+# cleanup owners; their unit and cleanup classifications remain applicable.
 # VM Internet ownership/recovery checks use only tiny tmp_path journals and
 # in-memory libvirt/SSH/UI doubles, with no sockets, live VM or host mutations.
 # Watch transport regressions use private socketpairs, managed short socket

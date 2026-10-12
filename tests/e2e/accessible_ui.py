@@ -175,7 +175,10 @@ PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
-CHILD_DESKTOP_OPERATIONS = frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
+PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
+    'child-countdown-animation-on', 'child-countdown-animation-off'})
+CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
+                            | PANEL_ANIMATION_OPERATIONS)
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
@@ -200,6 +203,7 @@ CHILD_GREETER_OPERATIONS = frozenset({
 })
 OPERATIONS |= CHILD_DESKTOP_OPERATIONS | CHILD_GREETER_OPERATIONS
 OPERATIONS |= frozenset({'child-countdown-wrong-account-refused'})
+OPERATIONS |= frozenset({'child-countdown-animation-wrong-account-refused'})
 OPERATIONS |= frozenset({'help-desktop-clear'})
 OPERATIONS |= frozenset({'gdm-product-free-provider', 'parent-desktop-provider'})
 PRODUCT = 'Oh No! Parent Control'
@@ -5642,10 +5646,13 @@ class AccessibleUI:
     def set_toggle(self, identity, desired, *, root, diagnostic=False):
         """UI17: set a registered owned switch to an explicit state."""
         require(identity in ('parent-screen-limit-toggle', 'kiosk-soft-apps-toggle',
+                'child-countdown-animation-toggle',
                 *(f'parent-filter-{kind}-{option}' for kind, options in FILTER_OPTIONS.items()
                   for option in options))
                 and type(desired) is bool,
                 'ui:toggle-binding')
+        if identity == 'child-countdown-animation-toggle':
+            self.require_child_overlay_session()
         # A complete lookup may legitimately omit a hidden GTK stack page.
         # Retry incomplete reads, but never wait for a missing input target to
         # appear or substitute another control.
@@ -7591,6 +7598,25 @@ class AccessibleUI:
         result = self.wait(observe, 'child-countdown', prompt_in_predicate=True)
         require_active_launch_session()
         return result
+
+    def child_countdown_animation(self, desired=None):
+        """PANEL01/02: owned canonical preference, without popup navigation."""
+        require(desired is None or type(desired) is bool, 'ui:panel-animation-binding')
+        self.require_child_overlay_session()
+        root = self.id_target('child-screen-time-indicator', showing=False)
+        if desired is not None:
+            self.set_toggle('child-countdown-animation-toggle', desired, root=root)
+        value = self.get_value('child-countdown-animation-toggle')
+        require(type(value) is bool and (desired is None or value is desired),
+                'ui:panel-animation-result')
+        require_active_launch_session()
+        return {'child': 'fixture-child', 'surface': 'desktop', 'animation': value,
+                'observed_monotonic_ns': time.monotonic_ns()}
+
+    def child_countdown_menu(self):
+        """UI28's ordinary menu entry, only for consumers that need it."""
+        self.require_child_overlay_session()
+        self.activate_id('child-countdown-menu')
 
     def standard_shell_desktop(self, *, no_prompt=False, language='en'):
         """Shell 50 English desktop observation on the bound fixture user's bus.
@@ -11395,6 +11421,17 @@ class AccessibleUI:
                 self.greeter_list()
         elif operation in COUNTDOWN_OPERATIONS:
             result['countdown'] = self.child_countdown(operation == 'child-countdown-present')
+        elif operation in PANEL_ANIMATION_OPERATIONS:
+            desired = (None if operation.endswith('-read') else operation.endswith('-on'))
+            result['panel_animation'] = self.child_countdown_animation(desired)
+        elif operation == 'child-countdown-animation-wrong-account-refused':
+            try:
+                self.child_countdown_animation(True)
+            except UiError as error:
+                require(str(error) == 'ui:overlay-account', 'ui:panel-animation-refusal')
+            else:
+                raise UiError('ui:panel-animation-wrong-account-accepted')
+            result['refused'] = True
         elif operation == 'child-countdown-wrong-account-refused':
             try:
                 self.child_countdown(True)
@@ -12161,6 +12198,16 @@ def countdown_seconds(text):
     require(re.fullmatch(r'(?:[1-5]?[0-9]|60)', text) is not None,
             'ui:countdown-text')
     return int(text), int(text)
+
+
+def validate_panel_animation(value):
+    require(type(value) is dict and set(value) == {
+        'child', 'surface', 'animation', 'observed_monotonic_ns'}
+        and value['child'] == 'fixture-child' and value['surface'] == 'desktop'
+        and type(value['animation']) is bool
+        and type(value['observed_monotonic_ns']) is int
+        and value['observed_monotonic_ns'] > 0, 'ui:panel-animation-response')
+    return dict(value)
 
 
 def validate_countdown(value, present):

@@ -16,6 +16,7 @@ from challenges import PLAN, CHALLENGES, INVOCATIONS, ChallengesJourney
 from fresh_child_allowed import PLAN as CHILD_PLAN, FreshChildAllowedJourney
 from fresh_child_denied import PLAN as DENIED_PLAN, FreshChildDeniedJourney
 from countdown_qualification import PLAN as COUNTDOWN_PLAN, OFF_PLAN
+from countdown_animation import PLAN as ANIMATION_PLAN
 from shell_panel import PLAN as SHELL_PANEL_PLAN
 from overlay_rejection import PLAN as OVERLAY_REJECTION_PLAN
 from installed_journey import InstalledJourney, matched_screens
@@ -421,17 +422,23 @@ def test_actual_fresh_child_worker_stops_at_failure_and_uses_child_secret(fault)
             assert result['events'].count(['password']) <= 1
 
 
-@pytest.mark.parametrize('present', [True, False])
+@pytest.mark.parametrize('present', [True, False, 'animation'])
 @pytest.mark.parametrize('fault', ['', 'allowance-configured', 'limits-disabled',
     'wrong-account-refused', 'switch-user', 'fresh-child-recipient-rechecked',
-    'fresh-desktop', 'countdown', 'independent-countdown'])
+    'fresh-desktop', 'countdown', 'independent-countdown', 'animation-set', 'animation-read'])
 def test_countdown_worker_composes_fresh_child_then_independent_reads(present, fault):
-    if present and fault == 'limits-disabled': return
-    plan = COUNTDOWN_PLAN if present else OFF_PLAN
+    plan = ANIMATION_PLAN if present == 'animation' else COUNTDOWN_PLAN if present else OFF_PLAN
+    if fault and fault not in plan.screen_tags: return
+    call = ('onpc_challenges::countdown_animation(' if present == 'animation' else
+            'onpc_challenges::countdown(' + ('1' if present else '0') + ', ')
     program = (PERL.replace('onpc_challenges::run(',
-        'onpc_challenges::countdown(' + ('1' if present else '0') + ', ')
+        call)
         .replace('(?:list|greeter|focused)', '(?:list|greeter|focused|opened)')
         .replace('first-login', 'parent-login').replace('third-login', 'new-login'))
+    if present == 'animation':
+        program = (program.replace('our @events;', 'our @events; our @titles;')
+            .replace('sub record_info { }', 'sub record_info { push @main::titles, $_[0] }')
+            .replace('events => \\@events,', 'titles => \\@titles, events => \\@events,'))
     result = json.loads(run_perl(program, fault, json.dumps(plan.invocations),
                                  json.dumps(plan.challenges)).stdout)
     assert bool(result['ok']) == (not fault), result
@@ -442,6 +449,8 @@ def test_countdown_worker_composes_fresh_child_then_independent_reads(present, f
     if not fault:
         assert result['events'].count(['password']) == 2
         assert result['events'][-1] == ['off']
+        if present == 'animation':
+            assert result['titles'] == [*(plan.prefix + '-' + stage for stage in expected), 'shutdown']
     else:
         assert ['off'] not in result['events']
 

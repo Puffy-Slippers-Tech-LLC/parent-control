@@ -68,6 +68,10 @@ OPERATION_LABELS = {
     'child-countdown-present': 'Reading the child desktop countdown',
     'child-countdown-absent': 'Requiring stable countdown absence on the child desktop',
     'child-countdown-wrong-account-refused': 'Refusing countdown observation on another account',
+    'child-countdown-animation-read': 'Reading the child countdown animation preference',
+    'child-countdown-animation-on': 'Enabling the child countdown animation preference',
+    'child-countdown-animation-off': 'Disabling the child countdown animation preference',
+    'child-countdown-animation-wrong-account-refused': 'Refusing countdown preference input on another account',
     'gdm-child-time-denied': 'Observing the intended child’s specific time-limit rejection',
     'gdm-child-denied-return-ready': 'Reobserving the rejected child prompt before normal return',
     'gdm-child-denied-return-state': 'Checking the account list or a fresh empty child prompt after Cancel',
@@ -1531,7 +1535,14 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'countdown'}, 'ui:response')
             expected['countdown'] = accessible_ui.validate_countdown(
                 result['countdown'], operation == 'child-countdown-present')
-        if operation in ('child-countdown-wrong-account-refused', 'overlay-wrong-account-refused'):
+        if operation in accessible_ui.PANEL_ANIMATION_OPERATIONS:
+            require(type(result) is dict and set(result) == {*expected, 'panel_animation'}, 'ui:response')
+            value = accessible_ui.validate_panel_animation(result['panel_animation'])
+            require(operation.endswith('-read') or value['animation'] is operation.endswith('-on'),
+                    'ui:panel-animation-result')
+            expected['panel_animation'] = value
+        if operation in ('child-countdown-wrong-account-refused', 'overlay-wrong-account-refused',
+                         'child-countdown-animation-wrong-account-refused'):
             require(type(result) is dict and set(result) == {*expected, 'refused'}
                     and result['refused'] is True, 'ui:countdown-refusal')
             expected['refused'] = True

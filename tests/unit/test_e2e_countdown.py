@@ -17,6 +17,9 @@ import check_e2e_countdown as check
 from countdown import CountdownObservation, check_countdown_balance
 from countdown_qualification import CountdownJourney, PLAN, OFF_PLAN
 from parent_setup_qualification import CountdownQualification, CountdownOffQualification
+from countdown_animation import CountdownAnimationJourney, PLAN as ANIMATION_PLAN
+from parent_setup_qualification import CountdownAnimationQualification
+import check_e2e_operate_the_countdown_context_menu as animation_check
 from private_artifacts import EvidenceError
 from tests.support.accessible_ui import Node, ui_for
 from ui_observations import UiObservations
@@ -203,6 +206,159 @@ def test_fixed_qualification_uses_separate_attempts_and_stops_on_failure(monkeyp
         assert journey.plan is expected_plan and context.installed_snapshot.startswith('onpc-v')
         for operation in expected_plan.screen_tags.values():
             if operation.startswith('ui:'): assert operation[3:] in accessible_ui.OPERATIONS
+
+
+def animation_tree(monkeypatch):
+    ui, root, shell, _, indicator, _, _ = tree(monkeypatch)
+    toggle = Node(identity='child-countdown-animation-toggle', role='check box', value=False)
+    toggle.ui_element = SimpleNamespace()
+    menu = Node(identity='child-countdown-menu')
+    menu.ui_element = SimpleNamespace()
+    menu.activate = Mock()
+    for node in (toggle, menu):
+        node.parent = indicator
+        indicator.children.append(node)
+    return ui, root, shell, indicator, toggle, menu
+
+
+@pytest.mark.parametrize('desired', [True, False])
+def test_panel_animation_canonical_input_and_independent_read_without_menu(monkeypatch, desired):
+    ui, _, _, _, toggle, menu = animation_tree(monkeypatch)
+    toggle._set_value(not desired)
+    result = ui.run('child-countdown-animation-' + ('on' if desired else 'off'), '')
+    assert result['panel_animation']['animation'] is desired
+    toggle.setValue.assert_called_once_with(desired)
+    assert ui.run('child-countdown-animation-read', '')['panel_animation']['animation'] is desired
+    ui.run('child-countdown-animation-' + ('on' if desired else 'off'), '')
+    toggle.setValue.assert_called_once_with(desired)
+    menu.activate.assert_not_called()
+    toggle.action.do_action.assert_not_called()
+    toggle.component.grab_focus.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-account', 'inactive', 'wrong-owner', 'duplicate',
+    'hidden', 'disabled', 'prompt', 'defunct', 'incomplete', 'uncertain'])
+def test_panel_animation_guard_refusal_preserves_single_input(monkeypatch, fault):
+    ui, _, shell, indicator, toggle, menu = animation_tree(monkeypatch)
+    if fault == 'wrong-account':
+        monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 1002)
+        ui.read_snapshot = Mock(side_effect=AssertionError('discovery before identity refusal'))
+    if fault == 'inactive':
+        accessible_ui.require_active_launch_session.side_effect = accessible_ui.UiError('ui:launch-session')
+    if fault == 'wrong-owner': shell.identity = 'foreign-app'
+    if fault == 'duplicate': indicator.children.append(Node(identity=toggle.identity))
+    if fault == 'hidden': toggle.states.discard('visible')
+    if fault == 'disabled': toggle.states.discard('sensitive')
+    if fault == 'prompt': ui.system_prompt_kind = Mock(return_value='keyring')
+    if fault == 'defunct': toggle.states.add('defunct')
+    if fault == 'incomplete': shell.children.append(None)
+    if fault == 'uncertain': toggle.setValue.side_effect = TimeoutError()
+    with pytest.raises((accessible_ui.UiError, TimeoutError)):
+        ui.run('child-countdown-animation-on', '')
+    assert toggle.setValue.call_count == (1 if fault == 'uncertain' else 0)
+    if fault == 'uncertain':
+        with pytest.raises(accessible_ui.UiError, match='uncertain-input'):
+            ui.run('child-countdown-animation-on', '')
+        toggle.setValue.assert_called_once()
+    if fault == 'wrong-account':
+        assert ui.run('child-countdown-animation-wrong-account-refused', '')['refused'] is True
+        ui.read_snapshot.assert_not_called()
+    menu.activate.assert_not_called()
+
+
+def test_panel_animation_invalid_argument_and_menu_entry_share_guards(monkeypatch):
+    ui, _, _, _, toggle, menu = animation_tree(monkeypatch)
+    with pytest.raises(accessible_ui.UiError, match='panel-animation-binding'):
+        ui.child_countdown_animation(1)
+    toggle.setValue.assert_not_called()
+    ui.child_countdown_menu()
+    menu.activate.assert_called_once_with()
+    monkeypatch.setattr(accessible_ui.os, 'getuid', lambda: 1002)
+    ui.read_snapshot = Mock(side_effect=AssertionError('unavailable discovery'))
+    with pytest.raises(accessible_ui.UiError, match='overlay-account'):
+        ui.child_countdown_menu()
+    menu.activate.assert_called_once()
+    ui.read_snapshot.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', sorted(accessible_ui.PANEL_ANIMATION_OPERATIONS))
+def test_panel_animation_observer_binds_child_account_before_connection(monkeypatch, operation):
+    monkeypatch.setattr(accessible_ui.sys, 'argv', ['observer', operation, '1.1'])
+    monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 0)
+    lookup = Mock(side_effect=LookupError('stop before connection'))
+    monkeypatch.setattr(accessible_ui.pwd, 'getpwnam', lookup)
+    with pytest.raises(LookupError): accessible_ui.main()
+    lookup.assert_called_once_with(accessible_ui.CHILD_ACCOUNTS[accessible_ui.CHILD])
+
+
+@pytest.mark.parametrize('fault', ['', 'child', 'surface', 'value', 'timestamp', 'extra', 'wrong-result'])
+def test_panel_animation_real_decoder_refuses_malformed_or_wrong_result(fault):
+    value = {'child': 'fixture-child', 'surface': 'desktop', 'animation': True,
+             'observed_monotonic_ns': 20_000_000_000}
+    if fault == 'child': value['child'] = 'other-child'
+    if fault == 'surface': value['surface'] = 'lock'
+    if fault == 'value': value['animation'] = 1
+    if fault == 'timestamp': value['observed_monotonic_ns'] = True
+    if fault == 'extra': value['private'] = 'canary'
+    if fault == 'wrong-result': value['animation'] = False
+    payload = {'operation': 'child-countdown-animation-on', 'outcome': 'passed',
+        'interface': 'ApplicationUI+external-provider', 'panel_animation': value}
+    observer = UiObservations(SimpleNamespace(call=Mock(return_value=json.dumps(payload).encode())))
+    if fault:
+        with pytest.raises((EvidenceError, accessible_ui.UiError)):
+            observer.observe(payload['operation'])
+    else:
+        assert observer.observe(payload['operation'])['panel_animation'] == value
+
+
+@pytest.mark.parametrize('fault', ['', 'off', 'stale', 'missing', 'durability'])
+def test_panel_animation_real_step_refuses_before_durable_reply(tmp_path, fault):
+    stage = 'animation-read'
+    journey = CountdownAnimationJourney(SimpleNamespace(directory=tmp_path),
+        Mock(side_effect=OSError('storage') if fault == 'durability' else None))
+    journey.steps = [{'stage': name} for name in ANIMATION_PLAN.stages[:ANIMATION_PLAN.stages.index(stage)]]
+    journey.animation_observed_ns = None if fault == 'missing' else 10_000_000_000
+    result = {'child': 'fixture-child', 'surface': 'desktop', 'animation': fault != 'off',
+              'observed_monotonic_ns': 10_000_000_000 if fault == 'stale' else 20_000_000_000}
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(return_value={
+        'operation': 'child-countdown-animation-read', 'outcome': 'passed', 'panel_animation': result}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises((EvidenceError, OSError)): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+    else:
+        journey.step(Mock())
+        assert json.loads((tmp_path / (stage + '.reply.json')).read_text()) == {'observed': stage}
+
+
+def test_panel_animation_selector_uses_current_inputs_and_real_constructor(monkeypatch, tmp_path):
+    from tools.test_storage import named_input
+    from tools.test_commands import qualification_input_options
+    from tests.support.paths import ROOT
+    calls = []
+    monkeypatch.setattr(animation_check, 'smoke', lambda **kw: calls.append(kw) or 0)
+    assert animation_check.main() == 0
+    assert calls == [{'assets': named_input(), 'provision_credentials': True,
+        'challenges': True, 'challenge_profile': 'countdown-animation'}]
+    assert qualification_input_options(ROOT, 'check_e2e_operate_the_countdown_context_menu') == {}
+    context = SimpleNamespace()
+    journey = CountdownAnimationQualification.journey(context, Mock())
+    assert journey.plan is ANIMATION_PLAN and context.installed_snapshot.startswith('onpc-v')
+    for operation in ANIMATION_PLAN.screen_tags.values():
+        if operation.startswith('ui:'): assert operation[3:] in accessible_ui.OPERATIONS
+    from installed_journey import record_installed_journey
+    from unittest.mock import MagicMock
+    context = SimpleNamespace(directory=tmp_path, credentials=Mock(), lease=Mock(),
+        verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock(), recorder=MagicMock())
+    def worker(**options):
+        controller = options['guarded_observe'].__self__
+        assert type(controller) is CountdownAnimationJourney and controller.plan is ANIMATION_PLAN
+        assert controller.actions == {}
+        raise EvidenceError('synthetic-worker-stop')
+    context.run_worker = worker
+    with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
+        record_installed_journey(context.recorder, context, ANIMATION_PLAN,
+            journey_type=CountdownAnimationJourney, actions={})
 
 
 def sample(text='00:03', *, start=100, end=101, guest=10, boot='b' * 64):

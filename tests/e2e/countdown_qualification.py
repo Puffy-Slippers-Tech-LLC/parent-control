@@ -1,5 +1,8 @@
 """Two independent fresh-child entries for TIME01's desktop binding."""
 
+from dataclasses import replace
+
+from accessible_ui import countdown_seconds
 from countdown import (CountdownObservation, CountdownSample, await_countdown_progress,
                        check_countdown_balance, check_countdown_progress)
 from installed_journey import InstalledJourney, JourneyPlan
@@ -113,6 +116,9 @@ MINUTE_PLAN = JourneyPlan(
 
 class CountdownMinutesJourney(DailyTimeProfileJourney):
     """TIME02 minute slice with caller-supplied, independently read endpoints."""
+    sample_precision_seconds = 60
+    sample_bound_seconds = 90
+
     def __init__(self, context, progress, plan=MINUTE_PLAN, *, actions=None):
         super().__init__(context, progress, plan, no_grant_checks=('profile-before',),
                          actions=actions or {'minute-progress': self.minute_progress})
@@ -126,7 +132,7 @@ class CountdownMinutesJourney(DailyTimeProfileJourney):
             value = observed['ui']['time_explanation']
             self.balance = (value['total']['seconds'], value['total']['precision_seconds'],
                             value['observed_monotonic_ns'])
-        if self.plan.stage_actions.get(stage) == 'minute-progress':
+        if stage in self.plan.stage_actions:
             current = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             if self.last_countdown is None:
                 require(self.balance is not None, 'countdown:missing-balance')
@@ -134,16 +140,17 @@ class CountdownMinutesJourney(DailyTimeProfileJourney):
                     seconds=self.balance[0], precision_seconds=self.balance[1],
                     observed_monotonic_ns=self.balance[2])
             else:
-                require(current.boot_sha256 == self.last_countdown.boot_sha256,
-                        'countdown:wrong-owner')
-                require(current.read_bounds[0] > self.last_countdown.read_bounds[1]
-                        and current.countdown.observed_monotonic_ns
-                            > self.last_countdown.countdown.observed_monotonic_ns,
-                        'countdown:stale-sample')
+                current.elapsed_since(self.last_countdown,
+                    max_elapsed_seconds=self.sample_bound_seconds)
                 if current.countdown.text != self.last_countdown.countdown.text:
                     observed['comparison'] = check_countdown_progress(current, self.last_countdown,
-                        precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
+                        precision_seconds=self.sample_precision_seconds, tolerance_seconds=2,
+                        max_elapsed_seconds=self.sample_bound_seconds)
+            self.check_progress_entry(current)
             self.current_countdown = current
+
+    def check_progress_entry(self, current):
+        pass
 
     @staticmethod
     def minute_progress(journey, guard):
@@ -151,3 +158,74 @@ class CountdownMinutesJourney(DailyTimeProfileJourney):
             precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
         journey.last_countdown = current
         return result
+
+
+TICK_STAGES = ('final-second-transition', 'second-progression', 'independent-second-progression')
+TICK_SCREENS = {
+    **fresh_desktop('parent'),
+    'wrong-account-refused': 'ui:child-countdown-wrong-account-refused',
+    **daily_time_profile(source='desktop', entry='same-user', window='new',
+                         initial_enabled=False, minutes=2),
+    **{'fresh-' + stage: operation for stage, operation in fresh_desktop('child').items()},
+    **{stage: 'ui:child-countdown-present' for stage in TICK_STAGES},
+}
+TICK_PLAN = replace(MINUTE_PLAN,
+    prefix='countdown-ticks', worker_mode='countdown_ticks', screen_tags=TICK_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' for stage in TICK_SCREENS}, 'installed-greeter': 'start',
+            **{stage: 'step-2' for stage in TICK_SCREENS
+               if stage.startswith('fresh-') or stage in TICK_STAGES}},
+    invocations=tuple(stage for stage in TICK_SCREENS
+                      if stage in fresh_desktop('parent') or stage.startswith('fresh-')
+                      or stage == 'wrong-account-refused' or stage in TICK_STAGES),
+    settings_checks={'same-parent-selected': SettingsObservation('fixture-child', False, ('0 minutes',)),
+                     'profile-settings': SettingsObservation('fixture-child', True, ('2 minutes',))},
+    balance_checks={'profile-configured': 120},
+    stage_actions={TICK_STAGES[0]: 'final-transition',
+                   **{stage: 'second-progress' for stage in TICK_STAGES[1:]}},
+    assertions_after={'wrong-account-refused': 'wrong-account-refused',
+                      'profile-configured': 'daily-only-time',
+                      'fresh-desktop': 'usable-child-desktop',
+                      **{stage: stage for stage in TICK_STAGES}},
+)
+
+
+class CountdownTicksJourney(CountdownMinutesJourney):
+    """One 90-second transition, then two exact decreases within 15 seconds each.
+
+    Initial stage reads never replace a completed endpoint or extend its bound.
+    All reads and waits use TIME01/TIME03 and the same immutable TIME02 comparison.
+    """
+    sample_precision_seconds = 1
+    sample_bound_seconds = 15
+
+    def __init__(self, context, progress, plan=TICK_PLAN, *, actions=None):
+        super().__init__(context, progress, plan, actions=actions or {
+            'final-transition': self.final_transition, 'second-progress': self.second_progress})
+
+    def check_progress_entry(self, current):
+        if self.last_countdown is None:
+            require(current.countdown.text == '00:01', 'countdown:transition-window')
+        else:
+            require(current.precision_seconds == 1, 'countdown:seconds-required')
+        require(countdown_seconds(current.countdown.text)[0] > 0,
+                'countdown:final-window-missed')
+
+    def await_tick(self, guard, *, transition):
+        previous = self.current_countdown if transition else self.last_countdown
+        current, result = await_countdown_progress(self, guard, previous,
+            precision_seconds=1, previous_precision_seconds=60 if transition else 1,
+            tolerance_seconds=2, max_elapsed_seconds=90 if transition else 15,
+            initial_sample=None if transition else self.current_countdown)
+        require(countdown_seconds(current.countdown.text)[0] > 0,
+                'countdown:final-window-missed')
+        self.last_countdown = current
+        return result
+
+    @staticmethod
+    def final_transition(journey, guard):
+        return journey.await_tick(guard, transition=True)
+
+    @staticmethod
+    def second_progress(journey, guard):
+        return journey.await_tick(guard, transition=False)

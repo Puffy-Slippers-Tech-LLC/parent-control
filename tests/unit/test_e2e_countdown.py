@@ -243,7 +243,7 @@ def test_successive_samples_require_independent_progress(text, start, end, guest
 @pytest.mark.parametrize('fault', ['precision', 'tolerance', 'bound', 'reversed', 'owner', 'child'])
 def test_sample_or_progress_binding_refuses_before_wait_or_read(fault):
     kwargs = dict(precision_seconds=60, tolerance_seconds=2, max_elapsed_seconds=90)
-    if fault == 'precision': kwargs['precision_seconds'] = 1
+    if fault == 'precision': kwargs['precision_seconds'] = 2
     if fault == 'tolerance': kwargs['tolerance_seconds'] = 3
     if fault == 'bound': kwargs['max_elapsed_seconds'] = True
     guard = Mock()
@@ -349,19 +349,26 @@ def test_minute_journey_actual_step_no_reply_after_failed_progress(tmp_path, min
         assert (tmp_path / (stage + '.reply.json')).exists()
 
 
-def test_minutes_selector_and_real_recorder_constructor(monkeypatch, tmp_path):
-    import check_e2e_countdown_minutes as selector
-    from countdown_qualification import CountdownMinutesJourney, MINUTE_PLAN
-    from parent_setup_qualification import CountdownMinutesQualification
+@pytest.mark.parametrize('seconds', [False, True], ids=['minutes', 'final-seconds'])
+def test_progress_selector_and_real_recorder_constructor(monkeypatch, tmp_path, seconds):
+    import check_e2e_countdown_minutes
+    import check_e2e_countdown_ticks
+    from countdown_qualification import CountdownMinutesJourney, MINUTE_PLAN, CountdownTicksJourney, TICK_PLAN
+    from parent_setup_qualification import CountdownMinutesQualification, CountdownTicksQualification
+    selector, kind, plan, qualification, profile = (
+        (check_e2e_countdown_ticks, CountdownTicksJourney, TICK_PLAN,
+         CountdownTicksQualification, 'countdown-ticks') if seconds else
+        (check_e2e_countdown_minutes, CountdownMinutesJourney, MINUTE_PLAN,
+         CountdownMinutesQualification, 'countdown-minutes'))
     import check_graphical_smoke as smoke
     from owned_commands import CommandError
     run = Mock(return_value=0)
     monkeypatch.setattr(selector, 'smoke', run)
-    assert selector.main() == 0 and run.call_args.kwargs['challenge_profile'] == 'countdown-minutes'
+    assert selector.main() == 0 and run.call_args.kwargs['challenge_profile'] == profile
     with pytest.raises(CommandError, match='challenges-prerequisites'):
-        smoke.main(challenges=True, challenge_profile='countdown-minutes')
+        smoke.main(challenges=True, challenge_profile=profile)
     context = SimpleNamespace(directory=tmp_path)
-    assert CountdownMinutesQualification.journey(context, Mock()).plan is MINUTE_PLAN
+    assert qualification.journey(context, Mock()).plan is plan
     assert context.installed_snapshot.startswith('onpc-v')
     # Real entry point passes plan/actions to this subclass before worker startup.
     from installed_journey import record_installed_journey
@@ -370,12 +377,12 @@ def test_minutes_selector_and_real_recorder_constructor(monkeypatch, tmp_path):
         verified=SimpleNamespace(inputs={}), guestfs=Mock(), commands=Mock(), recorder=MagicMock())
     def worker(**options):
         controller = options['guarded_observe'].__self__
-        assert type(controller) is CountdownMinutesJourney and controller.plan is MINUTE_PLAN
-        assert set(controller.actions) == {'minute-progress'}
+        assert type(controller) is kind and controller.plan is plan
+        assert set(controller.actions) == set(plan.stage_actions.values())
         raise EvidenceError('synthetic-worker-stop')
     context.run_worker = worker
     with pytest.raises(EvidenceError, match='synthetic-worker-stop'):
-        record_installed_journey(context.recorder, context, MINUTE_PLAN, journey_type=CountdownMinutesJourney)
+        record_installed_journey(context.recorder, context, plan, journey_type=kind)
 
 
 @pytest.mark.parametrize('fault', [None, 'reversed', 'stale', 'owner'])
@@ -399,8 +406,10 @@ def test_independent_minute_entry_cannot_reseed_reversed_or_stale_endpoints(tmp_
     assert journey.last_countdown.countdown.text == '00:02'
 
 
-def test_actual_minute_worker_order_titles_and_every_refusal(monkeypatch):
-    from countdown_qualification import MINUTE_PLAN
+@pytest.mark.parametrize('seconds', [False, True], ids=['minutes', 'final-seconds'])
+def test_actual_progress_worker_order_titles_and_every_refusal(monkeypatch, seconds):
+    from countdown_qualification import MINUTE_PLAN, TICK_PLAN
+    plan = TICK_PLAN if seconds else MINUTE_PLAN
     script = r'''
 use strict;
 use warnings;
@@ -435,17 +444,166 @@ my $exchange = sub {
 my $ok = eval { onpc_challenges::countdown_minutes($exchange, $plan->{invocations}, $plan->{challenges}); 1; };
 print encode_json({ok => $ok ? 1 : 0, events => \@events, error => "$@"});
 '''
-    args = json.dumps({'invocations': MINUTE_PLAN.invocations, 'challenges': MINUTE_PLAN.challenges})
+    if seconds:
+        script = script.replace('onpc_challenges::countdown_minutes(', 'onpc_challenges::countdown_ticks(')
+    args = json.dumps({'invocations': plan.invocations, 'challenges': plan.challenges})
     monkeypatch.setenv('ONPC_TEST_REFUSE', '')
     success = json.loads(run_perl(script, args).stdout)
     assert success['ok'], success['error']
-    assert [event[1] for event in success['events'] if event[0] == 'stage'] == list(MINUTE_PLAN.screen_tags)
+    assert [event[1] for event in success['events'] if event[0] == 'stage'] == list(plan.screen_tags)
     assert [event[1] for event in success['events'] if event[0] == 'title'] == [
-        *('countdown-minutes-' + stage for stage in MINUTE_PLAN.screen_tags), 'shutdown']
-    for stage in MINUTE_PLAN.screen_tags:
+        *(plan.prefix + '-' + stage for stage in plan.screen_tags), 'shutdown']
+    for stage in plan.screen_tags:
         monkeypatch.setenv('ONPC_TEST_REFUSE', stage)
         result = json.loads(run_perl(script, args).stdout)
         assert not result['ok'] and 'fixture:refused' in result['error']
         assert result['events'] == success['events'][:success['events'].index(['stage', stage]) + 1]
-    for tag in MINUTE_PLAN.screen_tags.values():
+    for tag in plan.screen_tags.values():
         if tag.startswith('ui:'): assert tag[3:] in accessible_ui.OPERATIONS
+
+
+@pytest.mark.parametrize('before,after,start,end,previous_precision,error', [
+    ('60', '55', 105, 106, 1, None),
+    ('60', '54', 104, 107, 1, None),  # Read latency, not callback timing.
+    ('60', '59', 101.1, 102, 1, None),
+    ('00:01', '60', 150, 151, 60, None),
+    ('00:01', '58', 160, 161, 60, None),
+    ('60', '60', 105, 106, 1, 'no-progress'),
+    ('55', '60', 105, 106, 1, 'no-progress'),
+    ('60', '40', 105, 106, 1, 'progress-mismatch'),
+    ('60', '59', 120, 121, 1, 'progress-mismatch'),
+    ('00:01', '60', 105, 106, 1, 'seconds-required'),
+    ('60', '00:01', 105, 106, 1, 'seconds-required'),
+])
+def test_exact_final_seconds_and_explicit_transition(before, after, start, end,
+                                                      previous_precision, error):
+    previous, current = sample(before), sample(after, start=start, end=end, guest=20)
+    options = dict(precision_seconds=1, previous_precision_seconds=previous_precision,
+                   tolerance_seconds=2, max_elapsed_seconds=90)
+    if error:
+        with pytest.raises(EvidenceError, match=error):
+            sampling.check_countdown_progress(current, previous, **options)
+    else:
+        result = sampling.check_countdown_progress(current, previous, **options)
+        assert result['precision_seconds'] == 1
+        assert result['previous_precision_seconds'] == previous_precision
+        if previous_precision == 1:
+            assert result['decrease_interval_seconds'] == [int(before) - int(after)] * 2
+
+
+@pytest.mark.parametrize('fault', [None, 'stall', 'reversed', 'stale', 'owner', 'late', 'guard'])
+def test_final_seconds_guarded_sampling_keeps_original_bound(minute_clock, fault):
+    previous = sample('60')
+    def observe(_):
+        start = minute_clock[0]
+        minute_clock[0] += .1
+        text = '60' if fault == 'stall' else '58' if start < 103 else '56'
+        if fault == 'reversed': text = '00:01'
+        if fault == 'late': minute_clock[0] = 116
+        return {'countdown': value(text=text, at=10_000_000_000 if fault == 'stale'
+                                  else int(minute_clock[0] * 1_000_000_000)),
+                'countdown_read_bounds': [int(start * 1_000_000_000),
+                                         int(minute_clock[0] * 1_000_000_000)]}
+    ui = SimpleNamespace(boot_proof=('a' if fault == 'owner' else 'b') * 64,
+                         observe=Mock(side_effect=observe))
+    journey = SimpleNamespace(ui=ui, watch_progress=None)
+    guard = Mock(return_value=1000, side_effect=RuntimeError('lost-owner') if fault == 'guard' else None)
+    if fault:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            sampling.await_countdown_progress(journey, guard, previous, precision_seconds=1,
+                tolerance_seconds=2, max_elapsed_seconds=15)
+        assert minute_clock[0] <= 116
+    else:
+        current, result = sampling.await_countdown_progress(journey, guard, previous,
+            precision_seconds=1, tolerance_seconds=2, max_elapsed_seconds=15)
+        assert current.countdown.text == '58'
+        assert result['before']['countdown']['text'] == '60'
+
+
+def test_transition_wait_skips_unchanged_minute_reads_without_restarting(minute_clock):
+    previous = sample('00:01')
+    reads = iter(('00:01', '00:01', '60'))
+    def observe(_):
+        start = minute_clock[0]
+        minute_clock[0] += .1
+        return {'countdown': value(text=next(reads), at=int(minute_clock[0] * 1_000_000_000)),
+                'countdown_read_bounds': [int(start * 1_000_000_000),
+                                         int(minute_clock[0] * 1_000_000_000)]}
+    journey = SimpleNamespace(ui=SimpleNamespace(boot_proof='b' * 64, observe=Mock(side_effect=observe)),
+                              watch_progress=None)
+    current, result = sampling.await_countdown_progress(journey, lambda: 1000, previous,
+        precision_seconds=1, previous_precision_seconds=60, tolerance_seconds=2,
+        max_elapsed_seconds=90)
+    assert current.countdown.text == '60'
+    assert result['before']['read_bounds'] == previous.read_bounds
+    assert journey.ui.observe.call_count == 3
+
+
+@pytest.mark.parametrize('fault', [None, 'window', 'reversed', 'stale', 'owner', 'stall', 'durability'])
+def test_final_journey_real_step_refuses_before_reply_and_keeps_endpoint(tmp_path, minute_clock, fault):
+    from countdown_qualification import CountdownTicksJourney, TICK_PLAN
+    minute_clock[0] = 102.0  # The next read must start after the original read ends.
+    stage = 'independent-second-progression'
+    progress = Mock(side_effect=OSError('storage') if fault == 'durability' else None)
+    journey = CountdownTicksJourney(SimpleNamespace(directory=tmp_path), progress)
+    journey.steps = [{'stage': name} for name in TICK_PLAN.stages[:TICK_PLAN.stages.index(stage)]]
+    original = sample('60')
+    journey.last_countdown = original
+    def observe(_):
+        start = minute_clock[0]
+        minute_clock[0] += .1
+        if fault == 'window': minute_clock[0] = 116
+        text = '00:01' if fault == 'reversed' else '60' if fault == 'stall' else '58'
+        return {'countdown': value(text=text, at=10_000_000_000 if fault == 'stale'
+                                  else int(minute_clock[0] * 1_000_000_000)),
+                'countdown_read_bounds': [int(start * 1_000_000_000),
+                                         int(minute_clock[0] * 1_000_000_000)]}
+    journey.ui = SimpleNamespace(boot_proof='b' * 64, observe=Mock(side_effect=observe))
+    if fault == 'owner': journey.boot = 'a' * 64
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        error = {'window': 'progress-bound', 'reversed': 'seconds-required',
+                 'stale': 'stale-sample', 'owner': 'boot', 'stall': 'progress-bound',
+                 'durability': 'storage'}[fault]
+        with pytest.raises((EvidenceError, OSError), match=error):
+            journey.step(lambda: 1000)
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(lambda: 1000)
+    else:
+        journey.step(lambda: 1000)
+        result = journey.steps[-1]['fixture']
+        assert result['before']['read_bounds'] == original.read_bounds
+        assert result['comparison']['decrease_interval_seconds'] == [2, 2]
+        assert journey.steps[-1]['assertion']['id'] == stage
+        assert (tmp_path / (stage + '.reply.json')).exists()
+    assert original.countdown.text == '60'
+
+
+@pytest.mark.parametrize('text', ['00:02', '60', '0'])
+def test_initial_transition_window_cannot_be_repaired_with_a_fresh_allowance(tmp_path, text):
+    from countdown_qualification import CountdownTicksJourney
+    journey = CountdownTicksJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='transition-window'):
+        journey.check_progress_entry(sample(text))
+    assert journey.last_countdown is None and journey.current_countdown is None
+
+
+@pytest.mark.parametrize('fault', [None, 'stale', 'owner', 'late'])
+def test_independent_initial_sample_preserves_original_deadline_and_refusal(minute_clock, fault):
+    previous = sample('60')
+    current = sample('58', start=101 if fault == 'stale' else 102,
+                     end=116 if fault == 'late' else 103, guest=20,
+                     boot=('a' if fault == 'owner' else 'b') * 64)
+    minute_clock[0] = 116 if fault == 'late' else 103
+    journey = SimpleNamespace(ui=SimpleNamespace(boot_proof='b' * 64, observe=Mock()),
+                              watch_progress=None)
+    options = dict(precision_seconds=1, tolerance_seconds=2, max_elapsed_seconds=15,
+                   initial_sample=current)
+    if fault:
+        with pytest.raises(EvidenceError, match={'stale': 'stale-sample', 'owner': 'wrong-owner',
+                                                 'late': 'progress-bound'}[fault]):
+            sampling.await_countdown_progress(journey, lambda: 1000, previous, **options)
+    else:
+        endpoint, result = sampling.await_countdown_progress(journey, lambda: 1000, previous, **options)
+        assert endpoint is current and result['before']['read_bounds'] == previous.read_bounds
+    journey.ui.observe.assert_not_called()

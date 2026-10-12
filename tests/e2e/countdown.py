@@ -75,10 +75,42 @@ class CountdownSample:
                 'countdown:sample-binding')
         return cls(countdown, tuple(bounds), boot_sha256)
 
+    @property
+    def precision_seconds(self):
+        return 60 if ':' in self.countdown.text else 1
+
+    def elapsed_since(self, previous, *, max_elapsed_seconds):
+        require(type(previous) is CountdownSample, 'countdown:sample-required')
+        require(self.boot_sha256 == previous.boot_sha256, 'countdown:wrong-owner')
+        require(self.countdown.observed_monotonic_ns > previous.countdown.observed_monotonic_ns
+                and self.read_bounds[0] > previous.read_bounds[1], 'countdown:stale-sample')
+        low = (self.read_bounds[0] - previous.read_bounds[1]) / 1_000_000_000
+        high = (self.read_bounds[1] - previous.read_bounds[0]) / 1_000_000_000
+        require(0 < low <= high <= max_elapsed_seconds, 'countdown:progress-bound')
+        return low, high
+
+
+def _progress_binding(precision_seconds, previous_precision_seconds, tolerance_seconds,
+                      max_elapsed_seconds):
+    previous_precision_seconds = (precision_seconds if previous_precision_seconds is None
+                                  else previous_precision_seconds)
+    require(type(precision_seconds) is int and precision_seconds in (1, 60)
+            and type(previous_precision_seconds) is int
+            and (previous_precision_seconds, precision_seconds) in ((60, 60), (60, 1), (1, 1))
+            and type(tolerance_seconds) is int and 0 <= tolerance_seconds <= 2
+            and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300,
+            'countdown:progress-binding')
+    return previous_precision_seconds
+
+
+def _require_precision(sample, precision_seconds):
+    require(sample.precision_seconds == precision_seconds,
+            'countdown:minute-required' if precision_seconds == 60 else 'countdown:seconds-required')
+
 
 def check_countdown_progress(current, previous, *, precision_seconds, tolerance_seconds,
-                             max_elapsed_seconds):
-    """Require minute progress, not merely two values within a balance bound.
+                             max_elapsed_seconds, previous_precision_seconds=None):
+    """Require progress at the declared precision, including a minute→seconds edge.
 
     Each display supplies an interval. Their possible decrease must intersect
     the independently bracketed elapsed interval, including only the caller's
@@ -87,18 +119,12 @@ def check_countdown_progress(current, previous, *, precision_seconds, tolerance_
     """
     require(type(current) is CountdownSample and type(previous) is CountdownSample,
             'countdown:sample-required')
-    require(type(precision_seconds) is int and precision_seconds == 60
-            and type(tolerance_seconds) is int and 0 <= tolerance_seconds <= 2
-            and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300,
-            'countdown:progress-binding')
-    require(current.boot_sha256 == previous.boot_sha256, 'countdown:wrong-owner')
-    require(current.countdown.observed_monotonic_ns > previous.countdown.observed_monotonic_ns
-            and current.read_bounds[0] > previous.read_bounds[1], 'countdown:stale-sample')
-    elapsed_low = (current.read_bounds[0] - previous.read_bounds[1]) / 1_000_000_000
-    elapsed_high = (current.read_bounds[1] - previous.read_bounds[0]) / 1_000_000_000
-    require(0 < elapsed_low <= elapsed_high <= max_elapsed_seconds, 'countdown:progress-bound')
-    require(all(':' in sample.countdown.text for sample in (previous, current)),
-            'countdown:minute-required')
+    previous_precision_seconds = _progress_binding(precision_seconds, previous_precision_seconds,
+                                                   tolerance_seconds, max_elapsed_seconds)
+    elapsed_low, elapsed_high = current.elapsed_since(previous,
+        max_elapsed_seconds=max_elapsed_seconds)
+    _require_precision(previous, previous_precision_seconds)
+    _require_precision(current, precision_seconds)
     before = countdown_seconds(previous.countdown.text)
     after = countdown_seconds(current.countdown.text)
     require(after[0] < before[0], 'countdown:no-progress')
@@ -108,23 +134,53 @@ def check_countdown_progress(current, previous, *, precision_seconds, tolerance_
             'countdown:progress-mismatch')
     return {'elapsed_interval_seconds': [elapsed_low, elapsed_high],
             'decrease_interval_seconds': decrease,
-            'precision_seconds': precision_seconds, 'tolerance_seconds': tolerance_seconds}
+            'precision_seconds': precision_seconds,
+            'previous_precision_seconds': previous_precision_seconds,
+            'tolerance_seconds': tolerance_seconds}
 
 
 def await_countdown_progress(journey, guard, previous, *, precision_seconds,
-                            tolerance_seconds, max_elapsed_seconds):
+                            tolerance_seconds, max_elapsed_seconds,
+                            previous_precision_seconds=None, initial_sample=None):
     """Read-only reacquisition under one unchanged deadline and attempt guard."""
     require(type(previous) is CountdownSample, 'countdown:sample-required')
     # Validate caller precision/tolerance before any wait or public read.
-    require(type(precision_seconds) is int and precision_seconds == 60
-            and type(tolerance_seconds) is int and 0 <= tolerance_seconds <= 2
-            and type(max_elapsed_seconds) is int and 0 < max_elapsed_seconds <= 300,
-            'countdown:progress-binding')
-    require(':' in previous.countdown.text, 'countdown:minute-required')
+    previous_precision_seconds = _progress_binding(precision_seconds, previous_precision_seconds,
+                                                   tolerance_seconds, max_elapsed_seconds)
+    _require_precision(previous, previous_precision_seconds)
+    require(initial_sample is None or type(initial_sample) is CountdownSample,
+            'countdown:sample-required')
     deadline = previous.read_bounds[0] / 1_000_000_000 + max_elapsed_seconds
     guard()
     require(journey.ui.boot_proof == previous.boot_sha256, 'countdown:wrong-owner')
     last = previous
+    def consider(current):
+        guard()
+        require(journey.ui.boot_proof == previous.boot_sha256, 'countdown:wrong-owner')
+        current.elapsed_since(last, max_elapsed_seconds=max_elapsed_seconds)
+        require(time.monotonic() < deadline
+                and current.read_bounds[1] / 1_000_000_000 < deadline,
+                'countdown:progress-bound')
+        require(countdown_seconds(current.countdown.text)[0]
+                <= countdown_seconds(last.countdown.text)[0], 'countdown:no-progress')
+        if current.precision_seconds != precision_seconds:
+            require(previous_precision_seconds == 60 and precision_seconds == 1
+                    and current.precision_seconds == 60, 'countdown:seconds-required')
+            return None
+        if current.countdown.text != previous.countdown.text:
+            comparison = check_countdown_progress(current, previous,
+                precision_seconds=precision_seconds, tolerance_seconds=tolerance_seconds,
+                max_elapsed_seconds=max_elapsed_seconds,
+                previous_precision_seconds=previous_precision_seconds)
+            return current, {'before': asdict(previous), 'after': asdict(current),
+                             'comparison': comparison}
+        return None
+
+    if initial_sample is not None:
+        result = consider(initial_sample)
+        if result is not None:
+            return result
+        last = initial_sample
     while True:
         require(time.monotonic() + 1 < deadline, 'countdown:progress-bound')
         interval_action(1)(journey, guard)
@@ -133,16 +189,7 @@ def await_countdown_progress(journey, guard, previous, *, precision_seconds,
         value = journey.ui.observe('child-countdown-present')
         guard()
         current = CountdownSample.from_ui(value, boot_sha256=journey.ui.boot_proof)
-        require(current.boot_sha256 == previous.boot_sha256, 'countdown:wrong-owner')
-        require(current.read_bounds[0] > last.read_bounds[1]
-                and current.countdown.observed_monotonic_ns > last.countdown.observed_monotonic_ns,
-                'countdown:stale-sample')
-        require(current.read_bounds[1] / 1_000_000_000 < deadline,
-                'countdown:progress-bound')
-        if current.countdown.text != previous.countdown.text:
-            comparison = check_countdown_progress(current, previous,
-                precision_seconds=precision_seconds, tolerance_seconds=tolerance_seconds,
-                max_elapsed_seconds=max_elapsed_seconds)
-            return current, {'before': asdict(previous), 'after': asdict(current),
-                             'comparison': comparison}
+        result = consider(current)
+        if result is not None:
+            return result
         last = current

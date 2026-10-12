@@ -95,12 +95,25 @@ sub countdown {
 # stay in the shared controller, with no input or minute-edge sleep in the worker.
 sub countdown_minutes {
     onpc_progress::operation('Qualifying displayed minute countdown progression');
-    my ($exchange, $declared, $challenges) = @_;
+    die 'countdown:minute-plan' unless @_ == 3;
+    return _countdown_progression('countdown-minutes', 4,
+        [qw(minute-progression independent-minute-progression)], @_);
+}
+
+sub countdown_ticks {
+    onpc_progress::operation('Qualifying displayed final-second countdown progression');
+    die 'countdown:tick-plan' unless @_ == 3;
+    return _countdown_progression('countdown-ticks', 2,
+        [qw(final-second-transition second-progression independent-second-progression)], @_);
+}
+
+sub _countdown_progression {
+    my ($prefix, $minutes, $progressions, $exchange, $declared, $challenges) = @_;
     my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
         wrong-account-refused fresh-installed-greeter fresh-child-focused
-        fresh-child-recipient-qualified fresh-child-recipient-rechecked fresh-desktop
-        minute-progression independent-minute-progression);
-    die 'countdown:minute-plan' unless @_ == 3 && ref($exchange) eq 'CODE'
+        fresh-child-recipient-qualified fresh-child-recipient-rechecked fresh-desktop);
+    push @stages, @$progressions;
+    die 'countdown:progress-plan' unless @_ == 6 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
         && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
         && ref($challenges->{'parent-login'}) eq 'ARRAY'
@@ -108,18 +121,17 @@ sub countdown_minutes {
         && ref($challenges->{'child-login'}) eq 'ARRAY'
         && join('/', @{$challenges->{'child-login'}}) eq
             'child/fresh-child-recipient-qualified/fresh-child-recipient-rechecked';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-minutes', review => 0);
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => $prefix, review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
     onpc_gdm::sign_in_challenge($journey, 'parent-login',
         'installed-greeter', 'parent-focused', 'desktop');
     $journey->invoke('wrong-account-refused');
-    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 4);
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, $minutes);
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
-    $journey->invoke('minute-progression');
-    $journey->invoke('independent-minute-progression');
+    $journey->invoke($_) for @$progressions;
     $journey->finish();
 }
 

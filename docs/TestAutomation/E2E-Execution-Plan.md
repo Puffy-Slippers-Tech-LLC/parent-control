@@ -19,7 +19,7 @@ changing runtime readiness on the strength of documentation alone.
 
 ## Next task
 
-Next task: **052a — [Measure final-second countdown ticks](E2E-Tasks/052a-countdown-ticks.md)**.
+Next task: **181m — [Operate the countdown context menu](E2E-Tasks/181m-operate-the-countdown-context-menu.md)**.
 
 Recent delivered scope and retained reports are recorded once in the
 [checked queue rows](E2E-Task-Queue.md#ordered-task-queue) and their exact

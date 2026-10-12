@@ -41,7 +41,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 
 ## Host and guest boundaries
 
-TIME02 minute consumers reuse `countdown.CountdownSample`,
+TIME02 minute and final-second consumers reuse `countdown.CountdownSample`,
 `check_countdown_progress` and `await_countdown_progress`. Each sample copies the
 public countdown, controller monotonic read brackets and boot identity; comparisons
 retain both immutable endpoints. `UiObservations.observe` brackets each TIME01
@@ -50,14 +50,24 @@ The wait reacquires only public child reads under the original 90-second bound
 and TIME03 `interval_action`, retaining attempt ownership/deadline/cancellation.
 Unchanged reads supply no separate assertion; the changed endpoint must decrease
 consistently with elapsed/read latency, minute-flooring intervals and the caller's
-explicit two-second estimate tolerance. Final seconds remain a separate binding.
+explicit two-second estimate tolerance. Final-second comparisons declare one-second
+precision, with an explicit prior precision of 60 only for the transition.
+They require distinct decreases, include read latency and never demand each tick.
+An independently supplied stage read retains the earlier endpoint/deadline.
 `CountdownMinutesJourney` composes the qualified same-user four-minute daily-only
 profile with independently supplied child entry and two progression invocations.
 The countdown host module uses only fake clocks, private pytest records, in-memory
 transport/UI doubles and bounded waited Perl children; its compatible unit
 classification remains applicable, with no new storage, VM, bus or display owner.
 The [minute progression slice](../../docs/TestAutomation/E2E-Building-Blocks.md#minute-countdown-progression-qualification)
-is qualified on Ubuntu 26.04 and Fedora 44; final seconds remain pending.
+is qualified on Ubuntu 26.04 and Fedora 44.
+`CountdownTicksJourney` / `TICK_PLAN` share that machinery and the worker's
+daily-profile/entry composition: two daily minutes, one 90-second transition
+from `00:01` into positive exact seconds, then two successive exact decreases
+within 15 seconds of each prior endpoint, always with two-second tolerance.
+The [final-second slice](../../docs/TestAutomation/E2E-Building-Blocks.md#final-second-countdown-progression-qualification)
+is qualified on Ubuntu 26.04 and Fedora 44; complete consumers keep their own
+allowance, time bounds and independent results.
 
 `tools/test-vm --vm NAME reproduce-countdown-minutes` reuses that same journey
 in the maintenance envelope, stopping before the first progression invocation.

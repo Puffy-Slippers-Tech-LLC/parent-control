@@ -15,6 +15,11 @@ def test_kiosk_execution_confinement(record_testsuite_property):
     verify(record_testsuite_property)
 
 
+def test_kiosk_platform_integrations(record_testsuite_property):
+    from system_kiosk_platform import verify
+    verify(record_testsuite_property)
+
+
 def test_kiosk_namespace_guard_callbacks(record_testsuite_property):
     from system_kiosk_confinement import verify_namespace_guard
     verify_namespace_guard(record_testsuite_property)

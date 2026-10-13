@@ -13,7 +13,7 @@ delivered in conversation, not maintained as a second repository task document.
 
 ## Current code-review status
 
-**Phase 1 and Phase 2 issue 1 are complete; Phase 2 issue 2 is next.** See the
+**Phases 1 and 2 are complete; Phase 3 is next and has not started.** See the
 [phased execution plan](#phased-execution-plan-current).
 All three Phase 1 issue fixes and every Phase 1 exit gate pass. Supporting PAM
 credential, password-helper traversal and native-profile activation fixes pass
@@ -25,10 +25,15 @@ owns the final results and retained evidence; earlier package results remain
 historical.
 The [Phase 2 issue 1 record](#phase-2-issue-1-execution-record) owns the current
 classification adapter's package identities, live and installed recovery checks,
-case 50 regression, host results and cleanup. Both VMs are stopped with baseline
-restoration verified. Phase 2 remains **1/2 issues solved**; Phase 3 has not started.
-The five open work groups below remain the complete confinement scope;
-they are arranged into four phases. The current plan supersedes historical
+case 50 regression, host results and cleanup. The
+[Phase 2 issue 2 record](#phase-2-issue-2-execution-record) owns the bounded distro
+integration review, repeatable live/installed qualification and current-package
+case 50 results on both targets. Both VMs are stopped with baseline restoration
+verified. Phase 2 is **2/2 issues solved**, with its exit gates passed; this
+session stops before Phase 3.
+The five work groups below remain the complete confinement scope;
+group 2 is closed and the remaining obligations are arranged into four phases.
+The current plan supersedes historical
 continuation orders and upstream-only repair requirements in this record.
 
 **Previous corrective continuation: 5/10 issue groups reported resolved, 5/10 open.**
@@ -96,20 +101,22 @@ instructions are superseded by the current findings and remaining-work sections.
 
 ## Phased execution plan (current)
 
-**Next phase: 2 — Finish compatibility engineering. Status: 1/2 issues solved;
-issue 2 is next.**
+**Next phase: 3 — Qualify security and required functions. Not started.**
 
-The user split Phase 2 into two scoped sessions. Issue 1 has completed its
-validated, cleaned boundary. The next session executes only issue 2 and stops
-before Phase 3. Issue 1 alone does not close Phase 2.
+**Phase 2 is complete: 2/2 issues solved and all exit gates passed.** Issue 1
+completed the owned account-recovery workaround. Issue 2 completed bounded
+distro review and live/installed qualification, followed by public case 50 on
+both targets. Their execution records retain exact inputs, evidence and owned
+cleanup. The user requested stopping before Phase 3; no Phase 3 work was run.
 
 - [x] **Issue 1 — Retained-hidden account recovery.** The owned,
   metadata-preserving AccountsService workaround qualifies fresh,
   retained-visible and retained-hidden records, retry/interruption recovery,
   daemon restart and reboot on both targets; current-package case 50 also passes.
-- [ ] **Issue 2 — Bounded distro integration review.** Finish exact distro
-  executable/WirePlumber/Lua/native-plugin/service-API review and its bounded
-  live qualification without broad executable routes.
+- [x] **Issue 2 — Bounded distro integration review.** Exact distro
+  executable/WirePlumber/Lua/native-plugin/service-API review and bounded live
+  and installed qualification pass without broad executable routes; affected
+  host checks and current-package public case 50 pass on both targets.
 
 **Phase 1 closed after all exit gates passed.** Issues 1–3 are **3/3 solved**.
 The final native-gate packages pass both installed matrices, both strict real
@@ -119,7 +126,7 @@ product edit. The [final execution record](#resumed-phase-1-exit-gates--final-in
 identifies the exact inputs, reports, retained evidence and owned cleanup.
 That Phase 1 continuation stopped at its boundary without Phase 2–4 work.
 
-To resume, say **"execute Phase 2 issue 2 in confinement.md; stop before Phase 3"**.
+To resume, say **"execute Phase 3 in confinement.md; stop before Phase 4"**.
 Read `AGENTS.md`, this
 record and the applicable linked contracts, then execute only the phase named
 by this pointer. An unfinished phase remains the next phase; an update to this
@@ -132,8 +139,8 @@ all pre-existing work.
 For **"execute next open issue in confinement.md"**, execute only the first
 unchecked issue in the active phase's issue checklist, record its validation
 and owned cleanup, then stop at that concrete issue boundary. **No unchecked
-issue remains in Phase 1's issue checklist, and its exit gates now pass.** The
-phase pointer selects Phase 2. Completing an issue checklist never waives its
+issue remains in Phase 1 or Phase 2's issue checklists, and their exit gates
+pass.** The phase pointer selects Phase 3. Completing an issue checklist never waives its
 phase's exit gates.
 
 The user accepts proper product-side engineering workarounds and explicitly
@@ -148,7 +155,7 @@ fix is a prerequisite of this plan.
 | Done | Phase | Work-group allocation | Required exit gate |
 | --- | --- | --- | --- |
 | [x] | **1 — Restore authentication** | Group 1's Ubuntu SVG/glycin failure and actual Snap activation source; group 5's Fedora password-helper measurement and any necessary finite pinning/census integration | Passed: actual loader diagnosis/fix, installed Snap suppression, real public approval/denial/cancel (cases 50–52), final-package confinement matrices and strict real waiting-session censuses on both targets; [final evidence](#resumed-phase-1-exit-gates--final-installed-inputs) |
-| [ ] | **2 — Finish compatibility engineering** | Group 2's retained-hidden-account workaround; remaining group 5 distro executable, WirePlumber/Lua/native-plugin/service-API review | Preserve existing account metadata; verify fresh, retained-visible and retained-hidden states, retry/recovery and daemon restart/reboot; qualify bounded distro integrations without broad executable routes |
+| [x] | **2 — Finish compatibility engineering** | Group 2's retained-hidden-account workaround; group 5 distro executable, WirePlumber/Lua/native-plugin/service-API review | Passed: metadata-preserving fresh/retained-visible/retained-hidden recovery, retry and restart/reboot on both targets ([issue 1](#phase-2-issue-1-execution-record)); exact distro review, live/installed platform qualification and current-package public case 50 on both targets ([issue 2](#phase-2-issue-2-execution-record)) |
 | [ ] | **3 — Qualify security and required functions** | Remaining group 1 cases 53–57, 151, 191, 192, 254 and 259; group 3 teardown/namespace/ordinary-user obligations; group 4 feedback/scanner/notifications/Wellbeing | Final current-package live checks on both targets, actual scanner observations, editor/diagnostic download without sending feedback, and complete required ordinary-user/settings behavior; explicitly resolve the unregistered natural-reminder 311/311b obligations rather than counting a preview as acceptance |
 | [ ] | **4 — Qualify package lifecycle and close confinement** | Remaining group 3 removal/reboot/reinstall/purge/retry/foreign-state history; group 5 genuine DEB upgrade and final integrated review | Genuine v1.2 DEB upgrade/activation/reboot, complete lifecycle and final affected regressions on both targets; review all tracked/untracked confinement changes and prior partial fix; reconcile every open obligation and limitation before closure |
 
@@ -1894,33 +1901,30 @@ acceptance.
 
 ### Release blockers and remaining proof
 
-These five open work groups own the remaining work; historical task lists above
-are superseded. The reported 5/10 progress counts corrective engineering groups,
-not release acceptance or individual test cases.
+These five work groups own the complete scope; historical task lists above
+are superseded. Group 2 is closed, and group 5's bounded platform review is
+complete. The reported historical 5/10 progress counts corrective engineering
+groups, not release acceptance or individual test cases.
 
 1. **P0 — Public authentication and remaining workflows.** At the previous
    package boundary, Ubuntu case 50 reached Request but MATE's authentication
    agent aborted while GTK loaded an SVG through glycin/bubblewrap. That attempt
    established no usable password prompt, credential entry, parent grant or
    explicit approval result. The current phase-1 record owns its measured loader
-   corrections and new proof. Preserve required approval behavior and
-   rerun both targets. Complete ready cases 50–57, 151, 191, 192, 254 and 259
+   corrections and new proof: cases 50–52 pass on both targets. Preserve required
+   approval behavior. Complete ready cases 53–57, 151, 191, 192, 254 and 259
    under their actual contracts. The previous log's repeated denied
    `/usr/bin/snap` attempts came from independent default-target services.
    The [issue-2 execution record](#phase-1-execution-record) now closes that
    activation issue with installed suppression and ordinary-user controls;
    the remaining authentication/workflow obligations keep this group open.
-2. **P1 — AccountsService retained hidden accounts.** Provisioning preserves a
-   saved visible account and caches a fresh account, verifying public properties;
-   a saved hidden account is refused before cache/routing mutation.
-   AccountsService 23.13.9 changes existing cached classification in memory
-   without saving it and exposes no public save/classification setter.
-   Phase 2 must implement and qualify a proper product-side workaround which
-   preserves all existing metadata and has explicit ownership, safe retry and
-   recovery plus daemon-restart/reboot proof. The user's current direction does
-   not require chasing an upstream fix or waiting for published distro builds.
-   Unrelated setters and destructive uncache/recreate remain unacceptable.
-   Fresh-account reboot visibility does not resolve retained hidden accounts.
+2. **Closed — AccountsService retained hidden accounts.** The owned
+   classification adapter preserves existing metadata and qualifies fresh,
+   retained-visible and retained-hidden records, safe retry/interruption
+   recovery, daemon restart and reboot on both targets. The
+   [Phase 2 issue 1 record](#phase-2-issue-1-execution-record) owns its exact
+   installed and public results. No upstream fix is a prerequisite, and no
+   unrelated setter or destructive uncache/recreate workaround is used.
 3. **P1 — Installed security, lifecycle and ordinary users.** Ubuntu's previous
    package passed the real PAM teardown and post-parent-exit matrix denials.
    New package inputs require affected qualification on both targets. Complete current active
@@ -1938,14 +1942,14 @@ not release acceptance or individual test cases.
 5. **P1 — Genuine upgrade and bounded platform review.** Build genuine DEB v1.2
    input through the existing qualified route, then test actual upgrade,
    activation and reboot. No genuine prior RPM exists; RPM upgrade acceptance
-   remains unavailable rather than using a fabricated predecessor. Finish
-   source/package-identity review for the actual distro WirePlumber/Lua builds
-   and bounded native plugins/service APIs. Upstream WirePlumber 0.5.13 review
-   covered 66 shipped scripts and finite custom-searcher modules, and a real
-   Lua 5.4 cwd canary verifies the wrapper's empty default paths; neither attests
-   to every distro patch or optional plugin. The Fedora Polkit password helper
-   also needs the exact measured native path/UID tuple/label/mount proof described
-   below before a finite test-only census role can be justified.
+   remains unavailable rather than using a fabricated predecessor. The
+   [Phase 2 issue 2 record](#phase-2-issue-2-execution-record) completes the bounded
+   source/package-identity review of the actual distro WirePlumber/Lua builds,
+   shipped scripts, native plugin path and service APIs, with live and installed
+   qualification on both targets. It does not attest to every optional plugin.
+   Phase 1 also closes the Fedora password-helper measurement and finite
+   test-only census integration. Genuine DEB upgrade and final integrated
+   review remain open in Phase 4.
 
 ### Previous-package live validation
 
@@ -3197,3 +3201,173 @@ preserved. The next session
 owns only issue 2's bounded distro integration review and qualification. Phase 2
 remains unchecked; Phase 3 has not started. The whole confinement effort remains
 unfinished and not release-qualified until its remaining phase gates pass.
+
+## Phase 2 issue 2 execution record
+
+The user requested completion of Phase 2, stopping before Phase 3, with live
+diagnosis and validation before E2E. Issue 1's completed recovery work is
+preserved. This issue adds bounded platform qualification and evidence; it
+changes no product executable, launcher, policy or package integration.
+
+### Exact distro inputs and independent review
+
+Owned live probes and installed qualification use actual package ownership and
+source identities. The mapped Lua library is **Lua 5.4.8 on both targets**;
+a Fedora specification for a different build does not establish this runtime's ABI.
+
+| Input | Ubuntu 26.04 | Fedora 44 |
+| --- | --- | --- |
+| WirePlumber executable/library | `0.5.13-1ubuntu1` | `0.5.18-1.fc44` |
+| Actual Lua package/source | `liblua5.4-0` / `lua5.4`, `5.4.8-1build1` | `lua-libs` / `lua`, `5.4.8-5.fc44` |
+| PipeWire native modules | `1.6.2-1ubuntu1.2` | `1.6.9-1.fc44` |
+| systemd | `259.5-0ubuntu3.4` | `259.9-1.fc44` |
+| Shipped WirePlumber Lua scripts | 66 | 80 |
+
+Bounded independent reviews cover the finite executable/transition inventory,
+fixed launcher argv/environment, user-manager service APIs, WirePlumber's
+configuration/data/native component lookup, Lua searchers and shipped scripts,
+and the native module/filter-chain/LADSPA loading path. Actual installed package
+verification passes. Qualification records executable mapped-file hashes,
+process-namespace and `map_files` byte comparisons, trusted storage ancestry,
+package/source owners and all shipped script hashes.
+
+Ubuntu's WirePlumber import is
+`a4afb5bb7a35f6b6a6a463f86d82b036e4e9cdf8`, with applied source
+`42d6441cdf9f84263bccb29cf2d77747fc556c5a`. Its
+[patch series](https://git.launchpad.net/ubuntu/+source/wireplumber/plain/debian/patches/series?id=a4afb5bb7a35f6b6a6a463f86d82b036e4e9cdf8)
+contains README/privacy cleanup and a Snap permission module using snapd's fixed
+socket/service integration, with no reviewed Lua/spawn route. Fedora's matching
+[0.5.18-1 spec](https://src.fedoraproject.org/rpms/wireplumber/raw/b70cecc5256d6ad2f68569ab8942dd55408f4a71/f/wireplumber.spec)
+has no downstream patch and selects system Lua. Its
+[upstream tag](https://gitlab.freedesktop.org/pipewire/wireplumber/-/tags/0.5.18)
+resolves to `81606cbb32d29df20147d1b68b662c1082654d81`. Review inspected tagged
+source and distro source manifests; it did not independently download and hash
+the Fedora source archive.
+
+The reviewed Ubuntu
+[Lua loadlib source](https://git.launchpad.net/ubuntu/+source/lua5.4/plain/src/loadlib.c?id=62ec6eef03ab9f47afdd31bc556d2e7c81a618ef)
+and matching Fedora
+[Lua spec](https://src.fedoraproject.org/rpms/lua/raw/50a1d18ea319352ec3f153ae29e3acad3dec4313/f/lua.spec)
+retain the default-path behavior tested against the actual mapped library.
+WirePlumber's trusted custom searcher remains usable; its Lua sandbox is not an
+independent security boundary. The shipped scripts' eight literal `require`
+names resolve to system utilities; no user-field-derived Lua loader or spawn
+sink was found in that bounded set. Reviewed native Lua/component, notification,
+permission-store, file-monitor and MPRIS paths add no demonstrated generic exec
+route. This is not an exhaustive audit of optional codecs, LADSPA/LV2 plugins,
+all distro services or every PipeWire module.
+
+The real `sm-objects` interface accepts native `pw-module` requests.
+[PipeWire 1.6.2](https://raw.githubusercontent.com/PipeWire/pipewire/1.6.2/spa/plugins/filter-graph/plugin_ladspa.c)
+passes absolute LADSPA names directly to `dlopen`;
+[1.6.9](https://raw.githubusercontent.com/PipeWire/pipewire/1.6.9/spa/plugins/filter-graph/plugin_ladspa.c)
+also supports explicit unfiltered absolute lookup. Mapping policy must hold
+independently of configuration-root sanitization. Systemd's
+[property API](https://github.com/systemd/systemd/blob/v259/src/core/dbus-execute.c)
+and [executor](https://github.com/systemd/systemd/blob/v259/src/core/exec-invoke.c)
+apply requested profiles/contexts under the existing kernel transition boundary
+before executable entry. Ignoring a profile-setting error does not waive the
+executable check. No broader executable route is justified by this review.
+
+### Live diagnosis and repeatable engineering checks
+
+The new selector is `system` → `enforcement` →
+`test_kiosk_platform_integrations`, implemented by
+[system_kiosk_platform.py](../tests/integration/system_kiosk_platform.py).
+The [installed-suite contract](../tests/integration/README.md#running-the-current-installed-suite)
+and [Lifecycle](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle)
+own enduring qualification requirements.
+
+Both owned live VMs pass hostile startup environment/configuration inputs,
+actual-library Lua cwd positive/empty-path negative controls and real native
+module API qualification. The native positive uses a genuine trusted ELF and
+observes its missing LADSPA descriptor after successful loading. An identical
+user-owned copy first loads as the unconfined kiosk UID, then the same real
+audio API must produce an exact enforcing kernel mapping denial. Arbitrary
+loader failure or metadata-command success alone never counts. Manager/audio
+identities and enforcing labels remain unchanged.
+
+Ubuntu's initial repeatable probe lost the required audit record. In that same
+VM, public `wpctl set-log-level D` exposed `failed to map segment from shared
+object`; PipeWire reports every `dlopen` failure as ENOENT at normal log level.
+Kernel diagnostics independently showed `kauditd_printk_skb` suppressed startup
+callbacks. Linux's [audit fallback](https://github.com/torvalds/linux/blob/v6.17/kernel/audit.c)
+uses the printk rate limiter. The fixture now reads the existing bounded
+`printk_ratelimit` interval and spaces its single negative request accordingly,
+without changing a sysctl or retrying a failed request. Fedora's auditd owns
+the AVC log, so its bounded log tail supplies the record. Full live repeats
+pass on both targets with the original exact denial assertions.
+
+The service API positive executes native `systemctl --version`. Selecting
+`unconfined` fails with `231/APPARMOR` on Ubuntu and `229/SELINUX_CONTEXT` on
+Fedora. Even the ignore-error property form cannot execute `/bin/sh`: both
+return `203/EXEC`. Only the recorded manager invocation, owned metadata key
+and planted inode identities are cleaned. Both diagnostic maintenance instances
+finish baseline restoration before installed/public qualification.
+
+Host regressions cover exact audit matching, positive-before-denial and
+dropped-UID controls, environment isolation, fixture inode/refusal cleanup and
+bounded spacing. They use private pytest files and process-local doubles, with
+no live service, bus, VM, display, shared cache or child lifetime; their
+compatible scheduling inventory is explicitly reviewed. A misplaced unit
+assertion initially raised `NameError`; it was restored to its owning test
+without changing an expectation. The final affected unit/source/static
+selection passes **501/501** in report `20261013T025648Z-5831acbc`.
+
+### Installed and public qualification
+
+Verified format-specific artifacts share package-source digest
+`f06b80cb6e496850e47fbb00661054b68cbb205aaff1f53e63a8a674d93ae346` at
+revision `2f7bb34d3fe20d1a2b44f0d5903953cc29b8393c`. Artifact preparation
+passes in reports `20261013T025428Z-6b21f330` and `20261013T025518Z-a56eb9c1`.
+This issue changes only tests, test scheduling and documentation, outside
+`PACKAGE_SOURCE_FILES` and build-tool dependencies; no additional `make build`
+gate is required for these edits.
+
+| Target | Verified package allocation | Package SHA-256 |
+| --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-9okrzvu3` | `4a9659a2eeaae3c9e8d3fe5672245c8d3d56f57a1c0608df0fe10ba1868bc064` |
+| Fedora 44 | `onpc-test-artifacts-acs8813w` | `e2ddc426f48ad9ed443cd6c88dc462cd3f0bcb4a6794ddf922a7fa461c320664` |
+
+Both installed platform selectors pass, each retaining all 13 platform
+properties in `evidence/guest/enforcement.xml`, including the exact live-PID
+mapping audit record. Ubuntu observes AppArmor `file_mmap`, `denied_mask="m"`;
+Fedora observes an audio-domain file `{ execute }` AVC with `permissive=0`.
+The complete `result.json` records independently confirm the package hashes
+above, expected/executed selector equality, zero baseline-verification failures,
+and passed product, infrastructure, collection and cleanup outcomes.
+
+| Target | Passing installed report | Retained system evidence allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T025537Z-bb9a8531` — 1/1 | `onpc-system-ksxcv6k3` |
+| Fedora 44 | `20261013T025718Z-7cf84428` — 1/1 | `onpc-system-in8168jq` |
+
+Reports are under `output/test-runs/host/reports/`; system evidence is under
+`output/test-runs/privileged/allocations/<allocation>/evidence/` and remains
+accessible through the maintained artifact reader. Both runs finish owned
+baseline restoration before public regression.
+
+Public case **50**, `E2E-016/approved`, passes independently on both targets
+through the maintained two-VM queue. Its package hashes match the installed
+inputs above; its broader E2E source identity is
+`7c2551cc9e344161f430cf3e3a4792c7f64a4b03b551dd0d063d85e7b8c7d8c3`.
+The actual public journeys observe the restricted station, password prompt,
+credential acceptance, approval success and return to sign-in.
+
+| Target | Passing public report | Retained suite / attempt evidence allocations |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T030024Z-ec1e55b5` — 1/1 | `onpc-e2e-evidence-o_s9x81n` / `onpc-e2e-evidence-1wt87ltr` |
+| Fedora 44 | `20261013T030024Z-7bbde2ad` — 1/1 | `onpc-e2e-evidence-v5qc_d9x` / `onpc-e2e-evidence-8rr1ylmy` |
+
+Both retained attempt records report passed product, infrastructure, collection
+and cleanup outcomes, no first failure and complete leases. Each suite verifies
+baseline acquisition and restoration with zero failures and passes final
+cleanup. Queue allocation `onpc-vm-queue-lzus1n_e/results.json` records status
+zero for both targets. Final pinned-VM status independently confirms both are
+stopped (`state=5`, `id=-1`). No owned maintenance instance remains.
+
+**Phase 2 closes at 2/2 issues solved with all exit gates passed.** The current
+pointer advances to Phase 3, but this session stops here without executing it.
+The bounded review limitations above remain explicit; Phases 3 and 4 still own
+the remaining confinement obligations, so the whole effort is not yet
+release-qualified.

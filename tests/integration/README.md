@@ -155,6 +155,34 @@ uses the existing owned maintenance envelope and public station-entry mechanics,
 stopping before request-form validation. Inspect that same running instance with
 `exec`, then finish with `stop`; this route supplies no acceptance result.
 
+`enforcement` → `test_kiosk_platform_integrations` owns bounded distro loading
+and service-API qualification in
+[system_kiosk_platform.py](system_kiosk_platform.py). It records the actual
+WirePlumber executable, mapped Lua/native library hashes, package/source owners
+and shipped script hashes, requiring unmodified distro packages and trusted
+storage. Hostile startup directories must not replace the fixed system roots.
+The actual mapped Lua library must load a cwd canary with default paths, then
+refuse it with the launcher's empty paths. Both probes run as the kiosk UID.
+
+The same-user `sm-objects` metadata API first loads a trusted genuine ELF far
+enough to reach its missing LADSPA descriptor, then must produce an exact
+enforcing kernel mapping denial for an identical user-owned copy. The retained
+property identifies the live audio PID, path and audit record. Ubuntu's single
+negative request is spaced by its existing bounded printk audit interval;
+Fedora reads auditd's bounded log tail. Neither audit settings nor policy change,
+and a missing denial is a failure. Transient services also exercise native
+positive execution, rejected unconfined profile/context selection and forbidden
+shell execution when profile-setting errors are ignored.
+
+Small planted runtime files are deliberate user-runtime test targets, rather
+than a report or scratch root. Root holds their directory descriptor, writes
+exclusively and checks every owned inode before cleanup; foreign or replaced
+entries refuse cleanup. The helper stops only its recorded manager invocation
+and deletes only its metadata key. Diagnostics and results remain in the
+controller's existing private allocation. These engineering checks remain
+separate from customer journeys and do not attest to every optional native
+plugin or the remaining scanner/lifecycle acceptance.
+
 The `removal` area starts product-free and keeps installation, configuration,
 refused removal of an edited owned integration, retry, erase, reboot, health
 verification, reinstall, package-delivered purge and a fresh reinstall in one

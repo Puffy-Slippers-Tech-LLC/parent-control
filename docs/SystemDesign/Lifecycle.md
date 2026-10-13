@@ -413,7 +413,17 @@ entrypoints include the canonical `gjs-console` target of `/usr/bin/gjs`.
 WirePlumber uses system configuration/data directories and empty Lua default
 module paths. Its trusted custom Lua searcher remains available; default
 current-directory and native-module fallback searches are disabled only for the
-kiosk. The optional GStreamer Python plugin
+kiosk. This depends on the actual distro Lua library and WirePlumber's trusted
+searchers and shipped scripts, rather than treating Lua's sandbox as a security
+boundary. Native module/service APIs remain subject to the kernel executable
+mapping and transition rules even when they accept user-supplied module names
+or profile properties. The bounded installed
+[platform qualification](../../tests/integration/README.md#running-the-current-installed-suite)
+records package/source identities and mapped bytes, exercises hostile startup
+inputs and the real native module API with positive controls, and requires
+enforcing denials. Distro updates affecting those inputs need renewed review
+and qualification; this does not attest to every optional plugin.
+The optional GStreamer Python plugin
 cannot be mapped in the confined namespace. Ubuntu's bubblewrap mounts preserve
 trusted executable paths; Fedora's transitions use private executable types.
 The kiosk manager alone receives an additional root-owned unit search path.

@@ -766,8 +766,12 @@ from regression_ui import Bucket
 # account/service command doubles and synthetic metadata. It never reads a live
 # AccountsService record or changes a host account, daemon, bus or runtime mask;
 # compatible with other private unit work, with no owned child or shared cache.
+# system_kiosk_platform uses private proc/audit-shaped files and process-local
+# command/account doubles. Fixture identity/cleanup checks touch only pytest
+# directories; no live manager, module loader, bus, VM, mount or child lifetime.
 REVIEWED = frozenset("""
 system_kiosk_accounts
+system_kiosk_platform
 e2e_kiosk_notification_wellbeing
 application_ui_support
 test_checkpoint

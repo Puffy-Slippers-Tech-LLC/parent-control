@@ -23,6 +23,7 @@ Record only useful current inputs, evidence, limits and remaining work here.
 | [x] | **4 — Public workflows** | Current-package customer cases 53–57, 151, 191, 192, 254 and 259 pass on both targets under their existing recipes and acceptance contracts. |
 | [x] | **5a — Overlay reminder editing prerequisite** | Task 312a's public reminder CRUD, main Save/Cancel, exact saved-ID persistence and saved empty-list readback passed on both targets, including request/time/policy preservation and owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
 | [x] | **5b — Kiosk reminder binding prerequisite** | Task 312b passed on both targets: exact saved-ID overlay/station continuity, selected-child Save/readback, child/approver isolation and unchanged request/time/policy, with owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
+| [x] | **5c — Saved fullscreen reminder preference prerequisite** | Task 311a passed on both targets: Save false, independently reopen, Cancel a true draft and independently read saved false, with unchanged reminder records/language/request/time/policy and owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
 | [ ] | **5 — Natural reminders** | Resolve unregistered tasks 311/311b and complete required natural-delivery, reminder persistence and Wellbeing lifecycle acceptance. Resolve the message-value contract and all prerequisites; preview, documentation and unresolved dependencies supply no acceptance. |
 
 Step 5a completed 312a as explicitly selected prerequisite work under the
@@ -32,13 +33,18 @@ scope are recorded in the
 Step 5b qualified 312b as the next bounded prerequisite, using delivered
 dependencies 312a and 300j. Its new kiosk binding passed on both targets without
 expanding the historical scope of either dependency.
-The remaining 312, 311a/311b/311c and 311
+The remaining 312, 311b/311c and 311
 histories stay open under their owning queue rows. This confinement selection
 does not advance the unrelated E2E execution plan's next-task pointer.
 
+Step 5c qualified task 311a to advance the natural-delivery dependency
+chain using delivered 312a. Full task 312 remains open: its second-child overlay
+readback and kiosk deletion bindings need qualification before composing its
+complete reboot history. This selection supplies no acceptance for those gaps.
+
 **Dependency gate before step 5:** the
 [natural-reminder queue rows](TestAutomation/E2E-Task-Queue.md#ordered-task-queue)
-retain pending 311a/311b/311c qualifications and unfinished full histories for
+retain pending 311b/311c qualifications and unfinished full histories for
 312 and 311. The developer's
 2026-10-13 latest-version-only direction removes live upgrade testing, including
 135a, from confinement acceptance. Supported saved-data upgrades still require
@@ -562,10 +568,37 @@ RPM SHA-256 is
 Infrastructure, collection, worker shutdown, callback closure, owned cleanup,
 baseline restoration and host/source preservation all passed. The customer
 product category is `not-run`: only step 5b/task 312b is newly complete.
-Natural delivery, fullscreen preference/banner qualification, Wellbeing
+Natural delivery, fullscreen banner qualification, Wellbeing
 lifecycle and complete cases 311/312 remain open, including the 311b
 threshold-value versus live-balance blocker. The global next-task pointer stays
 181m.
+
+### Saved fullscreen preference qualification (step 5c)
+
+`check_e2e_reminder_fullscreen_preference` passed on Ubuntu 26.04 and Fedora 44.
+Retained reports under `output/test-runs/host/reports/` are
+`20261013T201225Z-b7411901` (Ubuntu) and `20261013T201225Z-058fe498` (Fedora).
+Result allocations are `onpc-graphical-smoke-wspjma3u` and
+`onpc-graphical-smoke-ut1xxkia`, respectively. Both saved false through overlay
+Preferences, independently reopened false, cancelled a true draft and
+independently reopened saved false again. Exact reminder records, language and
+request choices were preserved; fresh Parent readback confirmed unchanged
+policy, zero grants and time within elapsed bounds.
+
+The shared facade adds a canonical boolean setter with fresh account/draft,
+available-control and uncertain-input guards. Focused facade, decoder,
+recorder, worker-order, registration and resource-inventory checks passed
+(526 checks, host report `20261013T201052Z-9ca21c2e`). Installed live probes
+confirmed the existing fullscreen handler on both matching online snapshots
+before qualification; no product/package input changed and no build was needed.
+Coverage generation and 313 final documentation consistency checks passed
+(host report `20261013T202402Z-29e2ea7b`). Both qualifications passed infrastructure,
+collection, worker shutdown, callback closure, owned cleanup, baseline
+restoration and host/source preservation. Their customer product category is
+`not-run`: only step 5c/task 311a is newly complete. Natural delivery,
+fullscreen banner effects, Wellbeing lifecycle and full histories 311/312
+remain open; the 311b message-value contract blocker and global pointer 181m
+are unchanged.
 
 ## Operating and qualification routes
 
@@ -593,7 +626,8 @@ changes outside package/build dependencies do not require a package rebuild.
 Use `tools/run-tests --help`, `--list` and scoped system/E2E listings to verify
 actual registered selectors. Tasks 312a and 312b use
 `check_e2e_overlay_reminder_editing` and `check_e2e_kiosk_reminder_binding`;
-the remaining planned reminder selectors
+task 311a uses `check_e2e_reminder_fullscreen_preference`. The remaining planned
+reminder selectors
 must be implemented and qualified before acceptance. Documentation is not
 registration. No historical package-upgrade selector is required here.
 
@@ -607,6 +641,7 @@ tools/run-tests integration 'check_e2e_kiosk_notification_wellbeing' --vm 'onpc-
 tools/run-tests integration 'check_e2e_diagnostic_export' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_overlay_reminder_editing' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_kiosk_reminder_binding' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
+tools/run-tests integration 'check_e2e_reminder_fullscreen_preference' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 ```
 
 Phase 4 uses latest-version manifests only; no upgrade-assets preparation or

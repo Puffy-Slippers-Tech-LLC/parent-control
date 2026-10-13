@@ -596,6 +596,39 @@ sub overlay_reminder_editing {
     $journey->finish();
 }
 
+sub reminder_fullscreen_preference {
+    onpc_progress::operation('Qualifying saved fullscreen reminder preference and discarded changes');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'reminder-fullscreen:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'reminder-fullscreen', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for ('allowance-configured', 'policy-before', 'logout-ready', 'logout',
+        'gdm-logged-out');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen($_) for ('initial-save', 'initial-form', 'defaults-open', 'fullscreen-disabled',
+        'saved', 'saved-read', 'fullscreen-enabled-draft', 'cancelled', 'cancel-read',
+        'preferences-close', 'final-form', 'cancel', 'returned', 'child-logout', 'child-logged-out');
+    $desktop = onpc_gdm::sign_in_challenge($journey, 'return-parent',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    onpc_parent::launch($journey, $desktop, 'management', 'return-desktop');
+    $selected = onpc_parent::select_child($journey, 'child', $journey->seen('return-child-picker-opened'),
+        'return-child-picker-opened', 'return-child-choice-highlighted', 'return-parent-selected');
+    $journey->consume_observation('return-parent-selected', $selected);
+    $journey->seen('policy-after');
+    $journey->finish();
+}
+
 sub overlay_language {
     onpc_progress::operation('Qualifying child overlay language and normal command relaunch');
     my ($exchange, $invocations, $challenges) = @_;

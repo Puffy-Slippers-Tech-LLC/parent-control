@@ -1,5 +1,10 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Fullscreen reminder qualification extends the existing overlay reminder facade,
+journey and registration modules with private API/transport/recorder values and
+bounded, synchronously waited Perl children. No VM, bus, display, shared cache
+or new cleanup owner is added; their compatible unit/cleanup buckets still apply.
+
 Provisioning visibility migration uses pytest-private descriptor/cache trees,
 process-local systemd/version doubles and one explicitly forked, bounded,
 waited child for abrupt-interruption recovery. All file/xattr mutations are

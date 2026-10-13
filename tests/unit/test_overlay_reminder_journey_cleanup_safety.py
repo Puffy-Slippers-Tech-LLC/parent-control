@@ -9,6 +9,7 @@ import pytest
 
 import accessible_ui
 import overlay_reminders as reminders
+import reminder_fullscreen as fullscreen
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
 from tests.support.e2e_evidence import attempt
@@ -67,6 +68,7 @@ def test_decoder_rejects_malformed_record_and_latches_failure(fault, operation):
 @pytest.mark.parametrize('operation', [
     'overlay-reminder-create', 'overlay-reminder-edit', 'overlay-reminder-delete',
     'overlay-reminder-delete-all', 'overlay-reminder-save', 'overlay-reminder-cancel',
+    'overlay-reminder-fullscreen-false', 'overlay-reminder-fullscreen-true',
     *sorted(accessible_ui.BINDING_REMINDER_MUTATIONS)])
 def test_mutation_requires_prior_draft_and_carries_exact_source(operation):
     transport = SimpleNamespace(call=Mock(), commands=SimpleNamespace(progress=None))
@@ -147,6 +149,48 @@ def test_draft_cancel_and_saved_empty_list_require_independent_reads(tmp_path):
         fresh.check_settings('empty-read', {'ui': {'reminders': reminder_value()}})
 
 
+@pytest.mark.parametrize('fault', ['', 'saved-true', 'changed-record', 'language', 'disabled', 'replay', 'storage'])
+def test_fullscreen_saved_read_is_verified_before_durable_reply(tmp_path, fault):
+    stage = 'saved-read'
+    progress = Mock(side_effect=OSError('storage')) if fault == 'storage' else Mock()
+    journey = fullscreen.ReminderFullscreenJourney(SimpleNamespace(directory=tmp_path), progress)
+    journey.check_settings('defaults-open', {'ui': {'reminders': reminder_value()}})
+    journey.boot = 'a' * 64
+    journey.steps = [{'stage': name} for name in journey.plan.stages[:journey.plan.stages.index(stage)]]
+    value = reminder_value()
+    value['show_in_fullscreen'] = fault == 'saved-true'
+    if fault == 'changed-record': value['records'][0]['id'] = 'replacement'
+    if fault == 'language': value['language'] = 'de'
+    if fault == 'disabled': value['fullscreen_enabled'] = False
+    if fault == 'replay': journey.reminder_captures.add(stage)
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={'reminders': value}))
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+    if fault:
+        with pytest.raises((EvidenceError, OSError)): journey.step(Mock())
+        assert not (tmp_path / (stage + '.reply.json')).exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(Mock())
+    else:
+        journey.step(Mock())
+        assert (tmp_path / (stage + '.reply.json')).exists()
+        value['records'][0]['value'] = 99
+        assert journey.original_preferences['records'] == reminders.DEFAULTS
+
+
+def test_fullscreen_cancel_requires_saved_false_and_exact_preserved_preferences(tmp_path):
+    journey = fullscreen.ReminderFullscreenJourney(SimpleNamespace(directory=tmp_path), Mock())
+    for stage, enabled in (('defaults-open', True), ('fullscreen-disabled', False),
+            ('saved-read', False), ('fullscreen-enabled-draft', True), ('cancel-read', False)):
+        value = reminder_value()
+        value['show_in_fullscreen'] = enabled
+        journey.check_settings(stage, {'ui': {'reminders': value}})
+    stale = fullscreen.ReminderFullscreenJourney(SimpleNamespace(directory=tmp_path), Mock())
+    with pytest.raises(EvidenceError, match='preference-preservation'):
+        stale.check_settings('saved-read', {'ui': {'reminders': reminder_value()}})
+    journey.reminder_captures.remove('cancel-read')
+    with pytest.raises(EvidenceError, match='saved-boolean'):
+        journey.check_settings('cancel-read', {'ui': {'reminders': reminder_value()}})
+
+
 @pytest.mark.parametrize('fault', ['', 'request', 'accessible-name', 'visible-label'])
 def test_request_preservation_checks_choices_and_tolerates_incidental_captions(tmp_path, fault):
     journey = reminders.OverlayReminderJourney(SimpleNamespace(directory=tmp_path), Mock())
@@ -191,14 +235,18 @@ def test_policy_and_balance_preservation_include_observation_latency(tmp_path, f
         journey.check_settings('policy-after', {'ui': {'language_policy': current}})
 
 
+@pytest.mark.parametrize('module,journey_type', [
+    (reminders, reminders.OverlayReminderJourney), (fullscreen, fullscreen.ReminderFullscreenJourney)],
+    ids=['editing', 'fullscreen'])
 @pytest.mark.parametrize('fault', ['', 'changed-default', 'durability'])
-def test_real_recorder_constructor_startup_and_assertion_gate(session, tmp_path, monkeypatch, fault):
+def test_real_recorder_constructor_startup_and_assertion_gate(session, tmp_path, monkeypatch, fault,
+                                                           module, journey_type):
     import installed_journey
     import session_control
     expected = session.payload['assertions'][0]
     tags = {'entry-start': 'system:parent-command-context', 'entry-one': 'system:parent-command-context',
             'entry-two': 'system:parent-command-context', 'defaults-open': 'ui:overlay-reminder-defaults'}
-    plan = replace(reminders.PLAN, screen_tags=tags, invocations=(), challenges={},
+    plan = replace(module.PLAN, screen_tags=tags, invocations=(), challenges={},
         phases={'ready': 'setup', 'setup-detached': 'setup', 'entry-start': 'start',
                 'entry-one': 'step-1', 'entry-two': 'step-2', 'defaults-open': expected['step_id']},
         assertions_after={'defaults-open': expected['assertion_id']})
@@ -219,7 +267,7 @@ def test_real_recorder_constructor_startup_and_assertion_gate(session, tmp_path,
 
     def worker(**options):
         journey = options['guarded_observe'].__self__
-        assert isinstance(journey, reminders.OverlayReminderJourney) and journey.plan is plan
+        assert isinstance(journey, journey_type) and journey.plan is plan
         journey.steps = [{'stage': 'ready'}, {'stage': 'setup-detached'}]
         journey.boot = 'a' * 64
         journey.vm = SimpleNamespace(read=Mock(return_value={'boot_sha256': journey.boot}))
@@ -240,12 +288,12 @@ def test_real_recorder_constructor_startup_and_assertion_gate(session, tmp_path,
         return dict(outcome='passed', shutdown_verified=True, worker_stopped=True, callback_closed=True)
 
     context.run_worker = worker
-    monkeypatch.setattr(reminders.OverlayReminderJourney, 'validate', lambda _: [])
+    monkeypatch.setattr(journey_type, 'validate', lambda _: [])
     if fault:
         with pytest.raises((EvidenceError, OSError)):
             installed_journey.record_installed_journey(recorder, context, plan, actions={},
-                journey_type=reminders.OverlayReminderJourney)
+                journey_type=journey_type)
         assert not (context.directory / 'defaults-open.reply.json').exists()
     else:
         installed_journey.record_installed_journey(recorder, context, plan, actions={},
-            journey_type=reminders.OverlayReminderJourney)
+            journey_type=journey_type)

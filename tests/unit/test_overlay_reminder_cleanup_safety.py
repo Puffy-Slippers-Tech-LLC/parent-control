@@ -225,9 +225,10 @@ def test_reminder_staleness_uses_only_the_bound_application(create, owned_defunc
 @pytest.mark.parametrize('fault', [
     'account', 'station', 'parent', 'wrong-child', 'hidden-child', 'owner', 'stale',
     'duplicate-id', 'duplicate-record', 'bad-choice', 'invalid-record', 'unsorted',
-    'busy', 'wrong-tab', 'hidden-list', 'editor', 'foreign-modal', 'literal',
+    'busy', 'loading', 'wrong-tab', 'hidden-list', 'editor', 'foreign-modal', 'literal',
 ])
-def test_invalid_entry_refuses_before_any_mutation(fault):
+@pytest.mark.parametrize('action', ['delete', 'fullscreen'])
+def test_invalid_entry_refuses_before_any_mutation(fault, action):
     tree = reminder_tree()
     if fault == 'account':
         tree.ui.require_child_overlay_session.side_effect = public.UiError('ui:overlay-account')
@@ -245,6 +246,7 @@ def test_invalid_entry_refuses_before_any_mutation(fault):
     if fault == 'invalid-record': tree.records[0]['value'] = True
     if fault == 'unsorted': tree.records.reverse()
     if fault == 'busy': tree.controls['language-continue'].states.discard('sensitive')
+    if fault == 'loading': tree.controls['reminder-list'].states.discard('sensitive')
     if fault == 'wrong-tab': tree.controls['preferences-tabs'].value = 'language'
     if fault == 'hidden-list': tree.controls['reminder-list'].states.discard('visible')
     if fault == 'editor': tree.edit()
@@ -254,8 +256,65 @@ def test_invalid_entry_refuses_before_any_mutation(fault):
         tree.window.children.append(modal)
     if fault == 'literal': tree.records[0]['text'] = '<escaped> & body'
     with pytest.raises(public.UiError):
-        tree.ui.overlay_reminder_delete('fifteen-seconds')
+        if action == 'delete':
+            tree.ui.overlay_reminder_delete('fifteen-seconds')
+        else:
+            tree.ui.overlay_reminder_fullscreen(False)
     assert_no_input(tree)
+
+
+@pytest.mark.parametrize('show', [None, 0, 1, 'false', [], {}])
+def test_fullscreen_requires_canonical_boolean_before_discovery(show):
+    tree = reminder_tree()
+    tree.ui.read_snapshot = Mock(side_effect=AssertionError('unrelated discovery'))
+    tree.ui.require_child_overlay_session = Mock(side_effect=AssertionError('session discovery'))
+    with pytest.raises(public.UiError, match='ui:reminder-fullscreen-binding'):
+        tree.ui.overlay_reminder_fullscreen(show)
+    tree.ui.read_snapshot.assert_not_called()
+    tree.ui.require_child_overlay_session.assert_not_called()
+    assert_no_input(tree)
+
+
+@pytest.mark.parametrize('show', [False, True])
+def test_fullscreen_sets_boolean_once_and_independently_preserves_draft(show):
+    tree = reminder_tree()
+    before = tree.ui.overlay_reminder_read()
+    result = bound_operation(tree, 'overlay-reminder-fullscreen-' + str(show).lower())['reminders']
+    assert result['show_in_fullscreen'] is show
+    assert result['records'] == before['records']
+    assert result['language'] == before['language']
+    assert result['fullscreen_enabled'] is True
+    tree.controls['reminder-show-in-fullscreen'].setValue.assert_called_once_with(show)
+    tree.controls['language-continue'].action.do_action.assert_not_called()
+    assert not tree.ui.input_uncertain
+
+
+@pytest.mark.parametrize('fault', ['empty', 'disabled', 'ambiguous'])
+def test_fullscreen_unavailable_control_refuses_before_input(fault):
+    tree = reminder_tree([] if fault == 'empty' else None)
+    if fault == 'disabled': tree.controls['reminder-show-in-fullscreen'].states.discard('sensitive')
+    if fault == 'ambiguous': tree.dialog.children.append(Node(identity='reminder-show-in-fullscreen'))
+    with pytest.raises(public.UiError): tree.ui.overlay_reminder_fullscreen(False)
+    assert_no_input(tree)
+
+
+@pytest.mark.parametrize('fault', ['lost-reply', 'unchanged', 'records', 'language'])
+def test_fullscreen_failed_result_retains_uncertain_input_and_refuses_replay(fault):
+    tree = reminder_tree()
+    control = tree.controls['reminder-show-in-fullscreen']
+    def change(show):
+        if fault == 'lost-reply': raise public.UiError('ui:lost-reply')
+        if fault != 'unchanged': control.value = show
+        if fault == 'records':
+            tree.records.pop()
+            tree.render()
+        if fault == 'language': tree.controls['language-list'].value = 'de'
+    control.setValue.side_effect = change
+    with pytest.raises(public.UiError): tree.ui.overlay_reminder_fullscreen(False)
+    assert tree.ui.input_uncertain
+    with pytest.raises(public.UiError, match='ui:uncertain-input'):
+        tree.ui.overlay_reminder_fullscreen(False)
+    control.setValue.assert_called_once_with(False)
 
 
 @pytest.mark.parametrize('kwargs', [
@@ -429,7 +488,7 @@ def test_cross_observer_stale_source_refuses_before_any_input(operation):
     assert_no_input(tree)
 
 
-@pytest.mark.parametrize('action', ['read', 'create', 'edit', 'delete', 'save', 'cancel'])
+@pytest.mark.parametrize('action', ['read', 'create', 'edit', 'delete', 'save', 'cancel', 'fullscreen'])
 def test_optional_source_is_checked_by_actual_shared_helper_before_input(action):
     tree = reminder_tree()
     source = tree.ui.overlay_reminder_read()['source']
@@ -443,6 +502,7 @@ def test_optional_source_is_checked_by_actual_shared_helper_before_input(action)
         'delete': lambda: tree.ui.overlay_reminder_delete('fifteen-seconds', expected_source=source),
         'save': lambda: tree.ui.overlay_reminder_commit(save=True, expected_source=source),
         'cancel': lambda: tree.ui.overlay_reminder_commit(save=False, expected_source=source),
+        'fullscreen': lambda: tree.ui.overlay_reminder_fullscreen(False, expected_source=source),
     }
     with pytest.raises(public.UiError, match='ui:reminder-stale-draft'): calls[action]()
     assert_no_input(tree)
@@ -476,12 +536,17 @@ def test_fixed_operations_forward_controller_receipt_to_actual_input_helper(oper
     tree.ui.overlay_reminder_read = Mock(return_value=initial)
     tree.ui.overlay_reminder_editor = Mock(return_value=final)
     tree.ui.overlay_reminder_commit = Mock()
+    tree.ui.overlay_reminder_fullscreen = Mock(return_value=final)
     tree.ui.overlay_reminder_delete = Mock(side_effect=[first, final])
     result = tree.ui.overlay_reminder_operation(operation)
     if operation in ('overlay-reminder-save', 'overlay-reminder-cancel'):
         tree.ui.overlay_reminder_commit.assert_called_once_with(
             save=operation.endswith('-save'), expected_source=source)
         assert result == {}
+    elif operation in ('overlay-reminder-fullscreen-false', 'overlay-reminder-fullscreen-true'):
+        tree.ui.overlay_reminder_fullscreen.assert_called_once_with(
+            operation.endswith('-true'), expected_source=source)
+        assert result == {'reminders': final}
     elif operation == 'overlay-reminder-create':
         tree.ui.overlay_reminder_editor.assert_called_once_with(
             seconds=75, text='Save <work>!', expected_source=source)

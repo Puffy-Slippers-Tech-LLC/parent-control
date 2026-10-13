@@ -1792,6 +1792,16 @@ class KioskReminderBindingQualification(KioskEntryQualification):
         return KioskReminderJourney(context, progress)
 
 
+class ReminderFullscreenPreferenceQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from reminder_fullscreen import ReminderFullscreenJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return ReminderFullscreenJourney(context, progress)
+
+
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

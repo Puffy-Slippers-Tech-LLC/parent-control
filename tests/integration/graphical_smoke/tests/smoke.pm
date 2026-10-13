@@ -147,6 +147,12 @@ sub run {
         onpc_kiosk_reminders::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{reminder_fullscreen_preference}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::reminder_fullscreen_preference(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_language}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

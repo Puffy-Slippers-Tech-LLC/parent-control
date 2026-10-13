@@ -28,6 +28,12 @@ capability work. Host UI coverage does
 not qualify an installed route. No E2E implementation or execution is authorized
 by this documentation addition; the current next-task pointer stays unchanged.
 
+The current facade binds overlay reminder operations to Riley, and its deletion
+helper has no kiosk binding. Jordan's post-reboot overlay readback and kiosk
+draft deletion therefore still need bounded prerequisite qualification before
+this complete case is implemented. Delivered 312a/312b scope does not establish
+those bindings; add their explicit prerequisite slice before this consumer.
+
 ## One saved-reminder journey
 
 Finite history: begin with both children's four untouched backend defaults and

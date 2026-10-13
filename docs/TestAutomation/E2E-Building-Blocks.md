@@ -1061,22 +1061,24 @@ save. The independent 308a/308b qualifications remain separate from this case.
 The shared request Preferences controls and repository-owned reminder banners
 use the [Application UI API](Application-UI-API.md#shared-request-form-and-language-chooser), including the
 [ChildUI notification surface](Application-UI-API.md#child-panel). The fixed
-Riley overlay editing and selected-child kiosk binding slices are qualified;
-fullscreen preference and natural notification bindings remain **pending**. The queue extracts these
-bounded bindings before the complete reminder cases:
+Riley overlay editing, selected-child kiosk binding and saved fullscreen
+preference slices are qualified; natural notification and fullscreen banner
+bindings remain **pending**. The queue extracts these bounded bindings before
+the complete reminder cases:
 
 | Task | Exact qualification slice |
 | --- | --- |
 | 312a (qualified) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing` |
 | 312b (qualified) | Selected-child kiosk reminder save/readback, exact saved-ID overlay continuity and account/approver isolation on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding` |
-| [311a](E2E-Tasks/311a-reminder-fullscreen-preference.md) | Save nondefault false, reopen, Cancel a true draft and read saved false; no notification-delivery credit |
+| 311a (qualified) | Save nondefault false, reopen, Cancel a true draft and read saved false on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`; no notification-delivery credit |
 | [311b](E2E-Tasks/311b-natural-reminder-observation.md) | Naturally emitted ChildUI body, canonical seconds, urgency and natural-lock removal; public-value contract gate remains explicit in the brief |
 | [311c](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | Owned banner visibility/suppression with task 129's genuine fullscreen game; independent of urgency |
 
 The shared [AccessibleUI facade](../../tests/e2e/accessible_ui.py) supplies
 `overlay_reminder_open`, `overlay_reminder_read`, `overlay_reminder_editor`,
-`overlay_reminder_delete` and `overlay_reminder_commit` through the ChildRequest
-Application UI API. [UiObservations](../../tests/e2e/ui_observations.py) validates
+`overlay_reminder_delete`, `overlay_reminder_fullscreen` and
+`overlay_reminder_commit` through the ChildRequest Application UI API.
+[UiObservations](../../tests/e2e/ui_observations.py) validates
 canonical records and carries the prior draft source before mutation.
 [OverlayReminderJourney](../../tests/e2e/overlay_reminders.py) owns the finite
 defaults, literal 75/90-second values and saved-ID comparisons. It independently
@@ -1103,6 +1105,19 @@ input refusals remain shared guards. Reports `20261013T193554Z-2f3ca206` (Ubuntu
 and `20261013T193554Z-a3336e1b` (Fedora) passed infrastructure, collection, owned
 cleanup and baseline restoration. This supplies no natural-delivery, reboot or
 complete-case acceptance.
+
+`ReminderFullscreenJourney` in [reminder_fullscreen.py](../../tests/e2e/reminder_fullscreen.py)
+and `onpc_request_flow::reminder_fullscreen_preference` qualify the existing
+`reminder-show-in-fullscreen` boolean through the same shared facade. With the
+nonempty default list, Save false and fresh reopen retain false; Cancel of a
+true draft and another fresh reopen retain saved false. Exact reminder
+records/language, request choices and public policy/time remain unchanged apart
+from elapsed time, with zero grants. The setter refuses invalid booleans before
+discovery and preserves account, draft, loading/busy, unavailable/ambiguous
+control and uncertain-input guards. Reports `20261013T201225Z-b7411901` (Ubuntu)
+and `20261013T201225Z-058fe498` (Fedora) passed collection, owned cleanup and
+baseline restoration. This supplies no natural delivery, fullscreen banner
+effects, Wellbeing lifecycle or complete-case acceptance.
 
 `PreferencesDialog` implements reminder editing and the fullscreen switch in
 `kiosk/oh_no_parent_control_kiosk/preference_dialog.py`. Child notification

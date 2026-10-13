@@ -253,6 +253,8 @@ from regression_resources import HOST_WORKERS
 # doubles and durable replies private to pytest. Their bounded Perl children
 # are synchronously waited; no settings, VM, bus, display or shared cache owner
 # is introduced. Compatible here and in the unit inventory.
+# Saved fullscreen preference coverage keeps those same private fixtures and
+# waited Perl children; it adds no resource or cleanup lifetime.
 # Kiosk reminder journey/registration use the same private fixture boundaries
 # and synchronously waited Perl children, without a live or shared resource.
 REVIEWED = frozenset('''

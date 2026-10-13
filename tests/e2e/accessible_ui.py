@@ -719,7 +719,8 @@ OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
 KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
 OPERATIONS |= KIOSK_REMINDER_OPERATIONS
 OVERLAY_REMINDER_OPERATIONS = frozenset('overlay-reminder-' + action for action in (
-    'defaults', 'create', 'edit', 'save', 'read', 'delete', 'delete-all', 'cancel', 'empty'))
+    'defaults', 'create', 'edit', 'save', 'read', 'delete', 'delete-all', 'cancel', 'empty',
+    'fullscreen-false', 'fullscreen-true'))
 OVERLAY_REMINDER_MUTATIONS = OVERLAY_REMINDER_OPERATIONS - {
     'overlay-reminder-defaults', 'overlay-reminder-read', 'overlay-reminder-empty'}
 OPERATIONS |= OVERLAY_REMINDER_OPERATIONS
@@ -9237,6 +9238,26 @@ class AccessibleUI:
             self.input_uncertain = False
             return result
 
+    def overlay_reminder_fullscreen(self, show, *, expected_source=None):
+        """Set the loaded overlay draft's canonical fullscreen preference once."""
+        self._reminder_source_binding(expected_source)
+        require(type(show) is bool, 'ui:reminder-fullscreen-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        with self.language_scope('overlay'), self._reminder_input_scope():
+            state = self._overlay_reminder_state(source=expected_source)
+            before = state['payload']
+            require(bool(before['records']), 'ui:reminder-fullscreen-disabled')
+            control = state['target']('reminder-show-in-fullscreen', sensitive=True)
+            self.input_uncertain = True
+            control.setValue(show)
+            result = self._overlay_reminder_state()['payload']
+            require(result['show_in_fullscreen'] is show
+                    and result['fullscreen_enabled'] is True
+                    and result['records'] == before['records']
+                    and result['language'] == before['language'], 'ui:reminder-fullscreen-result')
+            self.input_uncertain = False
+            return result
+
     def overlay_reminder_delete(self, record_id, *, expected_source=None):
         """Delete exactly one declared stable ID from the current draft."""
         self._reminder_source_binding(expected_source)
@@ -9305,6 +9326,9 @@ class AccessibleUI:
         if operation in ('overlay-reminder-save', 'overlay-reminder-cancel'):
             self.overlay_reminder_commit(save=operation.endswith('-save'), expected_source=source)
             return {}
+        if operation in ('overlay-reminder-fullscreen-false', 'overlay-reminder-fullscreen-true'):
+            return {'reminders': self.overlay_reminder_fullscreen(
+                operation.endswith('-true'), expected_source=source)}
         if operation == 'overlay-reminder-create':
             return {'reminders': self.overlay_reminder_editor(seconds=75, text='Save <work>!',
                                                               expected_source=source)}

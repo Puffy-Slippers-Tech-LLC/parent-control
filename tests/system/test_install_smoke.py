@@ -31,3 +31,11 @@ def test_reboot_applies_installation():
     before = json.loads((guest.PAYLOAD / 'before.json').read_text())
     assert before['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     assert guest.reboot_cleared()
+
+
+def test_kiosk_account_classification_survives_reboot(record_testsuite_property):
+    from system_kiosk_accounts import exercise, verify_reboot
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    guest.require(phase in ('installed', 'rebooted'), 'kiosk-accounts:test-phase')
+    action = exercise if phase == 'installed' else verify_reboot
+    action(record_testsuite_property)

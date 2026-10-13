@@ -260,6 +260,7 @@ def case_phases(area, case_id):
         'test_installed_package': ('installed', 'rebooted'),
         'test_first_install_requests_reboot': ('installed',),
         'test_reboot_applies_installation': ('rebooted',),
+        'test_kiosk_account_classification_survives_reboot': ('installed', 'rebooted'),
     }
     require(case_id in package, 'selection:unregistered-package-case')
     return package[case_id]

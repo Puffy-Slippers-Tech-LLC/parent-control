@@ -18,6 +18,7 @@ UUID := oh-no-parent-control@tech.puffyslippers.com
 ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-broker \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
+	$(LIBEXECDIR)/oh-no-parent-control-provision \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-session \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-app \
@@ -32,6 +33,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration \
 	$(DATADIR)/oh-no-parent-control/confinement \
 	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-kiosk-confinement.service \
+	$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d/oh-no-parent-control.conf \
 	$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d/confinement.conf \
 	$(SYSTEMD_USER_DIR)/wireplumber.service.d/oh-no-parent-control.conf \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
@@ -181,6 +183,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
+PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c
 PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
 	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \
@@ -623,6 +626,8 @@ endif
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -m 0644 data/systemd/oh-no-parent-control-kiosk-confinement.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
+	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d"
+	install -m 0644 data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/accounts-daemon.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"

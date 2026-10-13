@@ -217,25 +217,47 @@ Provisioning sets and reads back AccountsService `Session=oh-no-parent-control`,
 `SessionType=wayland` and `SystemAccount=false`. AccountsService's public
 `CacheUser` operation creates retained state for a fresh nologin account; the
 provisioner verifies public `SystemAccount=false` and `Saved=true` afterward.
-An already retained visible account needs no cache mutation. An already retained
-hidden account is refused before cache/routing changes: current AccountsService
-changes its classification only in memory, does not rewrite its existing cache
-and exposes no public classification/save method. Provisioning does not toggle
-an unrelated property or delete retained metadata to force a save.
-The account and its metadata remain available for a supported migration.
-This is an explicit upgrade/release blocker for that state, not a durability
-guarantee from live readback. Closing it requires an AccountsService fix that
-persists explicit `CacheUser` classification for existing retained records while
-preserving their other metadata. Qualify that fix through daemon restart and
-reboot on both supported distributions, then constrain package dependencies to
-their published fixed builds before enabling retained-hidden-account repair.
-No such build is currently qualified. A registered fixed native refusal shell
-could classify a fresh account through NSS, but cannot migrate an existing cache:
-AccountsService applies its saved classification after NSS on every reload.
+An already retained visible account needs no cache mutation after durable cache
+verification. AccountsService's `CacheUser` changes an existing retained hidden
+account only in memory and exposes no public classification/save method. The
+product therefore owns a versioned, fixed-account cache adapter rather than
+toggling unrelated properties or uncaching retained metadata.
+The packaged [AccountsService drop-in](../../data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf)
+runs [the provisioner's adapter](../../tools/provision.py) at systemd's start-pre
+boundary, before the daemon reads its cache. Only the unchanged package-created
+kiosk UID and reserved home qualify. The adapter pins root-owned directories and
+regular singly linked files without following symlinks, accepts the distributions'
+root-group-writable AccountsService parent, and changes only the unambiguous
+`[User] SystemAccount` boolean. All other bytes, ownership, permissions and extended
+attributes, including Fedora's SELinux label, are preserved.
+Anonymous temporary storage avoids interruption residue while writing. Publication
+uses one fixed transaction slot with a product xattr recording source inode,
+before/after digests, UID and metadata digest. A retry removes only an exactly
+matching owned slot, or finishes cleanup of the exact committed marker; foreign
+or changed state is preserved and refused. No directory sweep or retained-cache
+deletion is involved. Restart and reboot repeat the same guarded start boundary.
+The adapter accepts the reviewed 23.13.9 cache schema. Fedora's RPM build derives
+runtime version `26.03.0` from its build Git date; that spelling additionally
+requires exact reviewed package `accountsservice 23.13.9-16.fc44`. Unknown versions
+refuse migration and require renewed source and installed qualification.
+The hook's failure is ignored by systemd to preserve AccountsService availability
+for ordinary users. Provisioning independently checks public visibility and saved
+state plus the durable cache, refusing kiosk configuration when repair failed.
+It restarts AccountsService only for retained classification repair or recovery;
+fresh accounts continue using public `CacheUser`. Retained icons are preserved;
+fresh accounts receive the product artwork. Already-correct routing and disabled
+time limits avoid setter calls, so a successful visibility migration is not
+followed by an unrelated save that canonicalizes retained metadata. Necessary
+routing/time-limit corrections retain their public setters and normal daemon
+serialization semantics. The current engineering qualification belongs to the
+[confinement execution record](../confinement.md#phased-execution-plan-current).
 The upstream [manager implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/daemon.c),
 [user-state implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/user.c)
 and [public user interface](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/data/org.freedesktop.Accounts.User.xml)
-own these constraints.
+own the daemon's persistence behavior. Fedora's
+[package definition](https://src.fedoraproject.org/rpms/accountsservice/raw/f44/f/accountsservice.spec)
+and upstream [version generator](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/23.13.9/generate-version.sh)
+explain its source/runtime-version distinction.
 The login helper checks the dedicated preference during account and session
 authorization, and requires PAM `XDG_SESSION_TYPE=wayland` at session opening.
 It does not mutate a valid preference or depend on GDM saving its selection

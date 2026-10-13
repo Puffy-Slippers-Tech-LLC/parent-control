@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Provisioning visibility migration uses pytest-private descriptor/cache trees,
+process-local systemd/version doubles and one explicitly forked, bounded,
+waited child for abrupt-interruption recovery. All file/xattr mutations are
+private; there is no live system bus, service, package account, VM, display or
+shared cache. Its existing compatible unit bucket remains appropriate.
+
 launcher_chat uses tiny pytest-private protocol/mailbox trees, in-memory VT
 screens, a private PTY with restored terminal flags, and one bounded, waited
 Codex schema-generator process (no model inference). It has no VM, network,
@@ -756,7 +762,12 @@ from regression_ui import Bucket
 # Its two waited Perl workers have private testapi state. No real settings,
 # bus, display, systemd unit, VM, shared cache or cleanup prerequisite is used;
 # compatible, with fixtures kept in one module.
+# system_kiosk_accounts uses tiny pytest-private cache/witness/mask-shaped files,
+# account/service command doubles and synthetic metadata. It never reads a live
+# AccountsService record or changes a host account, daemon, bus or runtime mask;
+# compatible with other private unit work, with no owned child or shared cache.
 REVIEWED = frozenset("""
+system_kiosk_accounts
 e2e_kiosk_notification_wellbeing
 application_ui_support
 test_checkpoint

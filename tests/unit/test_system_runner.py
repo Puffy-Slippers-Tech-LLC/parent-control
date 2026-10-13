@@ -458,6 +458,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
             'guest_test_dependencies.py',
             'chinese_language_assets.py',
         'guest_install_recipe.py', 'install-source/Makefile',
+        'system_kiosk_accounts.py',
         'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
         'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',
     }
@@ -488,6 +489,20 @@ def test_full_selection_stages_shared_helpers_once(tmp_path):
         }
         assert (tmp_path / name).read_bytes() == (runner.ROOT / 'tests/integration' / name).read_bytes()
     assert {item['area'] for item in identity['selection']['executions']} == set(INVENTORIES)
+
+
+def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
+    case = 'test_kiosk_account_classification_survives_reboot'
+    inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
+    selection = runner.resolve_selection('package', case, inventories=inventories)
+    assert selection.phases == ('installed', 'rebooted')
+    assert [(item.phase, item.case_id) for item in selection.executions] == [
+        ('installed', case), ('rebooted', case)]
+    runner.stage_selected_inputs(selection, tmp_path)
+    identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert 'system_kiosk_accounts.py' in identity['files']
+    for phase in selection.phases:
+        assert runner.pytest_command(RUN, phase, selection)[-1].endswith('::' + case)
 
 
 def test_conflicting_helper_targets_are_refused_before_any_staging(tmp_path, monkeypatch):

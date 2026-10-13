@@ -740,13 +740,19 @@ class PackageActivationTests(unittest.TestCase):
         self.assertFalse(desktop.getboolean("DBusActivatable"))
         self.assertEqual(activation_for(installed_path), "none")
 
-    def test_account_logo_is_reapplied_by_provisioning(self):
+    def test_default_account_logo_is_applied_by_provisioning(self):
         self.assertEqual(
             activation_for(
                 "usr/share/oh-no-parent-control/kiosk_account_icon.png"
             ),
             "none",
         )
+
+    def test_owned_account_cache_adapter_activates_on_invocation(self):
+        for path in ("usr/libexec/oh-no-parent-control-provision",
+                     "usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf"):
+            with self.subTest(path=path):
+                self.assertEqual(activation_for(path), "none")
 
     def test_parent_titlebar_logo_needs_no_session_restart(self):
         self.assertEqual(

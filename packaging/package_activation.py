@@ -40,6 +40,8 @@ def activation_for(path: str) -> str:
     # changing them needs no running-service or session activation.
     if path in {
         "usr/libexec/oh-no-parent-control-migrate-state",
+        "usr/libexec/oh-no-parent-control-provision",
+        "usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf",
         "usr/libexec/oh-no-parent-control-uninstall",
         "usr/libexec/oh-no-parent-control-package-notice",
         "etc/dpkg/dpkg.cfg.d/99-oh-no-parent-control-notice",

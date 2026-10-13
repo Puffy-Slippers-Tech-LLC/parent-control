@@ -13,16 +13,20 @@ delivered in conversation, not maintained as a second repository task document.
 
 ## Current code-review status
 
-**Phase 1 is complete; Phase 2 is next and has not started.** See the
+**Phase 1 and Phase 2 issue 1 are complete; Phase 2 issue 2 is next.** See the
 [phased execution plan](#phased-execution-plan-current).
-All three issue fixes and every Phase 1 exit gate pass. Supporting PAM
+All three Phase 1 issue fixes and every Phase 1 exit gate pass. Supporting PAM
 credential, password-helper traversal and native-profile activation fixes pass
 their affected host/build checks. Both final installed confinement matrices,
 both strict waiting-session censuses and public cases 50–52 on both targets
-pass. Both VMs are stopped with baseline restoration verified. The
+pass for the Phase 1 packages. The
 [resumed exit-gate record](#resumed-phase-1-exit-gates--final-installed-inputs)
 owns the final results and retained evidence; earlier package results remain
 historical.
+The [Phase 2 issue 1 record](#phase-2-issue-1-execution-record) owns the current
+classification adapter's package identities, live and installed recovery checks,
+case 50 regression, host results and cleanup. Both VMs are stopped with baseline
+restoration verified. Phase 2 remains **1/2 issues solved**; Phase 3 has not started.
 The five open work groups below remain the complete confinement scope;
 they are arranged into four phases. The current plan supersedes historical
 continuation orders and upstream-only repair requirements in this record.
@@ -82,8 +86,9 @@ diagnostic experiment does not qualify the final package or all teardown paths.
 
 The GDM save-timing marker has been removed from admission: valid preferences
 are read-only checks, wrong preferences are repaired and denied, and the required
-final MAC gate enforces the real executable. AccountsService classification
-persistence remains an unresolved supported-interface limitation for Phase 2.
+final MAC gate enforces the real executable. Phase 2 issue 1 implements an owned
+AccountsService classification adapter; both targets pass its live, installed,
+reboot and public regression gates in its execution record below.
 The final installed/public matrices pass in the resumed Phase 1 record;
 earlier package/snapshot digests below are historical.
 Current validation is recorded at the end of this document; historical handoff
@@ -91,7 +96,20 @@ instructions are superseded by the current findings and remaining-work sections.
 
 ## Phased execution plan (current)
 
-**Next phase: 2 — Finish compatibility engineering. Status: not started.**
+**Next phase: 2 — Finish compatibility engineering. Status: 1/2 issues solved;
+issue 2 is next.**
+
+The user split Phase 2 into two scoped sessions. Issue 1 has completed its
+validated, cleaned boundary. The next session executes only issue 2 and stops
+before Phase 3. Issue 1 alone does not close Phase 2.
+
+- [x] **Issue 1 — Retained-hidden account recovery.** The owned,
+  metadata-preserving AccountsService workaround qualifies fresh,
+  retained-visible and retained-hidden records, retry/interruption recovery,
+  daemon restart and reboot on both targets; current-package case 50 also passes.
+- [ ] **Issue 2 — Bounded distro integration review.** Finish exact distro
+  executable/WirePlumber/Lua/native-plugin/service-API review and its bounded
+  live qualification without broad executable routes.
 
 **Phase 1 closed after all exit gates passed.** Issues 1–3 are **3/3 solved**.
 The final native-gate packages pass both installed matrices, both strict real
@@ -99,9 +117,10 @@ waiting-session censuses and all six public approval, denial and cancellation
 histories. Affected host checks and both package builds passed after the final
 product edit. The [final execution record](#resumed-phase-1-exit-gates--final-installed-inputs)
 identifies the exact inputs, reports, retained evidence and owned cleanup.
-Execution stops at this boundary; no Phase 2–4 work was performed.
+That Phase 1 continuation stopped at its boundary without Phase 2–4 work.
 
-To resume, say **"execute next phase in confinement.md"**. Read `AGENTS.md`, this
+To resume, say **"execute Phase 2 issue 2 in confinement.md; stop before Phase 3"**.
+Read `AGENTS.md`, this
 record and the applicable linked contracts, then execute only the phase named
 by this pointer. An unfinished phase remains the next phase; an update to this
 plan alone never closes it. Record exact current-input results, remaining
@@ -187,7 +206,8 @@ handoff including the preceding partial fix. The latest execution completes
 Phase 1 on both installed targets, including the final censuses, confinement
 matrices and public approval histories. The user then requested a progress
 commit of all active changes and a reconciled handoff for the next phase in a
-new session. Phase 2 has not started. The broader confinement work remains
+new session. Phase 2 had not started at that historical boundary. The broader
+confinement work remains
 unfinished; the current terminal state and evidence are at the end of this
 record. Earlier handoff statements describe their respective historical
 boundaries, not current acceptance.
@@ -3008,3 +3028,172 @@ At handoff, both pinned VM status reads again report `state=5`, `id=-1`.
 Maintained cleanup completes successfully for both targets, reports VM and
 privileged storage ready, and retains evidence within the storage limits.
 No owned test or maintenance operation remains running.
+
+## Phase 2 issue 1 execution record
+
+The user scoped this session to retained-hidden account recovery and requested
+that the remaining distro integration review run in a separate session. Phase 2
+remains open until both issue checklists and its exit gates pass. No Phase 3
+work is included here.
+
+Initial owned live probes on both online app snapshots confirmed that
+`accounts-daemon.service` executes `/usr/libexec/accounts-daemon`, uses
+`StateDirectory=AccountsService` with `ProtectSystem=strict`, and serializes its
+startup before D-Bus ownership. Both targets have root:root mode `0775` on
+`/var/lib/AccountsService`, `0700` on its `users` directory and `0600` on the kiosk
+record. Fedora's cache and parents carry
+`system_u:object_r:accountsd_var_lib_t:s0`. The adapter must preserve that label
+and accept the trusted root-group-writable parent without admitting untrusted
+group or world writes.
+
+Ubuntu reports AccountsService package/source `23.13.9-8ubuntu5.2` and daemon
+version `23.13.9`. Fedora reports package/source `23.13.9-16.fc44` while its
+unaltered daemon reports `26.03.0`; `rpm -V accountsservice` passes. The reviewed
+Fedora build initializes a Git tree and the upstream version generator derives
+the runtime spelling from the build commit's year/week. This is a version-banner
+difference, not a modified installed daemon or a new cache schema. The adapter
+requires that exact Fedora package in addition to its banner.
+
+The owned startup integration and preservation/recovery boundaries are now
+specified in [Lifecycle](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle).
+It replaces the older upstream-only prerequisite. Independent review corrected
+precommit metadata-change detection and the engineering fixtures' transaction
+slot/marker assumptions. The first `make build` passed DEB but rejected the RPM's
+new drop-in as an unpackaged file. The RPM inventory and its regression now cover
+the drop-in, and the final `make build` passes both formats. The affected host
+selection passes **624/624** in report `20261013T003423Z-307cb957`; close-out units,
+source/traceability and static checks pass **315/315** in
+`20261013T003840Z-3469bc76`.
+
+Both updated online app snapshots prepared successfully. The first Fedora live
+matrix preserved fresh public visibility but rejected a changed cache fingerprint
+after daemon restart. Live Ubuntu reproduction with bounded fingerprint diagnostics
+isolated the sole change to mode `0644` → `0600`, with identical bytes, owner and
+xattrs. Upstream [startup initialization](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/23.13.9/src/main.c)
+explicitly applies `0600` to every user cache before constructing the daemon.
+The fresh-record assertion now requires that canonical mode while retaining exact
+equality of the other fields; all retained-record comparisons remain exact.
+This is a source-established fixture expectation correction, with no product
+change. Both diagnostic maintenance instances were stopped and their baselines
+restored before clean live repeats.
+
+The next clean live repeat passed fresh, retained-visible, retained-hidden and
+unsafe-state recovery, then reached systemd's five-starts-per-ten-seconds limit
+on the final engineered restart. Live service properties and the Fedora journal
+identify `Result=start-limit-hit` after successful daemon starts. Each fixture
+group now independently requires a healthy active daemon before resetting only
+its synthetic start budget; failed/inactive/activating states refuse without a
+reset or another start. No failed product operation is retried or hidden. The
+final helper units, source and static checks pass **52/52** in report
+`20261013T004753Z-27024617`.
+
+Clean owned live repeats now pass all six pre-reboot properties on **both**
+targets: fresh cache/retry/restart, retained-visible preservation, retained-hidden
+preservation/retry, unsafe refusal/recovery, durable daemon restart and unchanged
+ordinary-account metadata. A real ACPI reboot of each same owned instance then
+passes retained-hidden identity/cache/icon preservation, full provisioning retry
+and ordinary-account preservation. No temporary MAC policy was installed.
+
+| Live target | Verified package allocation | Package SHA-256 |
+| --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-_z8hgx9b` | `bb7279b313712c2a18a5a4d51d3908a93b784f604f90793a84e4b3e8b36a9827` |
+| Fedora 44 | `onpc-test-artifacts-663mce0u` | `e2ddc426f48ad9ed443cd6c88dc462cd3f0bcb4a6794ddf922a7fa461c320664` |
+
+Both allocations are under `output/test-runs/host/allocations/`. The diagnostic
+stdin subset deliberately omits atomic child injections; the installed selector
+must still qualify them. An artifact-preparation attempt while Ubuntu was still
+maintenance-owned refused at its baseline probe (report
+`20261013T004820Z-6395a1a3`); no build or VM mutation occurred. Preparation is
+retried only after owned maintenance cleanup. Final system/public validation
+and cleanup are recorded below.
+
+The first Ubuntu installed selector passes all nine installed properties,
+including precommit failure, abrupt precommit exit and abrupt postcommit exit
+with real hook recovery. Its next reboot request is refused by logind with
+`Operation denied due to active block inhibitor`; the guarded runner correctly
+stops before rebooted acceptance and restores its baseline. Report:
+`20261013T005019Z-4658fd36`; retained evidence:
+`output/test-runs/privileged/allocations/onpc-system-7cqsrly0/evidence/`.
+The exact refusal is in `private/command-0025-stderr.txt` beside that evidence.
+
+Owned live Ubuntu investigation repeats the classification/restart matrix and
+reinstalls the same verified package through the public `make install` recipe.
+Those operations pass; observed inhibitors include ordinary delays and key-handling
+blocks, with no strong shutdown block. A single normal noninteractive reboot
+also succeeds. This does not identify the earlier holder or establish
+`--no-ask-password` as a fix: reviewed systemd v259 derives inhibitor behavior
+independently of that flag. No inhibitor was bypassed, killed or removed, and no
+shared reboot expectation was changed. The diagnostic owner is cleaned before
+retrying only the incomplete Ubuntu selector.
+
+### Final installed classification qualification
+
+The exact maintained owner is `system` → area `package` →
+`test_kiosk_account_classification_survives_reboot`. Both its `installed` and
+`rebooted` executions pass on each required target. Ubuntu's clean retry accepts
+the normal reboot request and observes the new boot without any transport edit,
+inhibitor bypass or changed assertion. The earlier infrastructure refusal remains
+retained; its holder was not captured and is not claimed to be diagnosed.
+
+| Target | Matching verified allocation | Passing report | Retained system evidence allocation |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-khh008u5` | `20261013T010107Z-639e68d0` — 2/2 | `onpc-system-lwdjr_lb` |
+| Fedora 44 | `onpc-test-artifacts-oj6v5pjl` | `20261013T005732Z-d9d24e24` — 2/2 | `onpc-system-xd5mlqel` |
+
+These format-specific packages have exactly the live-validation SHA-256 values
+above. Artifact preparation reports `20261013T004936Z-747ac0c8` and
+`20261013T005023Z-35c32e9f` pass. Each final system run records nine installed
+properties, then retained-hidden and ordinary-account reboot preservation.
+This includes real production provisioning, all three interruption/recovery
+boundaries, complete retained cache bytes, ownership/mode/xattrs and custom icon
+preservation. Both runs finish collection and owned baseline restoration.
+Reports are under `output/test-runs/host/reports/`; system evidence is under
+`output/test-runs/privileged/allocations/<allocation>/evidence/` and remains
+accessible through the maintained artifact reader.
+
+### Public regression and scoped close-out
+
+After both installed selectors completed, the existing public case **50**
+(`E2E-016/approved`) passed on both targets through the maintained two-VM queue.
+Each independent journey configures the child in Parent, enters the passwordless
+restricted station, verifies ordinary shortcuts remain restricted, prepares the
+request, completes native parent authentication and approval, then observes
+automatic return to usable sign-in. No Phase 3 case was selected.
+
+| Target | Passing report | Retained scenario acceptance allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T010528Z-0b036d46` — 1/1 | `onpc-e2e-evidence-8sdq2qa6` |
+| Fedora 44 | `20261013T010528Z-b8a1c886` — 1/1 | `onpc-e2e-evidence-e1_9fs8s` |
+
+The two complete `acceptance.json` records independently confirm the same
+format-specific package hashes as live and system qualification, zero failures,
+and passed product, infrastructure, collection and cleanup outcomes. Cleanup
+confirms baseline restoration, owned processes stopped, host/source preserved,
+lease completion and VM off. Both final system result records and their complete
+JUnit evidence remain retained after this run; the earlier Ubuntu reboot refusal
+also remains available. Queue results are retained in
+`output/test-runs/host/allocations/onpc-vm-queue-igqgmmr1/results.json`.
+
+Coverage generation succeeds after the completed case on both targets. It adds
+the implemented unit and installed-system inventory while leaving E2E case
+bindings unchanged; inventory totals do not represent live passing results.
+
+The final coherent affected-host selection passes **958/958** in report
+`20261013T011234Z-b5fe94e8`: 956 unit/contract tests covering provisioning,
+classification fixtures, system runner/input closure, packaging/activation,
+resource inventory and the four E2E close-out modules, plus source/traceability
+and static checks. This current report supersedes the earlier rotated host
+iterations for retained close-out evidence. Both package formats passed the
+final product `make build`; subsequent fixture/documentation changes do not
+alter package bytes, as confirmed by the matching live, system and E2E hashes.
+All four changed Markdown documents pass link validation (96 checked, zero
+missing), and the complete diff passes whitespace checks.
+
+**Scoped session complete: 1/1 issue solved. Phase 2 overall: 1/2 issues solved.**
+Final pinned VM status reads report `state=5`, `id=-1` for both targets. All
+owned test and maintenance operations have finished their cleanup. The user then
+requested committing this validated issue-1 scope. All accumulated work is
+preserved. The next session
+owns only issue 2's bounded distro integration review and qualification. Phase 2
+remains unchecked; Phase 3 has not started. The whole confinement effort remains
+unfinished and not release-qualified until its remaining phase gates pass.

@@ -60,6 +60,10 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     files = {entry['path']: entry for entry in manifest['files']}
     assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'reboot'
     assert files['usr/libexec/oh-no-parent-control-kiosk-dbus']['activation'] == 'reboot'
+    accounts_dropin = 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'
+    assert (payload / accounts_dropin).read_bytes() == (
+        ROOT / 'data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf').read_bytes()
+    assert files[accounts_dropin]['activation'] == 'none'
     assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'reboot'
     for relative, entry in files.items():
         assert entry['sha256'] == hashlib.sha256((payload / relative).read_bytes()).hexdigest()
@@ -599,6 +603,7 @@ def test_spec_hashes_final_payload_and_copr_does_not_publish():
     assert 'GENERATE_ACTIVATION_MANIFEST=0' in spec
     assert 'Requires(postun): fapolicyd' in spec
     assert 'BuildRequires:  systemd-rpm-macros' in spec
+    assert '%{_unitdir}/accounts-daemon.service.d/oh-no-parent-control.conf\n' in spec
     copr = (ROOT / '.copr/Makefile').read_text()
     assert '--srpm --output "$(outdir)"' in copr
     assert 'copr-cli' not in copr

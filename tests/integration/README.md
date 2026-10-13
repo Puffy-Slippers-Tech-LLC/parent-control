@@ -365,6 +365,42 @@ failed test assertion.
   It verifies ordinary-user callbacks, the kiosk skip and parent namespace
   isolation. The configuration is removed only after inode/content checks;
   attempt restoration owns recovery. It changes no host PAM or namespace state.
+- `test_kiosk_account_classification_survives_reboot`: the package area exercises
+  fresh caching, retained-visible no-op retries, retained-hidden disk/live-state
+  disagreement and unsafe-state refusal/recovery. Its complete cache-byte oracle
+  permits only a fresh cache's initial `0600` or `0644` mode to become exactly
+  `0600` at daemon restart; every other fresh fingerprint field and the entire
+  immediate retry fingerprint must remain unchanged. This models
+  [AccountsService 23.13.9 startup](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/raw/23.13.9/src/main.c),
+  where `on_bus_acquired` enforces user-cache permissions before constructing
+  the daemon. All retained-record fingerprints remain exact. The oracle
+  preserves unknown user keys, comments, extension groups and custom icon state,
+  including file ownership, mode and xattrs, through the full production kiosk
+  provisioning function. A declared existing ordinary parent role's complete
+  cache and icon fingerprints must also survive every restart and the final
+  reboot without any fixture write to that account. Daemon restarts are independently
+  observed. Bounded child-only injection tests a precommit I/O failure and
+  immediate exits before and after the exact atomic replacement while the real
+  daemon is stopped and activation is masked. It checks the owned pending slot
+  and committed xattr marker before normal restart exercises real hook recovery.
+  A private witness verifies the final retained-hidden migration
+  after the controller's real reboot. Runtime fixture masks are removed only
+  while their recorded identity still matches. The outer baseline owns all
+  fixture recovery. This engineering check changes no ordinary-user cache and
+  resets the daemon's synthetic rapid-restart budget before each owned masked
+  fixture group only after independently observing an active daemon. It refuses
+  failed, inactive or transitioning services without clearing their failure or
+  retrying their start. This keeps the bounded engineering restart sequence
+  within systemd's start limit. The check
+  provides no customer UI acceptance. Select it with
+  `tools/run-tests system --vm NAME --artifacts '<verified-format-allocation>' --area package --test test_kiosk_account_classification_survives_reboot`.
+  Before that system run, owned maintenance can feed the same helper through
+  `tools/test-vm --vm NAME exec --timeout 180 --input-file 'tests/integration/system_kiosk_accounts.py' -- env 'PYTHONPATH=/var/tmp/onpc-system-input' 'ONPC_EXPECTED_RUN=RUN' /usr/bin/python3 -B - exercise-live`.
+  Replace `RUN` with the current owned guest marker's nonsecret run identity;
+  keep the guest/domain/input guards. After a real maintenance reboot, the same
+  command with `verify-reboot` checks its witness. This stdin diagnostic subset
+  omits only the three atomic subprocess injections whose source must be staged
+  in the frozen system-test payload. It does not complete the system selector.
 - `system_guest`: validates the guest/attempt boundary and drives real APT and
   installed pytest phases. Package assertions account for actual packaged
   permissions, including the restricted Parent launcher and fapolicyd's

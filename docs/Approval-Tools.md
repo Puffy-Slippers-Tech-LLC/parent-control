@@ -209,6 +209,27 @@ Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
+## Git development
+
+Routine Git development for this repository is preapproved through the project
+rules: inspection, branches/worktrees, staging, commits, fetch/pull/push,
+merge/rebase/cherry-pick/revert, stash, tags and remotes. Existing machine-wide
+rules already allow `git status`. Run direct `git SUBCOMMAND` or
+`/usr/bin/git SUBCOMMAND` commands with the intended checkout as the command
+tool's working directory. Setup maintains this allowance from
+[`config/codex-tests.rules`](../config/codex-tests.rules).
+
+These prefixes trust Git, repository hooks and configuration. They neither
+enforce the working directory nor validate trailing arguments. Use them only
+for the authorized repository development task and preserve unrelated work;
+discarding changes, deleting branches or rewriting published history still
+requires explicit task authorization. This grant does not cover blanket Git
+execution, `git clean`, `git reset`, arbitrary configuration or global options
+before the subcommand. It does not authorize product publication.
+
+Refresh with `./setup.sh --codex-rules-only`, then restart Codex with this
+checkout trusted to load the updated rules.
+
 ## Publishing
 
 Run `make publish` from the dedicated `releases/vX.Y` checkout to invoke the

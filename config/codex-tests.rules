@@ -93,6 +93,32 @@ prefix_rule(
     not_match = ["pkexec /usr/bin/journalctl --vacuum-time=1s"],
 )
 
+# Routine Git development is preapproved for this trusted project's checkouts.
+# Select the checkout with the command tool's working directory. Prefix rules
+# do not enforce cwd or validate trailing arguments; preserve unrelated work
+# and use these commands only within the authorized development task.
+# Existing machine-wide rules already allow git status.
+prefix_rule(
+    pattern = [["git", "/usr/bin/git"],
+               ["diff", "log", "show", "blame", "ls-files", "rev-parse",
+                "branch", "switch", "checkout", "restore", "add", "commit",
+                "fetch", "pull", "push", "merge", "rebase", "cherry-pick",
+                "revert", "stash", "tag", "worktree", "remote"]],
+    decision = "allow",
+    justification = "The user preapproves routine Git development for this repository, including syncing, staging, committing and pushing.",
+    match = [
+        "git diff --cached", "git log -5 --oneline", "git add -- README.md",
+        "git commit -m 'Update documentation'", "git fetch origin",
+        "git pull --rebase", "git push origin HEAD", "/usr/bin/git push",
+        "git switch -c feature/example", "git merge feature/example",
+        "git worktree add ../parent-control-feature -b feature/example",
+    ],
+    not_match = [
+        "git", "git clean -fd", "git reset --hard", "git config --global core.editor sh",
+        "git -C /tmp/other-repository push", "bash -lc 'git push'",
+    ],
+)
+
 # Restrictive project overrides also take precedence over old global allow
 # entries. An allow cannot cancel a prompt. Use the validated entry points above.
 # Machine-wide ordinary read allowances are maintained separately by setup.

@@ -36,6 +36,11 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'child-natural-expiry-observe': 'Observing the active child app or its naturally owned lock',
+    'child-natural-expiry-wrong-account-refused': 'Refusing natural-expiry work on the Parent account',
+    'child-natural-expiry-activity': 'Using the owned child app while usable time remains',
+    'child-natural-expiry-lock-ready': 'Checking the naturally locked input recipient',
+    'child-natural-expiry-lock-result': 'Reading the owned lock after harmless normal input',
     'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
     'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
     'kiosk-diagnostic-editor': 'Editing the real kiosk report and waiting for diagnostics without Send',
@@ -1147,7 +1152,7 @@ class UiObservations:
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
                     result['revoke_cancel']['read_bounds'] = [read_started, time.monotonic_ns()]
                 if operation in accessible_ui.COUNTDOWN_OPERATIONS:
-                    result['countdown_read_bounds'] = [read_started, time.monotonic_ns()]
+                    result['countdown_read_bounds'] = list(self.read_bounds)
                 if operation in accessible_ui.LOCK_RECIPIENT_OPERATIONS:
                     require(time.monotonic() - self.lock_recipient_checked < 30,
                             'ui:lock-recipient-stale-proof')
@@ -1303,6 +1308,16 @@ class UiObservations:
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:reminder-source-required')
             binding = [self.boot_guard or '', source]
+        if operation == 'child-natural-expiry-activity':
+            source = getattr(self, 'natural_expiry_source', None)
+            require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
+                    'ui:natural-expiry-source')
+            binding = [self.boot_guard or '', source]
+        if operation.endswith(('natural-expiry-lock-ready', 'natural-expiry-lock-result')):
+            require(hasattr(self, 'natural_expiry_lock') and (
+                operation != 'child-natural-expiry-lock-result'
+                or self.last_operation == 'child-natural-expiry-lock-ready'),
+                'ui:natural-expiry-lock-order')
         if operation in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor'):
             require(self.last_operation == ('kiosk-diagnostic-error' if
                     operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
@@ -1351,6 +1366,51 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation == 'child-natural-expiry-wrong-account-refused':
+            require(result.get('natural_expiry_refused') is True, 'ui:natural-expiry-refusal')
+            expected['natural_expiry_refused'] = True
+        if operation in accessible_ui.NATURAL_EXPIRY_OPERATIONS:
+            value = result.get('natural_expiry')
+            require(type(value) is dict and set(value) == {
+                'state', 'session_sha256', 'source', 'activity', 'seconds', 'lock', 'acted'}
+                and value['state'] in ('desktop', 'locked')
+                and type(value['session_sha256']) is str
+                and re.fullmatch(r'[0-9a-f]{64}', value['session_sha256'])
+                and type(value['acted']) is bool
+                and (operation == 'child-natural-expiry-activity' or not value['acted']),
+                'ui:natural-expiry-response')
+            previous_session = getattr(self, 'natural_expiry_session', value['session_sha256'])
+            require(value['session_sha256'] == previous_session, 'ui:natural-expiry-session-changed')
+            if value['state'] == 'desktop':
+                require(not operation.endswith(('lock-ready', 'lock-result'))
+                    and not hasattr(self, 'natural_expiry_lock')
+                    and value['lock'] is None and type(value['seconds']) is int
+                    and 0 <= value['seconds'] < 86400 and type(value['source']) is str
+                    and re.fullmatch(r'[0-9a-f]{64}', value['source']), 'ui:natural-expiry-response')
+                AppActivityObservation.from_value(value['activity'])
+                require(value['source'] == getattr(self, 'natural_expiry_source', value['source']),
+                        'ui:natural-expiry-stale-activity')
+                self.natural_expiry_source = value['source']
+            else:
+                lock = value['lock']
+                require(value['activity'] is value['seconds'] is value['source'] is None
+                    and type(lock) is dict and lock.get('entry') in ('curtain', 'restriction')
+                    and set(lock) == {'entry', 'owner', 'locked', 'desktop_input_available',
+                        'recipient', 'surface_id', 'provider'} | (
+                        {'reason', 'authentication_blocked'} if lock['entry'] == 'restriction' else set())
+                    and lock['owner'] == 'fixture-child' and lock['locked'] is True
+                    and lock['desktop_input_available'] is False and lock['recipient'] is None
+                    and type(lock['surface_id']) is str
+                    and re.fullmatch(r'[0-9a-f]{64}', lock['surface_id']), 'ui:natural-expiry-lock')
+                accessible_ui.validate_shell_metadata(lock['provider'])
+                if lock['entry'] == 'restriction':
+                    require(lock['reason'] == 'time-limit' and lock['authentication_blocked'] is True,
+                            'ui:natural-expiry-lock')
+                require(lock['surface_id'] == getattr(self, 'natural_expiry_lock', lock['surface_id']),
+                        'ui:natural-expiry-lock-changed')
+                self.natural_expiry_lock = lock['surface_id']
+            self.natural_expiry_session = value['session_sha256']
+            expected['natural_expiry'] = value
         if operation in accessible_ui.LOCK_SURFACE_OPERATIONS:
             value = result.get('lock')
             lock_operation = operation.replace('child-', 'parent-', 1)

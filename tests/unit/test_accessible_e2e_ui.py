@@ -598,6 +598,33 @@ def test_direct_parent_command_requires_safe_entry_and_never_replays(monkeypatch
         submit.assert_not_called()
 
 
+@pytest.mark.parametrize('phase', ['initial', 'final'])
+def test_parent_command_reacquires_retired_prompt_observation_before_single_launch(monkeypatch, phase):
+    ui = ui_for(Node())
+    ui.timeout = 1
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.desktop_result = Mock()
+    ui.prepare_launch_desktop = Mock()
+    retired = UiError('ui:system-prompt-observation-failed')
+    readings = iter([retired, None, None] if phase == 'initial' else [None, retired, None])
+    def prompt():
+        assert not ui.input_uncertain
+        value = next(readings)
+        if value is not None:
+            raise value
+    ui.handle_system_prompt = Mock(side_effect=prompt)
+    submit = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    ui.launch_parent_command()
+    assert ui.handle_system_prompt.call_count == 3
+    ui.prepare_launch_desktop.assert_called_once_with()
+    submit.assert_called_once()
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.launch_parent_command()
+    assert submit.call_count == 1
+
+
 @pytest.mark.parametrize('active', [False, True])
 def test_launch_desktop_closes_overview_once_and_waits_for_public_result(monkeypatch, active):
     ui = ui_for(Node())

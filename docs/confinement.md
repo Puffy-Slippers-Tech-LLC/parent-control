@@ -24,6 +24,7 @@ Record only useful current inputs, evidence, limits and remaining work here.
 | [x] | **5a — Overlay reminder editing prerequisite** | Task 312a's public reminder CRUD, main Save/Cancel, exact saved-ID persistence and saved empty-list readback passed on both targets, including request/time/policy preservation and owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
 | [x] | **5b — Kiosk reminder binding prerequisite** | Task 312b passed on both targets: exact saved-ID overlay/station continuity, selected-child Save/readback, child/approver isolation and unchanged request/time/policy, with owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
 | [x] | **5c — Saved fullscreen reminder preference prerequisite** | Task 311a passed on both targets: Save false, independently reopen, Cancel a true draft and independently read saved false, with unchanged reminder records/language/request/time/policy and owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
+| [x] | **5d — Natural enforced lock prerequisite** | Task 062 passed on both targets: public two-minute daily-only preparation, actual native app use until natural exhaustion, fresh owned lock before and after harmless Shift with desktop input unavailable, and owned cleanup. This bounded prerequisite supplies no reminder-delivery or complete-case acceptance. |
 | [ ] | **5 — Natural reminders** | Resolve unregistered tasks 311/311b and complete required natural-delivery, reminder persistence and Wellbeing lifecycle acceptance. Resolve the message-value contract and all prerequisites; preview, documentation and unresolved dependencies supply no acceptance. |
 
 Step 5a completed 312a as explicitly selected prerequisite work under the
@@ -34,15 +35,25 @@ Step 5b qualified 312b as the next bounded prerequisite, using delivered
 dependencies 312a and 300j. Its new kiosk binding passed on both targets without
 expanding the historical scope of either dependency.
 The remaining 312, 311b/311c and 311
-histories stay open under their owning queue rows. This confinement selection
-does not advance the unrelated E2E execution plan's next-task pointer.
+histories stay open under their owning queue rows. Steps 5a–5c left the E2E
+execution plan's next-task pointer at 181m.
 
 Step 5c qualified task 311a to advance the natural-delivery dependency
 chain using delivered 312a. Full task 312 remains open: its second-child overlay
 readback and kiosk deletion bindings need qualification before composing its
 complete reboot history. This selection supplies no acceptance for those gaps.
 
-**Dependency gate before step 5:** the
+Step 5d qualified task 062's Riley/native daily-only binding on both targets.
+Its [natural-lock qualification](TestAutomation/E2E-Building-Blocks.md#natural-enforced-lock-qualification)
+supplies the delivered expiry prerequisite without qualifying reminder delivery.
+Completing 062 enables case 27, so the canonical queue now places its pending
+task 059 before 181m under the customer-first ordering contract. No additional
+case was implemented or accepted by that scheduling correction.
+
+**Dependency gate before step 5:** natural-expiry dependency 062 is delivered
+through step 5d; task 311b retains its message-value contract gate. The global
+E2E next-task pointer is 059, separate from confinement's next step 5.
+The
 [natural-reminder queue rows](TestAutomation/E2E-Task-Queue.md#ordered-task-queue)
 retain pending 311b/311c qualifications and unfinished full histories for
 312 and 311. The developer's
@@ -532,7 +543,7 @@ preference regressions passed. `make build` passed for the current DEB and RPM
 candidate after release metadata changed. Package source digest is
 `f20b1adbd24cb1d1dfd4554894def9c1e8f90314530d188f120efc88fa679b9e`.
 Only step 5a/task 312a is complete; step 5, Phase 3 and complete cases 311/312
-remain open. The global E2E next-task pointer remains 181m.
+remain open. At that close-out, the global E2E next-task pointer was 181m.
 
 ### Kiosk reminder binding qualification (step 5b)
 
@@ -570,8 +581,8 @@ baseline restoration and host/source preservation all passed. The customer
 product category is `not-run`: only step 5b/task 312b is newly complete.
 Natural delivery, fullscreen banner qualification, Wellbeing
 lifecycle and complete cases 311/312 remain open, including the 311b
-threshold-value versus live-balance blocker. The global next-task pointer stays
-181m.
+threshold-value versus live-balance blocker. At that close-out, the global
+next-task pointer was 181m.
 
 ### Saved fullscreen preference qualification (step 5c)
 
@@ -597,8 +608,41 @@ collection, worker shutdown, callback closure, owned cleanup, baseline
 restoration and host/source preservation. Their customer product category is
 `not-run`: only step 5c/task 311a is newly complete. Natural delivery,
 fullscreen banner effects, Wellbeing lifecycle and full histories 311/312
-remain open; the 311b message-value contract blocker and global pointer 181m
-are unchanged.
+remain open; the 311b message-value contract blocker was unchanged and the
+global pointer was 181m at that close-out.
+
+### Natural enforced lock qualification (step 5d)
+
+`check_e2e_natural_expiry` passed on Ubuntu 26.04 and Fedora 44 in retained
+reports `20261013T211559Z-9707db41` and `20261013T211559Z-1783060f` under
+`output/test-runs/host/reports/`. Result allocations are
+`onpc-graphical-smoke-i3dha654` and `onpc-graphical-smoke-9xr9zneq`, respectively.
+Both prepared Riley's two-minute daily-only allowance through public Parent
+controls, verified zero grants and used the original native activity until
+natural exhaustion. Both performed 13 normal Submit actions, observed the
+owned curtain lock within the immutable earlier countdown's measured bound,
+then independently read the same lock before and after harmless Shift with
+desktop input unavailable. No hidden app read, manual Lock or expiry injection
+supplied the result. The [catalogue](TestAutomation/E2E-Building-Blocks.md#natural-enforced-lock-qualification)
+records the exact provider and package-input scope.
+
+Live reproduction on both targets preceded installed qualification. A retired
+AT-SPI provider exposed a shared Parent command preflight defect: its read-only
+prompt checks now reacquire fresh observations under the existing bounded wait,
+while command submission stays outside retries. Late prompts and uncertain
+input still refuse. Scoped observer, facade, decoder, worker-order, ownership,
+resource-inventory and source checks passed. The affected case 6 direct Parent
+command denial passed on both targets in `20261013T212247Z-241b158f` and
+`20261013T212247Z-cc82c958`. Product/package source did not change; no build was
+required. Both qualification and regression runs passed collection,
+worker/callback shutdown, owned cleanup, baseline restoration and preservation.
+Coverage was regenerated and close-out consistency checks passed.
+
+Only step 5d/task 062 is newly complete. Step 5 and Phase 3 remain open:
+natural reminder delivery, the 311b message-value contract, fullscreen effects,
+Wellbeing lifecycle and full histories 311/312 still require their own
+acceptance. The global E2E next-task pointer is 059 (pending case 27), now
+enabled by 062; confinement's next step remains 5.
 
 ## Operating and qualification routes
 
@@ -626,7 +670,8 @@ changes outside package/build dependencies do not require a package rebuild.
 Use `tools/run-tests --help`, `--list` and scoped system/E2E listings to verify
 actual registered selectors. Tasks 312a and 312b use
 `check_e2e_overlay_reminder_editing` and `check_e2e_kiosk_reminder_binding`;
-task 311a uses `check_e2e_reminder_fullscreen_preference`. The remaining planned
+task 311a uses `check_e2e_reminder_fullscreen_preference` and task 062 uses
+`check_e2e_natural_expiry`. The remaining planned
 reminder selectors
 must be implemented and qualified before acceptance. Documentation is not
 registration. No historical package-upgrade selector is required here.
@@ -642,6 +687,7 @@ tools/run-tests integration 'check_e2e_diagnostic_export' --vm 'onpc-Ubuntu26.04
 tools/run-tests integration 'check_e2e_overlay_reminder_editing' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_kiosk_reminder_binding' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_reminder_fullscreen_preference' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
+tools/run-tests integration 'check_e2e_natural_expiry' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 ```
 
 Phase 4 uses latest-version manifests only; no upgrade-assets preparation or

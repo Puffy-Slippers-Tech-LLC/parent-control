@@ -257,7 +257,13 @@ from regression_resources import HOST_WORKERS
 # waited Perl children; it adds no resource or cleanup lifetime.
 # Kiosk reminder journey/registration use the same private fixture boundaries
 # and synchronously waited Perl children, without a live or shared resource.
+# Natural-expiry journey/registration likewise owns only private pytest replies,
+# process-local doubles and bounded waited Perl children; compatible in unit
+# and cleanup, with no new protected operation or cleanup lifetime.
+# VM-control's natural-expiry reproduction binding uses its existing process-local
+# argument/lease doubles only; the compatible unit/cleanup ownership is unchanged.
 REVIEWED = frozenset('''
+e2e_natural_expiry
 kiosk_reminder_journey
 kiosk_reminder_registration
 overlay_reminder

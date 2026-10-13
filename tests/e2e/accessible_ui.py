@@ -175,6 +175,10 @@ PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
+NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
+    'observe', 'activity', 'lock-ready', 'lock-result'))
+OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
+OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
 CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
@@ -182,7 +186,7 @@ CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERA
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
-CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | frozenset({'child-command-launch'})
+CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
     'desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
@@ -7379,11 +7383,14 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session()
         self.desktop_result(EXISTING_CHILD if standard else PARENT, 'success')
-        self.handle_system_prompt()
+        def prompt_free():
+            self.invalidate_observation()
+            self.handle_system_prompt()
+            return True
+        self.wait(prompt_free, 'parent-launch-prompt', prompt_in_predicate=True)
         self.prepare_launch_desktop()
         require_active_launch_session()
-        self.invalidate_observation()
-        self.handle_system_prompt()
+        self.wait(prompt_free, 'parent-launch-final-prompt', prompt_in_predicate=True)
         self.input_uncertain = True
         subprocess.run([
             '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
@@ -7636,6 +7643,97 @@ class AccessibleUI:
         result = self.wait(observe, 'child-countdown', prompt_in_predicate=True)
         require_active_launch_session()
         return result
+
+    def natural_expiry_session(self):
+        """Observe one active child desktop, retaining its identity across Lock."""
+        uid = os.getuid()
+        require(uid == pwd.getpwnam(CHILD_ACCOUNTS[CHILD]).pw_uid == os.geteuid(),
+                'ui:natural-expiry-account')
+        current = session_control.sessions()
+        active = [item for item in current.values() if session_control.local_graphical(item)
+                  and item['Active'] == 'yes']
+        require(len(active) == 1 and active[0]['LockedHint'] in ('yes', 'no'),
+                'ui:natural-expiry-session')
+        locked = active[0]['LockedHint'] == 'yes'
+        identity = session_control.entry_identity(current, uid, 'lock' if locked else 'same')
+        return identity, locked
+
+    def natural_expiry(self, operation):
+        """TIME04: observe before app input; never inspect the app below a lock."""
+        require(operation in NATURAL_EXPIRY_OPERATIONS, 'ui:natural-expiry-operation')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        expected = getattr(self, 'expected_natural_expiry_source', None)
+        if operation == 'child-natural-expiry-activity':
+            require(type(expected) is str and re.fullmatch(r'[0-9a-f]{64}', expected),
+                    'ui:natural-expiry-source')
+        session, locked = self.natural_expiry_session()
+        locked_only = operation.endswith(('lock-ready', 'lock-result'))
+        require(not locked_only or locked, 'ui:natural-expiry-unlocked')
+        acted = False
+
+        def observe():
+            identity, is_locked = self.natural_expiry_session()
+            require(identity == session, 'ui:natural-expiry-session-changed')
+            if is_locked:
+                self.lock_role = 'child'
+                lock = (self._lock_surface('child-lock-time-denied')
+                        or self._lock_surface('child-lock-curtain'))
+                if lock is None:
+                    return None
+                require(self.natural_expiry_session() == (session, True),
+                        'ui:natural-expiry-session-changed')
+                return {'state': 'locked', 'session_sha256': session, 'source': None,
+                        'activity': None, 'seconds': None, 'lock': lock, 'acted': acted}
+            require(not locked_only, 'ui:natural-expiry-unlocked')
+            activity = self.native_app_snapshot('ONPC fixture draft', with_window=True)
+            source = hashlib.sha256(json.dumps([session, activity['pid'], activity['endpoint']],
+                                               sort_keys=True).encode()).hexdigest()
+            require(expected is None or expected == source, 'ui:natural-expiry-stale-activity')
+            remaining = self.snapshot_owned_target('child-remaining-time', showing=False,
+                                                  check_prompt=True)
+            require(remaining is not None and self.showing(remaining),
+                    'ui:natural-expiry-countdown')
+            seconds = remaining.getValue()
+            require(type(seconds) is int and 0 <= seconds < 86400, 'ui:natural-expiry-countdown')
+            # Recheck the session after discovery and immediately before input.
+            # Near expiry, retain read-only observation instead of racing an action.
+            identity, is_locked = self.natural_expiry_session()
+            require(identity == session, 'ui:natural-expiry-session-changed')
+            if is_locked:
+                return None
+            return {'state': 'desktop', 'session_sha256': session, 'source': source,
+                    'activity': activity, 'seconds': seconds, 'lock': None, 'acted': acted}
+
+        def transition_read():
+            try:
+                return observe()
+            except UiError as error:
+                # A natural Lock can retire the desktop during a read. Reacquire
+                # its public lock surface; an uncertain mutation still refuses.
+                if (str(error) not in ('ui:native-entry', 'ui:natural-expiry-countdown')
+                        or self.input_uncertain
+                        or self.natural_expiry_session() != (session, True)):
+                    raise
+                return observe()
+        value = self.wait(transition_read, 'natural-expiry', prompt_in_predicate=True)
+        if operation != 'child-natural-expiry-activity' or value['state'] == 'locked' or value['seconds'] <= 10:
+            return value
+        self.invalidate_observation()
+        root = self.snapshot_owned_target('onpc-fixture-native-primary',
+                                         showing=False, check_prompt=True)
+        activity = value['activity']
+        require(root is not None and root.get_process_id() == activity['pid']
+                and [root.bus, root.path] == activity['endpoint'],
+                'ui:natural-expiry-stale-activity')
+        target = self.snapshot_owned_target('onpc-fixture-native-primary-submit',
+                                           root=root, showing=False, check_prompt=True)
+        require(target is not None, 'ui:native-entry')
+        if self.natural_expiry_session() == (session, False):
+            # One mutation outside every read-only retry predicate.
+            self._invoke_target(target)
+            acted = True
+            self.invalidate_observation()
+        return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
     def child_countdown_animation(self, desired=None):
         """PANEL01/02: owned canonical preference, without popup navigation."""
@@ -12005,6 +12103,16 @@ class AccessibleUI:
                     result['provider'] = self.gdm_provider_metadata(installed_child=True)
             else:
                 self.greeter_list()
+        elif operation in NATURAL_EXPIRY_OPERATIONS:
+            result['natural_expiry'] = self.natural_expiry(operation)
+        elif operation == 'child-natural-expiry-wrong-account-refused':
+            try:
+                self.natural_expiry('child-natural-expiry-observe')
+            except UiError as error:
+                require(str(error) == 'ui:natural-expiry-account', 'ui:natural-expiry-refusal')
+            else:
+                raise UiError('ui:natural-expiry-wrong-account-accepted')
+            result['natural_expiry_refused'] = True
         elif operation in COUNTDOWN_OPERATIONS:
             result['countdown'] = self.child_countdown(operation == 'child-countdown-present')
         elif operation in PANEL_ANIMATION_OPERATIONS:
@@ -13327,13 +13435,16 @@ def main():
             'ui:kiosk-reminder-binding')
     ui.expected_overlay_reminder_source = overlay_reminder_source
     ui.expected_binding_reminder_source = binding_reminder_source
+    natural_expiry_binding = sys.argv[1] in NATURAL_EXPIRY_OPERATIONS
+    ui.expected_natural_expiry_source = (sys.argv[4] if len(sys.argv) == 5
+                                         and natural_expiry_binding else None)
     ui.expected_kiosk_diagnostic_source = sys.argv[4] if len(sys.argv) == 5 and diagnostic_binding else None
     require(not diagnostic_binding or (ui.expected_kiosk_diagnostic_source is not None and
             re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_diagnostic_source)),
             'ui:kiosk-diagnostic-binding')
     ui.expected_mate_challenge = (sys.argv[4] if len(sys.argv) == 5 and not trace_argument
         and not diagnostic_binding and not reminder_binding and not overlay_reminder_binding
-        and not binding_reminder_binding else None)
+        and not binding_reminder_binding and not natural_expiry_binding else None)
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

@@ -811,6 +811,16 @@ class CountdownTicksQualification(ChallengesQualification):
         return CountdownTicksJourney(context, progress)
 
 
+class NaturalExpiryQualification(ChallengesQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from natural_expiry import NaturalExpiryJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return NaturalExpiryJourney(context, progress)
+
+
 class ShellPanelQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

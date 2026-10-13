@@ -368,6 +368,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
                    'reproduce-countdown-minutes',
+                   'reproduce-natural-expiry',
                    'reproduce-countdown-resume',
                    'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
@@ -406,6 +407,25 @@ def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input
     assert prefix[-1] == 'approval-open'
     assert PLAN.screen_tags['approval-open'] == 'ui:kiosk-mate-open'
     assert not {'approval-rechecked', 'approval-success'} & set(prefix)
+
+
+def test_natural_expiry_reproduction_reuses_full_activity_loop_before_lock_input(monkeypatch):
+    import vm_probe
+    from natural_expiry import NaturalExpiryJourney, PLAN
+    import tools.test_storage as storage
+    assets = Mock()
+    monkeypatch.setattr(storage, 'named_input', Mock(return_value=assets))
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_natural_expiry(lease)
+    reproduce.assert_called_once_with(lease, NaturalExpiryJourney, PLAN,
+        'lock-input-ready', 'natural-expiry', assets=assets)
+    storage.named_input.assert_called_once_with(vm_source=True, fixture_source=True)
+    prefix = PLAN.stages[:PLAN.stages.index('lock-input-ready')]
+    assert prefix[-1] == 'natural-expiry'
+    assert PLAN.stage_actions['natural-expiry'] == 'natural-expiry'
+    assert not {'lock-input-ready', 'lock-result'} & set(prefix)
 
 
 @pytest.mark.parametrize('failure', [None, 'kiosk-diagnostic-retry-estimate', 'kiosk-mate-open'])

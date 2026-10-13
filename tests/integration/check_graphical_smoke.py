@@ -1185,7 +1185,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                          kiosk_no_approver, repeated_operations, challenges)))),
             'smoke:product-free-entry-prerequisites')
     require(challenge_profile in ('parent', 'fresh-child', 'fresh-child-denied',
-                                  'countdown-enabled', 'countdown-off', 'countdown-animation', 'countdown-minutes', 'countdown-ticks', 'shell-panel',
+                                  'countdown-enabled', 'countdown-off', 'countdown-animation', 'countdown-minutes', 'countdown-ticks', 'natural-expiry', 'shell-panel',
                                   'overlay-valid-choices', 'overlay-choices', 'choices-overlay-to-kiosk', 'cross-surface', 'overlay-prompt', 'overlay-approved-exit', 'overlay-rejection', 'overlay-license',
                                   'overlay-approval-immediate', 'overlay-flow-rejection', 'overlay-flow-cancel',
                                   'overlay-browser-links', 'overlay-information') and
@@ -1662,6 +1662,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 'countdown-animation': 'installed-countdown-animation-qualification',
                 'countdown-minutes': 'installed-countdown-minutes-qualification',
                 'countdown-ticks': 'installed-countdown-ticks-qualification',
+                'natural-expiry': 'installed-natural-expiry-qualification',
                 'shell-panel': 'installed-shell-panel-qualification',
                 'overlay-valid-choices': 'installed-overlay-valid-choices-qualification',
                 'overlay-choices': 'installed-overlay-choices-qualification',
@@ -1841,7 +1842,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import (ChallengesQualification,
                         FreshChildAllowedQualification, FreshChildDeniedQualification,
                         CountdownQualification, CountdownOffQualification, CountdownAnimationQualification, CountdownMinutesQualification,
-                        CountdownTicksQualification, ShellPanelQualification,
+                        CountdownTicksQualification, NaturalExpiryQualification, ShellPanelQualification,
                         OverlayValidChoicesQualification, OverlayChoicesQualification, ChoicesOverlayToKioskQualification, CrossSurfaceQualification, OverlayLicenseQualification,
                         OverlayBrowserLinksQualification, OverlayInformationQualification, OverlayPromptQualification,
                         OverlayApprovedExitQualification, OverlayRejectionQualification,
@@ -1855,6 +1856,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         'countdown-animation': CountdownAnimationQualification,
                         'countdown-minutes': CountdownMinutesQualification,
                         'countdown-ticks': CountdownTicksQualification,
+                        'natural-expiry': NaturalExpiryQualification,
                         'shell-panel': ShellPanelQualification,
                         'overlay-valid-choices': OverlayValidChoicesQualification,
                         'overlay-choices': OverlayChoicesQualification,

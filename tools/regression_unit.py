@@ -785,7 +785,17 @@ from regression_ui import Bucket
 # Kiosk reminder journey/registration likewise use process-local immutable-value,
 # recorder and command doubles, pytest-private replies and bounded waited Perl.
 # They add no live settings, shared cache, bus, display, VM or cleanup ownership.
+# Natural-expiry journey/registration safety uses private pytest reply files,
+# process-local recorder/clock/transport doubles and bounded waited Perl workers.
+# No live session, shared cache, bus, display, VM or cleanup owner is acquired;
+# the same module is compatible in the unit and cleanup inventories.
+# Natural-expiry observer/facade tests likewise keep clocks, public-node/transport
+# doubles and small records process-local, without sockets, services or children.
+# VM-control's fixed reproduction binding adds only mocks to its reviewed private
+# fixture resources; no live maintenance lease or guest is acquired by host tests.
 REVIEWED = frozenset("""
+e2e_natural_expiry
+e2e_natural_expiry_cleanup_safety
 kiosk_reminder_journey_cleanup_safety
 kiosk_reminder_registration_cleanup_safety
 overlay_reminder_cleanup_safety

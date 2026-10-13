@@ -181,6 +181,20 @@ def reproduce_countdown_minutes(lease):
                             boundary_operation='child-countdown-present')
 
 
+def reproduce_natural_expiry(lease):
+    """Retain the naturally owned child lock before any harmless lock input."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from natural_expiry import NaturalExpiryJourney, PLAN
+    from tools.test_storage import named_input
+    assets = named_input(vm_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('natural-expiry-diagnosis: prepare fixture inputs with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              flush=True)
+    return reproduce_denial(lease, NaturalExpiryJourney, PLAN,
+                            'lock-input-ready', 'natural-expiry', assets=assets)
+
+
 def reproduce_countdown_resume(lease):
     """Inspect countdown use/pause/return through the qualified lock journey."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

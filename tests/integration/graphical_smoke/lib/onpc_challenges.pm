@@ -8,6 +8,7 @@ use onpc_gdm ();
 use onpc_desktop_session ();
 use onpc_parent ();
 use onpc_request_flow ();
+use onpc_app_rows ();
 
 sub shell_panel {
     onpc_progress::operation('Qualifying direct and normal panel overlay entry');
@@ -146,6 +147,40 @@ sub _countdown_progression {
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     $journey->invoke($_) for @$progressions;
+    $journey->finish();
+}
+
+# TIME04 prepares only public daily time, then the controller observes normal
+# fixture activity until the owned lock. This worker never requests Lock.
+sub natural_expiry {
+    onpc_progress::operation('Using the native app until natural screen-time exhaustion');
+    my ($exchange, $declared, $challenges) = @_;
+    my @stages = qw(installed-greeter parent-focused recipient-qualified recipient-rechecked desktop
+        wrong-account-refused fresh-installed-greeter fresh-child-focused fresh-child-recipient-qualified
+        fresh-child-recipient-rechecked fresh-desktop natural-expiry lock-input-ready lock-result);
+    die 'natural-expiry:plan' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && join('/', @$declared) eq join('/', @stages)
+        && ref($challenges) eq 'HASH' && keys(%$challenges) == 2
+        && ref($challenges->{'parent-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'parent-login'}}) eq 'parent/recipient-qualified/recipient-rechecked'
+        && ref($challenges->{'child-login'}) eq 'ARRAY'
+        && join('/', @{$challenges->{'child-login'}}) eq
+            'child/fresh-child-recipient-qualified/fresh-child-recipient-rechecked';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'natural-expiry', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    $journey->invoke('wrong-account-refused');
+    onpc_parent::daily_time_profile($journey, 'desktop', 'parent', 'same-user', 'new', 'child', 0, 2);
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    $journey->invoke('natural-expiry');
+    $journey->consume_observation('lock-input-ready', $journey->invoke('lock-input-ready'));
+    testapi::send_key('shift');
+    $journey->invoke('lock-result');
     $journey->finish();
 }
 

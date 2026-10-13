@@ -400,6 +400,12 @@ sub run {
         onpc_challenges::countdown_ticks(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{natural_expiry}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::natural_expiry(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{countdown_animation}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

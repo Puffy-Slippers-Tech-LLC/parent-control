@@ -2766,7 +2766,7 @@ and enforcement results.
 | TIME01 | C | Read the child's remaining usable time during activity or session return. Retain stable absence on the limits-off desktop as a qualified supporting observation; local lock/greeter visibility belongs to UI obligation 052b. | UI01 → UI03, or UI11 with the destination positively identified. `AccessibleUI.child_countdown(present)` / `countdown.CountdownObservation` and `check_countdown_balance`; [child-desktop qualification](#child-desktop-countdown-qualification). | child-desktop horizontal presence and limits-off absence ready; new customer time/session bindings need qualification, local visibility is UI scope |
 | TIME02 | C | Compare displayed remaining time across real activity with public starting balances, elapsed intervals and explicit precision/tolerances. This supports actual time-use and expiry outcomes; tick formatting belongs in UI tests. | `countdown.CountdownSample`, `check_countdown_progress` and `await_countdown_progress` compare immutable minute or exact-second endpoints bracketed by controller monotonic reads, including an explicitly declared minute-to-seconds transition. TIME03 `interval_action` retains the original bound and attempt guard. `countdown_qualification.MINUTE_PLAN` / `CountdownMinutesJourney` and `TICK_PLAN` / `CountdownTicksJourney` share `onpc_challenges` daily-only preparation and independent child reads, qualified by `check_e2e_countdown_minutes` / `check_e2e_countdown_ticks`. No guest clock/usage manipulation. [Minute qualification](#minute-countdown-progression-qualification) and [final-second qualification](#final-second-countdown-progression-qualification). | minute and final-second progression ready on Ubuntu 26.04 and Fedora 44; other customer bindings pending |
 | TIME03 | A | Let a declared bounded real interval elapse while retaining the runner guard and deadline. Return elapsed time only; this does not prove a lock or grant expiry. | `real_interval.wait_real_interval(duration, deadline=absolute_monotonic, guard=attempt_guard, progress=callback)` accepts finite durations through 300 seconds, checks ownership/deadline between sleeps of at most 250 ms and publishes five checkpoints. `interval_action(duration)` binds it to an `InstalledJourney` stage action using the guard's attempt deadline. `real_interval_qualification.PLAN` / `onpc_parent_about::run_interval` passed `check_e2e_wait_a_bounded_real_interval_under_the_attempt_guard` in `20260929T212620Z-9ce87d41`: five real seconds between independent unchanged About endpoint/PID/product/version reads, valid entry and wrong-entry refusal, collection, owned cleanup and baseline restoration. Host safety checks cover lost ownership, deadline, cancellation, recorder failure and durable reply refusal. No product state follows from elapsed time. | guarded elapsed-time helper ready; five-second About slice qualified; complete consumers remain separate |
-| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | Bounded APP03 → TIME03 repetitions, with TIME02 only while the countdown is showing → UI01(lock) → UI05(harmless normal input) → UI01(owned lock surface)/UI02. A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. Do not require a visible countdown during fullscreen play or inspect the game underneath the lock. | pending |
+| TIME04 | C | Use the selected app/game until natural expiry, then observe the lock owning normal input and loss of desktop access. Earlier visible time and the timeout are explicit inputs. | `natural_expiry_observation.await_natural_expiry` consumes an immutable countdown and original activity under the original display upper bound plus 15 seconds and attempt deadline. `AccessibleUI.natural_expiry` binds the child session/window before ordinary Submit input, stops input near zero or Lock, and reuses the qualified curtain/restriction reader without inspecting the app underneath. `NaturalExpiryJourney` / `onpc_challenges::natural_expiry` add fresh lock-ready → harmless Shift → independent same-lock read through `check_e2e_natural_expiry`; [installed qualification](#natural-enforced-lock-qualification). A native time restriction needs no password field; input ownership alone supplies no authenticated-denial result. | Riley/native two-minute daily-only binding ready on Ubuntu 26.04 and Fedora 44; other app/game/fullscreen and customer bindings pending |
 | LIFE01 | C | Close and reopen one named ordinary app through a shared direct command, unless the case explicitly tests its graphical launch route; observe its opening window. Do not reselect a child or restore settings before reading them. | `onpc_lifecycle::reopen(journey, 'parent', prior_window, 'management')` consumes `prior-window`, independently guards the active owned window, composes UI18 → PARENT01, then reads the initial child selection before edits. `app_restart.PLAN` / `onpc_app_restart::run` passed `check_e2e_app_restart` in report `20260925T070959Z-faca1de4`: fresh entry, already-closed and wrong named-window refusal without repair, complete old-window absence, new management window, initial selection, collection, owned cleanup and baseline restoration. Shared launch/close helpers are unchanged. Other ordinary apps use APP01 with the declared route; overlay/kiosk reopening uses their explicit exit/entry blocks. | Parent→management ready with the baseline eligible children; other apps/bindings pending |
 | LIFE02 | C | Reboot through a fixed supported system command in the owned guest, then observe a new boot and fresh GDM in the same attempt. | `JourneyPlan.reboot_transition`, `InstalledJourney.submit_reboot` and `Transport.request_customer_reboot`; independent `ReadOnlyObservations.wait_boot_change` then fresh GDM. [Qualified install/reboot composition](#customer-reboot-continuity). No Shell power menu; product persistence and activation notices remain required. | fresh install/reboot/administrator return ready; other bindings pending |
 | LIFE03 | C | Suspend through a fixed supported system command, wait the real interval, wake through the owned VM's supported input and observe the return. | Shared lifecycle harness → TIME03 → bound wake input → public result; unlock remains DESK08. No Shell menus. | pending |
@@ -2779,6 +2779,45 @@ and enforcement results.
 for `onpc_lifecycle::reopen`, including `initial-selection`. The app-restart
 qualification and cases 152, 158 and 159 compose it before their separate draft
 reset or child-persistence assertions; it never repairs the selected child.
+
+#### Natural enforced lock qualification
+
+`check_e2e_natural_expiry` passed on Ubuntu 26.04 in
+`20261013T211559Z-9707db41` and Fedora 44 in `20261013T211559Z-1783060f`.
+Public Parent controls prepared Riley's two-minute daily-only profile with
+zero grants, followed by fresh child entry and the actual native fixture app.
+The immutable initial `00:01` observation supplied the 61–119-second display
+interval and original upper bound plus 15 seconds. Both runs performed 13
+ordinary Submit actions before input ceased near zero; the independently
+observed owned curtain arrived within elapsed brackets of 79.84–85.02 seconds
+(Ubuntu) and 77.72–83.33 seconds (Fedora). Fresh lock-ready and post-Shift reads
+proved the same session/surface with desktop input unavailable. Locked reads
+did not inspect the app underneath. Wrong-account, changed boot/session/window,
+uncertain-input, early/late-lock and worker-order guards retain focused host
+coverage; elapsed time alone never proves Lock.
+
+Provider tuples are GNOME Shell `50.1-0ubuntu1.3` (Ubuntu) and
+`0:50.5-1.fc44` (Fedora), both `en_US.UTF-8`, `xkb/us`. Verified supplied DEB
+SHA-256 is `daa9c180960e1dfc72e026a7019bb71b2b63db3bd4c867a62e300f05f81b94fa`;
+the matching installed snapshot records archive SHA-256
+`d9cf7f7418b3f73caedd05e04d3dc26f76284d21417a5c6cb2a0b26601f372da`.
+Both record identical package-content SHA-256
+`5a9b78abd6312bd60d0c4543b341667d0047a1ac16d67ba7bff90733e116b26d`
+and matching baseline/installation recipe. Supplied and installed RPM SHA-256
+is `630ab36562dd7f85d1a2b4f0cbf2f359972b6ac29fe4dcb2e5a051f5723afaf4`.
+No product/package source changed.
+
+Live VM reproduction validated both bindings before installed acceptance.
+Shared Parent launch preflight now retries only fresh read-only prompt checks
+when an AT-SPI provider retires; the command remains a single submission.
+Late-prompt and uncertain-input refusal tests passed, and the affected case 6
+standard-user direct command denial passed on both VMs in
+`20261013T212247Z-241b158f` / `20261013T212247Z-cc82c958`.
+Collection, worker/callback shutdown, owned cleanup, baseline restoration,
+finalization and source/host preservation passed in all four runs. Coverage and
+close-out consistency were refreshed. This qualifies task 062's fixed binding;
+authenticated denial, other apps/games, fullscreen, reminder delivery and
+complete customer histories remain separate.
 
 #### Installed restart notice qualification
 

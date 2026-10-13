@@ -83,6 +83,23 @@ after authenticated return are retained in the maintenance allocation. It stops
 before the activity comparison and supplies no acceptance credit. Both routes
 reuse the existing maintenance lease, worker cleanup and evidence allocation.
 
+TIME04's `natural_expiry_observation.await_natural_expiry` receives an immutable
+`CountdownSample` and original `AppActivityObservation`. It readies the public
+child-session observer before normal native Submit actions, preserves the
+initial display's upper bound plus 15 seconds and the attempt deadline, and
+checks the same boot, session and native window before further input. It stops
+app input near zero and when the owned lock appears. Locked observations reuse
+the qualified Shell curtain/restriction reader and never inspect the app below
+the lock. `NaturalExpiryJourney` then obtains a fresh lock recipient proof,
+allows one harmless Shift and independently reads the same lock again.
+`tools/test-vm --vm NAME reproduce-natural-expiry` reuses that journey through
+the natural lock, stopping before Shift for engineering probes and normal owned
+maintenance cleanup. It supplies no acceptance credit. Its fixture inputs use
+the maintained builder; no reusable prerequisite is installed during a run.
+The natural-expiry host modules use private pytest records, fake clocks,
+in-memory UI/transport doubles and bounded waited Perl children. Their reviewed
+unit/cleanup classifications add no shared path, process, bus or display owner.
+
 FLOW13 daily-only composes `journey_blocks.daily_time_profile` and
 `onpc_parent::daily_time_profile`; `DailyTimeProfileJourney` owns the exact
 zero-grant gate before edits and caller-declared saved balance checks. Reuse that

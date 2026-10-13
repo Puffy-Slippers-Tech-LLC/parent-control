@@ -376,6 +376,7 @@ def main(argv=None):
                                           'reproduce-retained-entry', 'probe-lock-curtain',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-countdown-minutes',
+                                          'reproduce-natural-expiry',
                                           'reproduce-countdown-resume',
                                           'reproduce-retained-app-visits',
                                           'probe-retained-app-launch',
@@ -442,6 +443,7 @@ def main(argv=None):
                              'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
                              'reproduce-countdown-minutes',
+                             'reproduce-natural-expiry',
                              'reproduce-countdown-resume',
                              'reproduce-retained-app-visits',
                              'reproduce-transfer-refusal', 'reproduce-remembered-return', 'repeat-remembered-return',
@@ -453,6 +455,7 @@ def main(argv=None):
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
+            from vm_probe import reproduce_natural_expiry
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
@@ -462,6 +465,7 @@ def main(argv=None):
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,
+             'reproduce-natural-expiry': reproduce_natural_expiry,
              'reproduce-countdown-resume': reproduce_countdown_resume,
              'reproduce-retained-app-visits': reproduce_retained_app_visits,
              'reproduce-transfer-refusal': reproduce_transfer_refusal,

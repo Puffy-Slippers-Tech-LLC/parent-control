@@ -732,6 +732,8 @@ class InstalledJourney:
                     if plan.stage_actions[stage] == 'minute-progress'
                     else 'Awaiting displayed final-second countdown progression'
                     if plan.stage_actions[stage] in ('final-transition', 'second-progress')
+                    else 'Using the child app until its naturally owned lock'
+                    if plan.stage_actions[stage] == 'natural-expiry'
                     else 'Preparing declared native application fixtures'
                     if plan.stage_actions[stage] in ('native-refuse', 'native-verify')
                     else 'Preparing the declared child-account fixture')

@@ -3500,14 +3500,17 @@ inspects offered control IDs for request-only actions. The ID-owned menu's
 single anonymous direct GTK toggle is its implementation child, never an input
 target or a blanket subtree exemption; named unknown controls and other
 anonymous controls still refuse. Each Super, Super-A and
-Ctrl-Alt-T input has a fresh ID-owned focused Cancel recipient and independent
-two-second absence observation followed by REQUEST03. It never types a search
+Ctrl-Alt-T input has a fresh owned-window/form and available Cancel check, followed
+by an independent two-second absence observation and REQUEST03. Readiness leaves
+the form unchanged and does not focus or activate a control. It never types a search
 query. Approval replaces the form with success and automatically exits; no
 post-approval form restriction pass is applicable. Case 50 passed independently
 in `20260926T172007Z-3a5d2feb`: all three shortcut restrictions, exact prepared
 choices, real approval, explicit success and automatic usable-GDM return passed,
 with private capture reconciliation, collection, owned cleanup and baseline
 restoration. About/report actions remain E2E-042/045 obligations.
+The unchanged complete case also passed on both confinement targets under the
+current candidate; see [step 6a qualification](../confinement.md#step-6a-qualification--2026-10-13).
 The added host regressions use private trees, bounded owned Perl doubles and
 the existing private durable-recorder fixtures. Unit and cleanup scheduler
 classifications remain compatible: no shared cache, bus, display, VM or heavy

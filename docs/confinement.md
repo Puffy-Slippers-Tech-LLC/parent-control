@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 6a is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 6b is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -42,7 +42,7 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **5a — Installed execution matrices** | On both targets, qualify the current candidate's complete confinement matrix, active namespace callbacks and platform integration checks; reuse retained evidence only after verifying exact input applicability. Prove allowed native execution before denials, actual final GDM execution restrictions, real credential/teardown confinement and policy-loss refusal/recovery. Finish owned cleanup. |
 | [x] | **5b — Installed admission coverage** | Add and pass maintained installed coverage on both targets for rejected alternate-session, terminal and SSH admission, with successful allowed controls before denials. Exercise the installed account/routing boundary: the execution matrix's final-session fixture and host login tests do not prove this assertion. Preserve the final-exec restrictions qualified in 5a. Record any remaining admission assertion gap and close only after its maintained installed coverage passes. Finish owned cleanup. |
 | [x] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
-| [ ] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
+| [x] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **7 — Exposed surfaces and required services** | On both targets, prove About, Preferences and error reporting cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify the confined editor's native WebKit/scanner route and required service roles; retain real scanner proof and usable in-app error reporting without sending feedback. Use existing applicable qualification first; add only missing confinement coverage, not full feature histories. Finish owned cleanup. |
@@ -649,12 +649,55 @@ review found no blocking defect. Generated coverage includes the four new cases.
 All 313 documentation/inventory consistency checks and Markdown links passed;
 both final qualification results were verified retained after validation.
 Changes are confined to tests and documents, outside package sources/build-tool
-dependencies, so no additional `make build` is required. Phase 3 remains open;
-step 6a is next, and the separate E2E queue is unchanged.
+dependencies, so no additional `make build` is required. Step 5c supplies no
+complete request-journey acceptance; the separate E2E queue is unchanged.
 
 Report roots are `output/test-runs/host/reports/`; privileged allocations are
 under `output/test-runs/privileged/allocations/`. System evidence includes
 `evidence/guest/enforcement.xml`. Use maintained readers/exporters.
+
+### Step 6a qualification — 2026-10-13
+
+Complete restricted-station case 50 (`E2E-016/approved`) passed on both targets
+through `tools/run-tests e2e --id '50' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'`,
+with its existing recipe and all assertions preserved.
+
+| Approved request result | Ubuntu report / evidence allocation | Fedora report / evidence allocation |
+| --- | --- | --- |
+| Complete customer journey | `20261013T231844Z-b97d3070` / `onpc-e2e-evidence-o96g088z` | `20261013T231844Z-66b00d4f` / `onpc-e2e-evidence-qwus3zfk` |
+
+Each journey configured zero allowance through Parent, entered the station
+without a password, and independently verified that Overview, app-grid and
+terminal shortcuts left only the owned request form and permitted controls.
+It prepared the exact child/approver, custom 75-second duration and soft-app
+choice, authenticated through the real guarded native prompt, observed explicit
+approval success and automatically returned to usable sign-in with the station
+absent. Product, infrastructure, collection and cleanup ledgers passed on both
+targets, with no first failure and `lease_phase=complete`. Worker evidence confirms stopped
+workers, closed callbacks and verified shutdown. Both outer baselines were
+restored and verified; both pinned VMs were independently confirmed powered off.
+
+The maintained builder returned
+`output/test-runs/host/allocations/onpc-test-artifacts-9wwckgrw` (DEB) and
+`output/test-runs/host/allocations/onpc-test-artifacts-h239fa5a` (RPM).
+Their verified package-source, package and fixture hashes exactly match the 5a
+candidate above. Both attempts matched the retained online `onpc-v1.4` snapshots.
+The common scenario-source SHA-256 was
+`9f90ccd0fad0af2456f9e8b99c04901a73c2275696696039a64083e188992c90`;
+the acceptance records retain full input identities and reviewed step evidence.
+Before acceptance, both maintenance probes succeeded, including Fedora's
+enforcing SELinux check, and both maintenance owners completed restoration.
+Those probes supply engineering observation only.
+
+Independent source review found no missing case assertion or required code fix.
+The building-block description now matches the unchanged shortcut readiness
+checks, which preserve the form without focusing a control. Coverage regeneration
+succeeded with no inventory change, all 313 documentation/inventory consistency
+checks passed, and Markdown links passed. Both acceptance reports and evidence
+allocations were verified retained after validation. Only documentation changed,
+outside package sources/build-tool dependencies, so no additional `make build`
+is required. Phase 3 remains open; step 6b is next. The separate E2E queue is
+unchanged.
 
 ## Operating and qualification routes
 

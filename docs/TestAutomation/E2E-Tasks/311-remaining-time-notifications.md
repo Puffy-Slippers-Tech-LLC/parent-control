@@ -23,10 +23,13 @@ while playing a fullscreen game, with independent durable reminder choices.
 Use the [child requirement](../../Specification.md) and
 [reminder implementation contract](../../SystemDesign/Screen-Time.md#remaining-time-notifications).
 Backend storage, notification delivery, reminder-list editing and the fullscreen
-preference GUI/public API are implemented; installed qualification remains pending.
+preference GUI/public API are implemented. Installed editing and selected-child
+kiosk bindings are qualified; fullscreen preference and natural-delivery
+qualifications remain pending.
 
 Gate: complete the explicit installed reminder prerequisites before composing
-this case. Tasks 312a/312b qualify the public editing and selected-child bindings;
+this case. Tasks 312a/312b qualified the public editing and selected-child bindings
+for their exact [catalogue scopes](../E2E-Building-Blocks.md#reminder-controls-and-notification-qualification);
 311a qualifies the implemented fullscreen preference; 311b qualifies natural
 body/urgency observations; 311c qualifies owned-banner visibility during the
 existing task-129 fullscreen game. These remain independent capability slices,

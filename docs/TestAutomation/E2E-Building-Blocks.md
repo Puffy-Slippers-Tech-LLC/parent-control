@@ -1061,14 +1061,14 @@ save. The independent 308a/308b qualifications remain separate from this case.
 The shared request Preferences controls and repository-owned reminder banners
 use the [Application UI API](Application-UI-API.md#shared-request-form-and-language-chooser), including the
 [ChildUI notification surface](Application-UI-API.md#child-panel). The fixed
-Riley overlay editing slice is qualified; kiosk ownership, fullscreen preference
-and natural notification bindings remain **pending**. The queue extracts these
+Riley overlay editing and selected-child kiosk binding slices are qualified;
+fullscreen preference and natural notification bindings remain **pending**. The queue extracts these
 bounded bindings before the complete reminder cases:
 
 | Task | Exact qualification slice |
 | --- | --- |
 | 312a (qualified) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing` |
-| [312b](E2E-Tasks/312b-kiosk-reminder-binding.md) | Selected-child kiosk reminder save/readback, overlay continuity and account isolation |
+| 312b (qualified) | Selected-child kiosk reminder save/readback, exact saved-ID overlay continuity and account/approver isolation on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding` |
 | [311a](E2E-Tasks/311a-reminder-fullscreen-preference.md) | Save nondefault false, reopen, Cancel a true draft and read saved false; no notification-delivery credit |
 | [311b](E2E-Tasks/311b-natural-reminder-observation.md) | Naturally emitted ChildUI body, canonical seconds, urgency and natural-lock removal; public-value contract gate remains explicit in the brief |
 | [311c](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | Owned banner visibility/suppression with task 129's genuine fullscreen game; independent of urgency |
@@ -1086,6 +1086,23 @@ access. Fresh Parent entry and explicit Riley selection supply final policy
 readback. Wrong-owner/surface, unavailable or ambiguous controls, owned stale
 nodes/drafts, competing modals and uncertain input remain guarded; incidental
 captions and new-editor seed values do not determine acceptance.
+
+`KioskReminderJourney` in [kiosk_reminders.py](../../tests/e2e/kiosk_reminders.py)
+and `onpc_kiosk_reminders::run` qualify the selected-child station binding using
+the same facade's `overlay_reminder_open/read/editor/commit` helpers with explicit
+`surface='kiosk'` and child bindings. The overlay saves a literal 90-second row;
+the kiosk independently reads its exact ID, edits/saves 75 seconds and reopens
+it before the overlay independently reads 75 seconds with that ID. Jordan's
+list/language, Riley's list/language through Jamie → Casey and child switches,
+and both children's request/policy/time remain preserved apart from elapsed
+time, without granting access. Kiosk receipts include the public
+`language-dialog.getValue()` lifetime token as well as selected child, endpoint
+and draft, so a same-child replacement cannot revive a stale receipt.
+Wrong-child/owner/surface, ambiguous stored-ID, replaced-dialog and uncertain
+input refusals remain shared guards. Reports `20261013T193554Z-2f3ca206` (Ubuntu)
+and `20261013T193554Z-a3336e1b` (Fedora) passed infrastructure, collection, owned
+cleanup and baseline restoration. This supplies no natural-delivery, reboot or
+complete-case acceptance.
 
 `PreferencesDialog` implements reminder editing and the fullscreen switch in
 `kiosk/oh_no_parent_control_kiosk/preference_dialog.py`. Child notification

@@ -237,6 +237,13 @@ screen-time control and absent accounts retain their existing restrictions.
 | `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit |
 | `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
 
+On the shared child/kiosk Preferences surface, `language-dialog.getValue()`
+returns an opaque 32-character lowercase hexadecimal lifetime token. It stays
+constant while that dialog exists and changes when it is recreated, including
+after selecting another child and returning. Reminder operations bind this
+token alongside the current selected child's public identity and draft; stable
+surface paths alone do not distinguish dialog lifetimes.
+
 Bind preferences controls to `language-dialog` and editor controls to
 `reminder-editor-dialog` or `preset-editor-dialog`. Both editors share decimal
 syntax (including `6.`) and the red invalid-number message; backend-specific

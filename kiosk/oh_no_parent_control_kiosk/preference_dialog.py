@@ -404,6 +404,8 @@ class PreferencesDialog(Gtk.Window):
         self._translation_context = TranslationContext(self._selected)
         set_text(self, 'title', m.PREFERENCES)
         set_automation_id(self, "language-dialog")
+        instance = uuid.uuid4().hex
+        bind_ui(self, get_value=lambda: instance)
         self.add_css_class("oh-no-parent-control-language-dialog")
         self.set_default_size(400, -1)
         self.connect("map", self._size_to_gateway)

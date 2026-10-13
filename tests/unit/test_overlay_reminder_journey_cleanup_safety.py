@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import accessible_ui
 import overlay_reminders as reminders
 from private_artifacts import EvidenceError
 from ui_observations import UiObservations
@@ -26,7 +27,8 @@ def reminder_value(records=None):
 
 @pytest.mark.parametrize('fault', ['', 'extra', 'duplicate', 'id', 'uppercase-id', 'underscore-id', 'seconds', 'bool-seconds',
                                   'unit', 'text', 'language', 'source', 'fullscreen'])
-def test_decoder_rejects_malformed_record_and_latches_failure(fault):
+@pytest.mark.parametrize('operation', ['overlay-reminder-read', 'binding-reminder-riley-open'])
+def test_decoder_rejects_malformed_record_and_latches_failure(fault, operation):
     value = reminder_value()
     if fault == 'extra': value['extra'] = True
     if fault == 'duplicate': value['records'].append(deepcopy(value['records'][0]))
@@ -40,7 +42,7 @@ def test_decoder_rejects_malformed_record_and_latches_failure(fault):
     if fault == 'language': value['language'] = 'unknown'
     if fault == 'source': value['source'] = 'not-a-digest'
     if fault == 'fullscreen': value['fullscreen_enabled'] = 1
-    payload = {'operation': 'overlay-reminder-read', 'outcome': 'passed',
+    payload = {'operation': operation, 'outcome': 'passed',
                'interface': 'ApplicationUI+external-provider', 'reminders': value}
     raw = json.dumps(payload).encode()
     def deliver(*args, **kwargs):
@@ -52,18 +54,20 @@ def test_decoder_rejects_malformed_record_and_latches_failure(fault):
     transport = SimpleNamespace(call=Mock(side_effect=deliver), commands=SimpleNamespace(progress=None))
     observer = UiObservations(transport)
     if fault:
-        with pytest.raises(EvidenceError): observer.observe('overlay-reminder-read')
+        with pytest.raises(EvidenceError): observer.observe(operation)
         with pytest.raises(EvidenceError, match='previous-failure'):
             observer.observe('overlay-reminder-save')
         transport.call.assert_called_once()
     else:
-        assert observer.observe('overlay-reminder-read') == payload
-        assert observer.overlay_reminder_source == value['source']
+        assert observer.observe(operation) == payload
+        assert getattr(observer, 'binding_reminder_source' if operation.startswith('binding-') else
+                       'overlay_reminder_source') == value['source']
 
 
 @pytest.mark.parametrize('operation', [
     'overlay-reminder-create', 'overlay-reminder-edit', 'overlay-reminder-delete',
-    'overlay-reminder-delete-all', 'overlay-reminder-save', 'overlay-reminder-cancel'])
+    'overlay-reminder-delete-all', 'overlay-reminder-save', 'overlay-reminder-cancel',
+    *sorted(accessible_ui.BINDING_REMINDER_MUTATIONS)])
 def test_mutation_requires_prior_draft_and_carries_exact_source(operation):
     transport = SimpleNamespace(call=Mock(), commands=SimpleNamespace(progress=None))
     observer = UiObservations(transport)
@@ -71,12 +75,14 @@ def test_mutation_requires_prior_draft_and_carries_exact_source(operation):
         observer.observe(operation)
     transport.call.assert_not_called()
     observer = UiObservations(transport)
-    observer.overlay_reminder_source = 'b' * 64
+    attribute = ('binding_reminder_source' if operation.startswith('binding-') else
+                 'overlay_reminder_source')
+    setattr(observer, attribute, 'b' * 64)
     observer.boot_guard = 'c' * 64
     value = reminder_value()
     payload = {'operation': operation, 'outcome': 'passed',
                'interface': 'ApplicationUI+external-provider'}
-    if operation not in ('overlay-reminder-save', 'overlay-reminder-cancel'):
+    if not operation.endswith(('-save', '-cancel')):
         payload['reminders'] = value
     payload['boot_sha256'] = observer.boot_guard
     raw = json.dumps(payload).encode()
@@ -89,7 +95,7 @@ def test_mutation_requires_prior_draft_and_carries_exact_source(operation):
     transport.call.side_effect = deliver
     result = observer.observe(operation)
     assert 'boot_sha256' not in result
-    assert observer.overlay_reminder_source == (None if operation.endswith(('-save', '-cancel')) else 'a' * 64)
+    assert getattr(observer, attribute) == (None if operation.endswith(('-save', '-cancel')) else 'a' * 64)
 
 
 @pytest.mark.parametrize('fault', ['', 'changed-id', 'text', 'lost-default', 'language', 'fullscreen',

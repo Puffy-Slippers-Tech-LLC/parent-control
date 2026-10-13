@@ -777,7 +777,12 @@ from regression_ui import Bucket
 # transport and clock doubles, tiny pytest-private replies and bounded waited
 # Perl workers. No live settings, bus, display, VM, shared cache or new cleanup
 # owner is used; all three modules permit compatible unit/cleanup scheduling.
+# Kiosk reminder journey/registration likewise use process-local immutable-value,
+# recorder and command doubles, pytest-private replies and bounded waited Perl.
+# They add no live settings, shared cache, bus, display, VM or cleanup ownership.
 REVIEWED = frozenset("""
+kiosk_reminder_journey_cleanup_safety
+kiosk_reminder_registration_cleanup_safety
 overlay_reminder_cleanup_safety
 overlay_reminder_journey_cleanup_safety
 overlay_reminder_registration_cleanup_safety

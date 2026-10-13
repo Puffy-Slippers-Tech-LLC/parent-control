@@ -387,6 +387,11 @@ OPERATION_LABELS.update({operation: 'Editing or reading Riley reminders through 
                         for operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768
                             for operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Preserving selected-child reminders across request surfaces'
+                        for operation in (set(accessible_ui.BINDING_REMINDER_OPERATIONS) |
+                                          set(accessible_ui.BINDING_REMINDER_SELECTIONS))})
+RESPONSE_BYTE_LIMITS.update({operation: 32768
+                            for operation in accessible_ui.BINDING_REMINDER_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Transferring child choices between the overlay and request station: ' + operation
                         for operation in accessible_ui.TRANSFER_OPERATIONS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
@@ -605,6 +610,19 @@ class RequestObservation:
                 custom_text='1.25', allow_soft=True, child_selector_enabled=not overlay,
                 approver_selector_enabled=True, duration_enabled=True, soft_choice_enabled=True,
                 request_enabled=True, cancel_enabled=True, message='', mute=None), 'ui:request')
+            return observation
+        if operation in accessible_ui.BINDING_REMINDER_SELECTIONS:
+            field, target, child = accessible_ui.BINDING_REMINDER_SELECTIONS[operation]
+            child = target if field == 'child' else child
+            require(observation.approver in accessible_ui.APPROVER_IDENTITIES.values()
+                    and (field != 'approver' or observation.approver ==
+                         accessible_ui.APPROVER_IDENTITIES[target]), 'ui:request')
+            require(observation == cls(surface='kiosk', form_count=1,
+                child=accessible_ui.CHILD_IDENTITIES[child], approver=observation.approver,
+                duration_seconds=1800, custom_text=None, allow_soft=False,
+                child_selector_enabled=True, approver_selector_enabled=True,
+                duration_enabled=True, soft_choice_enabled=True, request_enabled=True,
+                cancel_enabled=True, message='', mute=None), 'ui:request')
             return observation
         enabled = operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS or valid is not None or invalid is not None
         require(enabled or operation in accessible_ui.KIOSK_OPERATIONS
@@ -917,6 +935,7 @@ class UiObservations:
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS
                             or operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS
+                            or operation in accessible_ui.BINDING_REMINDER_OPERATIONS
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
@@ -1170,6 +1189,8 @@ class UiObservations:
                                  accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
                                  accessible_ui.OVERLAY_LANGUAGE_OPERATIONS |
                                  accessible_ui.OVERLAY_REMINDER_OPERATIONS |
+                                 set(accessible_ui.BINDING_REMINDER_OPERATIONS) |
+                                 set(accessible_ui.BINDING_REMINDER_SELECTIONS) |
                                  set(accessible_ui.KIOSK_LANGUAGE_POLICIES) | {'overlay-language-policy'} |
                                  set(accessible_ui.KIOSK_LANGUAGE_ACCOUNTS) |
                                  set(accessible_ui.LANGUAGE_HISTORY_REQUESTS) | {'kiosk-language-account-refusals'}):
@@ -1274,6 +1295,11 @@ class UiObservations:
             binding = [self.boot_guard or '', self.kiosk_reminder_source]
         if operation in accessible_ui.OVERLAY_REMINDER_MUTATIONS:
             source = getattr(self, 'overlay_reminder_source', None)
+            require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
+                    'ui:reminder-source-required')
+            binding = [self.boot_guard or '', source]
+        if operation in accessible_ui.BINDING_REMINDER_MUTATIONS:
+            source = getattr(self, 'binding_reminder_source', None)
             require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
                     'ui:reminder-source-required')
             binding = [self.boot_guard or '', source]
@@ -1408,8 +1434,10 @@ class UiObservations:
                     and all(type(seconds) is int and seconds >= 0 for seconds in value['balances'].values()),
                     'ui:language-balances')
             expected['language_policy'] = value
-        if operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS and operation not in (
-                'overlay-reminder-save', 'overlay-reminder-cancel'):
+        if ((operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS and operation not in (
+                'overlay-reminder-save', 'overlay-reminder-cancel')) or
+                (operation in accessible_ui.BINDING_REMINDER_OPERATIONS and
+                 accessible_ui.BINDING_REMINDER_OPERATIONS[operation][2] not in ('save', 'cancel'))):
             value = result.get('reminders')
             require(type(value) is dict and set(value) == {
                 'records', 'show_in_fullscreen', 'fullscreen_enabled', 'language', 'source'}
@@ -2303,6 +2331,7 @@ class UiObservations:
             expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS
                 or operation in accessible_ui.KIOSK_ACCOUNT_REQUESTS
+                or operation in accessible_ui.BINDING_REMINDER_SELECTIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
                 or operation in accessible_ui.TRANSFER_REQUESTS
                 or operation == 'overlay-request-form'):
@@ -2350,6 +2379,12 @@ class UiObservations:
         if operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS:
             self.overlay_reminder_source = (None if operation in (
                 'overlay-reminder-save', 'overlay-reminder-cancel') else result['reminders']['source'])
+        if operation in accessible_ui.BINDING_REMINDER_OPERATIONS:
+            self.binding_reminder_source = (None if
+                accessible_ui.BINDING_REMINDER_OPERATIONS[operation][2] in ('save', 'cancel')
+                else result['reminders']['source'])
+        elif operation in accessible_ui.BINDING_REMINDER_SELECTIONS:
+            self.binding_reminder_source = None
         self.last_operation = operation
         if operation == 'kiosk-approver-baseline':
             self.approver_uids = tuple(result.pop('approver_uids'))

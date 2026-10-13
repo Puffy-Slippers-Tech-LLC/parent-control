@@ -21,9 +21,9 @@ when moving between the child overlay and kiosk. Use the
 [child requirement](../../Specification.md) and
 [preferences contract](../../SystemDesign/Frontends.md#child-reminder-preferences).
 
-Gate: complete the explicit installed reminder qualifications 312a and 312b
-through the shared Application UI API facade before composing this case.
-Reuse their shared operations; this complete case absorbs no independent
+The installed reminder qualifications 312a and 312b passed on Ubuntu 26.04 and
+Fedora 44 for their exact [catalogue scopes](../E2E-Building-Blocks.md#reminder-controls-and-notification-qualification).
+Reuse their shared Application UI API operations; this complete case absorbs no independent
 capability work. Host UI coverage does
 not qualify an installed route. No E2E implementation or execution is authorized
 by this documentation addition; the current next-task pointer stays unchanged.

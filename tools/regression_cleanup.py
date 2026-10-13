@@ -253,7 +253,11 @@ from regression_resources import HOST_WORKERS
 # doubles and durable replies private to pytest. Their bounded Perl children
 # are synchronously waited; no settings, VM, bus, display or shared cache owner
 # is introduced. Compatible here and in the unit inventory.
+# Kiosk reminder journey/registration use the same private fixture boundaries
+# and synchronously waited Perl children, without a live or shared resource.
 REVIEWED = frozenset('''
+kiosk_reminder_journey
+kiosk_reminder_registration
 overlay_reminder
 overlay_reminder_journey
 overlay_reminder_registration

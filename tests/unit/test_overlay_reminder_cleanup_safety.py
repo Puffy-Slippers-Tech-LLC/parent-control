@@ -18,7 +18,7 @@ DEFAULTS = [
 ]
 
 
-def reminder_tree(records=None, *, opened=True):
+def reminder_tree(records=None, *, opened=True, surface='overlay', child=public.CHILD):
     records = deepcopy(DEFAULTS if records is None else records)
     controls = {
         'language-list': Node(identity='language-list', value='en', choices=['en', 'de']),
@@ -29,17 +29,19 @@ def reminder_tree(records=None, *, opened=True):
         'reminder-add': Node(identity='reminder-add'),
         'reminder-show-in-fullscreen': Node(identity='reminder-show-in-fullscreen', value=True),
     }
-    dialog = Node(identity='language-dialog', children=controls.values(),
+    dialog = Node(identity='language-dialog', children=controls.values(), value='1' * 32,
                   states=('showing', 'visible', 'sensitive', 'modal'))
     window = Node(identity='kiosk-request-window', children=[
         Node(identity='kiosk-language-ready'),
-        Node(public.CHILD, 'label', identity='kiosk-child-selected-1001'),
+        Node(child, 'label', identity='kiosk-child-selected-' +
+             ('1001' if child == public.CHILD else '1002')),
         *([dialog] if opened else []),
     ], states=('showing', 'visible', 'sensitive', 'modal'))
     window.bus, window.path = ':1.100', '/request/window'
     ui = ui_for(window)
     application = ui.api.get_desktop(0)
-    application.identity = public.CHILD_APPLICATION
+    application.identity = (public.CHILD_APPLICATION if surface == 'overlay' else
+                            public.KIOSK_APPLICATION)
     ui.require_child_overlay_session = Mock()
     editor_controls = {}
 
@@ -110,6 +112,60 @@ def reminder_tree(records=None, *, opened=True):
     return SimpleNamespace(ui=ui, application=application, window=window, dialog=dialog,
                            controls=controls, editor=editor_controls, records=records,
                            edit=edit, render=render)
+
+
+@pytest.mark.parametrize('child', [public.CHILD, public.EXISTING_CHILD])
+def test_kiosk_reminders_bind_the_selected_child_and_current_dialog(child):
+    tree = reminder_tree(surface='kiosk', child=child)
+    binding = {'surface': 'kiosk', 'child': child}
+    source = tree.ui.overlay_reminder_read(**binding)['source']
+    tree.dialog.value = '2' * 32
+    with pytest.raises(public.UiError, match='ui:reminder-stale-draft'):
+        tree.ui.overlay_reminder_commit(save=True, expected_source=source, **binding)
+    assert_no_input(tree)
+    tree.ui.require_child_overlay_session.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['child', 'owner', 'overlay', 'duplicate-record'])
+def test_kiosk_reminder_wrong_binding_refuses_before_input(fault):
+    tree = reminder_tree(surface='kiosk')
+    if fault == 'child': tree.window.children[1].identity = 'kiosk-child-selected-1002'
+    if fault == 'owner': tree.ui.owner_pids = lambda: {999}
+    if fault == 'overlay': tree.application.identity = public.CHILD_APPLICATION
+    if fault == 'duplicate-record': tree.records.append(deepcopy(tree.records[0]))
+    with pytest.raises(public.UiError):
+        tree.ui.overlay_reminder_editor(seconds=75, text='literal', surface='kiosk')
+    assert_no_input(tree)
+
+
+def test_kiosk_edit_preserves_exact_saved_id_and_literal_text():
+    tree = reminder_tree([*DEFAULTS, {'id': 'saved-row', 'value': 90,
+        'unit': 'second', 'text': 'Save <work> & games!'}], surface='kiosk')
+    tree.ui.expected_binding_reminder_source = tree.ui.overlay_reminder_read(surface='kiosk')['source']
+    result = tree.ui.binding_reminder_operation('binding-reminder-riley-edit')['reminders']
+    assert result['records'] == [*DEFAULTS[:2], {'id': 'saved-row', 'value': 75,
+        'unit': 'second', 'text': 'Save <work> & games!'}, *DEFAULTS[2:]]
+    tree.ui.expected_binding_reminder_source = result['source']
+    tree.ui.binding_reminder_operation('binding-reminder-riley-save')
+    tree.controls['language-continue'].action.do_action.assert_called_once()
+
+
+@pytest.mark.parametrize('operation', sorted(public.BINDING_REMINDER_MUTATIONS))
+def test_selected_surface_mutations_require_receipt_before_discovery(operation):
+    tree = reminder_tree()
+    tree.ui.read_snapshot = Mock(side_effect=AssertionError('unrelated discovery'))
+    with pytest.raises(public.UiError, match='ui:overlay-reminder-binding'):
+        tree.ui.binding_reminder_operation(operation)
+    assert_no_input(tree)
+
+
+@pytest.mark.parametrize('operation', sorted(public.BINDING_REMINDER_MUTATIONS))
+def test_standalone_selected_surface_mutations_validate_receipt_first(monkeypatch, operation):
+    monkeypatch.setattr(public.sys, 'argv', ['observer', operation, '1.1'])
+    lookup = Mock(side_effect=AssertionError('identity discovery'))
+    monkeypatch.setattr(public.os, 'geteuid', lookup)
+    with pytest.raises(public.UiError, match='ui:overlay-reminder-binding'): public.main()
+    lookup.assert_not_called()
 
 
 def assert_no_input(tree):

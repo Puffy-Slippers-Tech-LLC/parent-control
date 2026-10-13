@@ -1,6 +1,7 @@
 """Localization's chooser contract through real GTK and shared E2E actions."""
 
 import json
+import re
 
 import pytest
 
@@ -362,6 +363,29 @@ def test_chinese_initial_e2e_reader_uses_real_owned_controls(
 def committed(path):
     return [event['language'] for event in read_events(path)
             if event['event'] == 'language-committed']
+
+
+@pytest.mark.parametrize('surface', ('kiosk', 'overlay'))
+def test_request_preferences_public_identity_tracks_dialog_lifetime(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, surface):
+    ui, wait = automation, wait_for_accessible_state
+    path = launch_language(launch_ui, tmp_path, surface, language='en')
+    wait(lambda: ui.showing('kiosk-language-ready'), 'saved language ready')
+    child = ui.getValue('kiosk-child-selector')
+    ui.reader.open_language_preferences('kiosk')
+    instance = ui.getValue('language-dialog')
+    assert re.fullmatch(r'[0-9a-f]{32}', instance)
+    assert ui.getValue('language-dialog') == instance
+    ui.setValue('preferences-tabs', 'reminders')
+    assert ui.getValue('language-dialog') == instance
+    ui.reader.cancel_language('kiosk')
+    ui.reader.open_language_preferences('kiosk')
+    replacement = ui.getValue('language-dialog')
+    assert re.fullmatch(r'[0-9a-f]{32}', replacement)
+    assert replacement != instance
+    assert ui.getValue('language-dialog') == replacement
+    assert ui.getValue('kiosk-child-selector') == child
+    assert_no_policy_or_request_writes(path)
 
 
 @pytest.mark.parametrize('surface', ('kiosk', 'overlay'))

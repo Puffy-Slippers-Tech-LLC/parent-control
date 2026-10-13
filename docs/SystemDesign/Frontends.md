@@ -582,6 +582,10 @@ discard stale asynchronous replies. The overlay uses caller-scoped notification
 methods; kiosk uses selected-child methods with the same kiosk/eligible-child
 authorization boundary as its language methods.
 
+The shared `language-dialog` exposes an opaque per-dialog lifetime value through
+the Application UI API. Kiosk reminder automation binds it with the selected
+child and draft so a replaced dialog cannot reuse a previous input receipt.
+
 Public controls are `preferences-tabs` (canonical `language`/`reminders`),
 `preferences-tab-language`, `preferences-tab-reminders`,
 `preferences-close`, `reminder-list`, `reminder-status`, `reminder-add`, `reminder-retry`,

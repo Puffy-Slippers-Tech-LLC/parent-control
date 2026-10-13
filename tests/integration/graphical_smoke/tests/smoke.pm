@@ -26,6 +26,7 @@ use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
+use onpc_kiosk_reminders ();
 use onpc_remembered_choices ();
 use onpc_kiosk_cancel ();
 use onpc_kiosk_escape ();
@@ -138,6 +139,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::overlay_reminder_editing(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{kiosk_reminder_binding}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_reminders::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{overlay_language}) {

@@ -324,7 +324,7 @@ The engineering census requires every kiosk thread to have a confined current
 domain; it has no `init_t` waiting-helper exception. Current-package installed
 startup, credential/teardown and active namespace engineering qualification
 passes on both targets; the
-[confinement evidence](../confinement.md#phase-3-step-1-execution-record)
+[confinement evidence](../confinement.md#qualification-and-reusable-evidence)
 retains exact inputs and separate remaining functional/lifecycle gates.
 The intermediate domain can write the inherited `kernel_t` datagram socket used
 by systemd's pre-exec handoff timestamp; that object label was measured on Fedora

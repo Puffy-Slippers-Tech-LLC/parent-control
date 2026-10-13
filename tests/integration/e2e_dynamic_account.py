@@ -46,6 +46,15 @@ def account_path(uid):
     return fields[1]
 
 
+def account_identities(identities, noninteractive_shells=()):
+    """Persistent NSS identities, including the station's nologin account."""
+    return [entry for entry in identities
+            if 1000 <= entry.pw_uid <= (1 << 32) - 1
+            and not 60578 <= entry.pw_uid <= 60705
+            and (entry.pw_name == KIOSK_USERNAME
+                 or entry.pw_shell not in noninteractive_shells)]
+
+
 def create():
     guest.guard()
     try:
@@ -80,9 +89,7 @@ def prepare_empty():
     guest.guard()
     accounts = []
     eligible_names = set()
-    identities = [entry for entry in pwd.getpwall()
-                  if 1000 <= entry.pw_uid <= (1 << 32) - 1
-                  and entry.pw_shell not in NONINTERACTIVE_SHELLS]
+    identities = account_identities(pwd.getpwall(), NONINTERACTIVE_SHELLS)
     guest.require(len(identities) == len({entry.pw_uid for entry in identities})
                   and set((*FIXED_CHILDREN, KIOSK_USERNAME))
                   <= {entry.pw_name for entry in identities},
@@ -130,9 +137,7 @@ def prepare_no_approver(approver_uids):
                           for uid in approver_uids)
                   and len(approver_uids) == len(set(approver_uids)),
                   'no-approver:public-baseline')
-    identities = [entry for entry in pwd.getpwall()
-                  if 1000 <= entry.pw_uid <= (1 << 32) - 1
-                  and entry.pw_shell not in APPROVER_NONINTERACTIVE_SHELLS]
+    identities = account_identities(pwd.getpwall(), APPROVER_NONINTERACTIVE_SHELLS)
     names = [entry.pw_name for entry in identities]
     guest.require(len(identities) == len({entry.pw_uid for entry in identities})
                   and len(names) == len(set(names))
@@ -225,7 +230,7 @@ def prepare_ineligible_approver():
                       'ineligible-approver:identity')
         return path, values
 
-    before = {entry.pw_name: read(entry) for entry in identities if entry.pw_uid >= 1000}
+    before = {entry.pw_name: read(entry) for entry in account_identities(identities)}
     for name in (*FIXED_CHILDREN, *FIXED_APPROVERS):
         values = before[name][1]
         guest.require(values['LocalAccount'] == 'true' and values['SystemAccount'] == 'false'

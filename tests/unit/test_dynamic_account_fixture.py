@@ -120,15 +120,23 @@ def test_controller_fixture_is_single_use_and_guarded(monkeypatch):
     transport.call.assert_called_once()
 
 
-def test_guest_empty_fixture_changes_complete_finite_eligible_set(monkeypatch):
+@pytest.mark.parametrize('greeter_uid', [None, 60578, 60705])
+def test_guest_empty_fixture_changes_complete_finite_eligible_set(monkeypatch, greeter_uid):
     names = (*guest_fixture.FIXED_CHILDREN, "onpc-baseline-admin",
              guest_fixture.KIOSK_USERNAME)
-    identities = [SimpleNamespace(pw_name=name, pw_uid=index, pw_shell="/bin/bash")
+    identities = [SimpleNamespace(pw_name=name, pw_uid=index,
+                                  pw_shell='/usr/sbin/nologin'
+                                  if name == guest_fixture.KIOSK_USERNAME else '/bin/bash')
                   for index, name in enumerate(names, 1001)]
     paths = {str(item.pw_uid): f"/org/freedesktop/Accounts/User{item.pw_uid}"
              for item in identities}
     roles = {path: "0" for path in paths.values()}
     roles[paths['1003']] = '1'
+    if greeter_uid is not None:
+        # AccountsService may retain a different UID for this transient name.
+        # No lookup or mutation of that identity is part of the fixture.
+        identities.append(SimpleNamespace(pw_name='gdm-greeter', pw_uid=greeter_uid,
+                                          pw_shell='/bin/sh'))
 
     def run(argv):
         if argv[-4:-2] == [guest_fixture.ACCOUNTS_INTERFACE, "FindUserById"]:
@@ -207,7 +215,9 @@ def no_approver_guest(monkeypatch, fault=None):
         names.remove(guest_fixture.FIXED_APPROVERS[1])
     if fault == 'extra-parent':
         names.append('unrelated-admin')
-    identities = [SimpleNamespace(pw_name=name, pw_uid=index, pw_shell='/bin/bash')
+    identities = [SimpleNamespace(pw_name=name, pw_uid=index,
+                                  pw_shell='/usr/sbin/nologin'
+                                  if name == guest_fixture.KIOSK_USERNAME else '/bin/bash')
                   for index, name in enumerate(names, 1001)]
     if fault == 'duplicate-uid':
         identities[-1].pw_uid = identities[0].pw_uid
@@ -216,7 +226,7 @@ def no_approver_guest(monkeypatch, fault=None):
         'LocalAccount': 'true', 'SystemAccount': 'false',
         'AccountType': '1' if entry.pw_name in (*guest_fixture.FIXED_APPROVERS,
                                               'unrelated-admin') else '0',
-        'Locked': 'false', 'Shell': '/bin/bash',
+        'Locked': 'false', 'Shell': entry.pw_shell,
     } for entry in identities}
     parent = next(value for value in records.values()
                   if value['UserName'] == guest_fixture.FIXED_APPROVERS[0])
@@ -255,6 +265,26 @@ def no_approver_guest(monkeypatch, fault=None):
     mutation = Mock(side_effect=run)
     monkeypatch.setattr(guest_fixture.guest, 'run', mutation)
     return records, guard, mutation
+
+
+@pytest.mark.parametrize('uid', [60577, 60578, 60705, 60706])
+def test_no_approver_preserves_transient_greeters_and_discovers_other_high_uids(monkeypatch, uid):
+    records, _, mutation = no_approver_guest(monkeypatch)
+    entry = SimpleNamespace(pw_name='additional-admin', pw_uid=uid, pw_shell='/bin/bash')
+    guest_fixture.pwd.getpwall.return_value.append(entry)
+    path = f'/org/freedesktop/Accounts/User{uid}'
+    if not 60578 <= uid <= 60705:
+        records[path] = {
+            'Uid': str(uid), 'UserName': entry.pw_name, 'LocalAccount': 'true',
+            'SystemAccount': 'false', 'AccountType': '1', 'Locked': 'false',
+            'Shell': entry.pw_shell,
+        }
+
+    guest_fixture.prepare_no_approver([1003, 1004])
+
+    assert mutation.call_count == (2 if 60578 <= uid <= 60705 else 3)
+    if path in records:
+        assert records[path]['Locked'] == 'true'
 
 
 def test_no_approver_changes_only_observed_parent_lock_state(monkeypatch, capsys):

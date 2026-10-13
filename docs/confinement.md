@@ -10,7 +10,7 @@ counts are omitted. Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify security and required functions. Step 4 is next.**
+**Next phase: 3 — Qualify security and required functions. Step 5 is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -18,9 +18,9 @@ including validation and owned cleanup, then stop. Preserve the existing step
 numbers. Planning, a blocker or a partial result never closes a step or phase.
 Record only useful current inputs, evidence, limits and remaining work here.
 
-| Done | Remaining Phase 3 step | Required result before stopping |
+| Done | Phase 3 step | Required result before stopping |
 | --- | --- | --- |
-| [ ] | **4 — Public workflows** | Current-package customer cases 53–57, 151, 191, 192, 254 and 259 pass on both targets under their existing recipes and acceptance contracts. |
+| [x] | **4 — Public workflows** | Current-package customer cases 53–57, 151, 191, 192, 254 and 259 pass on both targets under their existing recipes and acceptance contracts. |
 | [ ] | **5 — Natural reminders** | Resolve unregistered tasks 311/311b and complete required natural-delivery, reminder persistence and Wellbeing lifecycle acceptance. Resolve the message-value contract and all prerequisites; preview, documentation and unresolved dependencies supply no acceptance. |
 
 **Dependency gate before step 5:** the
@@ -400,7 +400,7 @@ retention audit or universal acceptance. Revalidate manifests, actual retained
 results and applicability before reuse. Preparation/builds do not establish
 installed behavior; engineering probes do not establish complete customer cases.
 
-Latest recorded product inputs share package-source SHA-256
+Earlier engineering product inputs share package-source SHA-256
 `12fe615cecc2f796133e44951a13aeca5b0ac657368fd2193b574d4bcd3a045a`,
 348 files, revision `2f7bb34d3fe20d1a2b44f0d5903953cc29b8393c` and fixture digest
 `6aa1707b82f35caa902cd048e3c6bb6a37ff034044be2d92ff23b81dbfbbddd0`.
@@ -450,6 +450,41 @@ claiming byte-identical coverage.
 Both targets' last recorded owned operations finished with baseline restoration
 and VM off. Reconnect through maintained ownership checks before any new work;
 a recorded terminal state is not current authorization or a live status probe.
+
+### Public workflows (Phase 3 step 4)
+
+Cases **53–57, 151, 191, 192, 254 and 259** passed on both targets on
+2026-10-13. Each invocation retained ten independent complete attempts; product,
+infrastructure, collection and cleanup all passed, including final suite closure.
+Cases 254 and 259 used genuine product-free installation/reboot histories.
+
+| Target | Report | Invocation evidence allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T160314Z-d12f0a04` | `onpc-e2e-evidence-gqj6zt35` |
+| Fedora 44 | `20261013T160314Z-dccb8cc0` | `onpc-e2e-evidence-j74_y5g7` |
+
+The verified inputs retain package-source digest
+`12fe615cecc2f796133e44951a13aeca5b0ac657368fd2193b574d4bcd3a045a`
+(348 files), revision `ae1ae256253174d2dc224c9762e9aedef124c8cd` and fixture
+digest `b605097e70b69abb86e32142a36ab762185d80f8df2e160dbdded5329d5d82ab`.
+DEB SHA-256 is
+`34ffdee65689db43d8b32989a1c0c299ef5dd38c16bc10ebc3dce6e6280db622`;
+RPM SHA-256 remains
+`891d3b8ff07a2e493f694fa88e865c458667a5d625feef8d10866a8279a9be78`.
+The DEB archive differs from the earlier engineering input; package-source
+identity is unchanged. Reports and all ten attempt records per invocation were
+confirmed retained after final coverage generation. Both VMs were confirmed off
+after successful baseline restoration.
+
+The initial case 54 setup failed before product execution because the account
+fixture filtered out the kiosk's required nologin identity. The shared fixture
+now preserves that identity and excludes the reserved transient-greeter UID
+range, retaining its existing mutation and preservation guards. Live probes of
+all three station account profiles passed on both VMs before the clean rerun;
+223 affected host checks and independent fixture review passed. Fixture helper
+SHA-256 is `80ca3104d435628ede10a188e970a538d7b90ff9af85a41ae0998d4c366a6937`.
+Implementation changes affect test code only; package/build inputs are
+unchanged. Step 5 and its dependency gate remain open.
 
 ## Operating and qualification routes
 

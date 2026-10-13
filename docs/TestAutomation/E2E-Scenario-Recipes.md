@@ -551,6 +551,9 @@ Cancel, FLOW07's preserved-form comparison, all three repeated restriction check
 and form Cancel to usable GDM. Affected cases 50 and 51 passed separately in
 `20260926T185518Z-026edc31` and `20260926T185927Z-3a6cff95`.
 All passed collection, owned cleanup and baseline restoration.
+Case 51 now includes the recipe's initial restriction cycle as well as the
+post-rejection cycle; current qualification on both targets is recorded in
+[confinement step 6b](../confinement.md#step-6b-qualification--2026-10-13).
 About/Help and report restrictions remain under
 E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
 

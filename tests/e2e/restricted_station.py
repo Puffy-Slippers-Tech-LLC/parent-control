@@ -56,13 +56,13 @@ DENIED_EXIT = {'new-cancel': 'ui:kiosk-request-cancel',
                'new-returned': 'ui:gdm-station-returned'}
 DENIED_PLAN = JourneyPlan(
     prefix='kiosk-approval-flow', worker_mode='restricted_station_denied',
-    screen_tags={**UNAPPROVED_ENTRY, **DENIED_REQUEST, **DENIED_EXIT},
+    screen_tags={**ENTRY, **DENIED_REQUEST, **DENIED_EXIT},
     phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: 'step-1' for stage in UNAPPROVED_ENTRY}, 'installed-greeter': 'start',
+            **{stage: 'step-1' for stage in ENTRY}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in DENIED_REQUEST},
             **{stage: 'step-3' for stage in DENIED_EXIT}},
     advance_after={'installed-greeter': 'step-1',
-                   'request-form': 'step-2',
+                   'restriction-terminal-read': 'step-2',
                    'after-restriction-terminal-read': 'step-3'},
     request_checks={'flow-preserved': ('flow-before', 'approval-flow:changed-form', 'preserved_choices')},
 )

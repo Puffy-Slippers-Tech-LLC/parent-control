@@ -817,6 +817,99 @@ def census_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_confinement.py')
 
 
+@pytest.fixture
+def admission_model(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / 'tests/integration'))
+    return module(ROOT / 'tests/integration/system_kiosk_admission.py')
+
+
+@pytest.mark.parametrize('result', [b'{"account": 9, "end": 0}',
+                                  b'{"account": 6, "end": 4}',
+                                  b'{"account": true, "end": 0}', b'not-json'])
+def test_installed_admission_never_counts_unavailable_or_malformed_worker_as_denial(
+        admission_model, monkeypatch, result):
+    helper = admission_model
+    command = Mock(return_value=result)
+    monkeypatch.setattr(helper.guest.commands, 'run', command)
+    with pytest.raises(helper.guest.GuestError, match='kiosk-admission:'):
+        helper.probe('sshd', 'kiosk', 6, 'ssh-denied', Mock())
+    assert command.call_args.kwargs['timeout'] == 45
+    assert command.call_args.args[0][-3:] == ['pam-account', 'sshd', 'kiosk']
+
+
+@pytest.mark.parametrize('status', [0, 6])
+def test_installed_admission_uses_real_service_name_and_ends_denied_transactions(
+        admission_model, monkeypatch, status):
+    from unittest.mock import MagicMock
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
+    service = Mock()
+    service.lstat.return_value = SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0)
+    directory = MagicMock()
+    directory.__truediv__.return_value = service
+    monkeypatch.setattr(helper, 'Path', Mock(return_value=directory))
+    monkeypatch.setattr(helper.pwd, 'getpwnam', Mock(return_value=SimpleNamespace(
+        pw_uid=41001, pw_name='oh-no-parent-control')))
+    pam = Mock()
+    pam.pam_start.return_value = 0
+    pam.pam_acct_mgmt.return_value = status
+    pam.pam_end.return_value = 0
+    monkeypatch.setattr(helper.ctypes, 'CDLL', Mock(return_value=pam))
+    assert helper.pam_account('sshd', 'kiosk') == {'account': status, 'end': 0}
+    assert pam.pam_start.call_args.args[:2] == (b'sshd', b'oh-no-parent-control')
+    pam.pam_start_confdir.assert_not_called()
+    pam.pam_open_session.assert_not_called()
+    assert pam.pam_end.call_args.args[1] == status
+
+
+@pytest.mark.parametrize('fault', ['positive', 'denial-worker', 'unrepaired'])
+def test_installed_admission_requires_positive_and_restores_mutation_on_failure(
+        admission_model, monkeypatch, fault):
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
+    monkeypatch.setattr(helper.guest, 'enable_diagnostics', Mock())
+    accounts = {
+        helper.USERS['kiosk']: SimpleNamespace(pw_uid=41001, pw_name=helper.USERS['kiosk'],
+                                               pw_shell='/usr/sbin/nologin'),
+        helper.USERS['ordinary']: SimpleNamespace(pw_uid=41002),
+    }
+    monkeypatch.setattr(helper.pwd, 'getpwnam', accounts.__getitem__)
+    values = {41001: helper.DEDICATED, 41002: ('ordinary', 'wayland')}
+    monkeypatch.setattr(helper, 'routing', values.__getitem__)
+    writes = []
+
+    def set_routing(uid, value):
+        writes.append(value)
+        values[uid] = value
+
+    monkeypatch.setattr(helper, 'set_routing', set_routing)
+    monkeypatch.setattr(helper.guest, 'run', Mock(return_value='usepam yes\npamservicename sshd'))
+    monkeypatch.setattr(helper.guest, 'package_path', Mock(return_value=Path('package.deb')))
+    monkeypatch.setattr(helper.Path, 'is_file', Mock(return_value=True))
+    stages = []
+
+    def probe(service, role, expected, stage, record):
+        stages.append((service, role, expected, stage))
+        if fault == 'positive' and stage == 'dedicated-before':
+            raise helper.guest.GuestError('positive-failed')
+        if stage == 'alternate-session.denied' and fault == 'denial-worker':
+            raise helper.guest.GuestError('worker-failed')
+
+    monkeypatch.setattr(helper, 'probe', probe)
+    with pytest.raises(helper.guest.GuestError):
+        helper.verify(Mock())
+    assert values == {41001: helper.DEDICATED, 41002: ('ordinary', 'wayland')}
+    if fault == 'positive':
+        assert not writes
+        assert not any(expected == 6 for _, _, expected, _ in stages)
+    else:
+        assert stages[:4] == [(service, 'ordinary', 0, service + '.ordinary-before')
+                              for service in helper.SERVICES] + [
+                                  ('gdm-password', 'kiosk', 0, 'dedicated-before')]
+        assert writes == [('ubuntu', 'wayland'), helper.DEDICATED]
+        assert not any(stage.endswith('.retry') for _, _, _, stage in stages)
+
+
 @pytest.mark.parametrize('service,context,label', [
     ('gdm-password', 'system_u:system_r:xdm_t:s0', 'xdm_exec_t'),
     ('systemd-user', 'system_u:system_r:init_t:s0', 'init_exec_t'),

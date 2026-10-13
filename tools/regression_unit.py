@@ -756,6 +756,8 @@ from regression_ui import Bucket
 # the existing owned worker-abort case observes the inherited helper lease.
 # Lifecycle interruption/recovery uses private PAM/record/marker files and
 # fixed policy-command doubles; no host PAM, kernel policy or account changes.
+# Installed admission's worker/status and routing-failure checks use process-local
+# libpam, account and command doubles; no real PAM transaction or child starts.
 # It is compatible with other unit modules; its module fixture stays together.
 # e2e_kiosk_feedback_confinement uses pytest-private root-shaped record/mask
 # files, process-local systemctl/public UI/transport doubles and no real service,

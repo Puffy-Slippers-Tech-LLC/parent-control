@@ -15,6 +15,11 @@ def test_kiosk_execution_confinement(record_testsuite_property):
     verify(record_testsuite_property)
 
 
+def test_kiosk_login_admission(record_testsuite_property):
+    from system_kiosk_admission import verify
+    verify(record_testsuite_property)
+
+
 def test_kiosk_platform_integrations(record_testsuite_property):
     from system_kiosk_platform import verify
     verify(record_testsuite_property)

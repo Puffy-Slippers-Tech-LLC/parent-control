@@ -13,13 +13,15 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 5b is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 5c is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
-including validation and owned cleanup, then stop. Preserve the existing step
+including validation, owned cleanup and close-out, then stop. Preserve the existing step
 numbers. Planning, a blocker or a partial result never closes a step or phase.
 Record only useful current inputs, evidence, limits and remaining work here.
+After each completed step, commit and push its changes, including this plan's
+completion update, before stopping. Stage only changes belonging to that step.
 After the active phase's last step passes, check its exit gate and set the next
 phase/step for the following session; do not start that phase in the same session.
 If a step exposes substantial implementation or multiple independent installed
@@ -38,7 +40,7 @@ are omitted; the remaining step numbers are preserved.
 | Done | Phase 3 step | Required result before stopping |
 | --- | --- | --- |
 | [x] | **5a — Installed execution matrices** | On both targets, qualify the current candidate's complete confinement matrix, active namespace callbacks and platform integration checks; reuse retained evidence only after verifying exact input applicability. Prove allowed native execution before denials, actual final GDM execution restrictions, real credential/teardown confinement and policy-loss refusal/recovery. Finish owned cleanup. |
-| [ ] | **5b — Installed admission coverage** | Add and pass maintained installed coverage on both targets for rejected alternate-session, terminal and SSH admission, with successful allowed controls before denials. Exercise the installed account/routing boundary: the execution matrix's final-session fixture and host login tests do not prove this assertion. Preserve the final-exec restrictions qualified in 5a. Record any remaining admission assertion gap and close only after its maintained installed coverage passes. Finish owned cleanup. |
+| [x] | **5b — Installed admission coverage** | Add and pass maintained installed coverage on both targets for rejected alternate-session, terminal and SSH admission, with successful allowed controls before denials. Exercise the installed account/routing boundary: the execution matrix's final-session fixture and host login tests do not prove this assertion. Preserve the final-exec restrictions qualified in 5a. Record any remaining admission assertion gap and close only after its maintained installed coverage passes. Finish owned cleanup. |
 | [ ] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
 | [ ] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
@@ -531,9 +533,61 @@ baseline using metadata-only checks; both pinned VMs were confirmed powered off.
 Markdown links passed. Only this plan changed, outside `PACKAGE_SOURCE_FILES`
 and build-tool dependencies, so no additional `make build` was required.
 
-These are engineering boundary results, not installed alternate-session/terminal/
-SSH admission or a real waiting-session census. Those remain unchecked in 5b
-and 5c; no complete customer request journey or Phase 3 exit gate was closed.
+These are engineering execution results, not installed alternate-session/terminal/
+SSH admission or a real waiting-session census. Step 5b below adds the installed
+account/routing proof; the census remains in 5c. No complete customer request
+journey or Phase 3 exit gate was closed.
+
+### Step 5b qualification — 2026-10-13
+
+Added and passed `enforcement::test_kiosk_login_admission` on both targets.
+The [installed admission helper](../tests/integration/system_kiosk_admission.py)
+uses bounded libpam workers against the installed `gdm-password`, `login` and
+`sshd` account stacks, rather than a private PAM configuration. Its maintained
+scope belongs to the [installed runner](../tests/integration/README.md#running-the-current-installed-suite).
+
+| Installed admission result | Ubuntu report / allocation | Fedora report / allocation |
+| --- | --- | --- |
+| Account/routing controls, denials and recovery | `20261013T225524Z-637ea3a2` / `onpc-system-d9b4nb5q` | `20261013T225720Z-5cba4746` / `onpc-system-gkfo7btz` |
+
+Both retained `evidence/guest/enforcement.xml` files record successful ordinary
+account controls for all three services and dedicated kiosk GDM admission before
+denials. Selecting the installed alternate Wayland session (`ubuntu` or `gnome`)
+or saving an invalid `x11` transport returned exactly `PAM_PERM_DENIED` (6),
+repaired the dedicated/Wayland defaults and permitted a fresh successful retry.
+Kiosk terminal and SSH account checks returned the same exact denial; ordinary
+controls still passed afterward. Every transaction's `pam_end` returned zero.
+Effective SSH configuration selected PAM and the tested `sshd` service.
+The ordinary account's routing remained unchanged.
+
+Live maintenance probes first established dedicated admission, ordinary terminal/
+SSH controls and kiosk service denials on both targets. Both maintenance owners
+finished cleanup before the installed attempts. The format-specific builder
+returned `output/test-runs/host/allocations/onpc-test-artifacts-m3vjp4df` (DEB)
+and `output/test-runs/host/allocations/onpc-test-artifacts-9vyjmxo4` (RPM).
+Their package-source, package and fixture hashes exactly match the 5a candidate
+above; both installed attempts validated those inputs and reused matching app
+snapshots. The common selected-input SHA-256 was
+`93f2ae1881a5ecc514500dded544357f03c00995ebaca3e64768a0f232098dcb`.
+Both `evidence/result.json` files report passing product, infrastructure,
+collection and cleanup outcomes with `cleanup_phase=complete`. Outer baseline
+verification passed and both pinned VMs were confirmed off.
+
+No product or final-exec fixture changed. The two 5a execution result files were
+verified before this qualification; their older allocations subsequently expired
+under normal retention. Treat those references as historical, and require retained
+evidence or a fresh affected slice for later reuse. The new 5b result and JUnit
+files were verified present after final validation. This account-stage proof
+does not newly qualify session-stage transport changes, a real greeter login or
+customer request journeys. It leaves no remaining 5b account/routing assertion
+gap; the strict real-session census remains the next step.
+
+Independent source review found no blocking defect. The scoped confinement,
+runner and parallel-inventory regressions passed (532 cases), followed by all
+313 documentation/inventory consistency checks. Generated coverage and Markdown
+links passed. Changes are confined to tests, scheduling rationale and documents,
+outside package sources/build-tool dependencies; no additional `make build` was
+required. Phase 3 and the separate E2E queue remain open.
 
 Report roots are `output/test-runs/host/reports/`; privileged allocations are
 under `output/test-runs/privileged/allocations/`. System evidence includes
@@ -566,9 +620,9 @@ For Phase 3 steps 5a–5c, first verify the current candidate and retained evide
 map every required admission/execution assertion to its registered route, then
 run only the selected slice's missing or affected checks on both targets.
 Record exact inputs, results, gaps and owned cleanup before deciding whether
-that slice passes. Step 5b must add the missing installed admission coverage;
-the existing matrix's `pam_start_confdir` fixture contains only the final
-session gate and cannot substitute for installed account/routing admission.
+that slice passes. Step 5b's installed account/routing selector is registered
+and qualified above; the execution matrix's `pam_start_confdir` fixture contains
+only the final session gate and cannot substitute for that admission coverage.
 
 Use `tools/run-tests --help`, `--list` and scoped system/E2E listings to verify
 actual registered selectors. The commands below are routes for their owning
@@ -583,6 +637,7 @@ coverage in step 7 before claiming acceptance. Documentation is not registration
 
 ```bash
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_execution_confinement' --vm '<matching target>'
+tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_login_admission' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_namespace_guard_callbacks' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_platform_integrations' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'removal' --test 'test_remove_reboot_reinstall' --vm '<matching target>'

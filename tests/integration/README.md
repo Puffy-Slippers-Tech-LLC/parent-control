@@ -155,6 +155,18 @@ uses the existing owned maintenance envelope and public station-entry mechanics,
 stopping before request-form validation. Inspect that same running instance with
 `exec`, then finish with `stop`; this route supplies no acceptance result.
 
+`enforcement` → `test_kiosk_login_admission` checks the installed
+`gdm-password`, `login` and `sshd` account stacks through libpam's `pam_start`
+and `pam_acct_mgmt`, with individually bounded workers and `pam_end` readbacks.
+Ordinary-account controls and dedicated kiosk admission precede exact kiosk
+permission denials. Public AccountsService changes exercise an installed
+alternate session and invalid saved transport; each refused attempt must repair
+the dedicated default and permit a fresh retry. Effective SSH configuration
+must select PAM and the tested service. The test opens no session and changes
+no authentication credentials or shell. It qualifies installed account/routing
+admission, combined with the separate final-exec matrix; it does not establish
+graphical login, session-stage transport checks or customer-journey acceptance.
+
 `enforcement` → `test_kiosk_platform_integrations` owns bounded distro loading
 and service-API qualification in
 [system_kiosk_platform.py](system_kiosk_platform.py). It records the actual

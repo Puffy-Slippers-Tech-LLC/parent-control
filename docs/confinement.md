@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 5 is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 5b is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -37,7 +37,9 @@ are omitted; the remaining step numbers are preserved.
 
 | Done | Phase 3 step | Required result before stopping |
 | --- | --- | --- |
-| [ ] | **5 — Execution boundary and real-session census** | On both targets, qualify the current candidate's confinement matrix, active namespace callbacks and platform integration checks; reuse retained evidence only after verifying exact input applicability. Prove allowed native execution before denials, actual final GDM execution restrictions, rejected alternate-session/terminal/SSH admission, policy-loss refusal, and the strict real waiting-session census. Record any assertion missing from the registered routes and close only after its maintained installed coverage passes. Finish owned cleanup. |
+| [x] | **5a — Installed execution matrices** | On both targets, qualify the current candidate's complete confinement matrix, active namespace callbacks and platform integration checks; reuse retained evidence only after verifying exact input applicability. Prove allowed native execution before denials, actual final GDM execution restrictions, real credential/teardown confinement and policy-loss refusal/recovery. Finish owned cleanup. |
+| [ ] | **5b — Installed admission coverage** | Add and pass maintained installed coverage on both targets for rejected alternate-session, terminal and SSH admission, with successful allowed controls before denials. Exercise the installed account/routing boundary: the execution matrix's final-session fixture and host login tests do not prove this assertion. Preserve the final-exec restrictions qualified in 5a. Record any remaining admission assertion gap and close only after its maintained installed coverage passes. Finish owned cleanup. |
+| [ ] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
 | [ ] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
@@ -45,11 +47,17 @@ are omitted; the remaining step numbers are preserved.
 | [ ] | **8 — Shared-integration collateral checks** | On both targets, verify ordinary administrator and standard-user login/desktop availability, preserved vendor PAM callbacks and AccountsService metadata, and kiosk-only scope of changed units/policies. Reuse applicable matrix evidence. Add only missing checks for collateral effects of confinement changes; full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
 Step 5 replaces the former natural-reminder step under the scope decision above.
+The 2026-10-13 coverage audit split it into 5a–5c after finding no installed
+alternate-session/terminal/SSH admission assertion. The final-exec fixture uses
+only the native final session callback, bypassing the installed account/routing
+stack. This split preserves every original step 5 assertion; no slice alone
+completes that step's execution/admission and real-session qualification.
 Reminder editing/delivery, fullscreen banner behavior, child time exhaustion and
 Wellbeing settings/lifecycle are no longer prerequisites of confinement. Their
 remaining implementation, acceptance and message-value decisions stay with their
-existing catalogue/queue owners. This documentation change supplies no new
-installed pass and closes no execution step.
+existing catalogue/queue owners. The earlier scope-only documentation change
+supplied no installed pass and closed no execution step. The 5a results below
+qualify only that slice.
 
 | Done | Remaining phase | Required exit gate |
 | --- | --- | --- |
@@ -448,8 +456,8 @@ use fixed categories and role/thread counts, without account names, command
 lines or arbitrary exception/stderr text.
 
 Keep only evidence needed to qualify or reproduce the remaining confinement work.
-The references below are candidates for reuse, not current passes. Verify retained
-reports, manifests, exact input applicability and final-source changes before
+The earlier references below are candidates for reuse, not current passes.
+Verify retained reports, manifests, exact input applicability and final-source changes before
 reuse; rerun an affected or unproven slice. Engineering probes do not establish
 complete customer cases, and preparation/builds establish no installed behavior.
 
@@ -463,15 +471,69 @@ The first two rows used package-source SHA-256
 `12fe615cecc2f796133e44951a13aeca5b0ac657368fd2193b574d4bcd3a045a`;
 the namespace row used
 `f06b80cb6e496850e47fbb00661054b68cbb205aaff1f53e63a8a674d93ae346`.
-These differ from the last recorded candidate below; retained manifests own
+These differ from the current 5a candidate below; retained manifests own
 their full package/helper/fixture identities. No row alone completes Phase 3.
+The recorded execution and namespace report/allocation locations were unavailable
+to the maintained artifact reader during 5a; neither historical row was reused.
 
-Last recorded product candidate: package-source SHA-256
+Current 5a product candidate: package-source SHA-256
 `b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`,
-DEB `d9cf7f7418b3f73caedd05e04d3dc26f76284d21417a5c6cb2a0b26601f372da`,
+DEB `daa9c180960e1dfc72e026a7019bb71b2b63db3bd4c867a62e300f05f81b94fa`,
 RPM `630ab36562dd7f85d1a2b4f0cbf2f359972b6ac29fe4dcb2e5a051f5723afaf4`.
 This reference does not identify a later checkout automatically; prepare or
 verify current format-specific inputs before execution.
+
+### Step 5a qualification — 2026-10-13
+
+All three complete `enforcement` selectors passed on each target:
+`test_kiosk_execution_confinement`, `test_kiosk_namespace_guard_callbacks`
+and `test_kiosk_platform_integrations`. No product or test code changed.
+
+| Current engineering result | Ubuntu report / allocation | Fedora report / allocation |
+| --- | --- | --- |
+| Execution matrix, real teardown and six bootstrap substitutions | `20261013T223121Z-4f8c4f9d` (category 1 only) / `onpc-system-35n9gv0g` | `20261013T223557Z-78f6da8b` / `onpc-system-172m0c6j` |
+| Active namespace callbacks | `20261013T223340Z-49e0d3bf` / `onpc-system-pooys6eh` | `20261013T223854Z-14054b99` / `onpc-system-w39waamn` |
+| Platform integration and native service APIs | `20261013T223440Z-f4bf1efe` / `onpc-system-_x7ycddn` | `20261013T224024Z-759b5400` / `onpc-system-ar8n7l_8` |
+
+The format-specific builder returned
+`output/test-runs/host/allocations/onpc-test-artifacts-w9ad5p2m` (DEB) and
+`output/test-runs/host/allocations/onpc-test-artifacts-gts9ocwz` (RPM).
+Both verified manifests bind the candidate above to revision
+`f84b688281f27ade9e737b2b6a2930646db3541c` and fixture SHA-256
+`b605097e70b69abb86e32142a36ab762185d80f8df2e160dbdded5329d5d82ab`.
+Each attempt validated package sources and matched its retained app snapshot.
+The corresponding selected-input hashes were identical across targets:
+execution `a99731e6082624a16a53232a0a90dcb19185ecc81006d5ba43d9a49c90ffef9a`,
+namespace `49ed0ef821e94e1a365857b01806e02af84b5aa36dbf00cc963b0b1f909c3a2b`,
+platform `3799fb4b2e13e180ca40e91b0671776fe1c0fc5c29ae8cdf6c920cb909b6eaf4`.
+Attempt `evidence/result.json` owns baseline and complete input identities;
+platform `evidence/guest/enforcement.xml` retains actual distro package,
+mapped-native and script identities.
+
+Both execution matrices proved native positives before manager/final-exec
+denials, replacement/reexec isolation, stale-state refusal, six bootstrap
+substitutions and policy-loss refusal/recovery. Establish, close, delete-credential
+and end callbacks all returned zero, with post-parent-exit execution denials.
+Namespace checks proved ordinary callbacks run while the kiosk skips them.
+Platform checks proved trusted native loading before an independently observed
+kernel mapping denial for the user-owned copy, restricted Lua startup paths and
+service profile/context restrictions; Fedora's denial recorded `permissive=0`.
+
+The first Ubuntu invocation passed its execution case, then refused the distinct
+namespace selector with infrastructure category `selection:resume-inventory-changed`;
+its third selector did not run. Namespace and platform checks subsequently passed
+as separate invocations with unchanged assertions. The grouped report is not an
+overall pass. Use one system selector per invocation for this continuation.
+
+All six attempt results report passing product, infrastructure and cleanup
+outcomes with `cleanup_phase=complete`. Each restored and verified its outer
+baseline using metadata-only checks; both pinned VMs were confirmed powered off.
+Markdown links passed. Only this plan changed, outside `PACKAGE_SOURCE_FILES`
+and build-tool dependencies, so no additional `make build` was required.
+
+These are engineering boundary results, not installed alternate-session/terminal/
+SSH admission or a real waiting-session census. Those remain unchecked in 5b
+and 5c; no complete customer request journey or Phase 3 exit gate was closed.
 
 Report roots are `output/test-runs/host/reports/`; privileged allocations are
 under `output/test-runs/privileged/allocations/`. System evidence includes
@@ -500,11 +562,13 @@ changes outside package/build dependencies do not require a package rebuild.
 
 ### Continuation order and qualification routes
 
-For Phase 3 step 5, first verify the current candidate and retained evidence,
+For Phase 3 steps 5a–5c, first verify the current candidate and retained evidence,
 map every required admission/execution assertion to its registered route, then
-run the missing or affected security matrices and real-session census on both
-targets. Record exact inputs, results, gaps and owned cleanup before deciding
-whether that step passes. This documentation update executes none of those checks.
+run only the selected slice's missing or affected checks on both targets.
+Record exact inputs, results, gaps and owned cleanup before deciding whether
+that slice passes. Step 5b must add the missing installed admission coverage;
+the existing matrix's `pam_start_confdir` fixture contains only the final
+session gate and cannot substitute for installed account/routing admission.
 
 Use `tools/run-tests --help`, `--list` and scoped system/E2E listings to verify
 actual registered selectors. The commands below are routes for their owning

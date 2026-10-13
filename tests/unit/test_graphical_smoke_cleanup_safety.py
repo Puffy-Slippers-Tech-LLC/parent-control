@@ -266,8 +266,11 @@ def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, m
     assert selection['selection'] == {'consumer': mode}
     inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
     assert set(inventory) == {'package.deb', 'selected-inputs.json',
-                              'system_guest.py', 'e2e_dynamic_account.py',
-                              'owned_commands.py', 'guest_install_recipe.py', 'guest/redact.py'}
+                              'system_guest.py', 'e2e_dynamic_account.py', 'system_kiosk_confinement.py',
+                              'system_kiosk_feedback.py', 'system_wellbeing_qualification.py',
+                              'wellbeing_probe.py',
+                              'owned_commands.py', 'guest_install_recipe.py', 'guest/redact.py',
+                              'install-source/Makefile'}
     for name, digest in inventory.items():
         assert smoke.runner.baseline.digest(payload / name) == digest
     for name, entry in selection['files'].items():

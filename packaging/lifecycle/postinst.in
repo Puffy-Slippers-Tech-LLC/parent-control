@@ -4,6 +4,7 @@ set -e
 if [ "$1" = abort-remove ]; then
     /usr/libexec/oh-no-parent-control-uninstall --restore
 @pam_restore@
+    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
 fi
 
 release_removal_guard() {
@@ -101,7 +102,7 @@ if [ "$1" = configure ]; then
         /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --check-account
         echo 'oh-no-parent-control: configuring package-owned kiosk account' >&2
         usermod --comment "Oh No! Parent Control" \
-            --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+            --home "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
         passwd --delete "$kiosk_user"
     fi
     /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user"
@@ -164,6 +165,7 @@ if [ "$1" = configure ]; then
 @trust_label@
 @initial_setup@
 @pam_enable@
+    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
     chown root:@admin_group@ \
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
     chmod 0640 \

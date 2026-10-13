@@ -4,18 +4,19 @@ Changes here invalidate installed snapshots. Test/helper changes do not.
 """
 
 import os
+from pathlib import Path
 
 
 def install(run, guard, package):
-    if package.suffix == '.rpm':
-        guard()
-        run(['dnf', 'install', '-y', str(package)], timeout=1800)
-        return
+    # Use the checkout's frozen public installation entry point for current
+    # and previous packages. It owns dependency resolution and reinstalls.
+    makefile = Path(__file__).resolve().parent / 'install-source/Makefile'
     os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-    run(['apt-get', 'update'], timeout=600)
     guard()
-    run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
-         '-y', str(package)], timeout=1800)
+    run(['make', '--no-print-directory', '-C', str(makefile.parent), 'install',
+         'INSTALL_PACKAGE=' + str(package.resolve()),
+         'APT=apt-get -o DPkg::Lock::Timeout=120 --no-install-recommends -y',
+         'DNF=dnf -y'], timeout=2400)
 
 
 def prepare(transport, command, guard, *, reboot=True):

@@ -73,6 +73,12 @@ class Machine:
         for path in ("etc/fapolicyd/rules.d", "run/systemd/system",
                      "var/lib/oh-no-parent-control", "usr/sbin", "var/mail"):
             (root / path).mkdir(parents=True, exist_ok=True)
+        # The real confinement finalizer validates every ancestor. Model the
+        # root-owned system directory modes explicitly, independent of the
+        # developer's group-writable umask used for unrelated private fixtures.
+        for path in ('run', 'var', 'var/lib'):
+            (root / path).chmod(0o755)
+        (root / 'var/lib/oh-no-parent-control').chmod(0o700)
         self.write("etc/pam.d/common-auth", "auth required pam_unix.so\n")
         for name in ("account", "password", "session", "session-noninteractive"):
             self.write("etc/pam.d/common-" + name, "# fixture PAM stack\n")
@@ -104,6 +110,10 @@ exit 99
 """).chmod(0o755)
         self.write("test-bin/authselect", """#!/bin/sh
 case "$1" in current) printf '%s\\n' local;; esac
+""").chmod(0o755)
+        self.write("usr/libexec/oh-no-parent-control-kiosk-confinement-integration", """#!/bin/sh
+printf '%s\\n' "kiosk-confinement $*" >> "$AUDIT_ROOT/commands"
+exit "${CONFINEMENT_STATUS:-0}"
 """).chmod(0o755)
         self.write("test-bin/mountpoint", """#!/bin/sh
 test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
@@ -179,12 +189,22 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         # no production guard, filesystem action or assertion is omitted.
         source = source.replace(
             '/usr/bin/python3 -B - "$@"', 'ONPC_FIXTURE_PYTHON -B - "$@"')
+        source = source.replace(
+            "/usr/bin/python3 -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'",
+            "ONPC_FIXTURE_PYTHON -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'")
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
         source = source.replace('ONPC_FIXTURE_PYTHON', shlex.quote(sys.executable))
         source = source.replace("_LOG_FILESYSTEM_ROOT = '/'",
                                 '_LOG_FILESYSTEM_ROOT = ' + repr(str(self.root)))
         source = source.replace('_LOG_OWNER_UID = 0', '_LOG_OWNER_UID = ' + str(os.getuid()))
+        source = source.replace("_CONFINEMENT_FILESYSTEM_ROOT = Path('/')",
+                                '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
+        source = source.replace('_CONFINEMENT_OWNER_UID = 0',
+                                '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
+        source = source.replace(
+            "except Exception:\n    print('oh-no-parent-control: confinement cleanup failed;",
+            "except Exception:\n    import traceback\n    traceback.print_exc()\n    print('oh-no-parent-control: confinement cleanup failed;")
         for command in ("deb-systemd-invoke", "invoke-rc.d", "pam-auth-update"):
             source = source.replace(command, command.replace("-", "_").replace(".", "_"))
         mocks = r'''
@@ -343,7 +363,8 @@ case "$name" in
     pam-auth-update)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
             printf 'auth required pam_oh_no_parent_control.so\n' > "$AUDIT_ROOT/etc/pam.d/common-auth"
-            printf 'account required pam_exec.so %s/usr/libexec/oh-no-parent-control-login-check\n' "$AUDIT_ROOT" > "$AUDIT_ROOT/etc/pam.d/common-account"
+            printf 'account required pam_oh_no_parent_control.so kiosk\n' > "$AUDIT_ROOT/etc/pam.d/common-account"
+            printf 'session required pam_oh_no_parent_control.so kiosk\n' > "$AUDIT_ROOT/etc/pam.d/common-session"
         fi
         ;;
     install)
@@ -443,6 +464,7 @@ case "$name" in
         esac
         ;;
     restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|runuser|\
+    oh-no-parent-control-kiosk-confinement-integration) exit "${CONFINEMENT_STATUS:-0}" ;;
     oh-no-parent-control-fedora-pam|\
     oh-no-parent-control-provision) ;;
     *) exit 99 ;;
@@ -455,7 +477,7 @@ esac
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
-    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy"):
+    for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-confinement-integration"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.symlink_to(stub)

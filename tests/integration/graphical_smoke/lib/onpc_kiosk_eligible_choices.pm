@@ -8,8 +8,10 @@ use onpc_parent ();
 
 sub run {
     onpc_progress::operation('Qualifying eligible request station account choices');
-    my ($exchange) = @_;
-    die 'kiosk-choices:arguments' unless @_ == 1 && ref($exchange) eq 'CODE';
+    my ($exchange, $engineering) = @_;
+    die 'kiosk-choices:arguments' unless (@_ == 1 || @_ == 2 && defined($engineering)
+        && ($engineering == 1 || $engineering == 2))
+        && ref($exchange) eq 'CODE';
     my $journey = onpc_journey->new(
         exchange => $exchange, prefix => 'kiosk-eligible-choices', review => 0);
     onpc_gdm::reattach_functional();
@@ -25,6 +27,18 @@ sub run {
                    'approver-selected', 'selections-read') {
         my $result = $journey->seen($stage);
         $journey->consume_observation($stage, $result);
+    }
+    if ($engineering && $engineering == 1) {
+        for my $stage ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor') {
+            my $result = $journey->seen($stage);
+            $journey->consume_observation($stage, $result);
+        }
+    }
+    if ($engineering && $engineering == 2) {
+        for my $stage ('kiosk-reminder-preview', 'kiosk-reminder-preview-cancel') {
+            my $result = $journey->seen($stage);
+            $journey->consume_observation($stage, $result);
+        }
     }
     $journey->finish();
 }

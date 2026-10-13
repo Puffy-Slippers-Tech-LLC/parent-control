@@ -205,7 +205,7 @@ restart; it supplies no customer-acceptance credit.
 Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
 `--test-tools-only`. Host package dependencies belong to full setup or
 `--dependencies-only`. Codex setup also installs its maintained machine-wide
-`pwd`, `git status`, `rg -n` and `sed -n` rules in `/etc/codex/rules/onpc-read-only.rules`, without
+`pwd`, `git status`, `rg -n`, `rg --files` and `sed -n` rules in `/etc/codex/rules/onpc-read-only.rules`, without
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
 
@@ -484,6 +484,8 @@ replacement by name alone.
 | `tools/test-vm --vm NAME snapshots` | Read snapshot names and saved XML for only that pinned guest; never restore or change a snapshot |
 | `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
 | `tools/test-vm --vm NAME reproduce-gdm-denial` | Diagnostic-only replay of the shared fresh-child zero-time journey through its bounded Cancel sequence; close the graphical worker and retain the owned online guest before final account-list observation, for `exec` probes followed by `stop`. No acceptance credit. |
+| `tools/test-vm --vm NAME reproduce-kiosk-approval` | Replay the shared kiosk approval history through the real password prompt, then close the graphical worker before challenge qualification or password input. Retain the owned online guest for identity/mount probes followed by `stop`; no acceptance credit. |
+| `tools/test-vm --vm NAME probe-kiosk-approval` | In the exact retained owned `Request denied` form, independently check the prepared child, approver, 75-second duration and soft-app choice, refresh the public custom entry from `1.25` to equivalent `1.250` and back with guarded readbacks, then invoke the shared public Request action once and retain the native prompt before password input. Retain bounded agent/Glycin journal evidence in the same owned probe allocation, with capture status separate from the observer result. No setup, backend mutation, secret provisioning or acceptance credit; finish with `stop`. |
 | `tools/test-vm --vm NAME reproduce-lock-denial` / `reproduce-retained-entry` | Replay the shared child denial or retained two-child history in the same owned maintenance envelope, stopping before the native restriction read or restricted curtain read respectively. Close the worker and retain the guest for diagnosis followed by `stop`; no acceptance credit. |
 | `tools/test-vm --vm NAME reproduce-countdown-minutes` | Replay the shared four-minute daily-only preparation and fresh child entry, stopping before minute progression. Retain a fresh public countdown read and the owned guest for engineering probes followed by `stop`; no acceptance credit. |
 | `tools/test-vm --vm NAME reproduce-countdown-resume` | Replay the qualified child lock/unlock history with guarded 20-second active and 70-second locked intervals. Retain public countdown reads before locking and after authenticated return for engineering diagnosis, followed by `stop`; no acceptance credit. |
@@ -659,14 +661,26 @@ prompt previously overrode it even when the URL was correctly quoted; keep that
 override removed. Refresh changed project rules through
 `./setup.sh --codex-rules-only`, then restart Codex to load them.
 
-Ordinary `rg -n` and `sed -n` reads are explicitly allowed machine-wide across
+Ordinary `rg -n`, `rg --files` and `sed -n` reads are explicitly allowed machine-wide across
 all paths. Project prompt rules must not blanket-match `rg` or `sed`, since
 that overrides the global allow. Prefix rules do not validate trailing options;
 use these direct allowances, including `curl -fsSL`, only for trusted reads and
 the validated reader for untrusted arguments. The curl prefix can also match
 trailing upload, custom-request or output options; the allowance does not
-authorize those operations. `sort`, `uniq`, `gzip` and `wget` retain their project
-prompt overrides. Use quoted ripgrep `--glob '*pattern*'` options instead of
+authorize those operations. Preserve existing saved reader allowances for
+`sort`, `uniq`, `head`, `tail`, `cut` and `wc`; project rules must not override
+them or duplicate them. Ordinary file-discovery/filter pipelines are authorized
+across paths, glob filters, sorting options and line counts, for example:
+
+```sh
+rg --files 'output/test-runs/host/reports' --glob 'category-*.log' | sort | tail -n '3'
+```
+
+These prefix grants do not validate trailing arguments: output-file options
+still match saved `sort`/`uniq` allows, but this authorization covers reads only.
+Use `tools/read-only` for untrusted arguments or argument-confined filtering.
+`gzip` and `wget` retain their project prompt overrides.
+Use quoted ripgrep `--glob '*pattern*'` options instead of
 unquoted shell wildcards: Codex can classify shell expansion as an unsplit shell
 invocation, which the direct executable rule does not cover. Never grant a
 generic shell to solve that parsing limitation.

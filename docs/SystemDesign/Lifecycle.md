@@ -201,23 +201,45 @@ of Ubuntu's `sudo` group from the Malcontent account check.
 For other accounts, the public AccountsService `LimitType` helper skips
 `pam_malcontent` only when the account is positively confirmed unrestricted;
 unknown or malformed state continues through the enforcing module. The kiosk
-account additionally has dedicated-session admission checks. The
-[login helper](../../tools/oh-no-parent-control-login-check) admits that account
-only for `gdm-password` and `systemd-user`. The shared PAM profile also requires
-the [native module](../../tools/pam_oh_no_parent_control.c) in both account and
-session stacks. Other accounts and `systemd-user` do not query routing metadata
+account additionally has dedicated-session admission checks. The shared PAM
+profile requires the [native module](../../tools/pam_oh_no_parent_control.c) in
+both account and session stacks. It admits that account only for `gdm-password`
+and `systemd-user`, and invokes the
+[login helper](../../tools/oh-no-parent-control-login-check) only for the kiosk's
+GDM routing checks. Ordinary accounts return success without launching a helper;
+their native Polkit password check cannot execute the isolated Python gate.
+Other accounts and `systemd-user` do not query routing metadata
 or acquire a station lock. A root-owned, no-follow, private-mode `/run` lock
 serializes station authentication from the account check through session opening;
 contention, unsafe lock files and missing account-stage state deny admission.
 
-Provisioning sets and reads back AccountsService `Session=oh-no-parent-control`
-and `SessionType=wayland`. During account authorization the helper verifies
-that default, then replaces the saved session with a pending marker. GDM has
-already loaded its selection and must save it again before opening the session.
-At session opening, the helper requires the saved selection to be the dedicated
-session and the PAM `XDG_SESSION_TYPE` to be `wayland`. The pending marker makes
-a failed GDM settings save fail closed rather than accepting a stale default.
-The lock prevents another station authentication substituting its settings save.
+Provisioning sets and reads back AccountsService `Session=oh-no-parent-control`,
+`SessionType=wayland` and `SystemAccount=false`. AccountsService's public
+`CacheUser` operation creates retained state for a fresh nologin account; the
+provisioner verifies public `SystemAccount=false` and `Saved=true` afterward.
+An already retained visible account needs no cache mutation. An already retained
+hidden account is refused before cache/routing changes: current AccountsService
+changes its classification only in memory, does not rewrite its existing cache
+and exposes no public classification/save method. Provisioning does not toggle
+an unrelated property or delete retained metadata to force a save.
+The account and its metadata remain available for a supported migration.
+This is an explicit upgrade/release blocker for that state, not a durability
+guarantee from live readback. Closing it requires an AccountsService fix that
+persists explicit `CacheUser` classification for existing retained records while
+preserving their other metadata. Qualify that fix through daemon restart and
+reboot on both supported distributions, then constrain package dependencies to
+their published fixed builds before enabling retained-hidden-account repair.
+No such build is currently qualified. A registered fixed native refusal shell
+could classify a fresh account through NSS, but cannot migrate an existing cache:
+AccountsService applies its saved classification after NSS on every reload.
+The upstream [manager implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/daemon.c),
+[user-state implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/user.c)
+and [public user interface](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/data/org.freedesktop.Accounts.User.xml)
+own these constraints.
+The login helper checks the dedicated preference during account and session
+authorization, and requires PAM `XDG_SESSION_TYPE=wayland` at session opening.
+It does not mutate a valid preference or depend on GDM saving its selection
+between these callbacks. The lock serializes preference checks and repairs.
 The helper uses an isolated Python interpreter, bounded, noninteractive
 system-bus calls and a fixed child environment; the module bounds
 and reaps its helper child. That child retains the lock if its PAM worker aborts,
@@ -227,14 +249,15 @@ through public AccountsService setters and denied; a subsequent login can retry
 with the dedicated default. Unavailable metadata or failed verification denies
 admission. PAM teardown releases the lock without deleting its inode.
 
-This ordering follows GDM 50's
+GDM 50's
 [worker](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-worker.c) and
-[settings save](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-settings.c).
+[settings save](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-settings.c)
+do not provide a public PAM contract attesting to the next executable.
 `GDMSESSION` arrives after PAM session opening, so it cannot enforce that boundary.
-GDM and its privileged greeter remain trusted session selectors. The transaction
-verifies GDM's saved choice at PAM session opening; it does not inspect the later
-exec command. Validation against a supported GDM/greeter must therefore include
-selection timing as well as default routing, especially when their ordering changes.
+The saved preference is configuration, not proof of the next command. The
+required final execution boundary constrains the caller's later exec even if
+GDM's save fails or its selected command changes after the preference check.
+Validation against a supported GDM/greeter must include the actual final execution.
 The retained legacy [PreSession hook](../../data/gdm3/PreSession/Default) is only
 compatibility defense for GDM versions that invoke it; GDM 50 does not invoke it.
 Session preference, the account's shell and that obsolete hook are insufficient
@@ -243,11 +266,195 @@ to confine a graphical GDM login. Local routing diagnostics are described in
 The product Polkit rule denies the station changing its own AccountsService
 metadata. These layers complement the kiosk compositor and disabled XDG
 autostart files; hiding desktop controls is not the account confinement mechanism.
-The admission guard is not an account-wide execution sandbox. It does not add
-an executable allowlist, confine the account's user manager, or prevent arbitrary
-interpreter execution. Those boundaries and GDM's later exec selection still
-require implementation and installed-system qualification before the account
-can be described as permitting only the kiosk application and its required services.
+
+The [confinement integration](../../packaging/kiosk_confinement.py) prepends an
+account integrity check and appends a required final session gate to
+`gdm-password` and `systemd-user`. It records exact original/owned PAM bytes,
+validates included session control flow, and refuses drift or rules which could
+skip the final gate. A kiosk-only guard skips the vendor keyring session module,
+which would otherwise start a daemon before confinement. Both includes and
+substacks are audited against the supported session-module inventory; unknown
+modules, nested keyring callbacks and jumps crossing an inserted guard require
+explicit policy reconciliation. Other accounts retain the vendor callback.
+All PAM audits share one logical-line parser, including tab-separated includes
+and backslash continuations. Unsupported spelling, malformed directives and
+dangling local include overrides fail closed; original vendor bytes are retained.
+The same kiosk-only session guard skips direct vendor `pam_namespace` callbacks
+on both open and close, including required/requisite entries. Thus active
+polyinstantiation configuration, init scripts and temporary-directory cleanup
+are never invoked for this account; ordinary users retain the original module
+and options. Nested namespace entries and jumps crossing the guard are refused.
+Supported vendor `systemd-user` stacks have no auth group: added auth/setcred
+callbacks, including through `@include`, require explicit reconciliation and are
+refused. An owned native auth-group rule handles the kiosk's credential setup and
+deletion without invoking the implicit global `other` stack. It performs only
+service/account identity checks and never authenticates the kiosk. Other accounts
+return `PAM_IGNORE` and continue through an explicit `auth include other`, retaining
+their original fallback. This bounds credential callbacks both before session
+confinement and in the surviving `sd-pam` child without relaxing teardown checks.
+Fedora's trusted systemd executor enters the restricted `manager-pam` current
+domain before returning from the final PAM callback. Its non-exec `sd-pam` child
+inherits that domain, including during teardown; clearing a pending exec context
+cannot remove a current-domain restriction. This uses libselinux's `setcon_raw`
+in the single-threaded executor, with no reverse dynamic transition. Only the
+private manager/executor entrypoints can transition to the manager role.
+The engineering census requires every kiosk thread to have a confined current
+domain; it has no `init_t` waiting-helper exception. The new domain's installed
+startup and teardown qualification remains open; see the current
+[confinement evidence](../confinement.md).
+The intermediate domain can write the inherited `kernel_t` datagram socket used
+by systemd's pre-exec handoff timestamp; that object label was measured on Fedora
+with dontaudit temporarily disabled. It also has `noatsecure` only for transition
+to the private manager, preserving the trusted system executor/PAM environment:
+otherwise libsystemd ignores `XDG_RUNTIME_DIR` and the manager exits. Other role
+transitions retain secure execution. A bounded live supplemental-policy probe
+proved manager/native-service startup and normal stop; final package, teardown
+callbacks and post-parent-exit qualification remain separate obligations.
+A vendor-derived `/etc/pam.d/systemd-user` override is
+verified against its `/usr/lib/pam.d` source; a vendor update requires package
+reconfiguration before admission. Pending `.dpkg-dist` or `.rpmnew` replacements
+for an original local PAM file require explicit distribution-policy reconciliation;
+the package preserves them and refuses to replay an obsolete source silently.
+Interrupted configuration retains the last
+owned published bytes and can resume without adopting local edits. Admission
+also requires the installed policy payload to match the last successful policy
+load; an interrupted load cannot silently retain an older policy generation.
+
+The native module applies the boundary in the PAM caller itself, including the
+parent executor which starts the kiosk's systemd user manager. It clears ambient
+capabilities granted by earlier PAM modules before entering the profile. A bounded root
+[preparation helper](../../tools/kiosk_confinement.py) verifies enforcing policy,
+the package-created account identity and a finite native executable inventory.
+It makes independent root-owned copies, never hardlinks or relabels shared OS
+executables. Fedora grants the GDM caller read access to the vendor-labelled
+`systemd-tmpfiles` inventory member without granting execution of that original.
+It also permits file/directory metadata inspection for the private tree's sibling
+entries, whose labels depend on the installed distro packages; that grant permits
+neither reading their contents nor executing them. Native admission failures
+report a fixed preparation stage without paths or account data.
+The root GDM PAM caller receives the mount-administration permission needed to
+create that private view before entering the gate; the gate receives none.
+The native PAM caller creates and validates the root-owned mode-0700 runtime
+directory under the preparation lock, before invoking the interpreter. Fedora's
+named SELinux transitions therefore label both lock and tree with the dedicated
+data type in the actual `init_t`/`xdm_t` caller. An incidental interpreter-domain
+transition cannot select the runtime label. GDM can inspect the running manager
+through systemd's public service-status API; this grants no unit start/stop
+authority. The namespace and existing DAC ownership checks
+continue to protect the root-only preparation storage.
+A bounded directory skeleton owns every mountpoint from `/usr` to
+each protected file, including matching systemd private libraries and the
+reserved plugin directory. Original sibling entries are pinned with read-only
+binds; copied executables occupy independent private entries. The completed
+tree is attached recursively over `/usr` in the caller's private mount namespace.
+Ordinary package unlink/replacement cannot detach these private file mounts.
+Both targets independently pin the vendor password helper at
+`/usr/lib/polkit-1/polkit-agent-helper-1`. Its native bytes, exact root ownership,
+mode and Fedora SELinux label contribute to the generation; file capabilities
+are refused. The helper keeps its original inode and metadata through an
+individual read-only file bind, outside the copied executable inventory.
+Preparation requires mode `04755` on Fedora and `0755` on Ubuntu. The native
+caller checks the measured inode, size, timestamps and privilege metadata before
+and after binding, refusing a replacement between measurement and mounting.
+Preparation also refuses a missing, substituted or duplicate helper entry in
+the later directory layout, so every measurement reaches that native check.
+Fedora also verifies that the vendor `policykit_auth_t` domain is enforcing.
+Its helper may exchange the PAM conversation through the confined agent's
+inherited pipes and read the private tree's directory metadata/library symlinks;
+these permissions add no executable route or write access to the tree.
+Fedora's `pam_unix` can delegate its shadow check to the vendor `unix_chkpwd`
+in `chkpwd_t`. That helper inherits the same private `/usr` and receives only
+directory metadata/traversal and symlink reads for the owned skeleton. Its
+executable transitions, libraries and shadow access remain vendor policy.
+Ubuntu's Polkit 127 uses its distribution socket-activated root helper outside
+the kiosk account; that service is not a kiosk census exception. The finite
+private helper bind also covers the agent's direct-execution fallback path.
+The engineering census accepts Fedora's vendor helper label only after proving
+every thread's exact mixed UID tuple, native executable/inode/metadata, enforcing
+domain, read-only file bind, private generation/namespace, live confined Polkit
+parent and stable PIDFD/starttime/task snapshots. Unknown labels and `init_t`
+remain rejected. Required final installed acceptance remains recorded in
+[confinement evidence](../confinement.md).
+Ubuntu uses an immediate AppArmor profile change. Fedora's systemd caller uses
+the immediate PAM domain above; GDM uses a verified pending SELinux execution
+context whose entrypoint check applies to the actual next executable. Missing policy, permissive profiles or
+domains, unsafe storage and failed setup deny admission.
+
+The [generated policy](../../tools/kiosk_confinement_policy.py) permits specific
+transitions for the session, user manager, request app, notifications, audio,
+wellbeing, authentication and sandboxed WebKit processes. Generic interpreters
+are reachable only through [native fixed-argument launchers](../../tools/kiosk_session.c)
+which clear startup injection variables and choose immutable scripts. The compositor's kiosk-only unit
+and fixed launchers select GIO's local filesystem backend, avoiding synchronous
+GVfs desktop-volume activation that the kiosk does not need. Ubuntu's finite GJS
+entrypoints include the canonical `gjs-console` target of `/usr/bin/gjs`.
+WirePlumber uses system configuration/data directories and empty Lua default
+module paths. Its trusted custom Lua searcher remains available; default
+current-directory and native-module fallback searches are disabled only for the
+kiosk. The optional GStreamer Python plugin
+cannot be mapped in the confined namespace. Ubuntu's bubblewrap mounts preserve
+trusted executable paths; Fedora's transitions use private executable types.
+The kiosk manager alone receives an additional root-owned unit search path.
+On Ubuntu, wellbeing and WirePlumber drop-ins remove `NoNewPrivileges`
+and, for WirePlumber, the distribution settings which implicitly enable it,
+so the fixed launchers can enter their interpreter profiles. Other accounts
+retain the distribution settings. Native PipeWire and sandboxed WebKit retain
+`NoNewPrivileges`: their AppArmor exec transitions stack additional restrictions
+with the existing profile. WebKit and its plugin scanner lose bubblewrap's mount
+and user-namespace permissions through that intersection.
+GTK image decoding uses a separate finite Glycin bubblewrap/decoder route.
+The installed native 2+ loaders are pinned with their containing directory;
+the decoder cannot execute another program. Its sandbox permits the required
+same-path trusted-library, font and private-cache mounts. Ubuntu's Polkit profile
+allows root-directory enumeration for Glycin's library-symlink discovery.
+Both native bubblewrap bootstraps can open their temporary root directory to
+retain the descriptor required by the second pivot and oldroot detach.
+Only the Glycin bubblewrap bootstrap can configure loopback in its private
+network namespace: SELinux permits non-initial-user-namespace `net_admin` and
+routing-message writes; AppArmor mediates `net_admin` without supplying a Linux
+capability. The finite native unprivileged bootstrap owns the new namespaces;
+the decoder receives no such permissions.
+Ubuntu's finite bootstrap mount rules match AppArmor's flag normalization:
+propagation and read-only remount retain native bubblewrap's `MS_SILENT`, binds
+strip it, and native file binds also use `MS_REC`. Their paths remain bounded.
+Fedora's Glycin bootstrap may remount and detach the `fs_t` filesystem backing
+the pinned `/usr` view and mount on regular-file
+placeholders in its private `tmpfs_t` device directory. The decoder receives
+neither permission. These SELinux grants apply by type, rather than pathname
+or detach flag; the pinned native bootstrap and kernel namespace/capability
+checks bound their use.
+Ubuntu's optional Snap session-agent service/socket, desktop-integration and
+prompting services, and firmware-notifier service/timer are masked only in the
+kiosk's private unit path, avoiding repeated activation of applications
+unavailable in that session.
+The kiosk's private D-Bus data path also supplies exact Settings and Launcher
+activation definitions bound to that masked unit. Their inert executable fallback
+prevents the vendor definitions from launching `snap userd` directly around the
+systemd mask. Ordinary sessions retain the vendor activation definitions.
+Fedora's dbus-broker drop-in uses a fixed native launcher in the service domain.
+It clears startup configuration before same-domain exec, allowing libsystemd to
+read the runtime-directory environment without a SELinux `noatsecure` grant.
+The role policy permits I/O on inherited Unix-stream descriptors, including
+journal sockets; it does not add execution routes. Only the manager receives
+Fedora's object-identity constraint attribute for vendor-labelled runtime sockets.
+Confined domains may acquire names on the service-domain user bus; name
+acquisition against unrelated system-bus service labels is not granted.
+The account also has a nologin shell. Broker, D-Bus and Polkit authorization
+continue to own data access and parent approval; execution confinement grants
+no additional broker authority.
+
+GDM admission requires the running kiosk manager to have the same inventory
+generation and enforcing security label. A stale manager requires reboot;
+configuration never kills or silently replaces it. Completed generations stay
+until reboot so live executable mounts remain valid. Preparation permits at
+most four generations per boot, 32,768 directory entries and 512 MiB of
+executable/library input per generation;
+owned incomplete preparations are reclaimed under the exclusive lock. The
+installed engineering matrix in
+[system_kiosk_confinement.py](../../tests/integration/system_kiosk_confinement.py)
+is separate from public kiosk workflow acceptance. Both Ubuntu and Fedora must
+pass their current installed and graphical checks before this boundary is
+treated as release-qualified.
 
 Saved-data migration completes before provisioning and package-update activation.
 See [Data migration](Data-Migration.md#package-lifecycle) for broker exclusion,
@@ -258,8 +465,9 @@ the installed file that changed, an update needs no action, a broker restart, a
 new child/kiosk session, or a reboot for boot integration or resident user-manager
 recovery code. See
 [Package update](../Publishing.md#package-update-activation) for the classification rules.
-In particular, replacing the native PAM module alone is `session-renewal`,
-whereas changing PAM profiles or login-routing integration is `reboot`.
+The native PAM module, confinement policy/preparation, fixed launchers, PAM
+profiles and login-routing integration require `reboot`: a graphical logout
+alone may retain the old user manager and its private executable generation.
 New request windows and Parent processes load their installed code when opened;
 session renewal is needed for a running Shell or dedicated kiosk session to
 consume the corresponding updated payload. Configuration does not forcibly

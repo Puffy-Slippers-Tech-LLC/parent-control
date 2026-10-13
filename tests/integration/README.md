@@ -145,6 +145,16 @@ available after tests; final cleanup still audits and restores the outer baselin
 Partial post-install selections no longer run fresh-install assertions as
 prerequisites. Full runs retain all explicit package lifecycle checks.
 
+Kiosk-derived graphical qualifications also compare their frozen package,
+baseline and installation recipe before restoring an app snapshot. A mismatch
+refuses entry; the version name is insufficient. Their reports keep the saved
+snapshot identity separate from the staged input archive identity. The kiosk
+entry qualification retains bounded private login and MAC diagnostics on failure.
+For live diagnosis before acceptance, `tools/test-vm --vm NAME reproduce-kiosk-entry`
+uses the existing owned maintenance envelope and public station-entry mechanics,
+stopping before request-form validation. Inspect that same running instance with
+`exec`, then finish with `stop`; this route supplies no acceptance result.
+
 The `removal` area starts product-free and keeps installation, configuration,
 refused removal of an edited owned integration, retry, erase, reboot, health
 verification, reinstall, package-delivered purge and a fresh reinstall in one
@@ -177,12 +187,14 @@ diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
 both operations. Capture failure preserves the original test failure.
 
-For an explicit update check, add `--previous-artifacts /tmp/onpc-...` alongside
-`--artifacts /tmp/onpc-...`. Both inputs pass the same artifact and source
+For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
+`--artifacts '<current-artifact-allocation>'`, using the maintained builder's
+returned paths. Both inputs pass the same artifact and source
 verification. The controller installs and boots the prior package, requires its
-payload unchanged and its platform reboot marker cleared, then uses APT
-`--reinstall` on Ubuntu or DNF install/reinstall on Fedora for the selected new
-payload. Both artifacts must use the same package format. Fedora compares exact
+payload unchanged and its platform reboot marker cleared, then uses the frozen
+checkout's `make install INSTALL_PACKAGE=<exact-package>` recipe for the selected
+new payload. Make owns APT/DNF dependency resolution and same-version reinstall.
+Both artifacts must use the same package format. Fedora compares exact
 RPM name, epoch, version, release and architecture, and keeps SELinux enforcing.
 Identical package digests are refused. The update
 must request a new product reboot, and normal installed/reboot assertions run
@@ -347,6 +359,12 @@ failed test assertion.
   the [E2E contract and regressions](../e2e/README.md#customer-reboot-observation-boundary).
 - `owned_commands.Commands`: pins directly spawned host/guest processes and
   bounds interruption cleanup. No guessed process discovery or ownership.
+- `test_kiosk_namespace_guard_callbacks`: under the exclusive guest lease,
+  exercises real PAM namespace open/init/close and credential callbacks with a
+  unique temporary configuration and two directly forked, bounded workers.
+  It verifies ordinary-user callbacks, the kiosk skip and parent namespace
+  isolation. The configuration is removed only after inode/content checks;
+  attempt restoration owns recovery. It changes no host PAM or namespace state.
 - `system_guest`: validates the guest/attempt boundary and drives real APT and
   installed pytest phases. Package assertions account for actual packaged
   permissions, including the restricted Parent launcher and fapolicyd's

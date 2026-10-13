@@ -258,7 +258,7 @@ def test_tool_discovery_refuses_symlink_targets(tmp_path, target_kind):
     'make check-system SHELL=/tmp/arbitrary', 'make install', 'make prepare-vm',
     'journalctl --vacuum-time=1s', 'systemctl restart sshd',
     'pkexec /usr/bin/head /etc/shadow', 'gdbus call --address unix:path=/tmp/bus',
-    'rg --pre /tmp/arbitrary needle', 'sort input -o /tmp/output',
+    'rg --pre /tmp/arbitrary needle',
     'wget -qO- https://example.com --post-data=example', 'env -u GDK_BACKEND /tmp/arbitrary',
 ])
 def test_legacy_global_allow_cannot_override_project_prompt(command):
@@ -307,6 +307,21 @@ def test_saved_curl_prefix_does_not_validate_trailing_arguments():
     rules = [saved_rule, *entries('codex-read-only.rules'), *entries()]
     argv = ['curl', '-fsSL', 'https://example.com', '-X', 'POST']
     assert {rule['decision'] for rule in rules if matches(rule['pattern'], argv)} == {'allow'}
+
+
+@pytest.mark.parametrize('command', [
+    'sort', 'sort -r', 'sort -V arbitrary/input', '/usr/bin/sort -u',
+    'uniq', 'uniq -c', '/usr/bin/uniq -d arbitrary/input',
+    'head -n 20', 'tail -n 3', 'tail -n 50 arbitrary/log',
+    'cut -d : -f 1', 'wc -l',
+])
+def test_saved_reader_allows_are_not_overridden_or_duplicated(command):
+    argv = shlex.split(command)
+    maintained_rules = [*entries('codex-read-only.rules'), *entries()]
+    assert not any(matches(rule['pattern'], argv) for rule in maintained_rules)
+    saved_rule = {'pattern': [argv[0]], 'decision': 'allow'}
+    assert {rule['decision'] for rule in [saved_rule, *maintained_rules]
+            if matches(rule['pattern'], argv)} == {'allow'}
 
 
 @pytest.mark.parametrize('executable', ['make', '/usr/bin/make'])
@@ -367,6 +382,9 @@ def test_inline_examples_and_no_generic_script_allow():
     "rg -n --glob '*evidence*' 'evidence|redact|secret|collector|outcomes|first_failure' tests/integration",
     "rg -n 'perl|subprocess.run|Test::More' --glob '/tests/unit/test_graphical*' --glob '/tests/unit/test_e2e*' .",
     'rg -n needle /etc /var/log /tmp', '/usr/bin/rg -n pattern arbitrary/repo',
+    "rg --files 'output/test-runs/host/reports' --glob 'category-001.log'",
+    "rg --files /tmp/another-checkout --glob '*.json' --hidden",
+    "/usr/bin/rg --files --glob '*.py' arbitrary/repo",
     "sed -n '1,95p' tests/integration/check_graphical_smoke.py",
     "/usr/bin/sed -n '20,80p' /var/log/example.log",
 ])

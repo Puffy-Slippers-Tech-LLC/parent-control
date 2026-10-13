@@ -1,8 +1,10 @@
 """Real GJS/GSettings recovery on a private bus and pytest-owned keyfile backend."""
 
+import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 
 from gi.repository import Gio, GLib
@@ -35,6 +37,17 @@ def helper(tmp_path, dbusmock_session):
     children = []
 
     class Helper:
+        def installed_probe(self):
+            # The installed qualifier runs these exact public-client bytes.
+            # Only this suite's private bus, schema and keyfile backend differ.
+            program = ('import json,os,runpy,sys; '
+                'probe=runpy.run_path(sys.argv[1]); '
+                'print(json.dumps(probe["qualify"](os.environ["DBUS_SESSION_BUS_ADDRESS"],sys.argv[2])))')
+            result = subprocess.run([sys.executable, '-c', program,
+                str(ROOT / 'tests/integration/wellbeing_probe.py'), str(schemas)],
+                env=env, check=True, timeout=20, text=True, capture_output=True)
+            return json.loads(result.stdout)
+
         def start_client(self):
             # Exercise the production client and GIO name-watch ordering, with
             # only the Shell manager/session inputs replaced on this private bus.
@@ -143,6 +156,17 @@ loop.run();
             finally:
                 log.close()
         client.close_sync(None)
+
+
+@pytest.mark.parametrize('original', ['true', 'false', 'default'])
+def test_installed_qualifier_public_client_restores_real_settings(helper, original):
+    if original != 'default':
+        helper.settings('set', value=original)
+    helper.start()
+    assert helper.installed_probe() == {'original': original, 'backup_recorded': True,
+                                       'suppressed': True, 'restored': True}
+    assert helper.user_value() == original
+    assert helper.settings('get', JOURNAL, 'wellbeing-banner-backup') == "''"
 
 
 @pytest.mark.parametrize('original', ['true', 'false', 'default'])

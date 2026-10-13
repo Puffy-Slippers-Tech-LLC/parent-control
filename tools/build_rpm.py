@@ -5,6 +5,7 @@ import argparse
 from email.utils import parsedate_to_datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -54,6 +55,7 @@ def sources(root: Path, workspace: Path, release: str):
             info.mtime = epoch
             with path.open('rb') as stream:
                 output.addfile(info, stream)
+    archive.chmod(0o644)
     spec = top / 'SPECS/oh-no-parent-control.spec'
     content = (source / 'rpm/oh-no-parent-control.spec.in').read_text()
     for token, value in (('@VERSION@', version), ('@RELEASE@', release)):
@@ -61,6 +63,7 @@ def sources(root: Path, workspace: Path, release: str):
             raise ValueError(f'invalid RPM spec slot: {token}')
         content = content.replace(token, value)
     spec.write_text(content)
+    spec.chmod(0o644)
     identity = top / 'SOURCES' / f'{name}.inputs.json'
     identity.write_text(json.dumps({
         'version': version, 'release': release,
@@ -68,6 +71,7 @@ def sources(root: Path, workspace: Path, release: str):
         'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
         'files': [p.as_posix() for p in selected],
     }, indent=2) + '\n')
+    identity.chmod(0o644)
     return top, spec, archive, identity
 
 
@@ -91,6 +95,10 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
         raise ValueError('invalid RPM build mode')
     with tempfile.TemporaryDirectory(prefix='onpc-rpm-', dir=scratch_directory()) as temporary:
         top, spec, archive, identity = sources(root, Path(temporary), release)
+        # The caller's environment must not change an identical RPM's header,
+        # scripts or payload timestamps. Containers receive this explicitly.
+        epoch = metadata(root, release)[1]
+        environment = os.environ | {'SOURCE_DATE_EPOCH': str(epoch)}
         output.mkdir(parents=True, exist_ok=True)
         for artifact in (archive, identity, spec):
             export(artifact, output)
@@ -101,7 +109,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
             if container:
                 if shutil.which('podman') is None:
                     raise ValueError(f'rpmbuild or Fedora 44 builder is missing; sources retained in {output}; run ./setup.sh --rpm-build-tools')
-                arguments = rpm_builder.command(root, top, mode)
+                arguments = rpm_builder.command(root, top, mode, epoch=epoch)
             else:
                 if shutil.which('rpmbuild') is None:
                     raise ValueError('rpmbuild is missing; run ./setup.sh --rpm-build-tools')
@@ -112,6 +120,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
                 with log.open('w') as stream:
                     subprocess.run(arguments, cwd=top, check=True,
                                    stdout=stream, stderr=subprocess.STDOUT,
+                                   env=environment,
                                    pass_fds=scratch_descriptors())
             finally:
                 export(log, output)
@@ -122,6 +131,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm'):
                 try:
                     subprocess.run(['mock', '--root', 'fedora-44-x86_64', '--rebuild', str(srpm),
                                     '--resultdir', str(result)], cwd=top, check=True,
+                                   env=environment,
                                    pass_fds=scratch_descriptors())
                 finally:
                     # Retain the builder's normal evidence even when it fails.

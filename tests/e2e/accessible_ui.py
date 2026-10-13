@@ -292,6 +292,8 @@ KIOSK_INVALID_VALUES = {
     'below': '0.09', 'over': '1440.1', 'comma': '1,5',
 }
 TEXT_VALUES = {
+    'installed-reminder-text': ('reminder-text', 'Installed kiosk reminder <games> & work.'),
+    'installed-reminder-seconds': ('reminder-value', '15'),
     'body-rtl': ('feedback-editor-input', 'שלום Alex 75'),
     'reply-rtl': ('feedback-reply-email', 'rtl-check@example.invalid'),
     'match-wildcard': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact*.AppImage'),
@@ -711,6 +713,11 @@ GDM_SESSION_LABELS = {
 }
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form',
                               'kiosk-no-child-form', 'kiosk-no-approver-form', 'kiosk-lifecycle-defaults'})
+KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
+    'kiosk-diagnostic-report', 'kiosk-diagnostic-editor'})
+OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
+KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
+OPERATIONS |= KIOSK_REMINDER_OPERATIONS
 KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-approver-baseline'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
@@ -792,6 +799,7 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-valid-fraction-soft-{action}': (75, '1.25',
 KIOSK_VALID_REQUESTS.update({f'kiosk-flow-{field}-select': (75, '1.25', True)
                              for field in ('child', 'approver')})
 KIOSK_VALID_REQUESTS['kiosk-restored-accounts-select'] = (75, '1.25', True)
+KIOSK_VALID_REQUESTS['kiosk-diagnostic-retry-estimate'] = (75, '1.25', True)
 KIOSK_VALID_OPERATIONS = frozenset(KIOSK_VALID_REQUESTS) | {'kiosk-valid-custom-open'}
 CHINESE_VALID_BINDINGS = {
     'chinese-' + suffix: 'kiosk-valid-' + suffix for suffix in
@@ -890,7 +898,7 @@ OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
 KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
                                    'kiosk-request-escape-ready'})
-KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
+KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | KIOSK_DIAGNOSTIC_OPERATIONS | KIOSK_REMINDER_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
                             | {'kiosk-choice-refusals'})
 KIOSK_SESSION_OPERATIONS |= KIOSK_VALID_OPERATIONS | frozenset(KIOSK_INVALID_OPERATIONS) | frozenset(
@@ -2057,7 +2065,7 @@ class AccessibleUI:
     def require_product_route(self, node, identity=None):
         """Refuse a product control supplied by an alternate live provider."""
         identity = public_automation_id(node) if identity is None else identity
-        product = (identity.startswith('child-')
+        product = (identity.startswith(('child-', 'kiosk-system-notification'))
                    or bool(set(owned_applications(identity)) & set(PRODUCT_APPLICATIONS)))
         if product and self.application_ui is not None:
             require(getattr(node, 'catalog', None) is self.application_ui
@@ -2137,6 +2145,8 @@ class AccessibleUI:
                    if app_id == PARENT_APPLICATION else
                    ('kiosk-request-window', 'startup-error-window')
                    if app_id in (KIOSK_APPLICATION, CHILD_APPLICATION) else
+                   ('kiosk-system-notification',)
+                   if app_id == 'com.puffyslippers.OhNoParentControl.KioskNotifications' else
                    ('preview-viewer-window',))
         require(identity not in visited and len(visited) < 8, 'ui:surface-owner-cycle')
         if identity in primary:
@@ -8955,6 +8965,155 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
+    def kiosk_reminder_source(self):
+        import hashlib
+        observation = self.read_snapshot()
+        window = self.request_surface(observation)
+        draft = self.snapshot_owned_target('reminder-list', observation=observation, showing=False)
+        require(draft is not None, 'ui:kiosk-reminder-draft')
+        return hashlib.sha256(json.dumps([window.bus, window.path, draft.getValue()],
+                                         sort_keys=True).encode()).hexdigest()
+
+    def kiosk_reminder_preview(self):
+        """Preview an unsaved literal through the installed notification renderer."""
+        self.open_language_preferences('kiosk')
+        self.set_value('preferences-tabs', 'reminders')
+        source = self.kiosk_reminder_source()
+        self.activate_id('reminder-add')
+        self.wait(lambda: self.snapshot_owned_target('reminder-editor-dialog'),
+                  'kiosk-reminder-editor')
+        self.set_value('reminder-unit', 'second')
+        self.set_text('reminder-value', '15')
+        literal = TEXT_VALUES['installed-reminder-text'][1]
+        self.set_text('reminder-text', literal)
+        self.activate_id('reminder-editor-preview')
+
+        def rendered():
+            observation = self.read_snapshot()
+            surface = self.snapshot_owned_target('kiosk-system-notification', observation=observation)
+            if surface is None:
+                return None
+            message = self.snapshot_owned_target('kiosk-system-notification-message',
+                                                 observation=observation)
+            countdown = self.snapshot_owned_target('kiosk-system-notification-countdown',
+                                                   observation=observation)
+            if message is None or countdown is None:
+                return None
+            require(message.getText() == literal and message.getValue() == 'critical',
+                    'ui:kiosk-reminder-content')
+            require(re.fullmatch(r'(?:[1-9]|1[0-5])s', countdown.getText()),
+                    'ui:kiosk-reminder-countdown')
+            return True
+        self.wait(rendered, 'kiosk-reminder-rendered')
+        require(self.kiosk_reminder_source() == source, 'ui:kiosk-reminder-draft-changed')
+        self.kiosk_reminder_identity = source
+        return {'source': source, 'banner_surface': True, 'literal': True,
+                'critical': True, 'countdown': True}
+
+    def kiosk_reminder_preview_cancel(self):
+        source = self.kiosk_reminder_source()
+        require(source == getattr(self, 'expected_kiosk_reminder_source', None) or
+                source == getattr(self, 'kiosk_reminder_identity', None), 'ui:kiosk-reminder-owner')
+        self.activate_id('reminder-editor-cancel')
+        def closed():
+            observation = self.read_snapshot()
+            return all(self.snapshot_owned_target(identity, observation=observation, showing=False)
+                       is None for identity in ('reminder-editor-dialog', 'kiosk-system-notification'))
+        self.wait(closed, 'kiosk-reminder-preview-closed')
+        require(self.kiosk_reminder_source() == source, 'ui:kiosk-reminder-draft-changed')
+        self.activate_id('language-cancel')
+        self.wait(lambda: self.snapshot_owned_target('language-dialog', showing=False) is None,
+                  'kiosk-reminder-preferences-closed')
+        return {'source': source, 'banner_closed': True, 'unsaved_draft_discarded': True}
+
+    def kiosk_diagnostic_surface(self, *, feedback=False):
+        """Bind engineering reads to the real kiosk and its owned report dialog."""
+        import hashlib
+        observation = self.read_snapshot()
+        window = self.request_surface(observation)
+        root = (self.snapshot_owned_target('feedback-dialog', observation=observation,
+                                          check_prompt=True) if feedback else window)
+        if root is None:
+            return None
+        require(root.bus == window.bus, 'ui:kiosk-diagnostic-owner')
+        source = hashlib.sha256(json.dumps([window.bus, window.path]).encode()).hexdigest()
+        return observation, root, source
+
+    def kiosk_diagnostic_error(self):
+        """Submit once; independently require the normal public failure/report choice."""
+        self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+
+        def ready():
+            observation, root, source = self.kiosk_diagnostic_surface()
+            def target(identity):
+                return self.snapshot_owned_target(identity, root=root, observation=observation)
+            title, detail, toggle, action = (target(identity) for identity in
+                ('kiosk-result-title', 'kiosk-result-detail', 'kiosk-report-toggle', 'kiosk-result-action'))
+            if not all((title, detail, toggle, action)):
+                return None
+            require(title.get_name() == 'Something went wrong' and detail.get_name() ==
+                    'The operation could not be completed. Please try again later.',
+                    'ui:kiosk-diagnostic-error')
+            require(toggle.getValue() is True and
+                    all(self.has_state(node, self.api.StateType.SENSITIVE) for node in (toggle, action)),
+                    'ui:kiosk-diagnostic-report-choice')
+            return {'source': source, 'error_shown': True, 'report_default': True}
+        value = self.wait(ready, 'kiosk-diagnostic-error')
+        self.kiosk_diagnostic_source = value['source']
+        return value
+
+    def kiosk_diagnostic_report(self):
+        observation, root, source = self.kiosk_diagnostic_surface()
+        require(source == getattr(self, 'expected_kiosk_diagnostic_source', None) or
+                source == getattr(self, 'kiosk_diagnostic_source', None),
+                'ui:kiosk-diagnostic-owner')
+        toggle = self.snapshot_owned_target('kiosk-report-toggle', root=root, observation=observation)
+        action = self.snapshot_owned_target('kiosk-result-action', root=root, observation=observation)
+        require(toggle is not None and toggle.getValue() is True and action is not None,
+                'ui:kiosk-diagnostic-report-choice')
+        self._invoke_target(action)
+        value = self.wait(lambda: self.kiosk_diagnostic_surface(feedback=True),
+                          'kiosk-diagnostic-report')
+        require(value[2] == source, 'ui:kiosk-diagnostic-owner')
+        return {'source': source, 'report_open': True}
+
+    def kiosk_diagnostic_editor(self):
+        """Exercise the packaged WebKit document and actual diagnostics, without Send."""
+        def ready():
+            value = self.kiosk_diagnostic_surface(feedback=True)
+            if value is None:
+                return None
+            observation, root, source = value
+            require(source == getattr(self, 'expected_kiosk_diagnostic_source', None) or
+                    source == getattr(self, 'kiosk_diagnostic_source', None),
+                    'ui:kiosk-diagnostic-owner')
+            editor = self.snapshot_owned_target('feedback-editor-input', root=root,
+                                                observation=observation, showing=False)
+            if editor is None or not all(self.has_state(editor, state) for state in
+                    (self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE, self.api.StateType.EDITABLE)):
+                return None
+            return source
+        source = self.wait(ready, 'kiosk-diagnostic-editor')
+        text = 'Installed kiosk diagnostic qualification.'
+        self.set_text('feedback-editor-input', text)
+        require(self.editor_document() == {'ops': [{'insert': text + '\n'}]},
+                'ui:kiosk-diagnostic-document')
+
+        def collected():
+            value = self.kiosk_diagnostic_surface(feedback=True)
+            require(value is not None and value[2] == source, 'ui:kiosk-diagnostic-owner')
+            observation, root, _ = value
+            row = self.snapshot_owned_target('feedback-collection-status', root=root,
+                                             observation=observation, showing=False)
+            download = self.snapshot_owned_target('feedback-download-logs', root=root,
+                                                  observation=observation, showing=False)
+            if row is not None and self.has_state(row, self.api.StateType.VISIBLE):
+                return None
+            return bool(download is not None and all(self.has_state(download, state) for state in
+                        (self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE)))
+        self.wait(collected, 'kiosk-diagnostic-collection')
+        return {'source': source, 'editor_usable': True, 'diagnostics_ready': True, 'sent': False}
+
     def _kiosk_valid_choice(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
         overlay = operation in OVERLAY_VALID_OPERATIONS
@@ -8973,6 +9132,28 @@ class AccessibleUI:
             return None
         seconds, custom, soft = (CHINESE_VALID_REQUESTS if chinese else
                                 OVERLAY_VALID_REQUESTS if overlay else KIOSK_VALID_REQUESTS)[operation]
+        if operation == 'kiosk-diagnostic-retry-estimate':
+            # A native-agent failure leaves the ordinary form at Request
+            # denied. Refresh only that exact retained scene through its public
+            # changed handler; both decimal spellings select the same 75 s.
+            before = self.kiosk_request_form(enabled=True,
+                expected_selection=('child', CHILD_IDENTITIES[CHILD]),
+                duration_seconds=seconds, custom_text=custom)
+            require(before['approver'] == 'fixture-parent' and before['allow_soft'] is soft,
+                    'ui:kiosk-retry-choice')
+            status = self.snapshot_owned_target('kiosk-request-status', check_prompt=True)
+            require(status is not None and status.get_name() == 'Request denied',
+                    'ui:kiosk-retry-status')
+            self.set_text('kiosk-custom-duration', '1.250')
+            intermediate = self.kiosk_request_form(enabled=True,
+                expected_selection=('child', CHILD_IDENTITIES[CHILD]),
+                duration_seconds=seconds, custom_text='1.250')
+            require(intermediate == {**before, 'custom_text': '1.250'},
+                    'ui:kiosk-retry-intermediate')
+            self.set_text('kiosk-custom-duration', custom)
+            value = self._kiosk_valid_choice('kiosk-valid-fraction-soft-read')
+            require(value['request'] == before, 'ui:kiosk-retry-final')
+            return value
         if operation in ('overlay-valid-approver-select', 'overlay-flow-approver-select'):
             self.select_kiosk_account('approver', PARENT, expected=(PARENT, OTHER_PARENT),
                 duration_seconds=seconds, custom_text=custom, overlay=True)
@@ -11317,6 +11498,15 @@ class AccessibleUI:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
                 result['provider'] = self.shell_provider_metadata()
+        elif operation in KIOSK_REMINDER_OPERATIONS:
+            result['reminder'] = (self.kiosk_reminder_preview() if operation ==
+                                  'kiosk-reminder-preview' else self.kiosk_reminder_preview_cancel())
+        elif operation in KIOSK_DIAGNOSTIC_OPERATIONS:
+            result['diagnostic'] = {
+                'kiosk-diagnostic-error': self.kiosk_diagnostic_error,
+                'kiosk-diagnostic-report': self.kiosk_diagnostic_report,
+                'kiosk-diagnostic-editor': self.kiosk_diagnostic_editor,
+            }[operation]()
         elif operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
         elif operation == 'station-default-entry':
@@ -12723,7 +12913,17 @@ def main():
     ui.trace_request = sys.argv[4] if len(sys.argv) >= 5 and trace_argument else None
     ui.trace_boot = boot
     ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
-    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument else None
+    diagnostic_binding = sys.argv[1] in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor')
+    reminder_binding = sys.argv[1] == 'kiosk-reminder-preview-cancel'
+    ui.expected_kiosk_reminder_source = sys.argv[4] if len(sys.argv) == 5 and reminder_binding else None
+    require(not reminder_binding or (ui.expected_kiosk_reminder_source is not None and
+            re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_reminder_source)),
+            'ui:kiosk-reminder-binding')
+    ui.expected_kiosk_diagnostic_source = sys.argv[4] if len(sys.argv) == 5 and diagnostic_binding else None
+    require(not diagnostic_binding or (ui.expected_kiosk_diagnostic_source is not None and
+            re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_diagnostic_source)),
+            'ui:kiosk-diagnostic-binding')
+    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument and not diagnostic_binding and not reminder_binding else None
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

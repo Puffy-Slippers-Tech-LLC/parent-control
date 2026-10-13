@@ -89,14 +89,77 @@ class ProvisionTests(unittest.TestCase):
 
     @mock.patch("tools.provision.subprocess.run")
     def test_kiosk_session_and_transport_are_set_and_verified(self, run):
-        run.return_value = SimpleNamespace(stdout='s "oh-no-parent-control"\ns "wayland"\n')
+        run.return_value = SimpleNamespace(stdout='s "oh-no-parent-control"\ns "wayland"\nb false\n')
         provision.accounts_service_set_kiosk_session("/org/freedesktop/Accounts/User1002")
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual([cmd[-3:] for cmd in commands[:2]], [
             ["SetSession", "s", "oh-no-parent-control"],
             ["SetSessionType", "s", "wayland"],
         ])
-        self.assertEqual(commands[2][-2:], ["Session", "SessionType"])
+        self.assertEqual(commands[2][-3:], ["Session", "SessionType", "SystemAccount"])
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_fresh_nologin_kiosk_uses_public_cache_and_verifies_retained_state(self, run):
+        user = SimpleNamespace(pw_uid=1002, pw_name="oh-no-parent-control")
+        path = "/org/freedesktop/Accounts/User1002"
+        run.side_effect = [SimpleNamespace(stdout='b true\nb false\n'),
+                           SimpleNamespace(stdout=f'o "{path}"\n'),
+                           SimpleNamespace(stdout='b false\nb true\n')]
+        provision.accounts_service_cache_kiosk(user, path)
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[1][-3:], ["CacheUser", "s", user.pw_name])
+        self.assertEqual(commands[2][-2:], ["SystemAccount", "Saved"])
+        self.assertFalse(any("SetSession" in command for command in commands))
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_visible_kiosk_needs_no_cache_mutation(self, run):
+        run.return_value = SimpleNamespace(stdout='b false\nb true\n')
+        provision.accounts_service_cache_kiosk(
+            SimpleNamespace(pw_name="oh-no-parent-control"), "/org/freedesktop/Accounts/User1002")
+        self.assertEqual(run.call_count, 1)
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_cache_cannot_substitute_another_identity(self, run):
+        run.side_effect = [SimpleNamespace(stdout='b true\nb false\n'),
+                           SimpleNamespace(stdout='o "/org/freedesktop/Accounts/User9999"\n')]
+        with self.assertRaisesRegex(SystemExit, "invalid cached kiosk"):
+            provision.accounts_service_cache_kiosk(
+                SimpleNamespace(pw_name="oh-no-parent-control"), "/org/freedesktop/Accounts/User1002")
+        self.assertEqual(run.call_count, 2)
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_hidden_retained_kiosk_is_refused_without_metadata_mutation(self, run):
+        run.return_value = SimpleNamespace(stdout='b true\nb true\n')
+        with self.assertRaisesRegex(SystemExit, "requires an AccountsService fix"):
+            provision.accounts_service_cache_kiosk(
+                SimpleNamespace(pw_name="oh-no-parent-control"), "/org/freedesktop/Accounts/User1002")
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][2], "get-property")
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_visible_but_unsaved_kiosk_is_cached(self, run):
+        path = "/org/freedesktop/Accounts/User1002"
+        run.side_effect = [SimpleNamespace(stdout='b false\nb false\n'),
+                           SimpleNamespace(stdout=f'o "{path}"\n'),
+                           SimpleNamespace(stdout='b false\nb true\n')]
+        provision.accounts_service_cache_kiosk(SimpleNamespace(pw_name="oh-no-parent-control"), path)
+        self.assertEqual(run.call_args_list[1].args[0][-3:], ["CacheUser", "s", "oh-no-parent-control"])
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_cache_success_without_retained_visible_state_is_refused(self, run):
+        path = "/org/freedesktop/Accounts/User1002"
+        for observed in ('b false\nb false\n', 'b true\nb true\n', 'b false\n'):
+            run.side_effect = [SimpleNamespace(stdout='b true\nb false\n'),
+                               SimpleNamespace(stdout=f'o "{path}"\n'),
+                               SimpleNamespace(stdout=observed)]
+            with self.subTest(observed=observed), self.assertRaisesRegex(SystemExit, "cache verification"):
+                provision.accounts_service_cache_kiosk(SimpleNamespace(pw_name="oh-no-parent-control"), path)
+
+    @mock.patch("tools.provision.subprocess.run")
+    def test_hidden_kiosk_fails_final_provisioning_readback(self, run):
+        run.return_value = SimpleNamespace(stdout='s "oh-no-parent-control"\ns "wayland"\nb true\n')
+        with self.assertRaisesRegex(SystemExit, "routing failed verification"):
+            provision.accounts_service_set_kiosk_session("/org/freedesktop/Accounts/User1002")
 
     @mock.patch("tools.provision.subprocess.run")
     def test_successful_setter_with_wrong_readback_fails_provisioning(self, run):

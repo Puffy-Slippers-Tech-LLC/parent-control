@@ -81,6 +81,17 @@ Independently copied/renamed executables, shared interpreters and ambiguous wrap
 
 The product offers the child-session request overlay and the dedicated kiosk entered through GDM. It has no custom request control inside the stock lock screen. Test those real entry paths; do not create a private Shell or Polkit integration to make a scenario pass.
 
+The reserved kiosk account must be restricted to the request app and its
+required services even when saved session preferences or the command selected
+after admission would otherwise start a desktop. Its GDM executor and systemd
+user manager share the kernel execution boundary described in
+[Lifecycle](SystemDesign/Lifecycle.md). Qualification must distinguish a denied
+exec from a broken session, prove allowed workflows on both supported
+distributions, and include writable code/configuration, loader/FD execution,
+manager reexecution, policy loss and package lifecycle recovery. Compromised
+root, modified kernel policy and administrator credentials remain outside the
+attacker model; ordinary-user broker or service API bypasses remain in scope.
+
 The following are release blockers, not acceptable limitations:
 
 - a denied, cancelled, disconnected, invalid, or partially failed request can grant time or relax policy;
@@ -136,6 +147,7 @@ qualification remains separate. Audit current run evidence before claiming cover
 | TM-23 | Front end writes another component's logs, injects sensitive fields, or grows logs without bound. | Unit role/redaction/retention tests; VM permission and raw D-Bus logging attempts. |
 | TM-24 | Private GNOME APIs create an unsupported lock-screen or session guarantee. | Source-contract rejection plus supported-image VM behavior. |
 | TM-25 | Install, upgrade, activation, migration, or uninstall leaves unsafe/stale policy. | Unit installer/migration/activation/uninstall tests; clean-install and upgrade VM jobs. |
+| TM-26 | The kiosk gains a desktop or arbitrary execution through late GDM selection, its user manager, an interpreter/plugin, an executable FD or writable mount/configuration. | Unit routing, fixed-launcher and ownership recovery tests; Ubuntu AppArmor and Fedora SELinux installed allow/deny, policy-loss, reexec and upgrade checks; public kiosk entry, approval, notifications, wellbeing and feedback workflows. |
 
 Each applicable threat must map to executable tests and accepted evidence in
 the declared supported environment. A documentation owner or an existing file

@@ -18,6 +18,118 @@ import pytest
 from tests.support.paths import ROOT
 
 
+@pytest.fixture(scope="module")
+def session_entry(tmp_path_factory):
+    directory = tmp_path_factory.mktemp("onpc-kiosk-session")
+    target = directory / "session"
+    entry = directory / "entry"
+    target.write_text('#!/usr/bin/python3 -I\nimport json, os, sys\n'
+                      'print(json.dumps([sys.argv[1:], dict(os.environ)]))\n')
+    target.chmod(0o700)
+    subprocess.run([
+        "cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
+        f'-DGNOME_SESSION_PATH="{target}"', "-o", str(entry),
+        str(ROOT / "tools/kiosk_session.c"),
+    ], check=True, capture_output=True, text=True, timeout=30)
+    return entry
+
+
+def test_session_entry_fixes_command_and_removes_startup_injection(session_entry, tmp_path):
+    environment = dict(os.environ, HOME=str(tmp_path), LANG="fr_FR.UTF-8",
+                       XDG_RUNTIME_DIR="/run/user/12345", SHELL="/bin/bash",
+                       PYTHONPATH=str(tmp_path), GJS_PATH=str(tmp_path),
+                       GTK_MODULES="injected", GIO_EXTRA_MODULES=str(tmp_path),
+                       XDG_CONFIG_HOME=str(tmp_path), XDG_DATA_HOME=str(tmp_path),
+                       XDG_SESSION_TYPE="x11", XDG_CURRENT_DESKTOP="ubuntu:GNOME",
+                       BASH_ENV=str(tmp_path / "startup"))
+    result = subprocess.run([str(session_entry)], env=environment, cwd=tmp_path,
+                            check=True, capture_output=True, text=True, timeout=5)
+    arguments, observed = json.loads(result.stdout)
+    assert arguments == ["--no-reexec", "--session=oh-no-parent-control"]
+    assert observed["HOME"] == str(tmp_path)
+    assert observed["LANG"] == "fr_FR.UTF-8"
+    assert observed["XDG_RUNTIME_DIR"] == "/run/user/12345"
+    assert observed["SHELL"] == "/usr/sbin/nologin"
+    assert observed["XDG_SESSION_TYPE"] == "wayland"
+    assert observed["XDG_CURRENT_DESKTOP"] == "GNOME-Kiosk:GNOME"
+    for name in ("PYTHONPATH", "GJS_PATH", "GTK_MODULES", "GIO_EXTRA_MODULES",
+                 "XDG_CONFIG_HOME", "XDG_DATA_HOME", "BASH_ENV"):
+        assert name not in observed
+
+
+def test_session_entry_rejects_alternate_arguments_without_executing(session_entry):
+    result = subprocess.run([str(session_entry), "--session=ubuntu"],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "onpc.kiosk session startup outcome=failed\n"
+
+
+@pytest.fixture(scope="module")
+def wellbeing_entry(tmp_path_factory):
+    directory = tmp_path_factory.mktemp("onpc-wellbeing-entry")
+    identity = directory / "identity.c"
+    entry = directory / "entry"
+    # Exercise the production native dispatch/sanitization without requiring
+    # a kiosk account, live GJS process or mutation of host settings. The exec
+    # observer records the exact argv and inherited environment at the boundary.
+    identity.write_text('''#define _GNU_SOURCE
+#include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+extern char **environ;
+struct passwd *__wrap_getpwnam(const char *name) {
+    static struct passwd account;
+    if (strcmp(name, "oh-no-parent-control") != 0)
+        _exit(2);
+    account.pw_uid = getuid() + (strcmp(getenv("TEST_IDENTITY"), "ordinary") == 0);
+    return &account;
+}
+int __wrap_execv(const char *path, char *const argv[]) {
+    puts(path);
+    for (size_t i = 0; argv[i] != NULL; i++)
+        puts(argv[i]);
+    puts("");
+    for (size_t i = 0; environ[i] != NULL; i++)
+        puts(environ[i]);
+    exit(0);
+}
+''')
+    subprocess.run([
+        "cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
+        '-DKIOSK_LAUNCH_ROLE="wellbeing"', "-Wl,--wrap=getpwnam",
+        "-Wl,--wrap=execv", "-o", str(entry), str(identity),
+        str(ROOT / "tools/kiosk_session.c"),
+    ], check=True, capture_output=True, text=True, timeout=30)
+    return entry
+
+
+@pytest.mark.parametrize("identity", ["ordinary", "kiosk"])
+def test_wellbeing_entry_preserves_ordinary_settings_environment(wellbeing_entry, tmp_path, identity):
+    settings = {
+        "DCONF_PROFILE": str(tmp_path / "profile"),
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "GSETTINGS_BACKEND": "dconf",
+        "GJS_PATH": str(tmp_path / "modules"),
+    }
+    environment = dict(os.environ, TEST_IDENTITY=identity, **settings)
+    result = subprocess.run([str(wellbeing_entry)], env=environment,
+                            check=True, capture_output=True, text=True, timeout=5)
+    command, inherited = result.stdout.split("\n\n", 1)
+    assert command.splitlines() == [
+        "/usr/bin/gjs", "/usr/bin/gjs", "-m",
+        "/usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/wellbeingService.js",
+    ]
+    observed = dict(line.split("=", 1) for line in inherited.splitlines())
+    for name, value in settings.items():
+        if identity == "ordinary":
+            assert observed[name] == value
+        else:
+            assert name not in observed
+
+
 def test_legacy_pam_entry_ignores_python_startup_environment(tmp_path):
     entry = tmp_path / "login-check"
     entry.write_bytes((ROOT / "tools/oh-no-parent-control-login-check").read_bytes())
@@ -50,6 +162,7 @@ def routing(monkeypatch):
     monkeypatch.setattr(helper.os, "geteuid", lambda: 0)
     monkeypatch.setattr(helper.pwd, "getpwnam", lambda name: SimpleNamespace(pw_uid=12345))
     monkeypatch.setattr(helper.syslog, "syslog", lambda level, text: state.records.append(text))
+    monkeypatch.setattr(helper, "verify_confinement", lambda: None)
 
     def command(argv, **kwargs):
         assert argv[:4] == ["/usr/bin/busctl", "--system", "--timeout=4",
@@ -79,23 +192,23 @@ def routing(monkeypatch):
     return helper, state
 
 
-def test_dedicated_selection_must_be_saved_between_account_and_open(routing):
+def test_valid_preference_checks_do_not_mutate_or_depend_on_gdm_save_timing(routing):
     helper, state = routing
     assert helper.main(["--kiosk-account"]) == 0
-    assert state.session == helper.PENDING_SESSION
-    # Model GDM's public SetSession call after account authorization.
-    state.session = helper.SESSION
+    assert state.session == helper.SESSION
+    # No GDM save occurs. This verifies a preference, not the next command:
+    # the installed first-exec matrix independently requires the MAC denial.
     assert helper.main(["--kiosk-session"]) == 0
-    assert "outcome=armed" in state.records[0]
+    assert all(call[0] == "get-property" for call in state.calls)
+    assert "outcome=allowed" in state.records[0]
     assert "outcome=allowed" in state.records[-1]
 
 
-@pytest.mark.parametrize("selected", ["ubuntu", "gnome", "", None])
-def test_desktop_fallback_or_failed_gdm_save_is_denied_and_default_restored(routing, selected):
+@pytest.mark.parametrize("selected", ["ubuntu", "gnome", ""])
+def test_changed_desktop_preference_is_denied_and_default_restored(routing, selected):
     helper, state = routing
     assert helper.main(["--kiosk-account"]) == 0
-    if selected is not None:
-        state.session = selected
+    state.session = selected
     assert helper.main(["--kiosk-session"]) == 1
     assert (state.session, state.transport) == (helper.SESSION, "wayland")
     assert "outcome=denied" in state.records[-1]
@@ -132,11 +245,14 @@ def test_indeterminate_policy_fails_closed_without_logging_exception_text(routin
     assert "private-identity" not in " ".join(state.records)
 
 
-def test_successful_but_uncommitted_marker_write_is_denied(routing):
+def test_failed_preference_repair_is_denied(routing):
     helper, state = routing
+    state.session = "ubuntu"
     state.no_write = True
     assert helper.main(["--kiosk-account"]) == 1
-    assert "outcome=unavailable" in state.records[-1]
+    assert state.session == "ubuntu"
+    assert "outcome=denied" in state.records[-1]
+    assert "recovery=failed" in state.records[-1]
 
 
 def test_failed_recovery_and_unknown_metadata_are_logged_as_categories(routing):
@@ -164,6 +280,27 @@ def test_service_guard_does_not_query_accounts_service(routing, monkeypatch, use
     assert state.calls == []
 
 
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_integrity_refusal_precedes_any_routing_query(routing, monkeypatch, service):
+    helper, state = routing
+    monkeypatch.setenv('PAM_SERVICE', service)
+    def refused():
+        raise subprocess.CalledProcessError(1, 'private-diagnostic')
+    monkeypatch.setattr(helper, 'verify_confinement', refused)
+    for arguments in ([], ['--kiosk-integrity'], ['--kiosk-account'], ['--kiosk-session']):
+        assert helper.main(arguments) == 1
+    assert state.calls == []
+    assert all('reason=integration' in entry and 'private' not in entry for entry in state.records)
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_integrity_success_does_not_change_saved_selection(routing, monkeypatch, service):
+    helper, state = routing
+    monkeypatch.setenv('PAM_SERVICE', service)
+    assert helper.main(['--kiosk-integrity']) == 0
+    assert state.calls == []
+
+
 def test_explicit_checks_require_root(routing, monkeypatch):
     helper, state = routing
     monkeypatch.setattr(helper.os, "geteuid", lambda: 12345)
@@ -182,6 +319,9 @@ def native_module(tmp_path_factory):
         '-DKIOSK_ACCOUNT_NAME="private-account-canary"',
         f'-DKIOSK_LOGIN_LOCK_PATH="{directory / "lock"}"',
         f"-DKIOSK_LOGIN_LOCK_OWNER={os.getuid()}",
+        f'-DKIOSK_ADMISSION_LOCK="{directory / "admission-lock"}"',
+        f'-DKIOSK_ADMISSION_DISABLED="{directory / "removing"}"',
+        f"-DKIOSK_ADMISSION_LOCK_OWNER={os.getuid()}",
         "-DKIOSK_LOGIN_TIMEOUT_SECONDS=1",
         "-o", str(module), str(ROOT / "tools/pam_oh_no_parent_control.c"), "-lpam",
     ], check=True, capture_output=True, text=True, timeout=30)
@@ -210,7 +350,7 @@ def native(native_module, tmp_path):
     module, directory = native_module
     (directory / "status").write_text("0")
     (directory / "calls").write_text("")
-    for name in ("ready", "release"):
+    for name in ("ready", "release", "removing"):
         (directory / name).unlink(missing_ok=True)
     lock = directory / "lock"
     # All previous PAM handles have ended before fixture cleanup/reuse.
@@ -223,14 +363,15 @@ def native(native_module, tmp_path):
     pam.pam_start_confdir.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
                                     ctypes.POINTER(Conversation), ctypes.c_char_p,
                                     ctypes.POINTER(ctypes.c_void_p)]
-    for name in ("pam_acct_mgmt", "pam_open_session", "pam_end"):
+    for name in ("pam_authenticate", "pam_setcred", "pam_acct_mgmt", "pam_open_session", "pam_close_session", "pam_end"):
         getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
     pam.pam_putenv.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
 
     @contextmanager
-    def transaction(user="private-account-canary", service="gdm-password", transport="wayland"):
+    def transaction(user="private-account-canary", service="gdm-password", transport="wayland", account_mode="kiosk", session_mode="kiosk", stack_source=None):
         (tmp_path / service).write_text(
-            f"account required {module} kiosk\nsession required {module} kiosk\n")
+            stack_source if stack_source is not None else
+            f"account required {module} {account_mode}\nsession required {module} {session_mode}\n")
         handle = ctypes.c_void_p()
         conversation = Conversation()
         assert pam.pam_start_confdir(service.encode(), user.encode(), ctypes.byref(conversation),
@@ -243,8 +384,44 @@ def native(native_module, tmp_path):
             assert pam.pam_end(handle, 0) == 0
 
     return SimpleNamespace(pam=pam, transaction=transaction, directory=directory, lock=lock,
+                           module=module,
+                           admission=directory / 'admission-lock',
                            calls=lambda: [json.loads(line) for line in
                                           (directory / "calls").read_text().splitlines()])
+
+
+@pytest.mark.parametrize('fallback', ['pam_deny.so', 'pam_permit.so'])
+@pytest.mark.parametrize('user', ['private-account-canary', 'ordinary-account-canary'])
+def test_manager_credentials_bypass_fallback_only_for_kiosk(native, tmp_path, fallback, user):
+    loader = importlib.machinery.SourceFileLoader(
+        'onpc_manager_credentials', str(ROOT / 'packaging/kiosk_confinement.py'))
+    integration = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(integration)
+    stack = integration.MANAGER_CREDENTIALS.replace('pam_oh_no_parent_control.so', str(native.module))
+    (tmp_path / 'other').write_text(f'auth required {fallback}\n')
+    # Exercise the production control expression through real libpam, with no
+    # authentication, matching systemd's credential callback ordering.
+    with native.transaction(user=user, service='systemd-user', stack_source=stack) as handle:
+        expected = 0 if user == 'private-account-canary' or fallback == 'pam_permit.so' else 17
+        for flags in (2, 4, 2 | 0x8000, 4 | 0x8000):
+            assert native.pam.pam_setcred(handle, flags) == expected
+    with native.transaction(user=user, service='systemd-user', stack_source=stack) as handle:
+        status = native.pam.pam_authenticate(handle, 0)
+        assert (status == 0) == (user == 'ordinary-account-canary' and fallback == 'pam_permit.so')
+    assert native.calls() == []
+    assert not native.lock.exists()
+    assert not native.admission.exists()
+
+
+@pytest.mark.parametrize('service,option', [
+    ('gdm-password', 'kiosk-manager-credentials'),
+    ('systemd-user', 'kiosk-manager-credentials unexpected'),
+])
+def test_manager_credentials_refuse_wrong_service_or_extra_arguments(native, service, option):
+    with native.transaction(service=service, stack_source=f'auth required {native.module} {option}\n') as handle:
+        assert native.pam.pam_setcred(handle, 2) != 0
+        assert native.pam.pam_authenticate(handle, 0) != 0
+    assert native.calls() == []
 
 
 def test_real_pam_binds_stages_and_passes_only_pam_transport(native, monkeypatch):
@@ -268,6 +445,90 @@ def test_real_pam_rejects_open_without_successful_account_check(native):
         assert native.pam.pam_acct_mgmt(handle, 0) != 0
         assert native.pam.pam_open_session(handle, 0) != 0
     assert len(native.calls()) == 1
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_real_pam_integrity_checks_manager_and_gdm_without_routing_lock(native, service):
+    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
+        assert native.pam.pam_acct_mgmt(handle, 0) == 0
+        (native.directory / 'status').write_text('1')
+        assert native.pam.pam_acct_mgmt(handle, 0) != 0
+    assert [call[0] for call in native.calls()] == [['--kiosk-integrity'], ['--kiosk-integrity']]
+    assert not native.lock.exists()
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_pam_removal_lease_spans_root_executor_after_session_open(native, service):
+    # No setuid or real login occurs. This is precisely the trusted executor
+    # interval which a kiosk UID census cannot see.
+    with native.transaction(service=service) as handle:
+        assert native.pam.pam_acct_mgmt(handle, 0) == 0
+        assert native.pam.pam_open_session(handle, 0) == 0
+        with native.admission.open('rb') as removal:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with native.admission.open('rb') as removal:
+        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_removal_excludes_new_pam_admissions_and_durable_marker_survives_unlock(native, service):
+    native.admission.touch(mode=0o600, exist_ok=True)
+    with native.admission.open('rb') as removal:
+        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
+            assert native.pam.pam_acct_mgmt(handle, 0) != 0
+        (native.directory / 'removing').write_text('removing\n')
+    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
+        assert native.pam.pam_acct_mgmt(handle, 0) != 0
+    assert native.calls() == []
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+def test_session_admission_denies_even_when_account_callback_was_not_used(native, service):
+    native.admission.touch(mode=0o600, exist_ok=True)
+    with native.admission.open('rb') as removal:
+        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with native.transaction(service=service, session_mode='kiosk-admission') as handle:
+            # The separate first session guard runs before vendor callbacks.
+            assert native.pam.pam_open_session(handle, 0) != 0
+
+
+def test_session_guard_retains_admission_lease_through_close_until_pam_end(native):
+    with native.transaction(session_mode='kiosk-admission') as handle:
+        assert native.pam.pam_open_session(handle, 0) == 0
+        assert native.pam.pam_close_session(handle, 0) == 0
+        with native.admission.open('rb') as removal:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with native.admission.open('rb') as removal:
+        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def test_shared_profile_systemd_session_leases_without_account_callback(native):
+    with native.transaction(service='systemd-user') as handle:
+        assert native.pam.pam_open_session(handle, 0) == 0
+        with native.admission.open('rb') as removal:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with native.admission.open('rb') as removal:
+        fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with native.transaction(service='systemd-user') as handle:
+            assert native.pam.pam_open_session(handle, 0) != 0
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+@pytest.mark.parametrize('user,allowed', [('oh-no-parent-control', False), ('root', True)])
+def test_standalone_removal_pam_denials_preserve_ordinary_account_and_session(native, service, user, allowed):
+    spec = importlib.util.spec_from_file_location('removal_gate_source', ROOT / 'packaging/kiosk_confinement.py')
+    integration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(integration)
+    stack = (integration.REMOVAL_PREFIX +
+             'account required pam_permit.so\nsession required pam_permit.so\n')
+    with native.transaction(user=user, service=service, stack_source=stack) as handle:
+        assert (native.pam.pam_acct_mgmt(handle, 0) == 0) is allowed
+        assert (native.pam.pam_open_session(handle, 0) == 0) is allowed
+    assert native.calls() == []
 
 
 def test_real_pam_serializes_logins_and_releases_lock_on_abort(native):
@@ -341,6 +602,9 @@ def test_aborted_pam_worker_cannot_unlock_a_still_running_routing_helper(native)
         worker.kill()
         worker.join(timeout=3)
         assert not worker.is_alive()
+        with native.admission.open('rb') as removal:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(removal, fcntl.LOCK_EX | fcntl.LOCK_NB)
         (native.directory / "status").write_text("0")
         with native.transaction() as retry:
             assert native.pam.pam_acct_mgmt(retry, 0) != 0
@@ -369,8 +633,10 @@ def test_aborted_pam_worker_cannot_unlock_a_still_running_routing_helper(native)
 @pytest.mark.parametrize("user,service,expected", [
     ("private-account-canary", "sshd", False),
     ("private-account-canary", "gdm-autologin", False),
+    ("private-account-canary", "polkit-1", False),
     ("private-account-canary", "systemd-user", True),
     ("ordinary-private-account", "gdm-password", True),
+    ("ordinary-private-account", "polkit-1", True),
 ])
 def test_real_pam_service_and_identity_scope(native, user, service, expected):
     with native.transaction(user=user, service=service) as handle:

@@ -1,0 +1,9 @@
+[Unit]
+Description=Load the Oh No Parent Control kiosk execution policy
+Before=display-manager.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/oh-no-parent-control-kiosk-confinement-integration load
+RemainAfterExit=yes

@@ -1,5 +1,6 @@
 """Reusable installation snapshot preparation under an existing suite lease."""
 import re
+import hashlib
 from contextlib import nullcontext
 import json
 import time
@@ -59,7 +60,8 @@ def input_identity(lease, assets, bundle, commands):
         'package_sha256': system.baseline.digest(package),
         'package_content_sha256': package_content.digest(package, commands),
         'baseline_sha256': lease.state['baseline_sha256'],
-        'recipe_sha256': bundle.digest('guest_install_recipe.py')},
+        'recipe_sha256': hashlib.sha256((bundle.digest('guest_install_recipe.py') +
+            bundle.digest('install-source/Makefile')).encode()).hexdigest()},
         sort_keys=True, separators=(',', ':'))
 
 

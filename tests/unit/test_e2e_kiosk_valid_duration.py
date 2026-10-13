@@ -772,6 +772,85 @@ def test_custom_text_uses_public_setter_and_independent_exact_readback():
     window.action.do_action.assert_not_called()
 
 
+def failed_retry_form():
+    ui, status, custom = valid_form()
+    ui.timeout = .1
+    ui.kiosk_valid_choice('kiosk-valid-custom-open')
+    ui.kiosk_valid_choice('kiosk-valid-fraction-soft-select')
+    status.name = 'Request denied'
+    def changed(value):
+        custom.value = value
+        status.name = 'Estimated remaining time: 16m 15s'
+    custom.setText.side_effect = changed
+    return ui, status, custom
+
+
+def test_diagnostic_retry_refreshes_equivalent_public_text_and_decodes_strict_result():
+    ui, _, custom = failed_retry_form()
+    result = ui.run('kiosk-diagnostic-retry-estimate', '')
+    assert [call.args for call in custom.setText.call_args_list] == [('1.250',), ('1.25',)]
+    assert result['valid_choice']['request']['duration_seconds'] == 75
+    assert result['valid_choice']['request']['custom_text'] == '1.25'
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+    observer = UiObservations(Mock())
+    observer.call = Mock(return_value=(json.dumps(result).encode(), []))
+    observed = observer.observe('kiosk-diagnostic-retry-estimate')
+    assert observed['valid_choice'] == result['valid_choice']
+
+
+@pytest.mark.parametrize('fault', ['status', 'child', 'approver', 'duration', 'soft', 'owner', 'prompt', 'uncertain'])
+def test_diagnostic_retry_requires_exact_failed_owned_form_before_edit(fault):
+    ui, status, custom = failed_retry_form()
+    request = ui.find_id('kiosk-request-submit')
+    if fault == 'status':
+        status.name = 'Estimated remaining time: 16m 15s'
+    elif fault in ('child', 'approver'):
+        selector = ui.find_id(f'kiosk-{fault}-selector')
+        selector.value = '1002' if fault == 'child' else '1010'
+        selector.children[0].identity = f'kiosk-{fault}-selected-{selector.value}'
+        selector.children[0].name = accessible_ui.EXISTING_CHILD if fault == 'child' else accessible_ui.OTHER_PARENT
+    elif fault == 'duration':
+        custom.value = '2.5'
+    elif fault == 'soft':
+        ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+    elif fault == 'owner':
+        ui.owner_pids = lambda: {999999}
+    elif fault == 'prompt':
+        ui.prompt_enabled = True
+        ui.prompt_session = 'station'
+        ui.system_prompt_kind = Mock(return_value='mate-polkit-agent')
+    else:
+        ui.input_uncertain = True
+    with pytest.raises(UiError):
+        ui.kiosk_valid_choice('kiosk-diagnostic-retry-estimate')
+    custom.setText.assert_not_called()
+    request.action.do_action.assert_not_called()
+    assert ui.input_uncertain
+
+
+@pytest.mark.parametrize('fault', ['text', 'soft', 'final-estimate'])
+def test_diagnostic_retry_readback_failure_never_replays_edit_or_request(fault):
+    ui, status, custom = failed_retry_form()
+    def changed(value):
+        custom.value = '2.5' if fault == 'text' else value
+        if fault == 'soft':
+            ui.find_id('kiosk-soft-apps-toggle').states.discard('checked')
+        status.name = 'Request denied' if fault == 'final-estimate' else 'Estimated remaining time: 16m 15s'
+    custom.setText.side_effect = changed
+    with pytest.raises(UiError):
+        ui.kiosk_valid_choice('kiosk-diagnostic-retry-estimate')
+    assert custom.setText.call_count == (2 if fault == 'final-estimate' else 1)
+    ui.find_id('kiosk-request-submit').action.do_action.assert_not_called()
+    assert ui.input_uncertain
+
+
+def test_ordinary_valid_read_still_refuses_request_denied_without_edit():
+    ui, _, custom = failed_retry_form()
+    with pytest.raises(UiError, match='kiosk-estimate:request-denied'):
+        ui.kiosk_valid_choice('kiosk-valid-fraction-soft-read')
+    custom.setText.assert_not_called()
+
+
 def test_wrong_entry_refusal_has_no_input():
     ui = ui_for(Node(identity='parent-window'))
     ui.run('parent-kiosk-valid-refused', '')

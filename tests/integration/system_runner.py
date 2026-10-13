@@ -1162,7 +1162,7 @@ def stage_upgrade_assets(source, destination, commands):
 def stage_selected_inputs(selection, destination):
     """Freeze and identify only the test/helper files needed by this selection."""
     selected_areas = {execution.area for execution in selection.executions}
-    inputs = list(COMMON_SELECTED_INPUTS)
+    inputs = [('Makefile', 'install-source/Makefile'), *COMMON_SELECTED_INPUTS]
     if selection.qualification_failure:
         inputs.append(('tests/integration/system_qualification.py', 'system_qualification.py'))
     for area in AREA_SOURCES:

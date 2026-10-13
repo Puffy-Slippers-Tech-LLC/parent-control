@@ -199,10 +199,13 @@ printf '%s\\n' 'restored original-policy snapshot' >> "$AUDIT_ROOT/commands"
 
 
 @pytest.mark.parametrize("boot_order_changed", [False, True])
-def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_changed):
+@pytest.mark.parametrize("native_pam_changed", [False, True])
+def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_changed, native_pam_changed):
     root, state, run = package_machine
     activation = runpy.run_path(str(ROOT / "debian/package_activation.py"))
-    # v1.1 marked all three diagnostic-only changes as requiring a reboot.
+    # Old manifests marked the fresh diagnostic commands as reboot-required.
+    # Current native PAM changes separately require renewal of the persistent
+    # user manager; keep unchanged PAM distinct from those command updates.
     old_levels = {
         "usr/libexec/oh-no-parent-control-session-limit-check": "reboot",
         "usr/libexec/oh-no-parent-control-execution-policy-ready": "reboot",
@@ -220,7 +223,8 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
         })
         target = root / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        changed = boot_order_changed or "display-manager.service.d/" not in path
+        changed = (native_pam_changed if path.endswith('/security/pam_oh_no_parent_control.so') else
+                   boot_order_changed if "display-manager.service.d/" in path else True)
         target.write_text("updated payload" if changed else "old payload")
     (state / "previous-package-activation.json").write_text(json.dumps({
         "version": 1, "files": old_files,
@@ -254,9 +258,10 @@ def test_v1_1_upgrade_uses_real_activation_manifest(package_machine, boot_order_
     assert result.returncode == 0, result.stderr
     commands = (root / "commands").read_text().splitlines()
     assert f"systemctl --system restart {BROKER}" in commands
-    assert ("notify-reboot-required " in commands) == boot_order_changed
-    assert (root / "run/reboot-required").exists() == boot_order_changed
-    assert (REBOOT_NOTICE in result.stderr) == boot_order_changed
+    reboot = boot_order_changed or native_pam_changed
+    assert ("notify-reboot-required " in commands) == reboot
+    assert (root / "run/reboot-required").exists() == reboot
+    assert (REBOOT_NOTICE in result.stderr) == reboot
 
 
 @pytest.mark.parametrize("reboot", [False, True])
@@ -485,6 +490,36 @@ def test_local_pam_configuration_cannot_silently_skip_enforcement(package_machin
     assert result.returncode != 0
     assert "PAM integration was not activated" in result.stderr
     assert f"systemctl --system restart {BROKER}" not in (root / "commands").read_text()
+
+
+@pytest.mark.parametrize('fault', ['account-missing', 'account-optional', 'account-commented',
+                                 'session-missing', 'session-optional', 'legacy-helper'])
+def test_ubuntu_activation_requires_native_kiosk_stages_and_no_generic_python_gate(package_machine, fault):
+    root, state, run = package_machine
+    pam = root / 'etc/pam.d'
+    sources = {
+        'common-auth': 'auth required pam_oh_no_parent_control.so\n',
+        'common-account': 'account required pam_oh_no_parent_control.so kiosk\n',
+        'common-session': 'session required pam_oh_no_parent_control.so kiosk\n',
+    }
+    if fault == 'legacy-helper':
+        sources['common-account'] += (
+            f'account required pam_exec.so quiet {root}/usr/libexec/oh-no-parent-control-login-check\n')
+    else:
+        stage, variation = fault.split('-')
+        name = 'common-' + stage
+        sources[name] = ('' if variation == 'missing' else
+                         sources[name].replace('required', 'optional') if variation == 'optional' else
+                         '# ' + sources[name])
+    for name, contents in sources.items():
+        (pam / name).write_text(contents)
+    result = run(PAM_LOCAL_CHANGES='1')
+    assert result.returncode != 0
+    assert 'PAM integration was not activated' in result.stderr
+    assert (state / 'migration-in-progress').exists()
+    assert {name: (pam / name).read_text() for name in sources} == sources
+    assert f'systemctl --system start {BROKER}' not in (root / 'commands').read_text()
+    assert f'systemctl --system restart {BROKER}' not in (root / 'commands').read_text()
 
 
 def test_missing_generated_integrations_are_recreated_on_reinstall(package_machine):

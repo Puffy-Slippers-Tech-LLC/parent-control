@@ -38,13 +38,6 @@ def stage(source: Path, destination: Path, distribution: str):
         raise ValueError('unsupported packaging distribution')
     system = destination / 'usr/lib/systemd/system/oh-no-parent-control-broker.service'
     system.write_text(system.read_text().replace('Group=sudo', 'Group=wheel'))
-    agent = destination / 'usr/lib/systemd/user/oh-no-parent-control-polkit-agent.service'
-    contents = agent.read_text()
-    start = contents.index('# The public mate-polkit launcher')
-    end = contents.index('Restart=on-failure', start)
-    contents = (contents[:start] + 'Type=simple\n'
-                'ExecStart=/usr/libexec/polkit-mate-authentication-agent-1\n' + contents[end:])
-    agent.write_text(contents)
     pam = destination / 'usr/share/oh-no-parent-control/pam'
     pam.mkdir(parents=True, exist_ok=True)
     (pam / 'managed-stack').write_text(pam_stack(source))

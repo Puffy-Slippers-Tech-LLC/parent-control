@@ -97,6 +97,28 @@ and never forces replacement of local PAM edits. Product references must be
 checked and absent before deleting the PAM module; an unsuccessful check blocks
 removal. This follows the [`pam-auth-update` removal guidance](https://manpages.debian.org/testing/libpam-runtime/pam-auth-update.8.en.html).
 
+The separate kiosk confinement integration owns the final gates in
+`gdm-password` and `systemd-user` and the product's AppArmor/SELinux policy.
+PAM holds a shared admission lease through the handle's lifetime and the
+root executor's UID/exec handoff. Bounded helpers inherit that lease. Removal
+takes exclusive admission, routing and preparation locks before verifying the
+recorded PAM bytes and scanning every thread's credentials, audit identity,
+current/pending MAC label and stale native-module mappings. In-flight admissions
+or kiosk executors refuse removal; no process is signalled. An upgrade from a
+generation without lifetime leases requires its recorded boot to end before
+policy removal, because a census cannot prove retirement of every old root
+worker.
+
+Before unloading policy, removal publishes durable kiosk-only account and
+session denials using a distribution PAM module. These guards survive product
+payload erasure. The embedded `postrm` finalizer restores exact original PAM
+files and clears the ownership record only after verified kiosk account
+deletion. An aborted removal reloads policy before restoring the final gates
+and clearing the admission marker. Interrupted or foreign changes retain the
+barrier and refuse cleanup, preserving recovery evidence.
+Completed private executable generations under `/run` remain until reboot;
+they are bounded and cannot be used after the kiosk identity is removed.
+
 After dpkg removes the payload, `postrm` removes generated D-Bus and machine
 configuration, the product's generated security integrations, transient package
 markers, and the dedicated kiosk account only when a root-owned marker proves

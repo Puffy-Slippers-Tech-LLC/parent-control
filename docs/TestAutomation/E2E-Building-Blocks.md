@@ -3197,6 +3197,35 @@ These blocks supply the named new consumers in the
 [scenario recipes](E2E-Scenario-Recipes.md). All are pending; a documented
 binding does not extend an existing callable's qualified scope.
 
+The engineering-only selector `check_e2e_kiosk_feedback_confinement` composes
+the existing installed eligible-account journey with an attempt-owned broker
+runtime mask, one public request failure, broker restoration, the public
+Report this error/result dismissal and real feedback editor/diagnostics checks.
+It uses `kiosk_feedback_confinement.PLAN`, `UiObservations` and the shared
+`AccessibleUI.kiosk_diagnostic_*` operations; it never activates Send and grants
+no customer-case credit. The root helper retains the mask inode, attempt, boot
+and original service invocation for guarded recovery. Live qualification is
+pending. Its strict thread census requires actual WebKit threads and reports
+`scanner_observed` only when the scanner is alive in that census. A false value
+leaves scanner-route qualification outstanding; configured policy or successful
+rendering cannot establish execution of an already exited helper.
+
+The separate engineering selector `check_e2e_kiosk_notification_wellbeing`
+composes the same installed eligible-account entry with the public reminder
+editor's Preview and Cancel actions. `kiosk_notification_wellbeing.PLAN`,
+`UiObservations` and `AccessibleUI.kiosk_reminder_*` require the actual provider's
+visible banner surface, literal body, critical urgency and displayed countdown;
+process readiness cannot satisfy those checks. Cancel closes the banner and
+discards the unsaved editor/preferences draft, with owner and original draft
+bound across observations. The guarded ordinary-user helper starts only the
+idle Jordan fixture's user manager, runs the public `SetWindow` client to observe
+real settings backup, suppression and restoration, checks the service's settings
+environment, and stops only its recorded manager invocation. The exact finite
+client also runs against the component suite's private bus and keyfile backend.
+Live installed qualification remains pending; this preview/service engineering
+route does not complete tasks 311/311b, and
+does not claim native compositor visibility from process state.
+
 The planned request-report branches of FEED15–18 need shared API projections
 for their actual surface and terminal result. `parent_reports.report_review`
 and `onpc_feedback_privacy::review_privacy` are Parent-bound; reuse their
@@ -3670,7 +3699,7 @@ on every enabled VM (Ubuntu 26.04, amd64) in `20261003T234321Z-f5394d82`.
 `stage_upgrade_assets` in [system_runner.py](../../tests/integration/system_runner.py)
 and `VerifiedInputs(upgrade=True)` in [provenance.py](../../tests/e2e/provenance.py)
 bind separate source/manifests and exact bytes before the powered-off transfer.
-The maintained builder pins the signed v1.2 tag and source commit; current must
+The maintained builder pins the published annotated, unsigned v1.2 tag and source commit; current must
 be newer, with a distinct package digest and matching product/architecture.
 The qualified inputs were `1.2+ppa1~ubuntu26.04.1` and
 `1.3+ppa1~ubuntu26.04.1`. Missing inputs use maintained automatic preparation;

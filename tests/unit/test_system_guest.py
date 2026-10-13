@@ -1,12 +1,47 @@
-"""The real APT path is accessible only after the explicit VM guard passes."""
+"""The frozen Make install entry is accessible only after the VM guard passes."""
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock
 
 import pytest
 
 import system_guest as guest
+import guest_install_recipe
+
+
+def expected_install(package):
+    return ['make', '--no-print-directory', '-C',
+            str(Path(guest_install_recipe.__file__).resolve().parent / 'install-source'), 'install',
+            'INSTALL_PACKAGE=' + str(package.resolve()),
+            'APT=apt-get -o DPkg::Lock::Timeout=120 --no-install-recommends -y', 'DNF=dnf -y']
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'missing', 'reversed', 'optional', 'wrong-mode'])
+def test_pam_readiness_distinguishes_kiosk_admission_from_runtime_cap(
+        tmp_path, monkeypatch, package_format, fault):
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.' + package_format))
+    monkeypatch.setattr(guest, 'Path', lambda *parts: tmp_path / str(Path(*parts)).lstrip('/'))
+    monkeypatch.setattr(guest, 'run', lambda args: 'custom/oh-no-parent-control')
+    pam = tmp_path / 'etc/pam.d'
+    pam.mkdir(parents=True)
+    admission = 'account required pam_oh_no_parent_control.so kiosk\n'
+    malcontent = 'account required pam_malcontent.so\n'
+    runtime = ('account optional pam_oh_no_parent_control.so\n' if fault == 'optional' else
+               'account required pam_oh_no_parent_control.so unknown\n' if fault == 'wrong-mode' else
+               '' if fault == 'missing' else 'account required pam_oh_no_parent_control.so\n')
+    accounts = admission + (runtime + malcontent if fault == 'reversed' else malcontent + runtime)
+    contents = 'auth required pam_oh_no_parent_control.so\n' + accounts
+    for name in ('system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth',
+                 'common-auth', 'common-account', 'common-session'):
+        (pam / name).write_text(contents)
+    if fault:
+        with pytest.raises(guest.GuestError, match='pam-runtime-cap'):
+            guest.verify_pam()
+    else:
+        guest.verify_pam()
 
 
 def test_probe_diagnostic_filter_does_not_change_returned_database(monkeypatch):
@@ -70,7 +105,7 @@ def test_fedora_installs_only_the_transferred_rpm_after_guard(tmp_path, monkeypa
     monkeypatch.setattr(guest, 'run', run)
     guest.install()
     guest.guard.assert_called_once()
-    run.assert_called_once_with(['dnf', 'install', '-y', str(tmp_path / 'package.rpm')], timeout=1800)
+    run.assert_called_once_with(expected_install(tmp_path / 'package.rpm'), timeout=2400)
 
 
 def test_fedora_guard_refusal_prevents_dnf(tmp_path, monkeypatch):
@@ -333,7 +368,7 @@ def test_install_guard_failure_prevents_apt_and_diagnostic_writes(monkeypatch):
     enable.assert_not_called()
 
 
-def test_guard_is_rechecked_after_dependency_refresh_before_package_install(monkeypatch):
+def test_guard_is_rechecked_before_make_package_install(monkeypatch):
     monkeypatch.setattr(guest, 'before_install', Mock())
     monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(guest, 'guard', Mock(side_effect=guest.GuestError('identity-replaced')))
@@ -342,20 +377,17 @@ def test_guard_is_rechecked_after_dependency_refresh_before_package_install(monk
     monkeypatch.setattr(guest, 'run', run)
     with pytest.raises(guest.GuestError):
         guest.install()
-    assert run.call_count == 1
-    assert run.call_args.args[0] == ['apt-get', 'update']
+    run.assert_not_called()
 
 
-def test_apt_installs_only_the_exact_transferred_debian_artifact(monkeypatch):
+def test_make_installs_only_the_exact_transferred_debian_artifact(monkeypatch):
     for name in ('before_install', 'enable_diagnostics', 'guard'):
         monkeypatch.setattr(guest, name, Mock())
     monkeypatch.setattr(guest.os, 'environ', {})
     run = Mock()
     monkeypatch.setattr(guest, 'run', run)
     guest.install()
-    assert run.call_args.args[0] == [
-        'apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install', '--no-install-recommends',
-        '-y', str(guest.PAYLOAD / 'package.deb')]
+    run.assert_called_once_with(expected_install(guest.PAYLOAD / 'package.deb'), timeout=2400)
     assert guest.os.environ['DEBIAN_FRONTEND'] == 'noninteractive'
 
 
@@ -418,7 +450,7 @@ def test_previous_install_verifies_exact_platform_artifact(tmp_path, monkeypatch
     calls = []
     def run(command, **options):
         calls.append(command)
-        if command[0] in ('apt-get', 'dnf'):
+        if command[0] == 'make':
             return ''
         if command == ['getenforce']:
             return 'Enforcing'
@@ -443,9 +475,9 @@ def test_previous_install_verifies_exact_platform_artifact(tmp_path, monkeypatch
         guard.assert_not_called()
     else:
         guard.assert_called_once_with()
-        transactions = [c for c in calls if c[0] in ('apt-get', 'dnf') and str(previous) in c]
-        assert len(transactions) == 1
-        assert transactions[0][0] == ('dnf' if package_format == 'rpm' else 'apt-get')
+        transactions = [c for c in calls if c[0] == 'make']
+        assert transactions == [expected_install(previous)]
+        assert not any(c[0] in ('apt-get', 'dnf') for c in calls)
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
@@ -467,7 +499,10 @@ def test_upgrade_preserves_reboot_and_payload_guards_on_both_platforms(
     monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
     monkeypatch.setattr(guest, 'wait_for_boot', Mock())
     monkeypatch.setattr(guest, 'guard', Mock(side_effect=[marker,
-        guest.GuestError('guard-replaced') if fault == 'guard' else marker]))
+        guest.GuestError('guard-replaced') if fault == 'guard' else marker, marker]))
+    admission = tmp_path / 'kiosk-confinement.json'
+    admission.write_text(json.dumps({'schema': 1, 'admission_protocol': 1}))
+    monkeypatch.setattr(guest, 'KIOSK_CONFINEMENT_STATE', admission)
     monkeypatch.setattr(guest, 'reboot_cleared', lambda: fault != 'old-marker')
     monkeypatch.setattr(guest, 'reboot_requested', lambda: fault != 'new-marker')
     new_identity = 'old-identity' if same_version else 'new-identity'
@@ -475,7 +510,7 @@ def test_upgrade_preserves_reboot_and_payload_guards_on_both_platforms(
     def run(command, **options):
         nonlocal installed
         calls.append(command)
-        if command[0] in ('apt-get', 'dnf'):
+        if command[0] == 'make':
             installed = True
             return ''
         if command == ['getenforce']:
@@ -504,18 +539,52 @@ def test_upgrade_preserves_reboot_and_payload_guards_on_both_platforms(
         assert receipt['previous_package_sha256'] == digest
         assert receipt['package_sha256'] == marker['package_sha256']
         assert receipt['old_package_reboot_observed'] and receipt['update_requested_reboot']
-    transactions = [c for c in calls if c[0] in ('apt-get', 'dnf')]
+        assert receipt['prelease_removal_boot_gate'] == 'not-required-current-protocol'
+    transactions = [c for c in calls if c[0] == 'make']
+    assert not any(c[0] in ('apt-get', 'dnf') for c in calls)
     if fault in ('old-marker', 'old-files', 'old-version', 'digest', 'guard'):
         assert transactions == []
     else:
-        assert len(transactions) == 1
-        assert transactions[0][-1] == str(package)
+        assert transactions == [expected_install(package)]
         if package_format == 'rpm':
-            assert transactions[0] == ['dnf', 'reinstall' if same_version else 'install', '-y', str(package)]
             assert all(c[0] not in ('dpkg', 'dpkg-query', 'dpkg-deb', 'apt-get') for c in calls)
-        else:
-            assert '--reinstall' in transactions[0]
-        assert guest.guard.call_count == 2
+        assert guest.guard.call_count == (2 if fault in ('new-files', 'new-version') else 3)
+
+
+@pytest.mark.parametrize('case,expected', [
+    ('current', 'not-required-current-protocol'), ('retired', 'previously-retired'),
+    ('prelease', 'pre-reboot-removal-refused'), ('accepted', None),
+    ('wrong-refusal', None), ('invalid-protocol', None), ('invalid-boot', None),
+])
+def test_upgrade_admission_receipt_requires_actual_pre_reboot_refusal(tmp_path, monkeypatch, case, expected):
+    boot = '01234567-89ab-cdef-0123-456789abcdef'
+    saved = {'schema': 1, 'admission_protocol': 1}
+    if case != 'current':
+        saved['prelease_upgrade_boot_id'] = (
+            '11234567-89ab-cdef-0123-456789abcdef' if case == 'retired' else boot)
+    if case == 'invalid-protocol':
+        saved['admission_protocol'] = 0
+    if case == 'invalid-boot':
+        saved['prelease_upgrade_boot_id'] = 'not-a-boot'
+    admission = tmp_path / 'admission.json'
+    admission.write_text(json.dumps(saved))
+    monkeypatch.setattr(guest, 'KIOSK_CONFINEMENT_STATE', admission)
+    monkeypatch.setattr(guest, 'guard', Mock())
+    command = Mock(return_value=(b'reason=kiosk-processes-active' if case == 'wrong-refusal'
+                                else b'reason=legacy-pam-reboot-required'))
+    monkeypatch.setattr(guest, 'commands', SimpleNamespace(
+        run=command, last_returncode=0 if case == 'accepted' else 1))
+    if expected:
+        assert guest.verify_upgrade_admission_receipt(boot) == expected
+    else:
+        with pytest.raises(guest.GuestError):
+            guest.verify_upgrade_admission_receipt(boot)
+    if case in ('prelease', 'accepted', 'wrong-refusal'):
+        command.assert_called_once_with([
+            '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'check-remove'],
+            check=False, timeout=30, merge_stderr=True)
+    else:
+        command.assert_not_called()
 
 
 def test_rpm_package_identity_includes_epoch_release_and_architecture(monkeypatch):

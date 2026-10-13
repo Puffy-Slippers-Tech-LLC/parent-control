@@ -621,14 +621,16 @@ activation. The Shell-only `wellbeingSuppression.js` remains `session-renewal`.
 Installed systemd/dconf recovery and native GNOME 50 banner timing remain
 unqualified by the host Node and private-bus component regressions.
 
-The compiled `pam_oh_no_parent_control.so` module is `session-renewal`: an
-existing PAM transaction can retain its loaded library, while a new login
-session uses the replacement. The `session-limit-check` executable is `none`
+The compiled `pam_oh_no_parent_control.so` module is `reboot`: it now applies
+the kiosk execution boundary to the persistent user manager as well as GDM.
+A graphical logout/login can reuse the old manager. Confinement policy,
+preparation/integration helpers, native kiosk launchers and their service
+drop-ins also require reboot. The `session-limit-check` executable is `none`
 because PAM executes it afresh for each authentication. The
 `execution-policy-ready` executable is also `none`: it checks enforcement
 during fapolicyd startup and exits, leaving no resident helper to replace.
 Its replacement is used on the next service start. Logging and sanitized error
-reporting changes in these files since v1.1 do not change enforcement or boot
+reporting changes in these two nonresident helpers do not change enforcement or boot
 ordering and must not request a reboot. Reassess activation if a future change
 requires an already-completed readiness check to be repeated; changing that
 contract is different from replacing the helper's diagnostics.
@@ -668,6 +670,11 @@ open a local `.deb` before it can unpack or run any code from that package. A
 manually downloaded published `.deb` passed to APT from a private directory has
 the same caller-side constraint; moving or copying it to an APT-readable path is
 necessarily done before package installation.
+Guarded VM setup invokes the same `make install` entry point using a frozen
+Makefile and `INSTALL_PACKAGE=/absolute/path/to/artifact`. This selects an exact
+current or previous DEB/RPM without rebuilding it; the installer verifies the
+product identity and retains dependency resolution and reinstall behavior.
+The frozen Makefile participates in the installed snapshot's recipe identity.
 `make uninstalldeb` runs
 `apt remove oh-no-parent-control`. The refresh fails if any configured repository
 cannot update, so installation does not retry removed dependency versions from

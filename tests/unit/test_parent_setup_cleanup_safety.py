@@ -194,6 +194,42 @@ def test_failed_setup_is_terminal_and_never_owns_cleanup(setup, boundary):
     assert not vm.close.called
 
 
+@pytest.mark.parametrize('diagnostic_fault', [None, 'guard', 'copy'])
+def test_failed_install_retains_guest_commands_without_masking_first_failure(setup, diagnostic_fault):
+    # Reuse the attempt's private allocation and transport; no new resource owner.
+    adapter, vm, _ = setup
+    original = RuntimeError('installer failed')
+    vm.call.side_effect = original
+    if diagnostic_fault == 'copy':
+        vm.copy.side_effect = [None, RuntimeError('collection failed')]
+    guard = Mock(side_effect=[None, None, RuntimeError('ownership lost')]
+                 if diagnostic_fault == 'guard' else None)
+    with pytest.raises(RuntimeError) as caught:
+        adapter.run(guard)
+    assert caught.value is original
+    assert vm.copy.call_count == (1 if diagnostic_fault == 'guard' else 2)
+    if diagnostic_fault != 'guard':
+        assert vm.copy.call_args.args == (True, installed_setup.system.PAYLOAD + '/private/',
+                                          str(adapter.directory / 'guest-private') + '/')
+    vm.reboot.assert_not_called()
+    vm.close.assert_not_called()
+    before = list(vm.mock_calls)
+    with pytest.raises(EvidenceError, match='already-attempted'):
+        adapter.run(Mock())
+    assert vm.mock_calls == before
+
+
+def test_cancelled_install_skips_diagnostic_collection(setup):
+    adapter, vm, _ = setup
+    original = KeyboardInterrupt()
+    vm.call.side_effect = original
+    with pytest.raises(KeyboardInterrupt) as caught:
+        adapter.run(Mock())
+    assert caught.value is original
+    assert vm.copy.call_count == 1
+    vm.reboot.assert_not_called()
+
+
 @pytest.mark.parametrize('target', ['package.deb', 'system_guest.py', 'selected-inputs.json'])
 def test_changed_payload_refuses_before_guest_mutation(setup, target):
     adapter, vm, payload = setup
@@ -208,6 +244,129 @@ def test_lost_worker_guard_refuses_before_guest_mutation(setup):
     with pytest.raises(RuntimeError):
         adapter.run(Mock(side_effect=RuntimeError('lost worker')))
     assert not vm.mock_calls
+
+
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+@pytest.mark.parametrize('changed', [None, 'package', 'baseline', 'recipe',
+                                    'metadata', 'age', 'race', 'guard'])
+def test_snapshot_attachment_checks_frozen_installed_identity_before_restore(
+        setup, monkeypatch, mode, changed):
+    import app_snapshot
+    from guest_inputs import Bundle
+    from parent_setup_qualification import KioskEntryQualification
+    from tests.support.paths import ROOT
+    from tests.support.vm_runner import UUID, xml as domain_xml
+
+    adapter, _, payload = setup
+    controller = object.__new__(KioskEntryQualification)
+    controller.directory = payload.parent
+    controller.assets = payload
+    controller.commands = Mock()
+    controller.result = {}
+    lease = adapter.verified.lease
+    lease.state['baseline_sha256'] = 'b' * 64
+    lease.guard = Mock()
+    lease.save = Mock()
+    lease.snapshot_status = Mock()
+    lease.source = SimpleNamespace(domain=Mock(), connection=Mock(), api=Mock())
+    lease.view = SimpleNamespace(domain_id=7)
+    lease.test_xml = '<isolated/>'
+    monkeypatch.setattr(app_snapshot.system, 'package_version', lambda *_: '9.8.7')
+    monkeypatch.setattr(app_snapshot.package_content, 'digest', lambda *_: 'c' * 64)
+    monkeypatch.setattr(app_snapshot.time, 'time', lambda: 100000)
+    bundle = Bundle.from_staged(ROOT, payload)
+    expected = json.loads(app_snapshot.input_identity(lease, payload, bundle, controller.commands))
+    previous = dict(expected)
+    if changed in ('package', 'baseline', 'recipe'):
+        previous[{'package': 'package_content_sha256', 'baseline': 'baseline_sha256',
+                  'recipe': 'recipe_sha256'}[changed]] = 'd' * 64
+    if changed == 'metadata':
+        previous = {'schema_version': 2}
+    domain = app_snapshot.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
+    memory, state = ('internal', 'running') if mode == 'online' else ('no', 'shutoff')
+    created = 1 if changed == 'age' else 100000
+    xml = (f'<domainsnapshot><description>{json.dumps(previous)}</description>'
+           f'<memory snapshot="{memory}"/><state>{state}</state>'
+           f'<creationTime>{created}</creationTime>{domain}</domainsnapshot>')
+    snapshot = lease.source.domain.snapshotLookupByName.return_value
+    snapshot.getXMLDesc.side_effect = [xml, xml + ' ' if changed == 'race' else xml]
+    if changed == 'guard':
+        lease.guard.side_effect = RuntimeError('lost owner')
+    accepted = changed is None or (changed == 'age' and mode == 'offline')
+    if not accepted:
+        with pytest.raises((EvidenceError, RuntimeError)):
+            controller.attach_installed_snapshot(lease)
+        assert not hasattr(lease, 'online_pending')
+        lease.source.domain.revertToSnapshot.assert_not_called()
+        lease.source.connection.defineXML.assert_not_called()
+        assert controller.result == {}
+    else:
+        from contextlib import nullcontext
+        lease.snapshot_status.return_value = nullcontext()
+        controller.attach_installed_snapshot(lease)
+        assert controller.result['installed_snapshot'] == {
+            'name': 'onpc-v9.8.7', 'mode': mode, 'inputs': previous,
+            'expected_inputs': expected}
+        if mode == 'online':
+            assert lease.online_pending and lease.installed_xml == xml
+            lease.source.domain.revertToSnapshot.assert_not_called()
+        else:
+            lease.source.domain.revertToSnapshot.assert_called_once()
+        lease.guard.assert_any_call(off=True)
+
+
+@pytest.mark.parametrize('fault', [None, 'unconnected', 'guard', 'command'])
+@pytest.mark.parametrize('kind', ['entry', 'duration', 'parent'])
+def test_installed_failure_logs_are_private_bounded_and_guarded(tmp_path, fault, kind):
+    from kiosk_entry import KioskEntryJourney
+    from kiosk_valid_duration import KioskValidDurationJourney
+    from parent_about import ParentJourney
+    journey_type = {'entry': KioskEntryJourney, 'duration': KioskValidDurationJourney,
+                    'parent': ParentJourney}[kind]
+    journey = object.__new__(journey_type)
+    journey.plan = SimpleNamespace(prefix='fixture-diagnostic')
+    journey.context = SimpleNamespace(lease=SimpleNamespace(guard=Mock()))
+    journey.transport = None if fault == 'unconnected' else Mock()
+    if journey.transport is not None:
+        journey.transport.call.side_effect = lambda command, **_: (
+            b'oh-no-parent-control:x:1005:1005:Kiosk:/home/oh-no-parent-control:/usr/sbin/nologin\n'
+            if command == ['getent', 'passwd', 'oh-no-parent-control'] else b'')
+    if fault == 'guard':
+        journey.context.lease.guard.side_effect = RuntimeError('lost owner')
+    if fault == 'command':
+        journey.transport.call.side_effect = RuntimeError('guest unavailable')
+    if fault in ('guard', 'command'):
+        with pytest.raises(RuntimeError):
+            journey.collect_failure()
+    else:
+        journey.collect_failure()
+    if fault == 'unconnected':
+        journey.context.lease.guard.assert_not_called()
+    elif fault == 'guard':
+        journey.transport.call.assert_not_called()
+    else:
+        calls = journey.transport.call.call_args_list
+        assert len(calls) == (1 if fault == 'command' else 5)
+        assert calls[0].args[0][:5] == ['journalctl', '-b', '--no-pager', '-n', '600']
+        if fault is None:
+            assert calls[3].args[0] == ['getent', 'passwd', 'oh-no-parent-control']
+            assert calls[4].args[0][:5] == ['journalctl', '-b', '--no-pager', '-n', '300']
+            assert '_UID=1005' in calls[4].args[0]
+            assert '--user-unit' not in calls[4].args[0]
+        assert all(call.kwargs == {'timeout': 20} for call in calls)
+        assert journey.context.lease.guard.call_count == len(calls)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_kiosk_failure_checkpoint_precedes_engineering_collection():
+    from parent_setup_qualification import KioskEntryQualification
+    controller = object.__new__(KioskEntryQualification)
+    order = []
+    controller.failure = Mock(side_effect=lambda *_: order.append('checkpoint'))
+    journey = Mock()
+    journey.collect_failure.side_effect = lambda: order.append('logs')
+    controller.journey_failure(journey, 'infrastructure', 'worker-execution-failed')
+    assert order == ['checkpoint', 'logs']
 
 
 def test_guest_selection_mismatch_refuses_install(monkeypatch):

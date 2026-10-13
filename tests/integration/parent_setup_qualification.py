@@ -115,6 +115,9 @@ class ParentJourneyQualification(smoke.Qualification):
         self.result['steps'] = list(journey.steps)
         self.checkpoint('stage-observed')
 
+    def journey_failure(self, journey, category, code):
+        self.failure(category, code)
+
     def execute(self, lease, guestfs):
         self.checkpoint('attempt-started')
         try:
@@ -143,7 +146,8 @@ class ParentJourneyQualification(smoke.Qualification):
             self.result['worker_evidence'] = smoke.e2e_worker.run_distribution(
                 self.directory, lease, self.ledger, expected_inputs=self.verified.source_files,
                 observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
-                on_failure=self.failure, timeout=1800, credentials=self.credentials)
+                on_failure=lambda category, code: self.journey_failure(journey, category, code),
+                timeout=1800, credentials=self.credentials)
             self.result['matched_screens'] = journey.validate()
         except BaseException as error:
             code = (str(error) if isinstance(error, smoke.EvidenceError)
@@ -170,6 +174,10 @@ class ParentAccessQualification(ParentJourneyQualification):
 
 
 class KioskEntryQualification(ParentJourneyQualification):
+    def journey_failure(self, journey, category, code):
+        super().journey_failure(journey, category, code)
+        journey.collect_failure()
+
     @staticmethod
     def journey(context, progress):
         from app_snapshot import snapshot_name
@@ -179,15 +187,34 @@ class KioskEntryQualification(ParentJourneyQualification):
         return KioskEntryJourney(context, progress)
 
     def attach_installed_snapshot(self, lease):
-        from app_snapshot import snapshot_name
+        from app_snapshot import input_identity, mismatch, mode_mismatch, snapshot_name
+        from guest_inputs import Bundle
         package = self.assets / ('package.' + smoke.runner.package_format(lease.capture.state['guest']))
         version = smoke.runner.package_version(self.commands, package)
         name = snapshot_name(version)
+        # Compare the frozen installation recipe and package, just as the
+        # shared suite does. A release name alone cannot identify installed
+        # bytes, and refreshing the test payload does not update the product.
+        bundle = Bundle.from_staged(smoke.ROOT, self.directory / 'input')
+        expected = input_identity(lease, self.assets, bundle, self.commands)
         snap = lease.source.domain.snapshotLookupByName(name, 0)
         import xml.etree.ElementTree as ET
         xml = snap.getXMLDesc(0)
         memory = ET.fromstring(xml).find('memory')
-        if memory is not None and memory.get('snapshot') == 'internal':
+        online = memory is not None and memory.get('snapshot') == 'internal'
+        mode = 'online' if online else 'offline'
+        reason = mode_mismatch(xml, mode) or mismatch(xml, expected)
+        smoke.require(reason is None, 'setup:installed-snapshot-stale:' + str(reason))
+        lease.guard(off=True)
+        smoke.require(snap.getXMLDesc(0) == xml, 'setup:installed-snapshot-changed')
+        # Keep archive integrity distinct from installed-content equivalence
+        # (DEB delivery timestamps can differ). Report both exact identities.
+        self.result['installed_snapshot'] = {
+            'name': name, 'mode': mode,
+            'inputs': json.loads(ET.fromstring(xml).findtext('description')),
+            'expected_inputs': json.loads(expected),
+        }
+        if online:
             lease.installed_name, lease.installed_xml = name, xml
             lease.online_pending = True
             return
@@ -200,6 +227,35 @@ class KioskEntryQualification(ParentJourneyQualification):
         lease.state['domain_id'] = None
         lease.guard(off=True)
         lease.save('isolated')
+
+
+class KioskFeedbackConfinementQualification(KioskEntryQualification):
+    def journey_failure(self, journey, category, code):
+        try:
+            super().journey_failure(journey, category, code)
+        finally:
+            try:
+                journey.restore_fault()
+            finally:
+                journey.stop_scanner()
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskFeedbackConfinementJourney(context, progress)
+
+
+class KioskNotificationWellbeingQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from kiosk_notification_wellbeing import KioskNotificationWellbeingJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return KioskNotificationWellbeingJourney(context, progress)
 
 
 class KioskValidDurationQualification(KioskEntryQualification):

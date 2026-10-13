@@ -5,6 +5,7 @@ import signal
 import stat
 import os
 import subprocess
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
@@ -124,7 +125,8 @@ def test_unprivileged_controller_refuses_before_any_host_or_guest_action():
 
 @pytest.mark.parametrize('failure', [KeyboardInterrupt(), subprocess.TimeoutExpired('ssh', 1)])
 @pytest.mark.parametrize('timeouts', [0, 1, 2])
-def test_interrupted_command_signals_only_its_recorded_pidfd(failure, timeouts):
+@pytest.mark.parametrize('inherited', [(), (43, 42, 43)])
+def test_interrupted_command_signals_only_its_recorded_pidfd(failure, timeouts, inherited):
     child = Mock(pid=97531, returncode=0)
     child.communicate.side_effect = failure
     child.wait.side_effect = [subprocess.TimeoutExpired('ssh', 1)] * timeouts + [0]
@@ -136,11 +138,11 @@ def test_interrupted_command_signals_only_its_recorded_pidfd(failure, timeouts):
         commands = runner.Commands()
         commands.lock_fd = 42
         with pytest.raises(type(failure)):
-            commands.run(['ssh'])
+            commands.run(['ssh'], pass_fds=inherited)
     pin.assert_called_once_with(child.pid)
     assert [call.args for call in send.call_args_list] == [
         (41, sig) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL)[:timeouts + 1]]
-    assert spawn.call_args.kwargs['pass_fds'] == (42,)
+    assert spawn.call_args.kwargs['pass_fds'] == ((43, 42) if inherited else (42,))
     close.assert_called_once_with(41)
     raw_kill.assert_not_called()
     child.kill.assert_not_called()
@@ -158,6 +160,66 @@ def test_dead_pidfd_never_falls_back_to_a_reused_pid():
             runner.Commands().run(['ssh'])
     send.assert_called_once_with(41, signal.SIGINT)
     raw_kill.assert_not_called()
+
+
+@pytest.mark.parametrize('cleanup', ['running', 'exited', 'signal-refused', 'wait-timeout'])
+def test_pidfd_acquisition_failure_cleans_only_direct_child_and_preserves_error(cleanup):
+    failure = OSError('private pidfd unavailable')
+    child = Mock(pid=97531, returncode=None)
+    if cleanup == 'exited':
+        child.kill.side_effect = ProcessLookupError
+    elif cleanup == 'signal-refused':
+        child.kill.side_effect = PermissionError('private cleanup refusal')
+    elif cleanup == 'wait-timeout':
+        child.wait.side_effect = subprocess.TimeoutExpired('ssh', 10)
+    with patch.object(runner.subprocess, 'Popen', return_value=child) as spawn, \
+            patch.object(runner.os, 'pidfd_open', side_effect=failure), \
+            patch.object(runner.signal, 'pidfd_send_signal') as send, \
+            patch.object(runner.os, 'kill') as raw_kill:
+        commands = runner.Commands()
+        commands.lock_fd = 42
+        with pytest.raises(OSError) as caught:
+            commands.run(['ssh'], pass_fds=(43,))
+    assert caught.value is failure
+    assert spawn.call_args.kwargs['pass_fds'] == (43, 42)
+    child.kill.assert_called_once_with()
+    child.wait.assert_called_once_with(timeout=10)
+    child.communicate.assert_not_called()
+    send.assert_not_called()
+    raw_kill.assert_not_called()
+    assert getattr(failure, '__notes__', []) == (
+        ['command:spawned-child-cleanup-failed'] if cleanup in ('signal-refused', 'wait-timeout') else [])
+
+
+def test_pidfd_acquisition_failure_reaps_real_direct_child_and_retains_caller_fd(monkeypatch):
+    # The child has its own finite lifetime even if the regression fails; the
+    # finally block retains only this direct Popen identity for owned cleanup.
+    children = []
+    popen = subprocess.Popen
+    def spawn(*args, **kwargs):
+        child = popen(*args, **kwargs)
+        children.append(child)
+        return child
+    failure = OSError('private pidfd unavailable')
+    monkeypatch.setattr(runner.subprocess, 'Popen', spawn)
+    monkeypatch.setattr(runner.os, 'pidfd_open', Mock(side_effect=failure))
+    reader, writer = os.pipe()
+    try:
+        with pytest.raises(OSError) as caught:
+            runner.Commands().run([sys.executable, '-I', '-c', 'import time; time.sleep(5)'],
+                                  pass_fds=(writer,))
+        assert caught.value is failure
+        assert len(children) == 1 and children[0].returncode is not None
+        with pytest.raises(ChildProcessError):
+            os.waitpid(children[0].pid, os.WNOHANG)
+        os.fstat(writer)
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+            child.wait(timeout=10)
+        os.close(reader)
+        os.close(writer)
 
 
 @pytest.mark.parametrize('outcome', ['passed', 'failed', 'interrupted'])

@@ -34,14 +34,16 @@ def test_fixed_launcher(monkeypatch):
 
 def test_package_install_allows_dependencies_on_product_free_baseline(monkeypatch):
     # The empty baseline need not have runtime dependencies installed/cached.
-    # Keep the public install arguments aligned with the maintained setup recipe.
+    # The setup recipe uses the checkout's public installer, which owns
+    # dependency resolution. The customer package action owns its own argv.
     from guest_install_recipe import install
     monkeypatch.setenv('DEBIAN_FRONTEND', 'noninteractive')
     run = Mock()
     install(run, Mock(), Path(command.ARGV[-1]))
     expected = run.call_args_list[-1].args[0]
-    assert command.ARGV[0] == '/usr/bin/' + expected[0]
-    assert command.ARGV[1:] == tuple(expected[1:])
+    assert expected[0] == 'make' and 'install' in expected
+    assert 'INSTALL_PACKAGE=' + command.ARGV[-1] in expected
+    assert 'APT=apt-get -o DPkg::Lock::Timeout=120 --no-install-recommends -y' in expected
 
 
 @pytest.mark.parametrize('extra', [{}, {'install': True}, {'product_free_entry': True},

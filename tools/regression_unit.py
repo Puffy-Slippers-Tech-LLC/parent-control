@@ -218,6 +218,16 @@ Trust-dump diagnostic regressions in system_enforcement, system_guest and
 system_runner_cleanup_safety use bounded in-memory databases, pytest-private
 logs and process/pidfd doubles. No real child, guest, shared path or cache is
 added; existing compatible unit and cleanup classifications remain valid.
+Caller result transport in kiosk_confinement uses private nonblocking pipes,
+closed on success and refusal, with mocked runcon and pytest-private PAM inputs.
+Inherited-descriptor command cleanup uses process/pidfd doubles and retains the
+same compatible unit and cleanup classifications.
+Pidfd-acquisition refusal also starts one finite direct Python child with a
+private pipe, kills/reaps only its recorded Popen identity, and closes both
+caller-owned descriptors in finally. No shared path or process scan is used.
+Installed-journey failure collection and snapshot fixture checks use private
+pytest trees and transport/lease doubles only. Cancellation opens no diagnostic
+resource; existing unit/cleanup classifications and matrix partition remain valid.
 Trust-refresh counter/privacy tests in system_enforcement use tiny private
 synthetic proc trees and a systemctl double, with no live process or service
 reads. They preserve the compatible unit classification and add no cleanup owner.
@@ -546,6 +556,9 @@ from regression_ui import Bucket
 # classifications remain valid; no cleanup inventory change is needed.
 # Upgrade asset checks use private tiny DEBs, waited dpkg/Perl children and
 # process-local lease/transport doubles. No real VM, bus or shared mutable path.
+# Missing-Fedora-predecessor checks reuse those private files and command
+# doubles; refusal precedes output allocation, building or metadata commands.
+# Their existing compatible unit and cleanup classifications remain valid.
 # Upgrade command checks use private decoder/recorder files, process-local
 # command/session doubles and waited Perl children; no shared VM, bus or GUI.
 # Fedora E2E package/platform checks extend the same private pytest files and
@@ -585,8 +598,15 @@ from regression_ui import Bucket
 # Maintenance denial reproduction extends the existing worker, graphical lease,
 # credential and VM-control tests with mocked guests, private evidence and the
 # same owned sockets/children; no live VM, shared bus or resource owner is added.
+# Failed installed-setup collection retains parent_setup_cleanup_safety's
+# private attempt trees and transport/guard doubles. Copy failures and cancelled
+# setup add no live guest, process or cleanup owner; both inventories stay compatible.
 # Transfer-refusal maintenance boundary checks reuse private plan/request values
 # in vm_control_cleanup_safety; no new host resource or process lifetime.
+# Retained failed-form estimate refresh checks use private accessible trees and
+# public-setter doubles in e2e_kiosk_valid_duration; no live bus or display.
+# Native diagnostic capture in vm_control_cleanup_safety uses private journal
+# records and transport/lease doubles, with no live journal or new shared owner.
 # Remembered-return diagnostic prefix checks use the same private requests and
 # dispatcher doubles; no live VM, bus, display, shared cache or new owner.
 # Short return diagnostic worker checks in e2e_overlay_valid_choices use the
@@ -607,7 +627,20 @@ from regression_ui import Bucket
 # Installed removal assertions use private tmp_path filesystem trees, native
 # account/session/command doubles and bounded synthetic responses. No live VM,
 # account, service, PAM, package database, socket or display is changed; the
-# system_removal module is compatible with other private unit work.
+# system_removal module is compatible with other private unit work. Confinement
+# removal residue checks likewise use private files and policy-list doubles;
+# they never load or unload host MAC policy.
+# Active-kiosk native-removal refusal coverage uses private generation/PAM files,
+# invocation/UID/pidfd/census doubles and bounded command responses. It creates
+# no process, session, service or package transaction on the development host.
+# Mapped-module identity regressions use private map_files-shaped symlinks and
+# stat/permission doubles; locked SELinux relabel tests use command doubles and
+# existing private advisory locks, with no host /proc scan or MAC mutation.
+# One real Linux layout check owns a finite direct Python child and nonleader
+# thread mapping innocuous private data, reads only that recorded child's proc
+# paths, and kills/waits that child and closes its private pipe in finally.
+# A missing map_files capability must fail closed at that exact real alias;
+# guest-root live checks own the positive target-stat proof in that case.
 # Public purge safety checks use private pytest machine/source files and native
 # package/PAM/ownership doubles; their relocated shared-cleanup shell is bounded
 # and waited. No live package, account, service, bus, display or shared path is
@@ -662,6 +695,33 @@ from regression_ui import Bucket
 # pytest files. They introduce no display, bus, VM, socket or shared cache owner.
 # DESK07 recipient proofs retain those doubles, waited Perl probes and private
 # recorder files; no live session, display, socket or shared resource is added.
+# kiosk_confinement uses tiny private policy/PAM/ELF-shaped trees and process-local
+# identity, command and account doubles. Its bounded waited AppArmor compiler
+# uses -Q -T, neither loads kernel policy nor writes shared caches. No host PAM,
+# service, VM, session bus, display or cleanup owner; compatible unit scheduling.
+# Native launcher checks compile eight tiny private binaries and redirect their
+# final exec to a private observer, with bounded waited children and no daemon.
+# Preserved password-helper metadata/census checks use private ELF/proc trees
+# and xattr/pidfd doubles. One additional bounded native identity fixture uses
+# private compilation/output; it changes no mounts, labels, PAM or host policy.
+# Lua cwd-canary checks use the installed native Lua library in two bounded,
+# waited Python children with a private cwd and module. The control permits its
+# private module; the captured kiosk environment must reject it. No PipeWire,
+# WirePlumber session, host Lua configuration, bus or shared cache is touched.
+# Reproducibility checks run two bounded private policy generators with distinct
+# hash seeds. The pidfd-failure check owns, kills and reaps one fork child and
+# closes its private pipe; it never discovers or signals another process.
+# Census lifecycle checks use private proc-shaped files and process-local pidfd,
+# identity and clock-free snapshots; they inspect no live process or VM state.
+# PAM lifecycle observers own bounded fork children, pipes and pidfds; their
+# process-local subreaper setting is restored after every outcome. Only those
+# recorded children are signalled and reaped; real PAM callbacks use doubles,
+# with no installed policy, service or account mutation. Compatible scheduling.
+# Snap activation precedence and the ordinary-user control use one private
+# dbus-daemon per variant, a short_runtime socket, private service/config/marker
+# files and bounded waited dbus-send clients. Each direct daemon is terminated
+# and reaped in finally. No host bus, systemd manager or shared cache is touched;
+# compatible unit scheduling.
 # kiosk_login compiles one private PAM module and runs bounded, reaped helper
 # children with pytest-owned configuration/lock/status files. Its abort check
 # signals and joins only its own multiprocessing worker; the bounded helper
@@ -669,9 +729,35 @@ from regression_ui import Bucket
 # libpam loads only that private stack; AccountsService, NSS and syslog use
 # process-local doubles. The interpreter-isolation probe executes the fixed
 # helper as an ordinary account with a private cwd/PYTHONPATH and waited child.
+# Manager credential checks reuse that compiled module and private confdir,
+# loading only inert vendor permit/deny callbacks to verify kiosk exclusion and
+# unchanged ordinary fallback. No host PAM files or live credentials are changed.
+# Wellbeing identity/environment cases compile a tiny private launcher with
+# linker-wrapped NSS/exec observers and run bounded waited children. They read
+# no live account or settings backend and preserve compatible unit scheduling.
 # No real session, system bus, display, root lock, shared cache or service mutates.
+# Admission/removal regressions use real advisory locks only on pytest-private
+# files. Native PAM leases cover root-executor/session teardown intervals and
+# the existing owned worker-abort case observes the inherited helper lease.
+# Lifecycle interruption/recovery uses private PAM/record/marker files and
+# fixed policy-command doubles; no host PAM, kernel policy or account changes.
 # It is compatible with other unit modules; its module fixture stays together.
+# e2e_kiosk_feedback_confinement uses pytest-private root-shaped record/mask
+# files, process-local systemctl/public UI/transport doubles and no real service,
+# VM, bus, socket, display or shared cache. Two bounded, waited Perl worker
+# probes use process-local testapi doubles; small file I/O and CPU only;
+# compatible, with no cleanup prerequisite inventory or additional owner.
+# Scanner observer ownership checks additionally own bounded fork children,
+# pidfds, pipes and private stop/result records; credentials and actual scanning
+# use process-local doubles. Recorded children are killed/reaped on refusal and
+# timeout. Snapshot checks use private proc trees, without observing host tasks.
+# e2e_kiosk_notification_wellbeing uses process-local public UI, user-manager,
+# account/environment and transport doubles with tiny pytest-private files.
+# Its two waited Perl workers have private testapi state. No real settings,
+# bus, display, systemd unit, VM, shared cache or cleanup prerequisite is used;
+# compatible, with fixtures kept in one module.
 REVIEWED = frozenset("""
+e2e_kiosk_notification_wellbeing
 application_ui_support
 test_checkpoint
 parent_presentation_cleanup_safety
@@ -708,7 +794,7 @@ e2e_execution_cleanup_safety e2e_files_cleanup_safety e2e_fixture_credentials_cl
 e2e_gdm_navigation e2e_gdm_pixels e2e_gdm_product_free e2e_gdm_recipient
 e2e_install_helper e2e_install_password_observation e2e_installation_boundary
 e2e_installation_observations e2e_inventory e2e_keyring_fixture_cleanup_safety
-e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
+e2e_kiosk_eligible_choices e2e_kiosk_valid_duration e2e_kiosk_entry e2e_kiosk_feedback_confinement e2e_kiosk_no_approver e2e_kiosk_no_child e2e_leased_recording_cleanup_safety
 e2e_license_viewer
 e2e_matched_screens e2e_needle_inputs e2e_observation_transport e2e_parent_search_launch e2e_native_grid_usable e2e_native_app e2e_app_activity
 e2e_plan e2e_pointer_helper e2e_progress e2e_real_interval
@@ -724,7 +810,7 @@ feedback_transport fedora_pam fedora_execution_policy fix_tests fix_tests_cleanu
 graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical_host_policy
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
-installed_journey_cleanup_safety installer integration_harness kiosk_login kiosk_model kiosk_rendering
+installed_journey_cleanup_safety installer integration_harness kiosk_confinement kiosk_login kiosk_model kiosk_rendering
 launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
@@ -933,6 +1019,10 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # and vm_config retain compatible scheduling in unit and cleanup inventories.
 # Retained-entry reproduction guards reuse vm_control_cleanup_safety's private
 # request files and process-local plans; the compatible resource scope holds.
+# Kiosk approval diagnostics extend the same private plan/request and dispatcher
+# doubles, including retained-form read-before-Request refusal and private
+# result files before password input. No live guest, display, bus,
+# shared cache or new process owner; VM-control remains compatible.
 # RetainedDesktopJourney extraction adds renamed comparison/capture regressions
 # to e2e_desktop_session using only tiny private recorder files and in-memory
 # values. Existing waited Perl probes are unchanged; no bus/display/VM, shared

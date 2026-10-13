@@ -13,7 +13,8 @@ import system_removal as removal
 
 @pytest.mark.parametrize('entry', ['remove', 'removed_rebooted', 'reinstalled_rebooted',
                                  'purged_rebooted', 'purge_reinstalled_rebooted',
-                                 'verify_removed', 'password_login_health'])
+                                 'verify_removed', 'password_login_health',
+                                 'verify_active_kiosk_refusal'])
 def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
     monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
     diagnostics = Mock()
@@ -21,7 +22,7 @@ def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
     commands = Mock()
     monkeypatch.setattr(removal.guest, 'commands', commands)
     with pytest.raises(removal.guest.GuestError, match='identity'):
-        getattr(removal, entry)(Mock())
+        getattr(removal, entry)(Mock(), {}) if entry == 'verify_active_kiosk_refusal' else getattr(removal, entry)(Mock())
     diagnostics.assert_not_called()
     commands.run.assert_not_called()
 
@@ -171,6 +172,8 @@ def removed_machine(tmp_path, monkeypatch):
     ('AppFilter', 'restrictions-remain'), ('payload', 'payload-remains'),
     ('hook', 'integration-remains'), ('baseline', 'integration-remains'),
     ('snapshot', 'integration-remains'), ('authselect-profile', 'integration-remains'),
+    ('confinement-state', 'integration-remains'), ('confinement-policy', 'kiosk-policy-remains'),
+    ('confinement-marker', 'integration-remains'), ('pam-barrier', 'pam-barrier-remains'),
     ('dangling-trust', 'integration-remains'), ('dangling-home', 'kiosk-home-remains'),
     ('pam-module', 'pam-reference-remains'), ('pam-helper', 'pam-reference-remains'),
     ('extension', 'extension-entry-remains'), ('other-extension', 'other-extension-settings-changed'),
@@ -184,6 +187,8 @@ def test_removed_machine_rejects_residue_and_health_mismatches(removed_machine, 
     files = {'payload': state['payload'][0], 'hook': state['hook'],
              'baseline': '/var/lib/oh-no-parent-control/fapolicyd-before-install/complete',
              'snapshot': '/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+             'confinement-state': '/var/lib/oh-no-parent-control/kiosk-confinement.json',
+             'confinement-marker': '/var/lib/oh-no-parent-control/kiosk-confinement-removing',
              'authselect-profile': '/etc/authselect/custom/oh-no-parent-control/system-auth'}
     if fault in files:
         target = path(files[fault])
@@ -199,6 +204,10 @@ def test_removed_machine_rejects_residue_and_health_mismatches(removed_machine, 
         path('/etc/pam.d/login').write_text('auth required ' + (
             'pam_oh_no_parent_control.so' if fault == 'pam-module' else
             'pam_exec.so /usr/libexec/oh-no-parent-control-login-check'))
+    if fault == 'pam-barrier':
+        path('/etc/pam.d/systemd-user').write_text(
+            '# Oh No Parent Control removal admission barrier\n'
+            'session requisite pam_succeed_if.so quiet user != oh-no-parent-control\n')
     if fault in ('extension', 'other-extension'):
         target_uid = state['accounts']['child' if fault == 'extension' else 'other']
         monkeypatch.setattr(removal, 'extension_lists', lambda uid: (
@@ -208,6 +217,10 @@ def test_removed_machine_rejects_residue_and_health_mismatches(removed_machine, 
         monkeypatch.setattr(removal.guest, 'run', lambda argv: (
             'wrong' if argv[0] == ('authselect' if fault == 'authselect' else 'getenforce')
             else native_run(argv)))
+    if fault == 'confinement-policy':
+        native_run = removal.guest.run
+        monkeypatch.setattr(removal.guest, 'run', lambda argv: (
+            'onpc-kiosk 1.0\n' if argv[0] == 'semodule' else native_run(argv)))
     if category:
         with pytest.raises(removal.guest.GuestError, match=category):
             removal.verify_removed(state)
@@ -226,6 +239,99 @@ def test_pam_comments_and_inactive_backups_are_preserved(removed_machine):
     path('/etc/pam.d/login').write_text('# auth required pam_oh_no_parent_control.so\nauth required pam_unix.so\n')
     path('/etc/pam.d/login.pam-old').write_text('auth required pam_oh_no_parent_control.so\n')
     removal.verify_pam_removed()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'accepted', 'erased', 'pam', 'marker', 'policy',
+                                   'invocation', 'generation', 'namespace', 'uid'])
+def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manager(
+        tmp_path, monkeypatch, package_format, fault):
+    import system_kiosk_confinement as confinement
+    def path(value):
+        return tmp_path / str(value).lstrip('/')
+    monkeypatch.setattr(removal, 'Path', path)
+    for name in ('/var/lib/oh-no-parent-control/kiosk-confinement.json',
+                 '/etc/pam.d/gdm-password', '/etc/pam.d/systemd-user',
+                 '/proc/234/root/usr/share/oh-no-parent-control/confinement/generation'):
+        target = path(name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b'owned')
+    namespace = path('/proc/234/ns/mnt')
+    namespace.parent.mkdir()
+    namespace.symlink_to('owned-namespace')
+    changed = False
+    account = SimpleNamespace(pw_uid=1007)
+    monkeypatch.setattr(removal.pwd, 'getpwnam', lambda name:
+                        SimpleNamespace(pw_uid=9999) if changed and fault == 'uid' else account)
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
+    calls = []
+    def run(arguments, **options):
+        calls.append(arguments)
+        if '--property=ActiveState' in arguments:
+            return 'inactive'
+        if '--property=InvocationID' in arguments:
+            return 'foreign' if changed and fault == 'invocation' else 'owned'
+        return ''
+    monkeypatch.setattr(removal.guest, 'run', run)
+    def native_remove(arguments, **options):
+        nonlocal changed
+        assert arguments == removal.removal_command()
+        changed = True
+        commands.last_returncode = 0 if fault == 'accepted' else 1
+        if fault == 'pam':
+            path('/etc/pam.d/gdm-password').write_bytes(b'changed')
+        if fault == 'marker':
+            path('/var/lib/oh-no-parent-control/kiosk-confinement-removing').write_text('removing')
+        if fault == 'generation':
+            path('/proc/234/root/usr/share/oh-no-parent-control/confinement/generation').write_bytes(b'foreign')
+        if fault == 'namespace':
+            namespace.unlink()
+            namespace.symlink_to('foreign-namespace')
+        return b'reason=kiosk-admissions-active'
+    commands = SimpleNamespace(run=native_remove, last_returncode=1)
+    monkeypatch.setattr(removal.guest, 'commands', commands)
+    monkeypatch.setattr(removal, 'package_absent', lambda: fault == 'erased')
+    monkeypatch.setattr(removal, 'account_digest', lambda uid:
+                        'changed' if changed and fault == 'policy' else 'owned')
+    verify = Mock()
+    monkeypatch.setattr(removal.guest, 'verify_package_files', verify)
+    monkeypatch.setattr(confinement, 'manager_pid', lambda unit: 234)
+    monkeypatch.setattr(confinement, 'process_identity', lambda process: ('start', 1, ('1007',) * 4))
+    monkeypatch.setattr(confinement, 'exited', lambda fd: False)
+    census = Mock()
+    monkeypatch.setattr(confinement, 'census', census)
+    monkeypatch.setattr(confinement, 'user_command', lambda account, command: b'systemd 257')
+    monkeypatch.setattr(removal.os, 'pidfd_open', lambda pid: 987)
+    close = Mock()
+    monkeypatch.setattr(removal.os, 'close', close)
+    record = Mock()
+    if fault:
+        with pytest.raises(removal.guest.GuestError):
+            removal.verify_active_kiosk_refusal(record, {'child': 1004, 'other': 1005})
+    else:
+        removal.verify_active_kiosk_refusal(record, {'child': 1004, 'other': 1005})
+        verify.assert_called_once()
+        assert census.call_args_list == [((), {'required_roles': ('manager',)})] * 2
+        assert calls[-1][-1] == 'check-remove'
+        assert record.call_count == 2
+    stopped = ['systemctl', 'stop', 'user@1007.service'] in calls
+    assert stopped is (fault not in ('invocation', 'generation', 'namespace', 'uid'))
+    close.assert_called_once_with(987)
+
+
+@pytest.mark.parametrize('profile', ['other-profile (enforce)', 'onpc-kiosk-manager (enforce)'])
+def test_debian_removal_requires_kiosk_profiles_unloaded(removed_machine, monkeypatch, profile):
+    state, _, path, _ = removed_machine
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.deb'))
+    profiles = path('/sys/kernel/security/apparmor/profiles')
+    profiles.parent.mkdir(parents=True)
+    profiles.write_text(profile + '\n')
+    if profile.startswith('onpc-kiosk-'):
+        with pytest.raises(removal.guest.GuestError, match='kiosk-policy-remains'):
+            removal.verify_removed(state)
+    else:
+        removal.verify_removed(state)
 
 
 @pytest.mark.parametrize('residue', [None, 'state', 'logs', 'symlink', 'notice'])

@@ -10,6 +10,16 @@ from system_enforcement import (
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
 
+def test_kiosk_execution_confinement(record_testsuite_property):
+    from system_kiosk_confinement import verify
+    verify(record_testsuite_property)
+
+
+def test_kiosk_namespace_guard_callbacks(record_testsuite_property):
+    from system_kiosk_confinement import verify_namespace_guard
+    verify_namespace_guard(record_testsuite_property)
+
+
 @pytest.fixture(scope='module')
 def native_accounts():
     return provision_native()

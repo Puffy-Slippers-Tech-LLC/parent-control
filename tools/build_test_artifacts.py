@@ -33,10 +33,11 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
 SCHEMA_VERSION = 1
-# Immutable published, signed v1.2 tag and its peeled commit. Qualification
+# Published annotated v1.2 tag and its peeled commit, independently matched to
+# the public GitHub tag object. The published tag is unsigned. Qualification
 # never substitutes the working tree or rewrites its version for this input.
-RELEASE_TAG = '8eb479d4d6afa9dcc38328945ceed09cbb03e8a8'
-RELEASE_COMMIT = '9ed654baf593d1a6ef89bb7e324317319251136d'
+RELEASE_TAG = 'f0520a6f36ad43f57357cdc9e8cd9fa1216e73ae'
+RELEASE_COMMIT = '81ffa5c37abeefdc922825bc27b5933b3eff3ba6'
 RELEASE_VERSION = '1.2+ppa1~ubuntu26.04.1'
 
 
@@ -186,7 +187,9 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
     output = _require_empty_output(output)
     reuse = reuse or {}
     if package_format == 'rpm':
+        from tools.build_rpm import metadata as rpm_metadata
         metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
+                                       source_date_epoch=rpm_metadata(source_root, '0.1.dev')[1],
                                        package_command=['tools/build_rpm.py'])
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     from tools.test_storage import scratch_directory
@@ -276,10 +279,21 @@ def release_identity(root):
             'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
 
 
-def build_upgrade(output, *, package_format):
-    """Finite v1.2/current preparation; exclusively created output, no overwrite."""
+def _require_previous_release(package_format):
+    # Fedora packaging has no genuine published predecessor yet. v1.2 has
+    # Debian source only; adding today's RPM recipe or changing a version would
+    # fabricate upgrade history. Admit RPM only after pinning a published prior
+    # RPM/source identity and qualifying its native version ordering/migration.
+    if package_format == 'rpm':
+        raise ArtifactError('genuine previous Fedora RPM release unavailable; '
+                            'Fedora older-release upgrade qualification is blocked')
     if package_format != 'deb':
-        raise ArtifactError('genuine v1.2 upgrade inputs support DEB only')
+        raise ArtifactError('unsupported upgrade package format')
+
+
+def build_upgrade(output, *, package_format):
+    """Finite genuine release/current preparation; no fabricated predecessor."""
+    _require_previous_release(package_format)
     output = _require_empty_output(output)
     build(output / 'current', package_format=package_format)
     with released_source() as root:
@@ -334,6 +348,11 @@ def verify_upgrade(output, *, staged=False, repository=None):
                 raise ArtifactError('upgrade staging name collision')
     current_root = output if staged else output / 'current'
     current, previous = verify(current_root), verify(output / 'previous')
+    formats = {Path(manifest['artifacts']['package']['path']).suffix
+               for manifest in (current, previous)}
+    if len(formats) != 1:
+        raise ArtifactError('upgrade package format mismatch')
+    _require_previous_release(formats.pop().removeprefix('.'))
     with released_source(repository=repository) as root:
         if previous['source'] != release_identity(root):
             raise ArtifactError('v1.2 source identity mismatch')
@@ -412,16 +431,16 @@ def main() -> int:
     parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
     parser.add_argument('--package-format', choices=('deb', 'rpm'),
                         help='required for every build; no default package format')
-    parser.add_argument('--upgrade-inputs', action='store_true', help='build the fixed v1.2/current inputs')
+    parser.add_argument('--upgrade-inputs', action='store_true',
+                        help='build genuine prior-release/current inputs; Fedora predecessor unavailable')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
     if not (arguments.verify or arguments.compare) and arguments.package_format is None:
         parser.error('--package-format deb|rpm is required when building')
     try:
         if arguments.upgrade_inputs:
-            if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
-                    or arguments.package_format != 'deb'):
-                raise ArtifactError('--upgrade-inputs requires --output and --package-format deb')
+            if arguments.output is None or arguments.verify or arguments.compare or arguments.reuse:
+                raise ArtifactError('--upgrade-inputs requires --output and --package-format')
             build_upgrade(arguments.output, package_format=arguments.package_format)
         elif arguments.reuse:
             if arguments.package_format != 'deb':

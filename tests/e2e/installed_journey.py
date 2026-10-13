@@ -26,6 +26,37 @@ from ui_observations import (
 )
 
 
+def kiosk_journal_command(uid):
+    """Bound service, manager, daemon and coredump evidence to one account."""
+    require(type(uid) is str and re.fullmatch(r'[1-9][0-9]*', uid) is not None,
+            'diagnostics:invalid-uid')
+    units = ('oh-no-parent-control-polkit-agent.service',
+             'oh-no-parent-control-app.service',
+             'oh-no-parent-control-notifications.service',
+             'oh-no-parent-control-wellbeing.service',
+             'gnome-session-manager@oh-no-parent-control.service',
+             'gnome-session-monitor.service',
+             'gnome-session-signal-init.service',
+             'gnome-session-restart-dbus.service',
+             'org.gnome.Kiosk@wayland.service')
+    branches = (
+        [f'_UID={uid}', *['_SYSTEMD_USER_UNIT=' + unit for unit in units]],
+        [f'_UID={uid}', *['USER_UNIT=' + unit for unit in units]],
+        ['_UID=0', f'OBJECT_UID={uid}',
+         *['OBJECT_SYSTEMD_USER_UNIT=' + unit for unit in units]],
+        [f'COREDUMP_UID={uid}', *['COREDUMP_USER_UNIT=' + unit for unit in units]],
+        # GDM starts the native session leader in its session scope before the
+        # user manager's services exist. Keep that early startup stderr too.
+        [f'_UID={uid}', '_COMM=gnome-session'],
+    )
+    command = ['journalctl', '-b', '--no-pager', '-n', '300']
+    for index, branch in enumerate(branches):
+        if index:
+            command.append('+')
+        command.extend(branch)
+    return command
+
+
 @dataclass(frozen=True)
 class JourneyPlan:
     """Trusted scenario declaration; screen_tags insertion order is execution order.
@@ -314,6 +345,7 @@ class InstalledJourney:
         self.additional_reboots_submitted = set()
         self.additional_reboots_observed = set()
         self.failed = False
+        self.failure_collected = False
         self.prompt_counts = {}
         self.settings_observations = {}
         self.request_observations = {}
@@ -324,6 +356,39 @@ class InstalledJourney:
                      type(expected) is str and expected in plan.screen_tags and
                      list(plan.screen_tags).index(expected) < list(plan.screen_tags).index(stage)),
                     plan.prefix + ':settings-plan')
+
+    def collect_failure(self):
+        """Retain bounded engineering logs before the owned guest is restored.
+
+        All installed qualifications share this transport contract. Raw output
+        stays in its private transcript, outside public workflow observations.
+        """
+        if self.transport is None or getattr(self, 'failure_collected', False):
+            return
+        self.failure_collected = True
+        for command in (
+            ['journalctl', '-b', '--no-pager', '-n', '600',
+             '--unit=gdm.service', '--unit=display-manager.service',
+             '--unit=systemd-logind.service'],
+            ['journalctl', '-b', '--no-pager', '-n', '600',
+             '--grep=avc:|apparmor=|onpc_kiosk|onpc-kiosk|oh-no-parent-control'],
+            ['loginctl', 'list-sessions', '--no-legend'],
+        ):
+            self.context.lease.guard()
+            self.transport.call(command, timeout=20)
+        # This transport runs as root. journalctl --user-unit would therefore
+        # select UID 0, silently omitting the kiosk's service output. Resolve
+        # the named account afresh and scope each journal branch explicitly.
+        self.context.lease.guard()
+        account = self.transport.call(
+            ['getent', 'passwd', 'oh-no-parent-control'], timeout=20).decode('utf-8')
+        fields = account.strip().split(':')
+        require(len(fields) == 7 and fields[0] == 'oh-no-parent-control'
+                and re.fullmatch(r'[1-9][0-9]*', fields[2]) is not None
+                and fields[5] == '/home/oh-no-parent-control',
+                self.plan.prefix + ':diagnostic-account')
+        self.context.lease.guard()
+        self.transport.call(kiosk_journal_command(fields[2]), timeout=20)
 
     def check_settings(self, stage, observed):
         """Compare recipe-supplied values before fixture actions or durable reply."""
@@ -375,6 +440,14 @@ class InstalledJourney:
             self._step(guard)
         except BaseException:
             self.failed = True
+            # Collect while this attempt still owns its live guest. Normal
+            # failures need the service/MAC evidence before outer restoration;
+            # cancellation must proceed directly to owned cleanup.
+            if isinstance(sys.exc_info()[1], Exception):
+                try:
+                    self.collect_failure()
+                except Exception:
+                    pass  # Preserve the original workflow failure.
             raise
 
     def retain_trace_sample(self, token, index, sample):

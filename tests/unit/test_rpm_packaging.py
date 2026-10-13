@@ -52,12 +52,14 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     stack = (payload / 'usr/share/oh-no-parent-control/pam/managed-stack').read_text()
     assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
     assert stack.index('pam_malcontent.so') < stack.rindex('pam_oh_no_parent_control.so')
-    assert stack.index('oh-no-parent-control-login-check') < stack.index('pam_malcontent.so')
+    assert 'oh-no-parent-control-login-check' not in stack
+    assert stack.index('account required pam_oh_no_parent_control.so kiosk') < stack.index('pam_malcontent.so')
     assert 'account required pam_oh_no_parent_control.so kiosk\n' in stack
     assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
     manifest = json.loads((payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     files = {entry['path']: entry for entry in manifest['files']}
-    assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
+    assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'reboot'
+    assert files['usr/libexec/oh-no-parent-control-kiosk-dbus']['activation'] == 'reboot'
     assert files['usr/share/oh-no-parent-control/pam/managed-stack']['activation'] == 'reboot'
     for relative, entry in files.items():
         assert entry['sha256'] == hashlib.sha256((payload / relative).read_bytes()).hexdigest()
@@ -99,11 +101,11 @@ def test_fedora_pam_policy_tracks_both_shared_profiles(tmp_path):
     for name in ('oh-no-parent-control-kiosk-only', 'oh-no-parent-control-session-limits'):
         shutil.copy2(ROOT / 'data/pam-configs' / name, profiles / name)
     gate = profiles / 'oh-no-parent-control-kiosk-only'
-    gate.write_text(gate.read_text().replace(' quiet ', ' quiet debug '))
+    gate.write_text(gate.read_text().replace(' required ', ' requisite '))
     stack = stage['pam_stack'](tmp_path)
-    assert stack.startswith('account required pam_exec.so quiet debug ')
-    assert stack.index('oh-no-parent-control-login-check') < stack.index('success=5')
-    assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
+    assert stack.startswith('account requisite pam_oh_no_parent_control.so kiosk\n')
+    assert stack.index('account requisite pam_oh_no_parent_control.so kiosk') < stack.index('success=5')
+    assert 'session requisite pam_oh_no_parent_control.so kiosk\n' in stack
     assert 'ingroup wheel' in stack and 'ingroup sudo' not in stack
     gate.write_text('Name: empty profile\nAccount:\n')
     with pytest.raises(ValueError, match='empty managed PAM profile'):
@@ -132,7 +134,10 @@ def test_fedora_readiness_is_a_separate_required_boot_gate(fedora_payload):
     display = configparser.ConfigParser(interpolation=None)
     display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
     assert display['Unit']['Requires'] == 'oh-no-parent-control-execution-policy-ready.service'
-    assert display['Unit']['After'] == 'oh-no-parent-control-execution-policy-ready.service'
+    assert set(display['Unit']['After'].split()) == {
+        'oh-no-parent-control-execution-policy-ready.service',
+        'oh-no-parent-control-kiosk-confinement.service',
+    }
     assert (fedora_payload / 'usr/libexec/oh-no-parent-control-execution-policy-ready').read_bytes() == (
         ROOT / 'tools/execution_policy_ready.py').read_bytes()
     manifest = json.loads((fedora_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
@@ -169,10 +174,15 @@ def test_shared_source_check_rejects_broken_lifecycle_adapters(tmp_path, monkeyp
 
 def test_reproducible_rpm_sources_use_the_same_allowlist_as_ppa(tmp_path):
     outputs = []
-    for name in ('first', 'second'):
+    for name, mask in (('first', 0o002), ('second', 0o077)):
         workspace = tmp_path / name
         workspace.mkdir()
-        top, spec, archive, identity = build_rpm.sources(ROOT, workspace, '0.1.dev')
+        previous = os.umask(mask)
+        try:
+            top, spec, archive, identity = build_rpm.sources(ROOT, workspace, '0.1.dev')
+        finally:
+            os.umask(previous)
+        assert all(path.stat().st_mode & 0o7777 == 0o644 for path in (spec, archive, identity))
         outputs.append((spec.read_bytes(), archive.read_bytes(), identity.read_bytes()))
         with tarfile.open(archive) as contents:
             selected = {Path(*Path(member.name).parts[1:]) for member in contents if member.isfile()}
@@ -211,6 +221,7 @@ def test_rpm_binary_build_uses_fedora_mock_and_retains_failure_evidence(tmp_path
     monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
     monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: '/fixture/' + name)
+    monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')
     commands = []
     original_run = subprocess.run
 
@@ -218,6 +229,7 @@ def test_rpm_binary_build_uses_fedora_mock_and_retains_failure_evidence(tmp_path
         if arguments[0] not in ('mock', 'rpmbuild'):
             return original_run(arguments, **kwargs)
         commands.append(arguments)
+        assert kwargs['env']['SOURCE_DATE_EPOCH'] == str(build_rpm.metadata(ROOT, '0.1.dev')[1])
         if arguments[0] == 'rpmbuild':
             assert '-bs' in arguments and '-ba' not in arguments
             (kwargs['cwd'] / 'SRPMS/package.src.rpm').write_bytes(b'fixture srpm')
@@ -276,9 +288,14 @@ def test_rpm_native_macro_expansion_preserves_runtime_package_queries(tmp_path):
     renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
     renderer['rpm_scripts'](ROOT, tmp_path)
     for path in sorted(tmp_path.glob('rpm-*')):
+        # Standalone recovery scriptlets exceed Linux's per-argument limit.
+        # Read their exact bytes inside RPM and use its native macro expander.
+        expression = ('%{lua:local f=assert(io.open(' + json.dumps(str(path)) +
+                      ', "rb")); local source=f:read("*a"); f:close(); '
+                      'io.write(rpm.expand(source))}')
         result = subprocess.run([
             'rpm', '--define', 'name oh-no-parent-control',
-            '--define', 'NAME oh-no-parent-control', '--eval', path.read_text(),
+            '--define', 'NAME oh-no-parent-control', '--eval', expression,
         ], capture_output=True, text=True, timeout=10)
         assert result.returncode == 0, result.stderr
         assert result.stdout.rstrip('\n') == rpm_script_source(path).rstrip('\n'), path.name
@@ -686,6 +703,7 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None if name == 'mock' else '/fixture/' + name)
     monkeypatch.setattr(rpm_builder, 'require_image', lambda root: 'localhost/fixture:fc44')
+    monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')
     original_run = subprocess.run
     commands = []
 
@@ -695,6 +713,9 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
         commands.append(arguments)
         assert '--network=none' in arguments and '--pull=never' in arguments
         assert '--userns=keep-id' in arguments and '--cap-drop=all' in arguments
+        epoch = str(build_rpm.metadata(ROOT, '0.1.dev')[1])
+        assert arguments[arguments.index('--env') + 1] == 'SOURCE_DATE_EPOCH=' + epoch
+        assert kwargs['env']['SOURCE_DATE_EPOCH'] == epoch
         assert '--privileged' not in arguments
         top = kwargs['cwd']
         (top / 'SRPMS/package.src.rpm').write_bytes(b'fixture srpm')

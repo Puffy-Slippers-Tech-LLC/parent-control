@@ -78,6 +78,38 @@ def accounts_service_set_icon_file(user, icon_file=KIOSK_ICON_FILE, user_path=No
     ], check=True)
 
 
+def accounts_service_cache_kiosk(user, user_path):
+    """Cache fresh kiosk state; refuse unsupported retained-state repair."""
+    result = subprocess.run([
+        "busctl", "--system", "get-property", "org.freedesktop.Accounts",
+        user_path, "org.freedesktop.Accounts.User", "SystemAccount", "Saved",
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    fields = shlex.split(result.stdout)
+    if fields == ["b", "false", "b", "true"]:
+        return
+    if fields == ["b", "true", "b", "true"]:
+        # CacheUser currently changes this state only in memory when a saved
+        # record exists. No public classification/save API repairs it durably.
+        # Do not force an unrelated property change or erase other metadata.
+        fail("retained kiosk classification requires an AccountsService fix "
+             "that durably saves CacheUser; existing account metadata was preserved")
+    if fields not in (["b", "true", "b", "false"], ["b", "false", "b", "false"]):
+        fail("AccountsService returned invalid kiosk visibility")
+    result = subprocess.run([
+        "busctl", "--system", "call", "org.freedesktop.Accounts",
+        "/org/freedesktop/Accounts", "org.freedesktop.Accounts",
+        "CacheUser", "s", user.pw_name,
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    if shlex.split(result.stdout) != ["o", user_path]:
+        fail("AccountsService returned an invalid cached kiosk object")
+    result = subprocess.run([
+        "busctl", "--system", "get-property", "org.freedesktop.Accounts",
+        user_path, "org.freedesktop.Accounts.User", "SystemAccount", "Saved",
+    ], check=True, stdout=subprocess.PIPE, text=True)
+    if shlex.split(result.stdout) != ["b", "false", "b", "true"]:
+        fail("AccountsService failed kiosk cache verification")
+
+
 def accounts_service_set_kiosk_session(user_path):
     """Set and verify both public routing properties, including the transport."""
     for method, value in (("SetSession", "oh-no-parent-control"),
@@ -88,9 +120,9 @@ def accounts_service_set_kiosk_session(user_path):
         ], check=True)
     result = subprocess.run([
         "busctl", "--system", "get-property", "org.freedesktop.Accounts",
-        user_path, "org.freedesktop.Accounts.User", "Session", "SessionType",
+        user_path, "org.freedesktop.Accounts.User", "Session", "SessionType", "SystemAccount",
     ], check=True, stdout=subprocess.PIPE, text=True)
-    if shlex.split(result.stdout) != ["s", "oh-no-parent-control", "s", "wayland"]:
+    if shlex.split(result.stdout) != ["s", "oh-no-parent-control", "s", "wayland", "b", "false"]:
         fail("kiosk session routing failed verification")
     print("Verified [Kiosk user] session=dedicated type=wayland", file=sys.stderr)
 
@@ -139,6 +171,7 @@ def main():
     if prefix == Path("/"):
         print("Resolving AccountsService object for [Kiosk user]", file=sys.stderr)
         kiosk_path = accounts_service_user_path(kiosk)
+        accounts_service_cache_kiosk(kiosk, kiosk_path)
         print("Applying AccountsService properties for [Kiosk user]", file=sys.stderr)
         accounts_service_set_icon_file(kiosk, user_path=kiosk_path)
         subprocess.run([

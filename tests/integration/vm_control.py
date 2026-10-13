@@ -371,7 +371,8 @@ def main(argv=None):
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
-                                          'reproduce-gdm-denial', 'reproduce-lock-denial',
+                                          'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                                          'reproduce-lock-denial',
                                           'reproduce-retained-entry', 'probe-lock-curtain',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-countdown-minutes',
@@ -437,7 +438,8 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+        elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval',
+                             'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
                              'reproduce-countdown-minutes',
                              'reproduce-countdown-resume',
@@ -451,8 +453,11 @@ def main(argv=None):
             from vm_probe import reproduce_retained_app_visits
             from vm_probe import reproduce_revoke_cancel
             from vm_probe import reproduce_countdown_minutes, reproduce_countdown_resume
+            from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
+             'reproduce-kiosk-entry': reproduce_kiosk_entry,
+             'reproduce-kiosk-approval': reproduce_kiosk_approval,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
@@ -476,6 +481,10 @@ def main(argv=None):
             from vm_probe import probe_lock_curtain
             resume(lease)
             probe_lock_curtain(lease)
+        elif args.action == 'probe-kiosk-approval':
+            from vm_probe import probe_kiosk_approval
+            resume(lease)
+            probe_kiosk_approval(lease)
         elif args.action == 'probe-retained-app-launch':
             from vm_probe import probe_retained_app_launch
             resume(lease)

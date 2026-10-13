@@ -92,13 +92,16 @@ def test_kiosk_qualification_stays_on_public_gui_not_backend_buses():
 
 
 @pytest.mark.parametrize('online', [False, True])
-def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
+def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online, monkeypatch):
     from contextlib import nullcontext
     from types import SimpleNamespace
     from unittest.mock import Mock
 
     import check_e2e_kiosk_entry as check
+    import app_snapshot
+    from guest_inputs import Bundle
     from parent_setup_qualification import KioskEntryQualification
+    from tests.support.vm_runner import UUID, xml as domain_xml
 
     from tools.test_storage import named_input
     assert check.ASSETS == named_input(package_source=True)
@@ -111,12 +114,28 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
 
     qualification = KioskEntryQualification.__new__(KioskEntryQualification)
     qualification.assets = tmp_path
+    qualification.directory = tmp_path
+    qualification.result = {}
     qualification.commands = Mock()
     qualification.commands.run.return_value = b'9.8.7+ppa1~ubuntu26.04.1\n'
     (tmp_path / 'package.deb').write_bytes(b'fixture')
+    bundle = Mock()
+    staged = Mock(return_value=bundle)
+    monkeypatch.setattr(Bundle, 'from_staged', staged)
+    identity = json.dumps({'schema_version': 2, 'package_sha256': 'b' * 64,
+        'package_content_sha256': 'c' * 64, 'baseline_sha256': 'd' * 64,
+        'recipe_sha256': 'e' * 64})
+    expected_identity = Mock(return_value=identity)
+    monkeypatch.setattr(app_snapshot, 'input_identity', expected_identity)
+    monkeypatch.setattr(app_snapshot.time, 'time', lambda: 100000)
+    # Snapshot validation includes both the SPICE console and private VNC
+    # automation endpoint, plus the output-only observer.
+    domain = app_snapshot.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
     snap = Mock()
-    snap.getXMLDesc.return_value = ('<domainsnapshot><memory snapshot="' +
-        ('internal' if online else 'no') + '"/></domainsnapshot>')
+    snap.getXMLDesc.return_value = ('<domainsnapshot><description>' + identity +
+        '</description><memory snapshot="' + ('internal' if online else 'no') +
+        '"/><state>' + ('running' if online else 'shutoff') +
+        '</state><creationTime>100000</creationTime>' + domain + '</domainsnapshot>')
     lease = Mock()
     lease.capture.state = {'guest': {'ubuntu_version': '26.04'}}
     lease.source.domain.snapshotLookupByName.return_value = snap
@@ -125,6 +144,11 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
     lease.test_xml = '<domain/>'
     lease.snapshot_status.return_value = nullcontext()
     qualification.attach_installed_snapshot(lease)
+    staged.assert_called_once_with(ROOT, tmp_path / 'input')
+    expected_identity.assert_called_once_with(lease, tmp_path, bundle, qualification.commands)
+    assert qualification.result['installed_snapshot']['inputs'] == json.loads(identity)
+    assert lease.guard.call_count == (1 if online else 2)
+    lease.guard.assert_any_call(off=True)
     lease.source.domain.snapshotLookupByName.assert_called_once_with('onpc-v9.8.7', 0)
     if online:
         assert lease.online_pending is True and lease.installed_name == 'onpc-v9.8.7'
@@ -134,7 +158,6 @@ def test_kiosk_qualification_reuses_the_prepared_app_snapshot(tmp_path, online):
         return
     lease.source.domain.revertToSnapshot.assert_called_once_with(snap, 4)
     lease.source.connection.defineXML.assert_called_once_with('<domain/>')
-    lease.guard.assert_called_once_with(off=True)
 
 
 def test_kiosk_request_form_returns_only_the_fixed_public_projection():

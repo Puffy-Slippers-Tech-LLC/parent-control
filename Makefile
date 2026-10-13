@@ -19,6 +19,21 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-broker \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-session \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-app \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-notifications \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-notification-client \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-wellbeing \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-cleanup \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-audio \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-packages \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-dbus \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration \
+	$(DATADIR)/oh-no-parent-control/confinement \
+	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-kiosk-confinement.service \
+	$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d/confinement.conf \
+	$(SYSTEMD_USER_DIR)/wireplumber.service.d/oh-no-parent-control.conf \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe \
 	$(LIBEXECDIR)/oh-no-parent-control-execution-probe-gate \
@@ -166,6 +181,12 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
+PACKAGE_SOURCE_FILES += tools/kiosk_session.c
+PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
+	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \
+	data/systemd/oh-no-parent-control-kiosk-confinement.service \
+	data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf \
+	data/systemd/user/wireplumber.service.d/oh-no-parent-control.conf
 
 .PHONY: publish updateversion bump-version build install uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
@@ -244,6 +265,7 @@ _build-package:
 	mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo" "$$output_dir/"; \
 	printf '\033[32mSUCCESS: build completed. Artifacts are in %s\033[0m\n' "$$output_dir"
 
+install: export ONPC_INSTALL_PACKAGE := $(value INSTALL_PACKAGE)
 install:
 	@set -e; \
 	if [ -r "$(OS_RELEASE)" ]; then . "$(OS_RELEASE)"; \
@@ -260,16 +282,23 @@ define installdeb
 	step='checking prerequisites'; \
 	staged_deb=''; \
 	trap 'status=$$?; if [ -n "$$staged_deb" ]; then rm -f -- "$$staged_deb"; fi; if [ "$$status" -ne 0 ]; then printf "FAIL: installdeb: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
-	if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
-		echo "Run ./setup.sh --dependencies-only to install dpkg-dev" >&2; \
-		exit 1; \
+	deb_file="$${ONPC_INSTALL_PACKAGE:-}"; \
+	if [ -n "$$deb_file" ]; then \
+		case "$$deb_file" in /*.deb) ;; *) echo 'INSTALL_PACKAGE must be an absolute DEB path' >&2; exit 1 ;; esac; \
+		identity=$$(dpkg-deb -f "$$deb_file" Package); \
+		[ "$$identity" = oh-no-parent-control ] || { echo 'Unexpected package identity' >&2; exit 1; }; \
+	else \
+		if ! command -v dpkg-parsechangelog >/dev/null 2>&1 || ! command -v dpkg-architecture >/dev/null 2>&1; then \
+			echo "Run ./setup.sh --dependencies-only to install dpkg-dev" >&2; \
+			exit 1; \
+		fi; \
+		step='reading package version'; \
+		version="$$(dpkg-parsechangelog -S Version)"; \
+		step='reading package architecture'; \
+		architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
+		step='locating built package'; \
+		deb_file="$(CURDIR)/output/deb/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	fi; \
-	step='reading package version'; \
-	version="$$(dpkg-parsechangelog -S Version)"; \
-	step='reading package architecture'; \
-	architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
-	step='locating built package'; \
-	deb_file="$(CURDIR)/output/deb/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	step='refreshing APT package indexes'; \
@@ -290,14 +319,20 @@ define installrpm
 	set -e; \
 	step='locating built package'; \
 	trap 'status=$$?; if [ "$$status" -ne 0 ]; then printf "FAIL: installrpm: %s (exit %s)\n" "$$step" "$$status" >&2; fi; exit "$$status"' 0; \
-	rpm_file=''; \
-	for candidate in "$(CURDIR)/output/rpm/"oh-no-parent-control-[0-9]*.rpm; do \
-		case "$$candidate" in *.src.rpm|*.nosrc.rpm) continue ;; esac; \
-		test -f "$$candidate" || continue; \
-		if [ -z "$$rpm_file" ] || [ "$$candidate" -nt "$$rpm_file" ]; then rpm_file="$$candidate"; fi; \
-	done; \
+	rpm_file="$${ONPC_INSTALL_PACKAGE:-}"; \
+	if [ -n "$$rpm_file" ]; then \
+		case "$$rpm_file" in /*.rpm) ;; *) echo 'INSTALL_PACKAGE must be an absolute RPM path' >&2; exit 1 ;; esac; \
+	else \
+		for candidate in "$(CURDIR)/output/rpm/"oh-no-parent-control-[0-9]*.rpm; do \
+			case "$$candidate" in *.src.rpm|*.nosrc.rpm) continue ;; esac; \
+			test -f "$$candidate" || continue; \
+			if [ -z "$$rpm_file" ] || [ "$$candidate" -nt "$$rpm_file" ]; then rpm_file="$$candidate"; fi; \
+		done; \
+	fi; \
 	test -n "$$rpm_file" || (echo 'No binary product RPM in ./output/rpm; run make build-rpm first' >&2; exit 1); \
 	step='reading RPM package identity'; \
+	rpm_name="$$( $(RPM) -qp --queryformat '%{NAME}' "$$rpm_file")"; \
+	[ "$$rpm_name" = oh-no-parent-control ] || { echo 'Unexpected package identity' >&2; exit 1; }; \
 	rpm_identity="$$( $(RPM) -qp --queryformat '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}' "$$rpm_file")"; \
 	action=install; \
 	if $(RPM) -q --quiet "$$rpm_identity"; then action=reinstall; fi; \
@@ -521,6 +556,18 @@ ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0755 packaging/fedora_execution_policy.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy"
 endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-session" tools/kiosk_session.c
+	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-session"
+	@for role in app notifications notification-client wellbeing cleanup audio packages dbus; do \
+		$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+			-DKIOSK_LAUNCH_ROLE=\"$$role\" \
+			-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role" tools/kiosk_session.c || exit 1; \
+		chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role"; \
+	done
+	install -m 0755 tools/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement"
+	install -m 0755 packaging/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration"
+	$(PYTHON) tools/kiosk_confinement_policy.py --distribution "$(PACKAGE_DISTRIBUTION)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/confinement"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
@@ -533,7 +580,7 @@ endif
 	install -m 0755 tools/session_limit_check.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-session-limit-check"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wall -Wextra -Werror -fPIC -shared $(LDFLAGS) -Wl,-z,defs \
 		-o "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so" \
-		tools/pam_oh_no_parent_control.c -lpam
+		tools/pam_oh_no_parent_control.c -lpam -ldl
 	chmod 0644 "$(DESTDIR)$(PAM_MODULE_DIR)/pam_oh_no_parent_control.so"
 	install -m 0755 packaging/package_activation.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-package-activation"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk" "$(DESTDIR)$(PRODUCT_LIBDIR)/broker/oh_no_parent_control" "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui"
@@ -575,6 +622,7 @@ endif
 	install -m 0755 data/gdm3/PreSession/Default "$(DESTDIR)$(DATADIR)/oh-no-parent-control/gdm-presession"
 	install -m 0644 data/fapolicyd/99-oh-no-parent-control-allow.rules "$(DESTDIR)$(DATADIR)/oh-no-parent-control/"
 	install -m 0644 data/systemd/oh-no-parent-control-broker.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
+	install -m 0644 data/systemd/oh-no-parent-control-kiosk-confinement.service "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d"
 	install -m 0644 data/systemd/fapolicyd.service.d/oh-no-parent-control-recovery.conf "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/fapolicyd.service.d/"
 	install -d "$(DESTDIR)$(SYSTEMD_SYSTEM_DIR)/display-manager.service.d"
@@ -595,6 +643,10 @@ endif
 	ln -sf ../oh-no-parent-control-wellbeing.service "$(DESTDIR)$(SYSTEMD_USER_DIR)/default.target.wants/oh-no-parent-control-wellbeing.service"
 	install -m 0644 data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service "$(DESTDIR)$(DATADIR)/dbus-1/services/"
 	install -m 0644 data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/gnome-session@oh-no-parent-control.target.d/"
+	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d"
+	install -m 0644 data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/org.gnome.Kiosk@wayland.service.d/"
+	install -d "$(DESTDIR)$(SYSTEMD_USER_DIR)/wireplumber.service.d"
+	install -m 0644 data/systemd/user/wireplumber.service.d/oh-no-parent-control.conf "$(DESTDIR)$(SYSTEMD_USER_DIR)/wireplumber.service.d/"
 	install -d "$(DESTDIR)$(DATADIR)/gnome-session/sessions" "$(DESTDIR)$(DATADIR)/wayland-sessions" "$(DESTDIR)$(DATADIR)/applications" "$(DESTDIR)$(DATADIR)/icons/hicolor/512x512/apps"
 	install -m 0644 data/gnome-session/sessions/oh-no-parent-control.session "$(DESTDIR)$(DATADIR)/gnome-session/sessions/"
 	install -m 0644 data/wayland-sessions/oh-no-parent-control.desktop "$(DESTDIR)$(DATADIR)/wayland-sessions/"

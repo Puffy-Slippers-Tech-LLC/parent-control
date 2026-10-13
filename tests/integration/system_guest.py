@@ -25,6 +25,7 @@ BASELINE = Path('/etc/oh-no-parent-control-test-baseline.json')
 BUS = 'com.puffyslippers.OhNoParentControl1'
 BROKER = 'oh-no-parent-control-broker.service'
 EXPIRY_DIAGNOSTICS = Path('/var/lib/onpc-test-graphical-expiry')
+KIOSK_CONFINEMENT_STATE = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
 commands = Commands()
 
 
@@ -88,7 +89,10 @@ def check_prepared_hostname(expected_digest, hostname):
     require(hostname == prepared['guest']['hostname'], 'hostname')
 
 
-def guard():
+def guard(*, expected_selinux='Enforcing'):
+    # Only the explicit enforcement-fault fixture expects Permissive. Keep
+    # every guest/run/input ownership check and require the exact planned state.
+    require(expected_selinux in ('Enforcing', 'Permissive'), 'selinux-expected-state')
     require(os.geteuid() == 0, 'root-required')
     info = MARKER.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0 and
@@ -107,10 +111,11 @@ def guard():
               release.get('VERSION_ID', '').strip('"') == '44' and
               release.get('VARIANT_ID', '').strip('"') == 'workstation')
     require(ubuntu or fedora, 'release')
+    require(fedora or expected_selinux == 'Enforcing', 'selinux-expected-state')
     package = PAYLOAD / ('package.rpm' if fedora else 'package.deb')
     require(package == package_path(), 'package-platform')
     if fedora:
-        require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
+        require(run(['getenforce']) == expected_selinux, 'selinux-enforcing')
     require(sha(package) == marker['package_sha256'], 'package-digest')
     inventory = json.loads((PAYLOAD / 'transfer-sha256.json').read_text())
     for relative, expected in inventory.items():
@@ -456,14 +461,10 @@ def upgrade():
     before.update(boot_id=boot, package_sha256=marker['package_sha256'],
                   baseline_sha256=marker['baseline_sha256'])
     (PAYLOAD / 'before.json').write_text(json.dumps(before))
-    guard()
-    if package.suffix == '.rpm':
-        run(['dnf', 'reinstall' if same_version else 'install', '-y', str(package)], timeout=1800)
-    else:
-        os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-        run(['apt-get', '-o', 'DPkg::Lock::Timeout=120', '--reinstall', 'install',
-             '--no-install-recommends', '-y', str(package)], timeout=1800)
+    from guest_install_recipe import install as install_recipe
+    install_recipe(run, guard, package)
     verify_package_files(package)
+    prelease_gate = verify_upgrade_admission_receipt(boot)
     require(reboot_requested(),
             'updated-package-did-not-request-reboot')
     (PAYLOAD / 'results/update-activation.json').write_text(json.dumps({
@@ -471,7 +472,30 @@ def upgrade():
         'package_sha256': marker['package_sha256'], 'old_package_reboot_observed': True,
         'product_reboot_marker_absent_before_update': True, 'update_requested_reboot': True,
         'same_version_reinstall': same_version,
+        'prelease_removal_boot_gate': prelease_gate,
     }, sort_keys=True))
+
+
+def verify_upgrade_admission_receipt(boot):
+    """Require actual old-worker retirement protection before upgrade reboot."""
+    guard()
+    saved = json.loads(KIOSK_CONFINEMENT_STATE.read_text())
+    require(saved.get('schema') == 1 and saved.get('admission_protocol') == 1,
+            'upgrade-admission-receipt-invalid')
+    receipt = saved.get('prelease_upgrade_boot_id')
+    if receipt is None:
+        return 'not-required-current-protocol'
+    require(isinstance(receipt, str) and re.fullmatch(
+        r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', receipt),
+        'upgrade-admission-boot-invalid')
+    if receipt != boot:
+        return 'previously-retired'
+    output = commands.run([
+        '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'check-remove'],
+        check=False, timeout=30, merge_stderr=True)
+    require(commands.last_returncode != 0 and b'legacy-pam-reboot-required' in output,
+            'upgrade-prelease-removal-not-refused')
+    return 'pre-reboot-removal-refused'
 
 
 def installed_group(path):
@@ -603,9 +627,14 @@ def verify_pam():
         account_stack = '\n'.join(line for line in contents[account].splitlines()
                                  if line.lstrip().startswith('account'))
         require('pam_malcontent.so' in account_stack, 'pam-account')
-        require('pam_oh_no_parent_control.so' in account_stack and
-                account_stack.index('pam_malcontent.so') <
-                account_stack.index('pam_oh_no_parent_control.so'), 'pam-runtime-cap')
+        # The kiosk admission mode legitimately precedes Malcontent. Only the
+        # no-argument account callback replaces Malcontent's runtime cap.
+        runtime = list(re.finditer(
+            r'^account\s+required\s+pam_oh_no_parent_control\.so\s*$', account_stack, re.M))
+        malcontent = list(re.finditer(
+            r'^account\s+required\s+pam_malcontent\.so(?:\s+[^\n]*)?$', account_stack, re.M))
+        require(len(runtime) == 1 and len(malcontent) == 1 and
+                malcontent[0].start() < runtime[0].start(), 'pam-runtime-cap')
         require('oh-no-parent-control-clear-session-runtime-max' not in contents[session],
                 'obsolete-session-runtime-hook')
     require(not Path('/usr/libexec/oh-no-parent-control-clear-session-runtime-max').exists(),

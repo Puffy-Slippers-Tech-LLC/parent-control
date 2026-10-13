@@ -132,7 +132,8 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
             '#!/bin/sh\n'
             'case "$1" in\n'
             '  -qp) [ "$INSTALL_FAILURE" != identity ] || { echo "RPM identity diagnostic" >&2; exit 7; }; '
-            'printf "%s" "$RPM_IDENTITY";;\n'
+            'if [ "$3" = "%{NAME}" ]; then printf "%s" oh-no-parent-control; '
+            'else printf "%s" "$RPM_IDENTITY"; fi;;\n'
             '  -q) [ "$2" = --quiet ] && [ "$3" = "$INSTALLED_IDENTITY" ];;\n'
             '  *) echo "unexpected RPM mutation" >&2; exit 99;;\n'
             'esac\n'
@@ -206,6 +207,42 @@ def test_package_specific_install_targets_are_unavailable(target):
     )
     assert result.returncode != 0
     assert f"No rule to make target '{target}'" in result.stderr
+
+
+@pytest.mark.parametrize('distribution,suffix', [('ubuntu', 'deb'), ('fedora', 'rpm')])
+@pytest.mark.parametrize('package_name', ['oh-no-parent-control', 'oh-no-parent-control-2-other'])
+def test_public_installer_validates_frozen_artifact_and_preserves_literal_path(
+        tmp_path, distribution, suffix, package_name):
+    package = tmp_path / f'previous $(false) package.{suffix}'
+    package.write_bytes(b'private selected artifact')
+    os_release = tmp_path / 'os-release'
+    os_release.write_text('ID=' + distribution + '\n')
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    identity = bin_dir / ('dpkg-deb' if suffix == 'deb' else 'rpm')
+    identity.write_text('#!/bin/sh\n' + (
+        f'echo {package_name}\n' if suffix == 'deb' else
+        'if [ "$1" != -qp ]; then exit 1; fi\n'
+        f'if [ "$3" = "%{{NAME}}" ]; then echo {package_name}; '
+        f'else echo {package_name}-0:1.0-1.x86_64; fi\n'))
+    identity.chmod(0o755)
+    installer = bin_dir / 'installer'
+    installer.write_text('#!/bin/sh\nfor last do :; done\n'
+        'if [ "$1" = install ]; then cp -- "$last" "$CAPTURED_PACKAGE"; fi\n')
+    installer.chmod(0o755)
+    captured = tmp_path / 'captured'
+    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
+        'install', f'INSTALL_PACKAGE={package}', f'OS_RELEASE={os_release}',
+        f'APT={installer}', f'DNF={installer}', f'RPM={identity}'],
+        env={**os.environ, 'PATH': str(bin_dir) + ':' + os.environ['PATH'],
+             'CAPTURED_PACKAGE': str(captured)}, capture_output=True, text=True, timeout=10)
+    if package_name == 'oh-no-parent-control':
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert captured.read_bytes() == package.read_bytes()
+    else:
+        assert result.returncode != 0
+        assert 'Unexpected package identity' in result.stderr
+        assert not captured.exists()
 
 
 @pytest.mark.parametrize('release', [None, 'ID=unsupported\n'])

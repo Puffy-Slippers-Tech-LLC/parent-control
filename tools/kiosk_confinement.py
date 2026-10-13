@@ -1,0 +1,433 @@
+#!/usr/bin/python3 -I
+"""Prepare immutable, independently labelled executables for the kiosk PAM gate.
+
+The native PAM caller holds the preparation lock and installs these files in its
+own mount namespace. No shared distribution executable is relabelled or changed.
+"""
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import re
+
+
+PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
+RUNTIME = Path('/run/oh-no-parent-control-confinement')
+ACCOUNT = 'oh-no-parent-control'
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+
+
+def trusted(path, *, directory=False, symlinks=False):
+    """Follow distribution symlinks only after validating every resolved ancestor."""
+    path = Path(path)
+    if not symlinks and any(item.is_symlink() for item in (path, *path.parents)):
+        raise ValueError('substituted-path')
+    path = path.resolve(strict=True)
+    for ancestor in (path, *path.parents):
+        info = ancestor.lstat()
+        if info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError('untrusted-path')
+        if ancestor != path and not stat.S_ISDIR(info.st_mode):
+            raise ValueError('untrusted-ancestor')
+    info = path.stat()
+    if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
+        raise ValueError('unexpected-file-type')
+    return path
+
+
+def source_record(role, source):
+    path = trusted(source, symlinks=True)
+    with path.open('rb') as stream:
+        before = os.fstat(stream.fileno())
+        if before.st_mode & 0o6000 or (role not in ('blocked', 'library') and not before.st_mode & 0o111):
+            raise ValueError('unexpected-executable-mode')
+        if stream.read(4) != b'\x7fELF':
+            raise ValueError('non-native-executable')
+        stream.seek(0)
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        after = os.fstat(stream.fileno())
+    identity = lambda item: (item.st_dev, item.st_ino, item.st_size, item.st_mtime_ns,
+                             item.st_ctime_ns)
+    if identity(before) != identity(after):
+        raise ValueError('source-changed')
+    # File identity detects an in-flight update; only content and canonical
+    # names define a generation, so same-byte reinstalls remain compatible.
+    return {'role': role, 'path': str(path), 'sha256': digest}
+
+
+def inventory(config):
+    records = []
+    seen = {}
+    for entry in config['executables']:
+        candidates = [Path(path) for path in entry['paths'] if Path(path).exists()]
+        if entry.get('library_directory'):
+            directory = trusted(entry['library_directory'], directory=True, symlinks=True)
+            candidates = sorted(directory.glob('libsystemd-*.so'))
+        if not candidates:
+            if entry.get('optional', False):
+                continue
+            raise ValueError('missing-executable')
+        # Alternative distro locations describe one program, never a wildcard
+        # permission. Distinct installed alternatives are separately validated.
+        for path in candidates:
+            record = source_record(entry['role'], path)
+            if record['path'] in seen:
+                if seen[record['path']] != record['role']:
+                    raise ValueError('conflicting-executable-roles')
+                continue
+            seen[record['path']] = record['role']
+            records.append(record)
+    return records
+
+
+def file_identity(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+            info.st_ctime_ns, info.st_mode, info.st_uid, info.st_gid)
+
+
+def preserved_inventory(config):
+    """Measure vendor privilege helpers without copying or relabelling them.
+
+    Content and privilege metadata define the stable generation. The separate
+    inode assertion binds the native caller to the exact file measured here.
+    """
+    records, identities = [], {}
+    for entry in config.get('preserved_executables', []):
+        path = trusted(entry['path'])
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC), 'rb') as stream:
+            before = os.fstat(stream.fileno())
+            if (before.st_uid != 0 or before.st_gid != 0 or before.st_nlink != 1 or
+                    stat.S_IMODE(before.st_mode) != entry['mode'] or
+                    stream.read(4) != b'\x7fELF' or
+                    'security.capability' in os.listxattr(stream.fileno())):
+                raise ValueError('unexpected-preserved-executable')
+            label = (os.getxattr(stream.fileno(), 'security.selinux').rstrip(b'\0').decode('ascii')
+                     if config['backend'] == 'selinux' else None)
+            if label != entry['label']:
+                raise ValueError('preserved-executable-label')
+            stream.seek(0)
+            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            after = os.fstat(stream.fileno())
+        if file_identity(before) != file_identity(after):
+            raise ValueError('preserved-executable-changed')
+        records.append(dict(path=str(path), sha256=digest, mode=entry['mode'],
+                            uid=0, gid=0, label=label))
+        identities[str(path)] = file_identity(after)
+    return records, identities
+
+
+def directory_layout(config, records):
+    """Own every mountpoint dentry from /usr to each protected executable.
+
+    Binding directly onto global file dentries is unsafe: OS package unlink or
+    replacement detaches such mounts across namespaces. Independent directory
+    entries keep the old executable and library views valid until reboot.
+    """
+    covered = {Path(record['path']).parent for record in records}
+    covered.add(PAYLOAD)
+    for name in config.get('reserved_directories', []):
+        covered.add(trusted(name, directory=True, symlinks=True))
+    for directory in tuple(covered):
+        if directory != Path('/usr') and Path('/usr') not in directory.parents:
+            raise ValueError('inventory-outside-usr')
+        covered.update(parent for parent in directory.parents if parent != Path('/'))
+    entries = []
+    for directory in sorted(covered, key=str):
+        trusted(directory, directory=True)
+        for child in sorted(directory.iterdir()):
+            info = child.lstat()
+            if info.st_uid != 0 or '\t' in str(child) or '\n' in str(child):
+                raise ValueError('unsafe-directory-entry')
+            if stat.S_ISLNK(info.st_mode):
+                entries.append({'path': str(child), 'kind': 'link', 'link': os.readlink(child)})
+            else:
+                trusted(child, directory=stat.S_ISDIR(info.st_mode))
+                entries.append({'path': str(child), 'kind': 'tree' if child in covered else
+                                'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
+            if len(entries) > 32768:
+                raise ValueError('directory-inventory-too-large')
+    return entries
+
+
+def make_tree(destination, layout):
+    destination.mkdir(mode=0o755)
+    destination.chmod(0o755)
+    for entry in sorted(layout, key=lambda item: (item['path'].count('/'), item['path'])):
+        path = destination / Path(entry['path']).relative_to('/usr')
+        if entry['kind'] == 'link':
+            path.symlink_to(entry['link'])
+        elif entry['kind'] in ('tree', 'directory'):
+            path.mkdir(mode=0o755)
+            path.chmod(0o755)
+        else:
+            path.touch(mode=0o644)
+
+
+def verify_tree(root, layout):
+    trusted(root, directory=True)
+    expected = {entry['path'].removeprefix('/usr/'): entry for entry in layout}
+    actual = {str(path.relative_to(root)): path for path in root.rglob('*')}
+    if set(actual) != set(expected):
+        raise ValueError('directory-generation-changed')
+    for name, path in actual.items():
+        entry = expected[name]
+        info = path.lstat()
+        if entry['kind'] == 'link':
+            if not stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or os.readlink(path) != entry['link']:
+                raise ValueError('directory-generation-changed')
+        else:
+            trusted(path, directory=entry['kind'] in ('tree', 'directory'))
+            if entry['kind'] == 'file' and (info.st_nlink != 1 or info.st_size != 0):
+                raise ValueError('directory-generation-changed')
+
+
+def enforcing(config):
+    if config['backend'] == 'apparmor':
+        lines = Path('/sys/kernel/security/apparmor/profiles').read_text().splitlines()
+        if any(f'{name} (enforce)' not in lines for name in config['apparmor_profiles']):
+            raise ValueError('apparmor-not-enforcing')
+    elif config['backend'] == 'selinux':
+        library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+        if library.is_selinux_enabled() != 1 or library.security_getenforce() != 1:
+            raise ValueError('selinux-not-enforcing')
+        # The global enforcing flag does not exclude a permissive domain.
+        class Decision(ctypes.Structure):
+            _fields_ = [('allowed', ctypes.c_uint32), ('decided', ctypes.c_uint32),
+                        ('auditallow', ctypes.c_uint32), ('auditdeny', ctypes.c_uint32),
+                        ('seqno', ctypes.c_uint32), ('flags', ctypes.c_uint32)]
+        library.string_to_security_class.argtypes = [ctypes.c_char_p]
+        library.string_to_security_class.restype = ctypes.c_ushort
+        library.string_to_av_perm.argtypes = [ctypes.c_ushort, ctypes.c_char_p]
+        library.string_to_av_perm.restype = ctypes.c_uint32
+        library.security_compute_av_flags_raw.argtypes = [
+            ctypes.c_char_p, ctypes.c_char_p, ctypes.c_ushort, ctypes.c_uint32,
+            ctypes.POINTER(Decision)]
+        cls = library.string_to_security_class(b'process')
+        perm = library.string_to_av_perm(cls, b'ptrace')
+        if not cls or not perm:
+            raise ValueError('selinux-query-unavailable')
+        contexts = [f'system_u:system_r:onpc_kiosk_{name.replace("-", "_")}_t:s0'
+                    for name in config['domains']]
+        if config.get('preserved_executables'):
+            contexts.append('system_u:system_r:policykit_auth_t:s0')
+        for context in contexts:
+            context = context.encode()
+            decision = Decision()
+            if library.security_compute_av_flags_raw(
+                    context, context, cls, perm, ctypes.byref(decision)) != 0 or decision.flags & 1:
+                raise ValueError('selinux-domain-not-enforcing')
+    else:
+        raise ValueError('unknown-backend')
+
+
+def label(path, role, backend):
+    if backend != 'selinux':
+        return
+    library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+    library.setfilecon_raw.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    context = f'system_u:object_r:onpc_kiosk_{role.replace("-", "_")}_exec_t:s0'
+    if library.setfilecon_raw(os.fsencode(path), context.encode()) != 0:
+        raise OSError(ctypes.get_errno(), 'executable-label-failed')
+
+
+def verify_label(path, role, backend):
+    if backend != 'selinux':
+        return
+    library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+    context = ctypes.c_char_p()
+    library.getfilecon_raw.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p)]
+    library.freecon.argtypes = [ctypes.c_void_p]
+    if library.getfilecon_raw(os.fsencode(path), ctypes.byref(context)) < 0:
+        raise OSError(ctypes.get_errno(), 'executable-label-unavailable')
+    try:
+        expected = f'system_u:object_r:onpc_kiosk_{role.replace("-", "_")}_exec_t:s0'.encode()
+        if context.value != expected:
+            raise ValueError('executable-label-changed')
+    finally:
+        library.freecon(context)
+
+
+def manager_generation(uid, digest, backend):
+    result = subprocess.run(
+        ['/usr/bin/systemctl', 'show', '--property=MainPID', '--value', f'user@{uid}.service'],
+        env=ENV, check=True, capture_output=True, text=True, timeout=5)
+    pid = int(result.stdout.strip())
+    if pid <= 1:
+        raise ValueError('manager-unavailable')
+    # pidfd pins identity while reading its namespace and label; PID reuse can
+    # never substitute another manager between the two observations.
+    pidfd = os.pidfd_open(pid)
+    try:
+        import select
+        poll = select.poll()
+        poll.register(pidfd, select.POLLIN)
+        proc = Path('/proc') / str(pid)
+        identities = [line.split()[1:] for line in (proc / 'status').read_text().splitlines()
+                      if line.startswith('Uid:')]
+        if identities != [[str(uid)] * 4]:
+            raise ValueError('manager-identity')
+        marker = proc / 'root' / str(PAYLOAD / 'generation').lstrip('/')
+        if marker.read_text() != digest + '\n':
+            raise ValueError('manager-generation-stale')
+        attribute = ('attr/apparmor/current' if backend == 'apparmor' else 'attr/current')
+        expected = ('onpc-kiosk-manager (enforce)' if backend == 'apparmor'
+                    else 'system_u:system_r:onpc_kiosk_manager_t:s0')
+        if (proc / attribute).read_text().strip().rstrip('\x00') != expected:
+            raise ValueError('manager-not-confined')
+        if poll.poll(0):
+            raise ValueError('manager-exited')
+    finally:
+        os.close(pidfd)
+
+
+def reclaim_interrupted():
+    """The inherited exclusive lock proves no preparation still owns these.
+
+    Completed generations stay mounted until their processes exit. Keep at most
+    four per boot instead of deleting live executable inodes behind AppArmor.
+    """
+    mounts = [line.split()[4] for line in Path('/proc/self/mountinfo').read_text().splitlines()]
+    for item in RUNTIME.iterdir():
+        if not re.fullmatch(r'\.(?:prepare|bindings)-[a-zA-Z0-9_]+', item.name):
+            continue
+        if any(path == str(item) or path.startswith(str(item) + '/') for path in mounts):
+            raise ValueError('mounted-preparation')
+        if item.name.startswith('.bindings-'):
+            trusted(item)
+            if item.stat().st_nlink != 1:
+                raise ValueError('linked-preparation')
+            item.unlink()
+            continue
+        trusted(item, directory=True)
+        children = list(item.rglob('*'))
+        for child in children:
+            relative = child.relative_to(item)
+            if len(relative.parts) == 1 and not (child.name.isdecimal() or child.name in ('generation', 'records.json', 'tree')):
+                raise ValueError('unknown-preparation-file')
+            info = child.lstat()
+            if info.st_uid != 0:
+                raise ValueError('unowned-preparation')
+            if stat.S_ISLNK(info.st_mode) and relative.parts[0] == 'tree':
+                continue
+            trusted(child, directory=stat.S_ISDIR(info.st_mode))
+            if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+                raise ValueError('linked-preparation')
+        shutil.rmtree(item)
+
+
+def prepare(role):
+    if os.geteuid() != 0 or role not in ('manager', 'gate'):
+        raise ValueError('invalid-caller')
+    os.umask(0o077)
+    account = pwd.getpwnam(ACCOUNT)
+    marker = trusted('/var/lib/oh-no-parent-control/package-created-kiosk-uid')
+    if (account.pw_uid == 0 or stat.S_IMODE(marker.stat().st_mode) != 0o600 or
+            marker.stat().st_nlink != 1 or marker.read_text().strip() != str(account.pw_uid)):
+        raise ValueError('unowned-account')
+    subprocess.run(
+        ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
+        env=ENV, check=True, capture_output=True, timeout=5)
+    config_path = trusted(PAYLOAD / 'config.json')
+    config_bytes = config_path.read_bytes()
+    config = json.loads(config_bytes)
+    policy = trusted(PAYLOAD / ('onpc-kiosk.cil' if config['backend'] == 'selinux' else 'onpc-kiosk.apparmor')).read_bytes()
+    enforcing(config)
+    records = inventory(config)
+    preserved, identities = preserved_inventory(config)
+    layout = directory_layout(config, [*records, *preserved])
+    # A concurrent vendor update can remove or replace an entry after its
+    # measurement. Every preserved executable must reach the signed native
+    # binding route; a manifest record alone does not establish that binding.
+    if any([entry['kind'] for entry in layout if entry['path'] == path] != ['file']
+           for path in identities):
+        raise ValueError('preserved-executable-layout')
+    manifest = {'records': records, 'preserved': preserved, 'layout': layout}
+    digest = hashlib.sha256(config_bytes + policy + json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+    if role == 'gate':
+        manager_generation(account.pw_uid, digest, config['backend'])
+    # The locked native PAM caller creates this directory before execing us,
+    # preserving its named SELinux transition rather than the interpreter's.
+    trusted(RUNTIME, directory=True)
+    if stat.S_IMODE(RUNTIME.stat().st_mode) != 0o700:
+        raise ValueError('runtime-mode')
+    reclaim_interrupted()
+    generation = RUNTIME / digest
+    if not generation.exists():
+        if sum(bool(re.fullmatch(r'[0-9a-f]{64}', item.name)) for item in RUNTIME.iterdir()) >= 4:
+            raise ValueError('generation-limit-reboot-required')
+        if sum(Path(record['path']).stat().st_size for record in records) > 512 * 1024 * 1024:
+            raise ValueError('executable-inventory-too-large')
+        temporary = Path(tempfile.mkdtemp(prefix='.prepare-', dir=RUNTIME))
+        try:
+            for index, record in enumerate(records):
+                destination = temporary / str(index)
+                # Independent inodes are essential: SELinux labels on a hardlink
+                # would relabel the distribution's original executable.
+                with open(record['path'], 'rb') as source, destination.open('xb') as target:
+                    shutil.copyfileobj(source, target)
+                os.chmod(destination, 0o644 if record['role'] in ('blocked', 'library') else 0o755)
+                if hashlib.sha256(destination.read_bytes()).hexdigest() != record['sha256']:
+                    raise ValueError('copy-changed')
+                label(destination, record['role'], config['backend'])
+            (temporary / 'generation').write_text(digest + '\n')
+            os.chmod(temporary / 'generation', 0o644)
+            make_tree(temporary / 'tree', layout)
+            (temporary / 'records.json').write_text(json.dumps(manifest, sort_keys=True))
+            os.chmod(temporary / 'records.json', 0o600)
+            temporary.rename(generation)
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
+    trusted(generation, directory=True)
+    if json.loads(trusted(generation / 'records.json').read_text()) != manifest:
+        raise ValueError('generation-changed')
+    verify_tree(generation / 'tree', layout)
+    replacements = {}
+    for index, record in enumerate(records):
+        target = trusted(generation / str(index))
+        if hashlib.sha256(target.read_bytes()).hexdigest() != record['sha256']:
+            raise ValueError('copy-changed')
+        verify_label(target, record['role'], config['backend'])
+        replacements[record['path']] = target
+    replacements[str(PAYLOAD / 'generation')] = generation / 'generation'
+    bindings = []
+    for entry in layout:
+        if entry['kind'] in ('tree', 'link'):
+            continue
+        source = replacements.get(entry['path'], entry['path'])
+        target = generation / 'tree' / Path(entry['path']).relative_to('/usr')
+        assertion = ('\t' + ' '.join(map(str, identities[entry['path']]))
+                     if entry['path'] in identities else '')
+        bindings.append(f'{source}\t{target}{assertion}\n')
+    # Recursively attach the complete tree only after all subordinate mounts
+    # use its independent dentries. /usr is the sole global mountpoint.
+    bindings.append(f'{generation / "tree"}\t/usr\n')
+    fd, name = tempfile.mkstemp(prefix='.bindings-', dir=RUNTIME)
+    pending = Path(name)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(config['backend'] + '\n' + ''.join(bindings))
+        pending.replace(RUNTIME / 'bindings')
+    finally:
+        pending.unlink(missing_ok=True)
+
+
+if __name__ == '__main__':
+    try:
+        if len(sys.argv) != 2:
+            raise ValueError('invalid-arguments')
+        prepare(sys.argv[1])
+    except Exception as error:
+        # No usernames, attacker-controlled paths or exception text in logs.
+        reasons = {'manager-generation-stale': 'stale-manager-reboot-required',
+                   'generation-limit-reboot-required': 'generation-limit-reboot-required'}
+        reason = reasons.get(error.args[0], 'verification') if isinstance(error, ValueError) and error.args else 'verification'
+        print(f'onpc.kiosk confinement preparation outcome=denied reason={reason}', file=sys.stderr)
+        sys.exit(1)

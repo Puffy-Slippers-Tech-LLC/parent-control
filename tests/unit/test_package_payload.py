@@ -217,7 +217,9 @@ def test_ubuntu_retains_fapolicyd_execstartpost_readiness(production_payload):
     display = configparser.ConfigParser(interpolation=None)
     display.read(system / 'display-manager.service.d/oh-no-parent-control.conf')
     assert display['Unit']['Requires'] == 'fapolicyd.service'
-    assert display['Unit']['After'] == 'fapolicyd.service'
+    assert set(display['Unit']['After'].split()) == {
+        'fapolicyd.service', 'oh-no-parent-control-kiosk-confinement.service',
+    }
     manifest = json.loads((production_payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     entries = {entry['path']: entry for entry in manifest['files']}
     recovery = 'usr/lib/systemd/system/fapolicyd.service.d/oh-no-parent-control-recovery.conf'

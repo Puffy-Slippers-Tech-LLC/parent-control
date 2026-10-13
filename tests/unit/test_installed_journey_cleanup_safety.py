@@ -42,6 +42,69 @@ import kiosk_rejection
 import approval_flow
 
 
+@pytest.mark.parametrize('cancelled', [False, True])
+@pytest.mark.parametrize('diagnostics_fail', [False, True])
+def test_step_preserves_failure_and_skips_diagnostics_on_cancellation(cancelled, diagnostics_fail):
+    # Transport/lease doubles only; no new process, bus or artifact owner.
+    journey = object.__new__(journeys.InstalledJourney)
+    journey.plan = SimpleNamespace(prefix='fixture')
+    journey.failed = False
+    failure = KeyboardInterrupt() if cancelled else RuntimeError('original workflow failure')
+    journey._step = Mock(side_effect=failure)
+    journey.collect_failure = Mock(side_effect=RuntimeError('diagnostics unavailable')
+                                   if diagnostics_fail else None)
+    with pytest.raises(type(failure)) as caught:
+        journey.step(Mock())
+    assert caught.value is failure and journey.failed
+    assert journey.collect_failure.call_count == (0 if cancelled else 1)
+    with pytest.raises(EvidenceError, match='previous-failure'):
+        journey.step(Mock())
+    assert journey._step.call_count == 1
+
+
+def test_failure_collection_is_bounded_to_one_attempt():
+    journey = object.__new__(journeys.InstalledJourney)
+    journey.context = SimpleNamespace(lease=SimpleNamespace(guard=Mock()))
+    journey.plan = SimpleNamespace(prefix='fixture')
+    journey.transport = Mock()
+    journey.transport.call.return_value = b'oh-no-parent-control:x:1005:1005::/home/oh-no-parent-control:/usr/sbin/nologin\n'
+    journey.collect_failure()
+    journey.collect_failure()
+    assert journey.transport.call.call_count == journey.context.lease.guard.call_count == 5
+    assert journey.transport.call.call_args.args[0] == journeys.kiosk_journal_command('1005')
+
+
+def test_failure_journal_matches_the_kiosk_and_root_reports_about_it():
+    # journalctl ANDs different fields, ORs values of one field, and '+'
+    # separates alternatives. Exercise that semantics rather than argv shape.
+    arguments = journeys.kiosk_journal_command('1005')[5:]
+    branches = [[]]
+    for argument in arguments:
+        if argument == '+':
+            branches.append([])
+        else:
+            branches[-1].append(argument.split('=', 1))
+
+    def matches(entry):
+        return any(all(entry.get(field) in [value for key, value in branch if key == field]
+                       for field in {key for key, _ in branch}) for branch in branches)
+
+    unit = 'oh-no-parent-control-polkit-agent.service'
+    for uid in ('0', '1000', '1005'):
+        assert matches({'_UID': uid, '_SYSTEMD_USER_UNIT': unit}) == (uid == '1005')
+        assert matches({'_UID': uid, 'USER_UNIT': unit}) == (uid == '1005')
+        assert matches({'_UID': '0', 'OBJECT_UID': uid,
+                        'OBJECT_SYSTEMD_USER_UNIT': unit}) == (uid == '1005')
+        assert matches({'_UID': '0', 'COREDUMP_UID': uid,
+                        'COREDUMP_USER_UNIT': unit}) == (uid == '1005')
+    assert not matches({'_UID': '1005', '_SYSTEMD_USER_UNIT': 'unrelated.service'})
+    for uid in ('0', '1000', '1005'):
+        assert matches({'_UID': uid, '_SYSTEMD_USER_UNIT':
+                        'gnome-session-manager@oh-no-parent-control.service'}) == (uid == '1005')
+        assert matches({'_UID': uid, '_COMM': 'gnome-session'}) == (uid == '1005')
+    assert not matches({'_UID': '1005', '_COMM': 'unrelated'})
+
+
 @pytest.mark.parametrize('failure', [0, 1])
 def test_flow07_selector_runs_separate_owned_attempts_and_stops_after_failure(monkeypatch, failure):
     import check_e2e_approval_flow as selector

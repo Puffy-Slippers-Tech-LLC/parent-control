@@ -64,6 +64,11 @@ fixtures and external resources have been reviewed; never omit their cases.
 # to challenges/installed-journey; both unit and cleanup overlap remain compatible.
 # The approval observer rendezvous uses the same attempt-private input/ack files
 # and synchronous transport doubles; it adds no independent cleanup lifetime.
+# Inherited-descriptor command cleanup uses only process/pidfd doubles; caller
+# descriptors remain caller-owned on interruption. No shared resource is added.
+# Pidfd-acquisition refusal owns one finite Python Popen child and private pipe;
+# only that direct unreaped child is killed/waited, with finally cleanup. No
+# process scan or shared fixture is added; unit/cleanup overlap stays compatible.
 # system_runner diagnostic-filter checks use bounded in-memory output, private
 # pytest logs and mocked children/pidfds. Existing interruption ownership and
 # compatible cleanup/unit scheduling remain; no real process or VM is started.
@@ -96,6 +101,13 @@ fixtures and external resources have been reviewed; never omit their cases.
 # resource; those existing compatible classifications remain applicable.
 # Retained-entry boundary validation adds only plan values and private request
 # files to vm_control_cleanup_safety; no VM, display, bus or shared cache is used.
+# Kiosk approval boundary/dispatch checks reuse those private files and in-memory
+# plans. Retained-form probes add only in-memory UI/lease doubles and private
+# result files, with no live VM or new cleanup owner; compatible classification holds.
+# The failed-form public estimate refresh adds only a finite mocked UI leaf to
+# that same probe; it adds no host resource or process lifetime.
+# Native evidence capture uses in-memory journal/transport doubles and private
+# result files; no real journal, guest, bus or new retention owner is used.
 # Transfer-refusal prefix/refusal checks use those same private plan/request
 # fixtures and retain the compatible VM-control classification.
 # Remembered-return prefix checks reuse those private fixtures and dispatcher
@@ -163,6 +175,8 @@ from regression_resources import HOST_WORKERS
 # remains compatible in both cleanup and unit scheduling, with no live VM/GUI.
 # Upgrade asset checks share those private file/child lifetimes. They add no
 # live resource or cleanup owner; compatible unit and cleanup scheduling applies.
+# Unavailable-Fedora-release checks reuse those files and process-local doubles;
+# no allocation/build/service starts, so both compatible classifications hold.
 # Upgrade command checks share private pytest evidence and waited Perl children.
 # No added live resource or cleanup owner; unit and cleanup overlap is compatible.
 # Fedora package/transfer/platform regressions retain those same private files,
@@ -232,6 +246,9 @@ from regression_resources import HOST_WORKERS
 # Interrupted-backup ownership checks likewise use only private journals/doubles.
 # e2e_watch's borrowed-feed checks add only observer/context doubles, retaining
 # its compatible classification without a collector, socket or child process.
+# Failed installed-setup collection uses parent_setup's existing private attempt
+# files and transport/guard doubles only. No live VM, process or cleanup owner
+# is added, so its unit and cleanup classifications remain compatible.
 REVIEWED = frozenset('''
 parent_presentation
 package_lifecycle
@@ -423,6 +440,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # Case 49 adds only the existing private durable-recorder fixture and synthetic
 # worker startup. Installed-journey cleanup remains compatible with unit/cleanup
 # peers; no shared display, bus, VM, process group or allocation owner is added.
+# Failure collection checks use process-local transport/lease doubles, including
+# cancellation and diagnostic failure. No real journal or resource is acquired;
+# installed-journey and parent-setup unit/cleanup partitions remain compatible.
 ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_fix_tests_cleanup_safety.py': 38,
              'test_write_e2e_cleanup_safety.py': 54,

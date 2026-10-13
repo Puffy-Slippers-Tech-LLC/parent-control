@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+from contextlib import contextmanager, nullcontext
 import xml.etree.ElementTree as ET
 
 import system_runner as system
@@ -27,6 +28,124 @@ def reproduce_gdm_denial(lease):
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from fresh_child_denied import FreshChildDeniedJourney
     return reproduce_denial(lease, FreshChildDeniedJourney, None, 'denied-returned', 'gdm')
+
+
+def reproduce_kiosk_entry(lease):
+    """Retain real station entry for root probes, without an acceptance claim."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from installed_journey import InstalledJourney
+    from kiosk_entry import PLAN
+    return reproduce_denial(lease, InstalledJourney, PLAN, 'request-form', 'kiosk-entry')
+
+
+def reproduce_kiosk_approval(lease):
+    """Retain the real approval prompt before qualification or secret input."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from request_flow import RequestFlowJourney
+    from kiosk_approved_flow import PLAN
+    return reproduce_denial(lease, RequestFlowJourney, PLAN,
+                            'approval-qualified', 'kiosk-approval', native_log=True)
+
+
+def probe_kiosk_approval(lease):
+    """Refresh the exact failed form, then open one real native prompt."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Opening the retained kiosk approval prompt'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-approval-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('kiosk-approval-probe: evidence=' + str(directory), flush=True)
+        transport = connect(lease)
+        observer = UiObservations(transport)
+        results = []
+        with kiosk_native_evidence(lease, transport, directory):
+            # The shared refresh requires Request denied and the exact child,
+            # approver, 75-second duration, soft-app choice and enabled owned
+            # form. Two guarded public edits preserve that choice. The open leaf
+            # repeats that check, rejects an existing prompt, invokes Request
+            # once, then observes the service-owned native prompt. No secret
+            # provisioning, challenge qualification or password action occurs.
+            try:
+                for item in ('kiosk-diagnostic-retry-estimate', 'kiosk-mate-open'):
+                    lease.guard()
+                    try:
+                        results.append(observer.observe(item))
+                    except Exception as error:
+                        results.append({'operation': item, 'outcome': 'refused',
+                                        'error_type': type(error).__name__})
+                        raise
+            finally:
+                (directory / 'observed.json').write_text(json.dumps(results))
+        print('kiosk-approval-probe: prompt retained before password input', flush=True)
+
+
+@contextmanager
+def kiosk_native_evidence(lease, transport, directory):
+    """Keep capture failure separate from an existing public observer failure."""
+    origin = json.loads(transport.call(['python3', '-I', '-c',
+        'import json,pwd,time; print(json.dumps({"uid": '
+        'pwd.getpwnam("oh-no-parent-control").pw_uid, "since": int(time.time())}))'],
+        timeout=15))
+    system.require(type(origin) is dict and set(origin) == {'uid', 'since'}
+        and type(origin['uid']) is int and origin['uid'] >= 1000
+        and type(origin['since']) is int and origin['since'] > 0,
+        'kiosk-native-log:origin')
+    try:
+        yield
+    finally:
+        observer_error = sys.exc_info()[1]
+        try:
+            lease.guard()
+            capture_kiosk_native_log(transport, directory, **origin)
+            lease.guard()
+        except Exception as error:
+            (directory / 'native-log-result.json').write_text(json.dumps({
+                'outcome': 'refused', 'error_type': type(error).__name__}))
+            if observer_error is None:
+                raise
+
+
+def capture_kiosk_native_log(transport, directory, *, uid, since):
+    """Retain finite native-agent and Glycin kernel/audit evidence, no verdict."""
+    system.require(type(uid) is int and uid >= 1000 and type(since) is int and since > 0,
+                   'kiosk-native-log:origin')
+    unit = 'oh-no-parent-control-polkit-agent.service'
+    label = r'(?<![\w-])(?:onpc_kiosk_glycin(?:_bwrap)?_t|onpc-kiosk-glycin(?:-bwrap)?)(?![\w-])'
+    base = ['journalctl', '--quiet', '--no-pager', '--output=json', '--lines=256',
+        '--since=@' + str(since),
+        '--output-fields=__REALTIME_TIMESTAMP,MESSAGE,_UID,_SYSTEMD_USER_UNIT,_TRANSPORT']
+    queries = [('agent', ['_SYSTEMD_USER_UNIT=' + unit, '_UID=' + str(uid)]),
+               ('kernel-audit', ['_TRANSPORT=kernel', '+', '_TRANSPORT=audit'])]
+    records = []
+    for source, query in queries:
+        raw = transport.call(base + query, timeout=30)
+        system.require(type(raw) is bytes and len(raw) <= 1024 * 1024,
+                       'kiosk-native-log:output-limit')
+        lines = raw.splitlines()
+        system.require(len(lines) <= 256, 'kiosk-native-log:record-limit')
+        for line in lines:
+            value = json.loads(line)
+            system.require(type(value) is dict, 'kiosk-native-log:record')
+            message, stamp = value.get('MESSAGE'), value.get('__REALTIME_TIMESTAMP')
+            # journalctl JSON encodes nonprintable native ANSI trace as bytes.
+            if type(message) is list:
+                system.require(len(message) <= 8192 and all(type(item) is int and
+                    0 <= item <= 255 for item in message), 'kiosk-native-log:message-bytes')
+                message = bytes(message).decode('utf-8')
+            system.require(type(message) is str and len(message) <= 8192
+                and type(stamp) is str and stamp.isdecimal() and int(stamp) >= since * 1000000,
+                'kiosk-native-log:record')
+            agent = value.get('_SYSTEMD_USER_UNIT') == unit and value.get('_UID') == str(uid)
+            kernel = value.get('_TRANSPORT') in ('kernel', 'audit') and re.search(label, message) is not None
+            if (agent if source == 'agent' else kernel):
+                records.append({'realtime_us': stamp, 'source': source, 'message': message})
+    (directory / 'native-log.json').write_text(json.dumps(records))
+    (directory / 'native-log-result.json').write_text(json.dumps({
+        'outcome': 'captured', 'uid': uid, 'since': since, 'records': len(records),
+        'limit_records_per_source': 256, 'limit_bytes_per_source': 1024 * 1024}))
 
 
 def reproduce_lock_denial(lease):
@@ -289,12 +408,15 @@ def probe_lock_curtain(lease):
 
 
 def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
-                     assets=None, actions=None):
+                     assets=None, actions=None, native_log=False):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
     import e2e_worker
     from qualification_storage import recovery_session, allocate
+    system.require(type(native_log) is bool and (not native_log or (
+        surface == 'kiosk-approval' and boundary == 'approval-qualified')),
+        'kiosk-native-log:caller')
 
     with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session():
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + surface + '-diagnosis-'))
@@ -372,12 +494,13 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             journey.step(guard)
             return False
 
-        result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
-            expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
-            guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
-        system.require(result['worker_stopped'] and result['callback_closed'],
-                       'diagnosis:cleanup-incomplete')
-        lease.guard()
+        with kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext():
+            result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
+                expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
+                guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
+            system.require(result['worker_stopped'] and result['callback_closed'],
+                           'diagnosis:cleanup-incomplete')
+            lease.guard()
         print(surface + '-diagnosis: scene retained; evidence=' + str(directory), flush=True)
 
 

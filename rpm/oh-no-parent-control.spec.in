@@ -8,6 +8,14 @@ URL:            https://github.com/Puffy-Slippers-Tech-LLC/parent-control
 Source0:        %{name}-%{version}.tar.xz
 ExclusiveArch:  x86_64
 
+# The snapshot contract conservatively fingerprints the entire RPM. Preserve
+# that identity across later builds of identical sources after input rotation.
+# Use the source changelog timestamp for scripts, header and installed mtimes.
+%global source_date_epoch_from_changelog 1
+%global use_source_date_epoch_as_buildtime 1
+%global build_mtime_policy clamp_to_source_date_epoch
+%global _buildhost reproducible.onpc.invalid
+
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  make
@@ -34,6 +42,7 @@ Requires:       gstreamer1-plugins-good
 Requires:       gtk4
 Requires:       hicolor-icon-theme
 Requires:       libadwaita
+Requires:       libselinux
 Requires:       lmdb-libs
 Requires:       malcontent >= 0.14.0
 Requires:       malcontent-libs >= 0.14.0
@@ -136,6 +145,7 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %attr(0640,root,wheel) %{_datadir}/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
 %{_datadir}/icons/hicolor/512x512/apps/com.puffyslippers.OhNoParentControl.png
 %{_unitdir}/oh-no-parent-control-broker.service
+%{_unitdir}/oh-no-parent-control-kiosk-confinement.service
 %{_unitdir}/oh-no-parent-control-execution-policy-ready.service
 %{_unitdir}/fapolicyd.service.d/oh-no-parent-control-recovery.conf
 %{_unitdir}/display-manager.service.d/oh-no-parent-control.conf
@@ -143,6 +153,8 @@ for script in rpm-lifecycle/rpm-*; do /bin/sh -n "$script"; done
 %{_userunitdir}/oh-no-parent-control-*.service
 %{_userunitdir}/default.target.wants/oh-no-parent-control-wellbeing.service
 %{_userunitdir}/gnome-session@oh-no-parent-control.target.d/session.conf
+%{_userunitdir}/org.gnome.Kiosk@wayland.service.d/confinement.conf
+%{_userunitdir}/wireplumber.service.d/oh-no-parent-control.conf
 %{_mandir}/man1/oh-no-parent-control*.1*
 
 %changelog

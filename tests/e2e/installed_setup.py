@@ -10,8 +10,13 @@ from guest_inputs import Bundle
 
 
 def inputs(root):
-    return Bundle(root, [(relative, Path(relative).name) for relative in (
-        'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py')])
+    return Bundle(root, [('Makefile', 'install-source/Makefile'),
+        *[(relative, Path(relative).name) for relative in (
+        'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py',
+        'tests/integration/system_kiosk_confinement.py',
+        'tests/integration/system_kiosk_feedback.py',
+        'tests/integration/system_wellbeing_qualification.py',
+        'tests/integration/wellbeing_probe.py')]])
 
 
 def stage(directory, assets, selection, *, bundle=None):
@@ -75,10 +80,22 @@ class InstalledSetup:
         exec(compile(path.read_bytes(), str(path), 'exec'), recipe)
         # Suite snapshots shut down after package verification. Their next boot
         # supplies the required restart; live feature setup needs it here.
-        recipe['prepare'](self.transport,
-            system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,
-            reboot=verify)
-        if verify:
-            self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
+        try:
+            recipe['prepare'](self.transport,
+                system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,
+                reboot=verify)
+            if verify:
+                self.transport.call(system.guest_command(run, 'verify-setup'), timeout=660)
+        except Exception as error:
+            # Package commands keep their streams in the guest's existing
+            # private stage artifacts. Preserve them before the caller restores
+            # its baseline, including standalone snapshot preparation failures.
+            try:
+                guard()
+                self.transport.copy(True, system.PAYLOAD + '/private/',
+                                    str(self.directory / 'guest-private') + '/')
+            except Exception:
+                error.add_note('setup:diagnostics-unavailable')
+            raise
         self.verified.recheck()
         return {'package_verified': verify, 'setup_reboot_verified': verify}

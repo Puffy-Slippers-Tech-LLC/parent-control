@@ -49,8 +49,9 @@ def test_kiosk_notification_script_loads_without_a_package_context(tmp_path):
     unit = configparser.ConfigParser(interpolation=None)
     unit.read(ROOT / 'data/systemd/user/oh-no-parent-control-notifications.service')
     command = shlex.split(unit['Service']['ExecStart'])
-    interpreter, installed_script = command[2:]
-    script = ROOT / installed_script.removeprefix('/usr/lib/oh-no-parent-control/')
+    assert command == ['/usr/libexec/oh-no-parent-control-kiosk-notification-client']
+    interpreter = '/usr/bin/python3'
+    script = ROOT / 'kiosk/oh_no_parent_control_kiosk/notifications.py'
     # Match direct-file execution's empty package context without opening a
     # window or bus. Disable Apport in this owned child so a regression cannot
     # generate a host crash report. Real imports catch launch-only failures

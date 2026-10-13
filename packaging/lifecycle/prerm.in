@@ -2,6 +2,7 @@
 set -e
 
 if [ "$1" = remove ]; then
+    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration check-remove
     # Refuse changed shared integrations while all package files still exist.
     check_integration() {
         if [ -f "$2" ] && { [ -e "$1" ] || [ -L "$1" ]; }; then
@@ -69,6 +70,7 @@ if [ "$1" = remove ]; then
     /usr/libexec/oh-no-parent-control-uninstall --remove
 
 @pam_remove@
+    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration remove
 fi
 
 #DEBHELPER#

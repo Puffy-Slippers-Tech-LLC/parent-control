@@ -47,9 +47,12 @@ def setup(root: Path) -> None:
     print('setup: Fedora 44 RPM builder is ready', flush=True)
 
 
-def command(root: Path, top: Path, mode: str) -> list[str]:
+def command(root: Path, top: Path, mode: str, *, epoch: int) -> list[str]:
+    if type(epoch) is not int or epoch < 0:
+        raise ValueError('invalid RPM source timestamp')
     return ['podman', 'run', '--rm', '--pull=never', '--network=none',
             '--userns=keep-id', '--cap-drop=all',
+            '--env', f'SOURCE_DATE_EPOCH={epoch}',
             '--volume', f'{top}:/build:rw', require_image(root),
             'rpmbuild', '--define', '_topdir /build', '--define', 'dist .fc44',
             '-ba' if mode == 'rpm' else '-bs', '/build/SPECS/oh-no-parent-control.spec']

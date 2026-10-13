@@ -1,5 +1,6 @@
 """Authselect ownership and restoration with private paths and command doubles."""
 import importlib.util
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -22,8 +23,7 @@ def pam_machine(tmp_path, monkeypatch):
     helper.STATE.parent.mkdir(parents=True)
     helper.STACK.parent.mkdir(parents=True)
     helper.PAM_DIR.mkdir(parents=True)
-    helper.STACK.write_text('account required pam_exec.so /usr/libexec/oh-no-parent-control-login-check\n'
-                            'account required pam_oh_no_parent_control.so kiosk\n'
+    helper.STACK.write_text('account required pam_oh_no_parent_control.so kiosk\n'
                             'session required pam_oh_no_parent_control.so kiosk\n'
                             'auth required pam_oh_no_parent_control.so\n')
     original = 'auth sufficient pam_unix.so nullok\naccount required pam_unix.so\n'
@@ -91,6 +91,31 @@ def test_upgrade_replaces_only_owned_managed_stack_and_keeps_original_profile(pa
         assert contents.split(helper.END, 1)[1] == original[name]
         assert contents.count(helper.BEGIN) == contents.count(helper.END) == 1
     assert [cmd[0] for cmd in commands].count('create-profile') == 1
+
+
+def test_upgrade_removes_recorded_legacy_helper_and_preserves_vendor_profile(pam_machine):
+    helper, current, _commands = pam_machine
+    helper.configure('install')
+    original = {}
+    for name in helper.PAM_FILES:
+        path = helper.PROFILE_DIR / name
+        contents = path.read_text()
+        original[name] = contents.split(helper.END, 1)[1]
+        path.write_text(contents.replace(helper.BEGIN, helper.BEGIN +
+                        'account required pam_exec.so quiet /usr/libexec/oh-no-parent-control-login-check\n'))
+    record = json.loads(helper.STATE.read_text())
+    record['files'] = helper.digests()
+    helper.save(record)
+    helper.run('select', *current)
+    with pytest.raises(ValueError, match='integration does not match'):
+        helper.verify_pam(installed=True)
+    helper.configure('install')
+    for name in helper.PAM_FILES:
+        contents = (helper.PAM_DIR / name).read_text()
+        assert 'oh-no-parent-control-login-check' not in contents
+        assert contents.split(helper.END, 1)[1] == original[name]
+    helper.configure('remove')
+    assert current[0] == 'local'
 
 
 @pytest.mark.parametrize('kind', ['account', 'session'])

@@ -363,7 +363,8 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
-    for action in ('reproduce-gdm-denial', 'reproduce-lock-denial', 'reproduce-retained-entry',
+    for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                   'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
                    'reproduce-countdown-minutes',
@@ -377,6 +378,212 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
         assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action]
         with pytest.raises(ValueError):
             select(root, ['vm', action, '1', *VM_ARGS])
+
+
+def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monkeypatch):
+    import vm_probe
+    from installed_journey import InstalledJourney
+    from kiosk_entry import PLAN
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_kiosk_entry(lease)
+    reproduce.assert_called_once_with(lease, InstalledJourney, PLAN,
+                                     'request-form', 'kiosk-entry')
+
+
+def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input(monkeypatch):
+    import vm_probe
+    from request_flow import RequestFlowJourney
+    from kiosk_approved_flow import PLAN
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_kiosk_approval(lease)
+    reproduce.assert_called_once_with(lease, RequestFlowJourney, PLAN,
+                                     'approval-qualified', 'kiosk-approval', native_log=True)
+    prefix = list(PLAN.stages[:PLAN.stages.index('approval-qualified')])
+    assert prefix[-1] == 'approval-open'
+    assert PLAN.screen_tags['approval-open'] == 'ui:kiosk-mate-open'
+    assert not {'approval-rechecked', 'approval-success'} & set(prefix)
+
+
+@pytest.mark.parametrize('failure', [None, 'kiosk-diagnostic-retry-estimate', 'kiosk-mate-open'])
+def test_retained_kiosk_approval_probe_requires_choices_before_single_public_request(
+        tmp_path, monkeypatch, failure):
+    from contextlib import nullcontext
+    import vm_probe
+    import ui_observations
+    import qualification_storage
+    operations = ['kiosk-diagnostic-retry-estimate', 'kiosk-mate-open']
+    def observe(operation):
+        if operation == failure:
+            raise runner.Error('synthetic-refusal')
+        return {'operation': operation, 'outcome': 'passed'}
+    observer = SimpleNamespace(observe=Mock(side_effect=observe))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
+    transport = SimpleNamespace(call=Mock(return_value=b'{"uid":1005,"since":100}'))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    capture = Mock()
+    monkeypatch.setattr(vm_probe, 'capture_kiosk_native_log', capture)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if failure:
+        with pytest.raises(runner.Error, match='synthetic-refusal'):
+            vm_probe.probe_kiosk_approval(lease)
+    else:
+        vm_probe.probe_kiosk_approval(lease)
+    expected = operations if failure is None else operations[:operations.index(failure) + 1]
+    assert [call.args[0] for call in observer.observe.call_args_list] == expected
+    results = json.loads((tmp_path / 'observed.json').read_text())
+    assert [item['outcome'] for item in results] == (
+        ['passed'] * len(expected) if failure is None else ['passed'] * (len(expected) - 1) + ['refused'])
+    assert lease.commands.directory == tmp_path / 'private'
+    assert lease.guard.call_count == len(expected) + 2
+    capture.assert_called_once_with(transport, tmp_path, uid=1005, since=100)
+
+
+@pytest.mark.parametrize('observer_failed', [False, True])
+@pytest.mark.parametrize('fault', ['journal', 'before-guard', 'after-guard'])
+def test_native_log_capture_failure_preserves_observer_failure_and_never_claims_prompt(
+        tmp_path, monkeypatch, capsys, observer_failed, fault):
+    from contextlib import nullcontext
+    import vm_probe
+    import ui_observations
+    import qualification_storage
+    observer = SimpleNamespace(observe=Mock(side_effect=(runner.Error('observer-refusal')
+        if observer_failed else lambda operation: {'operation': operation, 'outcome': 'passed'})))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
+    transport = SimpleNamespace(call=Mock(return_value=b'{"uid":1005,"since":100}'))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    capture = Mock(side_effect=runner.Error('journal-refusal') if fault == 'journal' else None)
+    monkeypatch.setattr(vm_probe, 'capture_kiosk_native_log', capture)
+    guarded = 1 if observer_failed else 2
+    guards = [None] * guarded + ([runner.Error('capture-guard')] if fault == 'before-guard'
+        else [None, runner.Error('capture-guard')] if fault == 'after-guard' else [None, None])
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock(side_effect=guards))
+    with pytest.raises(runner.Error, match='observer-refusal' if observer_failed else
+                       'journal-refusal' if fault == 'journal' else 'capture-guard'):
+        vm_probe.probe_kiosk_approval(lease)
+    assert observer.observe.call_count == guarded
+    assert capture.call_count == (0 if fault == 'before-guard' else 1)
+    assert json.loads((tmp_path / 'native-log-result.json').read_text())['outcome'] == 'refused'
+    assert (tmp_path / 'observed.json').is_file()
+    assert 'prompt retained' not in capsys.readouterr().out
+
+
+def test_native_log_capture_filters_exact_agent_and_glycin_labels(tmp_path):
+    import vm_probe
+    unit = 'oh-no-parent-control-polkit-agent.service'
+    def record(message, **fields):
+        return dict(__REALTIME_TIMESTAMP='100000001', MESSAGE=message, **fields)
+    rows = [record(list(b'\x1b[32mloader Frame complete'), _SYSTEMD_USER_UNIT=unit, _UID='1005'),
+        record('other user', _SYSTEMD_USER_UNIT=unit, _UID='1000'),
+        record('unrelated unit', _SYSTEMD_USER_UNIT='other.service', _UID='1005'),
+        record('scontext=system_u:system_r:onpc_kiosk_glycin_bwrap_t:s0', _TRANSPORT='kernel'),
+        record('scontext=system_u:system_r:onpc_kiosk_glycin_t:s0', _TRANSPORT='audit'),
+        record('profile="onpc-kiosk-glycin-bwrap"', _TRANSPORT='kernel'),
+        record('profile="onpc-kiosk-glycin"', _TRANSPORT='kernel'),
+        record('profile="onpc-kiosk-glycin-unknown"', _TRANSPORT='kernel'),
+        record('scontext=system_u:system_r:onpc_kiosk_glycin_unknown_t:s0', _TRANSPORT='audit'),
+        record('scontext=system_u:system_r:init_t:s0', _TRANSPORT='kernel')]
+    transport = SimpleNamespace(call=Mock(return_value=b'\n'.join(
+        json.dumps(row).encode() for row in rows)))
+    vm_probe.capture_kiosk_native_log(transport, tmp_path, uid=1005, since=100)
+    saved = json.loads((tmp_path / 'native-log.json').read_text())
+    assert [row['source'] for row in saved] == ['agent'] + ['kernel-audit'] * 4
+    assert saved[0]['message'] == '\x1b[32mloader Frame complete'
+    assert json.loads((tmp_path / 'native-log-result.json').read_text())['records'] == 5
+    argv = transport.call.call_args_list[0].args[0]
+    assert '_UID=1005' in argv and '_SYSTEMD_USER_UNIT=' + unit in argv
+    assert '--since=@100' in argv and '--lines=256' in argv
+    assert '--quiet' in argv
+    assert not any(item.startswith('--grep=') for item in transport.call.call_args.args[0])
+    assert transport.call.call_count == 2
+    assert transport.call.call_args.kwargs == {'timeout': 30}
+
+
+def test_native_log_capture_with_no_matching_entries_is_empty_evidence(tmp_path):
+    import vm_probe
+    transport = SimpleNamespace(call=Mock(return_value=b''))
+    vm_probe.capture_kiosk_native_log(transport, tmp_path, uid=1005, since=100)
+    assert json.loads((tmp_path / 'native-log.json').read_text()) == []
+    result = json.loads((tmp_path / 'native-log-result.json').read_text())
+    assert result['outcome'] == 'captured' and result['records'] == 0
+    assert not any(key in result for key in ('image_success', 'prompt_success'))
+
+
+def test_native_log_capture_does_not_hide_actual_journal_command_failure(tmp_path):
+    import vm_probe
+    transport = SimpleNamespace(call=Mock(side_effect=runner.Error('journal-command-failed')))
+    with pytest.raises(runner.Error, match='journal-command-failed'):
+        vm_probe.capture_kiosk_native_log(transport, tmp_path, uid=1005, since=100)
+    assert not (tmp_path / 'native-log-result.json').exists()
+
+
+@pytest.mark.parametrize('fault', ['oversize', 'malformed', 'old', 'long-message', 'count', 'bad-bytes', 'invalid-utf8'])
+def test_native_log_capture_rejects_unbounded_or_stale_output(tmp_path, fault):
+    import vm_probe
+    row = dict(__REALTIME_TIMESTAMP='100000001', MESSAGE='decoded', _UID='1005',
+               _SYSTEMD_USER_UNIT='oh-no-parent-control-polkit-agent.service')
+    if fault == 'old':
+        row['__REALTIME_TIMESTAMP'] = '99999999'
+    elif fault == 'long-message':
+        row['MESSAGE'] = 'x' * 8193
+    elif fault == 'bad-bytes':
+        row['MESSAGE'] = [256]
+    elif fault == 'invalid-utf8':
+        row['MESSAGE'] = [255]
+    raw = b'x' * (1024 * 1024 + 1) if fault == 'oversize' else b'{' if fault == 'malformed' else (
+        b'\n'.join([json.dumps(row).encode()] * (257 if fault == 'count' else 1)))
+    transport = SimpleNamespace(call=Mock(return_value=raw))
+    with pytest.raises((runner.Error, ValueError)):
+        vm_probe.capture_kiosk_native_log(transport, tmp_path, uid=1005, since=100)
+    assert not (tmp_path / 'native-log-result.json').exists()
+
+
+@pytest.mark.parametrize('native', [False, True])
+@pytest.mark.parametrize('failed', [False, True])
+def test_fixed_kiosk_reproduction_retains_native_log_even_when_worker_refuses(
+        tmp_path, monkeypatch, native, failed):
+    from contextlib import nullcontext
+    import vm_probe
+    import fixture_credentials
+    import e2e_worker
+    import qualification_storage
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
+    transport = SimpleNamespace(call=Mock(return_value=b'{"uid":1005,"since":100}'))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    capture = Mock()
+    monkeypatch.setattr(vm_probe, 'capture_kiosk_native_log', capture)
+    run = Mock(side_effect=runner.Error('worker-refused') if failed else None,
+               return_value={'worker_stopped': True, 'callback_closed': True})
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    class Journey:
+        def __init__(self, *_args, **_kwargs):
+            pass
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if failed:
+        with pytest.raises(runner.Error, match='worker-refused'):
+            vm_probe.reproduce_denial(lease, Journey, None, 'approval-qualified',
+                                      'kiosk-approval', native_log=native)
+    else:
+        vm_probe.reproduce_denial(lease, Journey, None, 'approval-qualified',
+                                  'kiosk-approval', native_log=native)
+    assert capture.call_count == int(native)
+    assert transport.call.call_count == int(native)
+    assert lease.guard.call_count == (0 if failed else 1) + 2 * int(native)
+
+
+def test_native_capture_cannot_be_enabled_for_other_reproduction_routes():
+    import vm_probe
+    with pytest.raises(runner.Error, match='kiosk-native-log:caller'):
+        vm_probe.reproduce_denial(None, object, None, 'request-form', 'kiosk-entry', native_log=True)
 
 
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
@@ -423,7 +630,7 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
                                   'riley-native-grid', 'retained-app-visits', 'revoke-cancel',
-                                  'countdown-minutes', 'countdown-resume'])
+                                  'countdown-minutes', 'countdown-resume', 'kiosk-entry', 'kiosk-approval'])
 def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
@@ -434,6 +641,8 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
     from retained_app_visits import PLAN as RETAINED_APP_PLAN
     from time_explanation import REVOKE_PLAN
     from countdown_qualification import MINUTE_PLAN
+    from kiosk_entry import PLAN as KIOSK_PLAN
+    from kiosk_approved_flow import PLAN as KIOSK_APPROVAL_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -445,6 +654,8 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
         'revoke-cancel': (REVOKE_PLAN, 'second-balances', 'second-cancel'),
         'countdown-minutes': (MINUTE_PLAN, 'minute-progression', 'fresh-desktop'),
         'countdown-resume': (CHILD_UNLOCK_PLAN, 'returned-activity', 'unlock-desktop'),
+        'kiosk-entry': (KIOSK_PLAN, 'request-form', 'station-branch'),
+        'kiosk-approval': (KIOSK_APPROVAL_PLAN, 'approval-qualified', 'approval-open'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]

@@ -656,7 +656,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          fresh_desktop=None, shell_search_results=False, parent_search_launch=False,
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, information_link='license',
-         kiosk_eligible_choices=False, request_choices=False,
+         kiosk_eligible_choices=False, kiosk_feedback_confinement=False,
+         kiosk_notification_wellbeing=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
          upgrade_assets=False, package_upgrade=False, chinese_kiosk_lifecycle=False,
@@ -1286,6 +1287,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
                 gdm_product_free, kiosk_entry, request_exit)))),
             'smoke:parent-toggle-prerequisites')
+    require(type(kiosk_feedback_confinement) is bool and
+            (not kiosk_feedback_confinement or kiosk_eligible_choices),
+            'smoke:kiosk-feedback-prerequisites')
+    require(type(kiosk_notification_wellbeing) is bool and
+            (not kiosk_notification_wellbeing or (kiosk_eligible_choices and
+                                                  not kiosk_feedback_confinement)),
+            'smoke:kiosk-notification-prerequisites')
     require(type(kiosk_entry) is bool and (not kiosk_entry or (
             assets is not None and provision_credentials and not any((
                 serial, install, install_refusal, vt6_prompt, vt6_auth, parent_setup,
@@ -1453,6 +1461,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-kiosk-entry-qualification'
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
+        if kiosk_feedback_confinement:
+            result['scope'] = 'engineering-installed-kiosk-feedback-confinement'
+        if kiosk_notification_wellbeing:
+            result['scope'] = 'engineering-installed-kiosk-notification-wellbeing'
         if request_choices:
             result['scope'] = 'installed-request-choices-qualification'
         if kiosk_no_child:
@@ -1876,6 +1888,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_eligible_choices:
                     from parent_setup_qualification import KioskEligibleChoicesQualification
                     qualification_class = KioskEligibleChoicesQualification
+                if kiosk_feedback_confinement:
+                    from parent_setup_qualification import KioskFeedbackConfinementQualification
+                    qualification_class = KioskFeedbackConfinementQualification
+                if kiosk_notification_wellbeing:
+                    from parent_setup_qualification import KioskNotificationWellbeingQualification
+                    qualification_class = KioskNotificationWellbeingQualification
                 if request_choices:
                     from parent_setup_qualification import RequestChoicesQualification
                     qualification_class = RequestChoicesQualification

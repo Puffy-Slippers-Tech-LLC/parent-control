@@ -84,7 +84,7 @@ prepare_package_notice() {
 
 # @create_account@
         adduser --disabled-password --gecos "Oh No! Parent Control" \
-            --home "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+            --home "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
 
 # @initial_setup@
     # User-controlled home paths must never be traversed with root's write
@@ -129,7 +129,9 @@ prepare_package_notice() {
         --enable oh-no-parent-control-session-limits \
         --enable oh-no-parent-control-kiosk-only </dev/null
     if ! grep -Eq '^[[:space:]]*[^#[:space:]].*pam_oh_no_parent_control\.so' /etc/pam.d/common-auth ||
-       ! grep -Eq '^[[:space:]]*[^#[:space:]].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
+       ! grep -Eq '^[[:space:]]*account[[:space:]]+required[[:space:]]+pam_oh_no_parent_control\.so[[:space:]]+kiosk[[:space:]]*$' /etc/pam.d/common-account ||
+       ! grep -Eq '^[[:space:]]*session[[:space:]]+required[[:space:]]+pam_oh_no_parent_control\.so[[:space:]]+kiosk[[:space:]]*$' /etc/pam.d/common-session ||
+       grep -Eq '^[[:space:]]*[^#[:space:]].*/usr/libexec/oh-no-parent-control-login-check' /etc/pam.d/common-account; then
         echo 'oh-no-parent-control: PAM integration was not activated; preserving local PAM configuration' >&2
         exit 1
     fi

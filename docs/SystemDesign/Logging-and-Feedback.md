@@ -72,15 +72,27 @@ integration diagnostics, separate from the broker's event-file pipeline, and
 are not automatically attached to feedback reports or imported as raw journal
 text. Inspect them using the maintained system diagnostics reader.
 
-Routing records identify the account or session stage, armed/allowed/denied/
+Routing records identify the account or session stage, allowed/denied/
 unavailable outcome, dedicated/other/unset session category, wayland/other/unset
 transport category, none/restored/failed default recovery, and a fixed failure
 reason (timeout, bus-failed, identity, verification or unavailable). Native records
 also identify denied services, unsafe/busy locks, an unbound session check and
-numeric PAM results, helper failure and helper timeout. Successful arming and
-admission are retained so a missing session-stage record can distinguish an interrupted login from a completed
-admission. Wrong saved defaults and wrong selected sessions produce separate
-stage records. Recovery never changes the failed attempt into an allowed login.
+numeric PAM results, helper failure and helper timeout. Successful preference
+checks are retained so a missing session-stage record can distinguish an
+interrupted login from completed preference validation. These records do not
+attest to GDM's next executable; the final native boundary owns that check.
+Wrong saved defaults produce stage records. Recovery never changes the failed
+attempt into an allowed login.
+
+The final native boundary emits `onpc.pam kiosk execution-boundary` with an
+armed or denied outcome. Integrity failures use the fixed `integration` reason.
+Preparation emits `onpc.kiosk confinement preparation` with a denied outcome
+and `verification`, `stale-manager-reboot-required`, or
+`generation-limit-reboot-required`. The last two require reboot rather than
+automatic process termination. Configuration/removal reports a bounded fixed
+reason token and retains ownership records on failure; policy compiler errors
+may appear in local package-manager output. These are local engineering
+diagnostics, not feedback attachment fields.
 
 No username, UID, session ID, arbitrary desktop name, metadata value, command
 stderr or exception text is formatted by these call sites. System journal

@@ -36,6 +36,11 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
+    'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
+    'kiosk-diagnostic-editor': 'Editing the real kiosk report and waiting for diagnostics without Send',
+    'kiosk-reminder-preview': 'Observing the installed kiosk reminder banner and literal countdown',
+    'kiosk-reminder-preview-cancel': 'Discarding the preview draft and observing banner closure',
     **{operation: 'Checking the bound Parent lock surface: ' + operation.removeprefix('parent-lock-')
        for operation in accessible_ui.LOCK_SURFACE_OPERATIONS},
     **{operation: 'Checking the installed restart notice: ' + surface + ' / ' + action
@@ -1256,6 +1261,15 @@ class UiObservations:
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in (
                 'overlay-shell-open', accessible_ui.SHELL_REJECTION_ORDER[0]):
             binding = [self.boot_guard or '', self.shell_approval_identity]
+        if operation == 'kiosk-reminder-preview-cancel':
+            require(self.last_operation == 'kiosk-reminder-preview' and
+                    hasattr(self, 'kiosk_reminder_source'), 'ui:kiosk-reminder-order')
+            binding = [self.boot_guard or '', self.kiosk_reminder_source]
+        if operation in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor'):
+            require(self.last_operation == ('kiosk-diagnostic-error' if
+                    operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
+                    hasattr(self, 'kiosk_diagnostic_source'), 'ui:kiosk-diagnostic-order')
+            binding = [self.boot_guard or '', self.kiosk_diagnostic_source]
         if self.accessibility_trace is not None:
             trace = self.accessibility_trace
             require(operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
@@ -1552,6 +1566,41 @@ class UiObservations:
                     and value['collecting'] is False and value['download'] is True,
                     'ui:collection-not-ready')
             expected['collection'] = value
+        if operation in accessible_ui.KIOSK_REMINDER_OPERATIONS:
+            fields = ({'banner_surface': True, 'literal': True, 'critical': True, 'countdown': True}
+                      if operation == 'kiosk-reminder-preview' else
+                      {'banner_closed': True, 'unsaved_draft_discarded': True})
+            value = result.get('reminder')
+            require(type(value) is dict and set(value) == {'source', *fields} and
+                    type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
+                    all(value[key] is expected_value for key, expected_value in fields.items()),
+                    'ui:kiosk-reminder-response')
+            if operation == 'kiosk-reminder-preview':
+                require(not hasattr(self, 'kiosk_reminder_source'), 'ui:kiosk-reminder-replay')
+                self.kiosk_reminder_source = value['source']
+            else:
+                require(self.last_operation == 'kiosk-reminder-preview' and value['source'] ==
+                        getattr(self, 'kiosk_reminder_source', None), 'ui:kiosk-reminder-order')
+            expected['reminder'] = value
+        if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS:
+            fields = {'kiosk-diagnostic-error': {'error_shown': True, 'report_default': True},
+                      'kiosk-diagnostic-report': {'report_open': True},
+                      'kiosk-diagnostic-editor': {'editor_usable': True,
+                                                  'diagnostics_ready': True, 'sent': False}}
+            value = result.get('diagnostic')
+            require(type(value) is dict and set(value) == {'source', *fields[operation]} and
+                    type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
+                    all(value[key] is expected_value for key, expected_value in fields[operation].items()),
+                    'ui:kiosk-diagnostic-response')
+            if operation == 'kiosk-diagnostic-error':
+                require(not hasattr(self, 'kiosk_diagnostic_source'), 'ui:kiosk-diagnostic-replay')
+                self.kiosk_diagnostic_source = value['source']
+            else:
+                require(self.last_operation == ('kiosk-diagnostic-error' if
+                        operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
+                        value['source'] == getattr(self, 'kiosk_diagnostic_source', None),
+                        'ui:kiosk-diagnostic-order')
+            expected['diagnostic'] = value
         if operation == 'parent-window-count':
             require(type(result) is dict and set(result) == {*expected, 'count'}
                     and type(result['count']) is int and result['count'] == 1,

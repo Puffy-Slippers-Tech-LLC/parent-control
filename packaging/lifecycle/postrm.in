@@ -247,6 +247,7 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
     fi
     @bus_reload@ >/dev/null || true
     remove_package_created_kiosk
+@confinement_finish_remove@
     if [ -f /var/lib/oh-no-parent-control/uninstall-broker-mask ]; then
         if [ "$(readlink /run/systemd/system/oh-no-parent-control-broker.service)" = /dev/null ]; then
             systemctl unmask --runtime oh-no-parent-control-broker.service >/dev/null

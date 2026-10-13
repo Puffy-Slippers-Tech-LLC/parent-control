@@ -105,6 +105,10 @@ extension at user-manager startup, restarts on failure and recovers before new
 leases. Session D-Bus activation also starts it on demand. Ordinary termination
 restores; an uncatchable crash is recovered by restart or next login. Disabled
 services, unavailable settings backends or locked keys can delay recovery.
+Both activation routes use the same fixed native launcher. It retains ordinary
+users' environment, including `DCONF_PROFILE`, `XDG_CONFIG_HOME` and
+`GSETTINGS_BACKEND`, so the helper accesses the same settings as their session.
+Only the dedicated kiosk UID receives the restricted startup environment.
 
 Child diagnostics record eligibility transitions, acquisition/cancellation,
 helper-owner changes, stale replies, shutdown and failures through the approved

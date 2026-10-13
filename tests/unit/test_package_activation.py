@@ -785,12 +785,12 @@ class PackageActivationTests(unittest.TestCase):
             "reboot",
         )
 
-    def test_pam_runtime_cap_module_activates_at_next_session(self):
+    def test_pam_module_requires_new_user_manager_at_reboot(self):
         self.assertEqual(
             activation_for(
                 "usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so"
             ),
-            "session-renewal",
+            "reboot",
         )
 
     def test_login_stack_change_requires_reboot(self):

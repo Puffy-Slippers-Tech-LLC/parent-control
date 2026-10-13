@@ -46,6 +46,8 @@
 
 #define KIOSK_LOGIN_DATA "oh-no-parent-control.kiosk-login"
 
+#include "kiosk_confinement.h"
+
 struct kiosk_login {
     int fd;
     int account_result;
@@ -94,7 +96,9 @@ run_kiosk_check(pam_handle_t *pamh, const char *username, const char *service,
     struct timespec start, now, pause = {0, 10000000};
     pid_t child, waited;
     int status;
-    const char *stage = strcmp(operation, "--kiosk-account") == 0 ? "account" : "session";
+    int admission_fd = kiosk_admission_fd(pamh);
+    const char *stage = strcmp(operation, "--kiosk-account") == 0 ? "account" :
+        strcmp(operation, "--kiosk-integrity") == 0 ? "integrity" : "session";
 
     if (asprintf(&user_env, "PAM_USER=%s", username) < 0 ||
         asprintf(&service_env, "PAM_SERVICE=%s", service) < 0 ||
@@ -123,7 +127,8 @@ run_kiosk_check(pam_handle_t *pamh, const char *username, const char *service,
          * busctl children close inherited descriptors by default. */
         /* F_DUPFD preserves it above stdio even if the worker had fd 0/1/2
          * closed when the lock was opened. The duplicate survives exec. */
-        if (null_fd < 0 || fcntl(lock_fd, F_DUPFD, STDERR_FILENO + 1) < 0)
+        if (null_fd < 0 || (lock_fd >= 0 && fcntl(lock_fd, F_DUPFD, STDERR_FILENO + 1) < 0) ||
+            (admission_fd >= 0 && fcntl(admission_fd, F_DUPFD, STDERR_FILENO + 1) < 0))
             _exit(127);
         if (dup2(null_fd, STDIN_FILENO) < 0 ||
             dup2(null_fd, STDOUT_FILENO) < 0 ||
@@ -175,6 +180,9 @@ kiosk_account_check(pam_handle_t *pamh)
     struct kiosk_login *login;
     struct stat info;
     int result = kiosk_identity(pamh, &username, &service);
+    if (username != NULL && strcmp(username, KIOSK_ACCOUNT_NAME) == 0 &&
+        kiosk_admission(pamh, username) != PAM_SUCCESS)
+        return PAM_PERM_DENIED;
     if (result != PAM_SUCCESS)
         return result == PAM_IGNORE ? PAM_SUCCESS : result;
 
@@ -232,6 +240,18 @@ pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
     int result;
 
     (void) flags;
+    if (argc == 1 && strcmp(argv[0], "kiosk-integrity") == 0) {
+        const char *username = NULL;
+        if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL)
+            return PAM_USER_UNKNOWN;
+        if (strcmp(username, KIOSK_ACCOUNT_NAME) != 0)
+            return PAM_SUCCESS;
+        if (kiosk_admission(pamh, username) != PAM_SUCCESS)
+            return PAM_PERM_DENIED;
+        if (pam_get_item(pamh, PAM_SERVICE, (const void **) &service) != PAM_SUCCESS || service == NULL)
+            return PAM_SERVICE_ERR;
+        return run_kiosk_check(pamh, username, service, "--kiosk-integrity", NULL, -1);
+    }
     if (argc == 1 && strcmp(argv[0], "kiosk") == 0)
         return kiosk_account_check(pamh);
     if (argc != 0)
@@ -336,6 +356,23 @@ run_session_limit_check(const char *username, const char *service)
     return PAM_SYSTEM_ERR;
 }
 
+/* systemd calls setcred without authenticate. An absent auth group otherwise
+ * invokes arbitrary global "other" callbacks before the session gate and again
+ * in sd-pam. Only the kiosk gets this inert credential path; authentication
+ * always fails, and ordinary accounts continue to the original fallback. */
+static int
+manager_credentials_identity(pam_handle_t *pamh)
+{
+    const char *username = NULL, *service = NULL;
+    if (pam_get_item(pamh, PAM_SERVICE, (const void **) &service) != PAM_SUCCESS ||
+            service == NULL || strcmp(service, "systemd-user") != 0)
+        return PAM_SERVICE_ERR;
+    if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL ||
+            username[0] == '\0')
+        return PAM_USER_UNKNOWN;
+    return strcmp(username, KIOSK_ACCOUNT_NAME) == 0 ? PAM_SUCCESS : PAM_IGNORE;
+}
+
 PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
@@ -344,8 +381,12 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
     int result;
 
     (void) flags;
-    (void) argc;
-    (void) argv;
+    if (argc > 0 && strcmp(argv[0], "kiosk-manager-credentials") == 0) {
+        if (argc != 1)
+            return PAM_SERVICE_ERR;
+        result = manager_credentials_identity(pamh);
+        return result == PAM_SUCCESS ? PAM_AUTH_ERR : result;
+    }
 
     result = pam_get_user(pamh, &username, NULL);
     if (result != PAM_SUCCESS || username == NULL || username[0] == '\0')
@@ -360,10 +401,12 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 PAM_EXTERN int
 pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
-    (void) pamh;
     (void) flags;
-    (void) argc;
-    (void) argv;
+    if (argc > 0 && strcmp(argv[0], "kiosk-manager-credentials") == 0) {
+        if (argc != 1)
+            return PAM_SERVICE_ERR;
+        return manager_credentials_identity(pamh);
+    }
     return PAM_SUCCESS;
 }
 
@@ -375,9 +418,19 @@ pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
     struct kiosk_login *login;
     int result;
     (void) flags;
+    if (argc == 1 && strcmp(argv[0], "kiosk-admission") == 0) {
+        if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL)
+            return PAM_USER_UNKNOWN;
+        return kiosk_admission(pamh, username);
+    }
+    if (argc == 1 && strcmp(argv[0], "kiosk-confinement") == 0)
+        return kiosk_confinement(pamh);
     if (argc != 1 || strcmp(argv[0], "kiosk") != 0)
         return PAM_SERVICE_ERR;
     result = kiosk_identity(pamh, &username, &service);
+    if (username != NULL && strcmp(username, KIOSK_ACCOUNT_NAME) == 0 &&
+        kiosk_admission(pamh, username) != PAM_SUCCESS)
+        return PAM_SESSION_ERR;
     if (result != PAM_SUCCESS)
         return result == PAM_IGNORE ? PAM_SUCCESS : result;
     result = pam_get_data(pamh, KIOSK_LOGIN_DATA, &data);
@@ -389,10 +442,10 @@ pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
         return PAM_SESSION_ERR;
     }
     login = (struct kiosk_login *) data;
-    /* GDM saves its selected session between account and open-session. Hold
-     * the account lock across that interval, so another station login cannot
-     * substitute its own saved selection for this transaction's check. GDM
-     * supplies XDG_SESSION_TYPE before open; GDMSESSION only arrives later. */
+    /* Serialize preference checks/repair through session opening. Saved
+     * settings cannot attest the command GDM will execute; the required final
+     * confinement gate owns that check. XDG_SESSION_TYPE is available here,
+     * while GDMSESSION only arrives after PAM session opening. */
     result = run_kiosk_check(pamh, username, service, "--kiosk-session",
                             pam_getenv(pamh, "XDG_SESSION_TYPE"), login->fd);
     close(login->fd);
@@ -408,6 +461,8 @@ pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
     (void) pamh;
     (void) flags;
-    return argc == 1 && strcmp(argv[0], "kiosk") == 0
+    return argc == 1 && (strcmp(argv[0], "kiosk") == 0 ||
+                         strcmp(argv[0], "kiosk-admission") == 0 ||
+                         strcmp(argv[0], "kiosk-confinement") == 0)
         ? PAM_SUCCESS : PAM_SERVICE_ERR;
 }

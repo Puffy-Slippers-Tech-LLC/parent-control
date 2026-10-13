@@ -48,6 +48,9 @@ DEMANDS = {
     # beneath tmp_path; helpers and clients are Popen-owned and reaped. They use
     # the shared private-bus fixture plus recorded Popen handles. No live user
     # settings or systemd units; bounded GJS children fit existing admission.
+    # The installed qualifier's shared public client adds one finite, waited
+    # Python child per case on that same private bus/keyfile/schema fixture.
+    # It creates no new shared state or child ownership; admission is unchanged.
     'component': Demand(2, GIB),
     'fixture-runtime': Demand(2, GIB),
     'source': Demand(2, GIB),

@@ -40,7 +40,7 @@ prepare_package_notice() { :; }
 
 # @create_account@
         useradd --create-home --comment "Oh No! Parent Control" \
-            --home-dir "/home/$kiosk_user" --shell /bin/bash "$kiosk_user"
+            --home-dir "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
 
 # @initial_setup@
     # Write home-local initial-setup markers as their owner.

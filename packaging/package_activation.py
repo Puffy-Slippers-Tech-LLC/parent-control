@@ -57,10 +57,10 @@ def activation_for(path: str) -> str:
         "usr/libexec/oh-no-parent-control-execution-policy-ready",
     }:
         return "none"
-    # Existing PAM transactions may retain the loaded library. New login
-    # sessions use its replacement without restarting the machine.
+    # The module also confines the persistent user manager. A new graphical
+    # login can reuse that manager, so only reboot renews the whole boundary.
     if path.endswith("/security/pam_oh_no_parent_control.so"):
-        return "session-renewal"
+        return "reboot"
     # This recovery service belongs to the user manager, not a GNOME session.
     # Lingering or another login can retain it through logout/login. Package
     # configuration does not restart arbitrary users' managers, so a reboot is
@@ -84,11 +84,17 @@ def activation_for(path: str) -> str:
         "usr/lib/systemd/system/display-manager.service.d/",
         "usr/lib/systemd/system/fapolicyd.service.d/",
         "usr/lib/systemd/system/onpc-execution-probe-.service.d/",
+        "usr/libexec/oh-no-parent-control-kiosk-",
+        "usr/share/oh-no-parent-control/confinement/",
+        "usr/lib/systemd/user/org.gnome.Kiosk@wayland.service.d/",
+        "usr/lib/systemd/user/wireplumber.service.d/",
     )) or path in {
         "usr/lib/systemd/system/oh-no-parent-control-execution-policy-ready.service",
+        "usr/lib/systemd/system/oh-no-parent-control-kiosk-confinement.service",
         "usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules",
         "usr/libexec/oh-no-parent-control-execution-policy-probe",
         "usr/libexec/oh-no-parent-control-login-check",
+        "usr/libexec/oh-no-parent-control-kiosk-session",
         "usr/share/oh-no-parent-control/gdm-presession",
     }:
         return "reboot"

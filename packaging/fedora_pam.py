@@ -83,7 +83,7 @@ def verify_pam(*, installed):
         has_gate = '/usr/libexec/oh-no-parent-control-login-check' in contents
         has_account = re.search(r'^account\s+required\s+pam_oh_no_parent_control\.so\s+kiosk\s*$', contents, re.M)
         has_session = re.search(r'^session\s+required\s+pam_oh_no_parent_control\.so\s+kiosk\s*$', contents, re.M)
-        if (installed and not (has_module and has_gate and has_account and has_session)) or (not installed and (has_module or has_gate)):
+        if (installed and (not (has_account and has_session) or has_gate)) or (not installed and (has_module or has_gate)):
             raise ValueError('PAM integration does not match the requested state')
 
 

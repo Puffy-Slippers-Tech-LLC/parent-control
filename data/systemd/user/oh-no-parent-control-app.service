@@ -9,5 +9,5 @@ OnSuccess=gnome-session-shutdown.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/oh-no-parent-control
+ExecStart=/usr/libexec/oh-no-parent-control-kiosk-app
 Restart=no

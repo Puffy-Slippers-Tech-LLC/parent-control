@@ -323,6 +323,48 @@ def test_released_source_refuses_retargeted_or_missing_release_without_archive(t
     archive.assert_not_called()
 
 
+@pytest.mark.parametrize('entry', ['builder', 'cli'])
+def test_unavailable_fedora_predecessor_refuses_before_allocation_or_build(tmp_path, monkeypatch, capsys, entry):
+    prepare = Mock(side_effect=AssertionError('unavailable predecessor must not allocate output'))
+    build = Mock(side_effect=AssertionError('unavailable predecessor must not build a candidate'))
+    monkeypatch.setattr(builder, '_require_empty_output', prepare)
+    monkeypatch.setattr(builder, 'build', build)
+    output = tmp_path / 'unavailable-rpm-upgrade'
+    if entry == 'builder':
+        with pytest.raises(builder.ArtifactError, match='genuine previous Fedora RPM release unavailable'):
+            builder.build_upgrade(output, package_format='rpm')
+    else:
+        monkeypatch.setattr(builder.sys, 'argv', [
+            'build_test_artifacts', '--upgrade-inputs', '--package-format', 'rpm', '--output', str(output)])
+        assert builder.main() == 1
+        assert 'Fedora older-release upgrade qualification is blocked' in capsys.readouterr().err
+    prepare.assert_not_called()
+    build.assert_not_called()
+    assert not output.exists()
+
+
+@pytest.mark.parametrize('formats', [('rpm', 'rpm'), ('deb', 'rpm'), ('rpm', 'deb')])
+def test_fabricated_rpm_or_mixed_upgrade_bundle_refuses_before_release_or_identity_reads(
+        upgrade, monkeypatch, formats):
+    assets, source, *_ = upgrade
+    for root, extension in zip((assets, assets / 'previous'), formats):
+        if extension == 'deb':
+            continue
+        (root / 'package.deb').rename(root / 'package.rpm')
+        path = root / builder.MANIFEST_NAME
+        manifest = json.loads(path.read_text())
+        manifest['artifacts']['package']['path'] = 'package.rpm'
+        path.write_text(json.dumps(manifest))
+    release = Mock(side_effect=AssertionError('wrong package format must not read DEB release source'))
+    identity = Mock(side_effect=AssertionError('unqualified format must not invoke package metadata tools'))
+    monkeypatch.setattr(builder, 'released_source', release)
+    monkeypatch.setattr(builder, 'package_identity', identity)
+    with pytest.raises(builder.ArtifactError, match='previous Fedora RPM release unavailable|format mismatch'):
+        builder.verify_upgrade(assets, staged=True, repository=source)
+    release.assert_not_called()
+    identity.assert_not_called()
+
+
 @pytest.mark.parametrize('changed', [False, True])
 def test_actual_dual_staging_preserves_manifests_and_refuses_changed_source(upgrade, tmp_path, monkeypatch, changed):
     assets, source, lease, guest = upgrade

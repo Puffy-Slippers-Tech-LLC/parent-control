@@ -119,7 +119,10 @@ def verify_pam_removed():
         if path.name.endswith(('.pam-old', '.pam-new', '.dpkg-old', '.dpkg-dist', '~')):
             continue
         if path.is_file():
-            for line in path.read_text().splitlines():
+            source = path.read_text()
+            guest.require('# Oh No Parent Control removal admission barrier' not in source,
+                          'removal:pam-barrier-remains')
+            for line in source.splitlines():
                 if line.strip() and not line.lstrip().startswith('#'):
                     guest.require('pam_oh_no_parent_control.so' not in line and
                                   '/usr/libexec/oh-no-parent-control-' not in line,
@@ -199,6 +202,8 @@ def verify_removed(state, *, purged=False):
                  '/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules',
                  '/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules',
                  '/var/lib/oh-no-parent-control/package-created-kiosk-uid',
+                 '/var/lib/oh-no-parent-control/kiosk-confinement.json',
+                 '/var/lib/oh-no-parent-control/kiosk-confinement-removing',
                  '/var/lib/oh-no-parent-control/uninstall-enforcement.json',
                  '/var/lib/oh-no-parent-control/uninstall-broker-mask',
                  '/var/lib/oh-no-parent-control/fapolicyd-before-install',
@@ -211,6 +216,14 @@ def verify_removed(state, *, purged=False):
         path = Path(name)
         guest.require(not path.exists() and not path.is_symlink(), 'removal:integration-remains')
     verify_pam_removed()
+    if guest.package_path().suffix == '.rpm':
+        loaded = guest.run(['semodule', '-l']).splitlines()
+        guest.require(not any(row.split()[0] == 'onpc-kiosk' for row in loaded if row.split()),
+                      'removal:kiosk-policy-remains')
+    else:
+        profiles = Path('/sys/kernel/security/apparmor/profiles').read_text().splitlines()
+        guest.require(not any(row.startswith('onpc-kiosk-') for row in profiles),
+                      'removal:kiosk-policy-remains')
     guest.require(guest.run(['busctl', '--system', 'call', 'org.freedesktop.DBus',
                             '/org/freedesktop/DBus', 'org.freedesktop.DBus',
                             'NameHasOwner', 's', guest.BUS]) == 'b false',
@@ -341,24 +354,28 @@ def remove(record):
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
                   'removal:nonfresh-start')
     configure_restrictions(accounts)
+    verify_active_kiosk_refusal(record, accounts)
     fedora = guest.package_path().suffix == '.rpm'
     hook = Path('/etc/gdm/PreSession/Default' if fedora else '/etc/gdm3/PreSession/Default')
-    info, original = hook.lstat(), hook.read_bytes()
-    guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1,
-                  'removal:unsafe-hook')
     before = account_digest(child)
-    modified = original + b'\n# onpc removal refusal fixture\n'
-    write_hook(hook, info, original, modified)
-    try:
-        guest.commands.run(removal_command(), check=False, timeout=1800, merge_stderr=False)
-        guest.require(guest.commands.last_returncode != 0 and not package_absent(),
-                      'removal:modified-hook-not-refused')
-        guest.require(account_digest(child) == before and
-                      account_digest(accounts['other']) == other, 'removal:refusal-changed-policy')
-        guest.verify_package_files()
-    finally:
-        write_hook(hook, info, modified, original)
-    record('onpc.removal.refusal-retry', 'modified-hook-refused; payload-and-policy-preserved')
+    for category, target in (('hook', hook), ('pam', Path('/etc/pam.d/gdm-password'))):
+        info, original = target.lstat(), target.read_bytes()
+        guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1,
+                      'removal:unsafe-' + category)
+        modified = original + b'\n# onpc removal refusal fixture\n'
+        write_hook(target, info, original, modified)
+        try:
+            guest.commands.run(removal_command(), check=False, timeout=1800, merge_stderr=False)
+            guest.require(guest.commands.last_returncode != 0 and not package_absent(),
+                          'removal:modified-' + category + '-not-refused')
+            guest.require(account_digest(child) == before and
+                          account_digest(accounts['other']) == other, 'removal:refusal-changed-policy')
+            guest.require(target.read_bytes() == modified, 'removal:foreign-edit-overwritten')
+            guest.verify_package_files()
+        finally:
+            write_hook(target, info, modified, original)
+        record('onpc.removal.' + category + '-refusal-retry',
+               'foreign-edit-refused; payload-and-policy-preserved')
     config = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())
     kiosk = pwd.getpwuid(config['kiosk_uid'])
     guest.require(kiosk.pw_name == PRODUCT and kiosk.pw_dir == '/home/' + PRODUCT,
@@ -385,6 +402,65 @@ def remove(record):
     guest.require(account_property(child, 'org.freedesktop.Accounts.User', 'AutomaticLogin') is True,
                   'removal:autologin-not-configured')
     record('onpc.removal.erased', 'restrictions-cleared; payload-removed; preferences-retained')
+
+
+def verify_active_kiosk_refusal(record, accounts):
+    """Use native removal while one identity-recorded kiosk manager is live."""
+    guest.guard()
+    from system_kiosk_confinement import census, manager_pid, process_identity, exited, user_command
+    account = pwd.getpwnam(PRODUCT)
+    unit = f'user@{account.pw_uid}.service'
+    guest.require(guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
+                  in ('inactive', 'failed'), 'removal:kiosk-manager-already-active')
+    protected = [Path('/var/lib/oh-no-parent-control/kiosk-confinement.json'),
+                 Path('/etc/pam.d/gdm-password'), Path('/etc/pam.d/systemd-user')]
+    originals = {path: path.read_bytes() for path in protected}
+    policies = {role: account_digest(accounts[role]) for role in ('child', 'other')}
+    marker = Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
+    guest.require(not os.path.lexists(marker), 'removal:unexpected-removal-marker')
+    guest.run(['systemctl', 'start', unit], timeout=75)
+    invocation = guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit])
+    pid = manager_pid(unit)
+    process = Path('/proc') / str(pid)
+    pidfd = os.pidfd_open(pid)
+    identity = process_identity(process)
+    generation_path = process / 'root/usr/share/oh-no-parent-control/confinement/generation'
+    generation = generation_path.read_bytes()
+    namespace = os.readlink(process / 'ns/mnt')
+    try:
+        census(required_roles=('manager',))
+        guest.require(b'systemd ' in user_command(account, [
+            '/usr/bin/systemd-run', '--user', '--wait', '--collect', '--pipe',
+            '--unit=onpc-removal-positive', '/usr/bin/systemctl', '--version']),
+            'removal:kiosk-manager-positive')
+        output = guest.commands.run(removal_command(), check=False, timeout=1800,
+                                    merge_stderr=True)
+        guest.require(guest.commands.last_returncode != 0 and not package_absent() and
+                      any(reason in output for reason in
+                          (b'kiosk-admissions-active', b'kiosk-processes-active')),
+                      'removal:active-kiosk-not-refused')
+        guest.verify_package_files()
+        guest.require(all(path.read_bytes() == original for path, original in originals.items()) and
+                      not os.path.lexists(marker), 'removal:active-refusal-changed-admission')
+        guest.require(all(account_digest(accounts[role]) == digest for role, digest in policies.items()),
+                      'removal:active-refusal-changed-policy')
+        census(required_roles=('manager',))
+        record('onpc.removal.active-kiosk-native-removal-refused',
+               'package-retained; PAM-and-policy-preserved; manager-confined')
+    finally:
+        try:
+            guest.require(pwd.getpwnam(PRODUCT).pw_uid == account.pw_uid and
+                          guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit]) == invocation and
+                          manager_pid(unit) == pid and not exited(pidfd) and
+                          process_identity(process) == identity and
+                          generation_path.read_bytes() == generation and
+                          os.readlink(process / 'ns/mnt') == namespace,
+                          'removal:kiosk-manager-identity-changed')
+            guest.run(['systemctl', 'stop', unit], timeout=75)
+        finally:
+            os.close(pidfd)
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'check-remove'], timeout=30)
+    record('onpc.removal.active-kiosk-drained', True)
 
 
 def original_authselect():

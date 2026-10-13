@@ -33,7 +33,7 @@ class Commands:
         self.watch_command = None
 
     def run(self, args, *, timeout=120, check=True, input=None, merge_stderr=True,
-            on_output=None, terminal=False, diagnostic_stdout=None):
+            on_output=None, terminal=False, diagnostic_stdout=None, pass_fds=()):
         # The guest payload also uses this module without host spectator code.
         try:
             import watch_activity
@@ -45,13 +45,13 @@ class Commands:
             return self._run(args, timeout=timeout, check=check, input=input,
                              merge_stderr=merge_stderr, on_output=on_output,
                              terminal=terminal, watch=watch,
-                             diagnostic_stdout=diagnostic_stdout)
+                             diagnostic_stdout=diagnostic_stdout, pass_fds=pass_fds)
         finally:
             if watch is not None:
                 watch.finish(self.last_returncode)
 
     def _run(self, args, *, timeout, check, input, merge_stderr, on_output, terminal, watch,
-             diagnostic_stdout):
+             diagnostic_stdout, pass_fds):
         require(not terminal or input is None, 'command:terminal-input-unsupported')
         self.sequence += 1
         sequence = self.sequence
@@ -95,9 +95,30 @@ class Commands:
             child = subprocess.Popen(args, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
                                      stdout=slave if terminal else output,
                                      stderr=slave if terminal else subprocess.STDOUT if merge_stderr else errors,
-                                     pass_fds=(() if self.lock_fd is None else (self.lock_fd,)),
+                                     pass_fds=tuple(dict.fromkeys((*pass_fds,
+                                         *(() if self.lock_fd is None else (self.lock_fd,))))),
                                      **({'env': {**os.environ, 'TERM': 'xterm-256color'}} if terminal else {}))
-            pidfd = os.pidfd_open(child.pid)
+            try:
+                pidfd = os.pidfd_open(child.pid)
+            except BaseException as error:
+                # This is still our unreaped direct Popen child. Popen.kill()
+                # checks/reaps exit under its wait lock before signalling, so
+                # it cannot signal a recycled PID. No inferred descendant or
+                # later PID fallback is permitted after a pidfd was acquired.
+                cleanup_failed = False
+                try:
+                    child.kill()
+                except ProcessLookupError:
+                    pass
+                except BaseException:
+                    cleanup_failed = True
+                try:
+                    child.wait(timeout=10)
+                except BaseException:
+                    cleanup_failed = True
+                if cleanup_failed:
+                    error.add_note('command:spawned-child-cleanup-failed')
+                raise
             offset = 0
             error_offset = 0
             progress_failed = False

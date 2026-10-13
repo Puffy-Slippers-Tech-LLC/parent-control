@@ -1535,6 +1535,35 @@ the outer collector, worker collector and variable staging.
 
 ### Credential staging and password capture boundary
 
+`tools/test-vm --vm NAME reproduce-kiosk-approval` reuses
+`RequestFlowJourney` / `kiosk_approved_flow.PLAN` in the same owned maintenance
+envelope. It completes the public Request action and real MATE prompt observation,
+then retains `approval-qualified` before challenge qualification, rechecking or
+password submission. The worker closes while the prompt and guest remain available
+for guarded `exec` identity/mount probes. Finish with `tools/test-vm stop`;
+this route supplies no authentication or customer-acceptance credit.
+Only this fixed kiosk approval reproduction also retains the bounded native
+journal evidence described below, including when its observer fails.
+
+`tools/test-vm --vm NAME probe-kiosk-approval` opens one native prompt in an
+already retained owned failed form. Its finite diagnostic leaf
+`kiosk-diagnostic-retry-estimate` independently requires the exact prepared
+choices and `Request denied` status, then changes the public custom entry from
+`1.25` to equivalent `1.250` and back. Each edit has an independent exact owned
+form readback; both values select 75 seconds through the ordinary product parser.
+The ordinary changed handler refreshes the estimate. It then runs the unchanged
+strict `kiosk-valid-fraction-soft-read` check and `kiosk-mate-open`, whose own
+fresh checks repeat the exact prepared choices and reject an existing prompt
+before invoking Request once. A failed precondition releases no Request input;
+a failed opening is recorded and stops without replay. This diagnostic neither
+provisions secrets nor qualifies or submits the challenge. Results remain in
+the private owned probe allocation; finish the maintenance guest with `stop`.
+The same allocation retains `native-log.json` and `native-log-result.json` from
+fixed kiosk agent UID/unit and exact Glycin kernel/audit labels since probe start.
+Each source is limited to 256 records, 1 MiB and a 30-second query. Capture makes
+no image or prompt success claim; a capture failure preserves an earlier observer
+failure and otherwise fails the probe. It never changes trace configuration.
+
 The fixed `tools/test-vm --vm NAME reproduce-gdm-denial` diagnostic reuses
 `FreshChildDeniedJourney` and the same sealed worker in an already owned online
 maintenance snapshot. `FixtureCredentials.provision_online` reuses the snapshot's

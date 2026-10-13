@@ -44,7 +44,17 @@ def fragments(root: Path, distribution: str) -> dict[str, str]:
                      'execution_policy_remove_rule'):
             values[name] = ''
     values['log_tree_cleanup'] = embedded_log_cleanup(root)
+    values['confinement_finish_remove'] = embedded_confinement_finish_remove(root)
     return values
+
+
+def embedded_confinement_finish_remove(root: Path) -> str:
+    # The package payload (including its Python helper and PAM module) has
+    # already gone. Embed the same ownership-checked transaction for both
+    # distributions; standalone vendor PAM denial remains until it succeeds.
+    source = (root / 'packaging/kiosk_confinement.py').read_text().split("if __name__ == '__main__':", 1)[0]
+    return ("/usr/bin/python3 -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'\n" + source +
+            "\ntry:\n    finish_remove()\nexcept Exception:\n    print('oh-no-parent-control: confinement cleanup failed; preserving admission barrier', file=sys.stderr)\n    sys.exit(1)\nONPC_CONFINEMENT_FINISH_REMOVE")
 
 
 def embedded_fedora_policy(root: Path, action: str) -> str:

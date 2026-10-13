@@ -191,8 +191,7 @@ def test_dependency_failure_does_not_format_exception():
 def test_rpm_dependency_query_is_bounded_and_survives_archive_projection(monkeypatch):
     monkeypatch.setitem(sys.modules, "apt", None)
     def query(command, **kwargs):
-        assert command == ["/usr/bin/rpm", "--query", "--queryformat",
-                           "%{NAME}\t%{VERSION}\t%{ARCH}\n", "--", *info.RPM_DIAGNOSTIC_PACKAGES]
+        assert command == ["/usr/libexec/oh-no-parent-control-kiosk-packages"]
         assert 0 < kwargs["timeout"] <= 10
         assert kwargs["env"]["LC_ALL"] == "C"
         rows = [f"{name}\t1.2-{SECRET}\tx86_64" for name in info.RPM_DIAGNOSTIC_PACKAGES

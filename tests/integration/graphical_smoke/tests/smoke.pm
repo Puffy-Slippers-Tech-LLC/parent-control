@@ -805,6 +805,18 @@ sub run {
         onpc_kiosk_valid_duration::run(\&exchange);
         return;
     }
+    if ($ready->{kiosk_feedback_confinement}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_eligible_choices::run(\&exchange, 1);
+        return;
+    }
+    if ($ready->{kiosk_notification_wellbeing}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_eligible_choices::run(\&exchange, 2);
+        return;
+    }
     if ($ready->{kiosk_eligible_choices}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

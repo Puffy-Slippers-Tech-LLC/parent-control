@@ -249,7 +249,14 @@ from regression_resources import HOST_WORKERS
 # Failed installed-setup collection uses parent_setup's existing private attempt
 # files and transport/guard doubles only. No live VM, process or cleanup owner
 # is added, so its unit and cleanup classifications remain compatible.
+# Overlay reminder facade/journey/registration fixtures keep API/transport/clock
+# doubles and durable replies private to pytest. Their bounded Perl children
+# are synchronously waited; no settings, VM, bus, display or shared cache owner
+# is introduced. Compatible here and in the unit inventory.
 REVIEWED = frozenset('''
+overlay_reminder
+overlay_reminder_journey
+overlay_reminder_registration
 parent_presentation
 package_lifecycle
 package_purge

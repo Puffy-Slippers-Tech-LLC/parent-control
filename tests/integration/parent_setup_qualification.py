@@ -1772,6 +1772,16 @@ class OverlayLanguageQualification(KioskEntryQualification):
         return OverlayLanguageJourney(context, progress)
 
 
+class OverlayReminderEditingQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from overlay_reminders import OverlayReminderJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return OverlayReminderJourney(context, progress)
+
+
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

@@ -1060,18 +1060,32 @@ save. The independent 308a/308b qualifications remain separate from this case.
 
 The shared request Preferences controls and repository-owned reminder banners
 use the [Application UI API](Application-UI-API.md#shared-request-form-and-language-chooser), including the
-[ChildUI notification surface](Application-UI-API.md#child-panel). Their
-installed operations remain **pending**; implemented product controls and host
-UI checks do not establish qualification. The queue extracts these bounded
-bindings before the complete reminder cases:
+[ChildUI notification surface](Application-UI-API.md#child-panel). The fixed
+Riley overlay editing slice is qualified; kiosk ownership, fullscreen preference
+and natural notification bindings remain **pending**. The queue extracts these
+bounded bindings before the complete reminder cases:
 
 | Task | Exact qualification slice |
 | --- | --- |
-| [312a](E2E-Tasks/312a-overlay-reminder-editing.md) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback |
+| 312a (qualified) | Riley overlay reminder CRUD, main Save/Cancel and saved empty-list readback on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing` |
 | [312b](E2E-Tasks/312b-kiosk-reminder-binding.md) | Selected-child kiosk reminder save/readback, overlay continuity and account isolation |
 | [311a](E2E-Tasks/311a-reminder-fullscreen-preference.md) | Save nondefault false, reopen, Cancel a true draft and read saved false; no notification-delivery credit |
 | [311b](E2E-Tasks/311b-natural-reminder-observation.md) | Naturally emitted ChildUI body, canonical seconds, urgency and natural-lock removal; public-value contract gate remains explicit in the brief |
 | [311c](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | Owned banner visibility/suppression with task 129's genuine fullscreen game; independent of urgency |
+
+The shared [AccessibleUI facade](../../tests/e2e/accessible_ui.py) supplies
+`overlay_reminder_open`, `overlay_reminder_read`, `overlay_reminder_editor`,
+`overlay_reminder_delete` and `overlay_reminder_commit` through the ChildRequest
+Application UI API. [UiObservations](../../tests/e2e/ui_observations.py) validates
+canonical records and carries the prior draft source before mutation.
+[OverlayReminderJourney](../../tests/e2e/overlay_reminders.py) owns the finite
+defaults, literal 75/90-second values and saved-ID comparisons. It independently
+reopens saved, cancelled and empty drafts and compares language, fullscreen,
+request choices and public policy/time, allowing elapsed time without granting
+access. Fresh Parent entry and explicit Riley selection supply final policy
+readback. Wrong-owner/surface, unavailable or ambiguous controls, owned stale
+nodes/drafts, competing modals and uncertain input remain guarded; incidental
+captions and new-editor seed values do not determine acceptance.
 
 `PreferencesDialog` implements reminder editing and the fullscreen switch in
 `kiosk/oh_no_parent_control_kiosk/preference_dialog.py`. Child notification
@@ -1089,12 +1103,15 @@ and warning expiry cannot establish delivery or fullscreen suppression.
 
 The [saved-reminder case 312](E2E-Tasks/312-child-reminder-preferences.md) and
 [warning case 311](E2E-Tasks/311-remaining-time-notifications.md) retain their
-separate complete histories. Case 311 reuses task 135a's real verified upgrade
-and task 129's fullscreen game, saving its final custom reminder directly.
-Task 312 owns the reminder create/edit persistence history. Fullscreen banner
-qualification observes enabled delivery and disabled suppression; an extra
-windowed-return cycle is not required. No selector, numeric inventory binding,
-installed qualification or acceptance is supplied by this planning record.
+separate complete histories. Case 311 uses the latest installed version and
+task 129's fullscreen game, saving its final custom reminder directly; a real
+older-version package journey is not required. Targeted maintained
+schema/migration regressions cover upgrade handling, while the case retains its
+current-version reboot and saved-state checks. Task 312 owns the reminder
+create/edit persistence history. Fullscreen banner qualification observes
+enabled delivery and disabled suppression; an extra windowed-return cycle is
+not required. The overlay slice supplies no complete-case acceptance; cases
+311/312 still need their remaining capabilities and numeric inventory bindings.
 
 ### Daily allowance selection
 

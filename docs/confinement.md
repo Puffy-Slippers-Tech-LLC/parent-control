@@ -21,21 +21,31 @@ Record only useful current inputs, evidence, limits and remaining work here.
 | Done | Phase 3 step | Required result before stopping |
 | --- | --- | --- |
 | [x] | **4 — Public workflows** | Current-package customer cases 53–57, 151, 191, 192, 254 and 259 pass on both targets under their existing recipes and acceptance contracts. |
+| [x] | **5a — Overlay reminder editing prerequisite** | Task 312a's public reminder CRUD, main Save/Cancel, exact saved-ID persistence and saved empty-list readback passed on both targets, including request/time/policy preservation and owned cleanup. This bounded prerequisite supplies no natural-delivery or complete-case acceptance. |
 | [ ] | **5 — Natural reminders** | Resolve unregistered tasks 311/311b and complete required natural-delivery, reminder persistence and Wellbeing lifecycle acceptance. Resolve the message-value contract and all prerequisites; preview, documentation and unresolved dependencies supply no acceptance. |
+
+Step 5a completed 312a as explicitly selected prerequisite work under the
+dependency gate below. Its installed reminder-editing selector and qualified
+scope are recorded in the
+[reminder catalogue](TestAutomation/E2E-Building-Blocks.md#reminder-controls-and-notification-qualification).
+The remaining 312b/312, 311a/311b/311c and 311
+histories stay open under their owning queue rows. This confinement selection
+does not advance the unrelated E2E execution plan's next-task pointer.
 
 **Dependency gate before step 5:** the
 [natural-reminder queue rows](TestAutomation/E2E-Task-Queue.md#ordered-task-queue)
-retain pending 312a/312b, 311a/311b/311c and 135a prerequisites. Task 311 requires
-[135a's genuine no-action update](TestAutomation/E2E-Tasks/135a-update-no-action.md).
-Phase 4's v1.2 upgrade requires reboot and cannot satisfy that prerequisite.
+retain pending 312b and 311a/311b/311c prerequisites. The developer's
+2026-10-13 latest-version-only direction removes live upgrade testing, including
+135a, from confinement acceptance. Supported saved-data upgrades still require
+correct schema migration and its targeted regressions.
 Reconcile actual routes and dependency order before executing step 5, preserving
-all natural-delivery, persistence and upgrade assertions. Select any earlier
+all natural-delivery, persistence and schema-compatibility assertions. Select any earlier
 prerequisite work explicitly in the plan and keep Phase 3 open; this gate does
 not authorize Phase 4 work during step 4.
 
 The existing preview/Wellbeing qualification covers default-state settings
 suppression/restoration and environment preservation. Explicit original
-true/false settings, natural delivery, crash/restart/login/upgrade and complete
+true/false settings, natural delivery, crash/restart/login and complete
 customer acceptance remain outside that result and must be accounted for in
 step 5. Preserve the 311b threshold-value versus live-balance contract blocker;
 canonical threshold seconds and emitted body text must remain distinct.
@@ -43,7 +53,7 @@ canonical threshold seconds and emitted body text must remain distinct.
 | Done | Remaining phase | Required exit gate |
 | --- | --- | --- |
 | [ ] | **3 — Qualify security and required functions** | Applicable current-package security, active namespace and ordinary-user checks on both targets; actual scanner proof, usable editor/diagnostic download without sending feedback; remaining public cases and complete natural-reminder/Wellbeing acceptance. Keep engineering and customer results separate. |
-| [ ] | **4 — Qualify package lifecycle and close confinement** | Genuine v1.2 DEB upgrade/activation/reboot; complete removal/reboot/reinstall/purge/retry/foreign-state history and final affected regressions on both targets; review all confinement changes and the preceding partial fix; reconcile every obligation and limitation before closure. |
+| [ ] | **4 — Qualify package lifecycle and close confinement** | Confirm schema migration handles saved-data upgrades correctly; qualify only the latest version, including activation/reboot, complete removal/reboot/reinstall/purge/retry/foreign-state history and final affected regressions on both targets; review all confinement changes and the preceding partial fix; reconcile every obligation and limitation before closure. |
 
 ### Phase 4 session steps
 
@@ -51,24 +61,30 @@ Phase 4 follows Phase 3's exit gate, subject to explicit dependency-order
 reconciliation above. Its scope requires separate sessions. Once selected,
 execute only the first unchecked row below. The
 [removal design](SystemDesign/Package-Removal.md),
-[upgrade acceptance](Publishing.md#upgrade-acceptance) and
+[data migration design](SystemDesign/Data-Migration.md) and
 [installed runner](../tests/integration/README.md#running-the-current-installed-suite)
 own mechanics and expectations.
 
+Phase 4 tests only the latest version. Historical package-upgrade testing and
+predecessor package assets are not required. Schema migration must still handle
+supported saved-data upgrades correctly, including direct multi-version
+migration, preservation and safe retry, under the data migration contract.
+The same scope decision removes Phase 3's task 135a live-upgrade dependency.
+
 | Done | Phase 4 step | Required result before stopping |
 | --- | --- | --- |
-| [ ] | **1 — Coverage and verified inputs** | Map every remaining group 3/5 lifecycle obligation to its actual registered route and assertions; record missing installed coverage explicitly. Prepare genuine v1.2/current DEB assets through `check_e2e_upgrade_assets` and current RPM assets through the maintained builder. Record source/tag provenance, package hashes, returned allocations, affected selectors and report-retention needs. Preparation proves no upgrade or removal. Preserve the absent genuine prior RPM as unavailable coverage. |
-| [ ] | **2 — Genuine DEB upgrade** | On Ubuntu, perform the actual v1.2-to-current transition without intervening removal/purge. Verify retained parental settings, required migration/retry behavior, activation notice, pre-reboot restrictions, new boot and broker/kiosk readiness against exact inputs. Extend missing guarded coverage identified in step 1 before claiming it; the existing changed-payload/reboot route alone does not establish every older-version/settings assertion. This result supplies no task 135a no-action acceptance. |
+| [ ] | **1 — Coverage and verified inputs** | Map every remaining group 3/5 lifecycle obligation within the latest-version scope to its actual registered route and assertions; record missing installed coverage explicitly. Prepare latest-version DEB and RPM assets through the maintained builder. Record source provenance, package hashes, returned allocations, affected selectors and report-retention needs. Preparation proves no installed lifecycle behavior. |
+| [ ] | **2 — Schema migration and latest-version activation** | Review the schema migration chain and its regression coverage for supported older schemas, direct multi-version migration, retained parental settings and interruption/retry safety; resolve any gaps through the maintained schema regressions. On both targets, verify latest-version activation notices, pre-reboot restrictions, new boot and broker/kiosk readiness against exact inputs. No historical package transition is required. |
 | [ ] | **3 — Ubuntu removal history** | Pass the complete registered `removal::test_remove_reboot_reinstall` history on current DEB input: active-kiosk and foreign hook/PAM refusals, successful inactive removal/account finalization, reboot, retained-state reinstall, packaged purge, reboot and fresh reinstall. Verify PAM/policy restoration, ordinary login/desktop health, other-account preservation and reboot notices throughout. |
-| [ ] | **4 — Fedora removal history** | Pass the same complete maintained history on current RPM input, including native DNF removal and packaged purge, restored authselect, enforcing SELinux, account finalization, retained/fresh reinstall behavior and ordinary-user preservation. This is RPM lifecycle evidence, not historical-version RPM upgrade acceptance. |
+| [ ] | **4 — Fedora removal history** | Pass the same complete maintained history on current RPM input, including native DNF removal and packaged purge, restored authselect, enforcing SELinux, account finalization, retained/fresh reinstall behavior and ordinary-user preservation. |
 | [ ] | **5 — Ubuntu interruption and recovery gaps** | Complete the additional installed histories identified in step 1 for interrupted/aborted cleanup, rollback and safe retry, durable admission barriers across payload erasure, and foreign/substituted ownership state. Prove preservation on refusal and successful owned finalization after resolution. Account for prior step 3 assertions without counting host-only fault fixtures as installed proof. |
 | [ ] | **6 — Fedora interruption and recovery gaps** | Complete the corresponding RPM histories, including failed post-erase recovery through normal reinstall/reboot and repeated packaged purge. Preserve foreign state and recovery records until successful owned cleanup; verify the same confinement/account barriers and ordinary-user invariants. Reuse valid step 4 evidence only for the assertions it actually covers. |
 | [ ] | **7 — Independent native-boundary review** | Review the original partial fix against `697a4c30` and all subsequent tracked/untracked confinement changes affecting GDM/PAM, credentials/teardown, locks/leases, executor roles, MAC transitions, private mounts/inodes/FDs, reexec and namespace callbacks on both distros. Apply the [independent-review checklist](#primary-source-routes-and-independent-review-checklist); record findings and resolve demonstrated defects with affected checks before closing this review slice. |
 | [ ] | **8 — Independent lifecycle/function review** | Review the remaining complete change set: package/install/activation/removal ownership, account metadata/recovery, vendor drift, executable/plugin/service APIs, ordinary-user isolation and required public functions. Include test/harness ownership, provenance and evidence quality. Reconcile findings from both review slices with all five work groups; keep demonstrated defects and unproven required behavior open until resolved. |
-| [ ] | **9 — Final candidate and host validation** | After the final product fix, run the affected host regressions and `make build`; prepare and verify final format-specific package inputs and matching snapshots. Record exact candidate identities and which earlier installed/customer results remain applicable. Schedule every invalidated upgrade, lifecycle or functional history as a separate bounded follow-up before final closure. |
-| [ ] | **10 — Final Ubuntu qualification** | On the final DEB input, pass the confinement and namespace matrices, strict real waiting-session census and affected installed/public regressions. Retain current-input upgrade/lifecycle proof and all applicable Phase 3 results; repeat invalidated histories through their complete maintained routes. Record remaining limits and finish owned cleanup. |
-| [ ] | **11 — Final Fedora qualification** | Perform the corresponding final RPM security, census and affected installed/public qualification, with enforcing SELinux and current-input lifecycle proof. Preserve the genuine prior-RPM limitation explicitly. Retain applicable Phase 3 results, complete required follow-ups and finish owned cleanup. |
-| [ ] | **12 — Reconcile and close** | Reconcile every obligation in all five work groups against retained evidence, including Phase 3 natural-reminder/Wellbeing acceptance and both final review slices. Verify report retention and completed owned cleanup; update this record and deliver the detailed independent-review handoff covering the preceding partial fix. Check Phase 4 only when its unchanged exit gate passes; required acceptance gaps or unaccepted scope limits keep confinement open. |
+| [ ] | **9 — Final candidate and host validation** | After the final product fix, run the affected host regressions and `make build`; prepare and verify final format-specific package inputs and matching snapshots. Record exact candidate identities and which earlier installed/customer results remain applicable. Schedule every invalidated in-scope lifecycle or functional history as a separate bounded follow-up before final closure; rerun affected schema regressions when migration changes. |
+| [ ] | **10 — Final Ubuntu qualification** | On the final DEB input, pass the confinement and namespace matrices, strict real waiting-session census and affected installed/public regressions. Retain applicable schema-regression evidence, current-input lifecycle proof and all applicable Phase 3 results; repeat invalidated in-scope histories through their complete maintained routes. Record remaining limits and finish owned cleanup. |
+| [ ] | **11 — Final Fedora qualification** | Perform the corresponding final RPM security, census and affected installed/public qualification, with enforcing SELinux and current-input lifecycle proof. Retain applicable schema-regression evidence and Phase 3 results, complete required in-scope follow-ups and finish owned cleanup. |
+| [ ] | **12 — Reconcile and close** | Reconcile every in-scope obligation in all five work groups against retained evidence, including schema migration correctness, Phase 3 natural-reminder/Wellbeing acceptance and both final review slices. Verify report retention and completed owned cleanup; update this record and deliver the detailed independent-review handoff covering the preceding partial fix. Check Phase 4 only when its latest-version exit gate passes; required acceptance gaps or unaccepted scope limits keep confinement open. |
 
 
 The maintained removal selector owns a continuous five-phase reboot history;
@@ -82,9 +98,9 @@ preserving every assertion and the phase exit gate.
 Later source/package changes require affected requalification. Preserve useful
 historical evidence while reopening or adding bounded follow-ups. Final checks
 remain per distro and per history where further subdivision is needed.
-An absent genuine prior RPM remains unavailable historical-upgrade coverage;
-never fabricate a predecessor. A required acceptance gap or unaccepted scope
-limit keeps closure open.
+Historical package-upgrade coverage is outside Phase 4's scope and does not
+block closure. A required in-scope acceptance gap or unaccepted scope limit
+keeps closure open.
 
 ## Scope and review baseline
 
@@ -94,7 +110,8 @@ The five work groups define the complete confinement scope:
 2. Durable AccountsService kiosk classification with metadata preservation.
 3. Execution/security boundaries, ordinary-user isolation and package lifecycle.
 4. WebKit/scanner, feedback/diagnostics, notifications and Wellbeing.
-5. Genuine upgrade, bounded distro integration and final independent review.
+5. Schema migration correctness, latest-version lifecycle qualification, bounded
+   distro integration and final independent review.
 
 The child must be able to use only the request app and its necessary services.
 Broker/D-Bus/Polkit authorization still owns data access and parent authority.
@@ -486,6 +503,26 @@ SHA-256 is `80ca3104d435628ede10a188e970a538d7b90ff9af85a41ae0998d4c366a6937`.
 Implementation changes affect test code only; package/build inputs are
 unchanged. Step 5 and its dependency gate remain open.
 
+### Overlay reminder editing qualification (step 5a)
+
+`check_e2e_overlay_reminder_editing` passed on Ubuntu 26.04 and Fedora 44.
+Retained reports under `output/test-runs/host/reports/` are
+`20261013T184421Z-4042514f` (Ubuntu) and `20261013T184421Z-45d6670c` (Fedora).
+Both independently verified the four defaults, literal 75-to-90-second editing
+with a stable ID, main Save/reopen, Cancel/reopen and saved empty-list readback.
+Language, request choices and public policy/time remained unchanged apart from
+elapsed time, with no access grant. Both completed owned cleanup and baseline
+restoration.
+
+The shared public API facade and worker use fresh Parent entry and explicit
+Riley selection for final policy readback; retained Parent work is unnecessary
+for this qualification. Focused facade, journey, registration and schema/saved
+preference regressions passed. `make build` passed for the current DEB and RPM
+candidate after release metadata changed. Package source digest is
+`f20b1adbd24cb1d1dfd4554894def9c1e8f90314530d188f120efc88fa679b9e`.
+Only step 5a/task 312a is complete; step 5, Phase 3 and complete cases 311/312
+remain open. The global E2E next-task pointer remains 181m.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the
@@ -510,8 +547,10 @@ changes outside package/build dependencies do not require a package rebuild.
 ### Continuation order and qualification routes
 
 Use `tools/run-tests --help`, `--list` and scoped system/E2E listings to verify
-actual registered selectors. Planned 311/311b/135a selectors must be implemented
-and qualified before execution; documentation is not registration.
+actual registered selectors. Task 312a uses
+`check_e2e_overlay_reminder_editing`; the remaining planned reminder selectors
+must be implemented and qualified before acceptance. Documentation is not
+registration. No historical package-upgrade selector is required here.
 
 ```bash
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_execution_confinement' --vm '<matching target>'
@@ -521,15 +560,14 @@ tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'rem
 tools/run-tests integration 'check_e2e_kiosk_feedback_confinement' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_kiosk_notification_wellbeing' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests integration 'check_e2e_diagnostic_export' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
-tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_upgrade_assets'
+tools/run-tests integration 'check_e2e_overlay_reminder_editing' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 ```
 
-The upgrade-assets route uses `named_input(upgrade_source=True)` and returns
-verified genuine v1.2/current manifests. The older source `4318ff…` lacks the
-release tag and cannot qualify genuine upgrade. Use returned manifests and the
-installed runner's `--previous-artifacts` route only for its documented scope;
-its reboot assertions alone do not establish every older-version/settings
-migration requirement or the no-action update profile.
+Phase 4 uses latest-version manifests only; no upgrade-assets preparation or
+`--previous-artifacts` route is required. Schema compatibility follows the
+[data migration contract](SystemDesign/Data-Migration.md#adding-a-preference-migration).
+Phase 3 also uses only the latest version; its reminder acceptance retains real
+reboot persistence and supported saved-data schema regression coverage.
 
 Ordinary artifact preparation uses one explicit target per invocation; keep
 Ubuntu DEB and Fedora RPM inputs separate. Preparation/cache reuse cannot

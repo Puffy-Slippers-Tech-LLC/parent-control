@@ -773,7 +773,14 @@ from regression_ui import Bucket
 # system_kiosk_platform uses private proc/audit-shaped files and process-local
 # command/account doubles. Fixture identity/cleanup checks touch only pytest
 # directories; no live manager, module loader, bus, VM, mount or child lifetime.
+# Overlay reminder facade/journey/registration safety uses process-local API,
+# transport and clock doubles, tiny pytest-private replies and bounded waited
+# Perl workers. No live settings, bus, display, VM, shared cache or new cleanup
+# owner is used; all three modules permit compatible unit/cleanup scheduling.
 REVIEWED = frozenset("""
+overlay_reminder_cleanup_safety
+overlay_reminder_journey_cleanup_safety
+overlay_reminder_registration_cleanup_safety
 system_kiosk_accounts
 system_kiosk_platform
 e2e_kiosk_notification_wellbeing

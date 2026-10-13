@@ -718,6 +718,12 @@ KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
 OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
 KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
 OPERATIONS |= KIOSK_REMINDER_OPERATIONS
+OVERLAY_REMINDER_OPERATIONS = frozenset('overlay-reminder-' + action for action in (
+    'defaults', 'create', 'edit', 'save', 'read', 'delete', 'delete-all', 'cancel', 'empty'))
+OVERLAY_REMINDER_MUTATIONS = OVERLAY_REMINDER_OPERATIONS - {
+    'overlay-reminder-defaults', 'overlay-reminder-read', 'overlay-reminder-empty'}
+OPERATIONS |= OVERLAY_REMINDER_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= OVERLAY_REMINDER_OPERATIONS
 KIOSK_CHOICE_OPERATIONS = frozenset({'kiosk-approver-baseline'})
 OPERATIONS |= KIOSK_OPERATIONS | KIOSK_CHOICE_OPERATIONS
 KIOSK_ACCOUNT_REQUESTS = {
@@ -8974,6 +8980,282 @@ class AccessibleUI:
         return hashlib.sha256(json.dumps([window.bus, window.path, draft.getValue()],
                                          sort_keys=True).encode()).hexdigest()
 
+    def _overlay_reminder_state(self, *, editor=False, require_tab=True, source=None):
+        """Fresh child, modal, draft and control proofs for reminder operations."""
+        self.require_child_overlay_session()
+        observation = self.read_snapshot()
+        nodes, edges, identities, _facts = observation
+        window = self.request_surface(observation, overlay=True)
+        self.initial_kiosk_child(observation, window, child=CHILD)
+        application = self.snapshot_matches(CHILD_APPLICATION, nodes, identities=identities)
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in self.snapshot_scope(nodes, edges, application)),
+                'ui:reminder-stale')
+        dialog = self.snapshot_owned_target('language-dialog', root=application,
+                                            observation=observation)
+        require(dialog is not None and self.has_state(dialog, self.api.StateType.MODAL),
+                'ui:reminder-preferences')
+        modal = self.snapshot_owned_target('reminder-editor-dialog', root=application,
+                                           observation=observation)
+        require((modal is not None) is editor, 'ui:reminder-editor-entry')
+        allowed = (window, dialog, modal) if editor else (window, dialog)
+        require(not any(self.showing(node) and self.has_state(node, self.api.StateType.MODAL)
+                        and node not in allowed
+                        for node in self.snapshot_scope(nodes, edges, application)),
+                'ui:reminder-modal-blocked')
+        require(not editor or self.has_state(modal, self.api.StateType.MODAL),
+                'ui:reminder-editor-entry')
+
+        def target(identity, *, sensitive=False):
+            root = modal if owned_surface_id(identity) == 'reminder-editor-dialog' else dialog
+            node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                               observation=observation)
+            require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
+                    and (not sensitive or self.has_state(node, self.api.StateType.SENSITIVE)),
+                    'ui:reminder-unavailable')
+            return node
+
+        # Main Save and tab availability distinguish loaded idle preferences
+        # from an in-flight persistence attempt, including while an editor exists.
+        target('language-continue', sensitive=True)
+        tabs = target('preferences-tabs', sensitive=True)
+        selector = self.snapshot_owned_target('language-list', root=dialog,
+                                              showing=False, observation=observation)
+        require(selector is not None, 'ui:reminder-language')
+        language = selector.getValue()
+        require(type(language) is str and language in selector.getChoices(),
+                'ui:reminder-language')
+        if not require_tab:
+            return {'target': target, 'window': window, 'dialog': dialog}
+        require(tabs.getValue() == 'reminders', 'ui:reminder-tab')
+        records = target('reminder-list', sensitive=True).getValue()
+        choices = target('reminder-list').getChoices()
+        require(type(records) is list and len(records) <= 64 and type(choices) is list,
+                'ui:reminder-records')
+        identifiers, seconds = [], []
+        for row in records:
+            require(type(row) is dict and set(row) == {'id', 'value', 'unit', 'text'}
+                    and type(row['id']) is str and len(row['id']) <= 64
+                    and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', row['id'])
+                    and type(row['unit']) is str and row['unit'] in ('minute', 'second')
+                    and type(row['value']) is int
+                    and 1 <= row['value'] <= 4294967295 // (60 if row['unit'] == 'minute' else 1)
+                    and type(row['text']) is str and len(row['text']) <= 4096
+                    and '\x00' not in row['text']
+                    and not any(0xD800 <= ord(char) <= 0xDFFF for char in row['text']),
+                    'ui:reminder-records')
+            identifiers.append(row['id'])
+            seconds.append(row['value'] * (60 if row['unit'] == 'minute' else 1))
+        require(len(set(identifiers)) == len(identifiers) and choices == identifiers
+                and seconds == sorted(seconds), 'ui:reminder-ambiguous-records')
+        for row in records:
+            caption = target(f"reminder-{row['id']}-text")
+            target(f"reminder-{row['id']}-trigger")
+            if row['text']:
+                require(caption.getText() == row['text'], 'ui:reminder-literal')
+        fullscreen = target('reminder-show-in-fullscreen')
+        enabled = self.has_state(fullscreen, self.api.StateType.SENSITIVE)
+        value = fullscreen.getValue()
+        require(type(value) is bool and enabled is bool(records), 'ui:reminder-fullscreen')
+        payload = {'records': json.loads(json.dumps(records)), 'show_in_fullscreen': value,
+                   'fullscreen_enabled': enabled, 'language': language}
+        fingerprint = hashlib.sha256(json.dumps([window.bus, window.path, payload],
+                                                sort_keys=True).encode()).hexdigest()
+        require(source is None or fingerprint == source, 'ui:reminder-stale-draft')
+        payload['source'] = fingerprint
+        return {'target': target, 'window': window, 'dialog': dialog,
+                'editor': modal, 'payload': payload}
+
+    @staticmethod
+    def _reminder_source_binding(source, *, required=False):
+        require((source is None and not required) or
+                (type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source)),
+                'ui:overlay-reminder-binding')
+        return source
+
+    def overlay_reminder_read(self, *, expected_source=None):
+        """Read canonical reminder drafts through the shared product facade."""
+        self._reminder_source_binding(expected_source)
+        with self.language_scope('overlay'):
+            return self._overlay_reminder_state(source=expected_source)['payload']
+
+    @contextmanager
+    def _reminder_input_scope(self):
+        """A failed compound operation never authorizes automatic replay."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        try:
+            yield
+        except BaseException:
+            self.input_uncertain = True
+            raise
+
+    def overlay_reminder_open(self):
+        """Open Riley's current preferences, without completing startup setup."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        with self.language_scope('overlay'), self._reminder_input_scope():
+            observation = self.read_snapshot()
+            window = self.request_surface(observation, overlay=True)
+            self.initial_kiosk_child(observation, window, child=CHILD)
+            require(self.snapshot_owned_target('kiosk-language-ready', root=window,
+                    observation=observation) is not None, 'ui:reminder-language-unready')
+            require(self.snapshot_owned_target('language-dialog', showing=False,
+                    observation=observation, allow_unmapped_surface=True) is None,
+                    'ui:reminder-already-open')
+            require(not any(node != window and self.showing(node)
+                            and self.has_state(node, self.api.StateType.MODAL)
+                            for node in observation[0]), 'ui:reminder-modal-blocked')
+            self.open_language_preferences('overlay')
+            node = self._overlay_reminder_state(require_tab=False)['target'](
+                'preferences-tabs', sensitive=True)
+            self.input_uncertain = True
+            node.setValue('reminders')
+            # The tab starts an asynchronous read. Reacquire only observations;
+            # never retry the setter when loading or transport is uncertain.
+            def loaded():
+                state = self._overlay_reminder_state(require_tab=False)
+                status = self.snapshot_owned_target('reminder-status', root=state['dialog'])
+                return None if status is not None else self._overlay_reminder_state()['payload']
+            result = self.wait(loaded, 'overlay-reminder-loaded')
+            self.input_uncertain = False
+            return result
+
+    @staticmethod
+    def _reminder_row(records, *, seconds, text):
+        matches = [row for row in records
+                   if row['value'] * (60 if row['unit'] == 'minute' else 1) == seconds
+                   and row['text'] == text]
+        require(len(matches) == 1, 'ui:reminder-row-binding')
+        return matches[0]
+
+    @staticmethod
+    def _reminder_editor_fields(state):
+        target = state['target']
+        return (target('reminder-unit').getValue(), target('reminder-value').getText(),
+                target('reminder-text').getText())
+
+    def overlay_reminder_editor(self, *, seconds, text, record_id=None, expected_source=None):
+        """Create or edit one caller-declared row, saving only to its draft."""
+        self._reminder_source_binding(expected_source)
+        require(type(seconds) is int and 1 <= seconds <= 4294967295
+                and type(text) is str and len(text) <= 50 and '\x00' not in text
+                and not any(0xD800 <= ord(char) <= 0xDFFF for char in text)
+                and (record_id is None or type(record_id) is str and len(record_id) <= 64
+                     and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', record_id)),
+                'ui:reminder-editor-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        with self.language_scope('overlay'), self._reminder_input_scope():
+            before = self._overlay_reminder_state(source=expected_source)
+            payload, source = before['payload'], before['payload']['source']
+            existing = [row for row in payload['records'] if row['id'] == record_id]
+            require(len(existing) == (0 if record_id is None else 1), 'ui:reminder-row-binding')
+            require(not any(row['id'] != record_id and row['value'] *
+                    (60 if row['unit'] == 'minute' else 1) == seconds for row in payload['records']),
+                    'ui:reminder-duplicate-seconds')
+            identity = 'reminder-add' if record_id is None else f'reminder-{record_id}-edit'
+            self._invoke_target(before['target'](identity, sensitive=True))
+            self.input_uncertain = True
+            self.wait(lambda: self.snapshot_owned_target('reminder-editor-dialog'),
+                      'overlay-reminder-editor')
+            state = self._overlay_reminder_state(editor=True, source=source)
+            fields = self._reminder_editor_fields(state)
+            if existing:
+                require(fields == (existing[0]['unit'], str(existing[0]['value']), existing[0]['text']),
+                        'ui:reminder-stale-editor')
+            self.input_uncertain = False
+            for identity, value, index in (('reminder-unit', 'second', 0),
+                                           ('reminder-value', str(seconds), 1),
+                                           ('reminder-text', text, 2)):
+                state = self._overlay_reminder_state(editor=True, source=source)
+                require(self._reminder_editor_fields(state) == fields, 'ui:reminder-stale-editor')
+                node = state['target'](identity, sensitive=True)
+                require(index == 0 or self.has_state(node, self.api.StateType.EDITABLE),
+                        'ui:reminder-editor-disabled')
+                self.input_uncertain = True
+                (node.setValue if index == 0 else node.setText)(value)
+                fields = tuple(value if offset == index else field for offset, field in enumerate(fields))
+                current = self._overlay_reminder_state(editor=True, source=source)
+                require(self._reminder_editor_fields(current) == fields, 'ui:reminder-editor-value')
+                self.input_uncertain = False
+            state = self._overlay_reminder_state(editor=True, source=source)
+            require(self._reminder_editor_fields(state) == fields, 'ui:reminder-stale-editor')
+            self._invoke_target(state['target']('reminder-editor-save', sensitive=True))
+            self.input_uncertain = True
+            self.wait(lambda: self.snapshot_owned_target('reminder-editor-dialog') is None,
+                      'overlay-reminder-editor-saved')
+            result = self._overlay_reminder_state()['payload']
+            row = self._reminder_row(result['records'], seconds=seconds, text=text)
+            require((record_id is None and row['id'] not in {r['id'] for r in payload['records']})
+                    or row['id'] == record_id, 'ui:reminder-stored-id')
+            expected = [r for r in payload['records'] if r['id'] != record_id]
+            require([r for r in result['records'] if r['id'] != row['id']] == expected
+                    and result['show_in_fullscreen'] == payload['show_in_fullscreen']
+                    and result['language'] == payload['language'], 'ui:reminder-draft-changed')
+            self.input_uncertain = False
+            return result
+
+    def overlay_reminder_delete(self, record_id, *, expected_source=None):
+        """Delete exactly one declared stable ID from the current draft."""
+        self._reminder_source_binding(expected_source)
+        require(type(record_id) is str and len(record_id) <= 64
+                and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', record_id),
+                'ui:reminder-row-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        with self.language_scope('overlay'), self._reminder_input_scope():
+            state = self._overlay_reminder_state(source=expected_source)
+            before = state['payload']
+            require(sum(row['id'] == record_id for row in before['records']) == 1,
+                    'ui:reminder-row-binding')
+            self._invoke_target(state['target'](f'reminder-{record_id}-delete', sensitive=True))
+            self.input_uncertain = True
+            result = self._overlay_reminder_state()['payload']
+            require(result['records'] == [row for row in before['records'] if row['id'] != record_id]
+                    and result['show_in_fullscreen'] == before['show_in_fullscreen']
+                    and result['language'] == before['language'], 'ui:reminder-delete-result')
+            self.input_uncertain = False
+            return result
+
+    def overlay_reminder_commit(self, *, save, expected_source=None):
+        self._reminder_source_binding(expected_source)
+        require(type(save) is bool, 'ui:reminder-commit-binding')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        with self.language_scope('overlay'), self._reminder_input_scope():
+            state = self._overlay_reminder_state(source=expected_source)
+            self._invoke_target(state['target']('language-continue' if save else 'language-cancel',
+                                               sensitive=True))
+            self.input_uncertain = True
+            self.language_save_completed('overlay')
+            self.input_uncertain = True
+            observation = self.read_snapshot()
+            window = self.request_surface(observation, overlay=True)
+            self.initial_kiosk_child(observation, window, child=CHILD)
+            self.input_uncertain = False
+
+    def overlay_reminder_operation(self, operation):
+        require(operation in OVERLAY_REMINDER_OPERATIONS, 'ui:reminder-operation')
+        if operation in ('overlay-reminder-defaults', 'overlay-reminder-read', 'overlay-reminder-empty'):
+            return {'reminders': self.overlay_reminder_open()}
+        source = self._reminder_source_binding(
+            getattr(self, 'expected_overlay_reminder_source', None), required=True)
+        if operation in ('overlay-reminder-save', 'overlay-reminder-cancel'):
+            self.overlay_reminder_commit(save=operation.endswith('-save'), expected_source=source)
+            return {}
+        if operation == 'overlay-reminder-create':
+            return {'reminders': self.overlay_reminder_editor(seconds=75, text='Save <work>!',
+                                                              expected_source=source)}
+        if operation == 'overlay-reminder-edit':
+            row = self._reminder_row(self.overlay_reminder_read(expected_source=source)['records'],
+                                     seconds=75, text='Save <work>!')
+            return {'reminders': self.overlay_reminder_editor(seconds=90, text='Save <work> & games!',
+                record_id=row['id'], expected_source=source)}
+        if operation == 'overlay-reminder-delete':
+            row = self._reminder_row(self.overlay_reminder_read(expected_source=source)['records'],
+                                     seconds=90, text='Save <work> & games!')
+            return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source)}
+        result = self.overlay_reminder_read(expected_source=source)
+        for row in result['records']:
+            result = self.overlay_reminder_delete(row['id'], expected_source=result['source'])
+        return {'reminders': result}
+
     def kiosk_reminder_preview(self):
         """Preview an unsaved literal through the installed notification renderer."""
         self.open_language_preferences('kiosk')
@@ -11518,6 +11800,8 @@ class AccessibleUI:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals'):
                 result['provider'] = self.shell_provider_metadata()
+        elif operation in OVERLAY_REMINDER_OPERATIONS:
+            result.update(self.overlay_reminder_operation(operation))
         elif operation in KIOSK_REMINDER_OPERATIONS:
             result['reminder'] = (self.kiosk_reminder_preview() if operation ==
                                   'kiosk-reminder-preview' else self.kiosk_reminder_preview_cancel())
@@ -12867,6 +13151,11 @@ def main():
     child = sys.argv[5] if len(sys.argv) == 6 else None
     require(child is None or (child in NAMED_CUSTOM_CHILDREN and
             sys.argv[1] in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
+    overlay_reminder_binding = sys.argv[1] in OVERLAY_REMINDER_MUTATIONS
+    overlay_reminder_source = (sys.argv[4] if len(sys.argv) == 5
+                              and overlay_reminder_binding else None)
+    if overlay_reminder_binding:
+        AccessibleUI._reminder_source_binding(overlay_reminder_source, required=True)
     boot = None
     if len(sys.argv) >= 4:
         # This is transport continuity, not a product/UI assertion. Check it
@@ -12939,11 +13228,13 @@ def main():
     require(not reminder_binding or (ui.expected_kiosk_reminder_source is not None and
             re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_reminder_source)),
             'ui:kiosk-reminder-binding')
+    ui.expected_overlay_reminder_source = overlay_reminder_source
     ui.expected_kiosk_diagnostic_source = sys.argv[4] if len(sys.argv) == 5 and diagnostic_binding else None
     require(not diagnostic_binding or (ui.expected_kiosk_diagnostic_source is not None and
             re.fullmatch(r'[0-9a-f]{64}', ui.expected_kiosk_diagnostic_source)),
             'ui:kiosk-diagnostic-binding')
-    ui.expected_mate_challenge = sys.argv[4] if len(sys.argv) == 5 and not trace_argument and not diagnostic_binding and not reminder_binding else None
+    ui.expected_mate_challenge = (sys.argv[4] if len(sys.argv) == 5 and not trace_argument
+        and not diagnostic_binding and not reminder_binding and not overlay_reminder_binding else None)
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

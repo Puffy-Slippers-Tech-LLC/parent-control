@@ -383,6 +383,10 @@ OPERATION_LABELS.update({operation: 'Preserving the declared multilingual reques
                          for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS})
 OPERATION_LABELS['overlay-language-policy'] = 'Comparing Riley saved policy in Parent'
+OPERATION_LABELS.update({operation: 'Editing or reading Riley reminders through public Preferences'
+                        for operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS})
+RESPONSE_BYTE_LIMITS.update({operation: 32768
+                            for operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Transferring child choices between the overlay and request station: ' + operation
                         for operation in accessible_ui.TRANSFER_OPERATIONS})
 RESPONSE_BYTE_LIMITS.update({operation: 32768 for operation in
@@ -912,6 +916,7 @@ class UiObservations:
                             or operation in accessible_ui.OVERLAY_VALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_INVALID_OPERATIONS
                             or operation in accessible_ui.OVERLAY_LANGUAGE_OPERATIONS
+                            or operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-panel-reveal-ready'))
@@ -1119,6 +1124,7 @@ class UiObservations:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 read_started = time.monotonic_ns()
                 result = self._observe(operation, **({'child': child} if child else {}))
+                self.read_bounds = (read_started, time.monotonic_ns())
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
                     result['revoke_cancel']['read_bounds'] = [read_started, time.monotonic_ns()]
                 if operation in accessible_ui.COUNTDOWN_OPERATIONS:
@@ -1163,6 +1169,7 @@ class UiObservations:
                                  set(accessible_ui.PARENT_DIALOG_BINDINGS) |
                                  accessible_ui.KIOSK_LANGUAGE_OPERATIONS |
                                  accessible_ui.OVERLAY_LANGUAGE_OPERATIONS |
+                                 accessible_ui.OVERLAY_REMINDER_OPERATIONS |
                                  set(accessible_ui.KIOSK_LANGUAGE_POLICIES) | {'overlay-language-policy'} |
                                  set(accessible_ui.KIOSK_LANGUAGE_ACCOUNTS) |
                                  set(accessible_ui.LANGUAGE_HISTORY_REQUESTS) | {'kiosk-language-account-refusals'}):
@@ -1265,6 +1272,11 @@ class UiObservations:
             require(self.last_operation == 'kiosk-reminder-preview' and
                     hasattr(self, 'kiosk_reminder_source'), 'ui:kiosk-reminder-order')
             binding = [self.boot_guard or '', self.kiosk_reminder_source]
+        if operation in accessible_ui.OVERLAY_REMINDER_MUTATIONS:
+            source = getattr(self, 'overlay_reminder_source', None)
+            require(type(source) is str and re.fullmatch(r'[0-9a-f]{64}', source),
+                    'ui:reminder-source-required')
+            binding = [self.boot_guard or '', source]
         if operation in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor'):
             require(self.last_operation == ('kiosk-diagnostic-error' if
                     operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
@@ -1396,6 +1408,31 @@ class UiObservations:
                     and all(type(seconds) is int and seconds >= 0 for seconds in value['balances'].values()),
                     'ui:language-balances')
             expected['language_policy'] = value
+        if operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS and operation not in (
+                'overlay-reminder-save', 'overlay-reminder-cancel'):
+            value = result.get('reminders')
+            require(type(value) is dict and set(value) == {
+                'records', 'show_in_fullscreen', 'fullscreen_enabled', 'language', 'source'}
+                and type(value['records']) is list and len(value['records']) <= 64
+                and type(value['show_in_fullscreen']) is bool
+                and type(value['fullscreen_enabled']) is bool
+                and value['language'] in accessible_ui.PARENT_LANGUAGE_CHOICES
+                and type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']),
+                'ui:reminder-response')
+            identifiers = set()
+            for row in value['records']:
+                require(type(row) is dict and set(row) == {'id', 'value', 'unit', 'text'}
+                    and type(row['id']) is str and len(row['id']) <= 64
+                    and re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', row['id'])
+                    and row['id'] not in identifiers and row['unit'] in ('minute', 'second')
+                    and type(row['value']) is int and 0 < row['value'] <= (
+                        4294967295 // 60 if row['unit'] == 'minute' else 4294967295)
+                    and type(row['text']) is str and len(row['text']) <= 4096
+                    and '\x00' not in row['text']
+                    and not any(0xD800 <= ord(character) <= 0xDFFF for character in row['text']),
+                    'ui:reminder-record')
+                identifiers.add(row['id'])
+            expected['reminders'] = value
         if operation in accessible_ui.PARENT_DIALOG_BINDINGS:
             surface, language, action = accessible_ui.PARENT_DIALOG_BINDINGS[operation]
             if action == 'refused':
@@ -2310,6 +2347,9 @@ class UiObservations:
                     'ui:recipient-order')
         elif operation == 'gdm-child-recipient-rechecked':
             require(self.last_operation == 'gdm-child-recipient', 'ui:recipient-order')
+        if operation in accessible_ui.OVERLAY_REMINDER_OPERATIONS:
+            self.overlay_reminder_source = (None if operation in (
+                'overlay-reminder-save', 'overlay-reminder-cancel') else result['reminders']['source'])
         self.last_operation = operation
         if operation == 'kiosk-approver-baseline':
             self.approver_uids = tuple(result.pop('approver_uids'))

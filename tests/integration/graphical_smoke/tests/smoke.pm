@@ -134,6 +134,12 @@ sub run {
         onpc_chinese_lifecycle::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{overlay_reminder_editing}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::overlay_reminder_editing(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_language}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

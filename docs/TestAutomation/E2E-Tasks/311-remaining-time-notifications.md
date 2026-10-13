@@ -12,10 +12,9 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **300i** — Child overlay personal-language Save and normal return.
 - **312b** — Selected-child reminder binding, shared editing and independent saved readback.
 - **311c** — Natural reminder observation and owned-banner fullscreen visibility/suppression.
-- **135a** — Verified real no-action package upgrade and independent completion/notice.
 
 Estimate: 40–60 minutes.
-Session exception: The natural one-minute/15-second warning sequence, fullscreen branches, two child accounts and real reboot/upgrade persistence form a continuous customer history.
+Session exception: The natural one-minute/15-second warning sequence, fullscreen branches, two child accounts and current-version reboot persistence form a continuous customer history.
 
 ## Scope and acceptance
 
@@ -30,8 +29,9 @@ Gate: complete the explicit installed reminder prerequisites before composing
 this case. Tasks 312a/312b qualify the public editing and selected-child bindings;
 311a qualifies the implemented fullscreen preference; 311b qualifies natural
 body/urgency observations; 311c qualifies owned-banner visibility during the
-existing task-129 fullscreen game. Reuse task 135a's verified no-action upgrade.
-These remain independent capability slices, not work absorbed by this case.
+existing task-129 fullscreen game. These remain independent capability slices,
+not work absorbed by this case. The customer journey uses the latest installed
+version; targeted maintained schema/migration regressions cover upgrade handling.
 Private preference file edits, broker calls as UI input, injected notification
 events and accelerated private clocks cannot establish customer acceptance.
 
@@ -67,10 +67,15 @@ duplicate during an unchanged countdown. Observe natural lockout with no stale
 product warning on the lock screen.
 
 Save an empty list for one child and a customized list/fullscreen choice for the
-other. Re-enter after a real reboot and a normal verified package upgrade;
-require retained choices, no restored presets for the empty list, and delivery
-of the customized reminder during renewed access. Keep all limits/grants and
-the other child's state independent of reminder changes.
+other. Re-enter after a real reboot on the latest installed version; require
+retained choices, no restored presets for the empty list, and delivery of the
+customized reminder during renewed access. Keep all limits/grants and the other
+child's state independent of reminder changes. Verify upgrade migration with
+the targeted maintained host regressions, without an older-version package
+journey: `tools/run-tests unit 'tests/unit/test_package_configuration.py' -k 'v1_4_configuration_upgrades_legacy_policy_without_losing_choices'` checks
+legacy schema normalization and reminder defaults, and
+`tools/run-tests unit 'tests/unit/test_preferences.py' -k 'notification_crud_persists_isolated_and_preserves_policy_and_language'` checks
+saved notification persistence and isolation.
 
 Register a numeric case, finite recipe, shared worker and exact selector during
 implementation, then use `tools/generate_test_coverage.sh`. No runnable selector,

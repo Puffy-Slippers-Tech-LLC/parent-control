@@ -561,6 +561,41 @@ sub chinese_native_auth {
     $journey->finish();
 }
 
+sub overlay_reminder_editing {
+    onpc_progress::operation('Qualifying saved child overlay reminders and discarded drafts');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'overlay-reminders:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'overlay-reminders', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('child-picker-opened'),
+        'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    $journey->consume_observation('parent-selected', $selected);
+    $journey->seen($_) for ('wrong-entry', 'allowance-configured', 'policy-before', 'wrong-account-refused');
+    $journey->consume_observation('logout-ready', $journey->seen('logout-ready'));
+    $journey->seen($_) for ('logout', 'gdm-logged-out');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    overlay_entry($journey, 'direct', 'command');
+    $journey->seen($_) for ('initial-save', 'initial-form',
+        'defaults-open', 'created', 'edited', 'saved', 'saved-read', 'deleted-draft',
+        'cancelled', 'cancel-read', 'cleared-draft', 'empty-saved', 'empty-read', 'empty-close',
+        'final-form', 'cancel', 'returned', 'child-switch-user', 'child-gdm-switched');
+    my $returned_desktop = onpc_gdm::sign_in_challenge($journey, 'return-parent',
+        'return-greeter', 'return-focused', 'return-desktop');
+    onpc_parent::launch($journey, $returned_desktop, 'management', 'return-desktop');
+    $selected = onpc_parent::select_child($journey, 'child', $journey->seen('return-child-picker-opened'),
+        'return-child-picker-opened', 'return-child-choice-highlighted', 'return-parent-selected');
+    $journey->consume_observation('return-parent-selected', $selected);
+    $journey->seen('policy-after');
+    $journey->finish();
+}
+
 sub overlay_language {
     onpc_progress::operation('Qualifying child overlay language and normal command relaunch');
     my ($exchange, $invocations, $challenges) = @_;

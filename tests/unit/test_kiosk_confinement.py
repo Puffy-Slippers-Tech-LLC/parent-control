@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -1435,7 +1436,8 @@ def test_selinux_global_enforcing_also_checks_preserved_vendor_helper_domain(
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
 @pytest.mark.parametrize('fault', [None, 'label', 'namespace', 'generation', 'parent-role',
-                                  'pinned-inode', 'credentials', 'lifecycle', 'exited'])
+                                  'pinned-inode', 'credentials', 'lifecycle', 'exited',
+                                  'exited-readable', 'exec-change', 'label-change'])
 def test_real_scanner_snapshot_checks_live_parent_every_thread_and_pinned_inode(
         census_model, tmp_path, monkeypatch, backend, fault):
     helper = census_model
@@ -1477,9 +1479,10 @@ def test_real_scanner_snapshot_checks_live_parent_every_thread_and_pinned_inode(
     other.write_bytes(b'private native scanner')
     scanner = tmp_path / '44'
     (scanner / 'exe').symlink_to(other if fault == 'pinned-inode' else pinned)
+    (tmp_path / '43/exe').symlink_to(other)
     monkeypatch.setattr(helper.os, 'pidfd_open', lambda pid: pid)
     monkeypatch.setattr(helper.os, 'close', lambda fd: None)
-    monkeypatch.setattr(helper, 'exited', lambda fd: fault == 'exited' and fd == 44)
+    monkeypatch.setattr(helper, 'exited', lambda fd: fault in ('exited', 'exited-readable') and fd == 44)
     if fault == 'exited':
         (scanner / 'task/1044/stat').unlink()
     real_identity = helper.process_identity
@@ -1489,12 +1492,19 @@ def test_real_scanner_snapshot_checks_live_parent_every_thread_and_pinned_inode(
         reads[path] = reads.get(path, 0) + 1
         if fault == 'lifecycle' and path == scanner and reads[path] > 1:
             return ('replaced', *result[1:])
+        if path == scanner and reads[path] > 1:
+            if fault == 'exec-change':
+                (scanner / 'exe').unlink()
+                (scanner / 'exe').symlink_to(other)
+            if fault == 'label-change':
+                attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
+                (scanner / attribute).write_text('unconfined')
         return result
     monkeypatch.setattr(helper, 'process_identity', identity)
     def observe():
         return helper.scanner_process(scanner, SimpleNamespace(pw_uid=1002), config,
                                       tmp_path / '42', 'private generation', 'mnt:[host]')
-    if fault == 'exited':
+    if fault in ('exited', 'exited-readable'):
         assert observe() is None
     elif fault:
         with pytest.raises(helper.guest.GuestError, match='kiosk-(scanner|census):'):
@@ -1526,6 +1536,7 @@ def test_scanner_observer_missing_transient_is_explicit_and_unknown_stop_refuses
         else original_read(path, *args, **kw))
     monkeypatch.setattr(helper.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1002))
     monkeypatch.setattr(helper, 'manager_pid', lambda unit: 42)
+    monkeypatch.setattr(helper, 'scanner_manager_pid', lambda unit: 42)
     monkeypatch.setattr(helper, 'process_identity', lambda process: ('private', 1, ('1002',) * 4))
     monkeypatch.setattr(helper, 'confined_thread_roles', lambda *args: ['onpc-kiosk-manager'])
     monkeypatch.setattr(helper.os, 'pidfd_open', lambda pid: 42)
@@ -1543,6 +1554,92 @@ def test_scanner_observer_missing_transient_is_explicit_and_unknown_stop_refuses
                                            timeout=0 if not stop else 1)
             assert value == {'scanner_observed': False, 'observation': 'not-observed', 'backend': 'apparmor'}
     assert ready == [True]
+
+
+def test_scanner_observer_is_ready_before_login_and_never_opens_pid_zero(
+        census_model, tmp_path, monkeypatch):
+    helper = census_model
+    monkeypatch.setattr(helper, 'PROC', tmp_path)
+    host = tmp_path / '1/ns/mnt'
+    host.parent.mkdir(parents=True)
+    host.symlink_to('mnt:[host]')
+    monkeypatch.setattr(helper.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1002))
+    monkeypatch.setattr(Path, 'read_text', lambda path: json.dumps({'backend': 'apparmor'}))
+    ready = []
+    def manager(unit):
+        assert ready == [True]  # Login may proceed before the manager exists.
+        return 0
+    monkeypatch.setattr(helper, 'scanner_manager_pid', manager)
+    opened = Mock(side_effect=AssertionError('no live manager'))
+    monkeypatch.setattr(helper.os, 'pidfd_open', opened)
+    with (tmp_path / 'stop').open('w+b') as stream:
+        monkeypatch.setattr(helper.time, 'sleep', lambda seconds:
+                            os.pwrite(stream.fileno(), b'stop\n', 0))
+        assert helper.observe_scanner(stream.fileno(), lambda: ready.append(True)) == {
+            'scanner_observed': False, 'observation': 'not-observed', 'backend': 'apparmor'}
+    opened.assert_not_called()
+
+
+@pytest.mark.parametrize('state,pid', [('activating', 0), ('inactive', 0), ('active', 42)])
+def test_scanner_binds_only_the_started_manager(census_model, monkeypatch, state, pid):
+    helper = census_model
+    monkeypatch.setattr(helper.guest, 'run', lambda argv:
+                        'ActiveState=' + state + '\nMainPID=42\n')
+    assert helper.scanner_manager_pid('user@1002.service') == pid
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('fault', [None, 'label', 'credentials', 'namespace', 'generation',
+                                  'profile-entry', 'proof-write'])
+def test_bwrap_probe_requires_real_app_boundary_before_arming_or_execution(
+        census_model, monkeypatch, backend, fault):
+    helper = census_model
+    generation = 'a' * 64 + '\n'
+    request = dict(backend=backend, uid=1002, gid=1002, namespace=42, generation=generation,
+                   arguments=['/usr/bin/bwrap', '--version'], proof_fd=53)
+    expected = ('onpc-kiosk-app (enforce)' if backend == 'apparmor'
+                else 'system_u:system_r:onpc_kiosk_app_t:s0')
+    change = Mock(return_value=-1 if fault == 'profile-entry' else 0)
+    monkeypatch.setattr(helper.ctypes, 'CDLL', lambda *args, **kwargs:
+                        SimpleNamespace(aa_change_profile=change))
+    monkeypatch.setattr(helper, 'lifecycle_label', lambda value:
+                        'unconfined' if fault == 'label' else expected)
+    credentials = []
+    monkeypatch.setattr(helper.os, 'setgroups', lambda value: credentials.append(('groups', value)))
+    monkeypatch.setattr(helper.os, 'setgid', lambda value: credentials.append(('gid', value)))
+    monkeypatch.setattr(helper.os, 'setuid', lambda value: credentials.append(('uid', value)))
+    monkeypatch.setattr(helper, 'process_identity', lambda path:
+                        ('start', 1, ('0',) * 4 if fault == 'credentials' else ('1002',) * 4))
+    monkeypatch.setattr(helper.os, 'stat', lambda path:
+                        SimpleNamespace(st_ino=43 if fault == 'namespace' else 42))
+    monkeypatch.setattr(helper.Path, 'read_text', lambda path:
+                        'foreign' if fault == 'generation' else generation)
+    inherited = []
+    monkeypatch.setattr(helper.os, 'set_inheritable', lambda fd, value: inherited.append((fd, value)))
+    proofs = []
+    def write(fd, data):
+        assert fd == 53
+        proofs.append(json.loads(data))
+        return len(data) - int(fault == 'proof-write')
+    monkeypatch.setattr(helper.os, 'write', write)
+    executed = []
+    def execute(path, arguments, environment):
+        executed.append((path, arguments, environment))
+        raise RuntimeError('exec captured')
+    monkeypatch.setattr(helper.os, 'execve', execute)
+    failed = fault is not None and not (fault == 'profile-entry' and backend == 'selinux')
+    if failed:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bwrap:'):
+            helper.bwrap_probe_child(request)
+        assert not executed
+    else:
+        with pytest.raises(RuntimeError, match='exec captured'):
+            helper.bwrap_probe_child(request)
+        assert credentials == [('groups', []), ('gid', 1002), ('uid', 1002)]
+        assert proofs == [dict(uid=1002, namespace=42, generation=generation, role=expected)]
+        assert inherited == [(53, False)]
+        assert executed == [('/usr/bin/bwrap', request['arguments'], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})]
+    assert change.call_count == int(backend == 'apparmor')
 
 
 def test_preparation_identity_is_stable_across_same_byte_reinstall(tmp_path, monkeypatch):
@@ -1575,6 +1672,39 @@ def test_inventory_deduplicates_distro_alias_and_rejects_conflicting_roles(tmp_p
     config['executables'].append({'role': 'manager', 'paths': [str(alias)]})
     with pytest.raises(ValueError, match='conflicting'):
         helper.inventory(config)
+
+
+def test_inventory_binds_substitution_bytes_to_their_destination(tmp_path, monkeypatch):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    monkeypatch.setattr(helper, 'trusted', lambda path, **kw: Path(path).resolve(strict=True))
+    native, launcher = tmp_path / 'native', tmp_path / 'launcher'
+    for path, content in ((native, b'\x7fELFnative'), (launcher, b'\x7fELFlauncher')):
+        path.write_bytes(content)
+        path.chmod(0o755)
+    config = {'executables': [
+        {'role': 'bwrap', 'paths': [str(native)], 'source': str(launcher)},
+        {'role': 'bwrap-native', 'paths': [str(launcher)], 'source': str(native)}]}
+    before = {path: path.read_bytes() for path in (native, launcher)}
+    records = helper.inventory(config)
+    assert records == [dict(role=role, path=str(target), source=str(source),
+                            sha256=helper.hashlib.sha256(before[source]).hexdigest())
+                       for role, target, source in
+                       (('bwrap', native, launcher), ('bwrap-native', launcher, native))]
+    assert {path: path.read_bytes() for path in before} == before
+    config['executables'].append({'role': 'bwrap', 'paths': [str(native)], 'source': str(native)})
+    with pytest.raises(ValueError, match='conflicting'):
+        helper.inventory(config)
+
+
+@pytest.mark.parametrize('extra', [{'paths': ['one', 'two']}, {'optional': True},
+                                   {'library_directory': '/usr/lib'}, {'source': ''},
+                                   {'source': False}, {'source': 5}])
+def test_inventory_refuses_ambiguous_substitution(extra):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    entry = dict(role='bwrap', paths=['one'], source='two')
+    entry.update(extra)
+    with pytest.raises(ValueError, match='invalid-executable-substitution'):
+        helper.inventory({'executables': [entry]})
 
 
 def test_blocked_shared_library_needs_no_executable_mode(tmp_path, monkeypatch):
@@ -1816,6 +1946,42 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     monkeypatch.setattr(helper, 'reclaim_interrupted', lambda: reclaims.append(True))
     return SimpleNamespace(helper=helper, runtime=runtime, layout=layout, path=path, record=record,
         identities=identities, manager_checks=manager_checks, reclaims=reclaims)
+
+
+def test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree(
+        preserved_password_preparation, tmp_path, monkeypatch):
+    model = preserved_password_preparation
+    helper = model.helper
+    records = []
+    for name, role, target in (
+            ('launcher', 'bwrap', '/usr/bin/bwrap'),
+            ('native', 'bwrap-native', '/usr/libexec/oh-no-parent-control-kiosk-bwrap')):
+        source = tmp_path / name
+        source.write_bytes(b'\x7fELFprivate ' + name.encode())
+        source.chmod(0o755)
+        records.append(dict(role=role, path=target, source=str(source),
+                            sha256=helper.hashlib.sha256(source.read_bytes()).hexdigest()))
+    originals = {record['source']: Path(record['source']).read_bytes() for record in records}
+    model.layout += [dict(path='/usr/bin', kind='tree'), dict(path='/usr/libexec', kind='tree')]
+    model.layout += [dict(path=record['path'], kind='file') for record in records]
+    monkeypatch.setattr(helper, 'inventory', lambda config: records)
+    def layout(config, observed):
+        assert observed == [*records, model.record]
+        return model.layout
+    monkeypatch.setattr(helper, 'directory_layout', layout)
+    helper.prepare('manager')
+    generation = next(path for path in model.runtime.iterdir() if path.is_dir())
+    bindings = (model.runtime / 'bindings').read_text()
+    for index, record in enumerate(records):
+        copy = generation / str(index)
+        assert copy.read_bytes() == originals[record['source']]
+        assert copy.stat().st_ino != Path(record['source']).stat().st_ino
+        target = generation / 'tree' / record['path'].removeprefix('/usr/')
+        assert f'{copy}\t{target}\n' in bindings
+    assert json.loads((generation / 'records.json').read_text())['records'] == records
+    helper.prepare('gate')
+    assert (model.runtime / 'bindings').read_text() == bindings
+    assert {path: Path(path).read_bytes() for path in originals} == originals
 
 
 @pytest.mark.parametrize('role', ['manager', 'gate'])
@@ -2067,7 +2233,7 @@ def test_glycin_sandbox_routes_have_no_general_service_or_unsandboxed_decoder_ro
     policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
     routes = policy.routes()
     assert routes['polkit'] == {'polkit': 'polkit', 'bwrap': 'glycin-bwrap'}
-    assert routes['glycin-bwrap'] == {'glycin': 'glycin'}
+    assert routes['glycin-bwrap'] == {'bwrap-native': 'glycin-bwrap', 'glycin': 'glycin'}
     assert routes['glycin'] == {}
     assert {source for source, targets in routes.items() if 'glycin' in targets} == {'bwrap', 'glycin-bwrap'}
     for distribution in ('ubuntu', 'fedora'):
@@ -2096,27 +2262,91 @@ def test_glycin_sandbox_routes_have_no_general_service_or_unsandboxed_decoder_ro
     assert '(allow onpc_kiosk_glycin_t self (capability (sys_admin' not in generated
 
 
-def test_glycin_private_loopback_permissions_do_not_expand_payload_or_initial_namespace():
+def test_native_bootstrap_permissions_do_not_expand_payload_or_initial_namespace():
     policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
     generated = policy.apparmor(policy.executables('ubuntu'))
     for domain in policy.DOMAINS:
         profile = generated.split(f'profile onpc-kiosk-{domain} ', 1)[1].split('\n}\n', 1)[0]
-        assert ('  capability net_admin,' in profile) == (domain == 'glycin-bwrap')
+        assert ('  capability net_admin,' in profile) == (domain in ('bwrap', 'glycin-bwrap'))
         assert ('  / r,' in profile) == (domain in ('polkit', 'bwrap', 'glycin-bwrap'))
     generated = policy.selinux(policy.executables('fedora'))
     network_admin = [line for line in generated.splitlines()
                      if 'net_admin' in line or 'nlmsg_write' in line]
-    assert network_admin == [
-        '(allow onpc_kiosk_glycin_bwrap_t self (cap_userns (net_admin)))',
-        '(allow onpc_kiosk_glycin_bwrap_t self (netlink_route_socket (nlmsg_write)))']
+    assert network_admin == [line for name in ('bwrap', 'glycin_bwrap') for line in (
+        f'(allow onpc_kiosk_{name}_t self (cap_userns (net_admin)))',
+        f'(allow onpc_kiosk_{name}_t self (netlink_route_socket (nlmsg_write)))')]
     assert 'sys_ptrace' not in '\n'.join(line for line in generated.splitlines()
                                       if line.startswith('(allow onpc_kiosk_glycin'))
     assert [line for line in generated.splitlines()
             if ' fs_t (filesystem ' in line] == [
-        '(allow onpc_kiosk_glycin_bwrap_t fs_t (filesystem (remount unmount)))']
+        f'(allow onpc_kiosk_{name}_t fs_t (filesystem (remount unmount)))'
+        for name in ('bwrap', 'glycin_bwrap')]
     assert [line for line in generated.splitlines()
             if ' tmpfs_t (file (mounton))' in line] == [
-        '(allow onpc_kiosk_glycin_bwrap_t tmpfs_t (file (mounton)))']
+        f'(allow onpc_kiosk_{name}_t tmpfs_t (file (mounton)))'
+        for name in ('bwrap', 'glycin_bwrap')]
+    assert [line for line in generated.splitlines() if ' sysfs_t (filesystem ' in line] == [
+        '(allow onpc_kiosk_bwrap_t sysfs_t (filesystem (remount)))']
+    assert [line for line in generated.splitlines() if ' locale_t (file (mounton))' in line] == [
+        '(allow onpc_kiosk_bwrap_t locale_t (file (mounton)))']
+    assert [line for line in generated.splitlines() if 'onpc_kiosk_scanner_exec_t (file (mounton))' in line] == [
+        '(allow onpc_kiosk_bwrap_t onpc_kiosk_scanner_exec_t (file (mounton)))']
+    assert [line for line in generated.splitlines() if 'onpc_kiosk_service_exec_t (file (mounton))' in line] == [
+        '(allow onpc_kiosk_bwrap_t onpc_kiosk_service_exec_t (file (mounton)))']
+    assert [line for line in generated.splitlines() if ' bin_t (file (mounton))' in line] == [
+        '(allow onpc_kiosk_bwrap_t bin_t (file (mounton)))']
+    assert not any(' bin_t (file (' in line and 'execute' in line for line in generated.splitlines())
+    assert {line for line in generated.splitlines() if line.startswith('(allow onpc_kiosk') and
+            '(file (' in line and 'mounton' in line} == {
+        '(allow onpc_kiosk_bwrap_t tmpfs_t (file (mounton)))',
+        '(allow onpc_kiosk_glycin_bwrap_t tmpfs_t (file (mounton)))',
+        '(allow onpc_kiosk_bwrap_t locale_t (file (mounton)))',
+        '(allow onpc_kiosk_bwrap_t onpc_kiosk_scanner_exec_t (file (mounton)))',
+        '(allow onpc_kiosk_bwrap_t onpc_kiosk_service_exec_t (file (mounton)))',
+        '(allow onpc_kiosk_bwrap_t bin_t (file (mounton)))',
+    }
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_native_bubblewrap_requires_the_pinned_launcher(distribution):
+    policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
+    entries = policy.executables(distribution)
+    assert [entry for entry in entries if entry['role'].startswith('bwrap')] == [
+        dict(role='bwrap', paths=['/usr/bin/bwrap'], source=policy.PREFIX + 'bwrap'),
+        dict(role='bwrap-native', paths=[policy.PREFIX + 'bwrap'], source='/usr/bin/bwrap')]
+    assert {source: targets['bwrap-native'] for source, targets in policy.routes().items()
+            if 'bwrap-native' in targets} == {'bwrap': 'bwrap', 'glycin-bwrap': 'glycin-bwrap'}
+    generated = policy.apparmor(entries)
+    for domain in policy.DOMAINS:
+        profile = generated.split(f'profile onpc-kiosk-{domain} ', 1)[1].split('\n}\n', 1)[0]
+        bootstrap = domain in ('bwrap', 'glycin-bwrap')
+        assert (f'{policy.PREFIX}bwrap ix,' in profile) == bootstrap
+        assert ('mount options=(rw, rbind) /oldroot/usr/bin/ -> /newroot/usr/bin/,' in profile) == bootstrap
+        if bootstrap:
+            assert 'deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,' in profile
+            assert 'deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,' in profile
+            assert '/newroot/usr/bin/xdg-dbus-proxy w' not in profile
+        aliases = [line.strip() for line in profile.splitlines()
+                   if 'mount options=(rw, rbind) /oldroot/usr/lib' in line and
+                   ' -> /newroot/lib' in line]
+        assert aliases == ([f'mount options=(rw, rbind) /oldroot/usr/{path}/ -> /newroot/{path}/,'
+                            for path in ('lib', 'lib64')] if domain == 'bwrap' else [])
+        webkit_directories = {str(Path(path).parent) for entry in entries if entry['role'] == 'webkit'
+                              for path in entry['paths']}
+        for directory in webkit_directories:
+            for path in (directory, directory + '/injected-bundle'):
+                assert (f'mount options=(rw, rbind) /oldroot{path}/ -> '
+                        f'/newroot{path}/,' in profile) == (domain == 'bwrap')
+        assert ('mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> '
+                '/newroot/usr/share/zoneinfo/**,' in profile) == (domain == 'bwrap')
+        assert ('mount options=(rw, rbind) /oldroot/dev/udmabuf -> '
+                '/newroot/dev/udmabuf,' in profile) == (domain == 'bwrap')
+        for entry in entries:
+            if entry['role'] == 'scanner':
+                for path in entry['paths']:
+                    for file in (path, str(Path(path).with_name('gst-ptp-helper'))):
+                        assert (f'mount options=(rw, rbind) /oldroot{file} -> '
+                                f'/newroot{file},' in profile) == (domain == 'bwrap')
 
 
 def test_native_bubblewrap_flags_match_apparmor_normalization_at_finite_paths():
@@ -2129,11 +2359,49 @@ def test_native_bubblewrap_flags_match_apparmor_normalization_at_finite_paths():
         assert 'mount options=(rw, rbind) /oldroot/dev/null -> /newroot/dev/null,' in profile
         assert 'mount options=(rw, rbind) /oldroot/etc/ld.so.cache -> /newroot/etc/ld.so.cache,' in profile
         assert 'mount options=(rw, rbind) /oldroot/usr/ -> /newroot/usr/,' in profile
+        assert 'mount options=(rw, rbind) /bindfile?????? -> /newroot/.flatpak-info,' in profile
+        assert '/memfd:flatpak-info' not in profile
+        assert ('mount options=(rw, rbind) /oldroot/run/user/*/{,**} -> '
+                '/newroot/run/user/*/{,**},' in profile)
+        assert ('mount options=(rw, bind) /oldroot/home/oh-no-parent-control/{,**} -> '
+                '/newroot/home/oh-no-parent-control/{,**},' in profile)
         assert 'mount options in (ro, silent, remount, bind, nosuid, nodev, noexec, relatime, noatime, nodiratime) -> /newroot/**,' in profile
         assert '  mount,' not in profile
         assert 'silent, rbind' not in profile and 'silent, bind)' not in profile
         assert 'silent' not in '\n'.join(line for line in profile.splitlines()
                                        if 'mount fstype=' in line)
+
+
+def test_native_bubblewrap_launcher_preserves_arguments_environment_and_descriptors(tmp_path):
+    capture = tmp_path / 'capture'
+    capture.write_text('#!/usr/bin/python3 -I\nimport json, os, sys\n'
+        'print(json.dumps([sys.argv[1:], os.environ["ONPC_PRIVATE_CAPTURE"], '
+        'os.read(int(sys.argv[-1]), 256).decode()]))\n')
+    capture.chmod(0o700)
+    source = tmp_path / 'launcher.c'
+    source.write_text((ROOT / 'tools/kiosk_bwrap.c').read_text().replace(
+        '"/usr/libexec/oh-no-parent-control-kiosk-bwrap"', json.dumps(str(capture))))
+    launcher = tmp_path / 'launcher'
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o', str(launcher), str(source)],
+                   check=True, capture_output=True, timeout=30)
+    with (tmp_path / 'sealed-arguments').open('w+b') as inherited:
+        inherited.write(b'--unshare-pid\0--proc\0/proc\0')
+        inherited.seek(0)
+        arguments = ['--args', str(inherited.fileno()), '--', '/usr/bin/xdg-dbus-proxy',
+                     '--fd=' + str(inherited.fileno()), str(inherited.fileno())]
+        result = subprocess.run([str(launcher), *arguments], pass_fds=(inherited.fileno(),),
+            env={**os.environ, 'ONPC_PRIVATE_CAPTURE': 'preserved'}, capture_output=True,
+            text=True, check=True, timeout=5)
+    assert json.loads(result.stdout) == [
+        ['--ro-bind', '/usr/bin', '/usr/bin', *arguments], 'preserved',
+        '--unshare-pid\0--proc\0/proc\0']
+    # An installed launcher outside the admitted namespace must refuse its
+    # unchanged source inode instead of recursively executing itself.
+    capture.unlink()
+    capture.hardlink_to(launcher)
+    result = subprocess.run([str(launcher)], capture_output=True, timeout=5)
+    assert result.returncode == 1 and result.stdout == b''
+    assert result.stderr == b'onpc.kiosk sandbox startup outcome=failed\n'
 
 
 def test_vendor_password_helper_permissions_remain_limited_to_measured_protocol():

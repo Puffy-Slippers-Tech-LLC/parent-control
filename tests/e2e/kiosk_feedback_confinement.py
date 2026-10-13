@@ -13,6 +13,26 @@ PLAN = replace(CHOICES_PLAN, worker_mode='kiosk_feedback_confinement',
     phases={**CHOICES_PLAN.phases, **{stage: 'step-2' for stage in EXTRA}})
 
 
+def scanner_proven(value):
+    if not isinstance(value, dict) or set(value) != {
+            'scanner_observed', 'observation', 'backend', 'scanner_thread_roles',
+            'parent_thread_roles', 'pinned_executable', 'private_namespace_and_generation'}:
+        return False
+    backend = value['backend']
+    if backend not in ('apparmor', 'selinux'):
+        return False
+    role = lambda name: ('onpc-kiosk-' + name if backend == 'apparmor'
+                         else 'onpc_kiosk_' + name + '_t')
+    scanner, parent = value['scanner_thread_roles'], value['parent_thread_roles']
+    allowed = {role(name) for name in ('scanner', 'app', 'webkit', 'bwrap')}
+    return (value['observation'] == 'observed' and value['scanner_observed'] is True and
+        value['pinned_executable'] is True and value['private_namespace_and_generation'] is True and
+        all(isinstance(counts, dict) and bool(counts) and set(counts) <= allowed and
+            all(type(count) is int and count > 0 for count in counts.values())
+            for counts in (scanner, parent)) and role('scanner') in scanner and
+        bool(set(parent) & {role('app'), role('webkit')}))
+
+
 class KioskFeedbackConfinementJourney(InstalledJourney):
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN)
@@ -45,7 +65,15 @@ class KioskFeedbackConfinementJourney(InstalledJourney):
 
     def check_request(self, stage, observed):
         super().check_request(stage, observed)
-        if stage == 'selections-read':
+        if stage == 'station-list':
+            # Gst.init in the actual request window can scan before the
+            # report exists. Observe before station login, including manager
+            # startup, rather than accepting a cached/missed transient later.
+            self.scanner_pending = True
+            observed['engineering_scanner_start'] = self.engineering('scanner-start')
+            require(observed['engineering_scanner_start'] == {'scanner_observer_started': True},
+                    'kiosk-feedback:scanner-start-response')
+        elif stage == 'selections-read':
             # Set this before transport: an uncertain reply never licenses
             # replay of the mutation and must still attempt owned restoration.
             self.fault_pending = True
@@ -55,12 +83,10 @@ class KioskFeedbackConfinementJourney(InstalledJourney):
                 'kiosk-feedback:fault-response')
         elif stage == 'kiosk-diagnostic-error':
             observed['engineering_recovery'] = self.restore_fault()
-            self.scanner_pending = True
-            observed['engineering_scanner_start'] = self.engineering('scanner-start')
-            require(observed['engineering_scanner_start'] == {'scanner_observer_started': True},
-                    'kiosk-feedback:scanner-start-response')
         elif stage == 'kiosk-diagnostic-editor':
             observed['engineering_scanner'] = self.stop_scanner()
-            require(observed['engineering_scanner']['observation'] != 'rejected',
-                    'kiosk-feedback:scanner-confinement-rejected')
+            scanner = observed['engineering_scanner']
+            require(scanner_proven(scanner), 'kiosk-feedback:scanner-confinement-unproven')
             observed['engineering_confinement'] = self.engineering('census')
+            require(observed['engineering_confinement']['census']['backend'] == scanner['backend'],
+                    'kiosk-feedback:scanner-census-backend')

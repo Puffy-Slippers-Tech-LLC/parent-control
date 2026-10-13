@@ -246,12 +246,14 @@ def scanner_process(process, account, config, manager, generation, host_namespac
         parent_fd = os.pidfd_open(identity[1])
         descriptors.append(parent_fd)
         parent_identity = process_identity(parent)
+        parent_exe = (parent / 'exe').stat()
         parent_threads = {thread: process_identity(thread) for thread in (parent / 'task').iterdir()}
         backend = config['backend']
         role_name = lambda name: ('onpc-kiosk-' + name if backend == 'apparmor'
                                   else 'onpc_kiosk_' + name + '_t')
         counts = []
         namespaces = set()
+        thread_roles = {}
         for snapshot, expected in ((threads, {role_name('scanner')}),
                                    (parent_threads, {role_name('app'), role_name('webkit')})):
             roles_seen = {}
@@ -259,6 +261,7 @@ def scanner_process(process, account, config, manager, generation, host_namespac
                 guest.require(status[2] == (str(account.pw_uid),) * 4, 'kiosk-scanner:mixed-credentials')
                 roles = confined_thread_roles(thread, config, backend, generation, host_namespace)
                 guest.require(bool(set(roles) & expected), 'kiosk-scanner:unexpected-role')
+                thread_roles[thread] = roles
                 namespaces.add(os.readlink(thread / 'ns/mnt'))
                 for role in roles:
                     roles_seen[role] = roles_seen.get(role, 0) + 1
@@ -270,12 +273,22 @@ def scanner_process(process, account, config, manager, generation, host_namespac
                   if entry['role'] == 'scanner' for path in entry['paths']]
         guest.require(any((actual.st_dev, actual.st_ino) == (value.st_dev, value.st_ino)
                           for value in pinned), 'kiosk-scanner:unpinned-executable')
-        for target, expected_identity, snapshot, pidfd in (
-                (process, identity, threads, scanner_fd), (parent, parent_identity, parent_threads, parent_fd)):
+        if any(exited(fd) for fd in descriptors):
+            return None
+        for target, expected_identity, snapshot, executable in (
+                (process, identity, threads, actual),
+                (parent, parent_identity, parent_threads, parent_exe)):
             guest.require(set((target / 'task').iterdir()) == set(snapshot) and
                 all(process_identity(thread) == value for thread, value in snapshot.items()) and
-                process_identity(target) == expected_identity and not exited(pidfd),
+                process_identity(target) == expected_identity,
                 'kiosk-scanner:process-lifecycle-changed')
+            current = (target / 'exe').stat()
+            guest.require((current.st_dev, current.st_ino) == (executable.st_dev, executable.st_ino) and
+                all(os.readlink(thread / 'ns/mnt') in namespaces and
+                    set(confined_thread_roles(thread, config, backend, generation, host_namespace)) ==
+                    set(thread_roles[thread]) for thread in snapshot), 'kiosk-scanner:boundary-changed')
+        if any(exited(fd) for fd in descriptors):
+            return None
         return {'scanner_observed': True, 'observation': 'observed', 'backend': backend,
                 'scanner_thread_roles': counts[0], 'parent_thread_roles': counts[1],
                 'pinned_executable': True, 'private_namespace_and_generation': True}
@@ -289,22 +302,29 @@ def scanner_process(process, account, config, manager, generation, host_namespac
             os.close(fd)
 
 
-def observe_scanner(stop_fd, ready, *, timeout=75):
-    """Bounded read-only observer around the real editor's transient startup."""
+def scanner_manager_pid(unit):
+    state = dict(line.split('=', 1) for line in guest.run([
+        'systemctl', 'show', '--property=ActiveState,MainPID', unit]).splitlines())
+    guest.require(set(state) == {'ActiveState', 'MainPID'} and state['MainPID'].isdigit(),
+                  'kiosk-scanner:manager-state')
+    # MainPID can name the executor while PAM is still entering confinement.
+    # Bind the final manager only once its native startup is complete.
+    return int(state['MainPID']) if state['ActiveState'] == 'active' else 0
+
+
+def observe_scanner(stop_fd, ready, *, timeout=300):
+    """Observe real station/editor startup, including its transient scanner.
+
+    Readiness precedes login: the manager need not exist yet. A missing
+    manager/scanner remains missing proof, while any observed wrong boundary
+    refuses. No cache removal or synthetic scanner launch supplies evidence.
+    """
     account = pwd.getpwnam('oh-no-parent-control')
     config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
     unit = f'user@{account.pw_uid}.service'
-    manager = PROC / str(manager_pid(unit))
-    manager_fd = os.pidfd_open(int(manager.name))
+    manager_fd = None
     try:
-        manager_identity = process_identity(manager)
-        generation = (manager / 'root/usr/share/oh-no-parent-control/confinement/generation').read_text()
         host_namespace = os.readlink(PROC / '1/ns/mnt')
-        guest.require(manager_identity[2] == (str(account.pw_uid),) * 4 and
-                      generation.strip() != 'unconfined', 'kiosk-scanner:manager-identity')
-        expected = 'onpc-kiosk-manager' if config['backend'] == 'apparmor' else 'onpc_kiosk_manager_t'
-        guest.require(confined_thread_roles(manager, config, config['backend'], generation, host_namespace) ==
-                      [expected], 'kiosk-scanner:manager-role')
         deadline = time.monotonic() + timeout
         ready()
         while time.monotonic() < deadline:
@@ -312,6 +332,21 @@ def observe_scanner(stop_fd, ready, *, timeout=75):
             guest.require(stop in (b'', b'stop\n'), 'kiosk-scanner:stop-content')
             if stop:
                 break
+            if manager_fd is None:
+                pid = scanner_manager_pid(unit)
+                if pid == 0:
+                    time.sleep(0.02)
+                    continue
+                manager = PROC / str(pid)
+                manager_fd = os.pidfd_open(pid)
+                manager_identity = process_identity(manager)
+                generation = (manager / 'root/usr/share/oh-no-parent-control/confinement/generation').read_text()
+                guest.require(manager_identity[2] == (str(account.pw_uid),) * 4 and
+                              generation.strip() != 'unconfined', 'kiosk-scanner:manager-identity')
+                expected = ('onpc-kiosk-manager' if config['backend'] == 'apparmor'
+                            else 'onpc_kiosk_manager_t')
+                guest.require(confined_thread_roles(manager, config, config['backend'], generation,
+                              host_namespace) == [expected], 'kiosk-scanner:manager-role')
             for process in PROC.iterdir():
                 if not process.name.isdecimal():
                     continue
@@ -327,11 +362,13 @@ def observe_scanner(stop_fd, ready, *, timeout=75):
                                   manager_pid(unit) == int(manager.name), 'kiosk-scanner:manager-changed')
                     return observed
             time.sleep(0.005)
-        guest.require(not exited(manager_fd) and process_identity(manager) == manager_identity and
-                      manager_pid(unit) == int(manager.name), 'kiosk-scanner:manager-changed')
+        if manager_fd is not None:
+            guest.require(not exited(manager_fd) and process_identity(manager) == manager_identity and
+                          manager_pid(unit) == int(manager.name), 'kiosk-scanner:manager-changed')
         return {'scanner_observed': False, 'observation': 'not-observed', 'backend': config['backend']}
     finally:
-        os.close(manager_fd)
+        if manager_fd is not None:
+            os.close(manager_fd)
 
 
 def user_command(account, command, *, check=True):
@@ -749,6 +786,172 @@ def verify_pam_lifecycle(account, unit, backend, directory, record):
             guest.require(libc.prctl(36, previous.value, 0, 0, 0) == 0, 'kiosk-lifecycle:restore-subreaper')
 
 
+def bwrap_probe_child(request):
+    """Root-owned engineering entry into the app boundary, never a product route.
+
+    AppArmor can restrict the already-running harness immediately. SELinux
+    enters through an independent root-private interpreter fixture carrying the
+    existing Python entrypoint type, as the PAM caller probes do. No production
+    interpreter or dynamic-transition permission is added for this fixture.
+    """
+    backend = request['backend']
+    expected = ('onpc-kiosk-app (enforce)' if backend == 'apparmor'
+                else 'system_u:system_r:onpc_kiosk_app_t:s0')
+    if backend == 'apparmor':
+        library = ctypes.CDLL('libapparmor.so.1', use_errno=True)
+        library.aa_change_profile.argtypes = [ctypes.c_char_p]
+        guest.require(library.aa_change_profile(b'onpc-kiosk-app') == 0,
+                      'kiosk-bwrap:app-profile-entry')
+    guest.require(lifecycle_label(backend) == expected, 'kiosk-bwrap:app-label')
+    os.setgroups([])
+    os.setgid(request['gid'])
+    os.setuid(request['uid'])
+    guest.require(process_identity(PROC / 'self')[2] == (str(request['uid']),) * 4 and
+                  os.stat('/proc/self/ns/mnt').st_ino == request['namespace'] and
+                  Path('/usr/share/oh-no-parent-control/confinement/generation').read_text() ==
+                  request['generation'], 'kiosk-bwrap:app-boundary')
+    proof = {name: request[name] for name in ('uid', 'namespace', 'generation')}
+    proof['role'] = expected
+    os.set_inheritable(request['proof_fd'], False)
+    data = json.dumps(proof).encode()
+    guest.require(os.write(request['proof_fd'], data) == len(data), 'kiosk-bwrap:proof-write')
+    try:
+        os.execve('/usr/bin/bwrap', request['arguments'], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
+    except OSError:
+        os._exit(126)
+
+
+def verify_bwrap_inputs(account, directory, record):
+    """User bytes cannot acquire a pinned executable's authority through a bind."""
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    backend = config['backend']
+    guest.require(backend in ('apparmor', 'selinux'), 'kiosk-bwrap:backend')
+    manager = PROC / str(manager_pid(f'user@{account.pw_uid}.service'))
+    identity = process_identity(manager)
+    marker = 'usr/share/oh-no-parent-control/confinement/generation'
+    generation = (manager / 'root' / marker).read_text()
+    copied = directory / 'bwrap-canary'
+    shutil.copyfile('/usr/bin/xdg-dbus-proxy', copied)
+    copied.chmod(0o755)
+    os.chown(copied, account.pw_uid, account.pw_gid)
+    with ExitStack() as resources:
+        def descriptor(path, flags):
+            fd = os.open(path, flags | os.O_CLOEXEC)
+            resources.callback(os.close, fd)
+            return fd
+        manager_fd = os.pidfd_open(int(manager.name))
+        resources.callback(os.close, manager_fd)
+        namespace = descriptor(manager / 'ns/mnt', os.O_RDONLY)
+        root = descriptor(manager / 'root', os.O_RDONLY | os.O_DIRECTORY)
+        namespace_inode = os.fstat(namespace).st_ino
+        guest.require(not exited(manager_fd) and process_identity(manager) == identity and
+                      namespace_inode != os.stat('/proc/self/ns/mnt').st_ino,
+                      'kiosk-bwrap:manager-boundary')
+        temporary = resources.enter_context(tempfile.TemporaryDirectory(
+            prefix='bwrap-caller-', dir=guest.PAYLOAD))
+        caller = Path(temporary) / 'caller'
+        if backend == 'selinux':
+            shutil.copyfile(Path('/usr/bin/python3').resolve(), caller)
+            caller.chmod(0o700)
+            guest.run(['/usr/bin/chcon', '-t', 'onpc_kiosk_python_exec_t', str(caller)])
+
+        def probe(arguments, *, input_fd=None, control=False):
+            output_read, output_write = os.pipe2(os.O_CLOEXEC)
+            try:
+                proof_read, proof_write = os.pipe2(os.O_CLOEXEC)
+            except BaseException:
+                os.close(output_read)
+                os.close(output_write)
+                raise
+            try:
+                child = os.fork()
+            except BaseException:
+                for fd in (output_read, output_write, proof_read, proof_write):
+                    os.close(fd)
+                raise
+            if child == 0:
+                os.close(output_read)
+                os.close(proof_read)
+                try:
+                    os.dup2(output_write, 1)
+                    os.close(output_write)
+                    os.setns(namespace, os.CLONE_NEWNS)
+                    os.fchdir(root)
+                    os.chroot('.')
+                    os.chdir('/')
+                    for fd in (namespace, root, manager_fd):
+                        os.close(fd)
+                    if control:
+                        os.setgroups([])
+                        os.setgid(account.pw_gid)
+                        os.setuid(account.pw_uid)
+                        os.execve(str(copied), arguments, {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
+                    request = dict(backend=backend, uid=account.pw_uid, gid=account.pw_gid,
+                        namespace=namespace_inode, generation=generation, arguments=arguments,
+                        proof_fd=proof_write)
+                    if input_fd is not None:
+                        os.set_inheritable(input_fd, True)
+                    if backend == 'selinux':
+                        library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+                        library.setexeccon.argtypes = [ctypes.c_char_p]
+                        guest.require(library.setexeccon(b'system_u:system_r:onpc_kiosk_app_t:s0') == 0,
+                                      'kiosk-bwrap:app-exec-context')
+                        os.set_inheritable(proof_write, True)
+                        os.execve(str(caller), [str(caller), '-B', str(Path(__file__).resolve()),
+                            'bwrap-exec', json.dumps(request)], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
+                    bwrap_probe_child(request)
+                    os._exit(124)
+                except BaseException as error:
+                    try:
+                        category = str(error) if isinstance(error, guest.GuestError) else type(error).__name__
+                        diagnostic = json.dumps({'bwrap_setup': category, 'errno': getattr(error, 'errno', None)})
+                        os.write(2, (diagnostic + '\n').encode())
+                    finally:
+                        os._exit(124)
+            os.close(output_write)
+            os.close(proof_write)
+            try:
+                status, output = wait_first_exec(child, output_read, armed=False)
+                proof = os.read(proof_read, 4097)
+                if not control:
+                    expected = dict(uid=account.pw_uid, namespace=namespace_inode, generation=generation,
+                        role='onpc-kiosk-app (enforce)' if backend == 'apparmor'
+                             else 'system_u:system_r:onpc_kiosk_app_t:s0')
+                    guest.require(len(proof) <= 4096 and proof and json.loads(proof) == expected,
+                                  'kiosk-bwrap:app-proof-missing')
+                return status, output
+            finally:
+                os.close(proof_read)
+
+        base = ['/usr/bin/bwrap', '--die-with-parent', '--unshare-pid',
+                '--ro-bind', '/usr', '/usr', '--ro-bind', '/etc', '/etc',
+                '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+                '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
+                '--ro-bind', str(directory), str(directory)]
+        status, output = probe([*base, '--', '/usr/bin/xdg-dbus-proxy', '--version'])
+        guest.require(status == 0 and output.startswith(b'xdg-dbus-proxy '),
+                      'kiosk-bwrap:native-sandbox-positive')
+        token = output
+        record('onpc.kiosk.bwrap.native-sandbox-positive', True)
+        scanner = next(entry['paths'][0] for entry in config['executables'] if entry['role'] == 'scanner')
+        for role, target in (('proxy', '/usr/bin/xdg-dbus-proxy'), ('scanner', scanner)):
+            arguments = [target, '--version']
+            status, output = probe(arguments, control=True)
+            guest.require(status == 0 and output == token, 'kiosk-bwrap:canary-positive')
+            for mode in ('bind', 'data', 'tmpfs-file'):
+                with copied.open('rb') as stream:
+                    fd = stream.fileno()
+                    mutation = (['--ro-bind', str(copied), target] if mode == 'bind' else
+                        ['--perms', '0755', '--ro-bind-data', str(fd), target] if mode == 'data' else
+                        ['--tmpfs', str(Path(target).parent), '--perms', '0755', '--file', str(fd), target])
+                    status, output = probe([*base, *mutation, '--', *arguments], input_fd=fd)
+                guest.require(status != 0 and token not in output, 'kiosk-bwrap:user-bytes-executed')
+                record('onpc.kiosk.bwrap.' + role + '.' + mode + '-denied', status)
+        guest.require(not exited(manager_fd) and process_identity(manager) == identity and
+                      (manager / 'root' / marker).read_text() == generation,
+                      'kiosk-bwrap:manager-changed')
+
+
 def verify_user_inputs(account, record):
     runtime = Path(f'/run/user/{account.pw_uid}')
     with tempfile.TemporaryDirectory(prefix='onpc-confinement-input-', dir=runtime) as temporary:
@@ -766,6 +969,7 @@ def verify_user_inputs(account, record):
                 '--unit=onpc-confinement-writable-' + str(index), *command], check=False)
             guest.require(guest.commands.last_returncode == 203,
                           'kiosk-confinement:writable-command-not-denied')
+        verify_bwrap_inputs(account, directory, record)
     unit_directory = runtime / 'systemd/user'
     created = []
     for path in (unit_directory.parent, unit_directory):
@@ -1146,6 +1350,18 @@ def verify(record):
 if __name__ == '__main__':
     if sys.argv[1:] == ['census']:
         print(json.dumps(census(), sort_keys=True))
+    elif len(sys.argv) == 3 and sys.argv[1] == 'bwrap-exec':
+        request = json.loads(sys.argv[2])
+        guest.require(set(request) == {'backend', 'uid', 'gid', 'namespace', 'generation',
+            'arguments', 'proof_fd'} and request['backend'] == 'selinux' and
+            all(type(request[name]) is int and request[name] > 2 for name in
+                ('uid', 'gid', 'namespace', 'proof_fd')) and
+            re.fullmatch(r'[a-f0-9]{64}\n', request['generation']) is not None and
+            isinstance(request['arguments'], list) and request['arguments'] and
+            request['arguments'][0] == '/usr/bin/bwrap' and
+            all(isinstance(value, str) for value in request['arguments']),
+            'kiosk-bwrap:caller-request')
+        bwrap_probe_child(request)
     elif len(sys.argv) == 3 and sys.argv[1] == 'pam-lifecycle':
         request = json.loads(sys.argv[2])
         guest.require(set(request) == {'backend', 'executor_release', 'helper_release', 'events'} and

@@ -705,8 +705,12 @@ from regression_ui import Bucket
 # identity, command and account doubles. Its bounded waited AppArmor compiler
 # uses -Q -T, neither loads kernel policy nor writes shared caches. No host PAM,
 # service, VM, session bus, display or cleanup owner; compatible unit scheduling.
-# Native launcher checks compile eight tiny private binaries and redirect their
+# Native launcher checks compile nine tiny private binaries and redirect their
 # final exec to a private observer, with bounded waited children and no daemon.
+# The bubblewrap observer inherits one caller-owned private file descriptor;
+# source/destination inventory checks use only private ELF-shaped files.
+# Bubblewrap role-proof checks use credential, namespace, label and exec doubles;
+# no host UID, namespace, MAC policy, VM or extra cleanup owner is changed.
 # Preserved password-helper metadata/census checks use private ELF/proc trees
 # and xattr/pidfd doubles. One additional bounded native identity fixture uses
 # private compilation/output; it changes no mounts, labels, PAM or host policy.

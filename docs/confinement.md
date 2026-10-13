@@ -13,8 +13,12 @@ delivered in conversation, not maintained as a second repository task document.
 
 ## Current code-review status
 
-**Phases 1 and 2 are complete; Phase 3 is next and has not started.** See the
+**Phases 1 and 2 and Phase 3 steps 1–2 are complete; Phase 3 step 3 is next.** See the
 [phased execution plan](#phased-execution-plan-current).
+The [step 2 record](#phase-3-step-2-execution-record) preserves its source fixes,
+live diagnosis, final installed results and completed owned cleanup.
+The [step 1 record](#phase-3-step-1-execution-record) owns the current-package
+security matrices, active namespace checks and completed cleanup on both targets.
 All three Phase 1 issue fixes and every Phase 1 exit gate pass. Supporting PAM
 credential, password-helper traversal and native-profile activation fixes pass
 their affected host/build checks. Both final installed confinement matrices,
@@ -28,9 +32,9 @@ classification adapter's package identities, live and installed recovery checks,
 case 50 regression, host results and cleanup. The
 [Phase 2 issue 2 record](#phase-2-issue-2-execution-record) owns the bounded distro
 integration review, repeatable live/installed qualification and current-package
-case 50 results on both targets. Both VMs are stopped with baseline restoration
-verified. Phase 2 is **2/2 issues solved**, with its exit gates passed; this
-session stops before Phase 3.
+case 50 results on both targets. At that Phase 2 boundary both VMs were stopped
+with baseline restoration verified. Phase 2 is **2/2 issues solved**, with its
+exit gates passed. The next continuation owns only Phase 3 step 3.
 The five work groups below remain the complete confinement scope;
 group 2 is closed and the remaining obligations are arranged into four phases.
 The current plan supersedes historical
@@ -101,13 +105,42 @@ instructions are superseded by the current findings and remaining-work sections.
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify security and required functions. Not started.**
+**Next phase: 3 — Qualify security and required functions. Step 3 is next.**
+
+The user requested one session-sized step at a time on resumption. Execute only
+the first unchecked Phase 3 step below, including its validation and owned
+cleanup, then stop. The phase remains unchecked until every step and its exit
+gate passes; recording a blocker or updating this checklist does not close it.
+
+| Done | Phase 3 step | Required result before stopping |
+| --- | --- | --- |
+| [x] | **1 — Security qualification** | Passed on both current-format inputs: `enforcement::test_kiosk_execution_confinement` and `enforcement::test_kiosk_namespace_guard_callbacks`, including real PAM credential/teardown statuses, post-parent-exit and callback denials, private executable/mount boundaries, active ordinary/root namespace callbacks, kiosk callback suppression and parent isolation. Non-destructive removal preflights pass; package removal histories remain in Phase 4. See the [step 1 record](#phase-3-step-1-execution-record). |
+| [x] | **2 — Feedback and scanner** | Both current packages pass actual scanner observation/confinement, a usable error-report editor and ordinary Parent diagnostic Download/Save with saved-ZIP inspection. Missing scanner proof fails, and the dedicated-kiosk download restriction remains intact. No feedback sent. Final security checks and owned cleanup pass; see the [step 2 record](#phase-3-step-2-execution-record). |
+| [ ] | **3 — Notifications and Wellbeing** | Installed notification preview and ordinary-user settings/environment preservation, suppression/restoration and owned service cleanup on both targets. Preview is engineering qualification only; natural delivery remains step 5. |
+| [ ] | **4 — Public workflows** | Current-package customer cases 53–57, 151, 191, 192, 254 and 259 pass on both targets under their existing recipes and acceptance contracts. |
+| [ ] | **5 — Natural reminders** | Explicitly resolve unregistered tasks 311/311b and complete the required natural-delivery and Wellbeing lifecycle acceptance. Assess the message-value contract and dependencies, including task 311's genuine-upgrade dependency crossing Phase 4; do not count preview, documentation or an unresolved dependency as acceptance. |
+
+For **"execute next step in confinement.md"**, use this checklist while Phase 3
+is active. For **"execute next Phase in confinement.md"**, execute only its next
+unchecked step, honoring the user's one-step-per-session scope. Advance the
+phase pointer only after all five steps and the Phase 3 exit gate pass. Each
+step records exact current inputs, retained evidence, unresolved limitations
+and completed owned cleanup in this document.
+
+**Open ordering conflict before step 5:** the [natural-reminder queue
+rows](TestAutomation/E2E-Task-Queue.md#ordered-task-queue) retain pending
+312a/312b, 311a/311b/311c and 135a prerequisites. Task 311's genuine-upgrade
+dependency reaches work currently allocated to Phase 4, which otherwise follows
+Phase 3. Reconcile that dependency order before executing step 5, preserving
+the complete natural-delivery, persistence and upgrade assertions. This split
+neither resolves the conflict nor authorizes Phase 4 work during steps 1–4.
 
 **Phase 2 is complete: 2/2 issues solved and all exit gates passed.** Issue 1
 completed the owned account-recovery workaround. Issue 2 completed bounded
 distro review and live/installed qualification, followed by public case 50 on
 both targets. Their execution records retain exact inputs, evidence and owned
-cleanup. The user requested stopping before Phase 3; no Phase 3 work was run.
+cleanup. That Phase 2 session stopped before Phase 3; the next session owns
+only Phase 3 step 3 above.
 
 - [x] **Issue 1 — Retained-hidden account recovery.** The owned,
   metadata-preserving AccountsService workaround qualifies fresh,
@@ -126,14 +159,14 @@ product edit. The [final execution record](#resumed-phase-1-exit-gates--final-in
 identifies the exact inputs, reports, retained evidence and owned cleanup.
 That Phase 1 continuation stopped at its boundary without Phase 2–4 work.
 
-To resume, say **"execute Phase 3 in confinement.md; stop before Phase 4"**.
+To resume Phase 3, say **"execute next step in confinement.md"**.
 Read `AGENTS.md`, this
-record and the applicable linked contracts, then execute only the phase named
+record and the applicable linked contracts, then execute only the step named
 by this pointer. An unfinished phase remains the next phase; an update to this
 plan alone never closes it. Record exact current-input results, remaining
 limitations and owned cleanup here. Only after every exit gate for that phase
 passes, check its row and advance the pointer to the next unchecked phase.
-Stop at that boundary so another session can use the same instruction. Preserve
+Stop at that step boundary so another session can use the same instruction. Preserve
 all pre-existing work.
 
 For **"execute next open issue in confinement.md"**, execute only the first
@@ -335,8 +368,10 @@ single-threaded; the kernel must reject an unsafe dynamic transition. The only
 exec routes from this domain are the private manager/executor entrypoints.
 The forked `sd-pam` child inherits a confined current domain through teardown.
 There is no reverse dynamic-transition grant and no census exception for
-`init_t`. Later historical packages passed real Fedora entry and the strict census;
-the final current package still requires Fedora requalification.
+`init_t`. Phase 1 qualified real Fedora entry and the strict census. Current
+packages pass both distributions' matrix and teardown requalification in the
+[step 1 record](#phase-3-step-1-execution-record); the later functional steps
+retain their separate customer-acceptance gates.
 
 [Preparation](../tools/kiosk_confinement.py) verifies root-owned policy/state,
 the package-created account, loaded enforcing policy and a finite native ELF
@@ -411,8 +446,9 @@ jumps crossing the guard are refused. Active namespace configuration and its
 init/cleanup scripts are consequently unreachable for the kiosk, while vendor
 bytes/options remain effective for ordinary users. Supported `systemd-user`
 stacks contain no auth group; new auth/setcred callbacks, including through
-`@include`, are refused at configuration and admission. Host coverage passed;
-installed open/close and ordinary-user verification remains outstanding.
+`@include`, are refused at configuration and admission. Host coverage and the
+current installed open/init/close/setcred ordinary/root and kiosk controls pass
+on both targets in the [step 1 record](#phase-3-step-1-execution-record).
 
 ### Fixed launchers and role policy
 
@@ -1925,10 +1961,11 @@ groups, not release acceptance or individual test cases.
    [Phase 2 issue 1 record](#phase-2-issue-1-execution-record) owns its exact
    installed and public results. No upstream fix is a prerequisite, and no
    unrelated setter or destructive uncache/recreate workaround is used.
-3. **P1 — Installed security, lifecycle and ordinary users.** Ubuntu's previous
-   package passed the real PAM teardown and post-parent-exit matrix denials.
-   New package inputs require affected qualification on both targets. Complete current active
-   namespace callback tests and the full removal/reboot/reinstall/purge/retry/
+3. **P1 — Installed security, lifecycle and ordinary users.** Current packages
+   pass real PAM teardown, post-parent-exit matrix denials and active namespace
+   callback qualification on both targets in the
+   [Phase 3 step 1 record](#phase-3-step-1-execution-record). New package inputs
+   require affected requalification. Complete the full removal/reboot/reinstall/purge/retry/
    foreign-state lifecycle, including successful inactive removal and account
    finalization. Preserve ordinary parent/child/overlay behavior and settings.
    Host fixture repairs preserve all expectations; no broken session counts
@@ -3371,3 +3408,350 @@ pointer advances to Phase 3, but this session stops here without executing it.
 The bounded review limitations above remain explicit; Phases 3 and 4 still own
 the remaining confinement obligations, so the whole effort is not yet
 release-qualified.
+
+## Phase 3 step 1 execution record
+
+The user approved splitting Phase 3 into one step per session and limited this
+session to security qualification. The five-step checklist above preserves all
+original phase exit requirements. Independent review confirmed the two exact
+installed selectors; actual removal histories and functional customer journeys
+remain in their later steps/phases. No product, policy, test or fixture source
+has changed in this step.
+
+Verified inputs share package-source digest
+`f06b80cb6e496850e47fbb00661054b68cbb205aaff1f53e63a8a674d93ae346`,
+347 files, recorded revision `2f7bb34d3fe20d1a2b44f0d5903953cc29b8393c`,
+and fixture digest
+`6aa1707b82f35caa902cd048e3c6bb6a37ff034044be2d92ff23b81dbfbbddd0`.
+Current-format preparation passes in reports `20261013T031725Z-3937cc64`
+and `20261013T031815Z-76223418`. The DEB is verified reused content; the
+freshly built RPM has the same exact digest as Phase 2's qualified RPM.
+
+| Target | Verified artifact allocation | Package SHA-256 |
+| --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-hg1g0mkt` | `4a9659a2eeaae3c9e8d3fe5672245c8d3d56f57a1c0608df0fe10ba1868bc064` |
+| Fedora 44 | `onpc-test-artifacts-e9fo2pe3` | `e2ddc426f48ad9ed443cd6c88dc462cd3f0bcb4a6794ddf922a7fa461c320664` |
+
+Both current-package executions of
+`enforcement::test_kiosk_execution_confinement` pass. The retained guest JUnit
+records independently confirm establish-credentials, close-session,
+delete-credentials and end statuses **0/0/0/0** on both targets, with shell and
+Python execution denied after the parent executor exits and after every
+teardown callback. Successful native execution precedes manager denials;
+copied aliases, privilege-prefixed units, executable/library replacement and
+reexec, plugin-parent replacement, final GDM exec/loader/FD routes, stale
+generation, vendor drift and enforcing-policy loss/refusal/recovery pass.
+Active removal refuses and inactive removal admits through non-destructive
+preflights; no package was removed.
+
+| Target | Security matrix report | Retained system evidence allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T031929Z-c8c4c538` — 1/1 | `onpc-system-7t8_ahin` |
+| Fedora 44 | `20261013T032218Z-d1a7cbe7` — 1/1 | `onpc-system-b7btw3jq` |
+
+Each matrix's `result.json` confirms its exact package hash, expected/executed
+selector equality, zero baseline-verification failures and passed product,
+infrastructure, collection and cleanup outcomes. Both finish verified baseline
+restoration. Reports are under `output/test-runs/host/reports/`; retained system
+results and `guest/enforcement.xml` are under
+`output/test-runs/privileged/allocations/<allocation>/evidence/`, accessible
+through the maintained artifact reader.
+
+Both executions of `enforcement::test_kiosk_namespace_guard_callbacks` also
+pass. A unique active Linux-PAM namespace configuration exercises real
+open/init/close/credential callbacks: the ordinary/root control creates and
+cleans its namespace instance, the kiosk skips namespace open/close/init/cleanup
+work, and credential setup/deletion succeeds for both controls. The parent
+retains its original namespace. The fixture removes only its verified owned
+configuration; outer restoration completes separately.
+
+| Target | Active namespace report | Retained system evidence allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T033021Z-8f6970e8` — 1/1 | `onpc-system-1m801bty` |
+| Fedora 44 | `20261013T033134Z-7cd26e1b` — 1/1 | `onpc-system-x2rfahhz` |
+
+Both namespace `result.json` records confirm the same exact package hashes,
+expected/executed selector equality, zero baseline-verification failures and
+passed product, infrastructure, collection and cleanup outcomes. The selected
+guest-input digests are
+`5c1e286f3ba4ccaa7d916af771e4f9d73e8611ee0b876e2ac0e5ca394b13f0b8`
+for the matrix and
+`12e254db9439cb7fa4a5fa5fa5133ae40a996b279bdc481e1c792a16f7a450b3`
+for namespace qualification, identical across the two targets for each selector.
+
+The final maintained documentation consistency selection passes **313/313** in
+report `20261013T033441Z-685f0d06`, after the completed step/pointer updates.
+Both changed Markdown files pass link validation (83 checked, zero missing),
+and the final diff passes whitespace checks. All four installed acceptance
+result records remain retained after final validation. Documentation is outside
+`PACKAGE_SOURCE_FILES` and the build-tool dependency set, so this step requires no additional
+`make build`. These security results establish installed engineering proof;
+they supply no new public customer-scenario acceptance.
+
+**Phase 3 step 1 closes with all four installed executions passed.** Final
+pinned-VM status independently confirms both targets stopped (`state=5`,
+`id=-1`). All owned operations have completed collection and verified baseline
+restoration; no maintenance instance or live experiment remains. No product
+failure required a troubleshooting fix in this step. Ordinary graphical and
+settings behavior, feedback/scanner work, natural reminders and package lifecycle
+acceptance retain their later allocations. Phase 3 remains unchecked and the
+whole confinement effort remains not release-qualified. Stop here; step 2 is
+the next session's scope.
+
+## Phase 3 step 2 execution record
+
+**Complete; Phase 3 remains open.** The user requires
+live VM diagnosis and validation before full E2E, established unattended grants,
+and maintainable code without weakening confinement. The work below fixes
+actual installed startup failures and the engineering qualifier's false-pass
+conditions. Later Phase 3 steps and Phase 4 have not started.
+
+The scanner observer now starts at the real station list, before login and the
+request window's `Gst.init`, and waits for an active native manager rather than
+mistaking its PAM executor for that manager. A bounded 300-second observation
+covers startup. Positive proof requires the actual pinned scanner executable,
+every scanner/parent thread's enforcing role, matching private namespace and
+generation, stable executable/thread snapshots and live PIDFDs. Missing,
+not-started, rejected and malformed results cannot qualify. Natural process
+exit remains inconclusive; no cache deletion, synthetic scanner launch or
+speculative thread-turnover relaxation supplies evidence.
+
+The dedicated-kiosk editor qualifier now checks the real editable document,
+prepared `diagnostic-logs.zip`, ready Send control and hidden/absent download,
+file attachment and collection-failure controls. It never invokes Send or a
+forbidden download. Its request-failure check uses the installed `Request
+unavailable` mapping. Actual saved-ZIP qualification remains on the ordinary
+Parent surface through the existing diagnostic-export recipe.
+
+Live enforcing probes identified missing native WebKit bootstrap mounts on both
+targets. Ubuntu also exposed a code-path placeholder problem: WebKit binds its
+proxy into an otherwise empty `/usr/bin`, while the policy correctly denies
+creating writable executable-path files. The new fixed
+[native launcher](../tools/kiosk_bwrap.c) prepends a read-only `/usr/bin` bind,
+then forwards arguments, environment and inherited descriptors to independently
+pinned distribution bubblewrap. Admission swaps only those two private-tree
+destinations. Source paths, destination paths and hashes enter generation and
+collision checks; host files and labels remain unchanged. Only the two existing
+bootstrap domains can execute the native helper, preserving their distinct
+payload routes and all code-write denials. Independent review rejected granting
+proxy-placeholder writes or using WebKit debug/no-sandbox settings.
+
+The AppArmor policy keeps exact usr-merge pairs, finite WebKit/injected-bundle
+directories derived from the declared executable inventory, native scanner/PTP
+file binds, font directories and the observed `/dev/udmabuf` bind. Data rules
+cover runtime/home roots as well as descendants, canonical timezone data and
+bubblewrap's actual `/bindfileXXXXXX` temporary metadata source, whose sole
+destination is `.flatpak-info`. The SELinux changes belong only to native
+bootstraps: private-user-namespace loopback, `fs_t` read-only remount/detach and
+private `tmpfs_t` file mounts; WebKit additionally needs `sysfs_t` remount,
+`locale_t` timezone mount and repeat file binds onto scanner, proxy and vendor
+PTP targets. `bin_t` receives no execution permission. No payload receives
+mount, user-namespace or initial-user-namespace network administration authority.
+
+### Live investigation inputs and completed checkpoint
+
+These are diagnostic inputs, **not final-package qualification**. Both were
+installed through maintained app-snapshot preparation and `make install`.
+Both retain revision `2f7bb34d3fe20d1a2b44f0d5903953cc29b8393c`, 348 package
+source files and native fixture digest
+`6aa1707b82f35caa902cd048e3c6bb6a37ff034044be2d92ff23b81dbfbbddd0`.
+
+| Target | Artifact allocation | Source digest | Package SHA-256 |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-ni2bwyfw` | `1fd1dc33dc9b873bdc4906644d826b48bf6176e730be36290a6bb142d12c4209` | `19d7432f18ab7359f7fd317e8c2368636e05e67499877b8f0c4dd052858eff50` |
+| Fedora 44 | `onpc-test-artifacts-0nyj60rw` | `595547426cbeb800cf951d9173f42937f8603cc98b3c2eda3399257e3ecd88a9` | `8484e12733944a2a4114ba22469a1398abd6d934c1bd7eb92ca51020e103aa84` |
+
+Actual scanner observations pass on both: one scanner thread in
+`onpc-kiosk-scanner` / `onpc_kiosk_scanner_t`, with twelve live parent app
+threads, pinned executable and matching private namespace/generation. The
+current-source observer was supplied in memory for these live engineering
+probes; final qualification must use the normal frozen guest-input route.
+An earlier Fedora transient observation rejected unreadable live state; the
+later fresh first-login observation passes without changing that refusal.
+Warm-cache `not-observed` results were retained as missing proof, never passes.
+
+Both actual error-report editors then pass text mutation, document readback,
+diagnostic readiness and the dedicated-kiosk external-action restrictions,
+without sending feedback. Ubuntu used the final enforcing AppArmor candidate
+SHA-256 `13152006c4eeb8e79426f479b5d60f0ae4cbe84b4af906e6f0e30c147436200b`
+over the installed profile
+`a372decf105a455f5853f3ace871177ae7e9bde3755657365c6b70a642312517`.
+Fedora's later packaged-input probe used only the measured proxy repeat-bind
+supplement, SHA-256
+`e3eb0527ed5120ed78cc69b2e4451e553bb3292c89e4eb3baaeedfbbd06e2558`,
+while SELinux remained Enforcing. The shared GDM scenes leading to those probes
+are `onpc-kiosk-entry-diagnosis-h8jnf9i8` (Ubuntu) and
+`onpc-kiosk-entry-diagnosis-jsfd5h2j` (Fedora). Their corresponding scene evidence
+allocations are `onpc-e2e-evidence-nnkfdmi_` and `onpc-e2e-evidence-3vjeis_c`;
+the subsequent root-probe outcomes are recorded here and in the conversation,
+not claimed as customer-case or final installed-result artifacts.
+
+All temporary profiles/modules were removed after identity/hash checks. Ubuntu
+reloaded its original enforcing profile; Fedora removed only
+`onpc-confinement-diagnostic`, restored normal dontaudit handling and verified
+Enforcing. All recorded broker faults restored successfully. Recorded scanner
+observers finished, temporary host probe source files were removed, and both
+maintenance instances stopped with verified baseline restoration. This is the
+completed live-investigation checkpoint; resumption must not repeat the denial
+discovery or revive its temporary permissions.
+
+### Host and live validation
+
+The final affected host selection passes **561/561** in
+`20261013T055148Z-c111b53e`; native launcher argument/environment/FD preservation,
+private source/destination copies, role-proof refusal and the exact mount-grant
+allowlist are covered. `make build PACKAGE_FORMAT=both` passes after the final
+product edit. Bounded independent review found no blocking product-source
+defect and requested an installed substitution canary for the new mount surface.
+The security helper now includes that finite proxy/scanner bind/data/file matrix,
+with an actual sandboxed proxy positive and separate app-role proof. Its live
+validation passes on both final packages below. The unit resource rationale
+preserves the existing compatible classification and adds no host policy, UID,
+namespace or cleanup owner. The final helper's affected unit module passes
+**334/334** in `20261013T062112Z-d7e0e4a8` after its live setup corrections.
+
+The final-package live checks use source digest
+`12fe615cecc2f796133e44951a13aeca5b0ac657368fd2193b574d4bcd3a045a`,
+the same 348-file package scope, revision and native-fixture digest above:
+
+| Target | Artifact allocation | Package SHA-256 |
+| --- | --- | --- |
+| Ubuntu 26.04 | `onpc-test-artifacts-q55oe5k7`; identical rebuilt input `onpc-test-artifacts-ne5dnclc` | `edf72880b638036f942a8bc99d5180442db0a022c76eca04d502d9332297085f` |
+| Fedora 44 | `onpc-test-artifacts-wzsk5n1a` | `891d3b8ff07a2e493f694fa88e865c458667a5d625feef8d10866a8279a9be78` |
+
+Both final enforcing packages pass the live editor probe without supplemental
+policy: editable text/document readback, prepared diagnostics and enabled Send,
+with dedicated-kiosk external actions hidden or absent. Send was never activated.
+The shared GDM scenes are `onpc-kiosk-entry-diagnosis-40ycg3vt` (Ubuntu) and
+`onpc-kiosk-entry-diagnosis-d_86ieuz` (Fedora), with scene evidence
+`onpc-e2e-evidence-j35zb0gb` and `onpc-e2e-evidence-f4op6g31` respectively.
+Subsequent root probes are engineering observations recorded here and in the
+conversation, not retained customer-case results. Both broker faults restored.
+
+The bounded substitution matrix also passes live on both. An actual native
+sandboxed proxy and the independently copied, user-owned native canary execute
+in their positive controls; all six proxy/scanner bind, data and file attacks
+are denied after independent app-role, UID, namespace and generation proof.
+Ubuntu refuses the code-path mount/write; Fedora retains the source type and
+refuses execution. Two earlier positive-control setup failures were not counted
+as denials: the probe needed its own PID namespace for fresh `/proc`, and
+Ubuntu's multicall `printf` refuses a copied filename. The maintained helper now
+uses `--unshare-pid` and an independently copied native proxy with `--version`.
+Current helper source was supplied as a separate owned temporary copy for live
+validation; the normal frozen input subsequently passed the installed matrix below.
+Temporary probe sources were removed, and both maintenance instances stopped
+with verified baseline restoration before qualification.
+
+### Final installed security checks
+
+Both final-format inputs pass
+`enforcement::test_kiosk_execution_confinement`, including the sandbox positive
+and all six proxy/scanner substitution denials. The normal frozen helper has
+SHA-256 `4d1eb8d70bcd3e77dab048013fafb88af18b1f7919e0e3e4b991ceed830c2610`;
+both 23-file selected guest-input manifests have SHA-256
+`a99731e6082624a16a53232a0a90dcb19185ecc81006d5ba43d9a49c90ffef9a`.
+
+| Target | Report | Retained system evidence allocation |
+| --- | --- | --- |
+| Ubuntu 26.04 | `20261013T065344Z-87bafee5` | `onpc-system-rukm46k5` |
+| Fedora 44 | `20261013T062323Z-b90f02cd` | `onpc-system-bvglnb3d` |
+
+Each allocation's `evidence/result.json` records matching final package/source
+digests, product, infrastructure, collection and cleanup passed, and zero
+baseline-verification failures. `evidence/guest/enforcement.xml` retains the
+actual positive and denial results, real PAM credential/teardown statuses,
+generation and private-code checks. Both runs finish powered off with verified
+baseline restoration. These checks retain the existing confinement assertions;
+no setup failure or missing role proof counted as denial.
+
+Ubuntu's earlier passing report `20261013T062112Z-d669e27a` expired under normal
+retention. An initial repeat stopped before VM execution with
+`assets:source-missing` because its input had expired too. The maintained
+artifact preparation in `20261013T065236Z-376a6801` recreated identical package,
+source and fixture bytes; the repeat above passes with the same selected-input
+digest. The complete Ubuntu download result is preserved through the maintained
+artifact exporter at
+`output/test-runs/host/exports/onpc-artifact-export-agcro4c1/result.json`, so later
+qualification retention cannot remove that required record.
+
+### Final installed feedback and scanner checks
+
+Both final packages pass `check_e2e_kiosk_feedback_confinement` through the
+normal frozen guest-input route:
+
+| Target | Report | Retained qualification allocation | Worker evidence allocation |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `20261013T065541Z-84ce3666` | `onpc-graphical-smoke-czkn9pv7` | `onpc-e2e-evidence-leowyvpc` |
+| Fedora 44 | `20261013T062642Z-e0eaa977` | `onpc-graphical-smoke-b_k883nh` | `onpc-e2e-evidence-600jgww1` |
+
+Each observes the actual transient scanner in its enforcing scanner role,
+with pinned executable and matching private namespace/generation. Ubuntu records
+twelve parent app threads and Fedora ten; each scanner has one thread. The
+later strict census also observes real WebKit threads. The scanner has already
+exited by that census, so the independent pre-login observer supplies its
+positive execution proof. Both public error-report editors pass editable text
+and document readback, prepared diagnostics, ready Send and the dedicated-kiosk
+external-action restrictions. Send remains uninvoked. Broker restoration,
+collection, owned cleanup and baseline restoration pass; these engineering
+qualifiers do not claim customer-scenario acceptance.
+
+The earlier Ubuntu attempt `20261013T062642Z-9be8d93e` stopped at an incomplete
+public UI tree read before Request was activated. The shared adapter now uses
+its existing bounded read wait before that single input, retaining all target
+and disabled-control refusals. Its affected host selection passes **42/42** in
+`20261013T063645Z-6390bbb7`; installed retry `20261013T063647Z-64c86d2e` passed
+without changing product expectations. After that result expired under normal
+retention, the unchanged qualifier passed again in the retained run above.
+The valid Fedora feature result is preserved. Its frozen
+`accessible_ui.py` digest is
+`7cd744f4e0bfb1e26a2fc20b16bbe49e7bfe20d661944d40dce4be899364623d`;
+Ubuntu's retry uses
+`f55f83285d574ffd743fba52a0cfb7cebdea86feb5417584a9442cfcf6e28dbb`.
+Both use the final confinement helper digest recorded above. Complete frozen
+input identities remain in each result's `inputs_sha256` and `provenance`.
+
+### Final installed diagnostic download checks
+
+Both final packages pass the existing `check_e2e_diagnostic_export` recipe:
+
+| Target | Report | Retained qualification allocation | Worker evidence allocation |
+| --- | --- | --- | --- |
+| Ubuntu 26.04 | `20261013T064620Z-ffad67c3` | `onpc-graphical-smoke-e_6qpzbn` | `onpc-e2e-evidence-hydbqq2d` |
+| Fedora 44 | `20261013T064620Z-fceb90fb` | `onpc-graphical-smoke-b3zo1eri` | `onpc-e2e-evidence-6q3nqx7w` |
+
+Each completes two independent ordinary Parent Download/Save entries. The
+receipt-bound saved ZIP passes inventory, headers, structured records and
+system-information comparisons; both entries preserve the exact synthetic
+body/reply, diagnostic attachment and usable controls. Only customer-exported
+files are inspected. Each owned saved file is removed through the shared
+cleanup, and collection, worker shutdown and baseline restoration pass.
+No report is sent and no kiosk file chooser is enabled.
+
+Both export results and Ubuntu's first feedback retry record frozen qualification
+source digest `28be55ecf40d07aa78a7500644a3ff4d3424b751cf9db6d9290603d56979664a`;
+Fedora's preceding feedback pass records
+`f4af44fca59f94a48af0c9c4cd8aafe81f556a64851b5f8d4c3f91334c17ae8b`.
+The retained Ubuntu feedback repeat records
+`17a03dd3965526288035206baafc47dab131f6a69bcff837858202b100e0cfed`.
+These qualification-source identities include checkout documentation and test tooling; the product package
+source digest and both package hashes remain those in the final-package table.
+Complete guest-input manifests and per-artifact identities are retained with
+the results.
+
+**Phase 3 step 2 closes with all six installed checks passed.** The retained
+Ubuntu download result is the complete exported `result.json` identified above;
+its original execution allocation has expired. The other five results remain
+in their listed privileged allocations. All owned workers and faults are
+cleaned up, with baseline restoration verified. These are scoped engineering
+and feature qualifications, not acceptance for the later complete customer
+cases. Phase 3 remains unchecked and the confinement effort remains not
+release-qualified. Stop here; step 3, Notifications and Wellbeing, is next.
+
+Final close-out passes **313/313** host consistency checks in
+`20261013T065938Z-c6958076`. All three changed Markdown documents pass link
+validation (397 checked, zero missing), and the final diff passes whitespace
+checks. All six required result records were verified retained after the final
+VM runs; the Ubuntu export uses its retained copy above. Independent pinned-VM
+status confirms both targets stopped (`state=5`, `id=-1`). No owned maintenance
+instance, worker or temporary experiment remains. Only test/documentation
+changes followed the final product build, so no further package build is needed.

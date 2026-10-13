@@ -128,15 +128,16 @@ def diagnostic_ui():
     selector.setValue('1000')
     window = ui.find_id('kiosk-request-window')
     window.bus, window.path = ':1.42', '/public/window'
-    controls = [Node('Something went wrong', 'label', identity='kiosk-result-title'),
-        Node('The operation could not be completed. Please try again later.', 'label',
+    controls = [Node('Request unavailable', 'label', identity='kiosk-result-title'),
+        Node('The request could not be completed. Please return to login and try again later.', 'label',
              identity='kiosk-result-detail'),
         Node(identity='kiosk-report-toggle', value=True), Node(identity='kiosk-result-action')]
     editor = Node(identity='feedback-editor-input', states=('visible', 'showing', 'sensitive', 'editable'))
     document = Node(identity='feedback-editor-document', value={'ops': [{'insert': 'Error report\n'}]})
-    download = Node(identity='feedback-download-logs')
+    download = Node(identity='feedback-download-logs', states=())
+    logs = Node('diagnostic-logs.zip', identity='feedback-logs-row')
     send = Node(identity='feedback-send')
-    dialog = Node(identity='feedback-dialog', children=[editor, document, download, send])
+    dialog = Node(identity='feedback-dialog', children=[editor, document, download, logs, send])
     dialog.bus, dialog.path = window.bus, '/public/feedback'
     dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
         get_n_targets=lambda: 1, get_target=lambda _: window)]
@@ -176,6 +177,93 @@ def test_editor_failure_never_replays_input_or_sends():
         ui.run('kiosk-diagnostic-editor', '')
     assert editor.setText.call_count == 1
     send.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['ui:incomplete-tree', 'ui:kiosk-valid-disabled'])
+def test_error_request_waits_only_for_read_completion_before_single_input(monkeypatch, failure):
+    ui, controls, editor, document, download, send = diagnostic_ui()
+    ui.timeout = 1
+    request = ui.find_id('kiosk-request-submit')
+    target = ui.kiosk_valid_target
+    reads = []
+    def resolve(identity):
+        reads.append(identity)
+        if len(reads) == 1:
+            request.action.do_action.assert_not_called()
+            raise UiError(failure)
+        return target(identity)
+    monkeypatch.setattr(ui, 'kiosk_valid_target', resolve)
+    if failure == 'ui:incomplete-tree':
+        assert ui.run('kiosk-diagnostic-error', '')['diagnostic']['error_shown']
+        assert len(reads) == 2 and request.action.do_action.call_count == 1
+    else:
+        with pytest.raises(UiError, match=failure):
+            ui.run('kiosk-diagnostic-error', '')
+        assert len(reads) == 1
+        request.action.do_action.assert_not_called()
+    send.action.do_action.assert_not_called()
+
+
+def test_dedicated_kiosk_report_refuses_exposed_download_without_activating_it():
+    ui, controls, editor, document, download, send = diagnostic_ui()
+    ui.run('kiosk-diagnostic-error', '')
+    ui.run('kiosk-diagnostic-report', '')
+    download.states = {'visible', 'showing', 'sensitive'}
+    with pytest.raises(UiError, match='ui:kiosk-diagnostic-external-action'):
+        ui.run('kiosk-diagnostic-editor', '')
+    download.action.do_action.assert_not_called()
+    send.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('missing', [
+    {'scanner_observed': False, 'observation': 'not-observed'},
+    {'scanner_observed': False, 'observation': 'not-started'},
+    {'scanner_observed': False, 'observation': 'rejected'},
+    {'scanner_observed': True, 'observation': 'observed'},
+])
+def test_feedback_qualification_requires_positive_scanner_proof(tmp_path, missing):
+    from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
+    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.scanner_pending = True
+    journey.engineering = Mock(return_value=missing)
+    with pytest.raises(EvidenceError, match='kiosk-feedback:scanner-confinement-unproven'):
+        journey.check_request('kiosk-diagnostic-editor', {})
+    assert not journey.scanner_pending
+    journey.engineering.assert_called_once_with('scanner-finish')
+
+
+def test_feedback_qualification_accepts_observed_scanner_then_requires_strict_census(tmp_path):
+    from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
+    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.scanner_pending = True
+    scanner = {'scanner_observed': True, 'observation': 'observed',
+               'pinned_executable': True, 'private_namespace_and_generation': True,
+               'backend': 'apparmor', 'scanner_thread_roles': {'onpc-kiosk-scanner': 1},
+               'parent_thread_roles': {'onpc-kiosk-app': 2}}
+    census = {'census': {'backend': 'apparmor'}}
+    journey.engineering = Mock(side_effect=[scanner, census])
+    observed = {}
+    journey.check_request('kiosk-diagnostic-editor', observed)
+    assert observed == {'engineering_scanner': scanner,
+                        'engineering_confinement': census}
+    assert [call.args[0] for call in journey.engineering.call_args_list] == ['scanner-finish', 'census']
+
+
+@pytest.mark.parametrize('change', [
+    {'backend': 'other'}, {'scanner_thread_roles': {}}, {'parent_thread_roles': {}},
+    {'scanner_thread_roles': {'onpc-kiosk-scanner': True}},
+    {'scanner_thread_roles': {'onpc-kiosk-scanner': 1, 'unconfined': 1}},
+    {'parent_thread_roles': {'unconfined': 1}}, {'pinned_executable': 1},
+    {'private_namespace_and_generation': False},
+])
+def test_scanner_positive_response_refuses_missing_or_malformed_boundary_fields(change):
+    from kiosk_feedback_confinement import scanner_proven
+    value = {'scanner_observed': True, 'observation': 'observed', 'backend': 'apparmor',
+             'pinned_executable': True, 'private_namespace_and_generation': True,
+             'scanner_thread_roles': {'onpc-kiosk-scanner': 1},
+             'parent_thread_roles': {'onpc-kiosk-webkit': 2}}
+    assert scanner_proven(value)
+    assert not scanner_proven({**value, **change})
 
 
 def test_report_replaced_owner_refuses_before_dismissal():
@@ -219,8 +307,12 @@ def test_engineering_journey_restores_before_report_and_restores_unknown_fault(t
     journey = KioskFeedbackConfinementJourney(context, Mock())
     assert PLAN.screen_tags.keys() >= original.screen_tags.keys()
     assert PLAN.worker_mode == 'kiosk_feedback_confinement'
-    journey.engineering = Mock(side_effect=[{'broker_unavailable': True, 'runtime_mask_owned': True},
-                                          {'broker_restored': True}, {'scanner_observer_started': True}])
+    journey.engineering = Mock(side_effect=[{'scanner_observer_started': True},
+        {'broker_unavailable': True, 'runtime_mask_owned': True}, {'broker_restored': True}])
+    observed = {}
+    journey.check_request('station-list', observed)
+    assert journey.scanner_pending
+    assert observed['engineering_scanner_start'] == {'scanner_observer_started': True}
     journey.check_request('selections-read', {})
     assert journey.fault_pending
     observed = {}
@@ -228,7 +320,6 @@ def test_engineering_journey_restores_before_report_and_restores_unknown_fault(t
     assert observed['engineering_recovery'] == {'broker_restored': True}
     assert not journey.fault_pending
     assert journey.scanner_pending
-    assert observed['engineering_scanner_start'] == {'scanner_observer_started': True}
     journey.engineering = Mock(return_value={'scanner_observed': False, 'observation': 'not-observed'})
     assert journey.stop_scanner()['observation'] == 'not-observed'
     assert not journey.scanner_pending

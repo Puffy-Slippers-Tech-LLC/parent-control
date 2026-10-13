@@ -321,17 +321,20 @@ cannot remove a current-domain restriction. This uses libselinux's `setcon_raw`
 in the single-threaded executor, with no reverse dynamic transition. Only the
 private manager/executor entrypoints can transition to the manager role.
 The engineering census requires every kiosk thread to have a confined current
-domain; it has no `init_t` waiting-helper exception. The new domain's installed
-startup and teardown qualification remains open; see the current
-[confinement evidence](../confinement.md).
+domain; it has no `init_t` waiting-helper exception. Current-package installed
+startup, credential/teardown and active namespace engineering qualification
+passes on both targets; the
+[confinement evidence](../confinement.md#phase-3-step-1-execution-record)
+retains exact inputs and separate remaining functional/lifecycle gates.
 The intermediate domain can write the inherited `kernel_t` datagram socket used
 by systemd's pre-exec handoff timestamp; that object label was measured on Fedora
 with dontaudit temporarily disabled. It also has `noatsecure` only for transition
 to the private manager, preserving the trusted system executor/PAM environment:
 otherwise libsystemd ignores `XDG_RUNTIME_DIR` and the manager exits. Other role
-transitions retain secure execution. A bounded live supplemental-policy probe
-proved manager/native-service startup and normal stop; final package, teardown
-callbacks and post-parent-exit qualification remain separate obligations.
+transitions retain secure execution. The earlier bounded live supplemental-policy
+probe proved only manager/native-service startup and normal stop. The current
+installed qualification above separately proves final-package teardown callbacks
+and post-parent-exit denials.
 A vendor-derived `/etc/pam.d/systemd-user` override is
 verified against its `/usr/lib/pam.d` source; a vendor update requires package
 reconfiguration before admission. Pending `.dpkg-dist` or `.rpmnew` replacements
@@ -441,18 +444,37 @@ same-path trusted-library, font and private-cache mounts. Ubuntu's Polkit profil
 allows root-directory enumeration for Glycin's library-symlink discovery.
 Both native bubblewrap bootstraps can open their temporary root directory to
 retain the descriptor required by the second pivot and oldroot detach.
-Only the Glycin bubblewrap bootstrap can configure loopback in its private
+Only the native bubblewrap bootstraps can configure loopback in their private
 network namespace: SELinux permits non-initial-user-namespace `net_admin` and
 routing-message writes; AppArmor mediates `net_admin` without supplying a Linux
 capability. The finite native unprivileged bootstrap owns the new namespaces;
-the decoder receives no such permissions.
+the WebKit and Glycin payloads receive no such permissions.
 Ubuntu's finite bootstrap mount rules match AppArmor's flag normalization:
 propagation and read-only remount retain native bubblewrap's `MS_SILENT`, binds
 strip it, and native file binds also use `MS_REC`. Their paths remain bounded.
-Fedora's Glycin bootstrap may remount and detach the `fs_t` filesystem backing
+WebKit's Ubuntu rules include only the paired `/usr/lib` to `/lib` and
+`/usr/lib64` to `/lib64` aliases and its distribution's exact native helper
+and injected-bundle directories. Runtime/home binds include their roots and
+contents; timezone, font, native GStreamer helper and DMA-buffer device binds
+remain bounded. Bubblewrap's temporary metadata bind targets only
+`.flatpak-info`, never an executable pathname. Both native bootstraps enter through a fixed
+[launcher](../../tools/kiosk_bwrap.c) which prepends a read-only `/usr/bin` bind,
+then forwards the original arguments and descriptors to independently pinned
+distribution bubblewrap. Admission swaps those two executables only in the
+private tree; source and destination identities both enter its generation.
+The app, authentication agent and services cannot execute the native helper
+directly. This supplies WebKit's existing D-Bus proxy inode before its individual
+bind, without permitting executable-path placeholder writes or changing the
+host's bubblewrap. Both bootstrap profiles retain their code-write denials and
+distinct payload routes.
+Fedora's native bootstraps may remount and detach the `fs_t` filesystem backing
 the pinned `/usr` view and mount on regular-file
-placeholders in its private `tmpfs_t` device directory. The decoder receives
-neither permission. These SELinux grants apply by type, rather than pathname
+placeholders in their private `tmpfs_t` device directories. WebKit's bootstrap
+also remounts read-only `sysfs_t` metadata and binds its `locale_t` timezone file.
+Its repeated scanner, proxy and vendor PTP file binds retain each source inode's
+type; mounting over an executable target never relabels writable source bytes
+as that target. No `bin_t` execution is granted. The payload receives none of
+these mount permissions. These SELinux grants apply by type, rather than pathname
 or detach flag; the pinned native bootstrap and kernel namespace/capability
 checks bound their use.
 Ubuntu's optional Snap session-agent service/socket, desktop-integration and

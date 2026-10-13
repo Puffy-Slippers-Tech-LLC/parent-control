@@ -57,7 +57,10 @@ def executables(distribution):
     # canonical executable pathname; keep both finite distro entrypoints.
     add('gjs', '/usr/bin/gjs', '/usr/bin/gjs-console')
     add('polkit', '/usr/libexec/polkit-mate-authentication-agent-1')
-    add('bwrap', '/usr/bin/bwrap')
+    # Swap only these private-tree destinations. Never replace the host's
+    # bubblewrap or copy a distribution binary into the installed package.
+    entries += [dict(role='bwrap', paths=['/usr/bin/bwrap'], source=PREFIX + 'bwrap'),
+                dict(role='bwrap-native', paths=[PREFIX + 'bwrap'], source='/usr/bin/bwrap')]
     # At least one distro loader must exist. Grouping alternatives also pins
     # their shared parent when optional codecs are absent: a later package
     # installation cannot expose a new executable in an admitted generation.
@@ -97,10 +100,10 @@ def routes():
         'packages': {},
         'locale': {},
         'polkit': {'polkit': 'polkit', 'bwrap': 'glycin-bwrap'},
-        'glycin-bwrap': {'glycin': 'glycin'},
+        'glycin-bwrap': {'bwrap-native': 'glycin-bwrap', 'glycin': 'glycin'},
         'glycin': {},
         'webkit': {'webkit': 'webkit', 'scanner': 'scanner'},
-        'bwrap': {'webkit': 'webkit', 'service': 'service', 'glycin': 'glycin'},
+        'bwrap': {'bwrap-native': 'bwrap', 'webkit': 'webkit', 'service': 'service', 'glycin': 'glycin'},
     }
     standard = {'service': 'service', 'polkit': 'polkit', 'app-start': 'app-start',
                 'notification-client-start': 'notification-client-start', 'wellbeing-start': 'wellbeing-start',
@@ -322,19 +325,35 @@ def selinux(entries):
         allow(domains[sandbox], obj, 'dir', 'mounton')
         for typ in ('tmpfs_t', 'proc_t', 'devpts_t'):
             allow(domains[sandbox], typ, 'filesystem', 'mount remount unmount')
-    # Glycin requests a private network namespace. Native bubblewrap brings
+    # Glycin and WebKit request private network namespaces. Native bubblewrap brings
     # up its loopback with RTM_NEWADDR/RTM_NEWLINK after creating that namespace.
     # Never authorize initial-namespace NET_ADMIN or grant this to the decoder.
-    allow(domains['glycin-bwrap'], 'self', 'cap_userns', 'net_admin')
-    allow(domains['glycin-bwrap'], 'self', 'netlink_route_socket', 'nlmsg_write')
+    for sandbox in ('bwrap', 'glycin-bwrap'):
+        allow(domains[sandbox], 'self', 'cap_userns', 'net_admin')
+        allow(domains[sandbox], 'self', 'netlink_route_socket', 'nlmsg_write')
     # The manager's private /usr skeleton is backed by the host filesystem,
     # not tmpfs. Bubblewrap's read-only bind remount checks that superblock's
     # fs_t even when the pinned source mount is already read-only. After making
     # oldroot private, the same native bootstrap detaches it with MNT_DETACH.
-    allow(domains['glycin-bwrap'], 'fs_t', 'filesystem', 'remount unmount')
+    for sandbox in ('bwrap', 'glycin-bwrap'):
+        allow(domains[sandbox], 'fs_t', 'filesystem', 'remount unmount')
     # --dev creates regular-file placeholders on its private tmpfs, then binds
     # the finite native /dev nodes over them. Directory mounton is insufficient.
-    allow(domains['glycin-bwrap'], 'tmpfs_t', 'file', 'mounton')
+    for sandbox in ('bwrap', 'glycin-bwrap'):
+        allow(domains[sandbox], 'tmpfs_t', 'file', 'mounton')
+    # WebKit exposes read-only device metadata and the canonical timezone
+    # file. These measured grants belong only to its native bootstrap.
+    allow(domains['bwrap'], 'sysfs_t', 'filesystem', 'remount')
+    allow(domains['bwrap'], 'locale_t', 'file', 'mounton')
+    # WebKit repeats its scanner bind after exposing the containing lib tree.
+    # The existing destination is already the pinned scanner executable.
+    allow(domains['bwrap'], types['scanner'], 'file', 'mounton')
+    # The launcher exposes the pinned /usr/bin tree before WebKit repeats
+    # its individual xdg-dbus-proxy bind onto that service-labelled inode.
+    allow(domains['bwrap'], types['service'], 'file', 'mounton')
+    # The same native GStreamer setup repeats the vendor gst-ptp-helper bind.
+    # Its bin_t remains outside every kiosk executable transition.
+    allow(domains['bwrap'], 'bin_t', 'file', 'mounton')
     # Keep the distro's confined setuid password helper and its PAM policy.
     allow(domains['polkit'], 'policykit_auth_exec_t', 'file', 'read open getattr map execute')
     allow(domains['polkit'], 'policykit_auth_t', 'process', 'transition')
@@ -395,7 +414,7 @@ def apparmor(entries):
                 # NNP permits adding restrictions to the existing label.
                 # Keep bubblewrap in the stack while adding the payload's
                 # profile, which removes mount/userns authority after exec.
-                if domain in ('bwrap', 'glycin-bwrap'):
+                if domain in ('bwrap', 'glycin-bwrap') and destination != domain:
                     permission = f'Px -> onpc-kiosk-{domain}//&onpc-kiosk-{destination}'
                 elif role == 'pipewire':
                     permission = f'Px -> onpc-kiosk-{domain}//&onpc-kiosk-pipewire'
@@ -414,7 +433,7 @@ def apparmor(entries):
                       '    /{,usr/}lib{,32,64,x32}/** mr,',
                       '    capability,', '    network,', '    unix,',
                       '    signal,', '    /usr/sbin/unix_chkpwd ix,', '  }']
-        if domain == 'glycin-bwrap':
+        if domain in ('bwrap', 'glycin-bwrap'):
             # Mediate the capability native bwrap already holds in its new
             # user/network namespaces; this rule supplies no Linux capability.
             lines.append('  capability net_admin,')
@@ -438,19 +457,28 @@ def apparmor(entries):
             # bubblewrap's propagation and remount operations. Bubblewrap uses
             # MS_REC for file binds too. Match those kernel-mediated flags at
             # the existing finite paths, never a general mount-options subset.
-            # Bubblewrap binds trusted code directories to their own names.
-            # No cross-directory/file bind can put Python or writable code on
-            # another allowed executable pathname.
-            directories = ('usr', 'usr/share', 'usr/local/share', 'usr/lib', 'usr/lib64',
+            # Trusted code binds keep their own names, apart from the exact
+            # usr-merge aliases below. The native launcher binds /usr/bin
+            # first, preserving its pinned proxy inode without code writes.
+            directories = ('usr', 'usr/bin', 'usr/share', 'usr/local/share', 'usr/lib', 'usr/lib64',
                            'usr/local/lib', 'usr/local/lib64', 'usr/lib/x86_64-linux-gnu',
-                           'usr/libexec/webkitgtk-6.0', 'lib', 'lib64', 'etc',
+                           'lib', 'lib64', 'etc',
                            'sys/block', 'sys/bus', 'sys/class', 'sys/dev', 'sys/devices',
-                           'dev/dri', 'dev/snd', 'var/cache/fontconfig', 'etc/fonts', 'etc/fonts/conf.d')
+                           'dev/dri', 'dev/snd', 'usr/share/fonts', 'usr/local/share/fonts',
+                           'var/cache/fontconfig', 'etc/fonts', 'etc/fonts/conf.d')
             if domain == 'glycin-bwrap':
-                directories = ('usr', 'lib', 'lib64', 'etc/fonts', 'etc/fonts/conf.d',
+                directories = ('usr', 'usr/bin', 'lib', 'lib64', 'etc/fonts', 'etc/fonts/conf.d',
                                'var/cache/fontconfig')
+            else:
+                webkit_directories = sorted({str(Path(path).parent).lstrip('/')
+                                             for path in roles['webkit']})
+                directories += tuple(path for directory in webkit_directories
+                                     for path in (directory, directory + '/injected-bundle'))
             for path in directories:
                 lines.append(f'  mount options=(rw, rbind) /oldroot/{path}/ -> /newroot/{path}/,')
+            if domain == 'bwrap':
+                for path in ('lib', 'lib64'):
+                    lines.append(f'  mount options=(rw, rbind) /oldroot/usr/{path}/ -> /newroot/{path}/,')
             files = ('usr/bin/xdg-dbus-proxy', 'dev/null', 'dev/zero', 'dev/random',
                      'dev/urandom', 'dev/full', 'dev/tty', 'run/systemd/resolve/stub-resolv.conf',
                      'run/systemd/resolve/resolv.conf', 'run/NetworkManager/resolv.conf',
@@ -459,14 +487,30 @@ def apparmor(entries):
             if domain == 'glycin-bwrap':
                 files = ('dev/null', 'dev/zero', 'dev/random', 'dev/urandom', 'dev/full',
                          'dev/tty', 'etc/ld.so.cache', 'etc/fonts/fonts.conf')
+            else:
+                # GStreamer 1.28 software decoders expose this DMA buffer device.
+                files += ('dev/udmabuf',)
+                # WebKit repeats these GStreamer file binds after exposing
+                # the containing library tree. Neither grants execution of
+                # the vendor PTP helper, which has no executable route.
+                files += tuple(path.lstrip('/') for path in roles['scanner'])
+                files += tuple(str(Path(path).with_name('gst-ptp-helper')).lstrip('/')
+                               for path in roles['scanner'])
             for path in files:
                 lines.append(f'  mount options=(rw, rbind) /oldroot/{path} -> /newroot/{path},')
+            if domain == 'bwrap':
+                # /etc/localtime resolves into this non-executable data tree.
+                # A configured timezone may contain multiple path components.
+                lines.append('  mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> /newroot/usr/share/zoneinfo/**,')
             # Data aliases cannot replace a trusted executable pathname. Data
             # remains non-executable in every destination profile.
             for path in ('run/user/*', 'home/oh-no-parent-control'):
-                lines += [f'  mount options=(rw, rbind) /oldroot/{path}/** -> /newroot/{path}/**,',
-                          f'  mount options=(rw, bind) /oldroot/{path}/** -> /newroot/{path}/**,']
-            lines += ['  mount options=(rw, rbind) /memfd:flatpak-info -> /newroot/.flatpak-info,',
+                lines += [f'  mount options=(rw, rbind) /oldroot/{path}/{{,**}} -> /newroot/{path}/{{,**}},',
+                          f'  mount options=(rw, bind) /oldroot/{path}/{{,**}} -> /newroot/{path}/{{,**}},']
+            # --ro-bind-data copies the sealed metadata into this native
+            # mkstemp file before binding it. Only the data destination is
+            # permitted; this is never an executable-path placeholder.
+            lines += ['  mount options=(rw, rbind) /bindfile?????? -> /newroot/.flatpak-info,',
                       '  mount options in (ro, silent, remount, bind, nosuid, nodev, noexec, relatime, noatime, nodiratime) -> /newroot/**,',
                       '  deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,',
                       '  deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,']

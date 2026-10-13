@@ -66,6 +66,10 @@ def inventory(config):
     records = []
     seen = {}
     for entry in config['executables']:
+        source = entry.get('source')
+        if source is not None and (not isinstance(source, str) or not source or
+                len(entry['paths']) != 1 or entry.get('optional') or entry.get('library_directory')):
+            raise ValueError('invalid-executable-substitution')
         candidates = [Path(path) for path in entry['paths'] if Path(path).exists()]
         if entry.get('library_directory'):
             directory = trusted(entry['library_directory'], directory=True, symlinks=True)
@@ -77,12 +81,15 @@ def inventory(config):
         # Alternative distro locations describe one program, never a wildcard
         # permission. Distinct installed alternatives are separately validated.
         for path in candidates:
-            record = source_record(entry['role'], path)
+            record = source_record(entry['role'], path if source is None else source)
+            if source is not None:
+                record['source'] = record['path']
+                record['path'] = str(trusted(path, symlinks=True))
             if record['path'] in seen:
-                if seen[record['path']] != record['role']:
+                if seen[record['path']] != record:
                     raise ValueError('conflicting-executable-roles')
                 continue
-            seen[record['path']] = record['role']
+            seen[record['path']] = record
             records.append(record)
     return records
 
@@ -362,7 +369,7 @@ def prepare(role):
     if not generation.exists():
         if sum(bool(re.fullmatch(r'[0-9a-f]{64}', item.name)) for item in RUNTIME.iterdir()) >= 4:
             raise ValueError('generation-limit-reboot-required')
-        if sum(Path(record['path']).stat().st_size for record in records) > 512 * 1024 * 1024:
+        if sum(Path(record.get('source', record['path'])).stat().st_size for record in records) > 512 * 1024 * 1024:
             raise ValueError('executable-inventory-too-large')
         temporary = Path(tempfile.mkdtemp(prefix='.prepare-', dir=RUNTIME))
         try:
@@ -370,7 +377,7 @@ def prepare(role):
                 destination = temporary / str(index)
                 # Independent inodes are essential: SELinux labels on a hardlink
                 # would relabel the distribution's original executable.
-                with open(record['path'], 'rb') as source, destination.open('xb') as target:
+                with open(record.get('source', record['path']), 'rb') as source, destination.open('xb') as target:
                     shutil.copyfileobj(source, target)
                 os.chmod(destination, 0o644 if record['role'] in ('blocked', 'library') else 0o755)
                 if hashlib.sha256(destination.read_bytes()).hexdigest() != record['sha256']:

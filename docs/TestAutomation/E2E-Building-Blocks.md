@@ -2317,7 +2317,10 @@ The affected synthetic text qualification also passed in
 owned cleanup and baseline restoration through the shared file-identity reader.
 
 The fixed `diagnostic-export` profile passed `check_e2e_diagnostic_export` in
-`20260929T194911Z-9bb9b122`. `diagnostic_export_actions` supplies the original
+`20260929T194911Z-9bb9b122`. Current confinement packages revalidate both entries
+on Ubuntu 26.04 in `20261013T064620Z-ffad67c3` and Fedora 44 in
+`20261013T064620Z-fceb90fb`, including saved ZIP contents, preserved drafts,
+collection, owned cleanup and baseline restoration. `diagnostic_export_actions` supplies the original
 Save controller and its successful receipt to `read_declared_zip`, binding
 attempt, parent user, exact `Selected diagnostics.zip` and single-use inspection.
 `read_saved_zip` revalidates the complete receipt before and after a pinned read
@@ -3194,8 +3197,9 @@ restoration. This is scoped qualification, not complete case 153 acceptance.
 ### Additional public surfaces
 
 These blocks supply the named new consumers in the
-[scenario recipes](E2E-Scenario-Recipes.md). All are pending; a documented
-binding does not extend an existing callable's qualified scope.
+[scenario recipes](E2E-Scenario-Recipes.md). Only the explicitly qualified scopes
+below are ready; a documented binding does not extend an existing callable's
+qualified scope.
 
 The engineering-only selector `check_e2e_kiosk_feedback_confinement` composes
 the existing installed eligible-account journey with an attempt-owned broker
@@ -3204,11 +3208,17 @@ Report this error/result dismissal and real feedback editor/diagnostics checks.
 It uses `kiosk_feedback_confinement.PLAN`, `UiObservations` and the shared
 `AccessibleUI.kiosk_diagnostic_*` operations; it never activates Send and grants
 no customer-case credit. The root helper retains the mask inode, attempt, boot
-and original service invocation for guarded recovery. Live qualification is
-pending. Its strict thread census requires actual WebKit threads and reports
-`scanner_observed` only when the scanner is alive in that census. A false value
-leaves scanner-route qualification outstanding; configured policy or successful
-rendering cannot establish execution of an already exited helper.
+and original service invocation for guarded recovery. Installed qualification
+passes on Ubuntu 26.04 in `20261013T065541Z-84ce3666` and Fedora 44 in
+`20261013T062642Z-e0eaa977`, with collection, broker restoration, owned cleanup
+and baseline restoration. Both require editable text/document readback,
+prepared diagnostics and hidden/absent kiosk download and attachment controls.
+Ordinary Parent ZIP export remains the separate FEED08 binding. A bounded
+observer starts before station login and captures the actual
+transient scanner, independently proving its executable, enforcing thread roles
+and matching private namespace/generation. Missing or rejected observations fail
+qualification. The later strict census requires actual WebKit threads;
+configured policy or successful rendering cannot establish scanner execution.
 
 The separate engineering selector `check_e2e_kiosk_notification_wellbeing`
 composes the same installed eligible-account entry with the public reminder

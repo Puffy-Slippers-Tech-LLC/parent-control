@@ -9041,7 +9041,9 @@ class AccessibleUI:
 
     def kiosk_diagnostic_error(self):
         """Submit once; independently require the normal public failure/report choice."""
-        self._invoke_target(self.kiosk_valid_target('kiosk-request-submit'))
+        request = self.wait(lambda: self.kiosk_valid_target('kiosk-request-submit'),
+                            'kiosk-diagnostic-request-ready')
+        self._invoke_target(request)
 
         def ready():
             observation, root, source = self.kiosk_diagnostic_surface()
@@ -9051,8 +9053,8 @@ class AccessibleUI:
                 ('kiosk-result-title', 'kiosk-result-detail', 'kiosk-report-toggle', 'kiosk-result-action'))
             if not all((title, detail, toggle, action)):
                 return None
-            require(title.get_name() == 'Something went wrong' and detail.get_name() ==
-                    'The operation could not be completed. Please try again later.',
+            require(title.get_name() == 'Request unavailable' and detail.get_name() ==
+                    'The request could not be completed. Please return to login and try again later.',
                     'ui:kiosk-diagnostic-error')
             require(toggle.getValue() is True and
                     all(self.has_state(node, self.api.StateType.SENSITIVE) for node in (toggle, action)),
@@ -9105,12 +9107,30 @@ class AccessibleUI:
             observation, root, _ = value
             row = self.snapshot_owned_target('feedback-collection-status', root=root,
                                              observation=observation, showing=False)
-            download = self.snapshot_owned_target('feedback-download-logs', root=root,
-                                                  observation=observation, showing=False)
             if row is not None and self.has_state(row, self.api.StateType.VISIBLE):
                 return None
-            return bool(download is not None and all(self.has_state(download, state) for state in
-                        (self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE)))
+            # Dedicated-station feedback deliberately has no file chooser
+            # routes. Its prepared attachment, rather than Download, proves
+            # collection; ordinary Parent export qualifies the saved ZIP.
+            for identity in ('feedback-download-logs', 'feedback-add-files',
+                             'feedback-format-attachment'):
+                external = self.snapshot_owned_target(identity, root=root,
+                    observation=observation, showing=False)
+                require(external is None or not self.has_state(external, self.api.StateType.VISIBLE),
+                        'ui:kiosk-diagnostic-external-action')
+            for identity in ('feedback-retry-logs', 'feedback-send-without-logs'):
+                failure = self.snapshot_owned_target(identity, root=root,
+                    observation=observation, showing=False)
+                require(failure is None or not self.has_state(failure, self.api.StateType.VISIBLE),
+                        'ui:kiosk-diagnostic-collection-failed')
+            logs = self.snapshot_owned_target('feedback-logs-row', root=root,
+                observation=observation, showing=False)
+            send = self.snapshot_owned_target('feedback-send', root=root,
+                observation=observation, showing=False)
+            return bool(logs is not None and logs.get_name() == 'diagnostic-logs.zip' and
+                self.has_state(logs, self.api.StateType.VISIBLE) and send is not None and
+                all(self.has_state(send, state) for state in
+                    (self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE)))
         self.wait(collected, 'kiosk-diagnostic-collection')
         return {'source': source, 'editor_usable': True, 'diagnostics_ready': True, 'sent': False}
 

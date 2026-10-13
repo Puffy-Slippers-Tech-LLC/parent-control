@@ -29,6 +29,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-audio \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-packages \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-dbus \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration \
 	$(DATADIR)/oh-no-parent-control/confinement \
@@ -185,6 +186,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c
+PACKAGE_SOURCE_FILES += tools/kiosk_bwrap.c
 PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
 	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \
 	data/systemd/oh-no-parent-control-kiosk-confinement.service \
@@ -568,6 +570,9 @@ endif
 			-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role" tools/kiosk_session.c || exit 1; \
 		chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-$$role"; \
 	done
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap" tools/kiosk_bwrap.c
+	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap"
 	install -m 0755 tools/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement"
 	install -m 0755 packaging/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration"
 	$(PYTHON) tools/kiosk_confinement_policy.py --distribution "$(PACKAGE_DISTRIBUTION)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/confinement"

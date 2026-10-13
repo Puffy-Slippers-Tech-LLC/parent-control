@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 5c is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 6a is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -41,7 +41,7 @@ are omitted; the remaining step numbers are preserved.
 | --- | --- | --- |
 | [x] | **5a — Installed execution matrices** | On both targets, qualify the current candidate's complete confinement matrix, active namespace callbacks and platform integration checks; reuse retained evidence only after verifying exact input applicability. Prove allowed native execution before denials, actual final GDM execution restrictions, real credential/teardown confinement and policy-loss refusal/recovery. Finish owned cleanup. |
 | [x] | **5b — Installed admission coverage** | Add and pass maintained installed coverage on both targets for rejected alternate-session, terminal and SSH admission, with successful allowed controls before denials. Exercise the installed account/routing boundary: the execution matrix's final-session fixture and host login tests do not prove this assertion. Preserve the final-exec restrictions qualified in 5a. Record any remaining admission assertion gap and close only after its maintained installed coverage passes. Finish owned cleanup. |
-| [ ] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
+| [x] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
 | [ ] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
@@ -452,6 +452,8 @@ removal history.
 
 The real-session census inspects every process/thread with any kiosk UID field,
 requiring enforcing current labels, private namespace and matching generation.
+It also rechecks installed enforcement for every configured profile/domain;
+SELinux's global enforcing mode alone does not exclude a permissive domain.
 Manager, app, service, Wellbeing and PipeWire roles must be present. Pending
 labels or process names cannot substitute for current confinement. Diagnostics
 use fixed categories and role/thread counts, without account names, command
@@ -588,6 +590,67 @@ runner and parallel-inventory regressions passed (532 cases), followed by all
 links passed. Changes are confined to tests, scheduling rationale and documents,
 outside package sources/build-tool dependencies; no additional `make build` was
 required. Phase 3 and the separate E2E queue remain open.
+
+### Step 5c qualification — 2026-10-13
+
+Passed `check_e2e_kiosk_entry` on both targets after the real public waiting form
+appeared. The strict census verified every relevant process/thread's current
+confined label, private mount namespace and matching manager generation.
+
+| Waiting-session result | Ubuntu report / allocation | Fedora report / allocation |
+| --- | --- | --- |
+| Public station entry and strict engineering census | `20261013T230839Z-53fd7f36` / `onpc-graphical-smoke-l03ut8_z` | `20261013T230839Z-1ebca275` / `onpc-graphical-smoke-1o58jfgt` |
+
+| Required confined thread role | Ubuntu AppArmor | Fedora SELinux |
+| --- | ---: | ---: |
+| Manager | 10 | 1 |
+| App | 37 | 37 |
+| Service | 80 | 81 |
+| Wellbeing | 11 | 11 |
+| PipeWire | 8 | 3 |
+
+The census also observed the confined gate, audio, notification, notification-client
+and Polkit roles. Fedora's surviving manager-PAM thread retained its confined
+current domain; no `init_t` exception was used.
+
+Independent review found a verifier gap: known SELinux label text plus global
+enforcing mode did not exclude a permissive kiosk domain when no password helper
+was running. The census now unconditionally reuses the installed preparation
+helper's enforcement check before inspecting processes. Four host regression
+variants require this gate on both backends, without a live password helper.
+No product code, policy or admission/final-exec fixture changed; 5a/5b require
+no affected requalification from this verifier correction.
+
+Before clean qualification, both owned live waiting sessions passed the corrected
+census. A bounded Fedora fault probe made only the Wellbeing domain permissive
+while retaining global enforcing mode: the census rejected it with
+`selinux-domain-not-enforcing`. The probe restored domain enforcement and passed
+the census again. Both maintenance owners completed baseline restoration before
+the clean attempts; these probes supply engineering diagnosis only.
+
+Both verified input manifests retain the 5a package-source, package and fixture
+hashes above. The qualification source SHA-256 was
+`c9548916c49dfe4443c75acf4ef81390ba9f3cd7af537ffd7e35a0c40614ca53`.
+Each attempt verified its format-specific inputs and matching online `onpc-v1.4`
+snapshot, retaining saved and expected package identities separately. Ubuntu's
+snapshot archive hash differs from the staged DEB, with identical verified
+package-content, baseline and recipe identities; Fedora's package hashes match.
+Each allocation's `result.json` owns those complete identities and census counts.
+
+Both qualification results report overall, infrastructure, collection and cleanup
+passes, with `lease_phase=complete`, stopped workers and verified shutdown.
+The product ledger remains `not-run` for this engineering qualifier; no complete
+customer request journey is claimed. Both outer baselines were restored and
+verified, and both pinned VMs were confirmed powered off.
+
+All 460 affected confinement/entry host checks passed after the correction;
+the 117 unchanged lease/worker cleanup checks also passed. Independent diff
+review found no blocking defect. Generated coverage includes the four new cases.
+All 313 documentation/inventory consistency checks and Markdown links passed;
+both final qualification results were verified retained after validation.
+Changes are confined to tests and documents, outside package sources/build-tool
+dependencies, so no additional `make build` is required. Phase 3 remains open;
+step 6a is next, and the separate E2E queue is unchanged.
 
 Report roots are `output/test-runs/host/reports/`; privileged allocations are
 under `output/test-runs/privileged/allocations/`. System evidence includes

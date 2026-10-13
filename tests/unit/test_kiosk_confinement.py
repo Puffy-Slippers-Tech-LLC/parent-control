@@ -1124,6 +1124,42 @@ def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
         assert events[-1] == ('onpc.kiosk.pam-lifecycle.post-parent-close-setcred-end-denials', True)
 
 
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('permissive', [False, True])
+def test_waiting_census_requires_enforcing_policy_without_a_password_helper(
+        census_model, monkeypatch, backend, permissive):
+    helper = census_model
+    config = {'backend': backend}
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
+    monkeypatch.setattr(helper.pwd, 'getpwnam', Mock(return_value=SimpleNamespace(pw_uid=1002)))
+    monkeypatch.setattr(helper.Path, 'read_text', Mock(return_value=json.dumps(config)))
+    failure = 'selinux-domain-not-enforcing' if backend == 'selinux' else 'apparmor-not-enforcing'
+    enforcing = Mock(side_effect=ValueError(failure) if permissive else None)
+    load = Mock(return_value={'enforcing': enforcing})
+    monkeypatch.setattr(helper.runpy, 'run_path', load)
+    manager = Mock(return_value=42)
+    monkeypatch.setattr(helper, 'manager_pid', manager)
+    opened = Mock(return_value=43)
+    closed = Mock()
+    monkeypatch.setattr(helper.os, 'pidfd_open', opened)
+    monkeypatch.setattr(helper.os, 'close', closed)
+    processes = Mock(return_value={'backend': backend})
+    monkeypatch.setattr(helper, 'census_processes', processes)
+    if permissive:
+        with pytest.raises(ValueError, match=failure):
+            helper.census()
+        manager.assert_not_called()
+        opened.assert_not_called()
+        processes.assert_not_called()
+        closed.assert_not_called()
+    else:
+        assert helper.census() == {'backend': backend}
+        processes.assert_called_once()
+        closed.assert_called_once_with(43)
+    load.assert_called_once_with('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    enforcing.assert_called_once_with(config)
+
+
 def test_census_stat_parser_handles_parentheses_in_comm(census_model, tmp_path):
     helper = census_model
     fields = ['S', '42'] + ['0'] * 17 + ['123']

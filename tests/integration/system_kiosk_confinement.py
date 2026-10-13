@@ -74,6 +74,8 @@ def census(*, required_roles=('manager', 'app', 'service', 'wellbeing', 'pipewir
     account = pwd.getpwnam('oh-no-parent-control')
     payload = Path('/usr/share/oh-no-parent-control/confinement')
     config = json.loads((payload / 'config.json').read_text())
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    preparation['enforcing'](config)
     backend = config['backend']
     unit = f'user@{account.pw_uid}.service'
     manager = PROC / str(manager_pid(unit))

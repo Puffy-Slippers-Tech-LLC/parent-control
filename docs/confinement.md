@@ -12,13 +12,20 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-3 — [Ubuntu removal history](Confinement-Tasks/4-3.md)**.
+Next task: **4-4 — [Fedora removal history](Confinement-Tasks/4-4.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and
 admission barriers and account ownership on both targets; final security review,
 affected regressions and every required acceptance gap must pass before closure.
 The queue preserves all recorded step numbers, order and completed states.
+
+## Requirements
+- Drive subagents (stick to 6.1-sol of variant efforts) as needed to divide and conquer especially with lower-tier agent on routine monitoring and coverage refreshes
+- Before writing code, have full understanding of existing relevant code
+- No hacky code allowed. Must write lean code with supported APIs
+- DO NOT ask for approval. Must use established auto approvals.
+- Probe live VM for troubleshooting, use live VM to validate fixes before full e2e tests
 
 ## Execute the selected task
 

@@ -140,19 +140,23 @@ def package_identity(package, *, installed=False):
                else ['dpkg-deb', '-f', str(package), 'Version'])
 
 
+def verify_package_payload(package=None, *, category='package'):
+    """Verify retained payload even while native configuration needs recovery."""
+    package = package_path() if package is None else package
+    require(package_identity(package, installed=True) == package_identity(package),
+            category + '-version')
+    require(not run(['rpm' if package.suffix == '.rpm' else 'dpkg', '--verify',
+                     'oh-no-parent-control']), category + '-file-digests')
+    if package.suffix == '.rpm':
+        require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
+
+
 def verify_package_files(package=None, *, category='package'):
     package = package_path() if package is None else package
-    if package.suffix == '.rpm':
-        require(package_identity(package, installed=True) == package_identity(package),
-                category + '-version')
-        require(not run(['rpm', '--verify', 'oh-no-parent-control']), category + '-file-digests')
-        require(run(['getenforce']) == 'Enforcing', 'selinux-enforcing')
-    else:
+    if package.suffix != '.rpm':
         require(run(['dpkg-query', '-W', '-f=${Status}', 'oh-no-parent-control']) ==
                 'install ok installed', category + '-status')
-        require(package_identity(package, installed=True) == package_identity(package),
-                category + '-version')
-        require(not run(['dpkg', '--verify', 'oh-no-parent-control']), category + '-file-digests')
+    verify_package_payload(package, category=category)
 
 
 def verify_package():
@@ -400,6 +404,34 @@ def child_trust_inputs_diagnostic():
     print(json.dumps(observation, sort_keys=True), flush=True)
 
 
+def pam_service_state():
+    """Measure the original service bytes and local/vendor selection independently.
+
+    These fixed, root-owned files are read before installation and again after
+    removal. Product restoration records are deliberately not the oracle.
+    """
+    services = {}
+    for name in ('gdm-password', 'systemd-user'):
+        local = Path('/etc/pam.d') / name
+        require(not local.is_symlink(), 'pam-original:unsafe-local')
+        source = 'local' if local.exists() else 'vendor'
+        path = local if source == 'local' else Path('/usr/lib/pam.d') / name
+        try:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0 and
+                        not info.st_mode & 0o022 and info.st_nlink == 1 and
+                        info.st_size <= 65536, 'pam-original:unsafe-file')
+                contents = stream.read(65537)
+                require(len(contents) <= 65536, 'pam-original:oversized-file')
+        except OSError:
+            raise GuestError('pam-original:unreadable-file') from None
+        services[name] = {'source': source, 'sha256': hashlib.sha256(contents).hexdigest(),
+                          'mode': stat.S_IMODE(info.st_mode)}
+    return services
+
+
 def before_install():
     marker = guard()
     status = run(['rpm', '-qa', '--queryformat', '%{NAME}\n'] if package_path().suffix == '.rpm'
@@ -411,6 +443,7 @@ def before_install():
     (PAYLOAD / 'before.json').write_text(json.dumps({
         'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
         'package_sha256': marker['package_sha256'], 'baseline_sha256': marker['baseline_sha256'],
+        'pam_services': pam_service_state(),
     }))
     print('onpc-system: stage=pre-install outcome=passed', flush=True)
 

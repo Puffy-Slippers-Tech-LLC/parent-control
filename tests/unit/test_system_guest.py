@@ -1,6 +1,8 @@
 """The frozen Make install entry is accessible only after the VM guard passes."""
 
+import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock
@@ -16,6 +18,89 @@ def expected_install(package):
             str(Path(guest_install_recipe.__file__).resolve().parent / 'install-source'), 'install',
             'INSTALL_PACKAGE=' + str(package.resolve()),
             'APT=apt-get -o DPkg::Lock::Timeout=120 --no-install-recommends -y', 'DNF=dnf -y']
+
+
+@pytest.fixture
+def original_pam(tmp_path, monkeypatch):
+    def path(value):
+        return tmp_path / str(value).lstrip('/')
+    monkeypatch.setattr(guest, 'Path', path)
+    for directory in ('/etc/pam.d', '/usr/lib/pam.d'):
+        path(directory).mkdir(parents=True)
+    path('/etc/pam.d/gdm-password').write_bytes(b'auth required pam_unix.so\r\n')
+    path('/usr/lib/pam.d/systemd-user').write_bytes(b'session required pam_systemd.so\n')
+    for filename in ('/etc/pam.d/gdm-password', '/usr/lib/pam.d/systemd-user'):
+        path(filename).chmod(0o644)
+    fstat = os.fstat
+    def root_info(descriptor):
+        info = fstat(descriptor)
+        return SimpleNamespace(st_uid=0, st_gid=0, st_mode=info.st_mode,
+                               st_nlink=info.st_nlink, st_size=info.st_size)
+    monkeypatch.setattr(guest.os, 'fstat', root_info)
+    return path
+
+
+def test_original_pam_witness_measures_exact_bytes_and_vendor_selection(original_pam):
+    assert guest.pam_service_state() == {
+        'gdm-password': {'source': 'local', 'mode': 0o644,
+                         'sha256': hashlib.sha256(b'auth required pam_unix.so\r\n').hexdigest()},
+        'systemd-user': {'source': 'vendor', 'mode': 0o644,
+                         'sha256': hashlib.sha256(b'session required pam_systemd.so\n').hexdigest()},
+    }
+
+
+@pytest.mark.parametrize('fault', ['local-link', 'dangling-local', 'vendor-link', 'missing',
+                                  'directory', 'writable', 'hardlink', 'oversized', 'owner'])
+def test_original_pam_witness_refuses_unsafe_or_missing_inputs(original_pam, monkeypatch, fault):
+    local = original_pam('/etc/pam.d/gdm-password')
+    vendor = original_pam('/usr/lib/pam.d/systemd-user')
+    if fault in ('local-link', 'dangling-local'):
+        local.unlink()
+        local.symlink_to(vendor if fault == 'local-link' else local.parent / 'missing')
+    elif fault == 'vendor-link':
+        vendor.unlink()
+        vendor.symlink_to(local)
+    elif fault in ('missing', 'directory'):
+        vendor.unlink()
+        if fault == 'directory':
+            vendor.mkdir()
+    elif fault == 'writable':
+        local.chmod(0o666)
+    elif fault == 'hardlink':
+        os.link(local, local.parent / 'linked')
+    elif fault == 'oversized':
+        local.write_bytes(b'x' * 65537)
+    elif fault == 'owner':
+        fstat = guest.os.fstat
+        def foreign_info(descriptor):
+            info = fstat(descriptor)
+            info.st_uid = 1004
+            return info
+        monkeypatch.setattr(guest.os, 'fstat', foreign_info)
+    with pytest.raises(guest.GuestError, match='pam-original:'):
+        guest.pam_service_state()
+
+
+def test_preinstall_witness_survives_product_changes(original_pam, tmp_path, monkeypatch):
+    payload = tmp_path / 'payload'
+    payload.mkdir()
+    monkeypatch.setattr(guest, 'PAYLOAD', payload)
+    monkeypatch.setattr(guest, 'guard', Mock(return_value={
+        'package_sha256': 'a' * 64, 'baseline_sha256': 'b' * 64}))
+    monkeypatch.setattr(guest, 'run', Mock(return_value='unrelated-package\tii'))
+    boot = original_pam('/proc/sys/kernel/random/boot_id')
+    boot.parent.mkdir(parents=True)
+    boot.write_text('original-boot')
+    expected = guest.pam_service_state()
+    def install():
+        original_pam('/etc/pam.d/gdm-password').write_bytes(b'product-modified')
+        original_pam('/etc/pam.d/systemd-user').write_bytes(b'product-shadow')
+        original_pam('/etc/pam.d/systemd-user').chmod(0o644)
+    monkeypatch.setattr(guest, 'install_package', install)
+    guest.install()
+    before = json.loads((payload / 'before.json').read_text())
+    assert before['pam_services'] == expected
+    assert guest.pam_service_state() != expected
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
@@ -54,6 +139,36 @@ def test_probe_diagnostic_filter_does_not_change_returned_database(monkeypatch):
     commands.run.assert_called_once_with(['fapolicyd-cli', '--dump-db'], timeout=120,
                                          merge_stderr=False, diagnostic_stdout=transform)
     transform.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'version', 'files'])
+def test_retained_payload_is_checked_independently_of_strict_configuration(monkeypatch, fault):
+    monkeypatch.setattr(guest, 'package_path', lambda: Path('package.deb'))
+    calls = []
+    def run(command):
+        calls.append(command)
+        if '-f=${Status}' in command:
+            return 'install ok half-configured'
+        if '-f=${Version}' in command:
+            return 'changed-version' if fault == 'version' else '1.4'
+        if command[0] == 'dpkg-deb':
+            return '1.4'
+        assert command == ['dpkg', '--verify', 'oh-no-parent-control']
+        return 'changed-file' if fault == 'files' else ''
+    monkeypatch.setattr(guest, 'run', run)
+    if fault:
+        with pytest.raises(guest.GuestError, match='package-' + (
+                'version' if fault == 'version' else 'file-digests')):
+            guest.verify_package_payload()
+    else:
+        guest.verify_package_payload()
+        assert len(calls) == 3
+    assert not any('-f=${Status}' in command for command in calls)
+    # Installed readiness still requires full configuration, even with intact
+    # retained payload. The removal fixture must recover before using it.
+    with pytest.raises(guest.GuestError, match='package-status'):
+        guest.verify_package_files()
+    assert '-f=${Status}' in calls[-1]
 
 
 @pytest.mark.parametrize('fault', [None, 'version', 'files', 'selinux', 'configuration', 'broker', 'boot-gate'])

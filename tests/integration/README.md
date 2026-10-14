@@ -246,11 +246,40 @@ preservation, native execution, GDM and password-login health, reinstalled
 readiness, and fresh policy/request defaults after purge. Ordinary erase retains
 preferences/logs; the explicit installed `oh-no-parent-control-purge --yes` action
 deletes them through the native package manager and shared guarded cleanup.
+Before the first installation, the guest independently measures the exact
+`gdm-password` and `systemd-user` bytes, modes and local-versus-vendor selection.
+Every removed/purged endpoint, before and after reboot, must match that witness;
+the matching hashes and disposition are retained in each phase's JUnit.
+After the activation prerequisite's public GDM exit, the removal fixture waits
+for the identity-checked kiosk manager to become inactive before starting its
+own manager for the native refusal check. This bounded read-only wait never
+stops or adopts the preceding manager; a persistent or unknown state refuses.
+Foreign-edit refusals verify the retained package version, payload digests and
+policy before resolving the edit. If Debian's refused abort-remove leaves
+configuration pending, the fixture restores only its unchanged owned edit and
+finishes that already-unpacked configuration through native `dpkg --configure`.
+Strict configured-package and unchanged-policy checks must then pass before the
+successful removal retry. Payload installation and reinstallation use `make install`.
+For focused engineering diagnosis, `system_removal.py exercise-live-refusals`
+reuses the same finite hook/PAM checks and leaves the package installed. It records
+native configuration status before and after recovery. Feed the current helper
+and its matching `system_guest` dependency through the maintained
+[maintenance stdin route](../../tests/README.md#live-diagnosis-before-another-repair-attempt),
+preserving the original guest/input guards. Stop maintenance before the complete
+registered history; this diagnostic supplies no acceptance credit.
 Debian's reboot notice conffile intentionally survives ordinary removal.
 Automatic GDM login
 and API policy setup are engineering fixtures, not completed customer E2E
 acceptance; the public removal/reinstall journey retains its own queue and
 qualification requirements.
+
+Ordinary removal and retained-state reinstall preserve the other account's full
+preference and native-policy witness. Purge deletes every product preference
+record, including personal-only language choices created during GDM entry, as
+required by the [saved-data contract](../../docs/SystemDesign/Package-Removal.md#remove-purge-and-retry).
+The other account's native policy must still match its independent original
+witness after purge and fresh reinstall; its erased preference record must not
+be replayed. Saved-data deletion and policy preservation are separate assertions.
 
 The `session` area runs installed PAM expiry checks, then a one-shot GDM
 autologin fixture across a second reboot. It observes real scope creation,

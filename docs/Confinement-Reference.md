@@ -1521,6 +1521,82 @@ Step 2b completes the original step 2 activation boundary. Step 4-3 is next;
 the Phase 4 exit gate, general notice wording, saved-data migration and customer
 E2E qualification remain with their existing owners.
 
+### Phase 4 step 3 — Ubuntu removal history — 2026-10-14
+
+The complete registered `removal::test_remove_reboot_reinstall` history passed
+**11/11** executions on `onpc-Ubuntu26.04`: six installation prerequisites and
+the continuous five-phase remove/reboot/retained reinstall/purge/reboot/fresh
+reinstall history. Host run `20261014T205701Z-b2eaf814` retains its raw results at
+`output/test-runs/privileged/allocations/onpc-system-vloayn9_/`.
+All seven `evidence/guest/{installed,rebooted,removal,removed-rebooted,reinstalled-rebooted,purged-rebooted,purge-reinstalled-rebooted}.xml`
+files have zero errors, failures or skips. Both
+`evidence/guest/attempt-installed/gdm-{installed,rebooted}.json` observations
+passed on distinct boots, including strict native confinement and public entry/exit.
+
+The guest now captures PAM bytes, modes and local/vendor selection independently
+before initial installation. All four removed/purged endpoints match that original
+witness and retain `onpc.removal.pam-restored` in their JUnits:
+
+| Service | Original selection | Mode | SHA-256 |
+| --- | --- | --- | --- |
+| `gdm-password` | local | `0644` | `08e1f43267a73fb6f57e58c13332d4d5c9057b3129a528479cc1287712c74ec0` |
+| `systemd-user` | vendor | `0644` | `78e3e88bd7c242228040dcbcdbae383109508b89a4848b187de77db2520a22ab` |
+
+The same history passed active-kiosk and foreign hook/PAM refusal, retained
+payload/policy checks, inactive account finalization, ordinary native execution,
+desktop/password health after removal and purge, retained preferences after
+ordinary reinstall, cleared one-time grants and fresh defaults after purge.
+Completed endpoints do not establish the payload-erased surviving-account
+admission interval; that explicit obligation remains in **4-5**.
+
+Mechanical fixture repairs preserve those assertions. After public GDM exit, an
+identity-checked read-only wait lets the preceding manager finish naturally
+before the fixture starts its own manager. A refused Debian PAM transaction can
+leave an intact package half-configured; absence checks now distinguish that
+state, verify payload before resolving the owned edit, finish already-unpacked
+configuration with native `dpkg --configure`, then require strict configured
+status and unchanged policy. Separate live maintenance reproduced this transition
+and confirmed the PAM module inode stayed unchanged. Actual installation and
+reinstallation still use `make install`.
+
+A later complete attempt exposed a contradictory purge oracle: real GDM language
+setup creates the other account's personal-only preference record, which purge
+must delete. Live reproduction showed only that record disappearing, with all
+four native policy values unchanged. Ordinary removal/retained reinstall still
+require the full original account witness; purge/fresh reinstall independently
+require the original native policy and absent erased preferences. The corrected
+helper passed against that live post-purge state, while its ordinary-retention
+check still rejected the missing record. Both maintenance instances finished
+baseline restoration before the final clean acceptance.
+
+Verified input `onpc-test-artifacts-tb9d9ooy` and retained `input/` copies bind DEB
+`daa9c180960e1dfc72e026a7019bb71b2b63db3bd4c867a62e300f05f81b94fa`,
+fixture `8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5`,
+package source revision `f84b688281f27ade9e737b2b6a2930646db3541c`, digest
+`b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+and 348 files. Ubuntu baseline remains
+`1d3a3a2f535adbde0cb3aadd4d388a1cc5c05265d1e7c885990a152ab143df81`.
+Selected-input digest is
+`957e69e472db2838d16faa66e50afb0e2d90eea7548b0e628b4e42ce98ec96f7`:
+28 guest bindings and 19 host bindings, covering 45 distinct source files,
+all rehashed against the current checkout after acceptance with no mismatch.
+
+`evidence/result.json` records product, infrastructure, collection and cleanup
+passed, `cleanup_phase=complete`, all expected executions collected and two
+successful baseline checks. The VM was independently confirmed off. Raw evidence
+is retained in that allocation; preserve it through the maintained exporter
+before future journal rotation under the existing retention gate. Test/doc-only
+changes do not affect package/build inputs, so no separate `make build` is required.
+
+Final scoped host validation passed **845/845** in
+`output/test-runs/host/reports/20261014T211127Z-bad2cdb2/report.md`: affected
+guest/removal/runner regressions, host inventory, plan/inventory/coverage and
+case-composition checks after queue close-out. New cases use private files and
+process-local command/state doubles; the applicable unit, UI and cleanup
+inventories retain their existing classifications. Coverage was regenerated;
+changed Markdown links and whitespace checks passed. Only 4-3 was checked,
+its temporary brief was removed and the master pointer advanced to **4-4**.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the

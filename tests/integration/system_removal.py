@@ -14,6 +14,7 @@ from pathlib import Path
 import pwd
 import re
 import stat
+import sys
 import time
 
 import system_guest as guest
@@ -42,15 +43,29 @@ def boot():
     return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 
 
-def account_digest(uid):
+def account_digest(uid, *, include_preferences=True):
+    """Witness full retained state, or native policy independently of purge data."""
     state = account_state(uid)
+    values = ([state[0].hex() if state[0] is not None else None, *state[1:]]
+              if include_preferences else state[1:])
     return hashlib.sha256(json.dumps(
-        [state[0].hex() if state[0] is not None else None, *state[1:]],
-        sort_keys=True).encode()).hexdigest()
+        values, sort_keys=True).encode()).hexdigest()
 
 
 def preference_digest(uid):
     return guest.sha(Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json')
+
+
+def verify_other_account(state, *, purged=False, category='removal:other-account-changed'):
+    uid = state['accounts']['other']
+    if purged:
+        guest.require(account_digest(uid, include_preferences=False) == state['other_policy'],
+                      category)
+        path = Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json'
+        guest.require(not path.exists() and not path.is_symlink(),
+                      'purge:other-preferences-remain')
+    else:
+        guest.require(account_digest(uid) == state['other'], category)
 
 
 def removal_command():
@@ -67,9 +82,14 @@ def package_absent():
     rows = guest.run(argv).splitlines()
     if guest.package_path().suffix == '.rpm':
         return PRODUCT not in rows
-    return not any(row.split('\t')[0] == PRODUCT and
-                   len(row.split('\t')) == 2 and row.split('\t')[1][1:2] == 'i'
-                   for row in rows)
+    for row in rows:
+        fields = row.split('\t')
+        if fields[0] == PRODUCT:
+            # A refused prerm followed by a refused abort-remove can leave
+            # configuration pending (iF), with every payload file retained.
+            # Only not-installed/config-files states establish absence.
+            return len(fields) == 2 and fields[1][1:2] in ('n', 'c')
+    return True
 
 
 def session_for(uid):
@@ -157,7 +177,7 @@ def desktop_health(uid):
         time.sleep(0.25)
 
 
-def verify_removed(state, *, purged=False):
+def verify_removed(state, *, purged=False, record=None):
     guest.guard()
     guest.require(package_absent(), 'removal:package-still-installed')
     uid = state['accounts']['child']
@@ -173,8 +193,7 @@ def verify_removed(state, *, purged=False):
     else:
         guest.require(preference_digest(uid) == state['preferences'], 'removal:preferences-lost')
         guest.require(Path('/var/log/oh-no-parent-control').is_dir(), 'removal:logs-lost')
-    guest.require(account_digest(state['accounts']['other']) == state['other'],
-                  'removal:other-account-changed')
+    verify_other_account(state, purged=purged)
     guest.require(all(EXTENSION not in values for values in extension_lists(uid)),
                   'removal:extension-entry-remains')
     guest.require(extension_lists(state['accounts']['other']) == state['other_extensions'],
@@ -216,6 +235,10 @@ def verify_removed(state, *, purged=False):
         path = Path(name)
         guest.require(not path.exists() and not path.is_symlink(), 'removal:integration-remains')
     verify_pam_removed()
+    guest.require(guest.pam_service_state() == state['pam_services'],
+                  'removal:pam-original-not-restored')
+    if record is not None:
+        record('onpc.removal.pam-restored', json.dumps(state['pam_services'], sort_keys=True))
     if guest.package_path().suffix == '.rpm':
         loaded = guest.run(['semodule', '-l']).splitlines()
         guest.require(not any(row.split()[0] == 'onpc-kiosk' for row in loaded if row.split()),
@@ -342,6 +365,68 @@ def purge_path_diagnostics(record, stage):
                    json.dumps(value, sort_keys=True))
 
 
+def refuse_foreign_integration(accounts, before, other, category, target, *, record=None):
+    """Keep refusal evidence before resolving the edit and retrying configuration."""
+    guest.guard()
+    info, original = target.lstat(), target.read_bytes()
+    guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1,
+                  'removal:unsafe-' + category)
+    modified = original + b'\n# onpc removal refusal fixture\n'
+    write_hook(target, info, original, modified)
+    try:
+        guest.commands.run(removal_command(), check=False, timeout=1800, merge_stderr=False)
+        guest.require(guest.commands.last_returncode != 0 and not package_absent(),
+                      'removal:modified-' + category + '-not-refused')
+        guest.require(account_digest(accounts['child']) == before and
+                      account_digest(accounts['other']) == other, 'removal:refusal-changed-policy')
+        guest.require(target.read_bytes() == modified, 'removal:foreign-edit-overwritten')
+        # Verify the retained version and every payload digest before any
+        # reinstall could conceal erasure or damage from the refused removal.
+        guest.verify_package_payload()
+    finally:
+        write_hook(target, info, modified, original)
+    if guest.package_path().suffix == '.deb':
+        status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
+        guest.require(status in ('install ok installed', 'install ok half-configured'),
+                      'removal:unexpected-refusal-package-status')
+        if record is not None:
+            record('onpc.removal.' + category + '-status-before-recovery', status)
+        if status == 'install ok half-configured':
+            # Foreign PAM also blocks abort-remove. Once the owned edit is
+            # resolved, finish the already-unpacked native configuration.
+            # Replacing payload here would create stale live PAM mappings.
+            guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+    guest.verify_package_files()
+    guest.require(account_digest(accounts['child']) == before and
+                  account_digest(accounts['other']) == other, 'removal:retry-changed-policy')
+    if record is not None and guest.package_path().suffix == '.deb':
+        # Strict verification above independently requires this native status.
+        record('onpc.removal.' + category + '-status-after-recovery', 'install ok installed')
+
+
+def foreign_integration_refusals(record, accounts, other, *, fedora):
+    """Exercise the finite hook/PAM refusals and native configuration recovery."""
+    guest.guard()
+    hook = Path('/etc/gdm/PreSession/Default' if fedora else '/etc/gdm3/PreSession/Default')
+    before = account_digest(accounts['child'])
+    for category, target in (('hook', hook), ('pam', Path('/etc/pam.d/gdm-password'))):
+        refuse_foreign_integration(accounts, before, other, category, target, record=record)
+        record('onpc.removal.' + category + '-refusal-retry',
+               'foreign-edit-refused; payload-and-policy-preserved')
+    return hook
+
+
+def exercise_live_refusals(record):
+    """Engineering-only probe in disposable maintenance; retain the package."""
+    guest.guard()
+    guest.enable_diagnostics()
+    accounts = provision_native()
+    other = account_digest(accounts['other'])
+    configure_restrictions(accounts)
+    foreign_integration_refusals(record, accounts, other,
+                                fedora=guest.package_path().suffix == '.rpm')
+
+
 def remove(record):
     guest.guard()
     guest.enable_diagnostics()
@@ -349,6 +434,7 @@ def remove(record):
     accounts = provision_native()
     parent, child = accounts['parent'], accounts['child']
     other = account_digest(accounts['other'])
+    other_policy = account_digest(accounts['other'], include_preferences=False)
     other_extensions = extension_lists(accounts['other'])
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
@@ -356,34 +442,17 @@ def remove(record):
     configure_restrictions(accounts)
     verify_active_kiosk_refusal(record, accounts)
     fedora = guest.package_path().suffix == '.rpm'
-    hook = Path('/etc/gdm/PreSession/Default' if fedora else '/etc/gdm3/PreSession/Default')
-    before = account_digest(child)
-    for category, target in (('hook', hook), ('pam', Path('/etc/pam.d/gdm-password'))):
-        info, original = target.lstat(), target.read_bytes()
-        guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1,
-                      'removal:unsafe-' + category)
-        modified = original + b'\n# onpc removal refusal fixture\n'
-        write_hook(target, info, original, modified)
-        try:
-            guest.commands.run(removal_command(), check=False, timeout=1800, merge_stderr=False)
-            guest.require(guest.commands.last_returncode != 0 and not package_absent(),
-                          'removal:modified-' + category + '-not-refused')
-            guest.require(account_digest(child) == before and
-                          account_digest(accounts['other']) == other, 'removal:refusal-changed-policy')
-            guest.require(target.read_bytes() == modified, 'removal:foreign-edit-overwritten')
-            guest.verify_package_files()
-        finally:
-            write_hook(target, info, modified, original)
-        record('onpc.removal.' + category + '-refusal-retry',
-               'foreign-edit-refused; payload-and-policy-preserved')
+    hook = foreign_integration_refusals(record, accounts, other, fedora=fedora)
     config = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())
     kiosk = pwd.getpwuid(config['kiosk_uid'])
     guest.require(kiosk.pw_name == PRODUCT and kiosk.pw_dir == '/home/' + PRODUCT,
                   'removal:kiosk-identity')
     guest.retain_identity_for_redaction(kiosk.pw_uid)
-    state = {'accounts': accounts, 'other': other, 'preferences': preference_digest(child),
+    state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'preferences': preference_digest(child),
              'defaults': defaults,
              'other_extensions': other_extensions,
+             'pam_services': json.loads((guest.PAYLOAD / 'before.json').read_text())['pam_services'],
              'boot': boot(), 'hook': str(hook), 'kiosk_name': kiosk.pw_name,
              'kiosk_home': kiosk.pw_dir,
              'payload': [item['path'] for item in json.loads(
@@ -393,7 +462,7 @@ def remove(record):
         state['authselect'] = original_authselect()
     save_state(state)
     output = guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
-    verify_removed(state)
+    verify_removed(state, record=record)
     guest.require(REMOVAL_NOTICE.encode() in output, 'removal:reboot-notice-missing')
     guest.require(guest.reboot_requested(), 'removal:reboot-not-requested')
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
@@ -404,14 +473,30 @@ def remove(record):
     record('onpc.removal.erased', 'restrictions-cleared; payload-removed; preferences-retained')
 
 
+def wait_kiosk_inactive(account):
+    """Let a completed GDM logout settle without adopting or stopping its manager."""
+    deadline = time.monotonic() + 75
+    unit = f'user@{account.pw_uid}.service'
+    while True:
+        guest.guard()
+        guest.require(pwd.getpwnam(PRODUCT).pw_uid == account.pw_uid,
+                      'removal:kiosk-identity-changed')
+        state = guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
+        if state in ('inactive', 'failed'):
+            return
+        guest.require(state in ('active', 'activating', 'deactivating') and
+                      time.monotonic() < deadline, 'removal:kiosk-manager-already-active')
+        time.sleep(0.25)
+
+
 def verify_active_kiosk_refusal(record, accounts):
     """Use native removal while one identity-recorded kiosk manager is live."""
     guest.guard()
     from system_kiosk_confinement import census, manager_pid, process_identity, exited, user_command
     account = pwd.getpwnam(PRODUCT)
     unit = f'user@{account.pw_uid}.service'
-    guest.require(guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
-                  in ('inactive', 'failed'), 'removal:kiosk-manager-already-active')
+    wait_kiosk_inactive(account)
+    record('onpc.removal.kiosk-inactive-before-owned-start', True)
     protected = [Path('/var/lib/oh-no-parent-control/kiosk-confinement.json'),
                  Path('/etc/pam.d/gdm-password'), Path('/etc/pam.d/systemd-user')]
     originals = {path: path.read_bytes() for path in protected}
@@ -496,7 +581,7 @@ def removed_rebooted(record):
     guest.enable_diagnostics()
     state = json.loads(state_path().read_text())
     guest.require(boot() != state['boot'] and guest.reboot_cleared(), 'removal:reboot-not-observed')
-    verify_removed(state)
+    verify_removed(state, record=record)
     desktop_health(state['accounts']['child'])
     password_login_health(state['accounts']['child'])
     record('onpc.removal.boot-health',
@@ -529,8 +614,7 @@ def reinstalled_rebooted(record):
     guest.installed()
     guest.require(preference_digest(state['accounts']['child']) == state['preferences'],
                   'removal:reinstall-preferences-changed')
-    guest.require(account_digest(state['accounts']['other']) == state['other'],
-                  'removal:reinstall-other-account-changed')
+    verify_other_account(state, category='removal:reinstall-other-account-changed')
     guest.require(account_property(state['accounts']['child'], LIMITS, 'ActiveExtension') == [0, 0],
                   'removal:reinstall-replayed-grant')
     record('onpc.removal.reinstall', 'payload-verified; readiness-passed; preferences-retained; grant-cleared')
@@ -542,7 +626,7 @@ def reinstalled_rebooted(record):
     purge_path_diagnostics(record, 'before-purge')
     output = guest.commands.run(['/usr/bin/oh-no-parent-control-purge', '--yes'],
                                 timeout=1800, merge_stderr=True)
-    verify_removed(state, purged=True)
+    verify_removed(state, purged=True, record=record)
     guest.require(REMOVAL_NOTICE.encode() in output, 'purge:reboot-notice-missing')
     guest.require(b'oh-no-parent-control: saved-state purge outcome=accepted' in output,
                   'purge:completion-not-confirmed')
@@ -556,7 +640,7 @@ def purged_rebooted(record):
     state = json.loads(state_path().read_text())
     guest.require(boot() != state['purged_boot'] and guest.reboot_cleared(),
                   'purge:reboot-not-observed')
-    verify_removed(state, purged=True)
+    verify_removed(state, purged=True, record=record)
     desktop_health(state['accounts']['child'])
     password_login_health(state['accounts']['child'])
     state['purge_reinstall_boot'] = boot()
@@ -579,8 +663,19 @@ def purge_reinstalled_rebooted(record):
     preferences = json.loads(accepted(call(accounts['parent'], 'GetPreferences', '(u)',
                                            (accounts['child'],)))[0])
     guest.require(preferences == state['defaults'], 'purge:reinstall-defaults-not-fresh')
-    guest.require(account_digest(accounts['other']) == state['other'],
-                  'purge:reinstall-other-account-changed')
+    verify_other_account(state, purged=True, category='purge:reinstall-other-account-changed')
     guest.require(account_property(accounts['child'], LIMITS, 'ActiveExtension') == [0, 0],
                   'purge:reinstall-replayed-grant')
     record('onpc.purge.reinstall', 'payload-verified; readiness-passed; fresh-policy-and-request-defaults')
+
+
+def main(argv=None):
+    arguments = sys.argv[1:] if argv is None else argv
+    guest.require(arguments == ['exercise-live-refusals'], 'removal:diagnostic-arguments')
+    exercise_live_refusals(lambda name, value: print(
+        json.dumps({'property': name, 'value': value}, sort_keys=True), flush=True))
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

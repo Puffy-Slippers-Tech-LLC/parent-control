@@ -751,9 +751,18 @@ uses `reboot` because it defines the boot readiness contract.
 ### Maintaining classifications
 
 The padded kiosk account icon (`kiosk_account_icon.png`) activates during
-package configuration (`none`): provisioning reapplies it through AccountsService.
-Its transparent margins keep the artwork inside the login avatar's circular crop.
+package configuration (`none`). Provisioning points fresh accounts at this
+packaged file and preserves retained account icon metadata. Its 128×128
+transparent canvas contains centered artwork 102 pixels wide (about 80% fill),
+leaving about 6.5 pixels per side in a 64-pixel login avatar. GDM supplies the
+circular container; the artwork's transparent margins keep it inside that crop.
 It introduces no saved-data migration or session payload change.
+
+Regenerate it from the full-resolution launcher artwork, preserving proportions:
+
+```sh
+convert 'data/app_logo_gnome_launcher.png' -trim +repage -filter Lanczos -resize '102x102' -gravity center -background none -extent '128x128' -strip 'data/kiosk_account_icon.png'
+```
 
 Removal changes PAM and login-manager integration too. `postrm remove` records
 the Ubuntu reboot requirement. The packaged

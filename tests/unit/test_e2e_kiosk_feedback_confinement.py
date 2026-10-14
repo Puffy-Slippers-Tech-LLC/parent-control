@@ -137,7 +137,9 @@ def diagnostic_ui():
     download = Node(identity='feedback-download-logs', states=())
     logs = Node('diagnostic-logs.zip', identity='feedback-logs-row')
     send = Node(identity='feedback-send')
-    dialog = Node(identity='feedback-dialog', children=[editor, document, download, logs, send])
+    privacy_link = Node(role='link', identity='feedback-privacy-link')
+    dialog = Node(identity='feedback-dialog', children=[editor, document, download, logs, send,
+                                                       privacy_link])
     dialog.bus, dialog.path = window.bus, '/public/feedback'
     dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
         get_n_targets=lambda: 1, get_target=lambda _: window)]
@@ -147,6 +149,26 @@ def diagnostic_ui():
             node.parent = window
     ui.find_id('kiosk-request-submit').action.do_action.side_effect = lambda _: append(controls) or True
     controls[-1].action.do_action.side_effect = lambda _: append([dialog]) or True
+    disclosure = ('Feedback, reply email addresses, attachments, and diagnostic logs are emailed to support. '
+        'Retention depends on our support mailbox and service providers, including their backup policies. '
+        'We do not currently guarantee deletion within a fixed period. '
+        'Diagnostic logs do not collect account names, email addresses, file contents, raw system journals, or exception messages. '
+        'Automatic diagnostics contain validated technical events, health checks, and system information: '
+        'Your own feedback, reply email, and selected files are separate and may contain personal information. '
+        'Review them before sending.')
+    privacy_close = Node(role='button', identity='feedback-privacy-close')
+    privacy = Node(identity='feedback-privacy-dialog', states=('visible', 'showing', 'sensitive', 'modal'), children=[
+        Node(disclosure, role='label', identity='feedback-privacy-text'), privacy_close,
+        Node(role='link', identity='feedback-full-privacy-link', states=())])
+    privacy.bus, privacy.path = dialog.bus, '/public/privacy'
+    privacy.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: dialog)]
+    def open_privacy(_):
+        dialog.children.append(privacy)
+        privacy.parent = dialog
+        return True
+    privacy_link.action.do_action.side_effect = open_privacy
+    privacy_close.action.do_action.side_effect = lambda _: privacy._close() or True
     editor.setText.side_effect = lambda text: setattr(document, 'value', {'ops': [{'insert': text + '\n'}]})
     return ui, controls, editor, document, download, send
 
@@ -156,14 +178,102 @@ def test_real_public_error_report_editor_sequence_never_sends():
     error = ui.run('kiosk-diagnostic-error', '')['diagnostic']
     report = ui.run('kiosk-diagnostic-report', '')['diagnostic']
     result = ui.run('kiosk-diagnostic-editor', '')['diagnostic']
+    privacy = ui.run('kiosk-diagnostic-privacy', '')['diagnostic']
     assert error['error_shown'] and error['report_default'] and report['report_open']
     assert error['source'] == report['source'] == result['source']
     assert result == {'source': error['source'], 'editor_usable': True,
                       'diagnostics_ready': True, 'sent': False}
+    assert privacy == {'source': error['source'], 'privacy_read': True,
+                      'actions_confined': True, 'draft_preserved': True, 'sent': False}
     editor.setText.assert_called_once_with('Installed kiosk diagnostic qualification.')
     assert document.getValue.call_count >= 1
     assert ui.find_id('kiosk-request-submit').action.do_action.call_count == 1
     assert controls[-1].action.do_action.call_count == 1
+    send.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('role,identity', [('button', 'feedback-manage'),
+    ('button', 'feedback-arbitrary-program'), ('link', 'feedback-external'),
+    ('link', 'feedback-format-link')])
+def test_report_inventory_refuses_extra_actions_before_editor_input(role, identity):
+    ui, _, editor, _, _, send = diagnostic_ui()
+    ui.run('kiosk-diagnostic-error', '')
+    ui.run('kiosk-diagnostic-report', '')
+    dialog = ui.find_id('feedback-dialog')
+    extra = Node(role=role, identity=identity)
+    dialog.children.append(extra)
+    extra.parent = dialog
+    with pytest.raises(UiError, match='ui:kiosk-diagnostic-external-action'):
+        ui.run('kiosk-diagnostic-editor', '')
+    editor.setText.assert_not_called()
+    extra.action.do_action.assert_not_called()
+    send.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['external', 'management', 'readonly', 'disclosure', 'draft'])
+def test_kiosk_privacy_refuses_external_actions_or_lost_report(failure):
+    ui, _, editor, document, _, send = diagnostic_ui()
+    ui.run('kiosk-diagnostic-error', '')
+    ui.run('kiosk-diagnostic-report', '')
+    ui.run('kiosk-diagnostic-editor', '')
+    link = ui.find_id('feedback-privacy-link')
+    original = link.action.do_action.side_effect
+    def open_privacy(index):
+        result = original(index)
+        # Simulate the application's mutation without invoking the observer
+        # inside input dispatch and caching a half-mutated result snapshot.
+        modal = next(node for node in link.parent.children
+                     if node.identity == 'feedback-privacy-dialog')
+        controls = {node.identity: node for node in modal.children}
+        if failure == 'external':
+            controls['feedback-full-privacy-link'].states = {'visible', 'showing', 'sensitive'}
+        elif failure == 'management':
+            extra = Node(role='button', identity='feedback-manage')
+            modal.children.append(extra)
+            extra.parent = modal
+        elif failure == 'readonly':
+            controls['feedback-privacy-text'].role = 'button'
+        elif failure == 'disclosure':
+            controls['feedback-privacy-text'].name = 'Incomplete disclosure'
+        else:
+            close = controls['feedback-privacy-close']
+            close_action = close.action.do_action.side_effect
+            def lose_draft(index):
+                document.value = {'ops': [{'insert': 'lost\n'}]}
+                return close_action(index)
+            close.action.do_action.side_effect = lose_draft
+        return result
+    link.action.do_action.side_effect = open_privacy
+    category = ('document' if failure == 'draft' else 'external-action' if failure in
+                ('external', 'management', 'readonly') else None)
+    with pytest.raises(UiError, match='ui:kiosk-diagnostic-' + category if category else
+                       'ui:feedback-privacy-disclosure'):
+        ui.run('kiosk-diagnostic-privacy', '')
+    assert link.action.do_action.call_count == 1
+    assert editor.setText.call_count == 1
+    send.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['modal', 'surface', 'owner'])
+def test_privacy_entry_refuses_unexpected_scene_before_input(failure):
+    ui, _, editor, _, _, send = diagnostic_ui()
+    ui.run('kiosk-diagnostic-error', '')
+    ui.run('kiosk-diagnostic-report', '')
+    ui.run('kiosk-diagnostic-editor', '')
+    link = ui.find_id('feedback-privacy-link')
+    if failure == 'owner':
+        ui.find_id('kiosk-request-window').bus = ':1.99'
+    elif failure == 'modal':
+        link.action.do_action.side_effect(0)
+    else:
+        window = ui.find_id('kiosk-request-window')
+        extra = Node(role='dialog', identity='parent-window')
+        window.children.append(extra)
+        extra.parent = window
+    with pytest.raises(UiError, match='ui:kiosk-diagnostic-(?:modal|extra-surface|owner)'):
+        ui.run('kiosk-diagnostic-privacy', '')
+    link.action.do_action.assert_not_called()
+    assert editor.setText.call_count == 1
     send.action.do_action.assert_not_called()
 
 
@@ -297,6 +407,15 @@ def test_transport_checks_same_owner_order_and_exact_unsent_projection():
     assert transport.call.call_args.args[0][-2:] == ['b' * 64, 'a' * 64]
     with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-response'):
         reply('kiosk-diagnostic-editor', editor_usable=True, diagnostics_ready=True, sent=True)
+    reply('kiosk-diagnostic-editor', editor_usable=True, diagnostics_ready=True, sent=False)
+    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-response'):
+        reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
+              draft_preserved=False, sent=False)
+    reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
+          draft_preserved=True, sent=False)
+    with pytest.raises(EvidenceError, match='ui:kiosk-diagnostic-order'):
+        reply('kiosk-diagnostic-privacy', privacy_read=True, actions_confined=True,
+              draft_preserved=True, sent=False)
 
 
 def test_engineering_journey_restores_before_report_and_restores_unknown_fault(tmp_path):
@@ -344,7 +463,9 @@ def test_strict_census_requires_webkit_and_reports_only_actual_scanner(monkeypat
     census = Mock(return_value=value)
     monkeypatch.setattr(system_kiosk_confinement, 'census', census)
     assert helper.feedback_census() == {'census': value, 'scanner_observed': observed}
-    assert 'webkit' in census.call_args.kwargs['required_roles']
+    assert census.call_args.kwargs['required_roles'] == (
+        'manager', 'app', 'service', 'wellbeing', 'pipewire', 'webkit',
+        'notifications', 'notification-client')
 
 
 @pytest.mark.parametrize('refused', ['', 'kiosk-diagnostic-error'])
@@ -364,7 +485,7 @@ def test_worker_composes_public_station_steps_and_stops_on_fault_result_refusal(
         assert not result['ok'] and stages[-1] == refused
         assert 'kiosk-diagnostic-report' not in stages
     else:
-        assert result['ok'] and stages[-3:] == list(EXTRA)
+        assert result['ok'] and stages[-len(EXTRA):] == list(EXTRA)
         assert [stage for stage in PLAN.screen_tags if stage in stages] == stages
     # Product actions after station entry remain controller API operations.
     boundary = result['events'].index(['stage', 'selections-read'])

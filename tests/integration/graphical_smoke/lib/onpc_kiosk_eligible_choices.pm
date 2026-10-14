@@ -29,7 +29,8 @@ sub run {
         $journey->consume_observation($stage, $result);
     }
     if ($engineering && $engineering == 1) {
-        for my $stage ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor') {
+        for my $stage ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor',
+                      'kiosk-diagnostic-privacy') {
             my $result = $journey->seen($stage);
             $journey->consume_observation($stage, $result);
         }

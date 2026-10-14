@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 7c is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 8 is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -47,7 +47,7 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [x] | **7a — About restrictions** | On both targets, pass the complete registered kiosk About case 192 with its existing assertions: readable in-app information, no external handler, file chooser, management or arbitrary-program action, unchanged request choices on return and normal exit to sign-in. Use applicable retained evidence first and finish owned cleanup. |
 | [x] | **7b — Preferences restrictions** | On both targets, prove the kiosk Preferences surface, including all exposed pages and nested dialogs, cannot launch external handlers, file choosers, management controls or arbitrary programs. Add only missing confinement coverage through maintained shared operations, preserving normal return to the request form; full preference/reminder feature histories remain outside this step. Finish owned cleanup. |
-| [ ] | **7c — Error reporting and required services** | On both targets, prove error reporting and its in-app privacy disclosure cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify usable editable in-app reporting and diagnostics without sending feedback, the confined native WebKit/scanner route and required service roles. Reuse applicable qualification first, retain real scanner proof and add only missing confinement coverage. Finish owned cleanup. |
+| [x] | **7c — Error reporting and required services** | On both targets, prove error reporting and its in-app privacy disclosure cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify usable editable in-app reporting and diagnostics without sending feedback, the confined native WebKit/scanner route and required service roles. Reuse applicable qualification first, retain real scanner proof and add only missing confinement coverage. Finish owned cleanup. |
 | [ ] | **8 — Shared-integration collateral checks** | On both targets, verify ordinary administrator and standard-user login/desktop availability, preserved vendor PAM callbacks and AccountsService metadata, and kiosk-only scope of changed units/policies. Reuse applicable matrix evidence. Add only missing checks for collateral effects of confinement changes; full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
 Step 5 replaces the former natural-reminder step under the scope decision above.
@@ -944,6 +944,77 @@ This closes only Preferences confinement. Persistence, saving, reminder delivery
 and complete preference/reminder customer histories remain outside this slice.
 Phase 3 remains open; error-report/privacy/native-service qualification in 7c is
 next. The separate E2E queue is unchanged.
+
+### Step 7c qualification — 2026-10-13
+
+The report/privacy source audit found no product defect. Kiosk attachment and
+download actions are hidden and independently guarded; the in-app Privacy
+action consumes its link signal and hides the external privacy-notice link.
+The bundled editor blocks external navigation and new-window requests, with
+local formatting operations and a read-only link-preview API. Diagnostic
+collection uses the broker; RPM package queries use a fixed launcher.
+
+The existing `check_e2e_kiosk_feedback_confinement` qualifier now audits the
+identified report/privacy control inventories, rejects unexpected actions,
+links, surfaces and modals, reads the shared in-app disclosure, and independently
+compares the edited public document after returning. Source audit supplies
+completeness for anonymous toolkit controls. Report identity checks cover
+logical surface ownership. The strict
+census now requires notification and notification-client roles alongside
+manager, app, service, Wellbeing, PipeWire and WebKit.
+
+Historical scanner/editor reports used different package-source inputs; the
+Ubuntu historical allocation was also unavailable. They were not reused for
+this slice. Fresh complete engineering qualification passed through separate
+maintained target selections:
+
+| Target | Passed report | Main result / worker allocation |
+| --- | --- | --- |
+| Ubuntu | `20261014T045241Z-59fdb539` | `onpc-graphical-smoke-vxqo8kl0` / `onpc-e2e-evidence-ws3g9ezo` |
+| Fedora | `20261014T045835Z-01c47c77` | `onpc-graphical-smoke-mie3ozdu` / `onpc-e2e-evidence-4ut_flda` |
+
+Both results prove usable editable reporting, prepared diagnostics, confined
+Privacy actions/disclosure and exact unsent draft preservation. Each retained
+the actual transient scanner's pinned executable, enforcing scanner/parent
+threads and matching private namespace/generation. Each strict census verified
+every relevant live process/thread and all eight required roles under AppArmor
+or enforcing SELinux. The separate positive observation retains scanner proof
+after the transient process exits.
+
+Both results report overall, infrastructure, collection and cleanup passes,
+with `lease_phase=complete`, broker restoration, stopped workers, closed callbacks
+and verified shutdown. The product ledger remains `not-run`; this engineering
+history grants no complete customer-case credit. Both outer baselines were
+restored and verified, and both pinned VMs were confirmed off. Earlier owned
+waiting-session probes and installed confinement-integration `verify` actions
+passed on both targets; their maintenance owners also finished restoration.
+
+The verified named DEB/RPM inputs and fixture hashes match the 5a candidate.
+Both attempts used matching online `onpc-v1.4` snapshots and retain saved and
+expected package identities separately. All 590 recorded execution input
+digests match between targets, including shared UI operation SHA-256
+`ecfaa2b63d463ba07e7fc707b722879d692d8549fc49803ecd22f8701935eaf1`.
+Both qualification source hashes are
+`367b25b81dc0e77caaafc831d21a644f75fb86b09a64147aca2c232269835176`.
+No product source changed, so earlier candidate policy qualification remains
+applicable without affected requalification.
+
+The final feedback guard module passed 54/54 (`20261014T045139Z-e85c564b`);
+1,806 other scoped shared API/privacy/composition and worker-cleanup checks
+passed. Bounded independent
+review found no further defect, and existing resource classifications remain
+applicable. Coverage regeneration added 12 unit cases with no customer-case
+inventory change. Final plan/inventory/coverage/composition consistency passed
+313/313 (`20261014T050633Z-0902c6d2`), and all 353 Markdown link checks passed.
+Both final qualification reports and result allocations were verified retained
+after validation. These test/documentation changes are outside package
+sources and build-tool dependencies, so no `make build` is required.
+
+This closes only error-report/privacy/native-service confinement. Sending,
+ordinary Parent diagnostic export and general editor/notification/Wellbeing
+feature histories remain with their existing owners. Phase 3 remains open;
+step 8's shared-integration collateral checks are next. The separate E2E queue
+is unchanged.
 
 ## Operating and qualification routes
 

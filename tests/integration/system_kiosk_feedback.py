@@ -313,7 +313,8 @@ def restore():
 
 def feedback_census():
     from system_kiosk_confinement import census
-    value = census(required_roles=('manager', 'app', 'service', 'wellbeing', 'pipewire', 'webkit'))
+    value = census(required_roles=('manager', 'app', 'service', 'wellbeing', 'pipewire',
+                                   'webkit', 'notifications', 'notification-client'))
     # A configured profile is not evidence of a scanner which already exited.
     # All live threads retain strict checks; transient scanner proof is distinct.
     scanner = 'onpc-kiosk-scanner' if value['backend'] == 'apparmor' else 'onpc_kiosk_scanner_t'

@@ -719,7 +719,7 @@ GDM_SESSION_LABELS = {
 KIOSK_OPERATIONS = frozenset({'kiosk-request-form',
                               'kiosk-no-child-form', 'kiosk-no-approver-form', 'kiosk-lifecycle-defaults'})
 KIOSK_DIAGNOSTIC_OPERATIONS = frozenset({'kiosk-diagnostic-error',
-    'kiosk-diagnostic-report', 'kiosk-diagnostic-editor'})
+    'kiosk-diagnostic-report', 'kiosk-diagnostic-editor', 'kiosk-diagnostic-privacy'})
 OPERATIONS |= KIOSK_DIAGNOSTIC_OPERATIONS
 KIOSK_REMINDER_OPERATIONS = frozenset({'kiosk-reminder-preview', 'kiosk-reminder-preview-cancel'})
 OPERATIONS |= KIOSK_REMINDER_OPERATIONS
@@ -4969,6 +4969,10 @@ class AccessibleUI:
         self.activate_id('feedback-privacy-link')
         root = self.id_target('feedback-privacy-dialog')
         self.window_ready_to_close('feedback-privacy')
+        self.feedback_privacy_disclosure(root)
+
+    def feedback_privacy_disclosure(self, root):
+        """Read the shared in-app disclosure independently of its entry surface."""
         node = self.id_target('feedback-privacy-text', root=root)
         text = node.get_name()
         require(type(text) is str and 0 < len(text) <= 2048,
@@ -9727,6 +9731,7 @@ class AccessibleUI:
                 return None
             return source
         source = self.wait(ready, 'kiosk-diagnostic-editor')
+        self.kiosk_diagnostic_inventory(source)
         text = 'Installed kiosk diagnostic qualification.'
         self.set_text('feedback-editor-input', text)
         require(self.editor_document() == {'ops': [{'insert': text + '\n'}]},
@@ -9763,7 +9768,99 @@ class AccessibleUI:
                 all(self.has_state(send, state) for state in
                     (self.api.StateType.VISIBLE, self.api.StateType.SENSITIVE)))
         self.wait(collected, 'kiosk-diagnostic-collection')
+        self.kiosk_diagnostic_inventory(source)
         return {'source': source, 'editor_usable': True, 'diagnostics_ready': True, 'sent': False}
+
+    def kiosk_diagnostic_inventory(self, source, *, privacy=False):
+        """Audit identified public report actions and reject unexpected surfaces.
+
+        ID completeness is owned by the product source audit. Hidden controls
+        cannot supply input through the API and are not offered kiosk actions.
+        """
+        value = self.kiosk_diagnostic_surface(feedback=True)
+        require(value is not None and value[2] == source, 'ui:kiosk-diagnostic-owner')
+        observation, report, _ = value
+        nodes, edges, identities, facts = observation
+        window = self.request_surface(observation)
+        application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+        modal = self.snapshot_owned_target('feedback-privacy-dialog', observation=observation,
+                                           showing=False, check_prompt=True)
+        require((modal is not None and self.has_state(modal, self.api.StateType.VISIBLE)) if privacy else
+                (modal is None or not self.has_state(modal, self.api.StateType.VISIBLE)),
+                'ui:kiosk-diagnostic-modal')
+        if privacy:
+            require(modal.bus == report.bus and self.has_state(modal, self.api.StateType.MODAL),
+                    'ui:kiosk-diagnostic-owner')
+        scope = set(self.snapshot_scope(nodes, edges, application))
+        roots = {nodes[0], *edges[nodes[0]]} if nodes[0] != application else {application}
+        require(not any(facts[node]['showing'] for node in nodes
+                        if node not in scope and node not in roots),
+                'ui:kiosk-diagnostic-extra-surface')
+        for node in scope:
+            if self.has_state(node, self.api.StateType.VISIBLE) and (identities[node].endswith(('-dialog', '-window')) or
+                    facts[node]['role'] in ('window', 'dialog') or
+                    facts[node]['role'] == 'frame' and node.get_parent() == application):
+                require(node in (window, report, modal), 'ui:kiosk-diagnostic-extra-surface')
+        allowed = {
+            'feedback-dialog', 'feedback-window-controls', 'feedback-content',
+            'feedback-editor-container', 'feedback-webview', 'feedback-editor-input',
+            'feedback-editor-document', 'feedback-editor-selection', 'feedback-editor-insert',
+            'feedback-undo', 'feedback-redo', 'feedback-format-toolbar', 'feedback-format-style',
+            'feedback-format-normal', 'feedback-format-heading-1', 'feedback-format-heading-2',
+            'feedback-format-bold', 'feedback-format-italic', 'feedback-format-underline',
+            'feedback-format-strike', 'feedback-format-ordered', 'feedback-format-bulleted',
+            'feedback-format-quote', 'feedback-format-code', 'feedback-format-link',
+            'feedback-format-clear', 'feedback-reply-email', 'feedback-collection-status',
+            'feedback-logs-row', 'feedback-toggle-logs', 'feedback-status',
+            'feedback-privacy-link', 'feedback-close', 'feedback-send',
+        }
+        excluded = set() if modal is None else set(self.snapshot_scope(nodes, edges, modal))
+        for node in self.snapshot_scope(nodes, edges, report):
+            if self.has_state(node, self.api.StateType.VISIBLE) and node not in excluded:
+                require(identities[node] in allowed and (facts[node]['role'] != 'link' or
+                        identities[node] == 'feedback-privacy-link'),
+                        'ui:kiosk-diagnostic-external-action')
+        if privacy:
+            allowed_privacy = {'feedback-privacy-dialog', 'feedback-privacy-window-controls',
+                               'feedback-privacy-text', 'feedback-privacy-close'}
+            for node in self.snapshot_scope(nodes, edges, modal):
+                if self.has_state(node, self.api.StateType.VISIBLE):
+                    require(identities[node] in allowed_privacy and facts[node]['role'] != 'link',
+                            'ui:kiosk-diagnostic-external-action')
+                    if identities[node] == 'feedback-privacy-text':
+                        require(not set(getattr(node, 'metadata', {}).get('operations', ())) &
+                                {'activate', 'setValue', 'setText', 'close'} and
+                                facts[node]['role'] not in ('button', 'push button', 'entry', 'text',
+                                    'toggle button', 'check box', 'radio button', 'combo box', 'menu item'),
+                                'ui:kiosk-diagnostic-external-action')
+        return modal
+
+    def kiosk_diagnostic_privacy(self):
+        """Read confined privacy and preserve the unsent edited report on return."""
+        value = self.kiosk_diagnostic_surface(feedback=True)
+        require(value is not None, 'ui:kiosk-diagnostic-owner')
+        source = value[2]
+        report_identity = (value[1].bus, value[1].path)
+        require(source == getattr(self, 'expected_kiosk_diagnostic_source', None) or
+                source == getattr(self, 'kiosk_diagnostic_source', None), 'ui:kiosk-diagnostic-owner')
+        expected = {'ops': [{'insert': 'Installed kiosk diagnostic qualification.\n'}]}
+        self.kiosk_diagnostic_inventory(source)
+        require(self.editor_document() == expected, 'ui:kiosk-diagnostic-document')
+        self.activate_id('feedback-privacy-link')
+        self.wait(lambda: self.snapshot_owned_target('feedback-privacy-dialog'),
+                  'kiosk-diagnostic-privacy')
+        modal = self.kiosk_diagnostic_inventory(source, privacy=True)
+        self.feedback_privacy_disclosure(modal)
+        self.activate_id('feedback-privacy-close')
+        self.wait(lambda: self.absent_id('feedback-privacy-dialog', within='feedback-dialog',
+                  incomplete_raises=True), 'kiosk-diagnostic-privacy-returned')
+        self.kiosk_diagnostic_inventory(source)
+        returned = self.kiosk_diagnostic_surface(feedback=True)
+        require(returned is not None and (returned[1].bus, returned[1].path) == report_identity,
+                'ui:kiosk-diagnostic-owner')
+        require(self.editor_document() == expected, 'ui:kiosk-diagnostic-document')
+        return {'source': source, 'privacy_read': True, 'actions_confined': True,
+                'draft_preserved': True, 'sent': False}
 
     def _kiosk_valid_choice(self, operation):
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -12161,6 +12258,7 @@ class AccessibleUI:
                 'kiosk-diagnostic-error': self.kiosk_diagnostic_error,
                 'kiosk-diagnostic-report': self.kiosk_diagnostic_report,
                 'kiosk-diagnostic-editor': self.kiosk_diagnostic_editor,
+                'kiosk-diagnostic-privacy': self.kiosk_diagnostic_privacy,
             }[operation]()
         elif operation == 'station-entry-branch':
             result['branch'] = self.station_entry_branch(self.branch_owner)
@@ -13590,7 +13688,7 @@ def main():
     ui.trace_request = sys.argv[4] if len(sys.argv) >= 5 and trace_argument else None
     ui.trace_boot = boot
     ui.expected_trace_source = (ui.trace_request if sys.argv[1] == 'parent-toggle-enabled' else None)
-    diagnostic_binding = sys.argv[1] in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor')
+    diagnostic_binding = sys.argv[1] in KIOSK_DIAGNOSTIC_OPERATIONS - {'kiosk-diagnostic-error'}
     reminder_binding = sys.argv[1] == 'kiosk-reminder-preview-cancel'
     ui.expected_kiosk_reminder_source = sys.argv[4] if len(sys.argv) == 5 and reminder_binding else None
     require(not reminder_binding or (ui.expected_kiosk_reminder_source is not None and

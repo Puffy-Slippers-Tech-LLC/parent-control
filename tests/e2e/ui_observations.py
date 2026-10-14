@@ -44,6 +44,7 @@ OPERATION_LABELS = {
     'kiosk-diagnostic-error': 'Observing a real kiosk request failure under the owned engineering fault',
     'kiosk-diagnostic-report': 'Opening the kiosk error report through its public dismissal action',
     'kiosk-diagnostic-editor': 'Editing the real kiosk report and waiting for diagnostics without Send',
+    'kiosk-diagnostic-privacy': 'Reading confined in-app privacy and preserving the unsent kiosk report',
     'kiosk-reminder-preview': 'Observing the installed kiosk reminder banner and literal countdown',
     'kiosk-reminder-preview-cancel': 'Discarding the preview draft and observing banner closure',
     **{operation: 'Checking the bound Parent lock surface: ' + operation.removeprefix('parent-lock-')
@@ -1319,9 +1320,11 @@ class UiObservations:
                 operation != 'child-natural-expiry-lock-result'
                 or self.last_operation == 'child-natural-expiry-lock-ready'),
                 'ui:natural-expiry-lock-order')
-        if operation in ('kiosk-diagnostic-report', 'kiosk-diagnostic-editor'):
-            require(self.last_operation == ('kiosk-diagnostic-error' if
-                    operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
+        if operation in accessible_ui.KIOSK_DIAGNOSTIC_OPERATIONS - {'kiosk-diagnostic-error'}:
+            previous = {'kiosk-diagnostic-report': 'kiosk-diagnostic-error',
+                        'kiosk-diagnostic-editor': 'kiosk-diagnostic-report',
+                        'kiosk-diagnostic-privacy': 'kiosk-diagnostic-editor'}
+            require(self.last_operation == previous[operation] and
                     hasattr(self, 'kiosk_diagnostic_source'), 'ui:kiosk-diagnostic-order')
             binding = [self.boot_guard or '', self.kiosk_diagnostic_source]
         if self.accessibility_trace is not None:
@@ -1721,7 +1724,9 @@ class UiObservations:
             fields = {'kiosk-diagnostic-error': {'error_shown': True, 'report_default': True},
                       'kiosk-diagnostic-report': {'report_open': True},
                       'kiosk-diagnostic-editor': {'editor_usable': True,
-                                                  'diagnostics_ready': True, 'sent': False}}
+                                                  'diagnostics_ready': True, 'sent': False},
+                      'kiosk-diagnostic-privacy': {'privacy_read': True, 'actions_confined': True,
+                                                  'draft_preserved': True, 'sent': False}}
             value = result.get('diagnostic')
             require(type(value) is dict and set(value) == {'source', *fields[operation]} and
                     type(value['source']) is str and re.fullmatch(r'[0-9a-f]{64}', value['source']) and
@@ -1731,8 +1736,10 @@ class UiObservations:
                 require(not hasattr(self, 'kiosk_diagnostic_source'), 'ui:kiosk-diagnostic-replay')
                 self.kiosk_diagnostic_source = value['source']
             else:
-                require(self.last_operation == ('kiosk-diagnostic-error' if
-                        operation == 'kiosk-diagnostic-report' else 'kiosk-diagnostic-report') and
+                previous = {'kiosk-diagnostic-report': 'kiosk-diagnostic-error',
+                            'kiosk-diagnostic-editor': 'kiosk-diagnostic-report',
+                            'kiosk-diagnostic-privacy': 'kiosk-diagnostic-editor'}
+                require(self.last_operation == previous[operation] and
                         value['source'] == getattr(self, 'kiosk_diagnostic_source', None),
                         'ui:kiosk-diagnostic-order')
             expected['diagnostic'] = value

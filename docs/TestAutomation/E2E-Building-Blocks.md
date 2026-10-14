@@ -3314,16 +3314,23 @@ Report this error/result dismissal and real feedback editor/diagnostics checks.
 It uses `kiosk_feedback_confinement.PLAN`, `UiObservations` and the shared
 `AccessibleUI.kiosk_diagnostic_*` operations; it never activates Send and grants
 no customer-case credit. The root helper retains the mask inode, attempt, boot
-and original service invocation for guarded recovery. Installed qualification
-passes on Ubuntu 26.04 in `20261013T065541Z-84ce3666` and Fedora 44 in
-`20261013T062642Z-e0eaa977`, with collection, broker restoration, owned cleanup
-and baseline restoration. Both require editable text/document readback,
-prepared diagnostics and hidden/absent kiosk download and attachment controls.
+and original service invocation for guarded recovery. The privacy operation
+opens and closes the in-app disclosure through public IDs, reads the shared
+disclosure and independently verifies the unchanged edited document. Complete
+identified report/privacy inventories reject unexpected actions, links,
+surfaces and modals; the product source audit supplies anonymous-control
+completeness. Report identity checks cover logical surface ownership.
+Installed qualification passes on Ubuntu 26.04 in
+`20261014T045241Z-59fdb539` and Fedora 44 in `20261014T045835Z-01c47c77`, with
+collection, broker restoration, owned cleanup and baseline restoration. Both
+require editable text/document readback, prepared diagnostics, confined Privacy
+and hidden/absent kiosk download and attachment controls.
 Ordinary Parent ZIP export remains the separate FEED08 binding. A bounded
 observer starts before station login and captures the actual
 transient scanner, independently proving its executable, enforcing thread roles
 and matching private namespace/generation. Missing or rejected observations fail
-qualification. The later strict census requires actual WebKit threads;
+qualification. The later strict census requires actual manager, app, service,
+Wellbeing, PipeWire, notification, notification-client and WebKit threads;
 configured policy or successful rendering cannot establish scanner execution.
 
 The separate engineering selector `check_e2e_kiosk_notification_wellbeing`

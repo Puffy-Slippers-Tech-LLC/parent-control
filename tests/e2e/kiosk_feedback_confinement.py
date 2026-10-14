@@ -7,7 +7,8 @@ from kiosk_eligible_choices import PLAN as CHOICES_PLAN
 from private_artifacts import require
 import system_runner as system
 
-EXTRA = ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor')
+EXTRA = ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor',
+         'kiosk-diagnostic-privacy')
 PLAN = replace(CHOICES_PLAN, worker_mode='kiosk_feedback_confinement',
     screen_tags={**CHOICES_PLAN.screen_tags, **{stage: 'ui:' + stage for stage in EXTRA}},
     phases={**CHOICES_PLAN.phases, **{stage: 'step-2' for stage in EXTRA}})

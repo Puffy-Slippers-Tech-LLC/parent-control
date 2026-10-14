@@ -120,6 +120,8 @@ All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
+The conversation composer shows a blinking underscore cursor at the current
+insertion position, including while another pane is selected or output scrolls.
 The Plan/E2E session line appends elapsed clock time, refreshing every minute even
 without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
 The clock starts with each session, survives observer reconnection and stops

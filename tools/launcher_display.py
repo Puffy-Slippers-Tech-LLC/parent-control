@@ -415,8 +415,8 @@ class TaskDisplay(LauncherDisplay):
         # rather than escaping the terminal; leave room for output when possible.
         editor_capacity = max(0, available - chrome_height)
         editor_room = min(len(editor_rows), max(1, editor_capacity - 1) if editor_capacity else 0)
-        start = max(0, caret_row - editor_room + 1)
-        editor_rows = editor_rows[start:start + editor_room]
+        editor_start = max(0, caret_row - editor_room + 1)
+        editor_rows = editor_rows[editor_start:editor_start + editor_room]
         if self.input_mode != 'chat':
             editor_rows = self.wrapped(self.question.lines(left_width), left_width) if self.question else []
             editor_rows = editor_rows[-max(1, available // 2):]
@@ -496,11 +496,12 @@ class TaskDisplay(LauncherDisplay):
         for row in rows:
             row.truncate(width, overflow='crop')
         self.paint(rows, size)
-        if self.input_mode == 'chat' and self.focus == 'chat' and editor_rows and width >= 3:
-            cursor_row = min(height, self.chat_top + 1 + caret_row - start)
+        if self.input_mode == 'chat' and editor_rows and width >= 3:
+            cursor_row = min(height, self.chat_top + 1 + caret_row - editor_start)
             cursor_column = min(left_width, 1 + (2 if boxed else 0) + caret_column)
-            # DECSCUSR: use the standard blinking I-beam for text editing.
-            self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[5 q\033[?25h')
+            # Typing always edits chat, even while another pane is focused.
+            # DECSCUSR: use the standard blinking underline cursor.
+            self.stream.write(f'\033[{cursor_row};{cursor_column}H\033[3 q\033[?25h')
         else:
             self.stream.write('\033[?25l')
         self.stream.flush()

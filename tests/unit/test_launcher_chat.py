@@ -719,6 +719,28 @@ def test_top_and_bottom_dividers_drag_independently(tmp_path):
     assert display.divider_column == round(158 * display.ratio) + 1
 
 
+@pytest.mark.parametrize('draft', ['', 'abc', 'first\nsecond', '界x'])
+def test_chat_underline_cursor_tracks_insertion_while_output_scrolls(tmp_path, draft):
+    display, terminal = display_fixture(tmp_path)
+    display.handle_input(draft.encode())
+    if draft:
+        display.handle_input(b'\x1b[D')
+    # Enough output to create a scrollbar, whose offset must never affect
+    # the independent composer caret position.
+    display.write(''.join(f'output {index}\n' for index in range(100)))
+    expected_row = display.chat_top + draft.count('\n')
+    expected_column = 2 + (len(draft.rsplit('\n', 1)[-1]) - 1 if draft else 0)
+    if draft == '界x':
+        expected_column = 4  # The wide character occupies two terminal cells.
+    for _ in range(2):
+        assert terminal.cursor_visible
+        assert (terminal.row, terminal.column) == (expected_row, expected_column)
+        assert terminal.getvalue().endswith('\033[3 q\033[?25h')
+        display.mouse(0, 2, display.top_height + 2, False)
+        display.mouse(64, 2, display.top_height + 2, False)
+    assert display.focus == 'bottom'
+
+
 def test_typing_anywhere_grows_and_shrinks_composer_without_changing_explanation(tmp_path):
     display, terminal = display_fixture(tmp_path)
     display.focus = 'bottom'

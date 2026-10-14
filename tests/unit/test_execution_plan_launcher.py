@@ -17,6 +17,7 @@ from execution_plan import Plan, local_file
 from confinement_workflow import WORKFLOW as CONFINEMENT
 from launcher_display import TaskDisplay
 from launcher_runtime import TaskBudget, task_limit, warn_remaining
+from launcher_view import WorkflowView, plan_totals, view_for
 import plan_launcher as workflow
 from tests.support.terminal_screen import Terminal
 
@@ -447,21 +448,85 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
                         dict(key='task', lines=['Current task', 'Current session'])], [])
         display.write('Execution output\n')
         visible = terminal.visible()
-        assert visible.splitlines()[0] == 'Tasks: 1/2'
+        assert visible.splitlines()[0].split('│')[0].strip() == 'Tasks: 1/2'
         assert 'Execution output' in visible and 'Current task' in visible
         assert 'Chat [Cancel]' not in visible and 'Enter: send' not in visible
         display.handle_input(b'm')
         assert display.mouse_capture
+        display.handle_input(f'\x1b[<0;{display.top_divider_column};1M'.encode())
+        display.handle_input(b'\x1b[<32;75;1M\x1b[<0;75;1m')
+        assert display.top_ratio == 74 / 118
+        assert display.ratio == .75
         row, divider = display.top_height + 3, display.divider_column
         for fragment in (b'\x1b[<0;', f'{divider};{row}M'.encode()):
             display.handle_input(fragment)
         display.handle_input(f'\x1b[<32;61;{row}M\x1b[<0;61;{row}m'.encode())
         assert display.ratio == 60 / 118
+        assert display.top_ratio == 74 / 118
         display.handle_input(f'\x1b[<65;100;{display.summary_bottom + 2}M'.encode())
         assert display.offsets['info'] > 0
         assert display.editor.text == ''
     finally:
         display.close()
+
+
+def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_path):
+    plan = prepare(tmp_path, count=4)
+    run = tmp_path / 'run'
+    run.mkdir()
+    TaskBudget(run).initialize(1)
+    terminal = Terminal(120, 30)
+    view = WorkflowView(totals=lambda: plan_totals(tmp_path, plan.path))
+    display = view.display(terminal, run)
+    display.terminal_size = lambda: terminal.size
+    queue = tmp_path / plan.queue
+    try:
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 0/4/4' in terminal.visible()
+        # Queue completion can precede pointer/brief close-out; no worker output
+        # or budget update is needed to refresh the observer.
+        queue.write_text(queue.read_text().replace('| [ ] | 001 |', '| [x] | 001 |'))
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 1/3/4' in terminal.visible()
+        assert TaskBudget(run).read()['completed'] == 0
+        row = display.previous[0]
+        start = row.plain.index('Total Tasks: ') + len('Total Tasks: ')
+        assert row.get_style_at_offset(display.console, start).color.name == 'green'
+        assert row.get_style_at_offset(display.console, start + 2).color.name == 'blue'
+        assert row.get_style_at_offset(display.console, start + 4).color is None
+        valid = queue.read_text()
+        queue.write_text('Partial rewrite')
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 1/3/4' in terminal.visible()
+        queue.write_text(valid.replace('| [ ] | 002 |', '| [x] | 002 |'))
+        TaskBudget(run).set_limit(0)
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 2/2/4' in terminal.visible()
+        queue.write_text(queue.read_text().replace('## Deferred future work',
+                         '| [ ] | 005 | [Task 005](005.md) | — | added task |\n## Deferred future work'))
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 2/3/5' in terminal.visible()
+        queue.write_text(queue.read_text().replace('| [ ] |', '| [x] |'))
+        display.refresh_chat()
+        display.draw()
+        assert 'Total Tasks: 5/0/5' in terminal.visible()
+    finally:
+        display.close()
+
+
+def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
+    import launcher_view
+    import write_e2e
+    calls = []
+    monkeypatch.setattr(launcher_view, 'plan_totals',
+                        lambda root, path: calls.append((root, path)) or (3, 7, 10))
+    assert view_for('write-e2e').totals() == (3, 7, 10)
+    assert calls == [(Path(launcher_view.__file__).resolve().parent.parent, write_e2e.PLAN)]
 
 
 def test_confinement_model_and_bounded_sol_roles(tmp_path, monkeypatch):

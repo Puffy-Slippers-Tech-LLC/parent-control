@@ -437,8 +437,9 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             cancel()
         print(f"{spec.name}: {'started' if started else 'attached to'} {run.name}; log: {run / 'output'}", flush=True)
         print('Closing the terminal detaches. --stop waits for a session boundary. Chat Ctrl+C interrupts; again while waiting exits.', flush=True)
-        from launcher_view import WorkflowView, plan_progress
-        return launcher.follow(run, label=spec.name, view=WorkflowView('chat', True, plan_progress))
+        from launcher_view import WorkflowView, plan_progress, plan_totals
+        return launcher.follow(run, label=spec.name, view=WorkflowView(
+            'chat', True, plan_progress, lambda: plan_totals(root, path)))
     except BrokenPipeError:
         return 0
     except (OSError, ValueError, KeyError, ImportError, subprocess.SubprocessError) as error:

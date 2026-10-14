@@ -362,7 +362,7 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
     display.write('Output belongs on the left.\n')
     assert display.divider_column == round((terminal.size.columns - 2) * .75) + 1
     lines = terminal.visible().splitlines()
-    assert lines[0] == 'Tasks: 1/3'
+    assert lines[0].split('│')[0].strip() == 'Tasks: 1/3'
     assert 'Task 001:' not in lines[0]
     assert lines[2].split('│')[0].strip() == 'Output belongs on the left.'
     assert 'Task 001:' in lines[2].split('│')[1]
@@ -380,6 +380,28 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
         assert all(len(line) <= width for line in terminal.visible().splitlines())
     display.close()
     assert '\033[?1003l' in terminal.getvalue()
+
+
+def test_top_and_bottom_dividers_drag_independently(tmp_path):
+    display, terminal = display_fixture(tmp_path)
+    assert display.top_divider_column == display.divider_column
+    display.mouse(0, display.top_divider_column, 1, False)
+    display.mouse(32, 61, 1, False)
+    display.mouse(0, 61, 1, True)
+    top_ratio = display.top_ratio
+    assert top_ratio == 60 / 118
+    assert display.ratio == .75
+    assert display.top_divider_column != display.divider_column
+    # Drag across the horizontal boundary; retain the originally grabbed split.
+    display.mouse(0, display.divider_column, display.top_height + 2, False)
+    display.mouse(32, 80, 1, False)
+    display.mouse(0, 80, 1, True)
+    assert display.ratio == 79 / 118
+    assert display.top_ratio == top_ratio
+    terminal.resize(160, 40)
+    display.draw()
+    assert display.top_divider_column == round(158 * top_ratio) + 1
+    assert display.divider_column == round(158 * display.ratio) + 1
 
 
 def test_typing_anywhere_grows_and_shrinks_composer_without_changing_explanation(tmp_path):

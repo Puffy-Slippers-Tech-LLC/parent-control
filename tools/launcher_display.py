@@ -1,4 +1,4 @@
-"""Shared resizable task overview, execution/input and summary/status panes."""
+"""Shared resizable task overview/totals and execution/input/status panes."""
 
 import json
 import os
@@ -16,12 +16,15 @@ from launcher_render import LauncherDisplay
 
 
 class TaskDisplay(LauncherDisplay):
-    def __init__(self, stream, *, run, input_mode='chat', **kwargs):
+    def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
         super().__init__(stream, **kwargs)
         self.run = run
         self.input_mode = input_mode
         self.ratio = .75
-        self.dragging = False
+        self.top_ratio = self.ratio
+        self.dragging = None
+        self.totals = totals
+        self.task_totals = None
         self.pointer = False
         self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
@@ -30,6 +33,7 @@ class TaskDisplay(LauncherDisplay):
         self.task_info = {}
         self.editor = ChatEditor(self.submit)
         self.divider_column = 0
+        self.top_divider_column = 0
         self.chat_top = 0
         self.output_height = 0
         self.summary_bottom = 0
@@ -72,6 +76,13 @@ class TaskDisplay(LauncherDisplay):
         self.chat_state = read_state(self.run)
         path = self.run / 'task-info.json'
         self.task_info = json.loads(path.read_text()) if path.exists() else {}
+        if self.totals is not None:
+            try:
+                self.task_totals = self.totals()
+            except (OSError, ValueError):
+                # A partially rewritten queue must not detach the observer or
+                # replace the last valid totals with misleading zeroes.
+                pass
 
     def output_width(self):
         return max(1, self.divider_column - 1)
@@ -176,20 +187,29 @@ class TaskDisplay(LauncherDisplay):
 
     def mouse(self, button, column, row, released):
         base = button & ~28
-        over = column == self.divider_column and row > self.top_height + 1
-        self.set_pointer(over or self.dragging)
+        over = ('top' if column == self.top_divider_column and 1 <= row <= self.top_height else
+                'bottom' if column == self.divider_column and row > self.top_height + 1 else None)
+        self.set_pointer(bool(over or self.dragging))
         if released:
-            self.dragging = False
-            self.set_pointer(over)
+            self.dragging = None
+            self.set_pointer(bool(over))
             self.draw()
             return
         if base == 0 and over:
-            self.dragging = True
+            self.dragging = over
             self.draw()
         elif base == 32 and self.dragging and self.size:
-            self.ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
+            ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
+            if self.dragging == 'top':
+                self.top_ratio = ratio
+            else:
+                self.ratio = ratio
             self.draw()
         elif base == 0:
+            if row <= self.top_height:
+                if column < self.top_divider_column:
+                    self.focus = 'top'
+                return
             if self.bottom_button == (column, row):
                 self.offsets['bottom'] = 0
                 self.draw()
@@ -199,6 +219,8 @@ class TaskDisplay(LauncherDisplay):
             self.focus = ('bottom' if self.input_mode != 'chat' or
                           column < self.divider_column and row < self.chat_top else 'chat')
         elif base in (64, 65):
+            if row <= self.top_height and column >= self.top_divider_column:
+                return
             if self.input_mode == 'chat' and column < self.divider_column and row >= self.chat_top:
                 return
             pane = ('top' if row <= self.top_height else 'bottom' if column < self.divider_column else
@@ -214,7 +236,8 @@ class TaskDisplay(LauncherDisplay):
             size = self.terminal_size() if self.terminal_size else os.get_terminal_size(self.stream.fileno())
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
-        state = (size, self.ratio, self.dragging, tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
+        state = (size, self.ratio, self.top_ratio, self.dragging, self.task_totals,
+                 tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
                  self.editor.text, self.editor.cursor, self.editor.error,
@@ -224,6 +247,17 @@ class TaskDisplay(LauncherDisplay):
         if self.screen and state == self.draw_state:
             return
         width, height = max(1, size.columns - 1), max(1, size.lines)
+        top_left_width = max(1, min(width - 2, round((width - 1) * self.top_ratio))) if width >= 3 else 1
+        top_right_width = max(1, width - top_left_width - 1)
+        self.top_divider_column = top_left_width + 1
+        totals = Text('Total Tasks: ')
+        completed, unfinished, total = self.task_totals or ('—', '—', '—')
+        totals.append(str(completed), style='green')
+        totals.append('/')
+        totals.append(str(unfinished), style='blue')
+        totals.append('/')
+        totals.append(str(total))
+        total_rows = totals.wrap(self.console, top_right_width, overflow='fold')[:max(0, height - 4)]
         pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
         current = next((s for s in reversed(self.steps) if not s.get('pinned') and not s.get('replaces')), None)
         # Only completed/suspended history stays above the lower split.
@@ -231,9 +265,15 @@ class TaskDisplay(LauncherDisplay):
                    (s.get('replaces') or (s is not current and len(s['lines']) == 1)) for line in s['lines']]
         if self.input_mode != 'chat':
             history = [s['lines'][0] for s in self.steps if not s.get('pinned') and s['lines']]
-        top = self.wrapped(pinned, width)[:max(0, height - 3)]
+        top = self.wrapped(pinned, top_left_width)[:max(0, height - 3)]
         room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
-        top += self.scroll_rows('top', history, width, room)
+        top += self.scroll_rows('top', history, top_left_width, room)
+        top += [Text('')] * max(0, len(total_rows) - len(top))
+        for index, row in enumerate(top):
+            row.pad_right(max(0, top_left_width - row.cell_len))
+            top[index] = row + Text('│', style='#0098ff' if self.dragging == 'top' else 'dim')
+            if index < len(total_rows):
+                top[index] += total_rows[index]
         self.top_height = len(top)
         available = max(0, height - len(top) - 1)
         left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
@@ -342,7 +382,7 @@ class TaskDisplay(LauncherDisplay):
                 row += Text('↓', style='bold reverse')
             row.truncate(left_width, overflow='crop')
             row.pad_right(max(0, left_width - row.cell_len))
-            rows.append(row + Text('│', style='#0098ff' if self.dragging else 'dim') + right[index])
+            rows.append(row + Text('│', style='#0098ff' if self.dragging == 'bottom' else 'dim') + right[index])
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height

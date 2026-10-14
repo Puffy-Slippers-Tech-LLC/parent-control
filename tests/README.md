@@ -1012,15 +1012,17 @@ ratio, which survives terminal resizing. The divider turns blue while dragging
 and returns to its normal color on release. Hover requests the standard horizontal
 resize pointer using OSC 22; terminals without pointer-shape support keep their
 own pointer, including VS Code's integrated terminal (xterm.js does not implement
-OSC 22). The live layout uses the normal terminal screen and publishes arriving
-output, controller transitions, task explanations and questions to native
-scrollback. The wheel and the terminal's scrollbar browse that history while
-ordinary mouse selection, Ctrl+Shift+C and the right-click Copy menu remain
-available together, without a mode switch or selection modifier. Native scrolling
-moves the whole terminal view; return to the bottom for the live layout and input.
-In chat displays, F2 optionally enables individual-pane scrolling, divider
-dragging and clickable controls; F2 again restores native scrolling, selection
-and context menus. Non-chat displays use m for these optional pane controls.
+OSC 22). The live layout owns an alternate screen, keeping the shell prompt and
+shell scrollback outside the launcher. Mouse controls start enabled: wheels
+scroll the pane under the pointer, and the output pane has its own draggable
+scrollbar. The terminal's scrollbar does not control the panes. Scrolling output
+keeps the overview, totals, task summary and composer fixed. F2 releases mouse
+reporting for ordinary native selection, Ctrl+Shift+C and the terminal's configured
+right-click menu; F2 again restores pane controls. While mouse controls are
+enabled, use the terminal's native selection modifier to select text. Unmodified
+native selection and application mouse controls cannot be offered simultaneously
+through this terminal protocol. Non-chat displays also accept m when no blocker
+question is pending; F2 remains available during questions.
 The right upper panel shows the current task ID/title, session count/duration,
 session phase and selected model/effort. Below a horizontal separator, the
 plain-language task explanation stays fixed across retries and reconnects unless
@@ -1039,11 +1041,10 @@ same session after interruption. Replies appear in the left transcript. The
 composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
-rule. With mouse mode enabled, mouse wheels scroll the panel under the pointer.
+rule. Mouse wheels scroll the panel under the pointer by default.
 `write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
 launcher runtime plus one, and y is this runtime's task maximum, refreshed when
-another invocation adjusts `--tasks`. The counter stays pinned in the live frame
-during individual-pane scrolling; native scrollback moves the whole view.
+another invocation adjusts `--tasks`. The counter stays pinned during pane scrolling.
 Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.
@@ -1057,26 +1058,23 @@ terminal shrinks. A terminal too small for even the newest step plus an output
 row clips the header until enlarged. Pipes and dumb
 terminals accumulate plain output. Reconnection restores the latest controller
 steps separately from the output tail. The live panes retain a bounded transcript;
-arriving complete lines also enter native terminal history immediately, before
-exit. History depth follows the terminal's configured scrollback limit. Repainting
-the dashboard or an idle poll adds no repeated history. On exit the launcher
-flushes an unfinished output line, restores cursor and input modes and leaves
-the primary screen/history intact, without replaying the run log. This includes cancellation, exceptions and
+dashboard redraws and arriving output never enter the shell's scrollback while
+attached. On exit the launcher restores the primary screen, cursor and input
+modes, then replays the saved run log, including an unfinished final line, into
+native scrollback. This includes cancellation, exceptions and
 default termination signals (HUP, TERM and QUIT); SIGKILL cannot run terminal
 cleanup. Existing shell history is preserved. Full output remains in the existing run log,
 subject to its storage limits. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
-For `run-tests` and `fix-tests`, mouse capture is off by default: plain dragging selects text and right-click
-uses the host terminal's configured behavior, including VS Code's context menu.
-The divider shows `Wheel/scrollbar: history` and `m: pane controls`; press `m`
-to enable pane clicks, wheel scrolling within a pane and divider dragging.
-The divider changes to `m: native scrolling/selection`.
+For `run-tests` and `fix-tests`, mouse capture starts enabled, as in the chat displays.
+The divider shows `F2/m: select text`; press `F2` (or `m` outside a pending question)
+to release mouse controls for ordinary native selection and context menus.
+The divider changes to `F2/m: scroll/resize`.
 A pinned **↓** button at the lower pane's
 bottom-right corner returns to the newest output and resumes following it.
 The button stays outside the scrolling transcript and follows terminal resizing.
-Press `m` again to restore native scrolling, selection and menus. Optional pane
-controls capture terminal mouse events; ordinary history browsing needs no such
-capture. Use Up/Down or Page Up/Page Down to scroll a pane,
+The scrollbar and button hide while the terminal owns selection. Press `F2` or `m`
+again to restore pane controls. Use Up/Down or Page Up/Page Down to scroll a pane,
 Tab to switch panes (initially the lower pane), and End to return to the newest
 rows in either mode.
 The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown

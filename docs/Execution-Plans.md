@@ -134,21 +134,23 @@ Below the counts, `Total Duration` shows elapsed time for the backend launcher
 in the same minute/hour format. It refreshes every minute and continues across
 tasks and observer reconnections. Each new backend process resets this clock;
 previous backend runs never contribute elapsed time.
-The live layout uses the terminal's normal screen and publishes arriving output,
-controller transitions, task explanations and questions to native scrollback.
-The mouse wheel and the terminal's scrollbar browse that history while ordinary
-drag-to-select, Ctrl+Shift+C and the right-click Copy menu remain available.
-No mode switch or selection modifier is required. Native scrolling moves the
-whole terminal view; return to the bottom for the live layout and composer.
-History depth follows the terminal's configured scrollback limit; the retained
-run log remains the complete output source.
-In chat displays, `F2` optionally enables individual-pane scrolling, divider
-dragging and clickable controls; press `F2` again to restore native scrolling,
-selection and context menus. Non-chat displays use `m` for those optional pane
-controls. Page Up/Page Down remain available for keyboard pane scrolling.
-On exit, the launcher restores input/cursor modes and leaves its history in the
-terminal without replaying the run. Pipes receive plain output and retain the
-same owner/result semantics.
+The live layout uses the terminal's alternate screen, keeping the shell prompt
+and shell scrollback outside the launcher. Mouse controls are enabled on attachment:
+the wheel scrolls the pane under the pointer, the output pane has its own
+draggable scrollbar and **↓** returns to the newest output. Scrolling output
+leaves the overview, totals, task summary and composer fixed. No F2 switch is
+needed to start scrolling. The terminal's scrollbar does not control these panes.
+Native terminal selection requires the terminal's selection modifier while
+mouse controls are enabled. `F2` releases the mouse for ordinary drag-to-select,
+Ctrl+Shift+C and the terminal's right-click menu; press `F2` again to restore
+pane controls. Non-chat displays also accept `m` outside a pending question.
+This terminal protocol cannot provide unmodified native selection and application
+mouse controls simultaneously. Page Up/Page Down remain available for keyboard
+pane scrolling in either mode.
+The live panes keep bounded history; the retained run log remains the complete
+output source. On exit, the launcher restores the shell and input/cursor modes,
+then appends the saved run log to native terminal scrollback for later copying
+and browsing. Pipes receive plain output and retain the same owner/result semantics.
 
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. Generic `execute-plan` leaves changes for review.

@@ -451,7 +451,7 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
         assert visible.splitlines()[0].split('│')[0].strip() == 'Tasks: 1/2'
         assert 'Execution output' in visible and 'Current task' in visible
         assert 'Chat [Cancel]' not in visible and 'Enter: send' not in visible
-        display.handle_input(b'm')
+        # Pane controls work immediately; m remains a selection-mode shortcut.
         assert display.mouse_capture
         display.handle_input(f'\x1b[<0;{display.top_divider_column};1M'.encode())
         display.handle_input(b'\x1b[<32;75;1M\x1b[<0;75;1m')
@@ -466,6 +466,10 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
         display.handle_input(f'\x1b[<65;100;{display.summary_bottom + 2}M'.encode())
         assert display.offsets['info'] > 0
         assert display.editor.text == ''
+        display.handle_input(b'm')
+        assert not display.mouse_capture
+        display.handle_input(b'\x1bOQ')
+        assert display.mouse_capture
     finally:
         display.close()
 

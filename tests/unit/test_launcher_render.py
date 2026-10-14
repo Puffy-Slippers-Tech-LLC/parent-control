@@ -665,7 +665,11 @@ def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path
     def output(run, stream, display, **kwargs):
         display.update([{'key': 'task', 'lines': ['controller header', 'session status']}],
                        ['[Running] test details'])
-        display.write((run / 'output').read_text())
+        display.write('agent transcript\nunfinished output')
+        # Even an observer which only read the tail must leave the shell's
+        # scrollback alone until detaching, then replay its complete saved log.
+        assert 'earliest output' not in terminal.scrollback
+        assert terminal.normal_screen is not None
         if reason == 'interrupt':
             raise KeyboardInterrupt
         if reason == 'error':
@@ -685,14 +689,15 @@ def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path
             follow(tmp_path, terminal)
         if reason in signals:
             assert caught.value.code == 128 + signals[reason]
-    history = terminal.scrollback
-    assert 'earliest output' in history
-    assert history.count('old output') == 2100
-    assert 'controller header' in history and 'session status' in history
-    assert history[-2:] == ['agent transcript', 'unfinished output']
-    assert '[Running] test details' not in history
-    protocol = terminal.getvalue()
-    assert '\033[?1049h' not in protocol and '\033[?1049l' not in protocol
+    restored = terminal.getvalue().split('\033[?1049l', 1)[1]
+    assert 'earliest output\n' in restored
+    assert restored.count('old output\n') == 2100
+    assert 'controller header' in restored and 'session status' in restored
+    assert restored.endswith('agent transcript\nunfinished output\n')
+    assert '\033[2J' not in restored and '\033[H' not in restored
+    assert '[Running] test details' not in restored
+    assert '─' not in restored
+    assert '\033[?1049h' not in restored
     assert terminal.normal_screen is None
     assert terminal.cursor_visible
     assert 'original shell prompt>' in terminal.scrollback
@@ -723,8 +728,8 @@ def test_exit_without_readable_log_preserves_live_transcript(terminal, tmp_path)
 
 @pytest.mark.parametrize('observer', ['workflow', 'tests'])
 @pytest.mark.parametrize('finished', [True, False])
-def test_real_output_follow_retains_native_history_and_missing_result_notice(terminal, tmp_path, monkeypatch,
-                                                                           observer, finished):
+def test_real_output_follow_replays_log_and_missing_result_notice(terminal, tmp_path, monkeypatch,
+                                                                 observer, finished):
     import detached_launcher
 
     run = tmp_path / 'run'
@@ -737,11 +742,10 @@ def test_real_output_follow_retains_native_history_and_missing_result_notice(ter
     monkeypatch.delenv(regression_session.FRAME_DIRECTORY, raising=False)
     follow = detached_launcher.follow if observer == 'workflow' else regression_session.follow
     assert follow(run, terminal) == (0 if finished else 1)
-    assert terminal.scrollback.count('first result') == 1
-    assert terminal.scrollback.count('last result') == 1
+    restored = terminal.getvalue().split('\033[?1049l', 1)[1]
+    assert restored.count('first result\nlast result\n') == 1
     if not finished:
-        assert ('run is incomplete' if observer == 'tests' else 'worker ended without a result') in '\n'.join(
-            terminal.scrollback)
+        assert ('run is incomplete' if observer == 'tests' else 'worker ended without a result') in restored
 
 
 def test_pipe_does_not_replay_saved_log(tmp_path):

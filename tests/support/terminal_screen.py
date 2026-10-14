@@ -19,8 +19,16 @@ class Terminal(io.StringIO):
         if getattr(self, 'size', None) == os.terminal_size((width, height)):
             return
         self.size = os.terminal_size((width, height))
-        self.cells = [[' '] * width for _ in range(height)]
-        self.row = self.column = 0
+
+        def fit(cells, row, column):
+            cells = [(line[:width] + [' '] * width)[:width] for line in cells[:height]]
+            cells += [[' '] * width for _ in range(height - len(cells))]
+            return cells, min(row, height - 1), min(column, width - 1)
+
+        self.cells, self.row, self.column = fit(getattr(self, 'cells', []),
+                                               getattr(self, 'row', 0), getattr(self, 'column', 0))
+        if self.normal_screen is not None:
+            self.normal_screen = fit(*self.normal_screen)
 
     def isatty(self):
         return True

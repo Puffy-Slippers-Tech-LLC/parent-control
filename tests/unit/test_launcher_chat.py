@@ -349,9 +349,10 @@ def test_multiline_editor_paste_delete_unicode_and_submission():
     assert editor.text == 'one\ntwo\nthree'
 
 
-def display_fixture(tmp_path, width=120, height=36):
+def display_fixture(tmp_path, width=120, height=36, input_mode='chat'):
     terminal = Terminal(width, height)
-    display = TaskDisplay(terminal, run=tmp_path, terminal_size=lambda: terminal.size)
+    display = TaskDisplay(terminal, run=tmp_path, input_mode=input_mode,
+                          terminal_size=lambda: terminal.size)
     display.chat_state = {'session': 1, 'task_session': 1, 'task_id': '001', 'status': 'running'}
     display.task_info = {'task_id': '001', 'explanation': 'Checks the child countdown.'}
     display.update([{'key': 'counter', 'pinned': True, 'lines': ['Tasks: 1/3']},
@@ -360,7 +361,7 @@ def display_fixture(tmp_path, width=120, height=36):
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
-def test_all_task_panels_leave_selection_and_copy_to_terminal(tmp_path, input_mode):
+def test_all_task_panels_enable_wheel_by_default_and_release_mouse_with_f2(tmp_path, input_mode):
     terminal = Terminal(120, 36)
     display = TaskDisplay(terminal, run=tmp_path, input_mode=input_mode,
                           terminal_size=lambda: terminal.size)
@@ -372,62 +373,73 @@ def test_all_task_panels_leave_selection_and_copy_to_terminal(tmp_path, input_mo
     question = {'id': 'decision', 'question': 'Continue?', 'options': ['Yes', 'No']}
     display.update_question(question, lambda *args: None)
     display.update_question(None, lambda *args: None)
-    assert not display.mouse_capture
+    assert display.mouse_capture
     output = terminal.getvalue()
+    assert '\033[?1006h' in output and '\033[?1049h' in output
+    assert ('F2: select text' if input_mode == 'chat' else 'F2/m: select text') in terminal.visible()
+    display.handle_input(b'\x1bOQ')
+    assert not display.mouse_capture
     for mode in (1000, 1002, 1003, 1006):
-        assert f'\033[?{mode}l' in output
-        assert f'\033[?{mode}h' not in output
-    assert 'Wheel/scrollbar: history' in terminal.visible()
-    assert ('F2: pane controls' if input_mode == 'chat' else 'm: pane controls') in terminal.visible()
+        assert f'\033[?{mode}h' not in terminal.getvalue()[len(output):]
+        assert f'\033[?{mode}l' in terminal.getvalue()[len(output):]
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
-def test_native_history_keeps_wheel_scrollbar_selection_and_menus_available(tmp_path, input_mode):
-    terminal = Terminal(120, 36)
-    terminal.write('existing shell history\n')
+@pytest.mark.parametrize('height', [1, 3, 36])
+def test_task_screen_keeps_shell_history_outside_panes(tmp_path, input_mode, height):
+    terminal = Terminal(120, height)
+    terminal.write('existing shell history\noriginal shell prompt> ')
+    history = list(terminal.scrollback)
     display = TaskDisplay(terminal, run=tmp_path, input_mode=input_mode,
                           terminal_size=lambda: terminal.size)
     display.update([{'key': 'task', 'lines': ['Task 001: Countdown']}], [])
     display.write(''.join(f'output {index}\n' for index in range(2100)))
-    history = list(terminal.scrollback)
-    assert 'existing shell history' in history
-    assert 'Task 001: Countdown' in history
-    assert [line for line in history if line.startswith('output ')] == [
-        f'output {index}' for index in range(2100)]
-    assert 'output 2099' in terminal.visible()
-    assert terminal.normal_screen is None
-    assert not display.mouse_capture
-    # Mouse gestures belong to the host terminal when reporting is disabled;
-    # the live log is already in its primary buffer, before the launcher exits.
+    assert terminal.scrollback == history
+    assert terminal.normal_screen is not None
+    assert 'original shell prompt>' not in terminal.visible()
+    assert display.mouse_capture
+    if display.output_height:
+        before = terminal.visible().splitlines()
+        draft = display.editor.text
+        display.handle_input(f'\033[<64;2;{display.top_height + 2}M'.encode())
+        after = terminal.visible().splitlines()
+        assert display.offsets['bottom'] == 3
+        assert before[:display.top_height + 1] == after[:display.top_height + 1]
+        assert [row[display.divider_column:] for row in before] == [
+            row[display.divider_column:] for row in after]
+        assert display.editor.text == draft
+        assert terminal.scrollback == history
     protocol = terminal.getvalue()
-    for mode in (1049, 1000, 1002, 1003, 1006):
-        assert f'\033[?{mode}h' not in protocol
     display.draw()
     assert terminal.getvalue() == protocol
+    terminal.resize(100, 40)
+    display.draw()
+    assert 'original shell prompt>' not in terminal.visible()
     assert terminal.scrollback == history
 
 
-def test_native_history_reassembles_partial_lines_and_does_not_replay_on_exit(tmp_path):
+def test_task_screen_restores_shell_and_replays_partial_lines_once_on_exit(tmp_path):
     display, terminal = display_fixture(tmp_path, width=40)
     display.write('first\npart')
     display.write('ial ✓\nunfinished')
-    assert terminal.scrollback.count('first') == 1
-    assert terminal.scrollback.count('partial ✓') == 1
-    assert 'unfinished' not in terminal.scrollback
+    assert list(display.transcript) == ['first', 'partial ✓']
+    assert display.pending == 'unfinished'
+    assert not terminal.scrollback
     terminal.resize(80, 40)
     display.draw()
     display.close()
-    assert terminal.scrollback.count('first') == 1
-    assert terminal.scrollback.count('partial ✓') == 1
-    assert terminal.scrollback.count('unfinished') == 1
     protocol = terminal.getvalue()
-    assert '\033[?1049h' not in protocol and '\033[?1049l' not in protocol
+    restored = protocol.split('\033[?1049l', 1)[1]
+    assert restored.count('first\n') == 1
+    assert restored.count('partial ✓\n') == 1
+    assert restored.count('unfinished\n') == 1
+    assert terminal.normal_screen is None
     assert terminal.cursor_visible
     display.close()
     assert terminal.getvalue() == protocol
 
 
-def test_native_history_records_transitions_once_without_dashboard_repaints(tmp_path):
+def test_controller_transitions_do_not_leak_dashboard_rows_into_shell_history(tmp_path):
     display, terminal = display_fixture(tmp_path)
     steps = [{'key': 'task', 'lines': ['Task 002', 'Session 1']}]
     display.update(steps, ['dashboard 1'])
@@ -436,24 +448,25 @@ def test_native_history_records_transitions_once_without_dashboard_repaints(tmp_
     assert terminal.scrollback == history
     steps[0]['lines'][-1] = 'Session 2'
     display.update(steps, ['dashboard 3'])
-    assert terminal.scrollback.count('Session 1') == 1
-    assert terminal.scrollback.count('Session 2') == 1
-    assert not any('dashboard' in row for row in terminal.scrollback)
+    assert terminal.scrollback == history == []
+    assert 'Session 2' in terminal.visible()
 
 
-def test_native_history_filters_child_cursor_controls_and_preserves_color(tmp_path):
+def test_task_screen_filters_child_cursor_controls_and_preserves_color(tmp_path):
     display, terminal = display_fixture(tmp_path)
+    before = len(terminal.getvalue())
     display.write('\033[2J\033[Hfirst output\n\033[31mfinal warning\033[0m\n')
-    assert 'first output' in terminal.scrollback
-    assert 'final warning' in terminal.scrollback
-    protocol = terminal.getvalue()
+    assert 'first output' in terminal.visible()
+    assert 'final warning' in terminal.visible()
+    assert not terminal.scrollback
+    protocol = terminal.getvalue()[before:]
     assert '\033[2J' not in protocol and '\033[H' not in protocol
     assert '\033[31m' in protocol
     assert 'Task 001:' in terminal.visible()
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question'])
-def test_native_history_exposes_whole_question_without_sending_an_answer(tmp_path, input_mode):
+def test_pending_question_keeps_pane_wheel_and_selection_toggle_available(tmp_path, input_mode):
     terminal = Terminal(120, 20)
     display = TaskDisplay(terminal, run=tmp_path, input_mode=input_mode,
                           terminal_size=lambda: terminal.size)
@@ -461,18 +474,45 @@ def test_native_history_exposes_whole_question_without_sending_an_answer(tmp_pat
                 'explanation': '\n'.join(f'reason {index}' for index in range(60))}
     sent = []
     display.update_question(question, lambda *args: sent.append(args))
-    assert 'reason 0' in terminal.scrollback and 'reason 59' in terminal.scrollback
-    assert 'Continue?' in terminal.scrollback and '2. No' in terminal.scrollback
-    history = list(terminal.scrollback)
+    assert display.mouse_capture
+    display.handle_input(f'\033[<65;{display.divider_column + 2};{terminal.size.lines}M'.encode())
+    assert display.offsets['info'] > 0
+    for byte in b'\x1b[12~':
+        display.handle_input(bytes([byte]))
+    assert not display.mouse_capture
     display.update_question(question, lambda *args: sent.append(args))
-    assert terminal.scrollback == history
-    assert not sent and not display.mouse_capture
+    assert not display.mouse_capture
+    display.handle_input(b'\x1bOQ')
+    assert display.mouse_capture
+    assert not sent and not terminal.scrollback
+
+
+@pytest.mark.parametrize('fragmented', [False, True])
+def test_nonchat_question_paste_cannot_toggle_mouse_or_activate_controls(tmp_path, fragmented):
+    display, _ = display_fixture(tmp_path, input_mode='question')
+    sent = []
+    question = {'id': 'decision', 'question': 'Continue?', 'options': ['Yes', 'No']}
+    display.update_question(question, lambda *args: sent.append(args))
+    display.handle_input(b'3')
+    payload = b'\x1b[200~draft\x1bOQ\x1b[12~\x1b[<64;2;4M\r\x1b[201~'
+    for data in ([bytes([byte]) for byte in payload] if fragmented else [payload]):
+        display.handle_input(data)
+    assert display.mouse_capture
+    assert display.offsets['bottom'] == 0
+    assert not sent
+    assert display.question.text.startswith('draft')
+    # A real F2 arriving in the same read as typed instructions still works.
+    display.handle_input(b'more\x1bOQ')
+    assert not display.mouse_capture
+    assert display.question.text.endswith('more')
+    assert not sent
 
 
 @pytest.mark.parametrize('toggle', [b'\x1bOQ', b'\x1b[12~'])
 def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_path, toggle):
     display, terminal = display_fixture(tmp_path)
     display.input_fd = 123
+    display.mouse_capture = False
     display.set_mouse_mode()
     display.handle_input(b'keep my draft')
     column, row = display.cancel_button
@@ -484,13 +524,13 @@ def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_
         display.handle_input(bytes([byte]))
     assert display.mouse_capture
     assert '\033[?1003h' in terminal.getvalue()
-    assert 'F2: native scrolling/selection' in terminal.visible()
+    assert 'F2: select text' in terminal.visible()
     display.handle_input(f'\033[<0;{display.divider_column};4M'.encode())
     assert display.dragging == 'bottom' and display.pointer
     display.handle_input(toggle)
     assert not display.mouse_capture
     assert display.dragging is None and not display.pointer
-    assert 'F2: pane controls' in terminal.visible()
+    assert 'F2: scroll/resize' in terminal.visible()
     restored = terminal.getvalue().rsplit('\033[?1003h', 1)[1]
     assert '\033[?1003l' in restored and '\033[?1006l' in restored
     display.handle_input(click)
@@ -816,6 +856,72 @@ def test_output_scrolling_returns_to_latest_without_losing_draft(tmp_path):
     assert 'output 99' in terminal.visible()
     assert display.editor.text == 'keep this draft'
     assert terminal.visible().splitlines()[chat_top - 1:] == composer
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+def test_task_scrollbar_drag_track_and_bottom_button_preserve_fixed_panes(tmp_path, input_mode):
+    display, terminal = display_fixture(tmp_path, input_mode=input_mode)
+    display.write(''.join(f'output {index}\n' for index in range(1000)))
+    if input_mode == 'chat':
+        display.handle_input(b'keep my draft')
+    display.offsets['bottom'] = 400
+    display.draw()
+    before = terminal.visible().splitlines()
+    first, start, thumb, travel, limit = display.scrollbar
+    column = display.divider_column - 1
+    assert before[first - 1 + start][column - 1] == '█'
+    assert display.bottom_button == (column, first + display.output_height - 1)
+    display.handle_input(f'\033[<0;{column};{first + start}M'.encode())
+    assert display.scrollbar_grab == 0
+    assert display.offsets['bottom'] == 400
+    # Continue a thumb drag even after the pointer leaves its column/track.
+    display.handle_input(b'\033[<32;2;1M')
+    assert display.offsets['bottom'] == limit
+    after = terminal.visible().splitlines()
+    assert 'output 0' in terminal.visible()
+    assert before[:display.top_height + 1] == after[:display.top_height + 1]
+    assert [row[display.divider_column:] for row in before] == [
+        row[display.divider_column:] for row in after]
+    if input_mode == 'chat':
+        assert display.editor.text == 'keep my draft'
+        assert before[display.chat_top - 1:] == after[display.chat_top - 1:]
+    display.handle_input(b'\033[<0;2;1m')
+    assert display.scrollbar_grab is None
+    display.handle_input(f'\033[<32;{column};{first + travel}M'.encode())
+    assert display.offsets['bottom'] == limit
+    # Track clicks and the pinned bottom button are separate targets.
+    display.handle_input(f'\033[<0;{column};{first + travel}M'.encode())
+    assert display.offsets['bottom'] == 0
+    display.handle_input(f'\033[<64;2;{first}M'.encode())
+    assert display.offsets['bottom'] == 3
+    column, row = display.bottom_button
+    display.handle_input(f'\033[<0;{column};{row}M'.encode())
+    assert display.offsets['bottom'] == 0
+    assert not terminal.scrollback
+
+
+def test_task_scrollbar_restores_native_selection_and_reflows_on_resize(tmp_path):
+    display, terminal = display_fixture(tmp_path)
+    display.write(''.join(f'output {index}\n' for index in range(100)))
+    first, start, *_ = display.scrollbar
+    column = display.divider_column - 1
+    display.handle_input(f'\033[<0;{column};{first + start}M'.encode())
+    assert display.scrollbar_grab == 0
+    display.handle_input(b'\x1bOQ')
+    assert not display.mouse_capture
+    assert display.scrollbar_grab is None and display.scrollbar is None
+    assert display.bottom_button is None
+    display.handle_input(f'\033[<32;{column};{first}M'.encode())
+    assert display.offsets['bottom'] == 0
+    display.handle_input(b'\x1bOQ')
+    assert display.mouse_capture and display.scrollbar
+    terminal.resize(80, 20)
+    display.draw()
+    assert display.divider_column - 1 != column
+    column, row = display.bottom_button
+    assert row < display.chat_top <= terminal.size.lines
+    assert terminal.visible().splitlines()[row - 1][column - 1] == '↓'
+    assert not terminal.scrollback
 
 
 def test_input_flags_restore_after_exception(tmp_path, monkeypatch):

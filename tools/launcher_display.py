@@ -1,4 +1,4 @@
-"""Shared task panes with live output in native terminal scrollback."""
+"""Shared resizable task overview/totals and execution/input/status panes."""
 
 import json
 import os
@@ -55,30 +55,7 @@ class TaskDisplay(LauncherDisplay):
         self.cancel_button = None
         self.escape_since = None
         self.mouse_pending = b''
-        self.history_pending = []
-        self.history_steps = {}
-
-    def remember(self, lines):
-        """Publish history once, independently of the bounded live panes."""
-        if self.tty:
-            self.history_pending.extend(lines)
-            if self.history_pending:
-                self.draw_state = None
-
-    def write(self, value, *, final=False, saved=True):
-        lines = (self.pending + value).split('\n')
-        tail = lines.pop()
-        if final and tail:
-            lines.append(tail)
-        self.remember(lines)
-        super().write(value, final=final, saved=saved)
-
-    def update(self, steps, details):
-        self.remember(line for step in steps
-                      if self.history_steps.get(step['key']) != tuple(step['lines'])
-                      for line in step['lines'])
-        self.history_steps = {step['key']: tuple(step['lines']) for step in steps}
-        super().update(steps, details)
+        self.mouse_capture = True
 
     def __enter__(self):
         super().__enter__()
@@ -114,10 +91,7 @@ class TaskDisplay(LauncherDisplay):
     def refresh_chat(self):
         self.chat_state = read_state(self.run)
         path = self.run / 'task-info.json'
-        task_info = json.loads(path.read_text()) if path.exists() else {}
-        if task_info != self.task_info:
-            self.remember(task_info[key] for key in ('explanation', 'status') if task_info.get(key))
-        self.task_info = task_info
+        self.task_info = json.loads(path.read_text()) if path.exists() else {}
         if self.totals is not None:
             try:
                 self.task_totals = self.totals()
@@ -127,25 +101,30 @@ class TaskDisplay(LauncherDisplay):
                 pass
 
     def output_width(self):
-        return max(1, self.divider_column - 1)
+        return max(1, self.divider_column - 1 - int(self.mouse_capture))
 
     def update_question(self, question, send):
-        identity = self.question.question['id'] if self.question else None
-        if question and question['id'] != identity:
-            self.remember([question.get('explanation', ''), question['question'],
-                           *[f'{i + 1}. {option}' for i, option in enumerate(question['options'])]])
         if self.input_mode != 'chat':
-            return super().update_question(question, send)
+            # A decision must not silently disable wheel/scrollbar controls.
+            capture = self.mouse_capture
+            super().update_question(question, send)
+            if self.mouse_capture != capture:
+                self.mouse_capture = capture
+                self.set_mouse_mode()
+                self.draw()
+            return
         # Keep the mouse preference and always-editable composer while blocked.
         from launcher_question import QuestionInput
+        identity = self.question.question['id'] if self.question else None
         if (question['id'] if question else None) != identity:
             self.question = QuestionInput(question, send) if question else None
             self.draw()
 
     def set_mouse_mode(self):
-        # Native selection, Copy shortcuts and context menus belong to the
-        # terminal. Only capture mouse events when explicitly requested.
+        # Wheel events belong to the panes by default. F2 releases the mouse
+        # for native terminal selection and context menus in every display.
         super().set_mouse_mode()
+        self.scrollbar_grab = None
         if not self.mouse_capture:
             self.dragging = None
             self.set_pointer(False)
@@ -174,6 +153,23 @@ class TaskDisplay(LauncherDisplay):
         if self.input_mode != 'chat':
             self.mouse_pending += data
             while self.mouse_pending:
+                if self.question and self.question.pasting:
+                    self.question.feed(self.mouse_pending[:1])
+                    self.mouse_pending = self.mouse_pending[1:]
+                    continue
+                toggles = (b'\x1bOQ', b'\x1b[12~')
+                keys = toggles + (b'\x1b[5~', b'\x1b[6~', b'\x1b[200~', b'\x1b[201~')
+                key = next((key for key in keys if self.mouse_pending.startswith(key)), None)
+                if key:
+                    self.mouse_pending = self.mouse_pending[len(key):]
+                    if key in toggles:
+                        self.mouse_capture = not self.mouse_capture
+                        self.set_mouse_mode()
+                    else:
+                        super().handle_input(key)
+                    continue
+                if any(key.startswith(self.mouse_pending) for key in keys):
+                    break
                 match = re.match(rb'\x1b\[<(\d+);(\d+);(\d+)([Mm])', self.mouse_pending)
                 if match:
                     self.mouse_pending = self.mouse_pending[match.end():]
@@ -183,7 +179,7 @@ class TaskDisplay(LauncherDisplay):
                       self.mouse_pending.startswith(b'\x1b[<') and len(self.mouse_pending) < 64):
                     break
                 else:
-                    split = self.mouse_pending.find(b'\x1b[<', 1)
+                    split = self.mouse_pending.find(b'\x1b', 1)
                     value = self.mouse_pending if split < 0 else self.mouse_pending[:split]
                     self.mouse_pending = b'' if split < 0 else self.mouse_pending[split:]
                     super().handle_input(value)
@@ -248,10 +244,36 @@ class TaskDisplay(LauncherDisplay):
         self.set_pointer(bool(over or self.dragging))
         if released:
             self.dragging = None
+            self.scrollbar_grab = None
             self.set_pointer(bool(over))
             self.draw()
             return
-        if base == 0 and over:
+        if base == 0:
+            self.dragging = None
+            self.scrollbar_grab = None
+            if self.bottom_button == (column, row):
+                self.offsets['bottom'] = 0
+                self.focus = 'bottom'
+                self.draw()
+                return
+        if base == 32 and self.scrollbar_grab is not None and self.scrollbar:
+            first, start, thumb, travel, limit = self.scrollbar
+            position = min(travel, max(0, row - first - self.scrollbar_grab))
+            if travel:
+                self.offsets['bottom'] = round(limit * (travel - position) / travel)
+                self.draw()
+        elif (base == 0 and self.scrollbar and column == self.divider_column - 1
+              and self.scrollbar[0] <= row < self.scrollbar[0] + self.scrollbar[2] + self.scrollbar[3]):
+            first, start, thumb, travel, limit = self.scrollbar
+            position = row - first
+            self.focus = 'bottom'
+            if start <= position < start + thumb:
+                self.scrollbar_grab = position - start
+            else:
+                self.offsets['bottom'] = round(limit *
+                    (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
+                self.draw()
+        elif base == 0 and over:
             self.dragging = over
             self.draw()
         elif base == 32 and self.dragging and self.size:
@@ -266,10 +288,7 @@ class TaskDisplay(LauncherDisplay):
                 if column < self.top_divider_column:
                     self.focus = 'top'
                 return
-            if self.bottom_button == (column, row):
-                self.offsets['bottom'] = 0
-                self.draw()
-            elif (self.cancel_button and row == self.cancel_button[1]
+            if (self.cancel_button and row == self.cancel_button[1]
                   and self.cancel_button[0] <= column < self.divider_column):
                 send_input(self.run, 'interrupt')
             self.focus = ('bottom' if self.input_mode != 'chat' or
@@ -404,7 +423,7 @@ class TaskDisplay(LauncherDisplay):
             chrome_height = 0
         self.output_height = max(0, available - len(editor_rows) - chrome_height)
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
-        left = self.scroll_rows('bottom', logs, left_width, self.output_height)
+        left = self.scroll_rows('bottom', logs, self.output_width(), self.output_height)
         left += [Text('')] * (self.output_height - len(left))
         remaining = max(0, available - summary_height - len(separator))
         info = self.from_top('info', info_lines, right_width, remaining)
@@ -436,18 +455,31 @@ class TaskDisplay(LauncherDisplay):
         self.cancel_button = ((9, self.chat_top) if self.input_mode == 'chat'
                               and left_width >= 14 and available else None)
         self.bottom_button = ((left_width, self.chat_top - 1)
-                              if self.output_height > 0 and left_width > 1 else None)
+                              if self.mouse_capture and self.output_height > 0 and left_width > 1 else None)
+        self.scrollbar = None
+        track_height = self.output_height - bool(self.bottom_button)
+        total = len(self.row_cache['bottom'][1])
+        if self.mouse_capture and left_width > 1 and track_height > 0 and total > self.output_height:
+            thumb = max(1, min(track_height, round(track_height * self.output_height / total)))
+            travel = track_height - thumb
+            limit = total - self.output_height
+            start = round(travel * (limit - self.offsets['bottom']) / limit)
+            self.scrollbar = (len(top) + 2, start, thumb, travel, limit)
         divider = Text('─' * width, style='dim')
         if self.input_fd is not None:
-            key = 'F2' if self.input_mode == 'chat' else 'm'
-            hint = (f'{key}: native scrolling/selection' if self.mouse_capture else
-                    f'Wheel/scrollbar: history · {key}: pane controls')
-            divider = Text(f' {hint} ', style='dim')
+            key = 'F2' if self.input_mode == 'chat' else 'F2/m'
+            action = 'select text' if self.mouse_capture else 'scroll/resize'
+            divider = Text(f' {key}: {action} ', style='dim')
             divider.truncate(width, overflow='crop')
             divider.append('─' * max(0, width - divider.cell_len))
         rows = top + [divider]
         for index in range(available):
             row = left[index].copy()
+            if self.scrollbar and index < track_height:
+                _, start, thumb, _, _ = self.scrollbar
+                row.truncate(left_width - 1, overflow='crop')
+                row.pad_right(max(0, left_width - 1 - row.cell_len))
+                row += Text('█' if start <= index < start + thumb else '░', style='dim')
             if self.bottom_button and index == self.output_height - 1:
                 row.truncate(left_width - 1, overflow='crop')
                 row.pad_right(max(0, left_width - 1 - row.cell_len))
@@ -460,6 +492,7 @@ class TaskDisplay(LauncherDisplay):
             rows = [Text('')] * height
             self.cancel_button = None
             self.bottom_button = None
+            self.scrollbar = None
         for row in rows:
             row.truncate(width, overflow='crop')
         self.paint(rows, size)
@@ -499,24 +532,13 @@ class TaskDisplay(LauncherDisplay):
     def paint(self, rows, size):
         if not self.screen:
             self.screen = True
-            # Reserve the live frame on the primary screen. Unlike an alternate
-            # screen, it leaves the terminal's wheel, scrollbar and native
-            # selection available together. Preserve the preceding shell text.
-            self.stream.write('\033[?25l' + '\r\n' * size.lines)
+            # Keep the shell and its scrollback outside the launcher. Output
+            # scrolling belongs to the panes, never to the terminal viewport.
+            self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
             self.set_mouse_mode()
             self.previous = None
-        if self.history_pending:
-            # A bottom-edge line feed places the top row in native scrollback.
-            # Replace that row with one history row first, so dashboard redraws
-            # never accumulate there. Then repaint the live frame below it.
-            for row in self.wrapped(self.history_pending, max(1, size.columns - 1)):
-                with self.console.capture() as capture:
-                    self.console.print(row, width=size.columns, end='', soft_wrap=True)
-                self.stream.write('\033[1;1H\033[2K' + capture.get()
-                                  + f'\033[{size.lines};1H\r\n')
-            self.history_pending.clear()
-            self.previous = None
         if size != self.size:
+            self.stream.write('\033[H\033[2J')
             self.previous = None
         for index, row in enumerate(rows):
             if (self.previous is None or index >= len(self.previous)
@@ -527,30 +549,10 @@ class TaskDisplay(LauncherDisplay):
         self.previous, self.size = rows, size
 
     def restore_terminal(self):
-        active = self.screen
-        # The base display owns an alternate screen; this display owns only its
-        # live frame on the primary screen. Restore input without swapping buffers.
-        self.screen = False
         try:
-            if active or self.input_fd is not None:
+            if self.screen or self.input_fd is not None:
                 self.stream.write('\033[?1003l\033]22;\033\\\033[0 q')
             if self.input_fd is not None:
                 self.stream.write('\033[<u\033[>4;0m')
         finally:
-            try:
-                super().restore_terminal()
-            finally:
-                if active:
-                    height = self.size.lines if self.size else 1
-                    # Leave a clean prompt row without scrolling a dashboard
-                    # row into the transcript as the observer detaches.
-                    self.stream.write(f'\033[{height};1H\033[2K\033[?25h')
-                    self.stream.flush()
-                    self.previous = None
-
-    def close(self):
-        # Output was already published to native history while it arrived.
-        # Flush an unfinished final line without replaying the complete run.
-        if self.tty and self.screen:
-            self.write('', final=True)
-        self.restore_terminal()
+            super().restore_terminal()

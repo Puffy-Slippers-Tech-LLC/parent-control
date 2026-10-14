@@ -124,6 +124,10 @@ The conversation composer shows a blinking underscore cursor at the current
 insertion position, including while another pane is selected or output scrolls.
 Hovering over its text area requests an I-beam mouse pointer in terminals that
 support pointer shapes.
+While the agent works, the composer border shows `Working (duration)`, refreshing
+every second even without output. This clock measures the active turn, survives
+observer reconnection and resets on continuation after interruption or a reply.
+The indicator disappears while waiting, interrupting, cleaning up or finished.
 The Plan/E2E session line appends elapsed clock time, refreshing every minute even
 without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
 The clock starts with each session, survives observer reconnection and stops

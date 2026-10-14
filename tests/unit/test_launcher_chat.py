@@ -579,6 +579,75 @@ def test_fresh_backend_session_clock_reaches_real_workflow_display(conversation,
         assert 'Session [1]: gpt-6.1-sol xhigh; 12m' in terminal.visible()
 
 
+@pytest.mark.parametrize('progress', [plan_progress, e2e_progress])
+def test_working_clock_follows_active_turn_across_reconnection_and_continuation(conversation, monkeypatch, progress):
+    session, _, cleanups = conversation
+    clock = [session.started_at + 10]
+    monkeypatch.setattr('launcher_chat.time.time', lambda: clock[0])
+    launcher.atomic(session.run / 'controller.json', [{'key': 'runtime-1', 'lines': [
+        'Task 001: Countdown', 'Session [1]: gpt-6.1-sol xhigh']}])
+    ready(session)
+    assert read_state(session.run)['turn_started_at'] == clock[0]
+
+    def reconnect():
+        terminal = Terminal(120, 36)
+        display = TaskDisplay(terminal, run=session.run, terminal_size=lambda: terminal.size)
+        display.refresh_chat()
+        steps = json.loads((session.run / 'controller.json').read_text())
+        display.update(progress(session.run, steps, []), [])
+        return display, terminal
+
+    display, terminal = reconnect()
+    assert 'Working (0s)' in terminal.visible()
+    unchanged = terminal.getvalue()
+    display.draw()
+    assert terminal.getvalue() == unchanged
+    for elapsed, duration in ((1, '1s'), (59, '59s'), (60, '1m 0s'),
+                              (125, '2m 5s'), (3605, '1h 0m 5s')):
+        clock[0] = session.started_at + 10 + elapsed
+        display.draw()
+        assert f'Working ({duration})' in terminal.visible()
+    display, terminal = reconnect()
+    assert 'Working (1h 0m 5s)' in terminal.visible()
+    # Steering an active turn retains its clock.
+    send_input(session.run, 'message', 'Keep going.')
+    session.poll()
+    steer, = packets(session)
+    respond(session, steer, {'turnId': 'turn'})
+    assert read_state(session.run)['turn_started_at'] == session.started_at + 10
+    send_input(session.run, 'interrupt')
+    session.poll()
+    interrupt, = packets(session)
+    respond(session, interrupt, {})
+    display.refresh_chat()
+    display.draw()
+    assert 'Working (' not in terminal.visible()
+    notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'interrupted'})
+    session.poll()
+    assert cleanups == [True]
+    display.refresh_chat()
+    display.draw()
+    assert 'Working (' not in terminal.visible()
+    unchanged = terminal.getvalue()
+    clock[0] += 1
+    display.draw()
+    assert terminal.getvalue() == unchanged
+    send_input(session.run, 'message', 'Continue.')
+    session.poll()
+    request, = packets(session)
+    respond(session, request, {'turn': {'id': 'next-turn'}})
+    display.refresh_chat()
+    display.draw()
+    assert 'Working (0s)' in terminal.visible()
+    assert read_state(session.run)['started_at'] == session.started_at
+    final(session)
+    notify(session, 'turn/completed', turn={'id': 'next-turn', 'status': 'completed'})
+    session.poll()
+    display.refresh_chat()
+    display.draw()
+    assert 'Working (' not in terminal.visible()
+
+
 @pytest.mark.parametrize('progress_key', ['1', '001'])
 def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp_path, monkeypatch, progress_key):
     clock = [1000.0]
@@ -592,7 +661,9 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     unchanged = terminal.getvalue()
     clock[0] += 59
     display.draw()
-    assert terminal.getvalue() == unchanged
+    assert terminal.getvalue() != unchanged
+    assert 'Working (59s)' in terminal.visible()
+    assert 'Writing code; 0m' in terminal.visible()
     clock[0] += 1
     display.draw()
     assert 'Writing code; 1m' in terminal.visible()
@@ -618,6 +689,7 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     # At the next session boundary stale owner metadata must not leak a clock.
     reconnected.update([{'key': '2', 'lines': ['Task 002: Next', 'Session [1]: Writing code']}], [])
     assert 'Writing code;' not in screen.visible()
+    assert 'Working (' not in screen.visible()
     reconnected.chat_state.update(session=9, progress_key='2', started_at=clock[0], status='running')
     reconnected.chat_state.pop('finished_at')
     reconnected.draw()

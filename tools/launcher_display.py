@@ -21,6 +21,11 @@ def clock_duration(seconds):
     return f'{hours}h {minutes}m' if hours else f'{minutes}m'
 
 
+def working_duration(seconds):
+    minutes, seconds = divmod(max(0, int(seconds)), 60)
+    return f'{clock_duration(minutes * 60)} {seconds}s' if minutes else f'{seconds}s'
+
+
 def owner_clock(run):
     try:
         record = json.loads((run.parent / 'current.json').read_text())
@@ -325,15 +330,20 @@ class TaskDisplay(LauncherDisplay):
         # The clock belongs to the owner session, so reconnecting observers use
         # the same origin and a new task never inherits the previous clock.
         session = self.chat_state.get('task_session', self.chat_state.get('session'))
-        if (current and current['key'] == self.chat_state.get('progress_key')
+        owns_session = (current and current['key'] == self.chat_state.get('progress_key')
                 and started is not None and len(summary_lines) > 1
-                and clean(summary_lines[-1]).startswith((f'Session [{session}]:', f'Session {session}:'))):
+                and clean(summary_lines[-1]).startswith((f'Session [{session}]:', f'Session {session}:')))
+        working = ''
+        if owns_session:
             ended = self.chat_state.get('finished_at', time.time())
             summary_lines[-1] += '; ' + clock_duration(ended - started)
+            if self.input_mode == 'chat' and self.chat_state.get('status') == 'running':
+                turn_started = self.chat_state.get('turn_started_at', started)
+                working = f'Working ({working_duration(time.time() - turn_started)})'
         origin = self.owner_clock.get('started_monotonic')
         total_duration = clock_duration(time.monotonic() - origin) if origin is not None else '—'
         state = (size, self.ratio, self.top_ratio, self.dragging, self.task_totals,
-                 tuple(summary_lines), total_duration,
+                 tuple(summary_lines), total_duration, working,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
@@ -441,7 +451,7 @@ class TaskDisplay(LauncherDisplay):
         if self.editor.error:
             hint = Text(self.editor.error, style='red')
             hint.truncate(left_width, overflow='crop')
-        label = ' Chat [Cancel] '
+        label = ' Chat [Cancel] ' + (f'· {working} ' if working else '')
         cancel = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
         cancel.truncate(left_width, overflow='crop')
         bottom = []

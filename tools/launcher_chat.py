@@ -91,6 +91,7 @@ class AppSession:
         progress = read_progress(run)
         self.progress_key = progress[-1]['key'] if progress else None
         self.started_at = time.time()
+        self.turn_started_at = None
         self.publish('starting')
         self.request('initialize', {'clientInfo': {'name': 'onpc_launcher',
                      'title': 'Task launcher', 'version': '1.0'},
@@ -106,6 +107,8 @@ class AppSession:
             'session': self.session, 'task_session': self.task_session,
             'task_id': self.task, 'status': status, 'started_at': self.started_at,
             'progress_key': self.progress_key}
+        if status == 'running' and self.turn_started_at is not None:
+            state['turn_started_at'] = self.turn_started_at
         if status == 'finished':
             state['finished_at'] = time.time()
         launcher.atomic(self.run / 'chat-state.json', state)
@@ -121,6 +124,7 @@ class AppSession:
     def start_turn(self, text):
         self.final = None
         self.completed = False
+        self.turn_started_at = time.time()
         self.publish('running')
         self.request('turn/start', {'threadId': self.thread,
                      'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema})

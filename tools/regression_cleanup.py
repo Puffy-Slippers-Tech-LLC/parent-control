@@ -72,6 +72,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # system_runner diagnostic-filter checks use bounded in-memory output, private
 # pytest logs and mocked children/pidfds. Existing interruption ownership and
 # compatible cleanup/unit scheduling remain; no real process or VM is started.
+# Retained in-flight removal refusal dispatch in system_runner also uses only
+# private pytest logs and process-local transport/command doubles. It starts no
+# real subprocess and adds no shared state or independent cleanup lifetime;
+# compatible classification holds in both cleanup and unit inventories.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

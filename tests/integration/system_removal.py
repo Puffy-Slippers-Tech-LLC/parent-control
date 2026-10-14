@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import pwd
 import re
+import runpy
 import stat
 import sys
 import time
@@ -441,6 +442,7 @@ def remove(record):
                   'removal:nonfresh-start')
     configure_restrictions(accounts)
     verify_active_kiosk_refusal(record, accounts)
+    verify_inflight_admission_refusal(record, accounts)
     fedora = guest.package_path().suffix == '.rpm'
     hook = foreign_integration_refusals(record, accounts, other, fedora=fedora)
     config = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())
@@ -478,6 +480,142 @@ def wait_kiosk_inactive(account):
     from system_kiosk_confinement import wait_kiosk_inactive as wait
     wait(account, identity_category='removal:kiosk-identity-changed',
          active_category='removal:kiosk-manager-already-active')
+
+
+def admission_removal_state():
+    """Compare owned integration/recovery bytes, including deliberately absent records.
+
+    Native Debian abort-remove may republish identical owned files atomically.
+    Their contents, modes and ownership must survive; their inode need not.
+    """
+    root = Path('/var/lib/oh-no-parent-control')
+    paths = [root / name for name in (
+        'kiosk-confinement.json', 'kiosk-confinement-removing',
+        'package-created-kiosk-uid', 'uninstall-enforcement.json',
+        'uninstall-broker-mask', 'installed-gdm-presession',
+        'installed-fapolicyd-fallback', 'installed-child-extension-trust',
+        'malcontent-pam-before-install', 'fedora-authselect.json',
+        'fapolicyd-before-install', 'child-trust-backend')]
+    # These are the finite shared stacks touched by pam-auth-update and the
+    # Fedora PAM owner, in addition to confinement's two final service gates.
+    fedora_stacks = ('system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth')
+    paths += [Path('/etc/pam.d') / name for name in (
+        'gdm-password', 'systemd-user', 'common-auth', 'common-account',
+        'common-password', 'common-session', 'common-session-noninteractive',
+        *fedora_stacks)]
+    paths += [Path('/etc/authselect') / name for name in (*fedora_stacks, 'authselect.conf')]
+    paths.append(Path('/etc/authselect/custom/oh-no-parent-control'))
+    pam_links = {Path('/etc/pam.d') / name: name for name in fedora_stacks}
+    result = {}
+    while paths:
+        path = paths.pop()
+        if not os.path.lexists(path):
+            result[str(path)] = None
+            continue
+        info = path.lstat()
+        if path in pam_links and stat.S_ISLNK(info.st_mode):
+            # Fedora's supported generated stack links are witnessed without
+            # following arbitrary links. The fixed effective target is also in
+            # paths, so target bytes/metadata/absence participate independently.
+            name = pam_links[path]
+            target = os.readlink(path)
+            guest.require(info.st_uid == 0 and target in (
+                '/etc/authselect/' + name, '../authselect/' + name),
+                'removal:unsafe-admission-record')
+            result[str(path)] = (stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid, target)
+            continue
+        guest.require(info.st_uid == 0 and not info.st_mode & 0o022 and
+                      (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)),
+                      'removal:unsafe-admission-record')
+        result[str(path)] = (stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid,
+                             guest.sha(path) if stat.S_ISREG(info.st_mode) else 'directory')
+        if stat.S_ISDIR(info.st_mode):
+            paths.extend(path.iterdir())
+        guest.require(len(result) + len(paths) <= 128, 'removal:admission-record-bound')
+    return result
+
+
+def verify_loaded_confinement():
+    """Check loaded product policy and Fedora's vendor PAM caller domain."""
+    guest.guard()
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    try:
+        preparation['enforcing'](config)
+    except ValueError:
+        raise guest.GuestError('removal:confinement-not-enforcing') from None
+    if config['backend'] == 'selinux':
+        permissive = guest.run(['/usr/sbin/semanage', 'permissive', '-l'], timeout=30)
+        guest.require('xdm_t' not in permissive.split(),
+                      'removal:vendor-domain-not-enforcing')
+
+
+def verify_inflight_admission_refusal(record, accounts):
+    """Refuse native erase while real root PAM owns a pre-credential admission."""
+    guest.guard()
+    from system_kiosk_admission import held_account, probe, verify_gates
+    from system_kiosk_confinement import process_identity, exited
+    account = pwd.getpwnam(PRODUCT)
+    wait_kiosk_inactive(account)
+    verify_gates(record)
+    observe_launch(accounts['other'], True)
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    before = admission_removal_state()
+    policies = {role: account_digest(accounts[role]) for role in ('child', 'other')}
+    home = Path(account.pw_dir).lstat()
+    lease = Path('/run/oh-no-parent-control-kiosk-admission.lock')
+    lease_info = lease.lstat()
+    with held_account(record) as pid:
+        process = Path('/proc') / str(pid)
+        pidfd = os.pidfd_open(pid)
+        try:
+            identity = process_identity(process)
+            guest.require(identity[2] == ('0',) * 4 and not exited(pidfd),
+                          'removal:admission-holder-not-root')
+            wait_kiosk_inactive(account)
+            verify_loaded_confinement()
+            # Native removal must fail at the admission lock, before a UID
+            # census, payload erasure, reversible cleanup or denial publication.
+            output = guest.commands.run(removal_command(), check=False, timeout=120,
+                                        merge_stderr=True)
+            guest.require(guest.commands.last_returncode != 0 and not package_absent() and
+                          b'kiosk-admissions-active' in output,
+                          'removal:inflight-admission-not-refused')
+            guest.require(not exited(pidfd) and process_identity(process) == identity,
+                          'removal:admission-holder-changed')
+            verify_loaded_confinement()
+            guest.verify_package_files()
+            guest.require(admission_removal_state() == before,
+                          'removal:inflight-refusal-changed-records')
+            current_home, current_lease = Path(account.pw_dir).lstat(), lease.lstat()
+            guest.require(pwd.getpwnam(PRODUCT) == account and
+                          (current_home.st_dev, current_home.st_ino, current_home.st_uid,
+                           current_home.st_gid, current_home.st_mode) ==
+                          (home.st_dev, home.st_ino, home.st_uid, home.st_gid, home.st_mode) and
+                          (current_lease.st_dev, current_lease.st_ino, current_lease.st_uid,
+                           current_lease.st_gid, current_lease.st_mode) ==
+                          (lease_info.st_dev, lease_info.st_ino, lease_info.st_uid,
+                           lease_info.st_gid, lease_info.st_mode),
+                          'removal:inflight-refusal-changed-ownership')
+            guest.require(all(account_digest(accounts[role]) == digest
+                              for role, digest in policies.items()),
+                          'removal:inflight-refusal-changed-policy')
+            # Exercise both an allowed ordinary launch and the existing child
+            # denial while the same root handle is still alive.
+            observe_launch(accounts['other'], True)
+            observe_launch(accounts['child'], False)
+            probe('login', 'ordinary', 0, 'held-removal.ordinary-after', record)
+            guest.require(not exited(pidfd) and process_identity(process) == identity,
+                          'removal:admission-holder-changed')
+            record('onpc.removal.inflight-admission-refused',
+                   'root-holder-live; kiosk-manager-inactive; payload-PAM-authselect-ownership-records-preserved; loaded-confinement-enforcing; enforcement-effective')
+        finally:
+            os.close(pidfd)
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    verify_gates(record)
+    record('onpc.removal.inflight-admission-drained', 'normal-pam-end; removal-preflight-passed')
 
 
 def verify_active_kiosk_refusal(record, accounts):

@@ -667,6 +667,11 @@ from regression_ui import Bucket
 # Active-kiosk native-removal refusal coverage uses private generation/PAM files,
 # invocation/UID/pidfd/census doubles and bounded command responses. It creates
 # no process, session, service or package transaction on the development host.
+# In-flight refusal's shared PAM/authselect snapshots use private files and
+# synthetic ownership; loaded-policy and holder-lifetime checks use process-local
+# preparation/SELinux/pidfd doubles only, with no real subprocess or policy read.
+# system_runner's retained refusal dispatch likewise uses private logs and
+# process-local transport doubles; its unit/cleanup classifications stay compatible.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.

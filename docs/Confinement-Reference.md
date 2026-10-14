@@ -1675,6 +1675,66 @@ and retained raw acceptance evidence was rechecked after final validation. All
 workers completed before acceptance and owned cleanup. Only **4-4** was checked,
 its temporary brief was removed and the master pointer advanced to **4-5**.
 
+### Phase 4 step 5a — in-flight admission refusal — 2026-10-14
+
+Both targets passed **11/11** executions of the complete registered
+`removal::test_remove_reboot_reinstall` history: six installation/reboot
+prerequisites and the continuous five-phase removal/reinstall/purge history.
+
+| Target | Report under `output/test-runs/host/reports/` | Raw allocation under `output/test-runs/privileged/allocations/` |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | `20261014T233809Z-7e96356e/report.md` | `onpc-system-o6cqara2` |
+| `onpc-Fedora44` | `20261014T231536Z-7c6f85ff/report.md` | `onpc-system-f7mk50nm` |
+
+Each `evidence/guest/removal.xml` records successful ordinary PAM/native
+controls, a live root `gdm-password` PAM handle before kiosk credentials,
+native removal's exact admission refusal, preserved payload/shared PAM/authselect
+and ownership/recovery records, loaded enforcing confinement and effective child
+denial/ordinary access. Fedora retains enforcing SELinux and checks the real
+`xdm_t` caller domain. EOF releases only the owned holder through successful
+`pam_end` and normal exit; exclusive removal preflight, fresh admission gates
+and the same history's successful removal/finalization follow.
+All seven phase JUnits have zero errors, failures or skips, including exact
+original PAM restoration at every removed/purged endpoint and the retained
+ordinary-user, saved-state and fresh-reinstall assertions.
+
+Both frozen inputs have selected-input SHA-256
+`96482b5a3c117bd8c2ac92c565a415737946d788af16e6fb880cca5cb7a2e207`:
+28 guest and 19 host bindings, covering 45 distinct source files, all rehashed
+against the checkout without mismatch. Package source is revision
+`a59e9b6aa1da173114f20421b5dc24d05cb559db`, 348 files, digest
+`c65bae1df4a0998cf13875f5be99a41a123b21ace306885c3ffb17127d4619d4`;
+fixture digest is
+`8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5`.
+DEB SHA-256 is
+`8eceef9c9efad47800d49c754448dece0992577619dd59cf55efa80b23675057`;
+RPM SHA-256 is
+`a97fc5b0472a4e287f0acde7926c1679918ef0df2c5a580f7bbda77018a67005`.
+Refreshed baseline digests are
+`5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93`
+(Ubuntu) and
+`fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c`
+(Fedora). Earlier readiness refusals and preparation supply no acceptance credit;
+the earlier Ubuntu pass was repeated after the assertion changes.
+
+Both aggregate results record product, infrastructure, collection and cleanup
+passed, `cleanup_phase=complete`, all 11 expected executions and two successful
+baseline checks. Serial owned VM/host cleanup passed and both VMs were confirmed
+off. All subagents finished before acceptance. Implementation changes are confined
+to tests, documentation and test-scheduling rationale; authorized preparation also
+refreshed the generated project-tool rules. No package/build input changed and no
+separate `make build` is required. Coverage was regenerated; the new host cases
+retain private files/process-local doubles and compatible unit/cleanup
+classifications.
+
+Final affected admission/removal/runner, cleanup, host inventory, coverage and
+plan/composition consistency checks passed **1028/1028** in
+`output/test-runs/host/reports/20261014T235217Z-2e6d3032/report.md` after queue
+close-out. Changed Markdown links and whitespace checks passed. Retained raw
+acceptance evidence was rechecked after final validation. Only **4-5a** was
+checked, its temporary brief was removed and the master pointer advanced to
+**4-5b**; every other row retains its status, order and scope.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the

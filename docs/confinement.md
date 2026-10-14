@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-5a — [In-flight admission refusal](Confinement-Tasks/4-5a.md)**.
+Next task: **4-5b — [Aborted cleanup and rollback](Confinement-Tasks/4-5b.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and

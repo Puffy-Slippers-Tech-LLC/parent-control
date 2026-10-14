@@ -260,6 +260,16 @@ configuration pending, the fixture restores only its unchanged owned edit and
 finishes that already-unpacked configuration through native `dpkg --configure`.
 Strict configured-package and unchanged-policy checks must then pass before the
 successful removal retry. Payload installation and reinstallation use `make install`.
+The same continuous history also holds a successful installed `gdm-password`
+account handle in a bounded root worker before any kiosk credential handoff.
+Ordinary PAM/native controls precede native removal's exact
+`kiosk-admissions-active` refusal. The same live root holder, inactive kiosk
+manager, payload, service/shared PAM stacks, authselect selection/profile,
+account/home ownership, lease inode, recovery records and effective ordinary-user
+access/child enforcement must survive. Loaded confinement must remain enforcing;
+Fedora also checks its real `xdm_t` caller domain. Controller EOF releases the handle
+through normal `pam_end`; a successful removal preflight and admission gates
+precede the history's existing successful removal/finalization and reboot phases.
 For focused engineering diagnosis, `system_removal.py exercise-live-refusals`
 reuses the same finite hook/PAM checks and leaves the package installed. It records
 native configuration status before and after recovery. Feed the current helper

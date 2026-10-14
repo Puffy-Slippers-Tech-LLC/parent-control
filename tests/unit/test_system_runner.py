@@ -680,6 +680,168 @@ def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
     installed.assert_called_once_with(reboot_required=phase == 'installed')
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', [None, 'premature', 'account', 'nonroot', 'pidfd',
+                                  'release-timeout', 'end', 'exit', 'body', 'body-timeout'])
+def test_held_admission_owns_real_worker_protocol_and_failure_cleanup(
+        monkeypatch, fault, package_format):
+    import system_kiosk_admission as admission
+    import system_kiosk_confinement as confinement
+
+    child = Mock(pid=42, returncode=None)
+    child.poll.return_value = 0 if fault == 'premature' else None
+    spawn = Mock(return_value=child)
+    monkeypatch.setattr(admission.subprocess, 'Popen', spawn)
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(guest, 'package_path', Mock(return_value=admission.Path('package.' + package_format)))
+    caller = Mock()
+    caller.return_value.__enter__ = Mock(return_value=['fedora-caller', '-B'])
+    caller.return_value.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(confinement, 'pam_caller_command', caller)
+    monkeypatch.setattr(admission.os, 'pidfd_open', Mock(
+        side_effect=OSError('pidfd-original') if fault == 'pidfd' else None, return_value=142))
+    monkeypatch.setattr(admission.os, 'close', closed := Mock())
+    monkeypatch.setattr(admission.signal, 'pidfd_send_signal', sent := Mock())
+    root = Mock(side_effect=guest.GuestError('held-root-credentials') if fault == 'nonroot'
+                else None)
+    monkeypatch.setattr(admission, 'root_uids', root)
+    monkeypatch.setattr(confinement, 'exited', Mock(return_value=fault == 'premature'))
+    ready = {'pid': 42, 'uids': [0] * 4, 'account': 6 if fault == 'account' else 0}
+    finished = (guest.GuestError('event-timeout') if fault == 'release-timeout' else
+                {'account': 0, 'end': 4 if fault == 'end' else 0})
+    monkeypatch.setattr(confinement, 'lifecycle_event', events := Mock(side_effect=[ready, finished]))
+    monkeypatch.setattr(confinement, 'lifecycle_wait', waited := Mock(
+        return_value=1 if fault == 'exit' else 0))
+    if fault in ('body-timeout', 'pidfd'):
+        child.wait.side_effect = [admission.subprocess.TimeoutExpired('owned-worker', 10), 0]
+    if fault == 'body-timeout':
+        child.stdout.close.side_effect = OSError('close-secondary')
+    record = Mock()
+
+    def exercise():
+        with admission.held_account(record) as pid:
+            assert pid == 42
+            assert events.call_count == 1
+            if fault in ('body', 'body-timeout'):
+                raise guest.GuestError('body-original')
+            if fault in (None, 'end', 'exit'):
+                child.poll.return_value = 0
+
+    if fault:
+        category = {'premature': 'held-premature-exit', 'account': 'held-ready',
+                    'nonroot': 'held-root-credentials', 'release-timeout': 'event-timeout',
+                    'end': 'held-end-status', 'exit': 'held-exit-status',
+                    'body': 'body-original', 'body-timeout': 'body-original',
+                    'pidfd': 'pidfd-original'}[fault]
+        with pytest.raises(OSError if fault == 'pidfd' else guest.GuestError,
+                           match='pidfd-original' if fault == 'pidfd' else category) as caught:
+            exercise()
+        if fault == 'body-timeout':
+            assert caught.value.__notes__ == ['kiosk-admission:held-cleanup-failed']
+    else:
+        exercise()
+    assert spawn.call_args.args[0][-1] == 'held-account'
+    assert spawn.call_args.kwargs == {'stdin': admission.subprocess.PIPE,
+                                     'stdout': admission.subprocess.PIPE, 'close_fds': True}
+    assert spawn.call_args.args[0][0] == ('fedora-caller' if package_format == 'rpm'
+                                          else '/usr/bin/python3')
+    assert caller.call_count == (package_format == 'rpm')
+    if caller.called:
+        caller.assert_called_once_with(guest.PAYLOAD, 'gdm-password')
+    assert child.kill.call_count == (fault == 'pidfd')
+    assert sent.call_count == (fault == 'body-timeout')
+    if sent.called:
+        sent.assert_called_once_with(142, admission.signal.SIGKILL)
+        assert child.wait.call_count == 2
+        assert all(call.kwargs == {'timeout': 10} for call in child.wait.call_args_list)
+    assert waited.call_count == (fault in (None, 'exit'))
+    child.stdin.close.assert_called()
+    child.stdout.close.assert_called_once_with()
+    assert closed.call_count == (fault != 'pidfd')
+
+
+@pytest.mark.parametrize('uids', ['0\t0\t0\t0', '0\t0\t1007\t0', '0\t0\t0'])
+def test_held_admission_checks_all_four_kernel_uids(monkeypatch, uids):
+    import system_kiosk_admission as admission
+
+    monkeypatch.setattr(admission.Path, 'read_text', Mock(return_value='Name:\tpython\nUid:\t' + uids))
+    if uids == '0\t0\t0\t0':
+        assert admission.root_uids(42) == [0] * 4
+    else:
+        with pytest.raises(guest.GuestError, match='held-root-credentials'):
+            admission.root_uids(42)
+
+
+@pytest.mark.parametrize('status,hold_failure', [(0, False), (6, False), (0, True)])
+def test_held_admission_ends_actual_pam_handle_after_hold(monkeypatch, status, hold_failure):
+    import system_kiosk_admission as admission
+
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(guest, 'package_path', Mock(return_value=admission.Path('package.deb')))
+    monkeypatch.setattr(admission.Path, 'exists', Mock(return_value=True))
+    monkeypatch.setattr(admission.Path, 'lstat', Mock(return_value=SimpleNamespace(
+        st_mode=stat.S_IFREG | 0o644, st_uid=0)))
+    monkeypatch.setattr(admission.pwd, 'getpwnam', Mock(return_value=SimpleNamespace(
+        pw_uid=1007, pw_name='oh-no-parent-control')))
+    pam = Mock()
+    pam.pam_start.return_value = 0
+    pam.pam_acct_mgmt.return_value = status
+    pam.pam_end.return_value = 0
+    monkeypatch.setattr(admission.ctypes, 'CDLL', Mock(return_value=pam))
+
+    def hold(observed):
+        assert observed == status
+        pam.pam_end.assert_not_called()
+        if hold_failure:
+            raise guest.GuestError('held-original')
+
+    if hold_failure:
+        with pytest.raises(guest.GuestError, match='held-original'):
+            admission.pam_account('gdm-password', 'kiosk', hold=hold)
+    else:
+        assert admission.pam_account('gdm-password', 'kiosk', hold=hold) == {
+            'account': status, 'end': 0}
+    assert pam.pam_start.call_args.args[:2] == (b'gdm-password', b'oh-no-parent-control')
+    pam.pam_end.assert_called_once_with(pam.pam_acct_mgmt.call_args.args[0], status)
+
+
+@pytest.mark.parametrize('status,release', [(0, 'eof'), (6, 'eof'), (0, 'timeout'), (0, 'data')])
+def test_held_admission_worker_requires_success_and_bounded_eof(monkeypatch, capsys, status, release):
+    import system_kiosk_admission as admission
+
+    monkeypatch.setattr(guest, 'guard', Mock())
+    monkeypatch.setattr(admission, 'root_uids', Mock(return_value=[0] * 4))
+    monkeypatch.setattr(admission.os, 'getpid', Mock(return_value=42))
+    poll = Mock()
+    poll.poll.return_value = [] if release == 'timeout' else [(0, 1)]
+    monkeypatch.setattr(admission.select, 'poll', Mock(return_value=poll))
+    monkeypatch.setattr(admission.os, 'read', read := Mock(
+        return_value=b'x' if release == 'data' else b''))
+    ended = Mock()
+
+    def account(service, role, *, hold):
+        assert (service, role) == ('gdm-password', 'kiosk')
+        try:
+            hold(status)
+        finally:
+            ended()
+        return {'account': status, 'end': 0}
+
+    monkeypatch.setattr(admission, 'pam_account', account)
+    if status or release != 'eof':
+        with pytest.raises(guest.GuestError, match='held-'):
+            admission.held_worker()
+    else:
+        admission.held_worker()
+    ended.assert_called_once_with()
+    assert poll.poll.call_count == (status == 0)
+    if status == 0:
+        poll.poll.assert_called_once_with(240000)
+    assert read.call_count == (status == 0 and release != 'timeout')
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == (0 if status else 2 if release == 'eof' else 1)
+
+
 @pytest.mark.parametrize('states,fault', [
     (['inactive'], None), (['failed'], None),
     (['active', 'activating', 'deactivating', 'inactive'], None),

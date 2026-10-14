@@ -2,6 +2,7 @@
 
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -15,7 +16,7 @@ import system_removal as removal
                                  'purged_rebooted', 'purge_reinstalled_rebooted',
                                  'exercise_live_refusals',
                                  'verify_removed', 'password_login_health',
-                                 'verify_active_kiosk_refusal'])
+                                 'verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'])
 def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
     monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
     diagnostics = Mock()
@@ -23,7 +24,10 @@ def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
     commands = Mock()
     monkeypatch.setattr(removal.guest, 'commands', commands)
     with pytest.raises(removal.guest.GuestError, match='identity'):
-        getattr(removal, entry)(Mock(), {}) if entry == 'verify_active_kiosk_refusal' else getattr(removal, entry)(Mock())
+        if entry in ('verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'):
+            getattr(removal, entry)(Mock(), {})
+        else:
+            getattr(removal, entry)(Mock())
     diagnostics.assert_not_called()
     commands.run.assert_not_called()
 
@@ -580,6 +584,290 @@ def test_active_kiosk_native_removal_preserves_policy_and_stops_only_owned_manag
         ]
     stopped = ['systemctl', 'stop', 'user@1007.service'] in calls
     assert stopped is (fault not in ('invocation', 'generation', 'namespace', 'uid'))
+    close.assert_called_once_with(987)
+
+
+@pytest.fixture
+def admission_records(tmp_path, monkeypatch):
+    def path(value):
+        return tmp_path / str(value).lstrip('/')
+    monkeypatch.setattr(removal, 'Path', path)
+    native_lstat = Path.lstat
+    ownership = [0, 0]
+    def lstat(target):
+        fields = list(native_lstat(target))
+        fields[4:6] = ownership
+        return os.stat_result(fields)
+    monkeypatch.setattr(Path, 'lstat', lstat)
+    target = path('/var/lib/oh-no-parent-control/fapolicyd-before-install/policy')
+    target.parent.mkdir(parents=True, mode=0o700)
+    target.write_bytes(b'original policy')
+    target.chmod(0o600)
+    return path, target, ownership
+
+
+@pytest.mark.parametrize('changed', ['bytes', 'mode', 'uid', 'gid', 'absent'])
+def test_admission_snapshot_preserves_bytes_modes_ownership_and_absence(admission_records, changed):
+    path, target, ownership = admission_records
+    before = removal.admission_removal_state()
+    absent = path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
+    assert before[str(absent)] is None
+    assert before[str(target)][:3] == (0o600, 0, 0)
+    # Debian may atomically republish identical records during abort-remove.
+    replacement = target.with_name('replacement')
+    replacement.write_bytes(target.read_bytes())
+    replacement.chmod(0o600)
+    replacement.replace(target)
+    assert removal.admission_removal_state() == before
+    if changed == 'bytes':
+        target.write_bytes(b'changed policy')
+    elif changed == 'mode':
+        target.chmod(0o400)
+    elif changed in ('uid', 'gid'):
+        ownership[changed == 'gid'] = 1
+    else:
+        absent.write_bytes(b'removal barrier')
+        absent.chmod(0o600)
+    if changed == 'uid':
+        with pytest.raises(removal.guest.GuestError, match='^removal:unsafe-admission-record$'):
+            removal.admission_removal_state()
+    else:
+        assert removal.admission_removal_state() != before
+
+
+@pytest.mark.parametrize('unsafe', ['symlink', 'writable', 'fifo', 'too-many'])
+def test_admission_snapshot_rejects_unsafe_or_unbounded_records(admission_records, unsafe):
+    _, target, _ = admission_records
+    if unsafe == 'too-many':
+        for index in range(129):
+            target.with_name(str(index)).write_bytes(b'owned')
+    elif unsafe == 'writable':
+        target.chmod(0o622)
+    else:
+        target.unlink()
+        if unsafe == 'symlink':
+            target.symlink_to('missing')
+        else:
+            os.mkfifo(target, 0o600)
+    category = 'admission-record-bound' if unsafe == 'too-many' else 'unsafe-admission-record'
+    with pytest.raises(removal.guest.GuestError, match='^removal:' + category + '$'):
+        removal.admission_removal_state()
+
+
+@pytest.mark.parametrize('name', [
+    *['/etc/pam.d/common-' + part for part in (
+        'auth', 'account', 'password', 'session', 'session-noninteractive')],
+    *['/etc/pam.d/' + part for part in (
+        'system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth')],
+    '/etc/authselect/authselect.conf',
+    '/etc/authselect/custom/oh-no-parent-control/system-auth',
+])
+@pytest.mark.parametrize('changed', ['bytes', 'mode', 'uid', 'gid', 'absent'])
+def test_admission_snapshot_preserves_shared_pam_and_authselect(admission_records, name, changed):
+    path, _, ownership = admission_records
+    target = path(name)
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target.write_bytes(b'installed stack or profile selection')
+    target.chmod(0o644)
+    before = removal.admission_removal_state()
+    if changed == 'bytes':
+        target.write_bytes(b'restored original stack or selection')
+    elif changed == 'mode':
+        target.chmod(0o600)
+    elif changed in ('uid', 'gid'):
+        ownership[changed == 'gid'] = 1
+    else:
+        target.unlink()
+    if changed == 'uid':
+        with pytest.raises(removal.guest.GuestError, match='unsafe-admission-record'):
+            removal.admission_removal_state()
+    else:
+        assert removal.admission_removal_state() != before
+
+
+@pytest.mark.parametrize('name', ['system-auth', 'password-auth', 'fingerprint-auth', 'smartcard-auth'])
+@pytest.mark.parametrize('changed', ['link', 'bytes', 'mode', 'gid', 'absent', 'unsafe'])
+def test_admission_snapshot_witnesses_fedora_link_and_effective_target(
+        admission_records, name, changed):
+    path, _, ownership = admission_records
+    link, target = path('/etc/pam.d/' + name), path('/etc/authselect/' + name)
+    link.parent.mkdir(parents=True)
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b'generated managed PAM')
+    target.chmod(0o644)
+    link.symlink_to('../authselect/' + name)
+    before = removal.admission_removal_state()
+    assert before[str(link)][3] == '../authselect/' + name
+    assert before[str(target)][:3] == (0o644, 0, 0)
+    if changed in ('link', 'unsafe'):
+        link.unlink()
+        link.symlink_to('/etc/authselect/' + name if changed == 'link' else '/etc/shadow')
+    elif changed == 'bytes':
+        target.write_bytes(b'original PAM')
+    elif changed == 'mode':
+        target.chmod(0o600)
+    elif changed == 'gid':
+        ownership[1] = 1
+    else:
+        target.unlink()
+    if changed == 'unsafe':
+        with pytest.raises(removal.guest.GuestError, match='unsafe-admission-record'):
+            removal.admission_removal_state()
+    else:
+        assert removal.admission_removal_state() != before
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('fault', [None, 'product-domain', 'vendor-domain'])
+def test_loaded_confinement_checks_installed_policy_and_vendor_domain(
+        tmp_path, monkeypatch, backend, fault):
+    config = {'backend': backend, 'domains': ['manager', 'gate']}
+    config_path = tmp_path / 'config.json'
+    config_path.write_text(json.dumps(config))
+    monkeypatch.setattr(removal, 'Path', lambda name: config_path)
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    enforcing = Mock(side_effect=ValueError('domain-not-enforcing')
+                     if fault == 'product-domain' else None)
+    preparation = Mock(return_value={'enforcing': enforcing})
+    monkeypatch.setattr(removal.runpy, 'run_path', preparation)
+    native = Mock(return_value='Builtin Permissive Types\n\nCustomized Permissive Types\n' +
+                  ('xdm_t\n' if fault == 'vendor-domain' else 'other_xdm_t\n'))
+    monkeypatch.setattr(removal.guest, 'run', native)
+    if fault == 'product-domain' or (backend == 'selinux' and fault == 'vendor-domain'):
+        with pytest.raises(removal.guest.GuestError, match=(
+                'confinement-not-enforcing' if fault == 'product-domain'
+                else 'vendor-domain-not-enforcing')):
+            removal.verify_loaded_confinement()
+    else:
+        removal.verify_loaded_confinement()
+    preparation.assert_called_once_with('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    enforcing.assert_called_once_with(config)
+    if backend == 'selinux' and fault != 'product-domain':
+        native.assert_called_once_with(['/usr/sbin/semanage', 'permissive', '-l'], timeout=30)
+    else:
+        native.assert_not_called()
+
+
+@pytest.mark.parametrize('fault,category', [
+    (None, None), ('accepted', 'inflight-admission-not-refused'),
+    ('erased', 'inflight-admission-not-refused'), ('reason', 'inflight-admission-not-refused'),
+    ('root', 'admission-holder-not-root'), ('dead-before', 'admission-holder-not-root'),
+    ('dead-after', 'admission-holder-changed'), ('identity', 'admission-holder-changed'),
+    ('dead-control', 'admission-holder-changed'), ('records', 'inflight-refusal-changed-records'),
+    ('account', 'inflight-refusal-changed-ownership'),
+    *[(target + '-' + field, 'inflight-refusal-changed-ownership')
+      for target in ('home', 'lease') for field in ('dev', 'ino', 'uid', 'gid', 'mode')],
+    ('child', 'inflight-refusal-changed-policy'),
+    ('other', 'inflight-refusal-changed-policy'), ('payload', 'package-file-digests'),
+    ('enforcement-before', 'confinement-not-enforcing'),
+    ('enforcement-after', 'confinement-not-enforcing'),
+])
+def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, fault, category):
+    import system_kiosk_admission as admission
+    import system_kiosk_confinement as confinement
+    events = []
+    removed = False
+    held = False
+    controlled = False
+    account = SimpleNamespace(pw_uid=1007, pw_dir='/home/owned')
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.pwd, 'getpwnam', lambda name:
+                        SimpleNamespace(pw_uid=9999) if removed and fault == 'account' else account)
+    def info(name):
+        fields = dict(st_dev=1, st_ino=1, st_uid=1007, st_gid=1007, st_mode=0o40700)
+        for field in fields:
+            if removed and fault == name + '-' + field.removeprefix('st_'):
+                fields[field] += 1
+        return SimpleNamespace(**fields)
+    monkeypatch.setattr(removal, 'Path', lambda value: (
+        SimpleNamespace(lstat=lambda: info('home' if value == account.pw_dir else 'lease'))
+        if value != '/proc' else Path(value)))
+    monkeypatch.setattr(removal, 'wait_kiosk_inactive', lambda current: events.append('inactive'))
+    monkeypatch.setattr(admission, 'verify_gates', lambda record: events.append('gates'))
+    monkeypatch.setattr(removal, 'admission_removal_state', lambda:
+                        'changed' if removed and fault == 'records' else 'owned')
+    def enforcement():
+        assert held
+        events.append('enforcing')
+        if fault == ('enforcement-after' if removed else 'enforcement-before'):
+            raise removal.guest.GuestError('removal:confinement-not-enforcing')
+    monkeypatch.setattr(removal, 'verify_loaded_confinement', enforcement)
+    monkeypatch.setattr(removal, 'account_digest', lambda uid:
+                        'changed' if removed and fault == {1004: 'child', 1005: 'other'}[uid] else 'owned')
+    @contextmanager
+    def holder(record):
+        nonlocal held
+        events.append('hold')
+        held = True
+        try:
+            yield 234
+        except BaseException:
+            events.append('failed-release')
+            raise
+        else:
+            events.append('normal-release')
+        finally:
+            held = False
+    monkeypatch.setattr(admission, 'held_account', holder)
+    monkeypatch.setattr(removal.os, 'pidfd_open', lambda pid: 987)
+    close = Mock(side_effect=lambda fd: events.append('close'))
+    monkeypatch.setattr(removal.os, 'close', close)
+    monkeypatch.setattr(confinement, 'process_identity', lambda process:
+                        ('changed' if removed and fault == 'identity' else 'start', 1,
+                         ('1007',) * 4 if fault == 'root' else ('0',) * 4))
+    monkeypatch.setattr(confinement, 'exited', lambda fd:
+                        fault == 'dead-before' or (removed and fault == 'dead-after') or
+                        (controlled and fault == 'dead-control'))
+    def native_remove(arguments, **options):
+        nonlocal removed
+        assert held and arguments == ['native-remove']
+        assert options == {'check': False, 'timeout': 120, 'merge_stderr': True}
+        removed = True
+        events.append('remove')
+        return b'unrelated failure' if fault == 'reason' else b'reason=kiosk-admissions-active'
+    monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
+    monkeypatch.setattr(removal.guest, 'commands', SimpleNamespace(
+        run=native_remove, last_returncode=0 if fault == 'accepted' else 1))
+    monkeypatch.setattr(removal, 'package_absent', lambda: fault == 'erased')
+    def payload():
+        events.append('payload')
+        if fault == 'payload':
+            raise removal.guest.GuestError('removal:package-file-digests')
+    monkeypatch.setattr(removal.guest, 'verify_package_files', payload)
+    def launch(uid, allowed):
+        assert (uid, allowed) in ((1005, True), (1004, False))
+        assert held is removed
+        events.append(('launch', uid, allowed))
+    monkeypatch.setattr(removal, 'observe_launch', launch)
+    def probe(*args):
+        nonlocal controlled
+        assert held and removed
+        assert args[:-1] == ('login', 'ordinary', 0, 'held-removal.ordinary-after')
+        controlled = True
+        events.append('probe')
+    monkeypatch.setattr(admission, 'probe', probe)
+    def preflight(arguments, **options):
+        assert not held
+        assert arguments == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+                             'check-remove']
+        assert options == {'timeout': 30}
+        events.append('preflight')
+    monkeypatch.setattr(removal.guest, 'run', preflight)
+    record = Mock()
+    if fault:
+        with pytest.raises(removal.guest.GuestError, match='^removal:' + category + '$'):
+            removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005})
+        assert events[-2:] == ['close', 'failed-release']
+        record.assert_not_called()
+    else:
+        removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005})
+        assert events == ['inactive', 'gates', ('launch', 1005, True), 'preflight',
+                          'hold', 'inactive', 'enforcing', 'remove', 'enforcing', 'payload',
+                          ('launch', 1005, True), ('launch', 1004, False), 'probe',
+                          'close', 'normal-release', 'preflight', 'gates']
+        assert [call.args[0] for call in record.call_args_list] == [
+            'onpc.removal.inflight-admission-refused', 'onpc.removal.inflight-admission-drained']
+    assert not held
     close.assert_called_once_with(987)
 
 

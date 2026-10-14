@@ -1,11 +1,15 @@
 """Installed account/routing admission, separate from final-exec and UI proof."""
 
 import ctypes
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import json
+import os
 from pathlib import Path
 import pwd
+import select
+import signal
 import stat
+import subprocess
 import sys
 
 import system_guest as guest
@@ -18,7 +22,7 @@ DEDICATED = ('oh-no-parent-control', 'wayland')
 PAM_PERM_DENIED = 6
 
 
-def pam_account(service, role):
+def pam_account(service, role, *, hold=None):
     """Use libpam's installed configuration, with no authentication or session.
 
     The caller bounds this worker. No password, replacement PAM configuration,
@@ -56,9 +60,114 @@ def pam_account(service, role):
     status = 4  # PAM_SYSTEM_ERR if the account call fails before returning.
     try:
         status = pam.pam_acct_mgmt(handle, 0)
+        if hold is not None:
+            hold(status)
     finally:
         ended = pam.pam_end(handle, status)
     return {'account': status, 'end': ended}
+
+
+def root_uids(pid):
+    """Check real, effective, saved and filesystem IDs independently of PAM."""
+    rows = (Path('/proc') / str(pid) / 'status').read_text().splitlines()
+    values = next((line.split()[1:] for line in rows if line.startswith('Uid:')), [])
+    guest.require(values == ['0'] * 4, 'kiosk-admission:held-root-credentials')
+    return [int(value) for value in values]
+
+
+def held_worker():
+    """Keep the actual installed PAM handle until controller EOF, at most 240s."""
+    guest.guard()
+    root_uids(os.getpid())
+
+    def hold(status):
+        guest.require(status == 0, 'kiosk-admission:held-account-status')
+        ready = {'pid': os.getpid(), 'uids': root_uids(os.getpid()), 'account': status}
+        print(json.dumps(ready, sort_keys=True), flush=True)
+        poll = select.poll()
+        poll.register(0, select.POLLIN | select.POLLHUP)
+        guest.require(bool(poll.poll(240000)), 'kiosk-admission:held-expired')
+        guest.require(os.read(0, 1) == b'', 'kiosk-admission:held-release-protocol')
+        root_uids(os.getpid())
+
+    result = pam_account('gdm-password', 'kiosk', hold=hold)
+    print(json.dumps(result, sort_keys=True), flush=True)
+    guest.require(result == {'account': 0, 'end': 0}, 'kiosk-admission:held-end-status')
+
+
+@contextmanager
+def held_account(record):
+    """Yield only a live, root, directly owned worker holding a real PAM handle.
+
+    Normal release is controller EOF followed by pam_end and a normal exit.
+    Exceptional cleanup signals only the pidfd of this directly spawned child
+    (or its still-unreaped child PID if acquiring that pidfd itself failed).
+    """
+    from system_kiosk_confinement import exited, lifecycle_event, lifecycle_wait, pam_caller_command
+
+    guest.guard()
+    with ExitStack() as resources:
+        caller = ['/usr/bin/python3', '-B']
+        if guest.package_path().suffix == '.rpm':
+            caller = resources.enter_context(pam_caller_command(guest.PAYLOAD, 'gdm-password'))
+        child = subprocess.Popen(
+            [*caller, str(Path(__file__).resolve()), 'held-account'],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, close_fds=True)
+        pidfd = None
+        try:
+            pidfd = os.pidfd_open(child.pid)
+            ready = lifecycle_event(child.stdout.fileno())
+            guest.require(type(ready) is dict and ready == {
+                'pid': child.pid, 'uids': [0, 0, 0, 0], 'account': 0},
+                'kiosk-admission:held-ready')
+            root_uids(child.pid)
+            guest.require(not exited(pidfd), 'kiosk-admission:held-premature-exit')
+            record('onpc.kiosk.admission.held-ready', json.dumps(ready, sort_keys=True))
+            yield child.pid
+            guest.require(not exited(pidfd), 'kiosk-admission:held-premature-exit')
+            root_uids(child.pid)
+            child.stdin.close()
+            finished = lifecycle_event(child.stdout.fileno())
+            record('onpc.kiosk.admission.held-ended', json.dumps(finished, sort_keys=True))
+            guest.require(type(finished) is dict and finished == {'account': 0, 'end': 0},
+                          'kiosk-admission:held-end-status')
+            child.returncode = lifecycle_wait(child.pid, pidfd)
+            guest.require(child.returncode == 0, 'kiosk-admission:held-exit-status')
+        finally:
+            failure = sys.exc_info()[1]
+            cleanup_errors = []
+            try:
+                child.stdin.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
+            try:
+                if child.poll() is None:
+                    try:
+                        child.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        if pidfd is None:
+                            child.kill()  # Direct unreaped child; no reusable PID lookup.
+                        else:
+                            try:
+                                signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                        child.wait(timeout=10)
+            except BaseException as error:
+                cleanup_errors.append(error)
+            try:
+                child.stdout.close()
+            except BaseException as error:
+                cleanup_errors.append(error)
+            if pidfd is not None:
+                try:
+                    os.close(pidfd)
+                except BaseException as error:
+                    cleanup_errors.append(error)
+            if cleanup_errors:
+                if failure is None:
+                    raise cleanup_errors[0]
+                failure.add_note('kiosk-admission:held-cleanup-failed')
 
 
 def probe(service, role, expected, stage, record):
@@ -162,6 +271,9 @@ def verify(record):
 
 
 if __name__ == '__main__':
-    guest.require(len(sys.argv) == 4 and sys.argv[1] == 'pam-account',
-                  'kiosk-admission:arguments')
-    print(json.dumps(pam_account(sys.argv[2], sys.argv[3]), sort_keys=True))
+    if sys.argv[1:] == ['held-account']:
+        held_worker()
+    else:
+        guest.require(len(sys.argv) == 4 and sys.argv[1] == 'pam-account',
+                      'kiosk-admission:arguments')
+        print(json.dumps(pam_account(sys.argv[2], sys.argv[3]), sort_keys=True))

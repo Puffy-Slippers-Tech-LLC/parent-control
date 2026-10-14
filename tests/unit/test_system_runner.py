@@ -11,6 +11,7 @@ import json
 import os
 import stat
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
@@ -677,6 +678,239 @@ def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
     assert events == (expected if fault in (None, 'policy-changed') else
                       expected[:expected.index(fault) + 1])
     installed.assert_called_once_with(reboot_required=phase == 'installed')
+
+
+@pytest.mark.parametrize('states,fault', [
+    (['inactive'], None), (['failed'], None),
+    (['active', 'activating', 'deactivating', 'inactive'], None),
+    (['deactivating', 'failed'], None),
+    (['active'], 'deadline'), (['unknown'], 'state'),
+    ([], 'guard'), ([], 'identity'),
+    (['active'], 'later-guard'), (['active'], 'later-identity'),
+])
+def test_native_kiosk_handoff_wait_is_guarded_bounded_and_read_only(monkeypatch, states, fault):
+    import system_kiosk_confinement as confinement
+
+    account = SimpleNamespace(pw_uid=1007)
+    guard = Mock(side_effect=(guest.GuestError('handoff:guard') if fault == 'guard' else
+                             [None, guest.GuestError('handoff:guard')] if fault == 'later-guard'
+                             else None))
+    identities = [account] * max(1, len(states))
+    if fault == 'later-identity':
+        identities.append(SimpleNamespace(pw_uid=9999))
+    elif fault == 'identity':
+        identities[-1] = SimpleNamespace(pw_uid=9999)
+    identity = Mock(side_effect=identities)
+    run, sleep = Mock(side_effect=states), Mock()
+    monkeypatch.setattr(confinement.guest, 'guard', guard)
+    monkeypatch.setattr(confinement.pwd, 'getpwnam', identity)
+    monkeypatch.setattr(confinement.guest, 'run', run)
+    monkeypatch.setattr(confinement.time, 'sleep', sleep)
+    monkeypatch.setattr(confinement.time, 'monotonic', Mock(
+        side_effect=[0, 75] if fault == 'deadline' else [0] + [1] * len(states)))
+    if fault:
+        category = ('handoff:guard' if 'guard' in fault else
+                    'kiosk-confinement:kiosk-identity-changed' if 'identity' in fault else
+                    'kiosk-confinement:manager-already-active')
+        with pytest.raises(guest.GuestError, match=category):
+            confinement.wait_kiosk_inactive(account)
+    else:
+        confinement.wait_kiosk_inactive(account)
+    assert run.call_count == len(states)
+    assert sleep.call_count == (1 if fault in ('later-guard', 'later-identity') else
+                                0 if fault else len(states) - 1)
+    assert all(call.args == (['systemctl', 'show', '--value', '--property=ActiveState',
+                             'user@1007.service'],) for call in run.call_args_list)
+    assert all(call.args == ('oh-no-parent-control',) for call in identity.call_args_list)
+    assert guard.call_count == len(states) + (fault in (
+        'guard', 'identity', 'later-guard', 'later-identity'))
+    if fault == 'guard':
+        identity.assert_not_called()
+
+
+@pytest.mark.parametrize('settled', ['inactive', 'failed', None])
+def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch, settled):
+    import system_kiosk_confinement as confinement
+
+    account = SimpleNamespace(pw_uid=1007, pw_shell='/usr/sbin/nologin')
+    monkeypatch.setattr(confinement.guest, 'guard', Mock())
+    monkeypatch.setattr(confinement.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(confinement.pwd, 'getpwnam', Mock(return_value=account))
+    monkeypatch.setattr(confinement.time, 'sleep', Mock())
+    monkeypatch.setattr(confinement.time, 'monotonic', Mock(
+        side_effect=[0, 1] if settled else [0, 75]))
+    classification = ['busctl', '--system', 'get-property', 'org.freedesktop.Accounts',
+                      '/org/freedesktop/Accounts/User1007', 'org.freedesktop.Accounts.User',
+                      'SystemAccount']
+    query = ['systemctl', 'show', '--value', '--property=ActiveState', 'user@1007.service']
+    start = ['systemctl', 'start', 'user@1007.service']
+    run = Mock(side_effect=['b false', 'active', settled, guest.GuestError('owned-start')]
+               if settled else ['b false', 'active'])
+    monkeypatch.setattr(confinement.guest, 'run', run)
+    with pytest.raises(guest.GuestError, match=(
+            'owned-start' if settled else 'kiosk-confinement:manager-already-active')):
+        confinement.verify(Mock())
+    assert [call.args[0] for call in run.call_args_list] == (
+        [classification, query, query, start] if settled else [classification, query])
+    if settled:
+        assert run.call_args.kwargs == {'timeout': 75}
+
+
+@pytest.fixture
+def native_census(monkeypatch):
+    import system_kiosk_confinement as confinement
+
+    config = {'backend': 'apparmor'}
+    monkeypatch.setattr(confinement.guest, 'guard', guard := Mock())
+    monkeypatch.setattr(confinement.pwd, 'getpwnam', Mock(
+        return_value=SimpleNamespace(pw_uid=1007)))
+    read_text = confinement.Path.read_text
+    monkeypatch.setattr(confinement.Path, 'read_text', Mock(return_value=json.dumps(config)))
+    monkeypatch.setattr(confinement.runpy, 'run_path', Mock(
+        return_value={'enforcing': (enforcing := Mock())}))
+    monkeypatch.setattr(confinement, 'manager_pid', manager := Mock(return_value=42))
+    monkeypatch.setattr(confinement.os, 'pidfd_open', opened := Mock(return_value=142))
+    monkeypatch.setattr(confinement.os, 'close', closed := Mock())
+    monkeypatch.setattr(confinement, 'exited', exited := Mock(return_value=False))
+    monkeypatch.setattr(confinement.time, 'sleep', sleep := Mock())
+    monkeypatch.setattr(confinement.time, 'monotonic', Mock(return_value=0))
+    observe = confinement.census_processes
+    monkeypatch.setattr(confinement, 'census_processes', observation := Mock(
+        return_value={'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-manager': 1}}))
+    return SimpleNamespace(helper=confinement, config=config, guard=guard, enforcing=enforcing,
+                           manager=manager, opened=opened, closed=closed, exited=exited,
+                           sleep=sleep, observation=observation, read_text=read_text,
+                           observe=observe)
+
+
+def test_census_retries_complete_observation_with_one_pinned_manager(native_census):
+    model = native_census
+    error = guest.GuestError('kiosk-census:process-lifecycle-changed')
+    complete = {'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-manager': 1}}
+    model.observation.side_effect = [error, complete]
+    assert model.helper.census(required_roles=('manager',)) == complete
+    assert model.observation.call_count == model.guard.call_count == model.enforcing.call_count == 2
+    assert model.observation.call_args_list[0] == model.observation.call_args_list[1]
+    assert model.observation.call_args.args[3:] == (
+        model.helper.PROC / '42', 142, 'user@1007.service')
+    assert model.observation.call_args.kwargs == {'required_roles': ('manager',)}
+    model.opened.assert_called_once_with(42)
+    model.closed.assert_called_once_with(142)
+    model.sleep.assert_called_once_with(0.05)
+
+
+def test_census_transient_task_race_discards_partial_role_counts(native_census, tmp_path, monkeypatch):
+    model = native_census
+    helper = model.helper
+    # Exercise the real observation, with two private proc-shaped processes.
+    monkeypatch.setattr(helper, 'census_processes', model.observe)
+    monkeypatch.setattr(helper, 'PROC', tmp_path)
+    model.config.update(domains=['manager', 'app'],
+                        apparmor_profiles=['onpc-kiosk-manager', 'onpc-kiosk-app'])
+    processes = []
+    for pid, role in ((42, 'manager'), (43, 'app')):
+        process = tmp_path / str(pid)
+        process.mkdir()
+        processes.append(process)
+        fields = ['S', '1'] + ['0'] * 17 + [str(pid * 100)]
+        (process / 'stat').write_text(f'{pid} (fixture) ' + ' '.join(fields))
+        (process / 'status').write_text('PPid:\t1\nUid:\t1007\t1007\t1007\t1007\n')
+        (process / 'ns').mkdir()
+        (process / 'ns/mnt').symlink_to('mnt:[private]')
+        marker = process / 'root/usr/share/oh-no-parent-control/confinement/generation'
+        marker.parent.mkdir(parents=True)
+        marker.write_text('fixture-generation')
+        attribute = 'attr/apparmor/current'
+        (process / attribute).parent.mkdir(parents=True)
+        (process / attribute).write_text('onpc-kiosk-' + role + ' (enforce)')
+        thread = process / 'task' / str(pid)
+        thread.mkdir(parents=True)
+        for name in ('stat', 'status', 'ns', 'root', 'attr'):
+            (thread / name).symlink_to(process / name)
+    host = tmp_path / '1/ns/mnt'
+    host.parent.mkdir(parents=True)
+    host.symlink_to('mnt:[host]')
+    iterate = helper.Path.iterdir
+    monkeypatch.setattr(helper.Path, 'iterdir', lambda path: (
+        iter(processes) if path == tmp_path else iterate(path)))
+    monkeypatch.setattr(helper.Path, 'read_text', lambda path, *args, **kwargs: (
+        json.dumps(model.config) if str(path) == '/usr/share/oh-no-parent-control/confinement/config.json'
+        else model.read_text(path, *args, **kwargs)))
+    identity = helper.process_identity
+    reads = 0
+
+    def changing_identity(path):
+        nonlocal reads
+        value = identity(path)
+        if path == processes[1]:
+            reads += 1
+            if reads == 2:
+                return ('transient-change', *value[1:])
+        return value
+
+    monkeypatch.setattr(helper, 'process_identity', changing_identity)
+    model.opened.side_effect = [100, 101, 102, 103, 104]
+    result = helper.census(required_roles=('manager', 'app'))
+    assert result == {'backend': 'apparmor', 'confined_thread_roles': {
+        'onpc-kiosk-manager': 1, 'onpc-kiosk-app': 1}}
+    assert reads == 4
+    assert model.guard.call_count == model.enforcing.call_count == 2
+    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 103, 104, 100]
+
+
+@pytest.mark.parametrize('expires', ['before-retry', 'after-guard', 'persistent'])
+def test_census_persistent_race_retains_first_error_and_closes_manager(native_census, monkeypatch, expires):
+    model = native_census
+    first = guest.GuestError('kiosk-census:process-lifecycle-changed')
+    later = guest.GuestError('kiosk-census:process-lifecycle-changed')
+    model.observation.side_effect = [first, later]
+    monkeypatch.setattr(model.helper.time, 'monotonic', Mock(side_effect={
+        'before-retry': [0, 5], 'after-guard': [0, 1, 5], 'persistent': [0, 1, 2, 5],
+    }[expires]))
+    with pytest.raises(guest.GuestError) as failure:
+        model.helper.census()
+    assert failure.value is first
+    assert model.observation.call_count == (2 if expires == 'persistent' else 1)
+    model.closed.assert_called_once_with(142)
+    model.opened.assert_called_once_with(42)
+
+
+@pytest.mark.parametrize('category', [
+    'kiosk-census:manager-lifecycle-changed', 'kiosk-census:manager-uid',
+    'kiosk-census:manager-label', 'kiosk-census:manager-generation',
+    'kiosk-census:required-service-missing:app', 'kiosk-census:unknown-required-role',
+    'kiosk-census:unconfined-thread', 'kiosk-census:unenforced-thread',
+    'kiosk-census:unconfined-namespace', 'kiosk-census:unconfined-generation',
+    'kiosk-census:live-process-unreadable', 'kiosk-password:credentials',
+])
+def test_census_never_retries_security_or_ownership_failure(native_census, category):
+    model = native_census
+    original = guest.GuestError(category)
+    model.observation.side_effect = original
+    with pytest.raises(guest.GuestError) as failure:
+        model.helper.census()
+    assert failure.value is original
+    model.observation.assert_called_once()
+    model.sleep.assert_not_called()
+    model.closed.assert_called_once_with(142)
+
+
+@pytest.mark.parametrize('fault', ['guard', 'enforcing', 'manager-exited', 'manager-replaced'])
+def test_census_rechecks_policy_and_pinned_manager_before_retry(native_census, fault):
+    model = native_census
+    model.observation.side_effect = guest.GuestError('kiosk-census:process-lifecycle-changed')
+    if fault in ('guard', 'enforcing'):
+        getattr(model, fault).side_effect = [None, guest.GuestError('retry:' + fault)]
+        category = 'retry:' + fault
+    else:
+        model.exited.return_value = fault == 'manager-exited'
+        model.manager.side_effect = [42, 99] if fault == 'manager-replaced' else None
+        category = 'kiosk-census:manager-lifecycle-changed'
+    with pytest.raises(guest.GuestError, match=category):
+        model.helper.census()
+    model.observation.assert_called_once()
+    model.opened.assert_called_once_with(42)
+    model.closed.assert_called_once_with(142)
 
 
 def test_conflicting_helper_targets_are_refused_before_any_staging(tmp_path, monkeypatch):

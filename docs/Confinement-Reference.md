@@ -1597,6 +1597,84 @@ inventories retain their existing classifications. Coverage was regenerated;
 changed Markdown links and whitespace checks passed. Only 4-3 was checked,
 its temporary brief was removed and the master pointer advanced to **4-4**.
 
+### Phase 4 step 4 — Fedora removal history — 2026-10-14
+
+The complete registered `removal::test_remove_reboot_reinstall` history passed
+**11/11** executions on `onpc-Fedora44`: six installation prerequisites and
+the continuous five-phase native DNF removal/reboot/retained reinstall/packaged
+purge/reboot/fresh reinstall history. Host report
+`output/test-runs/host/reports/20261014T221836Z-debb5e46/report.md` retains the
+result; raw evidence is in
+`output/test-runs/privileged/allocations/onpc-system-kg6m_ocm/`.
+All seven `evidence/guest/{installed,rebooted,removal,removed-rebooted,reinstalled-rebooted,purged-rebooted,purge-reinstalled-rebooted}.xml`
+files have zero errors, failures or skips. Both
+`evidence/guest/attempt-installed/gdm-{installed,rebooted}.json` observations
+passed on distinct boots, including public kiosk entry/exit and every required
+strict native census role under enforcing SELinux.
+
+All four removed/purged endpoints retain `onpc.removal.pam-restored` and match
+the independent original bytes, modes and local/vendor selection captured before
+installation:
+
+| Service | Original selection | Mode | SHA-256 |
+| --- | --- | --- | --- |
+| `gdm-password` | local | `0644` | `cb6415a67e63dbc99c40c4b156ebdf7956f16e180401dd35ecc2d757351f5e25` |
+| `systemd-user` | vendor | `0644` | `40275c8e16f29735096248ac71d41663e73195b7ab54b4a7a98a5f186c81c9e2` |
+
+The complete assertions passed original authselect profile/features restoration,
+enforcing SELinux, active-kiosk and foreign hook/PAM refusal, payload/policy
+preservation on refusal, inactive kiosk account/home/cache finalization, ordinary
+desktop/password/native-execution controls, retained preferences after ordinary
+reinstall, cleared one-time grants and fresh defaults after purge. The
+payload-erased surviving-account interval and failed real post-erase recovery
+remain explicit **4-6** obligations.
+
+Mechanical test repairs preserve those assertions. The account fixture's copied
+icon was root-only, causing the blank greeter image observed during testing; it
+now uses the packaged image's greeter-readable `0644` mode. Private metadata and
+collision/ownership guards remain intact. The shared native probe waits up to
+75 seconds for preceding GDM logout to settle naturally, with guest/UID guards
+and no adoption or signalling. The strict census retries only an inconclusive
+process-lifecycle race, discarding the entire observation within five seconds
+while retaining the same manager pidfd and rechecking enforcing policy and
+manager identity. Security failures still fail immediately; no partial role
+counts are combined. Each repair passed separate live Fedora diagnostics before
+the final clean history; those diagnostics supply no acceptance credit and their
+owned maintenance cleanup finished.
+
+Verified input `onpc-test-artifacts-qovyjxvm` and retained `input/` copies bind RPM
+`a97fc5b0472a4e287f0acde7926c1679918ef0df2c5a580f7bbda77018a67005`,
+fixture `8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5`,
+package source revision `f84b688281f27ade9e737b2b6a2930646db3541c`, digest
+`c65bae1df4a0998cf13875f5be99a41a123b21ace306885c3ffb17127d4619d4`
+and 348 files. Fedora baseline is
+`8d9c69f0f0c1bc1a58db150aa6081dc42ef0f3b035ff396786733b14a68fbf7f`.
+Selected-input digest is
+`f9e1ab6bdf1dc327eaedaad52d99419f9cfdfd007e1464f23110634d03155b30`:
+28 guest bindings and 19 host bindings, covering 45 distinct source files,
+all rehashed against the checkout after acceptance with no mismatch.
+
+`evidence/result.json` records product, infrastructure, collection and cleanup
+passed, `cleanup_phase=complete`, all 11 expected executions collected and two
+successful baseline checks. The VM was independently confirmed off. Preserve
+the retained raw evidence through the maintained exporter before future journal
+rotation. Only test/doc files changed, outside package/build inputs; no separate
+`make build` is required. Earlier Ubuntu history remains historical evidence;
+**4-10** must qualify the final Ubuntu candidate with these current shared helpers.
+
+Final scoped host checks passed **816/816** after queue close-out in
+`output/test-runs/host/reports/20261014T223603Z-8b49c522/report.md`: affected
+guest/removal/account regressions, host inventory, execution-plan and
+plan/inventory/coverage/case-composition consistency. Runner and existing native
+confinement regressions passed **587/587** in
+`output/test-runs/host/reports/20261014T221414Z-bda6fcc2/report.md` after the final
+census edit. New cases use tiny private files and process-local doubles; existing
+compatible classifications remain applicable, with no added cleanup owner.
+Coverage was regenerated, changed Markdown links and whitespace checks passed,
+and retained raw acceptance evidence was rechecked after final validation. All
+workers completed before acceptance and owned cleanup. Only **4-4** was checked,
+its temporary brief was removed and the master pointer advanced to **4-5**.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the

@@ -357,7 +357,7 @@ def test_pam_comments_and_inactive_backups_are_preserved(removed_machine):
 
 @pytest.mark.parametrize('states,fault', [
     (['inactive'], None), (['failed'], None),
-    (['active', 'deactivating', 'inactive'], None),
+    (['active', 'activating', 'deactivating', 'inactive'], None),
     (['active'], 'deadline'), (['unknown'], 'state'), (['inactive'], 'identity'),
 ])
 def test_kiosk_logout_settles_read_only_before_owned_manager_start(monkeypatch, states, fault):
@@ -369,7 +369,8 @@ def test_kiosk_logout_settles_read_only_before_owned_manager_start(monkeypatch, 
     run = Mock(side_effect=states)
     monkeypatch.setattr(removal.guest, 'run', run)
     monkeypatch.setattr(removal.time, 'sleep', sleep)
-    monkeypatch.setattr(removal.time, 'monotonic', Mock(side_effect=[0, 75] if fault else [0, 1, 2]))
+    monkeypatch.setattr(removal.time, 'monotonic', Mock(
+        side_effect=[0, 75] if fault else [0] + [1] * len(states)))
     if fault:
         with pytest.raises(removal.guest.GuestError, match=(
                 'kiosk-identity-changed' if fault == 'identity' else 'kiosk-manager-already-active')):
@@ -384,6 +385,17 @@ def test_kiosk_logout_settles_read_only_before_owned_manager_start(monkeypatch, 
         run.assert_not_called()
     if fault:
         sleep.assert_not_called()
+
+
+def test_removal_handoff_wait_reuses_native_helper_with_existing_categories(monkeypatch):
+    import system_kiosk_confinement as confinement
+
+    wait = Mock()
+    monkeypatch.setattr(confinement, 'wait_kiosk_inactive', wait)
+    account = SimpleNamespace(pw_uid=1007)
+    removal.wait_kiosk_inactive(account)
+    wait.assert_called_once_with(account, identity_category='removal:kiosk-identity-changed',
+                                active_category='removal:kiosk-manager-already-active')
 
 
 @pytest.mark.parametrize('package_format,status,fault', [

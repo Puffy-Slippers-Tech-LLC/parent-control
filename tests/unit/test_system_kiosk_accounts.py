@@ -4,6 +4,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import stat
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -23,6 +24,48 @@ def test_guest_guard_precedes_account_and_service_actions(monkeypatch, entry):
         getattr(accounts, entry)(Mock())
     commands.run.assert_not_called()
     native.assert_not_called()
+
+
+@pytest.mark.parametrize('collision', [None, 'file', 'dangling-symlink'])
+def test_fixture_icon_is_greeter_readable_and_preserves_collisions(tmp_path, monkeypatch, collision):
+    cache, icon, source = (tmp_path / name for name in ('cache', 'icon', 'packaged.png'))
+    cache.write_bytes(b'original cache')
+    source.write_bytes(b'packaged icon bytes')
+    if collision == 'file':
+        icon.write_bytes(b'foreign icon')
+    elif collision == 'dangling-symlink':
+        icon.symlink_to(tmp_path / 'missing')
+    monkeypatch.setattr(accounts, 'CACHE', cache)
+    monkeypatch.setattr(accounts, 'ICON', icon)
+    for name in ('guard', 'verify_package_files', 'enable_diagnostics'):
+        monkeypatch.setattr(accounts.guest, name, Mock())
+    monkeypatch.setattr(accounts.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_shell='/usr/sbin/nologin'))
+    monkeypatch.setattr(accounts, 'unit_property', lambda _: 'active')
+    monkeypatch.setattr(accounts, 'owned_bytes', lambda _: cache.read_bytes())
+    monkeypatch.setattr(accounts, 'ordinary_state', Mock(return_value={}))
+    packaged = Mock(return_value=source)
+    monkeypatch.setattr(accounts, 'Path', packaged)
+    fingerprint = Mock(side_effect=RuntimeError('icon creation complete'))
+    monkeypatch.setattr(accounts, 'fingerprint', fingerprint)
+    if collision:
+        with pytest.raises(accounts.guest.GuestError, match='icon-collision'):
+            accounts.exercise(Mock())
+        packaged.assert_not_called()
+        fingerprint.assert_not_called()
+        if collision == 'file':
+            assert icon.read_bytes() == b'foreign icon'
+        else:
+            assert icon.is_symlink() and os.readlink(icon) == str(tmp_path / 'missing')
+    else:
+        with pytest.raises(RuntimeError, match='icon creation complete'):
+            accounts.exercise(Mock())
+        packaged.assert_called_once_with('/usr/share/oh-no-parent-control/kiosk_account_icon.png')
+        fingerprint.assert_called_once_with(icon)
+        assert icon.read_bytes() == source.read_bytes()
+        mode = stat.S_IMODE(icon.stat().st_mode)
+        assert mode & stat.S_IRGRP and mode & stat.S_IROTH
+        assert not mode & (stat.S_IWGRP | stat.S_IWOTH | 0o111)
+    assert cache.read_bytes() == b'original cache'
 
 
 @pytest.mark.parametrize('stage', ['before', 'after', 'unrecognized'])

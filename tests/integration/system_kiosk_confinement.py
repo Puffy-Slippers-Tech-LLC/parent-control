@@ -26,6 +26,24 @@ PROC = Path('/proc')
 MANAGER_SID = 'system_u:system_r:onpc_kiosk_manager_t:s0'
 
 
+def wait_kiosk_inactive(account, *,
+                        identity_category='kiosk-confinement:kiosk-identity-changed',
+                        active_category='kiosk-confinement:manager-already-active'):
+    """Let a completed GDM logout settle without adopting or stopping its manager."""
+    deadline = time.monotonic() + 75
+    unit = f'user@{account.pw_uid}.service'
+    while True:
+        guest.guard()
+        guest.require(pwd.getpwnam('oh-no-parent-control').pw_uid == account.pw_uid,
+                      identity_category)
+        state = guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
+        if state in ('inactive', 'failed'):
+            return
+        guest.require(state in ('active', 'activating', 'deactivating') and
+                      time.monotonic() < deadline, active_category)
+        time.sleep(0.25)
+
+
 def exited(pidfd):
     poll = select.poll()
     poll.register(pidfd, select.POLLIN)
@@ -81,8 +99,29 @@ def census(*, required_roles=('manager', 'app', 'service', 'wellbeing', 'pipewir
     manager = PROC / str(manager_pid(unit))
     manager_fd = os.pidfd_open(int(manager.name))
     try:
-        return census_processes(account, config, backend, manager, manager_fd, unit,
-                                required_roles=required_roles)
+        deadline = time.monotonic() + 5
+        first_race = None
+        while True:
+            try:
+                return census_processes(account, config, backend, manager, manager_fd, unit,
+                                        required_roles=required_roles)
+            except guest.GuestError as error:
+                # A changing task set is not a security-policy refusal. Discard
+                # the whole observation and keep the original manager pinned.
+                if str(error) != 'kiosk-census:process-lifecycle-changed':
+                    raise
+                if first_race is None:
+                    first_race = error
+                if time.monotonic() >= deadline:
+                    raise first_race
+                time.sleep(0.05)
+                guest.guard()
+                preparation['enforcing'](config)
+                guest.require(not exited(manager_fd) and
+                              manager_pid(unit) == int(manager.name),
+                              'kiosk-census:manager-lifecycle-changed')
+                if time.monotonic() >= deadline:
+                    raise first_race
     finally:
         os.close(manager_fd)
 
@@ -1326,8 +1365,7 @@ def verify(record):
         f'/org/freedesktop/Accounts/User{account.pw_uid}', 'org.freedesktop.Accounts.User',
         'SystemAccount']) == 'b false', 'kiosk-confinement:greeter-classification')
     record('onpc.kiosk.nologin-account-visible-after-reboot', True)
-    before = guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
-    guest.require(before in ('inactive', 'failed'), 'kiosk-confinement:manager-already-active')
+    wait_kiosk_inactive(account)
     guest.run(['systemctl', 'start', unit], timeout=75)
     invocation = guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit])
     try:

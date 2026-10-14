@@ -341,7 +341,7 @@ def exercise(record, *, atomic=True):
     original_attributes = {name: os.getxattr(CACHE, name) for name in os.listxattr(CACHE)}
     guest.require(not ICON.exists() and not ICON.is_symlink(), 'kiosk-accounts:icon-collision')
     with ICON.open('xb') as stream:
-        os.fchmod(stream.fileno(), 0o600)
+        os.fchmod(stream.fileno(), 0o644)
         stream.write(Path('/usr/share/oh-no-parent-control/kiosk_account_icon.png').read_bytes())
     icon = fingerprint(ICON)
 

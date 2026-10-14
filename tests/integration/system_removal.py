@@ -474,19 +474,10 @@ def remove(record):
 
 
 def wait_kiosk_inactive(account):
-    """Let a completed GDM logout settle without adopting or stopping its manager."""
-    deadline = time.monotonic() + 75
-    unit = f'user@{account.pw_uid}.service'
-    while True:
-        guest.guard()
-        guest.require(pwd.getpwnam(PRODUCT).pw_uid == account.pw_uid,
-                      'removal:kiosk-identity-changed')
-        state = guest.run(['systemctl', 'show', '--value', '--property=ActiveState', unit])
-        if state in ('inactive', 'failed'):
-            return
-        guest.require(state in ('active', 'activating', 'deactivating') and
-                      time.monotonic() < deadline, 'removal:kiosk-manager-already-active')
-        time.sleep(0.25)
+    """Preserve removal diagnostics while sharing the native probe handoff wait."""
+    from system_kiosk_confinement import wait_kiosk_inactive as wait
+    wait(account, identity_category='removal:kiosk-identity-changed',
+         active_category='removal:kiosk-manager-already-active')
 
 
 def verify_active_kiosk_refusal(record, accounts):

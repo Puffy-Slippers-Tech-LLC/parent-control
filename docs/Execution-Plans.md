@@ -120,6 +120,9 @@ All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
+The top-left `Tasks: x/y` counts completed tasks in this run plus one against
+the run's task limit. For zero or negative `--tasks`, y is the number completed
+in this run plus the remaining tasks, so an unlimited run shows a numeric total.
 The conversation composer shows a blinking underscore cursor at the current
 insertion position, including while another pane is selected or output scrolls.
 Hovering over its text area requests an I-beam mouse pointer in terminals that

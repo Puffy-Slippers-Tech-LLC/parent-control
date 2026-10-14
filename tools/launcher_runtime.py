@@ -36,8 +36,11 @@ class TaskBudget:
     def __init__(self, run):
         self.run = run
 
-    def initialize(self, tasks):
-        launcher.atomic(self.run / 'limits.json', dict(tasks=task_limit(tasks), started=0, completed=0))
+    def initialize(self, tasks, *, remaining=None):
+        value = dict(tasks=task_limit(tasks), started=0, completed=0)
+        if remaining is not None:
+            value['remaining'] = remaining
+        launcher.atomic(self.run / 'limits.json', value)
 
     def read(self):
         return json.loads((self.run / 'limits.json').read_text())
@@ -84,7 +87,9 @@ def task_progress(run, steps):
         return steps
     value = TaskBudget(run).read()
     limit = value['tasks']
+    if limit is None:
+        limit = value.get('remaining', '—')
     completed = value.get('completed', 0)
     position = completed + 1
     return [{'key': 'runtime-tasks', 'pinned': True,
-             'lines': [f'Tasks: {position}/{limit if limit is not None else "all"}']}, *steps]
+             'lines': [f'Tasks: {position}/{limit}']}, *steps]

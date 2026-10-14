@@ -1268,6 +1268,7 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     (['--tasks', '2'], ['--tasks', '-1'], 4, 2),
     (['--tasks', '2'], ['--tasks', '-9'], 4, 2),
     ([], ['--tasks', '0'], 4, 2),
+    (['--tasks', '0'], ['--tasks', '1'], 2, 1),
 ])
 def test_attached_adjustments_control_next_boundary(
         checkout, initial, adjustment, sessions, completed, tmp_path_factory):
@@ -1287,10 +1288,12 @@ def test_attached_adjustments_control_next_boundary(
     run, _ = select_vm(root, initial)
     wait_for(root / 'agent-ready-1')
     initial_total = json.loads((run / 'limits.json').read_text())['tasks']
+    if initial_total is None:
+        initial_total = 2
     assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{initial_total}']
     assert select_vm(root, adjustment) == (run, False)
     adjusted_total = json.loads((run / 'limits.json').read_text())['tasks']
-    display_total = adjusted_total if adjusted_total is not None else 'all'
+    display_total = adjusted_total if adjusted_total is not None else 2
     assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{display_total}']
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
@@ -1325,7 +1328,7 @@ def test_concurrent_limit_replacements_preserve_completed_work(
         attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {
-        'tasks': 1, 'started': 3, 'completed': 1}
+        'tasks': 1, 'started': 3, 'completed': 1, 'remaining': 2}
     assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/1']
     (root / 'release').touch()
     output = io.StringIO()

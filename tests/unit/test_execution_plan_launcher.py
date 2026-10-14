@@ -16,7 +16,7 @@ import pytest
 from execution_plan import Plan, local_file
 from confinement_workflow import WORKFLOW as CONFINEMENT
 from launcher_display import TaskDisplay
-from launcher_runtime import TaskBudget, task_limit, warn_remaining
+from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaining
 from launcher_view import WorkflowView, plan_totals, view_for
 import plan_launcher as workflow
 from tests.support.terminal_screen import Terminal
@@ -204,6 +204,38 @@ def test_nonpositive_budgets_are_unlimited(tmp_path, limit):
         budget.complete()
     assert task_limit(limit) is None
     assert budget.read()['completed'] == 4
+
+
+@pytest.mark.parametrize('limit', [0, -1, 3])
+def test_task_counter_uses_numeric_remaining_total_and_live_limits(tmp_path, limit):
+    budget = TaskBudget(tmp_path)
+    budget.initialize(limit, remaining=5)
+    steps = [dict(key='current', lines=['Current task'])]
+    total = 3 if limit > 0 else 5
+    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 1/{total}']
+    budget.complete()
+    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 2/{total}']
+    budget.set_limit(0)
+    assert task_progress(tmp_path, steps)[0]['lines'] == ['Tasks: 2/5']
+    assert task_progress(tmp_path, steps)[1:] == steps
+
+
+@pytest.mark.parametrize('already_complete', [False, True])
+def test_unlimited_plan_counter_excludes_previously_completed_tasks(rig, monkeypatch, already_complete):
+    if already_complete:
+        complete(rig.plan, '001')
+    TaskBudget(rig.run).initialize(0)
+    counters = []
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        counters.append(task_progress(run, [])[0]['lines'][0])
+        complete(rig.plan, state['task_id'])
+        return response(state)
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker() == 0
+    assert counters == (['Tasks: 1/1'] if already_complete else ['Tasks: 1/2', 'Tasks: 2/2'])
 
 
 def test_active_budget_replacement_and_closed_refusal(tmp_path):

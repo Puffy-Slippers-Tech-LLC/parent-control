@@ -307,6 +307,8 @@ def worker(root, run, owner, spec, state):
             state['task_sessions'] += 1
             state['total_sessions'] += 1
             state['in_flight'] = True
+            remaining = sum(not done for done in state['queue_before'].values())
+            budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
             (run / 'prompt.txt').write_text(session_prompt(plan, spec, state))
             (run / 'agent-result.json').unlink(missing_ok=True)
@@ -391,6 +393,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             os.environ.pop(BATCH, None)
         binding = execution_binding()
         initial = {}
+        initial_remaining = 0
         def attach(selected):
             check_binding(selected, binding, stopping=args.stop)
             if args.tasks is not None:
@@ -404,6 +407,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     warn_remaining(limit, remaining + budget.read()['completed'], label=spec.name)
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
+            nonlocal initial_remaining
             plan = Plan.load(root, path)
             validation_error = None
             try:
@@ -421,11 +425,13 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 initial['handoff'] = (initial.get('handoff', '') + '\nReconcile interrupted close-out: ' + str(validation_error))
             else:
                 remaining = len(records)
+            initial_remaining = remaining
             warn_remaining(task_limit(args.tasks if args.tasks is not None else 1), remaining, label=spec.name)
             return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
                     str(root), str(selected), str(owner), json.dumps(asdict(spec)), json.dumps(initial)]
         def start(selected):
-            TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1)
+            TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1,
+                                            remaining=initial_remaining)
             launcher.atomic(selected / 'checkpoint.json', initial)
             save_binding(selected, binding)
         run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',

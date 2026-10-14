@@ -1078,6 +1078,8 @@ def worker(root, run, owner, tasks, state_json):
                 # The pointer already names the next task. Keep the interrupted
                 # task and its original status baseline until acceptance is proven.
                 task = state['task_id']
+            remaining = sum(not done for done in before.values())
+            budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             if task is None:
                 state = dict(state, task_id=None, summary='All active queue tasks are complete.',
                              handoff='No active E2E task remains. Do not select deferred tasks.', phase='complete')
@@ -1303,9 +1305,9 @@ def select(root, argv):
         args = parse()
         if args.tasks is None:
             args.tasks = 1
-        initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0)
-        warn_remaining(task_limit(args.tasks), sum(not done for done in queue_state(root)[1].values()),
-                       label='write-e2e')
+        remaining = sum(not done for done in queue_state(root)[1].values())
+        initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0, remaining=remaining)
+        warn_remaining(task_limit(args.tasks), remaining, label='write-e2e')
         state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         previous = launcher.current_run(run.parent)

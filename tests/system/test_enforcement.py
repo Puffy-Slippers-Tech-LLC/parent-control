@@ -30,6 +30,11 @@ def test_kiosk_namespace_guard_callbacks(record_testsuite_property):
     verify_namespace_guard(record_testsuite_property)
 
 
+def test_kiosk_shared_integration_scope(record_testsuite_property):
+    from system_kiosk_scope import verify
+    verify(record_testsuite_property)
+
+
 @pytest.fixture(scope='module')
 def native_accounts():
     return provision_native()

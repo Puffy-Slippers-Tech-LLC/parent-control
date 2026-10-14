@@ -167,6 +167,21 @@ no authentication credentials or shell. It qualifies installed account/routing
 admission, combined with the separate final-exec matrix; it does not establish
 graphical login, session-stage transport checks or customer-journey acceptance.
 
+`enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
+PAM callback bytes/options and the manager credential fallback, then starts and
+stops one owned ordinary administrator and standard-user manager. It also
+reuses the complete namespace callback qualifier below, keeping both-role
+callback and policy assertions in one retained result. Both roles
+must retain their measured ordinary security labels, global executable inodes
+and generation, vendor unit hardening and D-Bus launch/environment, and usable
+shell/Python/GJS transient services. Effective unit paths and drop-ins must
+exclude the kiosk's private overrides; Ubuntu's six private Snap masks must not
+mask ordinary vendor units. Shared audio and Wellbeing launchers must preserve
+ordinary settings/startup environments. Invocation guards prevent cleanup from
+stopping a preexisting or replacement manager. This engineering selector does
+not authenticate a graphical login or separately measure keyring autostart;
+the public ordinary-desktop qualifier owns login/desktop availability.
+
 `enforcement` → `test_kiosk_platform_integrations` owns bounded distro loading
 and service-API qualification in
 [system_kiosk_platform.py](system_kiosk_platform.py). It records the actual
@@ -401,9 +416,9 @@ failed test assertion.
   bounds interruption cleanup. No guessed process discovery or ownership.
 - `test_kiosk_namespace_guard_callbacks`: under the exclusive guest lease,
   exercises real PAM namespace open/init/close and credential callbacks with a
-  unique temporary configuration and two directly forked, bounded workers.
-  It verifies ordinary-user callbacks, the kiosk skip and parent namespace
-  isolation. The configuration is removed only after inode/content checks;
+  unique temporary configuration and four directly forked, bounded workers.
+  It verifies root, prepared administrator and standard-user callbacks, the
+  kiosk skip and parent namespace isolation. The configuration is removed only after inode/content checks;
   attempt restoration owns recovery. It changes no host PAM or namespace state.
 - `test_kiosk_account_classification_survives_reboot`: the package area exercises
   fresh caching, retained-visible no-op retries, retained-hidden disk/live-state

@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 8c is next.**
+**Next phase: 4 — Qualify confinement lifecycle and close. Step 1 is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -50,7 +50,7 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **7c — Error reporting and required services** | On both targets, prove error reporting and its in-app privacy disclosure cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify usable editable in-app reporting and diagnostics without sending feedback, the confined native WebKit/scanner route and required service roles. Reuse applicable qualification first, retain real scanner proof and add only missing confinement coverage. Finish owned cleanup. |
 | [x] | **8a — Ordinary login and desktop availability** | On both targets, verify real fresh graphical login and usable ordinary administrator and standard-user desktops through the maintained guarded entry and desktop observations. Preserve account identity and secret-recipient checks. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 | [x] | **8b — AccountsService metadata collateral** | On both targets, verify preserved AccountsService cache/icon metadata for both ordinary administrator and standard-user roles throughout the maintained kiosk provisioning, daemon restart and reboot history. Extend only the missing role coverage, preserve the complete selector's assertions and finish owned cleanup. |
-| [ ] | **8c — Shared PAM and policy scope** | On both targets, verify preserved vendor PAM callbacks and effective kiosk-only scope of changed units/policies, including both ordinary account roles. Reuse applicable matrix evidence and add only missing collateral checks. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
+| [x] | **8c — Shared PAM and policy scope** | On both targets, verify preserved vendor PAM callbacks and effective kiosk-only scope of changed units/policies, including both ordinary account roles. Reuse applicable matrix evidence and add only missing collateral checks. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
 Step 5 replaces the former natural-reminder step under the scope decision above.
 The 2026-10-13 coverage audit split it into 5a–5c after finding no installed
@@ -75,7 +75,7 @@ registered About history without new feature coverage.
 
 | Done | Remaining phase | Required exit gate |
 | --- | --- | --- |
-| [ ] | **3 — Qualify kiosk isolation** | Current-candidate execution/admission and namespace checks, real-session census, essential request outcomes, exposed-surface restrictions, required native/service positives and bounded ordinary-user collateral checks pass on both targets. Keep engineering and customer results separate. |
+| [x] | **3 — Qualify kiosk isolation** | Current-candidate execution/admission and namespace checks, real-session census, essential request outcomes, exposed-surface restrictions, required native/service positives and bounded ordinary-user collateral checks pass on both targets. Keep engineering and customer results separate. |
 | [ ] | **4 — Qualify confinement lifecycle and close** | Latest-version activation/reboot and removal/reinstall/purge/retry preserve kiosk execution/admission barriers and account ownership on both targets. Final security review and affected confinement regressions pass; every in-scope escape route and acceptance gap is reconciled. |
 
 ### Phase 4 session steps
@@ -1140,6 +1140,88 @@ scope for both ordinary roles before its exit gate can close. No customer
 case or broader Parent/child/overlay feature acceptance is claimed, and the
 separate E2E queue remains unchanged.
 
+### Step 8c qualification — 2026-10-13
+
+The new registered `enforcement::test_kiosk_shared_integration_scope` passed on
+both targets. Its maintained contract belongs to the
+[installed runner](../tests/integration/README.md#running-the-current-installed-suite).
+It verifies original vendor PAM callback bytes/options and the explicit ordinary
+manager credential fallback, then reuses the complete namespace qualifier and
+checks both prepared ordinary account roles through real user-manager lifetimes.
+
+The namespace fixture now retains its original root and kiosk workers and adds
+the prepared administrator and standard user. All three ordinary controls run
+the real namespace open/init/close callbacks; the kiosk still skips their
+activity. Credential setup/deletion, parent isolation and inode/content-checked
+configuration cleanup remain mandatory. The shared-integration selector includes
+these complete assertions so its final retained result owns every PAM collateral
+check without requiring a second acceptance report.
+
+Both ordinary managers retain their measured ordinary security labels, global
+generation and executable inodes, vendor unit hardening and normal unit paths.
+Private compositor, audio, Wellbeing and bus overrides do not leak to either
+role; all six Ubuntu Snap masks leave ordinary vendor units loaded. Shared audio
+and Wellbeing launchers preserve ordinary startup/settings environments, and
+the bus retains vendor execution and data paths. Shell, Python and GJS transient
+services succeed. Fedora's vendor bus uses the explicitly measured
+`unconfined_dbusd_t` domain; its ordinary managers, audio and Wellbeing use
+`unconfined_t`. Cleanup stops only each newly recorded manager invocation.
+
+| Retained installed result | Ubuntu report / allocation | Fedora report / allocation |
+| --- | --- | --- |
+| Shared integration, including complete namespace callbacks | `20261014T061547Z-ad573776` / `onpc-system-4_fwcj_m` | `20261014T061633Z-12ac818b` / `onpc-system-eqxjjzxe` |
+| Complete execution matrix and actual PAM teardown | `20261014T060738Z-07152ff1` / `onpc-system-pqk2_3rx` | `20261014T060903Z-8fc79945` / `onpc-system-yp5giezn` |
+| Complete platform/native-service API matrix | `20261014T061225Z-a5e65c7a` / `onpc-system-0hq7oqw6` | `20261014T061327Z-d1ded39a` / `onpc-system-pgap5djp` |
+
+Allocations live under `output/test-runs/privileged/allocations/`. All six
+results report product, infrastructure, collection and cleanup passes,
+`cleanup_phase=complete`, and successful acquisition/restoration baseline checks.
+All six JUnit files have one passed test with zero errors, failures or skips.
+Both pinned VMs were independently confirmed powered off. These are the final
+three retained engineering attempts per target, preserving the required evidence
+within the maintained retention window.
+
+The complete matrices refresh expired 5a raw reports without changing their
+assertions. They again prove native positives before kernel-enforced execution,
+mapping and service-API denials, real credential/teardown confinement, private
+generation isolation and policy-loss refusal/recovery. Earlier recorded passes
+remain historical; missing raw reports were not represented as verified reuse.
+All four ordinary graphical-login records from 8a were independently checked for
+matching package, baseline and snapshot applicability before this qualification.
+Keyring callback/options preservation is proven; no separately observed keyring
+autostart or new complete customer journey is claimed.
+
+Expired named package inputs caused pre-acquisition `assets:source-missing`
+refusals. The maintained builder recreated the required DEB/RPM inputs, with
+source, package and fixture hashes exactly matching the 5a candidate. Every final
+allocation retains its verified frozen inputs. Both final shared-integration
+attempts have selected-input SHA-256
+`2d2a5bb7872d8c9df72e416cce9229aed302a6ac89288cb21af1bf5bc1a51e61`;
+the refreshed execution and platform pairs respectively retain
+`9f1d4ec275d9d99f5519b907739df22200c5a98662aa9ec49660b164ddd64a22` and
+`03bbd25ae90508998b1e9198bb89ac7850980e3417a84c329c1b957b856b1a4a`.
+The final collateral helper SHA-256 is
+`69628c900304dafefe857c4240b63b6f5d65a14e22b4b8ba5002d6b24fe3cb63`.
+
+Both owned online guests passed the ordinary-scope and extended namespace live
+diagnostics before clean installed qualification; their guarded stops restored
+the outer baselines. Source review found no product defect. The new host
+regressions use private files and process-local doubles, retaining reviewed
+compatible scheduling without a cleanup/UI resource owner. Confinement/inventory
+checks passed 404/404; the final collateral, runner and import-closure checks
+passed 222/222 (`20261014T061508Z-cfa49ca5`). Generated coverage was refreshed.
+Final plan/inventory/coverage/composition consistency passed 313/313
+(`20261014T061929Z-6ece1d93`), and Markdown links and whitespace checks passed.
+All six final reports and result allocations were verified retained afterward.
+No product, policy or build dependency changed, so no additional `make build`
+was required.
+
+Step 8c closes the remaining ordinary-user collateral slice. The unchanged
+candidate's completed admission, waiting-session census, essential request,
+surface/service and ordinary-login/metadata histories remain applicable;
+the Phase 3 exit gate passes. Phase 4 step 1 is next and requires a separate
+session. The separate E2E queue and its next-task pointer remain unchanged.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the
@@ -1200,10 +1282,15 @@ Step 8b extends and executes the metadata history; step 8c retains every vendor
 callback and unit/policy assertion, including both ordinary roles. Neither slice
 alone closes the original shared-integration step or Phase 3.
 
+Step 8c's registered shared-integration selector now includes the complete
+four-worker namespace qualifier and both ordinary managers' policy-scope checks.
+Its retained result supplies all shared-PAM/collateral assertions together.
+
 ```bash
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_execution_confinement' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_login_admission' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_namespace_guard_callbacks' --vm '<matching target>'
+tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_shared_integration_scope' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_platform_integrations' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'package' --test 'test_kiosk_account_classification_survives_reboot' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'removal' --test 'test_remove_reboot_reinstall' --vm '<matching target>'

@@ -1126,8 +1126,11 @@ def verify_admission_faults(account, directory, backend, record):
 
 def verify_namespace_guard(record):
     """Exercise real namespace open/init/close callbacks, outside UI acceptance."""
+    from system_kiosk_scope import ordinary_accounts
     guest.guard()
     guest.enable_diagnostics()
+    accounts = {'ordinary': pwd.getpwnam('root'), **ordinary_accounts(),
+                'kiosk': pwd.getpwnam('oh-no-parent-control')}
     installed = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement-integration')
     namespace_directory = Path('/etc/security/namespace.d')
     guest.require(namespace_directory.is_dir(), 'kiosk-namespace:configuration-directory-missing')
@@ -1151,13 +1154,15 @@ def verify_namespace_guard(record):
             'session required pam_namespace.so unmount_on_close use_current_context\n') +
             'session required pam_permit.so\n')
         configuration = namespace_directory / (directory.name + '.conf')
-        contents = f'{poly} {instances}/ tmpdir:iscript={script} ~root,oh-no-parent-control\n'
+        contents = (f'{poly} {instances}/ tmpdir:iscript={script} ~' +
+                    ','.join(account.pw_name for account in accounts.values()) + '\n')
         with configuration.open('x') as stream:
             stream.write(contents)
         configuration.chmod(0o600)
         identity = configuration.stat()
         try:
-            for kiosk in (False, True):
+            for role, account in accounts.items():
+                kiosk = role == 'kiosk'
                 read_fd, write_fd = os.pipe2(os.O_CLOEXEC)
                 try:
                     child = os.fork()
@@ -1179,7 +1184,7 @@ def verify_namespace_guard(record):
                             getattr(pam, callback).argtypes = [ctypes.c_void_p, ctypes.c_int]
                         handle = ctypes.c_void_p()
                         conversation = Conversation()
-                        user = b'oh-no-parent-control' if kiosk else b'root'
+                        user = account.pw_name.encode()
                         guest.require(pam.pam_start_confdir(service.name.encode(), user,
                             ctypes.byref(conversation), os.fsencode(directory), ctypes.byref(handle)) == 0,
                             'kiosk-namespace:pam-start')
@@ -1213,7 +1218,6 @@ def verify_namespace_guard(record):
                         os._exit(1)
                 os.close(write_fd)
                 status, data = wait_first_exec(child, read_fd, armed=False)
-                role = 'kiosk' if kiosk else 'ordinary'
                 if data:
                     diagnostic = json.loads(data)
                     for key in ('stage', 'category', 'pam_status'):

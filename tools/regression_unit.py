@@ -782,6 +782,10 @@ from regression_ui import Bucket
 # system_kiosk_platform uses private proc/audit-shaped files and process-local
 # command/account doubles. Fixture identity/cleanup checks touch only pytest
 # directories; no live manager, module loader, bus, VM, mount or child lifetime.
+# system_kiosk_scope uses pytest-private PAM/proc-shaped files, symlinks and
+# process-local account/systemd doubles. Its lifecycle refusal checks start no
+# real manager or child and use no shared cache, bus, display or host policy;
+# small CPU/I/O work is compatible, with no cleanup prerequisite inventory.
 # Overlay reminder facade/journey/registration safety uses process-local API,
 # transport and clock doubles, tiny pytest-private replies and bounded waited
 # Perl workers. No live settings, bus, display, VM, shared cache or new cleanup
@@ -880,7 +884,7 @@ session_limit_check setup_entrypoint setup_privileges shell_overview storage_mig
 support_architecture support_shell system_accounts_cleanup_safety system_agent
 system_agent_cleanup_safety system_assertions system_caller system_caller_cleanup_safety
 system_diagnostics system_enforcement system_enforcement_cleanup_safety system_guest
-system_info system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
+system_info system_kiosk_scope system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety

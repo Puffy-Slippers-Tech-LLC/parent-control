@@ -155,6 +155,24 @@ uses the existing owned maintenance envelope and public station-entry mechanics,
 stopping before request-form validation. Inspect that same running instance with
 `exec`, then finish with `stop`; this route supplies no acceptance result.
 
+`package` → `test_kiosk_account_classification_survives_reboot` keeps native
+admission/confinement and real GDM entry in its fresh-install/reboot attempt.
+Before the installed phase's deliberate metadata/fault fixtures, the shared
+[`observe_activation`](../e2e/kiosk_entry.py) leaf focuses the exact station
+through the public greeter adapter, freshly checks its keyboard recipient and
+submits Enter once under the same VM lease and boot guard. Before reboot it
+requires the owner-scoped restart modal with policy controls unavailable; after
+the real reboot it requires the usable public request form and no restart modal.
+The first entry renews the installation's existing product-free greeter in the
+same boot, refusing renewal if a personal graphical session is present. The
+rebooted entry follows the complete native matrix and retained-metadata checks.
+Both phases census every kiosk process/thread with the full required role set,
+then exit through public controls and independently observe usable sign-in.
+The runner retains `gdm-installed.json` and `gdm-rebooted.json` beside the native
+JUnits, binds the exact host observer/transport source hashes, and checks boot
+and execution-rule continuity around entry. No app snapshot replaces either
+phase. This system history supplies no general customer E2E completion.
+
 `enforcement` → `test_kiosk_login_admission` checks the installed
 `gdm-password`, `login` and `sshd` account stacks through libpam's `pam_start`
 and `pam_acct_mgmt`, with individually bounded workers and `pam_end` readbacks.

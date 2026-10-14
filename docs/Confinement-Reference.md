@@ -1439,6 +1439,88 @@ Step 2a2 is complete. Step 2b's real GDM activation/readiness history remains
 next; original step 2 and the Phase 4 exit gate stay open. No general customer
 E2E task was executed or closed.
 
+### Phase 4 step 2b — real GDM activation readiness — 2026-10-14
+
+The registered `package::test_kiosk_account_classification_survives_reboot`
+history now observes actual public GDM entry before and after its real reboot.
+The shared station adapter focuses the identified account, independently proves
+the fresh keyboard recipient and submits Enter once under the VM/boot guards.
+Before reboot it requires the owned restart modal and unavailable policy form;
+after reboot it requires the usable default request form and absent restart
+modal. Each phase then runs the unchanged strict process/thread census with
+manager, app, service, Wellbeing and PipeWire roles, exits through public
+controls and independently observes usable sign-in. Fedora's census checks each
+domain's enforcing flag, not only the global SELinux flag.
+
+The first Ubuntu attempt, `20261014T183545Z-4618d843`, passed its native phase
+but found no station row in the existing greeter; it reached no real admission
+boundary and supplies no refusal credit. Separate owned maintenance confirmed
+entry in the prepared instance before and after the account-interruption
+fixtures. The installed consumer now renews the greeter after installation in
+the same boot, refusing renewal when a personal graphical session is present.
+Real preboot entry precedes deliberate metadata/fault fixtures, so subsequent
+GDM writes cannot invalidate their retained reboot oracle. Postboot entry follows
+the complete native matrix and metadata assertions. No app snapshot replaces
+either phase, and the reboot request and execution rules remain checked around
+real entry. Maintenance cleanup restored the baseline before acceptance.
+
+Both final continuous histories passed **2/2** native executions plus both real
+GDM observations, retaining every 2a admission, execution, policy-loss/recovery
+and ordinary-account assertion. All four native JUnits have one passed case and
+zero errors, failures or skips. The raw results also prove distinct boot hashes,
+current enforcing labels, private namespaces and matching manager generations
+for every relevant kiosk process/thread in all four real sessions.
+
+| Target | Original host run | Retained allocation under `output/test-runs/privileged/allocations/` |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | `20261014T185419Z-e7a362c1` | `onpc-system-06uze6y_` |
+| `onpc-Fedora44` | `20261014T190220Z-c825a98a` | `onpc-system-wf9_plvf` |
+
+Each allocation retains `evidence/result.json`, `evidence/guest/installed.xml`,
+`evidence/guest/rebooted.xml` and both
+`evidence/guest/attempt-installed/gdm-{installed,rebooted}.json` files.
+The result records product, infrastructure, collection and cleanup as passed,
+`cleanup_phase=complete` and two successful baseline checks. Both registered
+VMs were independently confirmed off after owned cleanup.
+
+Package/source/fixture identities match the accepted 2a candidate: DEB
+`daa9c180960e1dfc72e026a7019bb71b2b63db3bd4c867a62e300f05f81b94fa`,
+RPM `630ab36562dd7f85d1a2b4f0cbf2f359972b6ac29fe4dcb2e5a051f5723afaf4`,
+fixture `8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5`.
+The source remains revision `f84b688281f27ade9e737b2b6a2930646db3541c`,
+package digest `b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+and 348 files. Ubuntu/Fedora baseline digests remain those recorded in 2a1/2a2.
+Both final attempts bind the same selected-input digest
+`8b293d3d148c9cec9471fd97777ade4efab5a2b632b076d35690508c8a0a7e0c`:
+22 frozen guest files and 19 declared host observer/transport source hashes,
+checked before and after entry. Verified builder returns were
+`onpc-test-artifacts-2dr2gibr` and `onpc-test-artifacts-kpr_81yy`; retained
+`input/` copies remain available when bounded builder caches retire.
+
+The 2a raw results were inspected for applicability; the final histories repeat
+their complete native proof against the current helpers. Required raw results
+must be exported before future journal rotation under the existing
+[retention gate](#phase-4-step-1--coverage-and-verified-inputs--2026-10-13).
+All three historical Phase 3 exports recorded in 2a1 matched their hashes before
+the final host export. That bounded journal then retired Ubuntu platform export
+`onpc-artifact-export-re6apvzs/enforcement.xml`; the Fedora platform and Ubuntu
+shared/namespace exports still match their recorded hashes. The existing 4-9
+applicability gate and 4-10 complete Ubuntu qualification must supply the current
+platform history; the retired proof supplies no final acceptance credit.
+Final host verification passed **1312/1312** selected checks in
+`20261014T192048Z-1f16c319`, including the scoped regressions and
+plan/inventory/composition checks. Its complete report is retained at
+`output/test-runs/host/exports/onpc-artifact-export-vtah4grl/report.md`.
+A fake-terminal fixture now declares its ANSI mode explicitly; the correction
+preserves every assertion and changes no launcher behavior. The generated
+inventory was refreshed. New unit cases use private/in-memory
+fixtures under their existing compatible classifications. Package/build inputs
+are unchanged, so no separate `make build` is required.
+
+Step 2b completes the original step 2 activation boundary. Step 4-3 is next;
+the Phase 4 exit gate, general notice wording, saved-data migration and customer
+E2E qualification remain with their existing owners.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the

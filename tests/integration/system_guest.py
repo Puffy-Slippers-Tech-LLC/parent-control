@@ -608,6 +608,42 @@ def execution_rule_state():
     return state
 
 
+def activation_state(phase):
+    """Read the same-boot activation gate around real graphical entry."""
+    guard()
+    require(phase in ('installed', 'rebooted'), 'kiosk-activation:phase')
+    if phase == 'installed':
+        require(reboot_requested(), 'kiosk-activation:reboot-not-requested')
+        verify_reboot_gate()
+    else:
+        require(reboot_cleared(), 'kiosk-activation:reboot-request-retained')
+    return {'phase': phase, 'boot_sha256': sha(Path('/proc/sys/kernel/random/boot_id')),
+            'execution_rules': execution_rule_state()}
+
+
+def prepare_activation_greeter():
+    """Renew the product-free greeter after this attempt's installation.
+
+    Never terminate a personal graphical session. This changes neither the
+    boot nor the reboot request; the caller checks activation state around it.
+    """
+    guard()
+    sessions = run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
+    for line in sessions.splitlines():
+        session = line.split()[0]
+        properties = run(['loginctl', 'show-session', session, '--property=Class',
+                          '--property=Type'])
+        values = dict(row.split('=', 1) for row in properties.splitlines())
+        require(set(values) == {'Class', 'Type'} and all(values.values()),
+                'kiosk-activation:session-state-unavailable')
+        require(values.get('Class') == 'greeter' or
+                values.get('Type') not in ('wayland', 'x11'),
+                'kiosk-activation:personal-session-active')
+    run(['systemctl', 'restart', 'display-manager.service'], timeout=120)
+    require(run(['systemctl', 'is-active', 'display-manager.service']) == 'active',
+            'kiosk-activation:greeter-inactive')
+
+
 def verify_pam():
     fedora = package_path().suffix == '.rpm'
     stacks = (('system-auth', 'system-auth', 'system-auth'),
@@ -896,6 +932,10 @@ def main(argv=None):
     try:
         if len(argv) == 2 and argv[0] == 'collect' and argv[1] in {'passed', 'failed', 'installed'}:
             collect(guard(), argv[1])
+        elif len(argv) == 2 and argv[0] == 'activation-state':
+            print(json.dumps(activation_state(argv[1]), sort_keys=True))
+        elif argv == ['prepare-activation-greeter']:
+            prepare_activation_greeter()
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],

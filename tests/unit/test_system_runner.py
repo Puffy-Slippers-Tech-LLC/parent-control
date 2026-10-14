@@ -508,6 +508,109 @@ def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
             'system_kiosk_confinement.py', 'system_assertions.py'} <= identity['files'].keys()
     for phase in selection.phases:
         assert runner.pytest_command(RUN, phase, selection)[-1].endswith('::' + case)
+    assert identity['host_files'] == runner.kiosk_activation_host_inputs()
+
+
+@pytest.mark.parametrize('fault', [None, 'before-source', 'after-source', 'policy', 'boot', 'same-boot'])
+def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault):
+    import kiosk_entry
+    case = runner.KIOSK_ACTIVATION_CASE
+    inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
+    selection = runner.resolve_selection('package', case, inventories=inventories)
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'guest-results').mkdir()
+    identity = {'entry.py': 'a' * 64}
+    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
+    (tmp_path / 'guest-results/gdm-installed.json').write_text(json.dumps({
+        'boot_sha256': ('b' if fault == 'same-boot' else 'a') * 64}))
+    inputs = Mock(side_effect=[{'entry.py': 'changed'} if fault == 'before-source' else identity,
+                              {'entry.py': 'changed'} if fault == 'after-source' else identity])
+    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', inputs)
+    before = {'phase': 'rebooted', 'boot_sha256': 'b' * 64, 'execution_rules': {}}
+    after = {**before, 'execution_rules': {'changed': True}} if fault == 'policy' else before
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    vm.call.side_effect = [json.dumps(before).encode(), json.dumps(after).encode()]
+    observation = {'phase': 'rebooted', 'boot_sha256': ('c' if fault == 'boot' else 'b') * 64,
+                   'public_observations': [], 'engineering_confinement': {'backend': 'apparmor'}}
+    entry = Mock(return_value=observation)
+    monkeypatch.setattr(kiosk_entry, 'observe_activation', entry)
+    if fault:
+        with pytest.raises(runner.Error, match='kiosk-activation:'):
+            runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rebooted')
+        assert not (tmp_path / 'guest-results/gdm-rebooted.json').exists()
+        if fault == 'before-source':
+            entry.assert_not_called()
+            vm.call.assert_not_called()
+    else:
+        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rebooted')
+        retained = json.loads((tmp_path / 'guest-results/gdm-rebooted.json').read_bytes())
+        assert retained == {**observation, 'activation_state': after, 'host_files': identity}
+        entry.assert_called_once_with(vm, lease, 'rebooted')
+        assert [call.args[0] for call in vm.call.call_args_list] == [
+            runner.guest_command(RUN, 'activation-state', 'rebooted')] * 2
+
+
+@pytest.mark.parametrize('fault', [None, 'installed', 'rebooted'])
+def test_real_gdm_stays_in_the_native_install_reboot_attempt(tmp_path, monkeypatch, fault):
+    case = runner.KIOSK_ACTIVATION_CASE
+    inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
+    selection = runner.resolve_selection('package', case, inventories=inventories)
+    write_junit_results(tmp_path, selection)
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    events = []
+    monkeypatch.setattr(runner, 'run_pytest', lambda _vm, _run, phase, _selection:
+                        events.append('native-' + phase))
+    vm.reboot.side_effect = lambda: events.append('reboot')
+    def graphical(_vm, _lease, _directory, _selection, phase):
+        assert (_vm, _lease, _directory, _selection) == (vm, lease, tmp_path, selection)
+        events.append('gdm-' + phase)
+        if phase == fault:
+            raise runner.Error('gdm-observation-failed')
+    monkeypatch.setattr(runner, 'observe_kiosk_activation', graphical)
+    if fault:
+        with pytest.raises(runner.Error, match='gdm-observation-failed'):
+            runner.installed_run(vm, lease, tmp_path, selection)
+    else:
+        runner.installed_run(vm, lease, tmp_path, selection)
+    expected = ['gdm-installed', 'native-installed', 'reboot', 'native-rebooted', 'gdm-rebooted']
+    assert events == (expected[:1] if fault == 'installed' else expected)
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
+
+
+def test_unselected_package_case_never_enters_gdm(tmp_path):
+    selection = runner.resolve_selection('package', 'test_first_install_requests_reboot',
+                                         inventories=INVENTORIES)
+    vm, lease = Mock(), Mock()
+    runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'installed')
+    vm.call.assert_not_called()
+    lease.save.assert_not_called()
+
+
+@pytest.mark.parametrize('failure,status,domain,category', [
+    ('ui:restart-response', 0, 'product', 'ui:restart-response'),
+    ('kiosk-activation:recipient', 0, 'infrastructure', 'kiosk-activation:recipient'),
+    ('guest', 1, 'product', 'kiosk-activation:guest-check-failed'),
+    ('guest', 255, 'infrastructure', 'command:failed:ssh'),
+    ('kiosk-activation:boot-or-policy-changed', 0, 'product', 'kiosk-activation:boot-or-policy-changed'),
+    ('kiosk-activation:host-inputs-changed', 0, 'infrastructure', 'kiosk-activation:host-inputs-changed'),
+])
+def test_gdm_failure_keeps_actionable_category_and_correct_domain(
+        monkeypatch, failure, status, domain, category):
+    from private_artifacts import EvidenceError
+    error = (runner.CommandError('command:failed:ssh') if failure == 'guest' else
+             runner.Error(failure) if failure.endswith(('policy-changed', 'inputs-changed')) else
+             EvidenceError(failure))
+    monkeypatch.setattr(runner, 'observe_kiosk_activation', Mock(side_effect=error))
+    vm = Mock()
+    vm.commands.last_returncode = status
+    ledger = runner.RunLedger()
+    with pytest.raises(type(error)):
+        runner.run_kiosk_activation(vm, Mock(), Mock(), Mock(), 'installed', ledger)
+    assert ledger.outcomes[domain] == {'outcome': 'failed', 'category': category}
+    assert runner.record_caught_failure(ledger, error) == category
 
 
 @pytest.mark.parametrize('phase,fault', [

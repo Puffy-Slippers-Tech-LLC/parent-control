@@ -594,3 +594,49 @@ def test_rpm_package_identity_includes_epoch_release_and_architecture(monkeypatc
     assert guest.package_identity(package) == run.return_value
     assert run.call_args.args[0] == ['rpm', '-qp', '--queryformat',
         '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}', str(package)]
+
+
+@pytest.mark.parametrize('phase,fault', [
+    ('installed', None), ('rebooted', None), ('other', 'phase'),
+    ('installed', 'marker'), ('installed', 'broker'), ('rebooted', 'marker'),
+])
+def test_real_activation_state_requires_the_exact_boot_gate(monkeypatch, phase, fault):
+    guard = Mock()
+    gate = Mock(side_effect=guest.GuestError('broker-policy-available-before-reboot')
+                if fault == 'broker' else None)
+    monkeypatch.setattr(guest, 'guard', guard)
+    monkeypatch.setattr(guest, 'verify_reboot_gate', gate)
+    monkeypatch.setattr(guest, 'reboot_requested', lambda: fault != 'marker')
+    monkeypatch.setattr(guest, 'reboot_cleared', lambda: fault != 'marker')
+    monkeypatch.setattr(guest, 'sha', lambda _: 'a' * 64)
+    monkeypatch.setattr(guest, 'execution_rule_state', lambda: {'deny': None})
+    if fault:
+        with pytest.raises(guest.GuestError):
+            guest.activation_state(phase)
+    else:
+        assert guest.activation_state(phase) == {
+            'phase': phase, 'boot_sha256': 'a' * 64, 'execution_rules': {'deny': None}}
+    guard.assert_called_once_with()
+    assert gate.call_count == int(phase == 'installed' and fault != 'marker')
+
+
+@pytest.mark.parametrize('session', ['greeter', 'ssh', 'personal', 'inactive', 'unknown'])
+def test_activation_greeter_renewal_never_terminates_a_personal_session(monkeypatch, session):
+    monkeypatch.setattr(guest, 'guard', Mock())
+    properties = {'greeter': 'Class=greeter\nType=wayland',
+                  'inactive': 'Class=greeter\nType=wayland',
+                  'ssh': 'Class=user\nType=tty',
+                  'personal': 'Class=user\nType=wayland'}
+    calls = []
+    def run(argv, **options):
+        calls.append(argv)
+        if argv[0] == 'loginctl':
+            return '1 1000 fixture' if argv[1] == 'list-sessions' else properties.get(session, '')
+        return 'inactive' if session == 'inactive' else 'active'
+    monkeypatch.setattr(guest, 'run', run)
+    if session in ('personal', 'inactive', 'unknown'):
+        with pytest.raises(guest.GuestError):
+            guest.prepare_activation_greeter()
+    else:
+        guest.prepare_activation_greeter()
+    assert any(argv[:2] == ['systemctl', 'restart'] for argv in calls) == (session not in ('personal', 'unknown'))

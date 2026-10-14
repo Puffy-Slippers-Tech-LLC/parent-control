@@ -17,6 +17,140 @@ from ui_observations import RequestObservation
 from installed_journey import InstalledJourney
 
 
+def activation_harness(monkeypatch, *, recipient=None, elapsed=0, enter_error=None,
+                       boot='a' * 64):
+    """Private in-memory controller boundary; never acquires or operates a VM."""
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import kiosk_entry
+
+    events = []
+    active = []
+    observer = SimpleNamespace(boot_guard=None, boot_proof=None)
+
+    def observe(operation):
+        assert active
+        events.append(('observe', operation, observer.boot_guard))
+        observer.boot_proof = boot
+        if operation == 'gdm-station-focused' and recipient is not None:
+            return recipient
+        return {'operation': operation, 'outcome': 'passed',
+                'interface': 'ApplicationUI+external-provider'}
+
+    observer.observe = Mock(side_effect=observe)
+    factory = Mock(return_value=observer)
+    monkeypatch.setattr(kiosk_entry, 'UiObservations', factory)
+    clock = iter((10, 10 + elapsed))
+    monkeypatch.setattr(kiosk_entry.time, 'monotonic', lambda: next(clock))
+
+    @contextmanager
+    def operation(label):
+        events.append(('intention', label))
+        active.append(label)
+        try:
+            yield
+        finally:
+            active.pop()
+
+    monkeypatch.setattr(kiosk_entry.watch_activity, 'operation', operation)
+
+    def enter(*args):
+        assert active[-1] == 'Entering the freshly focused request station'
+        events.append(('enter', args))
+        if enter_error is not None:
+            raise enter_error
+
+    def census(argv, *, timeout):
+        assert active
+        events.append(('census', argv, timeout))
+        return json.dumps({'backend': 'apparmor', 'confined_thread_roles': {
+            'onpc-kiosk-' + role: 1
+            for role in ('manager', 'app', 'service', 'wellbeing', 'pipewire')}}).encode()
+
+    lease = SimpleNamespace(state={'run': 'b' * 32},
+        guard=Mock(side_effect=lambda: events.append(('guard',))),
+        source=SimpleNamespace(domain=SimpleNamespace(sendKey=Mock(side_effect=enter)),
+                               api=SimpleNamespace(VIR_KEYCODE_SET_LINUX=0)))
+    transport = SimpleNamespace(call=Mock(side_effect=census))
+    return kiosk_entry, transport, lease, observer, factory, events
+
+
+@pytest.mark.parametrize('phase, public_steps', [
+    ('installed', ['station-initial-entry', 'restart-kiosk-read',
+                   'restart-kiosk-close', 'restart-kiosk-closed', 'restart-kiosk-exit']),
+    ('rebooted', ['station-default-entry', 'kiosk-request-form',
+                  'restart-kiosk-missing-refused', 'kiosk-request-cancel']),
+])
+def test_real_activation_observes_each_phase_without_reset(monkeypatch, phase, public_steps):
+    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
+    result = helper.observe_activation(transport, lease, phase)
+    expected = ['gdm-station-list', 'gdm-station-focused', *public_steps, 'gdm-station-returned']
+    assert [item['operation'] for item in result['public_observations']] == expected
+    assert result['phase'] == phase and result['boot_sha256'] == 'a' * 64
+    assert result['engineering_confinement']['confined_thread_roles'] == {
+        'onpc-kiosk-' + role: 1
+        for role in ('manager', 'app', 'service', 'wellbeing', 'pipewire')}
+    factory.assert_called_once_with(transport)
+    lease.source.domain.sendKey.assert_called_once_with(0, 100, [28], 1, 0)
+    transport.call.assert_called_once_with(['env', 'ONPC_EXPECTED_RUN=' + 'b' * 32,
+        'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+        helper.system.PAYLOAD + '/system_kiosk_confinement.py', 'census'], timeout=45)
+    observations = [item for item in events if item[0] == 'observe']
+    assert observations[0][2] == ''
+    assert all(item[2] == 'a' * 64 for item in observations[1:])
+    entry = next(index for index, item in enumerate(events) if item[0] == 'enter')
+    assert events[entry - 1] == events[entry + 1] == ('guard',)
+    census = next(index for index, item in enumerate(events) if item[0] == 'census')
+    exit_step = 'restart-kiosk-close' if phase == 'installed' else 'kiosk-request-cancel'
+    assert events[census - 1] == ('guard',)
+    assert next(index for index, item in enumerate(events)
+                if item[:2] == ('observe', public_steps[1])) < census
+    assert next(index for index, item in enumerate(events)
+                if item[:2] == ('observe', exit_step)) > census
+
+
+@pytest.mark.parametrize('phase', ['', 'setup', 'postboot', None, 1])
+def test_real_activation_invalid_phase_releases_no_input(monkeypatch, phase):
+    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
+    with pytest.raises(EvidenceError, match='kiosk-activation:phase'):
+        helper.observe_activation(transport, lease, phase)
+    assert not events
+    factory.assert_not_called()
+    transport.call.assert_not_called()
+    lease.source.domain.sendKey.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['wrong-recipient', 'failed-proof', 'stale', 'backward-clock', 'boot'])
+def test_real_activation_refuses_bad_or_stale_recipient_without_retry(monkeypatch, fault):
+    recipient = {'operation': 'gdm-station-focused', 'outcome': 'passed',
+                 'interface': 'ApplicationUI+external-provider'}
+    if fault == 'wrong-recipient':
+        recipient['operation'] = 'gdm-focused'
+    elif fault == 'failed-proof':
+        recipient['outcome'] = 'failed'
+    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch,
+        recipient=recipient, elapsed=30 if fault == 'stale' else -1 if fault == 'backward-clock' else 0,
+        boot='private-invalid-boot' if fault == 'boot' else 'a' * 64)
+    with pytest.raises(EvidenceError, match='kiosk-activation:(recipient|stale-recipient|boot-proof)'):
+        helper.observe_activation(transport, lease, 'installed')
+    assert [call.args[0] for call in ui.observe.call_args_list] == (
+        ['gdm-station-list'] if fault == 'boot' else ['gdm-station-list', 'gdm-station-focused'])
+    lease.source.domain.sendKey.assert_not_called()
+    transport.call.assert_not_called()
+
+
+def test_real_activation_uncertain_enter_is_guarded_and_never_replayed(monkeypatch):
+    helper, transport, lease, ui, factory, events = activation_harness(
+        monkeypatch, enter_error=RuntimeError('uncertain input'))
+    with pytest.raises(RuntimeError, match='uncertain input'):
+        helper.observe_activation(transport, lease, 'installed')
+    lease.source.domain.sendKey.assert_called_once()
+    assert events[-1] == ('guard',)
+    assert ui.observe.call_count == 2
+    transport.call.assert_not_called()
+
+
 def station_greeter(*rows, recipient=None, field=None, list_showing=True):
     children = list(rows) if list_showing else []
     if recipient is not None:

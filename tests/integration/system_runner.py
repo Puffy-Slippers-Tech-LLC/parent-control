@@ -62,6 +62,22 @@ COMMON_SELECTED_INPUTS = (
     ('tests/system/pytest.ini', 'pytest.ini'),
     ('tools/regression_events.py', 'system_progress.py'),
 )
+KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
+# Host entry/transport and the public observer's embedded source closure. Keep
+# these identities separate from guest imports; no host module runs in the VM.
+KIOSK_ACTIVATION_HOST_INPUTS = (
+    'tests/integration/system_runner.py', 'tests/integration/system_snapshots.py',
+    'tests/integration/vm_transport.py', 'tests/integration/watch_activity.py',
+    'tests/e2e/kiosk_entry.py', 'tests/e2e/ui_observations.py',
+    'tests/e2e/private_artifacts.py',
+    'tests/e2e/accessible_ui.py', 'tests/e2e/application_ui.py',
+    'tests/e2e/session_control.py', 'tests/e2e/public_atspi.py',
+    'tests/e2e/block_semantics.py', 'tests/e2e/feedback_formats.py',
+    'tests/e2e/download_destination.py', 'tests/e2e/fixture_ui.py',
+    'tests/support/application_ui.py',
+    'common/oh_no_parent_control_ui/application_ui.py',
+    'common/oh_no_parent_control_ui/application_ui_client.py', 'data/app.json',
+)
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
@@ -129,6 +145,10 @@ PREREQUISITE_FAILURES = frozenset(
 def error_category(error):
     """Return only the runner's fixed public failure categories."""
     if isinstance(error, (Error, CommandError)):
+        return str(error)
+    evidence = sys.modules.get('private_artifacts')
+    if evidence is not None and isinstance(error, evidence.EvidenceError):
+        # This type's contract permits fixed codes only, never arbitrary text.
         return str(error)
     if isinstance(error, baseline.guest_contract.PreparationError):
         return error.category
@@ -1194,11 +1214,72 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
+    if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
+           for item in selection.executions):
+        identity['host_files'] = kiosk_activation_host_inputs()
     path = destination / 'selected-inputs.json'
     path.write_bytes(baseline.encode(identity))
     digest = baseline.digest(path)
     log(f'provenance:selected-inputs files={len(files)} sha256={digest}')
     return digest
+
+
+def kiosk_activation_host_inputs():
+    from guest_inputs import read
+    return {source: hashlib.sha256(read(ROOT, source)).hexdigest()
+            for source in KIOSK_ACTIVATION_HOST_INPUTS}
+
+
+def observe_kiosk_activation(vm, lease, directory, selection, phase):
+    """Extend only the declared continuous native activation history."""
+    if not any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
+               for item in phase_executions(selection, phase)):
+        return
+    from kiosk_entry import observe_activation
+    inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    require(kiosk_activation_host_inputs() == inputs['host_files'],
+            'kiosk-activation:host-inputs-changed')
+    before = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', phase)))
+    if phase == 'installed':
+        vm.call(guest_command(lease.state['run'], 'prepare-activation-greeter'), timeout=150)
+    lease.save('gdm-activation-' + phase)
+    observed = observe_activation(vm, lease, phase)
+    after = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', phase)))
+    require(before == after and observed['boot_sha256'] == before['boot_sha256'],
+            'kiosk-activation:boot-or-policy-changed')
+    require(kiosk_activation_host_inputs() == inputs['host_files'],
+            'kiosk-activation:host-inputs-changed')
+    if phase == 'rebooted':
+        previous = json.loads((directory / 'guest-results/gdm-installed.json').read_bytes())
+        require(previous['boot_sha256'] != observed['boot_sha256'],
+                'kiosk-activation:boot-not-changed')
+    observed['activation_state'] = after
+    observed['host_files'] = inputs['host_files']
+    output = directory / 'guest-results'
+    output.mkdir(mode=0o700, exist_ok=True)
+    (output / ('gdm-' + phase + '.json')).write_bytes(baseline.encode(observed))
+
+
+def run_kiosk_activation(vm, lease, directory, selection, phase, ledger):
+    """Keep assertion failures distinct from transport and input-safety failures."""
+    from private_artifacts import EvidenceError
+    try:
+        observe_kiosk_activation(vm, lease, directory, selection, phase)
+    except EvidenceError as error:
+        # Recipient/boot/freshness refusals are harness safety failures. Public
+        # product observations retain their own fixed actionable assertion code.
+        domain = 'infrastructure' if str(error).startswith('kiosk-activation:') else 'product'
+        ledger.fail_outcome(domain, error_category(error))
+        raise
+    except CommandError as error:
+        domain = 'product' if vm.commands.last_returncode == 1 else 'infrastructure'
+        ledger.fail_outcome(domain, 'kiosk-activation:guest-check-failed' if domain == 'product'
+                            else error_category(error))
+        raise
+    except Error as error:
+        domain = 'product' if str(error) == 'kiosk-activation:boot-or-policy-changed' else 'infrastructure'
+        ledger.fail_outcome(domain, error_category(error))
+        raise
 
 
 @contextmanager
@@ -1547,6 +1628,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
         if 'installed' in selection.phases:
+            # Observe fresh installation before deliberate metadata/fault
+            # fixtures establish their retained reboot oracle. The public exit
+            # leaves no graphical kiosk session for the native manager probes.
+            with ledger.measure('test'):
+                run_kiosk_activation(vm, lease, directory, selection, 'installed', ledger)
             lease.save('pytest-installed')
             with ledger.measure('test'):
                 try:
@@ -1576,6 +1662,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
                                         else error_category(error))
                     raise
+            with ledger.measure('test'):
+                run_kiosk_activation(vm, lease, directory, selection, 'rebooted', ledger)
         for phase in (*REMOVAL_PHASES, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue

@@ -470,7 +470,9 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
         display.close()
 
 
-def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_path):
+def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_path, monkeypatch):
+    # This fixture is an ANSI terminal even when the launcher inherits TERM=dumb.
+    monkeypatch.setenv('TERM', 'xterm')
     plan = prepare(tmp_path, count=4)
     run = tmp_path / 'run'
     run.mkdir()

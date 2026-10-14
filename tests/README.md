@@ -574,34 +574,30 @@ Run [tools/write-e2e](../tools/write-e2e) to implement the execution plan's firs
 unchecked active task through fresh unattended Codex sessions:
 
 ```sh
-tools/write-e2e --vm NAME --sessions 3 --tasks 1
+tools/write-e2e --vm NAME --tasks 1
 tools/write-e2e --vm NAME --tasks 2
 tools/write-e2e --vm NAME
 tools/write-e2e --vm NAME --stop
 ```
 
-`--sessions N` limits the total number of new sessions across implementation,
-live verification, retries, optimization and subsequent tasks. A new run with no options
-defaults to 5 sessions and 1 completed task. A new run with `--tasks N` but no
-`--sessions` has no total session limit. Each task can use at most 5 sessions
-per new launcher process. A restarted launcher retains the task's cumulative
+`--tasks N` limits completed tasks and defaults to `1`. There is no total
+session limit. Each task can use at most 5 sessions per new launcher process.
+A restarted launcher retains the task's cumulative
 session count and adds 5 to it for that process's task cap. Attaching to a
 running launcher does not renew the cap. If the task is still incomplete at
 that cap, the entire launcher exits with failure and prints a bold
 red warning as the final line after the summary and follow-up instructions.
 The next task starts with its own cap of 5.
-`--tasks N` limits completed tasks and defaults
-to `1`. Both limits accept positive integers for a new run; the launcher stops
-when either limit is reached. A task counts only after acceptance, queue
-close-out, successful staging, its completion commit and `git push`. An empty active
-queue stops the workflow. A task blocker pauses for your answer as described below.
-With a live run, an invocation without
-parameters attaches without changing limits. Explicit `--tasks` and `--sessions`
-values are signed adjustments to the existing maxima: `--tasks 2` changes a
-maximum of 1 to 3; `--tasks -1` changes 2 to 1. Omitted limits stay unchanged,
-and an unlimited session maximum becomes sessions already started plus N.
-Adjustments accumulate across terminals
-and clamp at zero. They take effect before the next session; the current session
+The task limit accepts positive integers for a new run. A task counts only after
+acceptance, queue close-out, successful staging, its completion commit and
+`git push`. An empty active queue stops the workflow. A task blocker pauses for
+your answer as described below.
+With a live run, an invocation without parameters attaches without changing the
+task limit. Explicit `--tasks`
+values are signed adjustments to the existing maximum: `--tasks 2` changes a
+maximum of 1 to 3; `--tasks -1` changes 2 to 1. An omitted limit stays unchanged.
+Adjustments accumulate across terminals and clamp at zero. They take effect
+before the next session; the current session
 finishes normally and completed work is preserved. Invalid options are rejected.
 An owner already finishing at its limit refuses adjustments; restart after it exits.
 Workers started before adjustable-limit support require a restart to accept changes.
@@ -652,10 +648,10 @@ gets an empty checkpoint commit. Optimization cannot close or reorder queue rows
 The existing retained checkpoint owns pending batch IDs, the last optimized batch
 and commit, and any active optimization handoff/commit intent. It survives
 separate launcher runs, prerequisite suspension, stops and interruptions.
-Tasks predating this policy are not retroactively counted. Optimization uses the
-session budget and its own five-session cap, renewed on restart; it does not
+Tasks predating this policy are not retroactively counted. Optimization uses
+its own five-session cap, renewed on restart; it does not
 count against `--tasks`. A due optimization runs even after the task limit, while
-`--sessions`, stop and cancellation can defer it. Restart performs the due work
+stop and cancellation can defer it. Restart performs the due work
 before another task, including when the active queue is empty. No parallel or
 adviser agents run during optimization. A blocked optimization uses the same
 developer question and answer recovery as task work.
@@ -736,7 +732,7 @@ remaining uncertainty in the handoff across sessions and restarts. Cosmetic
 rewording or another failed run is not new evidence. These consultation rules
 are agent instructions; the launcher enforces the coordinator session cap and
 concurrency/depth bounds, not semantic novelty or an adviser token ceiling.
-Consultations are part of the coordinator session, not extra `--sessions` units;
+Consultations are part of the coordinator session, not extra task sessions;
 they still consume model usage. Do not introduce parallel agents or overlapping
 coordinator work. `fix-tests` keeps delegation disabled.
 Start a new launcher run to adopt this policy; attaching to an existing run

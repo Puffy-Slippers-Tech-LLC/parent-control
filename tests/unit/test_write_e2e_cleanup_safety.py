@@ -78,8 +78,8 @@ def calls(root):
 def test_chat_steers_interrupts_and_continues_without_new_session(checkout):
     from launcher_chat import read_state, send_input
     root, spawned = checkout
-    script(root, {'result': reply(), 'interactive': True}, {'result': reply()})
-    run, _ = select_vm(root, ['--sessions', '1'])
+    script(root, {'result': reply(), 'interactive': True}, {'result': reply(), 'stop': True})
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     send_input(run, 'message', 'Check what the child sees when the minute changes.')
     wait_for(root / 'steering.json')
@@ -104,7 +104,7 @@ def test_chat_second_interrupt_exits_entire_launcher(checkout):
     from launcher_chat import read_state, send_input
     root, spawned = checkout
     script(root, {'result': reply(), 'interactive': True})
-    run, _ = select_vm(root, ['--sessions', '1'])
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     send_input(run, 'interrupt')
     deadline = time.monotonic() + 15
@@ -120,8 +120,8 @@ def test_chat_second_interrupt_exits_entire_launcher(checkout):
 def test_chat_interrupt_cleans_owned_tests_before_continuing(checkout):
     from launcher_chat import read_state, send_input
     root, spawned = checkout
-    script(root, {'result': reply(), 'interactive': True, 'nested': True}, {'result': reply()})
-    run, _ = select_vm(root, ['--sessions', '1'])
+    script(root, {'result': reply(), 'interactive': True, 'nested': True}, {'result': reply(), 'stop': True})
+    run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     send_input(run, 'interrupt')
     deadline = time.monotonic() + 15
@@ -141,7 +141,7 @@ def test_chat_broken_input_fails_and_cleans_owned_tests(checkout):
     from launcher_chat import send_input
     root, spawned = checkout
     script(root, {'result': reply(), 'close_input': True, 'nested': True})
-    run, _ = select_vm(root, ['--sessions', '1'])
+    run, _ = select_vm(root, [])
     wait_for(root / 'input-closed')
     send_input(run, 'message', 'The transport must report failure.')
     spawned[-1].wait(timeout=20)
@@ -154,13 +154,13 @@ def test_chat_broken_input_fails_and_cleans_owned_tests(checkout):
 @pytest.mark.parametrize('saved_task', ['001', '002'])
 def test_task_explanation_is_reused_only_for_same_task_after_launcher_restart(checkout, saved_task):
     root, spawned = checkout
-    script(root, {'result': reply()}, {'result': reply()})
-    first, _ = select_vm(root, ['--sessions', '1'])
+    script(root, {'result': reply(), 'stop': True}, {'result': reply(), 'stop': True})
+    first, _ = select_vm(root, [])
     spawned[-1].wait(timeout=20)
     assert launcher.follow(first, io.StringIO()) == 0
     info = {'task_id': saved_task, 'explanation': 'Checks what the child sees as each minute passes.'}
     launcher.atomic(first / 'task-info.json', info)
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     spawned[-1].wait(timeout=20)
     assert launcher.follow(second, io.StringIO()) == 0
     if saved_task == '001':
@@ -236,7 +236,7 @@ def test_three_completed_tasks_commit_then_optimize_before_fourth_task(
     assert 'unrelated' not in tracked
 
 
-def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimization(
+def test_batch_checkpoint_survives_separate_runs_stop_and_interrupted_optimization(
         checkout, tmp_path_factory):
     root, _ = checkout
     # Every completed task and recovered optimization must perform a real push.
@@ -247,20 +247,22 @@ def test_batch_checkpoint_survives_separate_runs_budget_and_interrupted_optimiza
     subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
     subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
                    cwd=root, check=True)
-    script(root, *three_task_batch(root),
+    steps = three_task_batch(root)
+    steps[-1]['stop'] = True
+    script(root, *steps,
            {'result': optimization_reply(), 'invalid': True, 'writes': {'shared.py': 'partial fix'}},
-           {'result': optimization_reply(), 'writes': {'shared.py': 'validated fix'}})
+           {'result': optimization_reply(), 'stop': True, 'writes': {'shared.py': 'validated fix'}})
     for count in (1, 2, 3):
-        run, _ = select_vm(root, ['--sessions', '1'])
+        run, _ = select_vm(root, [])
         output = io.StringIO()
         assert launcher.follow(run, output) == 0, output.getvalue()
         state = json.loads((run / 'checkpoint.json').read_text())
         assert state['optimization']['pending'] == [f'{task:03}' for task in range(1, count + 1)]
     assert state['optimization_session'] and state['phase'] == 'optimize'
-    interrupted, _ = select_vm(root, ['--sessions', '1'])
+    interrupted, _ = select_vm(root, [])
     assert launcher.follow(interrupted, io.StringIO()) == 1
     assert workflow.queue_state(root)[0] == '004'
-    recovered, _ = select_vm(root, ['--sessions', '1'])
+    recovered, _ = select_vm(root, [])
     assert launcher.follow(recovered, io.StringIO()) == 0
     assert all('## Ask 1' in call['prompt'] for call in calls(root)[3:])
     state = json.loads((recovered / 'checkpoint.json').read_text())
@@ -283,9 +285,11 @@ def test_early_worker_spawn_failure_preserves_carried_batch(
     subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
     subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
                    cwd=root, check=True)
-    script(root, *three_task_batch(root),
-           {'result': optimization_reply(), 'writes': {'shared.py': 'reusable mechanics'}})
-    first, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
+    steps = three_task_batch(root)
+    steps[-1]['stop'] = True
+    script(root, *steps,
+           {'result': optimization_reply(), 'stop': True, 'writes': {'shared.py': 'reusable mechanics'}})
+    first, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(first, output) == 0, output.getvalue()
     popen = subprocess.Popen
@@ -298,13 +302,13 @@ def test_early_worker_spawn_failure_preserves_carried_batch(
     with monkeypatch.context() as patch:
         patch.setattr(subprocess, 'Popen', fail_worker)
         with pytest.raises(OSError, match='worker spawn interrupted'):
-            select_vm(root, ['--sessions', '1'])
-    third, _ = select_vm(root, ['--sessions', '1'])
+            select_vm(root, [])
+    third, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(third, output) == 0, output.getvalue()
     state = json.loads((third / 'checkpoint.json').read_text())
     assert state['optimization']['pending'] == ['001', '002', '003']
-    audit, _ = select_vm(root, ['--sessions', '1'])
+    audit, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(audit, output) == 0, output.getvalue()
     assert json.loads((audit / 'checkpoint.json').read_text())['optimization']['pending'] == []
@@ -425,18 +429,18 @@ def test_missing_completion_automatically_recovers_same_task_before_staging(
         steps.append({'result': complete, 'invalid': True})
     steps.append({'result': complete})
     script(root, *steps)
-    previous, _ = select_vm(root, ['--sessions', '1'])
+    previous, _ = select_vm(root, [])
     assert launcher.follow(previous, io.StringIO()) == 1
     retained = {name: (previous / name).read_bytes() for name in
                 ('checkpoint.json', 'handoff.txt', 'agent-result.json')}
     (root / 'later-work.py').write_text('unrelated edit after the interrupted run')
     if interrupt_recovery:
-        interrupted, _ = select_vm(root, ['--sessions', '1'])
+        interrupted, _ = select_vm(root, [])
         assert launcher.follow(interrupted, io.StringIO()) == 1
         assert json.loads((interrupted / 'checkpoint.json').read_text())['completion_recovery']
         assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
                               check=True).stdout == b''
-    recovered, started = select_vm(root, ['--sessions', '1'])
+    recovered, started = select_vm(root, [])
     assert started and recovered != previous
     output = io.StringIO()
     assert launcher.follow(recovered, output) == 0, output.getvalue()
@@ -481,12 +485,12 @@ def test_completion_recovery_preserves_new_queue_tasks_across_restart(
            {'result': reply('task_complete', 'passed', task_id='300'),
             'writes': {workflow.QUEUE: queue.replace('| [ ] | 300 |', '| [x] | 300 |'),
                        workflow.PLAN: 'Next task: **301 — Added**.\n'}})
-    previous, _ = select_vm(root, ['--sessions', '1'])
+    previous, _ = select_vm(root, [])
     assert launcher.follow(previous, io.StringIO()) == 1
     saved = (previous / 'checkpoint.json').read_bytes()
     (root / workflow.QUEUE).write_text(queue)
     (root / workflow.PLAN).write_text('Next task: **300 — Added**.\n')
-    interrupted, _ = select_vm(root, ['--sessions', '1'])
+    interrupted, _ = select_vm(root, [])
     assert launcher.follow(interrupted, io.StringIO()) == 1
     state = json.loads((interrupted / 'checkpoint.json').read_text())
     assert state['task_id'] == '001' and state['completion_recovery']
@@ -494,7 +498,7 @@ def test_completion_recovery_preserves_new_queue_tasks_across_restart(
     assert not any(state['queue_before'].values())
     assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
                           check=True).stdout == b''
-    recovered, _ = select_vm(root, ['--tasks', '2', '--sessions', '2'])
+    recovered, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(recovered, output) == 0, output.getvalue()
     assert (previous / 'checkpoint.json').read_bytes() == saved
@@ -525,20 +529,20 @@ def test_completion_recovery_can_reopen_unaccepted_task_then_resume(
                    cwd=root, check=True)
     script(root,
            {'result': reply('task_complete', 'passed'), 'close': True, 'invalid': True},
-           {'result': reply(handoff='Acceptance failed; keep task 001 open.'),
+           {'result': reply(handoff='Acceptance failed; keep task 001 open.'), 'stop': True,
             'writes': {workflow.QUEUE: '| [ ] | 001 | First |\n| [ ] | 002 | Second |\n',
                        workflow.PLAN: 'Next task: **001 — First**.\n'}},
            {'result': reply('task_complete', 'passed'), 'close': True})
-    previous, _ = select_vm(root, ['--sessions', '1'])
+    previous, _ = select_vm(root, [])
     assert launcher.follow(previous, io.StringIO()) == 1
-    recovered, _ = select_vm(root, ['--sessions', '1'])
+    recovered, _ = select_vm(root, [])
     assert launcher.follow(recovered, io.StringIO()) == 0
     state = json.loads((recovered / 'checkpoint.json').read_text())
     assert state['phase'] == 'live' and state['live_attempts'] == 1
     assert 'completion_recovery' not in state and workflow.queue_state(root)[0] == '001'
     assert subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True,
                           check=True).stdout == b''
-    final, _ = select_vm(root, ['--sessions', '1'])
+    final, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(final, output) == 0, output.getvalue()
     assert len(calls(root)) == 3
@@ -574,7 +578,7 @@ def test_prerequisite_repair_runs_before_consumer_and_survives_restart(
          'writes': {**repair, 'partial.py': '# consumer work\n'}, 'invalid': interrupted},
         {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': closed},
         {'result': reply('task_complete', 'passed'), 'close': True})
-    first, _ = select_vm(root, ['--tasks', '2', '--sessions', '3'])
+    first, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(first, output) == (1 if interrupted else 0), output.getvalue()
     if interrupted:
@@ -617,9 +621,9 @@ def test_diagnostic_continuation_survives_restart_without_new_acceptance_or_stag
            {'result': reply('investigating', 'not_run', host_validated=False,
                             handoff='Probe A ruled out service restart; next inspect the active session bus.')},
            {'result': reply('investigating', 'not_run', host_validated=False,
-                            handoff='Probe B found stale session identity; next validate rebinding live.')},
-           {'result': reply(progress=dict(formal_progress, repair_outcome='failed_repair'))})
-    first, _ = select_vm(root, ['--sessions', '3'])
+                            handoff='Probe B found stale session identity; next validate rebinding live.'), 'stop': True},
+           {'result': reply(progress=dict(formal_progress, repair_outcome='failed_repair')), 'stop': True})
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     state = json.loads((first / 'checkpoint.json').read_text())
     assert state['task_sessions'] == 3 and state['live_attempts'] == state['failed_attempts'] == 1
@@ -627,7 +631,7 @@ def test_diagnostic_continuation_survives_restart_without_new_acceptance_or_stag
     assert state['model_tier'] == 0 and workflow.queue_state(root)[0] == '001'
     assert workflow.git_output(root, 'ls-files').stdout == ''
     retained = (first / 'checkpoint.json').read_bytes()
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     assert launcher.follow(second, io.StringIO()) == 0
     assert (first / 'checkpoint.json').read_bytes() == retained
     invocations = calls(root)
@@ -670,11 +674,11 @@ def test_answered_blocker_retains_live_failure_for_diagnosis_across_restart(
              [{'result': reply()}, {'result': reply('investigating', 'not_run')},
               {'result': reply('blocked', 'not_run')}])
     script(root, *steps, {'result': reply('investigating', 'not_run', host_validated=False,
-        handoff='Child-session probe confirmed the bus owner; next inspect the live recipient.')},
+        handoff='Child-session probe confirmed the bus owner; next inspect the live recipient.'), 'stop': True},
         {'result': reply('task_complete', 'not_run')})
     with monkeypatch.context() as patch:
         patch.setattr(workflow, 'initial_state', lambda *args, **kwargs: state.copy())
-        first, _ = select_vm(root, ['--sessions', '5'])
+        first, _ = select_vm(root, [])
     wait_for(first / 'question.json')
     (first / 'stop').touch()
     assert finish_answered_run(first, spawned) == 0
@@ -682,7 +686,7 @@ def test_answered_blocker_retains_live_failure_for_diagnosis_across_restart(
     failure = json.loads(retained)['acceptance']
     question = json.loads((first / 'question.json').read_text())
     assert submit(first, question['id'], 0)
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     assert launcher.follow(second, io.StringIO()) == 0
     assert (first / 'checkpoint.json').read_bytes() == retained
     resumed = json.loads((second / 'checkpoint.json').read_text())
@@ -692,7 +696,7 @@ def test_answered_blocker_retains_live_failure_for_diagnosis_across_restart(
     assert workflow.git_output(root, 'ls-files').stdout == ''
     assert 'Last formal live acceptance:' in calls(root)[-1]['prompt']
     if optimizing:
-        third, _ = select_vm(root, ['--sessions', '1'])
+        third, _ = select_vm(root, [])
         output = io.StringIO()
         assert launcher.follow(third, output) == 1
         assert 'optimization completion lacks passing validation' in output.getvalue()
@@ -711,13 +715,13 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
     subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
                    cwd=root, check=True)
-    script(root, {'result': reply(handoff='LATEST LIVE HANDOFF')},
+    script(root, {'result': reply(handoff='LATEST LIVE HANDOFF'), 'stop': True},
            {'result': reply('task_complete', 'passed'), 'close': True})
-    first, _ = select_vm(root, ['--sessions', '1'])
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     assert len(calls(root)) == 1
     assert 'LATEST LIVE HANDOFF' in (first / 'handoff.txt').read_text()
-    second, started = select_vm(root, ['--sessions', '1'])
+    second, started = select_vm(root, [])
     assert started and second != first
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
@@ -773,14 +777,14 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
     subprocess.run(['git', 'config', f'branch.{branch}.remote', 'origin'], cwd=root, check=True)
     subprocess.run(['git', 'config', f'branch.{branch}.merge', f'refs/heads/{branch}'],
                    cwd=root, check=True)
-    script(root, {'result': reply()}, {'result': reply()},
+    script(root, {'result': reply()}, {'result': reply(), 'stop': True},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    first, _ = select_vm(root, ['--sessions', '2'])
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     assert workflow.queue_state(root)[0] == '001'
     retained = (first / 'checkpoint.json').read_bytes()
-    second, _ = select_vm(root, ['--sessions', '2', '--tasks', '2'])
+    second, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
     assert (first / 'checkpoint.json').read_bytes() == retained
@@ -816,12 +820,12 @@ def test_failed_sol_xhigh_repair_promotes_real_child_transport_and_restarts_at_m
                    cwd=root, check=True)
     failed = dict(reply()['progress'], repair_outcome='failed_repair')
     script(root, {'result': reply()}, {'result': reply()},
-           {'result': reply(progress=failed)},
+           {'result': reply(progress=failed), 'stop': True},
            {'result': reply('task_complete', 'passed'), 'close': True})
-    first, _ = select_vm(root, ['--sessions', '3'])
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     assert json.loads((first / 'checkpoint.json').read_text())['model_tier'] == 2
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
     invocation = calls(root)[-1]
@@ -865,7 +869,7 @@ def test_prerequisite_completion_does_not_renew_suspended_consumer_cap(checkout)
         {'result': reply('task_complete', 'passed', task_id='000a'), 'writes': {
             workflow.QUEUE: repair[workflow.QUEUE].replace('| [ ] | 000a |', '| [x] | 000a |'),
             workflow.PLAN: 'Next task: **001 — [First](E2E-Tasks/001.md)**.\n'}})
-    run, _ = select_vm(root, ['--tasks', '2', '--sessions', '10'])
+    run, _ = select_vm(root, ['--tasks', '2'])
     assert launcher.follow(run, io.StringIO()) == 1
     assert len(calls(root)) == 6
     state = json.loads((run / 'checkpoint.json').read_text())
@@ -889,10 +893,10 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout, tmp_path_fact
                    cwd=root, check=True)
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
-           {'result': reply(task_id='002')},
+           {'result': reply(task_id='002'), 'stop': True},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    for sessions, expected in [('2', '2'), ('1', '1'), ('1', '2')]:
-        run, started = select_vm(root, ['--sessions', sessions])
+    for expected in ['2', '1', '2']:
+        run, started = select_vm(root, [])
         assert started
         output = io.StringIO()
         assert launcher.follow(run, output) == 0, output.getvalue()
@@ -915,13 +919,13 @@ def test_completion_stages_changes_from_every_session_despite_omitted_stage_path
                    cwd=root, check=True)
     unrelated = root / 'unrelated.txt'
     unrelated.write_text('pre-existing work')
-    script(root, {'result': reply(), 'writes': {'implementation.py': 'first session\n'}},
+    script(root, {'result': reply(), 'stop': True, 'writes': {'implementation.py': 'first session\n'}},
            {'result': reply('task_complete', 'passed'), 'close': True,
             'writes': {'final-note.md': 'last session\n'}})
-    first, _ = select_vm(root, ['--sessions', '1'])
+    first, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(first, output) == 0, output.getvalue()
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     output = io.StringIO()
     assert launcher.follow(second, output) == 0, output.getvalue()
     committed = subprocess.run(['git', 'ls-tree', '-r', '--name-only', 'HEAD'], cwd=root,
@@ -949,8 +953,8 @@ def test_each_session_repairs_previous_failure_then_validates_and_hands_off(
     script(root, {'result': reply(handoff='FIRST')},
            {'result': reply(live='failed', handoff='LATEST VM FAILURE')},
            {'result': reply('task_complete', 'passed'), 'close': True},
-           {'result': reply(task_id='002', handoff='NEXT TASK LIVE')})
-    run, _ = select_vm(root, ['--sessions', '4', '--tasks', '2'])
+           {'result': reply(task_id='002', handoff='NEXT TASK LIVE'), 'stop': True})
+    run, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     invocations = calls(root)
@@ -986,7 +990,7 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
            {'result': reply(task_id='002')},
            {'result': reply(task_id='002', live='failed')},
            {'result': reply('task_complete', 'passed', task_id='002'), 'close': True})
-    run, _ = select_vm(root, ['--sessions', '9', '--tasks', '2'])
+    run, _ = select_vm(root, ['--tasks', '2'])
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     from rich.text import Text
@@ -1092,11 +1096,8 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(
 
 @pytest.mark.parametrize('args, sessions, completed, reason', [
     ([], 2, 1, 'task limit reached'),
-    (['--sessions', '3', '--tasks', '1'], 2, 1, 'task limit reached'),
-    (['--sessions', '1', '--tasks', '2'], 1, 0, 'session limit reached'),
-    (['--sessions', '3', '--tasks', '2'], 3, 1, 'session limit reached'),
+    (['--tasks', '1'], 2, 1, 'task limit reached'),
     (['--tasks', '2'], 4, 2, 'task limit reached'),
-    (['--sessions', '2', '--tasks', '1'], 2, 1, 'task limit reached'),
 ])
 def test_first_limit_stops_after_accepted_completion(
         checkout, args, sessions, completed, reason, tmp_path_factory):
@@ -1133,7 +1134,7 @@ def test_first_limit_stops_after_accepted_completion(
             workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-@pytest.mark.parametrize('args', [[], ['--tasks', '2'], ['--sessions', '20', '--tasks', '2']])
+@pytest.mark.parametrize('args', [[], ['--tasks', '2']])
 def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     root, _ = checkout
     script(root, {'result': reply()},
@@ -1167,8 +1168,8 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
 def test_task_cap_renews_without_resetting_task_sessions(checkout):
     root, _ = checkout
     script(root, {'result': reply()},
-           *({'result': reply(live='failed')} for _ in range(7)))
-    first, _ = select_vm(root, ['--sessions', '3'])
+           *({'result': reply(live='failed'), 'stop': index == 1} for index in range(7)))
+    first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 0
     second, _ = select_vm(root, ['--tasks', '2'])
     assert launcher.follow(second, io.StringIO()) == 1
@@ -1182,10 +1183,10 @@ def test_six_prior_sessions_get_five_more_in_plain_new_launcher(checkout):
     from rich.text import Text
     root, _ = checkout
     script(root, {'result': reply()},
-           *({'result': reply(live='failed')} for _ in range(10)))
+           *({'result': reply(live='failed'), 'stop': index == 4} for index in range(10)))
     first, _ = select_vm(root, [])
     assert launcher.follow(first, io.StringIO()) == 1
-    second, _ = select_vm(root, ['--sessions', '1'])
+    second, _ = select_vm(root, [])
     assert launcher.follow(second, io.StringIO()) == 0
     assert json.loads((second / 'checkpoint.json').read_text())['task_sessions'] == 6
     third, started = select_vm(root, [])
@@ -1238,9 +1239,13 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
     wait_for(root / 'agent-ready-1')
     assert len(spawned) == 1 and os.getsid(spawned[0].pid) == spawned[0].pid
     limits = (run / 'limits.json').read_text()
-    assert json.loads(limits)['sessions'] == 5
+    assert 'sessions' not in json.loads(limits)
     assert json.loads(limits)['tasks'] == 1
     assert select_vm(root, []) == (run, False)
+    assert (run / 'limits.json').read_text() == limits
+    with pytest.raises(SystemExit) as error:
+        select_vm(root, ['--sessions', '1'])
+    assert error.value.code == 2
     assert (run / 'limits.json').read_text() == limits
     with pytest.raises(SystemExit):
         select_vm(root, ['--sessions', 'invalid', '--tasks', 'invalid', '--unknown'])
@@ -1261,13 +1266,8 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
 @pytest.mark.parametrize('initial, adjustment, sessions, completed', [
     (['--tasks', '1'], ['--tasks', '2'], 4, 2),
     (['--tasks', '2'], ['--tasks', '-1'], 2, 1),
-    (['--sessions', '1'], ['--sessions', '1'], 2, 1),
-    (['--sessions', '2'], ['--sessions', '-1'], 1, 0),
-    (['--tasks', '2', '--sessions', '4'], ['--tasks', '-1', '--sessions', '-3'], 1, 0),
     (['--tasks', '2'], ['--tasks', '-9'], 1, 0),
-    ([], ['--sessions', '1'], 2, 1),
-    ([], ['--sessions', '0'], 2, 1),
-    ([], ['--sessions', '-5'], 1, 0),
+    ([], ['--tasks', '0'], 2, 1),
 ])
 def test_attached_adjustments_control_next_boundary(
         checkout, initial, adjustment, sessions, completed, tmp_path_factory):
@@ -1317,16 +1317,16 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(
     script(root, {'result': reply()},
            {'result': reply('task_complete', 'passed'), 'close': True},
            {'result': reply(task_id='002'), 'wait': True})
-    run, _ = select_vm(root, ['--tasks', '2', '--sessions', '4'])
+    run, _ = select_vm(root, ['--tasks', '2'])
     wait_for(root / 'agent-ready-3')
     assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/2']
     with ThreadPoolExecutor(max_workers=4) as pool:
-        attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1', '--sessions', '2']), range(4)))
+        attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {
-        'tasks': 6, 'sessions': 12, 'started': 3, 'completed': 1}
+        'tasks': 6, 'started': 3, 'completed': 1}
     assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/6']
-    select_vm(root, ['--tasks', '-6', '--sessions', '-12'])
+    select_vm(root, ['--tasks', '-6'])
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
@@ -1453,7 +1453,7 @@ def test_blocker_pauses_across_detach_and_resumes_only_after_answer(
 def test_waiting_can_stop_or_cancel_and_restart_still_requires_an_answer(checkout, action):
     from launcher_question import submit
     root, spawned = checkout
-    script(root, {'result': reply('blocked')}, {'result': reply(live='failed')})
+    script(root, {'result': reply('blocked')}, {'result': reply(live='failed'), 'stop': True})
     run, _ = select_vm(root, [])
     wait_for(run / 'handoff.txt')
     (run / action).touch()
@@ -1461,7 +1461,7 @@ def test_waiting_can_stop_or_cancel_and_restart_still_requires_an_answer(checkou
     assert finish_answered_run(run, spawned, output) == (130 if action == 'cancel' else 0)
     assert 'Next session prompt:' not in output.getvalue()
     assert 'Next session prompt:' in (run / 'handoff.txt').read_text()
-    resumed, started = select_vm(root, ['--sessions', '1'])
+    resumed, started = select_vm(root, [])
     assert started and resumed != run
     wait_for(resumed / 'question.json')
     assert len(calls(root)) == 1
@@ -1527,7 +1527,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
                        cwd=root, check=True)
     script(root, {'result': reply(), 'wait': True},
            {'result': reply('task_complete' if live == 'passed' else 'ready_for_vm',
-                            live, handoff='RECOVERED HANDOFF'), 'close': live == 'passed'})
+                            live, handoff='RECOVERED HANDOFF'), 'stop': True, 'close': live == 'passed'})
     run, _ = select_vm(root, [])
     wait_for(root / 'agent-ready-1')
     (run / 'cancel').touch()
@@ -1536,7 +1536,7 @@ def test_cancelled_run_can_restart_through_recovery_and_vm_validation(
     assert 'Continue with the launcher-selected coordinator.' in handoff
     assert 'Next coordinator and implementer: gpt-6.1-sol high.' in handoff
     assert 'Continue with GPT-6-Astra High' not in handoff
-    recovered, started = select_vm(root, ['--sessions', '1'])
+    recovered, started = select_vm(root, [])
     assert started and recovered != run
     output = io.StringIO()
     assert launcher.follow(recovered, output) == 0, output.getvalue()

@@ -327,9 +327,11 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # waited Git commands, retaining compatible unit/cleanup scheduling.
 # Reopened-task recovery uses the same private remote allocation and waited local
 # Git children; compatible unit/cleanup scheduling remains unchanged.
-# Session-limit handoff restart adds a tiny pytest-private bare remote and waited
+# Session-boundary handoff restart adds a tiny pytest-private bare remote and waited
 # local Git children; existing owned worker cleanup is unchanged. No shared cache,
 # socket, bus, display, service or live VM; bounded disk/CPU use stays compatible.
+# Task-only limits and explicit scripted stops retain the same private state and
+# owned, waited doubles, without new shared resources or cleanup lifetimes.
 # Escalation restart adds a pytest-private bare remote for both task pushes and
 # waited local Git commands; worker cleanup and compatible scheduling are unchanged.
 # Previous-failure session handoff uses a tiny pytest-private bare remote and

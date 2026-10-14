@@ -937,7 +937,7 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # Git commands; no shared resource or scheduling classification changes.
 # Reopened-task recovery adds only a pytest-private bare remote and waited local
 # Git commands; compatible overlap remains, without network or shared state.
-# Session-limit handoff restart uses a tiny pytest-private bare remote and waited
+# Session-boundary handoff restart uses a tiny pytest-private bare remote and waited
 # local Git children; no shared cache, socket, bus, display, service or live VM,
 # and bounded disk/CPU demand preserves compatible unit/cleanup scheduling.
 # Escalation restart with two completed tasks uses the same pytest-private bare
@@ -955,6 +955,8 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # VM is added, so compatible unit/cleanup scheduling and owned cleanup hold.
 # Attached-limit adjustment checks likewise use a tiny pytest-private bare remote
 # and waited local Git children; compatible scheduling and worker cleanup hold.
+# Task-only limits and explicit scripted stops reuse those private checkpoints,
+# owner lifetimes and waited doubles; no shared resource or extra child is added.
 # Successful cancellation recovery adds a tiny pytest-private bare remote and
 # waited local Git children; no network, shared state, sockets, displays or live
 # VM is added. Bounded disk/CPU use and existing owned cleanup stay compatible.

@@ -80,6 +80,10 @@ def agent(root, *, prompt=None, thread_start=None, turn_start=None, emit=None):
             time.sleep(.02)
     if step.get('crash'):
         return 9
+    if step.get('stop'):
+        # Exercise the launcher's public session-boundary stop, without a
+        # separate total-session budget in the production worker.
+        (Path(os.environ[launcher.WORKFLOW_DIRECTORY]) / 'stop').touch()
     for name, content in step.get('writes', {}).items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)

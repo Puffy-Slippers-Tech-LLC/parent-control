@@ -1129,7 +1129,7 @@ def task_info_instructions(run, task):
             "your current work; preserve the original task and acceptance requirements.\n")
 
 
-def worker(root, run, owner, sessions, tasks, state_json):
+def worker(root, run, owner, tasks, state_json):
     from launcher_progress import publish_progress, read_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
@@ -1141,7 +1141,7 @@ def worker(root, run, owner, sessions, tasks, state_json):
     state = json.loads(state_json)
     state['commit_required'] = True
     total = state.get('total_sessions', state.get('task_sessions', 0))
-    count, completed, status, reason = 0, 0, 0, 'session limit reached'
+    count, completed, status, reason = 0, 0, 0, 'task limit reached'
     completions = []
 
     def compact_completions():
@@ -1170,24 +1170,17 @@ def worker(root, run, owner, sessions, tasks, state_json):
                 # consumes no model session and never renews a budget.
                 state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
                                                   state['task_sessions'] + 1)
-                with launcher.lock(run / 'limits-gate') as gate:
-                    fcntl.flock(gate, fcntl.LOCK_EX)
-                    limits = json.loads((run / 'limits.json').read_text())
-                    if limits['sessions'] is not None:
-                        limits['sessions'] = max(limits['sessions'], count + 1)
-                    launcher.atomic(run / 'limits.json', limits)
                 launcher.atomic(run / 'checkpoint.json', state)
             with launcher.lock(run / 'limits-gate') as gate:
                 fcntl.flock(gate, fcntl.LOCK_EX)
                 limits = json.loads((run / 'limits.json').read_text())
-                sessions, tasks = limits['sessions'], limits['tasks']
+                tasks = limits['tasks']
                 if task_session_limit_reached(state):
                     status, reason = 1, 'task session limit reached'
                     launcher.atomic(run / 'limits.json', dict(limits, closed=True))
                     break
-                if ((completed >= tasks and not state.get('optimization_session'))
-                        or (sessions is not None and count >= sessions)):
-                    reason = 'task limit reached' if completed >= tasks else 'session limit reached'
+                if completed >= tasks and not state.get('optimization_session'):
+                    reason = 'task limit reached'
                     launcher.atomic(run / 'limits.json', dict(limits, closed=True))
                     break
                 launcher.atomic(run / 'limits.json', dict(limits, started=count + 1))
@@ -1235,12 +1228,12 @@ def worker(root, run, owner, sessions, tasks, state_json):
             state['queue_before'] = before
             state['in_flight'] = True
             launcher.atomic(run / 'checkpoint.json', state)
-            launcher.atomic(run / 'progress.json', {'session': count, 'limit': sessions,
+            launcher.atomic(run / 'progress.json', {'session': count,
                                                    'task_id': task, 'phase': state['phase']})
             progress_lines = session_progress(root, state, total)
             publish_progress(run, str(count), progress_lines)
             model, effort = session_model(state)
-            print(f"\nwrite-e2e: session {count}{'/' + str(sessions) if sessions else ''}; "
+            print(f"\nwrite-e2e: session {count}; "
                   f"task {task}; {model} {effort}", flush=True)
             try:
                 result = execute(root, run, owner, state['phase'], state['live_attempts'])
@@ -1419,8 +1412,6 @@ def select(root, argv):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
         kind = int if attaching else positive
-        parser.add_argument('--sessions', type=kind,
-                            help='new run: maximum sessions (plain invocation defaults to 5); active run: signed adjustment')
         parser.add_argument('--tasks', type=kind,
                             help='new run: maximum completed tasks (default 1); active run: signed adjustment')
         parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
@@ -1432,7 +1423,7 @@ def select(root, argv):
     def attach(run):
         check_binding(run, binding, stopping='--stop' in argv)
         args = parse(attaching=True)
-        if args.sessions is None and args.tasks is None:
+        if args.tasks is None:
             return
         with launcher.lock(run / 'limits-gate') as gate:
             fcntl.flock(gate, fcntl.LOCK_EX)
@@ -1442,22 +1433,15 @@ def select(root, argv):
             limits = json.loads(path.read_text())
             if limits.get('closed') or (run / 'result.json').exists():
                 raise ValueError('active launcher is finishing; limits can no longer be adjusted')
-            for key in ('tasks', 'sessions'):
-                delta = getattr(args, key)
-                if delta is not None:
-                    base = limits[key] if limits[key] is not None else limits['started']
-                    limits[key] = max(0, base + delta)
+            limits['tasks'] = max(0, limits['tasks'] + args.tasks)
             launcher.atomic(path, limits)
-            print(f"write-e2e: limits now tasks={limits['tasks']}, "
-                  f"sessions={limits['sessions'] if limits['sessions'] is not None else 'unlimited'}", flush=True)
+            print(f"write-e2e: limits now tasks={limits['tasks']}", flush=True)
 
     def command(run, owner):
         args = parse()
-        if not argv:
-            args.sessions = 5
         if args.tasks is None:
             args.tasks = 1
-        initial_limits.update(sessions=args.sessions, tasks=args.tasks, started=0, completed=0)
+        initial_limits.update(tasks=args.tasks, started=0, completed=0)
         state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         previous = launcher.current_run(run.parent)
@@ -1470,8 +1454,7 @@ def select(root, argv):
         session_command(root, state)
         initial_checkpoint.update(state)
         return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
-                str(root), str(run), str(owner), json.dumps(args.sessions),
-                json.dumps(args.tasks), json.dumps(state)]
+                str(root), str(run), str(owner), json.dumps(args.tasks), json.dumps(state)]
 
     def start(run):
         launcher.atomic(run / 'limits.json', initial_limits)
@@ -1523,8 +1506,7 @@ def main(argv=None):
 if __name__ == '__main__':
     mode, root, run, owner, *options = sys.argv[1:]
     if mode == '--worker':
-        sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]),
-                        json.loads(options[1]), options[2]))
+        sys.exit(worker(Path(root), Path(run), int(owner), json.loads(options[0]), options[1]))
     if mode == '--supervise':
         root, run = Path(root), Path(run)
         # Older workers omit the phase or attempt count. Their checkpoint still

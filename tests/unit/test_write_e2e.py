@@ -351,7 +351,7 @@ def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, 
     state = dict(workflow.fresh_state('024'),
                  summary='Checked `tools/watchvm`.',
                  handoff='Read [the guide](https://example.com/guide).\n\n'
-                         '```bash\ntools/write-e2e --sessions 3\n```')
+                         '```bash\ntools/write-e2e --tasks 3\n```')
     workflow.save_handoff(tmp_path, state, 'stopped')
     output = capsys.readouterr().out
     rendered = Text.from_ansi(output)
@@ -359,7 +359,7 @@ def test_final_handoff_uses_session_colors_and_preserves_saved_prompt(tmp_path, 
     assert 'Next session prompt:' in rendered.plain
     assert '```' not in rendered.plain and '`tools/watchvm`' not in rendered.plain
     for token, color in [('tools/watchvm', '#008000'), ('the guide', '#0066ff'),
-                         ('tools/write-e2e', '#0066ff'), ('--sessions', '#ff0000')]:
+                         ('tools/write-e2e', '#0066ff'), ('--tasks', '#ff0000')]:
         offset = rendered.plain.index(token)
         style = rendered.get_style_at_offset(Console(), offset)
         assert style.color.get_truecolor().hex == color
@@ -1152,10 +1152,16 @@ def test_generic_prerequisite_graph_preserves_consumer_through_completion_and_re
 
 
 @pytest.mark.parametrize('value', ['0', '-1', 'garbage', '1.5'])
-@pytest.mark.parametrize('option', ['--sessions', '--tasks'])
-def test_invalid_limit_refuses_before_spawn(tmp_path, value, option):
+def test_invalid_limit_refuses_before_spawn(tmp_path, value):
     with pytest.raises(SystemExit) as error:
-        workflow.select(tmp_path, [option, value, '--vm', vm_name()])
+        workflow.select(tmp_path, ['--tasks', value, '--vm', vm_name()])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize('value', ['1', '5', '-1'])
+def test_removed_sessions_option_refuses_before_spawn(tmp_path, value):
+    with pytest.raises(SystemExit) as error:
+        workflow.select(tmp_path, ['--sessions', value, '--vm', vm_name()])
     assert error.value.code == 2
 
 

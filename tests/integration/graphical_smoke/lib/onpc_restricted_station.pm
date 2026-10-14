@@ -23,7 +23,7 @@ sub run {
     }
     onpc_gdm::enter_station($journey, '');
     $journey->consume_observation('request-form', $journey->seen('request-form'));
-    onpc_station::restrictions($journey) unless $outcome && $outcome eq 'cancelled';
+    onpc_station::restrictions($journey);
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
         'fixture-child', 'fixture-parent', 75, 1);
     if ($outcome) {

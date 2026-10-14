@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 6c is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 7 is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -44,7 +44,7 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **5c — Real waiting-session census** | On both targets, pass the strict census in the real waiting kiosk session against current matching inputs. Require every kiosk process/thread's enforcing current label, private namespace and matching generation, including the required manager, app, service, Wellbeing and PipeWire roles. Requalify affected 5a/5b results after any product fix. Finish owned cleanup. |
 | [x] | **6a — Approved kiosk request** | Complete restricted-station case 50 on both targets under its existing recipe: usable request/authentication, no desktop/terminal/management escape, and normal return to sign-in after approval. Preserve the complete case's assertions and finish owned cleanup. |
 | [x] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
-| [ ] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
+| [x] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [ ] | **7 — Exposed surfaces and required services** | On both targets, prove About, Preferences and error reporting cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify the confined editor's native WebKit/scanner route and required service roles; retain real scanner proof and usable in-app error reporting without sending feedback. Use existing applicable qualification first; add only missing confinement coverage, not full feature histories. Finish owned cleanup. |
 | [ ] | **8 — Shared-integration collateral checks** | On both targets, verify ordinary administrator and standard-user login/desktop availability, preserved vendor PAM callbacks and AccountsService metadata, and kiosk-only scope of changed units/policies. Reuse applicable matrix evidence. Add only missing checks for collateral effects of confinement changes; full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
@@ -750,6 +750,58 @@ no blocking defect or new shared resource. Only tests and documentation changed,
 outside package sources/build-tool dependencies, so no additional `make build`
 is required and earlier product qualification remains applicable. Phase 3 stays
 open; step 6c is next. The separate E2E queue is unchanged.
+
+### Step 6c qualification — 2026-10-13
+
+Complete restricted-station case 52 (`E2E-016/cancelled`) passed on both targets
+through `tools/run-tests e2e --id '52' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'`.
+
+| Cancelled request result | Ubuntu report / acceptance allocation | Fedora report / acceptance allocation |
+| --- | --- | --- |
+| Complete customer journey | `20261014T014819Z-90a23271` / `onpc-e2e-evidence-f54les64` | `20261014T014819Z-ecc3e92b` / `onpc-e2e-evidence-f529dyxd` |
+
+Case 52 now reuses the initial Overview, app-grid and terminal restriction cycle
+required by its recipe, matching cases 50 and 51. Its declaration and worker
+agree on the ordering and recorder phase boundary. Host coverage requires both
+shortcut cycles and refuses at every stage, including the six added initial
+cancellation stages. Independent review found no further missing case assertion.
+
+Each journey configured zero allowance through Parent, entered the station
+without a password and passed the initial restriction cycle. It prepared the
+exact child, approver, custom 75-second duration and soft-app choice, then
+cancelled the real native authentication prompt without an approval password.
+Independent readback proved unchanged usable no-error request choices. Repeated
+Overview, app-grid and terminal checks retained only the owned form and permitted
+controls; form Cancel returned to usable sign-in with the station absent.
+This establishes the case's confinement assertions, not a backend no-grant history.
+
+Both acceptance records report product, infrastructure, collection and cleanup
+passes, no first failure and `lease_phase=complete`. Worker allocations
+`onpc-e2e-evidence-wuxod3nv` (Ubuntu) and `onpc-e2e-evidence-4zrzsqv7` (Fedora)
+confirm stopped workers, closed callbacks and verified shutdown. Both outer
+baselines were restored and verified; both pinned VMs were independently
+confirmed powered off. Before acceptance, maintained station-entry reproductions
+and guest process-label probes succeeded on both live maintenance VMs, with
+Fedora SELinux enforcing. Both maintenance owners completed restoration before
+acceptance; those probes supply engineering observation only.
+
+Verified builder inputs were
+`output/test-runs/host/allocations/onpc-test-artifacts-s3wlqdf9` (DEB) and
+`output/test-runs/host/allocations/onpc-test-artifacts-7cxonl9u` (RPM).
+Their package-source, package and fixture hashes match the 5a candidate above.
+Both attempts used the retained online `onpc-v1.4` snapshots; the common
+scenario-source SHA-256 was
+`5bf22f5e2001315e1d232083bbb7b981c3f2f4687688eeb290b6ac894d2037de`.
+The acceptance records retain full input identities and reviewed step evidence.
+
+All 1,460 affected host checks and 313 final documentation/inventory consistency
+checks passed. Coverage regeneration includes the six added refusal cases;
+Markdown links passed. Both acceptance reports and allocations were verified
+retained after final validation. Independent diff and resource review found no
+blocking defect or new shared resource. Only tests and documentation changed, outside
+package sources/build-tool dependencies, so no additional `make build` is
+required and earlier product qualification remains applicable. Phase 3 stays
+open; step 7 is next. The separate E2E queue is unchanged.
 
 ## Operating and qualification routes
 

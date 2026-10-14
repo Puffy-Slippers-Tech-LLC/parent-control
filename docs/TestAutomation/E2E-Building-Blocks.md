@@ -3588,6 +3588,7 @@ the remaining form before separately composing FLOW05.
 Cases 51 and 52 compose that open-form boundary in `restricted_station.DENIED_PLAN`
 and `CANCELLED_PLAN`, with `request_composition.KioskRequestJourney` and
 `onpc_restricted_station::run(exchange, 'denied' | 'cancelled')`.
+Both run the initial `onpc_station::restrictions(journey)` cycle before FLOW04.
 The caller repeats `onpc_station::restrictions(journey, 'after-')`, then activates
 Cancel and independently observes usable GDM. Restriction observations declare
 their form state: `kiosk-restriction-ready/read` retains the default disabled
@@ -3601,6 +3602,9 @@ and 51 passed separately in `20260926T185518Z-026edc31` and
 `20260926T185927Z-3a6cff95`. All passed collection, owned cleanup and baseline
 restoration. Cancellation enters no approval password and compares the preserved
 choices before repeating restrictions and exiting normally.
+Case 52's complete current qualification, including both restriction cycles,
+passed on both confinement targets; see
+[step 6c qualification](../confinement.md#step-6c-qualification--2026-10-13).
 The host regression exercises both prepared operations through the real decoder,
 including changed choices and forbidden surfaces/controls. It uses private
 trees and bounded Perl workers; both unapproved worker branches are checked for

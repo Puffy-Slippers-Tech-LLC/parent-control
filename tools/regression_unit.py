@@ -29,6 +29,9 @@ launcher_chat uses tiny pytest-private protocol/mailbox trees, in-memory VT
 screens, a private PTY with restored terminal flags, and one bounded, waited
 Codex schema-generator process (no model inference). It has no VM, network,
 display, bus, shared mutable cache or cleanup-inventory entry; compatible.
+Native-scrollback coverage adds only a few thousand in-memory rows; the shared
+VT double scrolls on bottom-edge line feeds and consumes OSC controls without
+printing them, with no new resource or lifetime.
 write_e2e_cleanup_safety's agent double now speaks app-server over its existing
 private pipes. Its detached children, nested owner lifetimes, Git fixtures and
 serial cleanup remain unchanged; existing unit/cleanup classifications apply.

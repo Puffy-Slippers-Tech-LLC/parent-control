@@ -1,4 +1,4 @@
-"""Shared resizable task overview/totals and execution/input/status panes."""
+"""Shared task panes with live output in native terminal scrollback."""
 
 import json
 import os
@@ -55,6 +55,30 @@ class TaskDisplay(LauncherDisplay):
         self.cancel_button = None
         self.escape_since = None
         self.mouse_pending = b''
+        self.history_pending = []
+        self.history_steps = {}
+
+    def remember(self, lines):
+        """Publish history once, independently of the bounded live panes."""
+        if self.tty:
+            self.history_pending.extend(lines)
+            if self.history_pending:
+                self.draw_state = None
+
+    def write(self, value, *, final=False, saved=True):
+        lines = (self.pending + value).split('\n')
+        tail = lines.pop()
+        if final and tail:
+            lines.append(tail)
+        self.remember(lines)
+        super().write(value, final=final, saved=saved)
+
+    def update(self, steps, details):
+        self.remember(line for step in steps
+                      if self.history_steps.get(step['key']) != tuple(step['lines'])
+                      for line in step['lines'])
+        self.history_steps = {step['key']: tuple(step['lines']) for step in steps}
+        super().update(steps, details)
 
     def __enter__(self):
         super().__enter__()
@@ -90,7 +114,10 @@ class TaskDisplay(LauncherDisplay):
     def refresh_chat(self):
         self.chat_state = read_state(self.run)
         path = self.run / 'task-info.json'
-        self.task_info = json.loads(path.read_text()) if path.exists() else {}
+        task_info = json.loads(path.read_text()) if path.exists() else {}
+        if task_info != self.task_info:
+            self.remember(task_info[key] for key in ('explanation', 'status') if task_info.get(key))
+        self.task_info = task_info
         if self.totals is not None:
             try:
                 self.task_totals = self.totals()
@@ -103,11 +130,14 @@ class TaskDisplay(LauncherDisplay):
         return max(1, self.divider_column - 1)
 
     def update_question(self, question, send):
+        identity = self.question.question['id'] if self.question else None
+        if question and question['id'] != identity:
+            self.remember([question.get('explanation', ''), question['question'],
+                           *[f'{i + 1}. {option}' for i, option in enumerate(question['options'])]])
         if self.input_mode != 'chat':
             return super().update_question(question, send)
         # Keep the mouse preference and always-editable composer while blocked.
         from launcher_question import QuestionInput
-        identity = self.question.question['id'] if self.question else None
         if (question['id'] if question else None) != identity:
             self.question = QuestionInput(question, send) if question else None
             self.draw()
@@ -410,8 +440,9 @@ class TaskDisplay(LauncherDisplay):
         divider = Text('─' * width, style='dim')
         if self.input_fd is not None:
             key = 'F2' if self.input_mode == 'chat' else 'm'
-            action = 'select text' if self.mouse_capture else 'scroll/resize'
-            divider = Text(f' {key}: {action} ', style='dim')
+            hint = (f'{key}: native scrolling/selection' if self.mouse_capture else
+                    f'Wheel/scrollbar: history · {key}: pane controls')
+            divider = Text(f' {hint} ', style='dim')
             divider.truncate(width, overflow='crop')
             divider.append('─' * max(0, width - divider.cell_len))
         rows = top + [divider]
@@ -468,11 +499,24 @@ class TaskDisplay(LauncherDisplay):
     def paint(self, rows, size):
         if not self.screen:
             self.screen = True
-            self.stream.write('\033[?1049h\033[H\033[2J\033[?25l')
+            # Reserve the live frame on the primary screen. Unlike an alternate
+            # screen, it leaves the terminal's wheel, scrollbar and native
+            # selection available together. Preserve the preceding shell text.
+            self.stream.write('\033[?25l' + '\r\n' * size.lines)
             self.set_mouse_mode()
             self.previous = None
+        if self.history_pending:
+            # A bottom-edge line feed places the top row in native scrollback.
+            # Replace that row with one history row first, so dashboard redraws
+            # never accumulate there. Then repaint the live frame below it.
+            for row in self.wrapped(self.history_pending, max(1, size.columns - 1)):
+                with self.console.capture() as capture:
+                    self.console.print(row, width=size.columns, end='', soft_wrap=True)
+                self.stream.write('\033[1;1H\033[2K' + capture.get()
+                                  + f'\033[{size.lines};1H\r\n')
+            self.history_pending.clear()
+            self.previous = None
         if size != self.size:
-            self.stream.write('\033[H\033[2J')
             self.previous = None
         for index, row in enumerate(rows):
             if (self.previous is None or index >= len(self.previous)
@@ -483,10 +527,30 @@ class TaskDisplay(LauncherDisplay):
         self.previous, self.size = rows, size
 
     def restore_terminal(self):
+        active = self.screen
+        # The base display owns an alternate screen; this display owns only its
+        # live frame on the primary screen. Restore input without swapping buffers.
+        self.screen = False
         try:
-            if self.screen or self.input_fd is not None:
+            if active or self.input_fd is not None:
                 self.stream.write('\033[?1003l\033]22;\033\\\033[0 q')
             if self.input_fd is not None:
                 self.stream.write('\033[<u\033[>4;0m')
         finally:
-            super().restore_terminal()
+            try:
+                super().restore_terminal()
+            finally:
+                if active:
+                    height = self.size.lines if self.size else 1
+                    # Leave a clean prompt row without scrolling a dashboard
+                    # row into the transcript as the observer detaches.
+                    self.stream.write(f'\033[{height};1H\033[2K\033[?25h')
+                    self.stream.flush()
+                    self.previous = None
+
+    def close(self):
+        # Output was already published to native history while it arrived.
+        # Flush an unfinished final line without replaying the complete run.
+        if self.tty and self.screen:
+            self.write('', final=True)
+        self.restore_terminal()

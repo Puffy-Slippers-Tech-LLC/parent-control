@@ -27,7 +27,9 @@ class Terminal(io.StringIO):
 
     def write(self, value):
         result = super().write(value)
-        for token in re.split(r'(\x1b\[[0-?]*[ -/]*[@-~])', value):
+        for token in re.split(r'(\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))', value):
+            if token.startswith('\x1b]'):
+                continue
             if token.startswith('\x1b['):
                 args, operation = token[2:-1], token[-1:]
                 if args == '?1049' and operation == 'h':
@@ -49,21 +51,25 @@ class Terminal(io.StringIO):
                 if char == '\n':
                     self.row += 1
                     self.column = 0
+                    self.scroll_if_needed()
                     continue
                 width = get_character_cell_size(char)
                 if self.column + width > self.size.columns:
                     self.row += 1
                     self.column = 0
-                if self.row >= self.size.lines:
-                    if self.normal_screen is None:
-                        self.scrollback.append(''.join(self.cells[0]).rstrip())
-                    self.cells.pop(0)
-                    self.cells.append([' '] * self.size.columns)
-                    self.row = self.size.lines - 1
+                self.scroll_if_needed()
                 if width:
                     self.cells[self.row][self.column] = char
                     self.column += width
         return result
+
+    def scroll_if_needed(self):
+        if self.row >= self.size.lines:
+            if self.normal_screen is None:
+                self.scrollback.append(''.join(self.cells[0]).rstrip())
+            self.cells.pop(0)
+            self.cells.append([' '] * self.size.columns)
+            self.row = self.size.lines - 1
 
     def visible(self):
         return '\n'.join(''.join(row).rstrip() for row in self.cells)

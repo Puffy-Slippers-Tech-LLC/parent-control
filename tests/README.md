@@ -1012,10 +1012,15 @@ ratio, which survives terminal resizing. The divider turns blue while dragging
 and returns to its normal color on release. Hover requests the standard horizontal
 resize pointer using OSC 22; terminals without pointer-shape support keep their
 own pointer, including VS Code's integrated terminal (xterm.js does not implement
-OSC 22). All panels preserve native mouse selection, Ctrl+Shift+C copying and
-the terminal's right-click Copy menu by default. In chat displays, F2 toggles
-mouse scrolling, divider dragging and clickable controls; F2 again restores
-native selection and context menus. Non-chat displays use m for this toggle.
+OSC 22). The live layout uses the normal terminal screen and publishes arriving
+output, controller transitions, task explanations and questions to native
+scrollback. The wheel and the terminal's scrollbar browse that history while
+ordinary mouse selection, Ctrl+Shift+C and the right-click Copy menu remain
+available together, without a mode switch or selection modifier. Native scrolling
+moves the whole terminal view; return to the bottom for the live layout and input.
+In chat displays, F2 optionally enables individual-pane scrolling, divider
+dragging and clickable controls; F2 again restores native scrolling, selection
+and context menus. Non-chat displays use m for these optional pane controls.
 The right upper panel shows the current task ID/title, session count/duration,
 session phase and selected model/effort. Below a horizontal separator, the
 plain-language task explanation stays fixed across retries and reconnects unless
@@ -1037,7 +1042,8 @@ or type your own instructions. Multiple observers share the existing first-answe
 rule. With mouse mode enabled, mouse wheels scroll the panel under the pointer.
 `write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
 launcher runtime plus one, and y is this runtime's task maximum, refreshed when
-another invocation adjusts `--tasks`. The counter stays pinned while scrolling.
+another invocation adjusts `--tasks`. The counter stays pinned in the live frame
+during individual-pane scrolling; native scrollback moves the whole view.
 Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.
@@ -1048,27 +1054,29 @@ steps share an identical leading heading once, retaining their distinct session
 lines; hiding the older step restores the newest step's full heading. Header text
 wraps to the observer's current width; older steps yield space first when the
 terminal shrinks. A terminal too small for even the newest step plus an output
-row clips the header until enlarged, staying on the alternate screen. Pipes and dumb
+row clips the header until enlarged. Pipes and dumb
 terminals accumulate plain output. Reconnection restores the latest controller
-steps separately from the output tail. The live terminal retains a bounded
-transcript on the alternate screen. On exit it restores the original screen,
-cursor and input modes, then appends the latest controller steps and retained run
-log to ordinary terminal scrollback. This includes cancellation, exceptions and
+steps separately from the output tail. The live panes retain a bounded transcript;
+arriving complete lines also enter native terminal history immediately, before
+exit. History depth follows the terminal's configured scrollback limit. Repainting
+the dashboard or an idle poll adds no repeated history. On exit the launcher
+flushes an unfinished output line, restores cursor and input modes and leaves
+the primary screen/history intact, without replaying the run log. This includes cancellation, exceptions and
 default termination signals (HUP, TERM and QUIT); SIGKILL cannot run terminal
-cleanup. Replay uses the run log rather than the bounded live pane, and leaves
-existing shell history intact. Full output remains in the existing run log,
+cleanup. Existing shell history is preserved. Full output remains in the existing run log,
 subject to its storage limits. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.
 For `run-tests` and `fix-tests`, mouse capture is off by default: plain dragging selects text and right-click
 uses the host terminal's configured behavior, including VS Code's context menu.
-The divider shows `m: scroll/resize`; press `m` to enable pane clicks, wheel
-scrolling and divider dragging. The divider changes to `m: select text`.
+The divider shows `Wheel/scrollbar: history` and `m: pane controls`; press `m`
+to enable pane clicks, wheel scrolling within a pane and divider dragging.
+The divider changes to `m: native scrolling/selection`.
 A pinned **↓** button at the lower pane's
 bottom-right corner returns to the newest output and resumes following it.
 The button stays outside the scrolling transcript and follows terminal resizing.
-Press `m` again to restore native selection
-and menus. Mouse reporting applies to the whole terminal, so plain native
-selection and divider dragging use separate modes. Use Up/Down or Page Up/Page Down to scroll,
+Press `m` again to restore native scrolling, selection and menus. Optional pane
+controls capture terminal mouse events; ordinary history browsing needs no such
+capture. Use Up/Down or Page Up/Page Down to scroll a pane,
 Tab to switch panes (initially the lower pane), and End to return to the newest
 rows in either mode.
 The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown

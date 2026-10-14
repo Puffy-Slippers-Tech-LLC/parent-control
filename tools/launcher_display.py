@@ -12,12 +12,19 @@ from rich.cells import get_character_cell_size
 from rich.text import Text
 
 from launcher_chat import ChatEditor, read_state, send_input
-from launcher_render import LauncherDisplay
+from launcher_render import LauncherDisplay, clean
+
+
+def clock_duration(seconds):
+    """Elapsed whole minutes, shared by the session and terminal-launch clocks."""
+    hours, minutes = divmod(max(0, int(seconds // 60)), 60)
+    return f'{hours}h {minutes}m' if hours else f'{minutes}m'
 
 
 class TaskDisplay(LauncherDisplay):
     def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
         super().__init__(stream, **kwargs)
+        self.launched_at = time.monotonic()
         self.run = run
         self.input_mode = input_mode
         self.ratio = .75
@@ -236,7 +243,20 @@ class TaskDisplay(LauncherDisplay):
             size = self.terminal_size() if self.terminal_size else os.get_terminal_size(self.stream.fileno())
         except (OSError, ValueError):
             size = shutil.get_terminal_size()
+        current = next((s for s in reversed(self.steps) if not s.get('pinned') and not s.get('replaces')), None)
+        summary_lines = list(current['lines']) if current else ['Waiting for task…']
+        started = self.chat_state.get('started_at')
+        # The clock belongs to the owner session, so reconnecting observers use
+        # the same origin and a new task never inherits the previous clock.
+        session = self.chat_state.get('task_session', self.chat_state.get('session'))
+        if (current and current['key'] == self.chat_state.get('progress_key')
+                and started is not None and len(summary_lines) > 1
+                and clean(summary_lines[-1]).startswith((f'Session [{session}]:', f'Session {session}:'))):
+            ended = self.chat_state.get('finished_at', time.time())
+            summary_lines[-1] += '; ' + clock_duration(ended - started)
+        total_duration = clock_duration(time.monotonic() - self.launched_at)
         state = (size, self.ratio, self.top_ratio, self.dragging, self.task_totals,
+                 tuple(summary_lines), total_duration,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
@@ -257,9 +277,9 @@ class TaskDisplay(LauncherDisplay):
         totals.append(str(unfinished), style='blue')
         totals.append('/')
         totals.append(str(total))
+        totals.append('\nTotal Duration: ' + total_duration)
         total_rows = totals.wrap(self.console, top_right_width, overflow='fold')[:max(0, height - 4)]
         pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
-        current = next((s for s in reversed(self.steps) if not s.get('pinned') and not s.get('replaces')), None)
         # Only completed/suspended history stays above the lower split.
         history = [line for s in self.steps if not s.get('pinned') and
                    (s.get('replaces') or (s is not current and len(s['lines']) == 1)) for line in s['lines']]
@@ -286,10 +306,9 @@ class TaskDisplay(LauncherDisplay):
         chrome_height = 1 + int(boxed) + int(show_hint)
         self.divider_column = left_width + 1
 
-        summary = self.wrapped(current['lines'] if current else ['Waiting for task…'], right_width)
+        summary = self.wrapped(summary_lines, right_width)
         summary_height = min(len(summary), max(0, available // 2),
                              max(0, available - len(separator) - 1))
-        summary_lines = current['lines'] if current else ['Waiting for task…']
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
         task_info = self.task_info if self.task_info.get('task_id') == self.chat_state.get('task_id') else {}

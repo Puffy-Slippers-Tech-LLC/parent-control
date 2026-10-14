@@ -119,13 +119,21 @@ session allowance stops with a retained handoff rather than skipping the task.
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Plan/E2E sessions offer conversation input; repair offers input
-for developer decisions; `run-tests` has no agent sessions or composer. The
-top and lower splits start at 75:25 with aligned dividers; each divider resizes
+for developer decisions; `run-tests` has no agent sessions or composer.
+The Plan/E2E session line appends elapsed clock time, refreshing every minute even
+without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
+The clock starts with each session, survives observer reconnection and stops
+when the session finishes.
+The top and lower splits start at 75:25 with aligned dividers; each divider resizes
 independently by dragging. The top-right `Total Tasks: x/y/z` shows completed
 tasks in green, unfinished tasks in blue and the total in the normal text color.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`, and refresh automatically as the queue changes.
 Displays without a Markdown plan show unavailable counts as dashes.
+Below the counts, `Total Duration` shows elapsed time for this terminal launch
+in the same minute/hour format. It refreshes every minute and continues across
+tasks. Each new terminal invocation resets this clock, including attachment to
+an existing owner; previous invocations never contribute elapsed time.
 Non-chat displays preserve native text selection by default; `m` enables mouse
 scrolling. Pipes receive
 plain output and retain the same owner/result semantics.

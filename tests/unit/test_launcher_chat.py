@@ -24,6 +24,7 @@ def conversation(tmp_path):
     (tmp_path / 'checkpoint.json').write_text(json.dumps({
         'task_id': '001', 'task_sessions': 1, 'total_sessions': 1}))
     (tmp_path / 'prompt.txt').write_text('Implement the task.')
+    launcher.atomic(tmp_path / 'controller.json', [{'key': 'runtime-1', 'lines': ['Task 001', 'Session [1]']}])
     schema = Path(__file__).parents[2] / 'tools/write_e2e_response.schema.json'
     command = ['/opt/codex', '--model', 'gpt-6.1-sol', '--output-schema', str(schema)]
     output = io.StringIO()
@@ -357,6 +358,74 @@ def display_fixture(tmp_path, width=120, height=36):
     return display, terminal
 
 
+def test_session_clock_keeps_owner_origin_across_turns_and_freezes_on_finish(conversation, monkeypatch):
+    session, _, _ = conversation
+    started = read_state(session.run)['started_at']
+    assert read_state(session.run)['progress_key'] == 'runtime-1'
+    monkeypatch.setattr('launcher_chat.time.time', lambda: started + 125)
+    for status in ('running', 'interrupting', 'cleaning', 'waiting', 'running'):
+        session.publish(status)
+        assert read_state(session.run)['started_at'] == started
+        assert 'finished_at' not in read_state(session.run)
+    session.publish('finished')
+    state = read_state(session.run)
+    assert state['started_at'] == started
+    assert state['finished_at'] == started + 125
+
+
+@pytest.mark.parametrize('progress_key', ['1', '001'])
+def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp_path, monkeypatch, progress_key):
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_display.time.time', lambda: clock[0])
+    display, terminal = display_fixture(tmp_path, width=240)
+    display.steps[-1]['key'] = progress_key
+    display.chat_state.update(progress_key=progress_key, session=8)
+    display.chat_state['started_at'] = clock[0]
+    display.draw()
+    assert 'Writing code; 0m' in terminal.visible()
+    unchanged = terminal.getvalue()
+    clock[0] += 59
+    display.draw()
+    assert terminal.getvalue() == unchanged
+    clock[0] += 1
+    display.draw()
+    assert 'Writing code; 1m' in terminal.visible()
+    for elapsed, duration in ((12 * 60, '12m'), (3599, '59m'), (3600, '1h 0m'), (4330, '1h 12m')):
+        clock[0] = 1000 + elapsed
+        display.draw()
+        assert 'Writing code; ' + duration in terminal.visible()
+
+    launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
+    reconnected, screen = display_fixture(tmp_path, width=240)
+    reconnected.steps[-1]['key'] = progress_key
+    reconnected.refresh_chat()
+    reconnected.draw()
+    assert 'Writing code; 1h 12m' in screen.visible()
+    reconnected.chat_state.update(status='finished', finished_at=clock[0])
+    reconnected.draw()
+    unchanged = screen.getvalue()
+    clock[0] += 120
+    reconnected.draw()
+    assert screen.getvalue() == unchanged
+    assert reconnected.steps[-1]['lines'][-1] == 'Session [1]: Writing code'
+
+    # At the next session boundary stale owner metadata must not leak a clock.
+    reconnected.update([{'key': '2', 'lines': ['Task 002: Next', 'Session [1]: Writing code']}], [])
+    assert 'Writing code;' not in screen.visible()
+    reconnected.chat_state.update(session=9, progress_key='2', started_at=clock[0], status='running')
+    reconnected.chat_state.pop('finished_at')
+    reconnected.draw()
+    assert 'Writing code; 0m' in screen.visible()
+
+    # Ordinary plans reuse the task key across retries. The next session line
+    # must not borrow the old attempt's elapsed time during that transition.
+    reconnected.update([{'key': '001', 'lines': ['Task 001: Countdown', 'Session [2]: Writing code']}], [])
+    assert 'Writing code;' not in screen.visible()
+    reconnected.chat_state.update(task_id='001', task_session=2, progress_key='001')
+    reconnected.draw()
+    assert 'Writing code; 0m' in screen.visible()
+
+
 def test_split_drag_resize_and_task_summary_location(tmp_path):
     display, terminal = display_fixture(tmp_path)
     display.write('Output belongs on the left.\n')
@@ -364,8 +433,8 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
     lines = terminal.visible().splitlines()
     assert lines[0].split('│')[0].strip() == 'Tasks: 1/3'
     assert 'Task 001:' not in lines[0]
-    assert lines[2].split('│')[0].strip() == 'Output belongs on the left.'
-    assert 'Task 001:' in lines[2].split('│')[1]
+    assert lines[display.top_height + 1].split('│')[0].strip() == 'Output belongs on the left.'
+    assert 'Task 001:' in lines[display.top_height + 1].split('│')[1]
     display.mouse(35, display.divider_column, 4, False)
     assert '\033]22;ew-resize\033\\' in terminal.getvalue()
     display.mouse(0, display.divider_column, 4, False)
@@ -380,6 +449,35 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
         assert all(len(line) <= width for line in terminal.visible().splitlines())
     display.close()
     assert '\033[?1003l' in terminal.getvalue()
+
+
+def test_total_duration_updates_across_tasks_and_resets_on_terminal_launch(tmp_path, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
+    display, terminal = display_fixture(tmp_path, width=240)
+    assert 'Total Duration: 0m' in terminal.visible()
+    lines = terminal.visible().splitlines()
+    assert 'Total Tasks:' in lines[0].split('│')[1]
+    assert 'Total Duration:' in lines[1].split('│')[1]
+    unchanged = terminal.getvalue()
+    clock[0] += 59
+    display.draw()
+    assert terminal.getvalue() == unchanged
+    clock[0] += 1
+    display.draw()
+    assert 'Total Duration: 1m' in terminal.visible()
+    display.update([{'key': '2', 'lines': ['Task 002: Next', 'Session [1]: Writing code']}], [])
+    assert 'Total Duration: 1m' in terminal.visible()
+    for elapsed, duration in ((12 * 60, '12m'), (3599, '59m'), (3600, '1h 0m'), (4330, '1h 12m')):
+        clock[0] = 1000 + elapsed
+        display.draw()
+        assert 'Total Duration: ' + duration in terminal.visible()
+    # Reusing the retained run directory must not reuse the terminal's clock.
+    restarted, screen = display_fixture(tmp_path, width=240)
+    assert 'Total Duration: 0m' in screen.visible()
+    clock[0] += 60
+    restarted.draw()
+    assert 'Total Duration: 1m' in screen.visible()
 
 
 def test_top_and_bottom_dividers_drag_independently(tmp_path):

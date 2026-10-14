@@ -8,9 +8,11 @@ import codecs
 import fcntl
 import json
 from pathlib import Path
+import time
 
 import detached_launcher as launcher
 from launcher_render import clean
+from launcher_progress import read_progress
 
 MAX_INPUT = 64 * 1024
 MAX_QUEUE = 256 * 1024
@@ -86,6 +88,9 @@ class AppSession:
         self.interrupt_requested = False
         self.interrupting = False
         self.on_interrupted = on_interrupted
+        progress = read_progress(run)
+        self.progress_key = progress[-1]['key'] if progress else None
+        self.started_at = time.time()
         self.publish('starting')
         self.request('initialize', {'clientInfo': {'name': 'onpc_launcher',
                      'title': 'Task launcher', 'version': '1.0'},
@@ -97,9 +102,13 @@ class AppSession:
             self.publish_locked(status)
 
     def publish_locked(self, status):
-        launcher.atomic(self.run / 'chat-state.json', {
+        state = {
             'session': self.session, 'task_session': self.task_session,
-            'task_id': self.task, 'status': status})
+            'task_id': self.task, 'status': status, 'started_at': self.started_at,
+            'progress_key': self.progress_key}
+        if status == 'finished':
+            state['finished_at'] = time.time()
+        launcher.atomic(self.run / 'chat-state.json', state)
 
     def request(self, method, params):
         self.counter += 1

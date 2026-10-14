@@ -132,6 +132,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
                                       'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                                      'reproduce-kiosk-preferences',
                                       'reproduce-lock-denial',
                                       'reproduce-retained-entry', 'probe-lock-curtain',
                                       'reproduce-retained-app-visits',

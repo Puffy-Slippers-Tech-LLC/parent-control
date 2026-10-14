@@ -86,6 +86,7 @@ OPERATIONS |= frozenset({
 })
 OPERATIONS |= frozenset({'parent-search-ready', 'parent-search-focused', 'parent-search-entered'})
 OPERATIONS |= frozenset({'parent-search-close-ready', 'parent-search-closed'})
+OPERATIONS |= {'kiosk-preferences-confinement'}
 PARENT_LANGUAGE_CHOICES = ('en', 'de', 'zh-Hans', 'he')
 PARENT_LANGUAGE_STATES = {
     f'parent-language-{name}-enabled-{language.lower()}': (child, language)
@@ -966,6 +967,7 @@ KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
                                    'kiosk-about-close-ready', 'kiosk-about-closed'})
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
+KIOSK_SESSION_OPERATIONS |= {'kiosk-preferences-confinement'}
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (surface, _child, _action)
                             in BINDING_REMINDER_OPERATIONS.items() if surface == 'kiosk'}
 KIOSK_SESSION_OPERATIONS |= set(BINDING_REMINDER_SELECTIONS)
@@ -1262,6 +1264,9 @@ def owned_surface_id(identity):
             'reminder-text-count', 'reminder-value', 'reminder-value-increase',
             'reminder-value-decrease', 'reminder-unit', 'reminder-duplicate-warning'):
         return None if identity == 'reminder-editor-dialog' else 'reminder-editor-dialog'
+    if identity.startswith('preset-editor-') or identity in (
+            'preset-value', 'preset-value-increase', 'preset-value-decrease', 'preset-unit'):
+        return None if identity == 'preset-editor-dialog' else 'preset-editor-dialog'
     for prefix, surface in (
         ('update-required-', 'update-required-dialog'),
         ('parent-startup-', 'parent-startup-window'),
@@ -1270,6 +1275,7 @@ def owned_surface_id(identity):
         ('parent-match-rule-', 'parent-match-rule-dialog'),
         ('preferences-', 'language-dialog'),
         ('reminder-', 'language-dialog'),
+        ('preset-', 'language-dialog'),
         ('language-', 'language-dialog'),
         ('feedback-full-privacy-', 'feedback-privacy-dialog'),
         ('feedback-privacy-', 'feedback-privacy-dialog'),
@@ -1341,7 +1347,7 @@ def owned_applications(identity):
         return (CHILD_PANEL_APPLICATION,)
     if identity.startswith('parent-'):
         return (PARENT_APPLICATION,)
-    if identity.startswith(('kiosk-', 'preview-screen-', 'preferences-', 'reminder-')):
+    if identity.startswith(('kiosk-', 'preview-screen-', 'preferences-', 'reminder-', 'preset-')):
         return (KIOSK_APPLICATION, CHILD_APPLICATION)
     if identity.startswith('preview-viewer-'):
         return ('com.puffyslippers.ScreenPreview',)
@@ -2187,7 +2193,7 @@ class AccessibleUI:
                     ('parent-window', 'kiosk-request-window')
                     if identity == 'update-required-dialog' else
                     ('parent-window',) if identity in ('parent-revoke-dialog', 'parent-match-rule-dialog') else
-                    ('language-dialog',) if identity == 'reminder-editor-dialog' else
+                    ('language-dialog',) if identity in ('reminder-editor-dialog', 'preset-editor-dialog') else
                     ('parent-window', 'kiosk-request-window') if identity == 'language-dialog' else
                     ('kiosk-request-window',) if identity == 'preview-screen-dialog' else
                     tuple(value for value in primary if value != 'parent-access-denied-window'))
@@ -9091,6 +9097,161 @@ class AccessibleUI:
             self.input_uncertain = True
             raise
 
+    def _preferences_controls_confined(self, observation, root, allowed, *, readonly=(), exclude=()):
+        """Reject extra public controls and links in a complete owned inventory.
+
+        The product API inventories identified controls. The source audit owns
+        completeness of those IDs; this check never claims anonymous UI coverage.
+        """
+        nodes, edges, identities, facts = observation
+        excluded = {node for surface in exclude
+                    for node in self.snapshot_scope(nodes, edges, surface)}
+        for node in self.snapshot_scope(nodes, edges, root):
+            if facts[node]['showing'] and node not in excluded:
+                require(identities[node] in allowed and facts[node]['role'] != 'link',
+                        'ui:preferences-external-action')
+                if identities[node] in readonly:
+                    operations = getattr(node, 'metadata', {}).get('operations', ())
+                    require(not set(operations) & {'activate', 'setValue', 'setText', 'close'}
+                            and facts[node]['role'] not in (
+                                'push button', 'button', 'toggle button', 'menu item',
+                                'entry', 'check box', 'radio button', 'combo box'),
+                            'ui:preferences-external-action')
+
+    def _kiosk_preferences_state(self, page, *, instance=None, editor=None, inspect=True):
+        """Bind each page/editor read to the same station, child and modal owner."""
+        observation = self.read_snapshot()
+        nodes, edges, identities, facts = observation
+        window = self.request_surface(observation)
+        self.initial_kiosk_child(observation, window, child=CHILD)
+        application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+        dialog = self.snapshot_owned_target('language-dialog', root=application,
+                                            observation=observation)
+        require(dialog is not None and self.has_state(dialog, self.api.StateType.MODAL),
+                'ui:preferences-entry')
+        lifetime = dialog.getValue()
+        require(type(lifetime) is str and re.fullmatch(r'[0-9a-f]{32}', lifetime)
+                and (instance is None or instance == lifetime), 'ui:preferences-replaced')
+        modal = (self.snapshot_owned_target(editor + '-editor-dialog', root=application,
+                                            observation=observation) if editor else None)
+        require(editor is None or (modal is not None and
+                self.has_state(modal, self.api.StateType.MODAL)), 'ui:preferences-editor')
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in (window, dialog, modal) if node is not None),
+                'ui:preferences-stale')
+        for node in self.snapshot_scope(nodes, edges, application):
+            if facts[node]['showing'] and (facts[node]['role'] in ('window', 'dialog') or
+                    (facts[node]['role'] == 'frame' and node.get_parent() == application)):
+                require(node in (window, dialog, modal), 'ui:preferences-extra-surface')
+
+        def target(identity):
+            value = self.snapshot_owned_target(identity, root=dialog, showing=False,
+                                               observation=observation)
+            require(value is not None, 'ui:preferences-control')
+            return value
+
+        tabs = target('preferences-tabs')
+        require(tabs.getChoices() == ['language', 'reminders', 'presets']
+                and tabs.getValue() == page, 'ui:preferences-pages')
+        # Each input binds the fresh owner/child/page/lifetime. Inspect the
+        # complete control inventory once per exposed page/editor state; API
+        # element operations independently revalidate their recipient on input.
+        if not inspect:
+            return lifetime
+        allowed = {'language-dialog', 'preferences-title', 'language-account',
+            'preferences-close', 'preferences-tabs', 'preferences-tab-language',
+            'preferences-tab-reminders', 'preferences-tab-presets', 'language-error',
+            'language-cancel', 'language-continue'}
+        readonly = {'preferences-title', 'language-account', 'language-error'}
+        if page == 'language':
+            language = target('language-list')
+            choices = language.getChoices()
+            require(type(choices) is list and choices and len(set(choices)) == len(choices)
+                    and all(type(value) is str and re.fullmatch(r'[A-Za-z]+(?:-[A-Za-z]+)*', value)
+                            for value in choices), 'ui:preferences-languages')
+            allowed |= {'language-title', 'language-search', 'language-list',
+                        *('language-choice-' + value.lower() for value in choices)}
+            readonly.add('language-title')
+        elif page == 'reminders':
+            state = self._overlay_reminder_state(editor=editor is not None,
+                                                 surface='kiosk', child=CHILD)
+            allowed |= {'reminder-list', 'reminder-status', 'reminder-retry', 'reminder-add',
+                        'reminder-fullscreen-row', 'reminder-show-in-fullscreen',
+                        *(f"reminder-{row['id']}-{suffix}" for row in state['payload']['records']
+                          for suffix in ('text', 'trigger', 'edit', 'delete'))}
+            readonly |= {'reminder-list', 'reminder-status',
+                         *(f"reminder-{row['id']}-{suffix}" for row in state['payload']['records']
+                           for suffix in ('text', 'trigger'))}
+        else:
+            presets = target('preset-list').getValue()
+            require(type(presets) is list and presets and len(presets) <= 64
+                    and all(type(value) is int and 6 <= value <= 86400 for value in presets)
+                    and presets == sorted(set(presets)), 'ui:preferences-presets')
+            allowed |= {'preset-list', 'preset-status', 'preset-retry', 'preset-add',
+                        'preset-0-text', 'preset-custom-text',
+                        *(f'preset-{value}-{suffix}' for value in presets
+                          for suffix in ('text', 'edit', 'delete'))}
+            readonly |= {'preset-list', 'preset-status', 'preset-0-text', 'preset-custom-text',
+                         *(f'preset-{value}-text' for value in presets)}
+        self._preferences_controls_confined(observation, dialog, allowed,
+                                            readonly=readonly,
+                                            exclude=(modal,) if modal else ())
+        if modal is not None:
+            allowed = {editor + suffix for suffix in (
+                '-editor-dialog', '-editor-close', '-editor-save', '-editor-cancel',
+                '-editor-error', '-value', '-value-increase', '-value-decrease', '-unit')}
+            allowed |= ({'reminder-text', 'reminder-text-count', 'reminder-editor-preview',
+                         'reminder-duplicate-warning'} if editor == 'reminder' else
+                        {'preset-editor-title'})
+            self._preferences_controls_confined(observation, modal, allowed,
+                readonly={editor + '-editor-error', 'reminder-text-count',
+                          'reminder-duplicate-warning', 'preset-editor-title'})
+        return lifetime
+
+    def kiosk_preferences_confinement(self):
+        """Visit every exposed page and Add/Edit modal, discarding their drafts."""
+        with self.language_scope('kiosk'), self._reminder_input_scope():
+            self.kiosk_valid_target('kiosk-request-submit')
+            require(self.snapshot_owned_target('language-dialog', showing=False,
+                    allow_unmapped_surface=True) is None, 'ui:preferences-already-open')
+            self.open_language_preferences('kiosk')
+            instance = self._kiosk_preferences_state('language')
+            language = self.get_value('language-list')
+            for page, kind in (('reminders', 'reminder'), ('presets', 'preset')):
+                self._kiosk_preferences_state('language' if page == 'reminders' else 'reminders',
+                                               instance=instance, inspect=False)
+                self.set_value('preferences-tabs', page)
+                def loaded():
+                    status = self.snapshot_owned_target(kind + '-status')
+                    if status is not None:
+                        return None
+                    return self._kiosk_preferences_state(page, instance=instance)
+                self.wait(loaded, 'preferences-page-loaded')
+                records = self.get_value(kind + '-list')
+                require(bool(records), 'ui:preferences-edit-control')
+                first = records[0]['id'] if kind == 'reminder' else str(records[0])
+                for action in (kind + '-add', kind + '-' + first + '-edit'):
+                    self._kiosk_preferences_state(page, instance=instance, inspect=False)
+                    self.activate_id(action)
+                    self.wait(lambda: self.snapshot_owned_target(kind + '-editor-dialog'),
+                              'preferences-editor-open')
+                    self._kiosk_preferences_state(page, instance=instance, editor=kind)
+                    self.activate_id(kind + '-editor-cancel')
+                    self.wait(lambda: self.absent_id(kind + '-editor-dialog',
+                              within='language-dialog', incomplete_raises=True),
+                              'preferences-editor-closed')
+                    self._kiosk_preferences_state(page, instance=instance, inspect=False)
+                    require(self.get_value(kind + '-list') == records,
+                            'ui:preferences-draft-changed')
+            self._kiosk_preferences_state('presets', instance=instance, inspect=False)
+            require(self.get_value('language-list') == language, 'ui:preferences-language-changed')
+            self.activate_id('language-cancel')
+            self.wait(lambda: self.absent_id('language-dialog', within='kiosk-request-window',
+                      incomplete_raises=True), 'preferences-closed')
+            return {'pages': ['language', 'reminders', 'presets'],
+                    'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
+                    'actions_confined': True, 'drafts_discarded': True}
+
     def kiosk_reminder_source(self):
         import hashlib
         observation = self.read_snapshot()
@@ -12406,6 +12567,8 @@ class AccessibleUI:
                 require(str(error) == 'ui:kiosk-about-entry', 'ui:kiosk-about-refusal')
             else:
                 raise UiError('ui:kiosk-about-refusal-missing')
+        elif operation == 'kiosk-preferences-confinement':
+            result['preferences_confinement'] = self.kiosk_preferences_confinement()
         elif operation == 'kiosk-about-open':
             self.open_kiosk_about()
         elif operation == 'parent-overlay-about-refused':

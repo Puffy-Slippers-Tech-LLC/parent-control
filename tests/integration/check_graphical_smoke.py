@@ -657,6 +657,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, information_link='license',
          kiosk_eligible_choices=False, kiosk_feedback_confinement=False,
+         kiosk_preferences_confinement=False,
          kiosk_notification_wellbeing=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
@@ -689,6 +690,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None):
+    require(type(kiosk_preferences_confinement) is bool and (not kiosk_preferences_confinement or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and time_profiles_daily is None and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'kiosk_preferences_confinement')
+            and isinstance(value, bool)))), 'smoke:kiosk-preferences-confinement-prerequisites')
     require(time_profiles_daily in (None, 'fresh', 'same-user') and (time_profiles_daily is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1483,6 +1490,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
         if kiosk_feedback_confinement:
             result['scope'] = 'engineering-installed-kiosk-feedback-confinement'
+        if kiosk_preferences_confinement:
+            result['scope'] = 'engineering-installed-kiosk-preferences-confinement'
         if kiosk_notification_wellbeing:
             result['scope'] = 'engineering-installed-kiosk-notification-wellbeing'
         if request_choices:
@@ -1725,6 +1734,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = preflight_source(staged, upgrade=dual_packages)
                 if (parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
+                        or kiosk_preferences_confinement
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or overlay_reminder_editing or kiosk_reminder_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or app_activity or retained_app_visits
                         or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
@@ -1919,6 +1929,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_feedback_confinement:
                     from parent_setup_qualification import KioskFeedbackConfinementQualification
                     qualification_class = KioskFeedbackConfinementQualification
+                if kiosk_preferences_confinement:
+                    from parent_setup_qualification import KioskPreferencesConfinementQualification
+                    qualification_class = KioskPreferencesConfinementQualification
                 if kiosk_notification_wellbeing:
                     from parent_setup_qualification import KioskNotificationWellbeingQualification
                     qualification_class = KioskNotificationWellbeingQualification

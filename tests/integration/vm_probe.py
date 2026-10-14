@@ -38,6 +38,16 @@ def reproduce_kiosk_entry(lease):
     return reproduce_denial(lease, InstalledJourney, PLAN, 'request-form', 'kiosk-entry')
 
 
+def reproduce_kiosk_preferences(lease):
+    """Diagnose one Preferences operation and retain its scene, never acceptance."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from request_composition import KioskRequestJourney
+    from kiosk_preferences_confinement import PLAN
+    return reproduce_denial(lease, KioskRequestJourney, PLAN,
+        'preferences-confined', 'kiosk-preferences',
+        boundary_operation='kiosk-preferences-confinement')
+
+
 def reproduce_kiosk_approval(lease):
     """Retain the real approval prompt before qualification or secret input."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

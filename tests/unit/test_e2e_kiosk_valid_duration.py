@@ -32,6 +32,7 @@ from restricted_station import PLAN as STATION_PLAN, DENIED_PLAN, CANCELLED_PLAN
 import approval_flow
 from restricted_station_about import PLAN as ABOUT_PLAN, RestrictedStationAboutJourney
 from kiosk_about import PLAN as ABOUT_CASE_PLAN
+from kiosk_preferences_confinement import PLAN as PREFERENCES_PLAN, KioskPreferencesConfinementJourney
 from request_composition import KioskRequestJourney
 
 
@@ -235,6 +236,92 @@ def test_station_about_worker_preserves_order_and_stops_on_refusal(monkeypatch, 
     assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
     closes = [event for event in result['events'] if event == ['key', 'alt-f4']]
     assert closes == []  # The shared API observation closes the product surface.
+
+
+@pytest.mark.parametrize('refusal', [None, *PREFERENCES_PLAN.screen_tags])
+def test_preferences_confinement_worker_preserves_order_and_stops_on_refusal(monkeypatch, refusal):
+    if refusal:
+        monkeypatch.setenv('ONPC_TEST_REFUSE_STAGE', refusal)
+    worker = WORKER.replace('onpc_kiosk_eligible_choices', 'onpc_kiosk_preferences_confinement')
+    result = json.loads(run_perl(worker).stdout)
+    stages = [event[1] for event in result['events'] if event[0] == 'stage']
+    expected = list(PREFERENCES_PLAN.screen_tags)
+    assert bool(result['ok']) == (refusal is None), result['error']
+    assert stages == (expected if refusal is None else expected[:expected.index(refusal) + 1])
+    if 'open-estimate' in stages:
+        boundary = result['events'].index(['stage', 'open-estimate'])
+        assert not any(event[0] in ('key', 'secret', 'text')
+                       for event in result['events'][boundary + 1:])
+
+
+@pytest.mark.parametrize('conflict', [
+    'request_choices', 'kiosk_feedback_confinement', 'kiosk_entry', 'parent_about',
+    'kiosk_reminder_binding', 'kiosk_valid_duration', 'serial', 'fresh_thirty_allowance',
+])
+def test_preferences_confinement_mode_conflicts_refuse_before_vm(conflict):
+    import check_graphical_smoke
+    from owned_commands import CommandError
+    with pytest.raises(CommandError, match='kiosk-preferences-confinement-prerequisites'):
+        check_graphical_smoke.main(assets='/unused', provision_credentials=True,
+            kiosk_preferences_confinement=True, **{conflict: True})
+
+
+def test_preferences_confinement_registration_reuses_verified_snapshot_and_request_comparison(tmp_path):
+    from parent_setup_qualification import KioskPreferencesConfinementQualification, KioskEntryQualification
+    from tools.test_commands import qualification_input_options
+    from tests.support.paths import ROOT
+    qualification = KioskPreferencesConfinementQualification
+    journey = qualification.journey(SimpleNamespace(directory=tmp_path), Mock())
+    assert journey.plan is PREFERENCES_PLAN
+    assert isinstance(journey, KioskRequestJourney)
+    assert qualification.attach_installed_snapshot is KioskEntryQualification.attach_installed_snapshot
+    assert PREFERENCES_PLAN.request_checks == {
+        'form-returned': ('open-estimate', 'kiosk-preferences:changed-form', 'unchanged_form')}
+    assert qualification_input_options(ROOT, 'check_e2e_kiosk_preferences_confinement') == {
+        'package_source': True}
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_preferences_confinement_census_finishes_before_durable_worker_reply(tmp_path, failure):
+    import system_runner
+    stage = 'preferences-confined'
+    lease = SimpleNamespace(guard=Mock(), state={'run': 'c' * 32})
+    progress = Mock()
+    journey = KioskPreferencesConfinementJourney(
+        SimpleNamespace(directory=tmp_path, lease=lease), progress)
+    journey.steps = [{'stage': value} for value in PREFERENCES_PLAN.stages[
+        :PREFERENCES_PLAN.stages.index(stage)]]
+    journey.boot = 'b' * 64
+    journey.ui = SimpleNamespace(boot_proof=journey.boot, observe=Mock(return_value={
+        'operation': 'kiosk-preferences-confinement', 'preferences_confinement': {
+            'pages': ['language', 'reminders', 'presets'],
+            'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
+            'actions_confined': True, 'drafts_discarded': True}}))
+    census = {'backend': 'apparmor', 'confined_thread_roles': {'onpc-kiosk-app': 4}}
+    reply = tmp_path / (stage + '.reply.json')
+    def read_census(command, *, timeout):
+        assert not reply.exists()
+        lease.guard.assert_called_once_with()
+        assert command[-2:] == [system_runner.PAYLOAD + '/system_kiosk_confinement.py', 'census']
+        assert 'ONPC_EXPECTED_RUN=' + lease.state['run'] in command
+        assert timeout == 45
+        if failure:
+            raise RuntimeError('fixture census refusal')
+        return json.dumps(census)
+    journey.transport = SimpleNamespace(call=Mock(side_effect=read_census))
+    journey.collect_failure = Mock()
+    (tmp_path / (stage + '.request.json')).write_text(json.dumps(
+        {'stage': stage, 'screenshot': None}))
+    if failure:
+        with pytest.raises(RuntimeError, match='fixture census refusal'):
+            journey.step(Mock())
+        assert not reply.exists()
+        progress.assert_not_called()
+    else:
+        progress.side_effect = lambda *args: None if not reply.exists() else pytest.fail('early reply')
+        journey.step(Mock())
+        assert reply.exists()
+        assert progress.call_args.args[1]['engineering_confinement'] == census
 
 
 @pytest.mark.parametrize('fault', [None, 'daily', 'one_time', 'total'])

@@ -5500,3 +5500,187 @@ def test_streamed_prompt_input_is_narrow_ordered_and_restores_command_parser(fau
         session.observe(operation)
     handler.assert_not_called()
     assert commands.progress is previous
+
+
+def preferences_ui(*, extra_at=None):
+    """Independent small public-control model with native transient relations."""
+    from tests.support.e2e_kiosk import accounts_form
+    ui, approver, _, _ = accounts_form('approver')
+    approver.setValue('1000')
+    window = ui.find_id('kiosk-request-window')
+    window.bus, window.path = ':1.42', '/public/window'
+    application = window.parent
+    form = ui.find_id('kiosk-request-form')
+    menu = Node(role='push button', identity='kiosk-menu-button')
+    opener = Node(role='push button', identity='kiosk-menu-item-preferences')
+    for node in (menu, opener):
+        node.parent = form
+        form.children.append(node)
+    records = [{'id': 'fifteen-seconds', 'value': 15, 'unit': 'second', 'text': ''}]
+    pages = {
+        'language': [Node(role='group', identity='language-list', value='en', choices=['en'])],
+        'reminders': [Node(role='group', identity='reminder-list', value=records,
+                           choices=['fifteen-seconds']),
+            Node(role='label', identity='reminder-fifteen-seconds-text'),
+            Node(role='label', identity='reminder-fifteen-seconds-trigger'),
+            Node(role='push button', identity='reminder-add'),
+            Node(role='push button', identity='reminder-fifteen-seconds-edit'),
+            Node(role='toggle button', identity='reminder-show-in-fullscreen', value=True)],
+        'presets': [Node(role='group', identity='preset-list', value=[1800]),
+            Node(role='push button', identity='preset-add'),
+            Node(role='push button', identity='preset-1800-edit')],
+    }
+    tabs = Node(role='group', identity='preferences-tabs', value='language',
+                choices=['language', 'reminders', 'presets'])
+    cancel = Node(role='push button', identity='language-cancel')
+    dialog = Node(role='dialog', identity='language-dialog', value='a' * 32,
+        states=('showing', 'visible', 'sensitive', 'modal'),
+        children=[tabs, cancel, Node(role='push button', identity='language-continue'),
+                  *(node for page in pages.values() for node in page)])
+    dialog.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+        get_n_targets=lambda: 1, get_target=lambda _: window)]
+
+    def choose(page):
+        tabs.value = page
+        for name, controls in pages.items():
+            for node in controls:
+                node.states = {'visible', 'showing', 'sensitive'} if name == page else set()
+        if extra_at == page:
+            extra = Node(role='push button', identity='preferences-launch-program')
+            extra.parent = dialog
+            dialog.children.append(extra)
+    tabs.setValue.side_effect = choose
+    choose('language')
+
+    def edit(kind, route):
+        editor_cancel = Node(role='push button', identity=kind + '-editor-cancel')
+        editor = Node(role='dialog', identity=kind + '-editor-dialog',
+            states=('showing', 'visible', 'sensitive', 'modal'), children=[editor_cancel])
+        editor.relations = [SimpleNamespace(get_relation_type=lambda: 'controlled-by',
+            get_n_targets=lambda: 1, get_target=lambda _: dialog)]
+        if extra_at == kind + '-' + route:
+            extra = Node(role='link', identity=kind + '-external-link')
+            extra.parent = editor
+            editor.children.append(extra)
+        editor.parent = dialog
+        dialog.children.append(editor)
+        editor_cancel.action.do_action.side_effect = lambda _: editor.close() or True
+        return True
+    for kind, first in (('reminder', 'fifteen-seconds'), ('preset', '1800')):
+        for route, identity in (('add', kind + '-add'), ('edit', f'{kind}-{first}-edit')):
+            node = next(node for node in pages[kind + 's'] if node.identity == identity)
+            node.action.do_action.side_effect = lambda _, k=kind, r=route: edit(k, r)
+    def opened(_):
+        dialog.parent = application
+        application.children.append(dialog)
+        return True
+    opener.action.do_action.side_effect = opened
+    cancel.action.do_action.side_effect = lambda _: dialog.close() or True
+    return ui, dialog, tabs, opener
+
+
+def test_preferences_visits_all_pages_and_both_editor_routes_without_saving():
+    ui, dialog, tabs, opener = preferences_ui()
+    result = ui.run('kiosk-preferences-confinement', '')['preferences_confinement']
+    assert result == {'pages': ['language', 'reminders', 'presets'],
+        'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
+        'actions_confined': True, 'drafts_discarded': True}
+    assert tabs.setValue.call_args_list == [call('reminders'), call('presets')]
+    assert dialog not in dialog.parent.children
+    next(node for node in dialog.children if node.identity == 'language-continue').action.do_action.assert_not_called()
+    assert opener.action.do_action.call_count == 1
+
+
+@pytest.mark.parametrize('extra_at', ['language', 'reminders', 'presets',
+    'reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'])
+def test_preferences_refuses_extra_actions_on_every_page_and_editor_without_replay(extra_at):
+    ui, dialog, tabs, opener = preferences_ui(extra_at=extra_at)
+    with pytest.raises(UiError, match='ui:preferences-external-action'):
+        ui.run('kiosk-preferences-confinement', '')
+    assert ui.input_uncertain
+    with pytest.raises(UiError, match='ui:uncertain-input'):
+        ui.run('kiosk-preferences-confinement', '')
+    assert opener.action.do_action.call_count == 1
+
+
+@pytest.mark.parametrize('identity,surface', [
+    ('preset-editor-dialog', None), ('preset-editor-cancel', 'preset-editor-dialog'),
+    ('preset-value-increase', 'preset-editor-dialog'), ('preset-unit', 'preset-editor-dialog'),
+    ('preset-add', 'language-dialog'), ('preset-1800-edit', 'language-dialog'),
+])
+def test_preset_controls_bind_to_request_preferences_and_their_real_modal(identity, surface):
+    assert accessible_ui.owned_surface_id(identity) == surface
+    assert accessible_ui.owned_applications(identity) == (
+        accessible_ui.KIOSK_APPLICATION, accessible_ui.CHILD_APPLICATION)
+
+
+@pytest.mark.parametrize('role,operations', [
+    ('push button', []), ('entry', []), ('label', ['activate']),
+    ('label', ['setValue']), ('group', ['setText']), ('label', ['close']),
+])
+def test_preferences_static_ids_cannot_gain_input_or_launch_capabilities(role, operations):
+    node = Node(identity='preferences-title', role=role)
+    node.metadata = {'operations': operations}
+    ui = ui_for(Node(identity='kiosk-request-window', children=[node]))
+    observation = ui.read_snapshot()
+    with pytest.raises(UiError, match='ui:preferences-external-action'):
+        ui._preferences_controls_confined(observation, node, {'preferences-title'},
+                                          readonly={'preferences-title'})
+    node.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('field,value', [
+    ('actions_confined', 1), ('drafts_discarded', 1), ('actions_confined', False),
+    ('drafts_discarded', 'true'),
+])
+def test_preferences_decoder_requires_strict_success_flags(field, value):
+    result = {'operation': 'kiosk-preferences-confinement', 'outcome': 'passed',
+        'interface': 'ApplicationUI+external-provider', 'preferences_confinement': {
+            'pages': ['language', 'reminders', 'presets'],
+            'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
+            'actions_confined': True, 'drafts_discarded': True}}
+    result['preferences_confinement'][field] = value
+    raw = json.dumps(result).encode() + b'\n'
+    def respond(*_, on_output, **__):
+        on_output(raw)
+        return raw
+    transport = SimpleNamespace(commands=SimpleNamespace(progress=None),
+                                call=Mock(side_effect=respond))
+    with pytest.raises(EvidenceError, match='ui:preferences-confinement-response'):
+        UiObservations(transport).observe('kiosk-preferences-confinement')
+    transport.call.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['wrong-child', 'already-open', 'replaced', 'editor-parent'])
+def test_preferences_refuses_changed_identity_and_modal_ownership_before_further_input(fault):
+    ui, dialog, tabs, opener = preferences_ui()
+    if fault == 'wrong-child':
+        ui.find_id('kiosk-child-selector').value = '1002'
+    elif fault == 'already-open':
+        opener.action.do_action.side_effect(0)
+        opener.action.do_action.reset_mock()
+    elif fault == 'replaced':
+        choose = tabs.setValue.side_effect
+        def replace(page):
+            choose(page)
+            dialog.value = 'b' * 32
+        tabs.setValue.side_effect = replace
+    else:
+        add = next(node for node in dialog.children if node.identity == 'reminder-add')
+        open_editor = add.action.do_action.side_effect
+        def wrong_parent(index):
+            open_editor(index)
+            editor = dialog.children.pop()
+            editor.parent = dialog.parent
+            dialog.parent.children.append(editor)
+            editor.relations = [SimpleNamespace(
+                get_relation_type=lambda: 'controlled-by', get_n_targets=lambda: 1,
+                get_target=lambda _: ui.find_id('kiosk-request-window'))]
+            return True
+        add.action.do_action.side_effect = wrong_parent
+    expected = {'wrong-child': 'kiosk-valid-selection', 'already-open': 'preferences-already-open',
+                'replaced': 'preferences-replaced', 'editor-parent': 'wrong-surface-owner'}
+    with pytest.raises(UiError, match='ui:' + expected[fault]):
+        ui.run('kiosk-preferences-confinement', '')
+    assert opener.action.do_action.call_count == (0 if fault in ('wrong-child', 'already-open') else 1)
+    next(node for node in dialog.children if node.identity == 'language-cancel').action.do_action.assert_not_called()

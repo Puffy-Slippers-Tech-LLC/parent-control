@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 7b is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 7c is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -46,7 +46,7 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **6b — Denied kiosk request** | Complete restricted-station case 51 on both targets: authentication denial leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [x] | **6c — Cancelled kiosk request** | Complete restricted-station case 52 on both targets: cancellation leaves the kiosk confined and normal exit returns to usable sign-in. Preserve the complete case's assertions and finish owned cleanup. |
 | [x] | **7a — About restrictions** | On both targets, pass the complete registered kiosk About case 192 with its existing assertions: readable in-app information, no external handler, file chooser, management or arbitrary-program action, unchanged request choices on return and normal exit to sign-in. Use applicable retained evidence first and finish owned cleanup. |
-| [ ] | **7b — Preferences restrictions** | On both targets, prove the kiosk Preferences surface, including all exposed pages and nested dialogs, cannot launch external handlers, file choosers, management controls or arbitrary programs. Add only missing confinement coverage through maintained shared operations, preserving normal return to the request form; full preference/reminder feature histories remain outside this step. Finish owned cleanup. |
+| [x] | **7b — Preferences restrictions** | On both targets, prove the kiosk Preferences surface, including all exposed pages and nested dialogs, cannot launch external handlers, file choosers, management controls or arbitrary programs. Add only missing confinement coverage through maintained shared operations, preserving normal return to the request form; full preference/reminder feature histories remain outside this step. Finish owned cleanup. |
 | [ ] | **7c — Error reporting and required services** | On both targets, prove error reporting and its in-app privacy disclosure cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify usable editable in-app reporting and diagnostics without sending feedback, the confined native WebKit/scanner route and required service roles. Reuse applicable qualification first, retain real scanner proof and add only missing confinement coverage. Finish owned cleanup. |
 | [ ] | **8 — Shared-integration collateral checks** | On both targets, verify ordinary administrator and standard-user login/desktop availability, preserved vendor PAM callbacks and AccountsService metadata, and kiosk-only scope of changed units/policies. Reuse applicable matrix evidence. Add only missing checks for collateral effects of confinement changes; full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
@@ -66,10 +66,10 @@ qualify only that slice.
 The step 7 coverage audit split its independent About, Preferences and
 error-reporting installed histories into 7a–7c. The three slices preserve every
 original surface, native execution and required-service assertion; none alone
-completes the original step 7 scope. Preferences lacks a dedicated installed
-confinement assertion, and the existing feedback qualifier must account for its
-in-app privacy surface before 7c can close. Case 192 supplies the registered
-About history without new feature coverage.
+completes the original step 7 scope. Step 7b adds a dedicated installed
+Preferences confinement qualifier; the existing feedback qualifier must account
+for its in-app privacy surface before 7c can close. Case 192 supplies the
+registered About history without new feature coverage.
 
 | Done | Remaining phase | Required exit gate |
 | --- | --- | --- |
@@ -861,6 +861,90 @@ plan changed, outside package sources/build-tool dependencies, so no additional
 error-report/privacy/native-service qualification remain in 7b and 7c; the
 separate E2E queue is unchanged.
 
+### Step 7b qualification — 2026-10-13
+
+The Preferences source/control audit found no product defect. Language,
+Reminders and Preset Times, including Add/Edit reminder and preset dialogs,
+use fixed in-app controls and broker settings calls. No external handler,
+chooser, management or arbitrary-program launch API is exposed. Reminder
+Preview uses the fixed notification route; this slice does not activate or
+qualify reminder delivery.
+
+The maintained `check_e2e_kiosk_preferences_confinement` qualifier composes
+shared station/request operations with a complete identified-control inventory
+for each page and editor. It binds the selected child, modal ownership and
+Preferences lifetime, rejects extra controls/links/surfaces, cancels drafts and
+checks unchanged reminder/preset lists. Static labels must remain read-only.
+The source audit complements the public API, whose inventory excludes anonymous
+toolkit widgets. The final independent request comparison and strict real-session
+process/thread census supplement those surface checks.
+
+An initial Ubuntu attempt (`20261014T032826Z-0e82c29c`) timed out in the combined
+Preferences operation; Fedora's initial attempt passed. Owned Ubuntu maintenance
+reproduction passed in 84 seconds. A live public-API probe showed costly repeated
+element reads; retaining full page/editor inspections while avoiding repeated
+full inspections at unchanged input boundaries reduced reproduction to 51
+seconds (`onpc-kiosk-preferences-diagnosis-q9s2a6i0`). Fresh owner, child, modal,
+lifetime and page guards remain at every boundary. The transport timeout and
+confinement assertions were unchanged. Both subsequent concurrent attempts
+(`20261014T040454Z-869374f3`, `20261014T040454Z-0e06ee46`) still hit
+`TimeoutExpired`; both completed worker cleanup and baseline restoration with
+`lease_phase=complete`. Contention is a supported diagnosis hypothesis, not a
+proven product defect. Maintenance reproduction supplies no acceptance credit.
+
+The unchanged qualifier then passed through separate maintained target selections.
+The contracts permit per-target qualification of the complete required target
+set; these results do not qualify concurrent execution. Use the two explicit
+Preferences commands below.
+
+| Target | Passed report | Main result / qualification allocation |
+| --- | --- | --- |
+| Ubuntu | `20261014T041604Z-5a5c7615` | `onpc-graphical-smoke-fm1sl2pt` / `onpc-e2e-evidence-grzokrnq` |
+| Fedora | `20261014T042812Z-36ac5f34` | `onpc-graphical-smoke-0g47omf8` / `onpc-e2e-evidence-q9yieq22` |
+
+Both installed results passed all three pages and four editor routes, then the
+strict census of every kiosk process/thread with enforcing AppArmor or SELinux,
+private namespaces, matching generation and required manager/app/service,
+Wellbeing and PipeWire roles. Independent return observations preserved the
+child/approver, custom 75-second duration, soft-app choice and 1875-second
+estimate. Normal form Cancel returned to usable sign-in with the station absent.
+
+Both engineering records report overall, infrastructure, collection and cleanup
+passes with `lease_phase=complete`; the product domain remains `not-run`.
+Worker allocations `onpc-e2e-evidence-kq0qvax2` (Ubuntu) and
+`onpc-e2e-evidence-vi7faduu` (Fedora) confirm no first failure, stopped workers,
+closed callbacks and verified shutdown. Both outer baselines were restored and
+verified, and both pinned VMs were confirmed off. Owned maintenance instances
+also finished restoration before qualification. Their installed confinement
+integration `verify` actions passed on both targets before the first attempts.
+
+Verified package/fixture inputs were the named
+`output/test-runs/host/allocations/onpc-parent-setup-onpc-Ubuntu26.04-b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+and corresponding `onpc-parent-setup-onpc-Fedora44-b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+allocations. Their package and fixture hashes match the 5a candidate; both
+attempts used matching online `onpc-v1.4` snapshots. All 590 recorded execution
+input digests match between the final attempts, including shared UI operation
+SHA-256 `4ee1cc05a52d258232eeb1b52dcee08562012c9dd0293db25e9e189eccad877b`.
+The records retain each attempt's complete repository provenance and input
+identities. No product source changed, so earlier candidate policy qualification
+remains applicable.
+
+Affected shared API/support, composition and dispatcher/cleanup host suites
+passed. The final Preferences guard selection passed 35/35
+(`20261014T035751Z-f5de8705`); final plan/inventory/coverage/composition consistency
+passed 313/313 (`20261014T043421Z-10065921`). Coverage regeneration added 92
+unit cases and one engineering qualifier, with no customer-case inventory change.
+Independent review confirmed existing private resource classifications remain
+applicable. Markdown links passed. These test/tool/documentation changes are
+outside package sources and build-tool dependencies, so no `make build` is
+required. Both final reports and result allocations were verified retained
+after validation.
+
+This closes only Preferences confinement. Persistence, saving, reminder delivery,
+and complete preference/reminder customer histories remain outside this slice.
+Phase 3 remains open; error-report/privacy/native-service qualification in 7c is
+next. The separate E2E queue is unchanged.
+
 ## Operating and qualification routes
 
 Follow [AGENTS.md](../AGENTS.md), [Approval tools](Approval-Tools.md) and the
@@ -900,7 +984,8 @@ the strict waiting-session census. Cases 50, 51 and 52 independently own the
 approved, denied and cancelled restricted-station journeys. The kiosk feedback
 qualifier supplies native scanner/editor boundary evidence; existing case 192
 can supply step 7a's kiosk About slice when its retained evidence applies.
-Preferences restrictions in 7b and the error-report/privacy restrictions and
+The dedicated Preferences qualifier supplies step 7b's engineering surface and
+waiting-session assertions. The error-report/privacy restrictions and
 native/service positives in 7c must be mapped to actual maintained coverage
 before claiming acceptance. Documentation is not registration.
 
@@ -915,6 +1000,8 @@ tools/run-tests e2e --id '50' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests e2e --id '51' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests e2e --id '52' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests e2e --id '192' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
+tools/run-tests integration 'check_e2e_kiosk_preferences_confinement' --vm 'onpc-Ubuntu26.04'
+tools/run-tests integration 'check_e2e_kiosk_preferences_confinement' --vm 'onpc-Fedora44'
 tools/run-tests integration 'check_e2e_kiosk_feedback_confinement' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 ```
 

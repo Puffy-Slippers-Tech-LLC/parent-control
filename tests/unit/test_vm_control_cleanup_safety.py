@@ -364,6 +364,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
     for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                   'reproduce-kiosk-preferences',
                    'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
@@ -391,6 +392,22 @@ def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monk
     vm_probe.reproduce_kiosk_entry(lease)
     reproduce.assert_called_once_with(lease, InstalledJourney, PLAN,
                                      'request-form', 'kiosk-entry')
+
+
+def test_kiosk_preferences_reproduction_keeps_public_preparation_and_one_diagnostic(monkeypatch):
+    import vm_probe
+    from request_composition import KioskRequestJourney
+    from kiosk_preferences_confinement import PLAN
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_kiosk_preferences(lease)
+    reproduce.assert_called_once_with(lease, KioskRequestJourney, PLAN,
+        'preferences-confined', 'kiosk-preferences',
+        boundary_operation='kiosk-preferences-confinement')
+    prefix = PLAN.stages[:PLAN.stages.index('preferences-confined')]
+    assert prefix[-1] == 'open-estimate'
+    assert not {'preferences-confined', 'form-returned', 'cancel', 'returned'} & set(prefix)
 
 
 def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input(monkeypatch):
@@ -606,6 +623,60 @@ def test_native_capture_cannot_be_enabled_for_other_reproduction_routes():
         vm_probe.reproduce_denial(None, object, None, 'request-form', 'kiosk-entry', native_log=True)
 
 
+@pytest.mark.parametrize('refused', [False, True])
+@pytest.mark.parametrize('cleanup_complete', [False, True])
+def test_preferences_boundary_diagnostic_runs_once_without_acceptance_and_requires_worker_cleanup(
+        tmp_path, monkeypatch, refused, cleanup_complete):
+    from contextlib import nullcontext
+    import vm_probe
+    import fixture_credentials
+    import e2e_worker
+    import qualification_storage
+    import ui_observations
+    from kiosk_preferences_confinement import PLAN
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    result = {'operation': 'kiosk-preferences-confinement', 'outcome': 'passed'}
+    observer = SimpleNamespace(observe=Mock(
+        side_effect=RuntimeError('private diagnostic refusal') if refused else None,
+        return_value=result))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
+    boundary = 'preferences-confined'
+    prefix = PLAN.stages[:PLAN.stages.index(boundary)]
+    class Journey:
+        def __init__(self, context, progress, *, plan):
+            self.plan = plan
+            self.failed = False
+            self.steps = [{'stage': stage} for stage in prefix]
+        def step(self, guard):
+            pytest.fail('diagnostic must stop before the acceptance stage')
+    def run(directory, lease, ledger, **kwargs):
+        assert kwargs['maintenance'] is True
+        (directory / (boundary + '.request.json')).write_text(json.dumps(
+            {'stage': boundary, 'screenshot': None}))
+        assert kwargs['guarded_observe'](Mock()) is True
+        kwargs['validate']()
+        assert not (directory / (boundary + '.reply.json')).exists()
+        observer.observe.assert_called_once_with('kiosk-preferences-confinement')
+        return {'worker_stopped': cleanup_complete, 'callback_closed': cleanup_complete}
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    arguments = (lease, Journey, PLAN, boundary, 'kiosk-preferences')
+    if cleanup_complete:
+        vm_probe.reproduce_denial(*arguments,
+            boundary_operation='kiosk-preferences-confinement')
+        lease.guard.assert_called_once_with()
+    else:
+        with pytest.raises(runner.Error, match='diagnosis:cleanup-incomplete'):
+            vm_probe.reproduce_denial(*arguments,
+                boundary_operation='kiosk-preferences-confinement')
+        lease.guard.assert_not_called()
+    retained = json.loads((tmp_path / 'boundary-observation.json').read_text())
+    assert retained == ({'outcome': 'refused', 'error_type': 'RuntimeError'} if refused else result)
+
+
 @pytest.mark.parametrize('fault', [None, 'uri', 'uuid', 'name'])
 def test_snapshot_inventory_uses_only_pinned_read_only_connection(monkeypatch, capsys, fault):
     api = Mock()
@@ -650,7 +721,8 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
                                    'wrong-stage', 'screenshot', 'symlink', 'oversized'])
 @pytest.mark.parametrize('scene', ['lock', 'retained-entry', 'transfer-refusal', 'remembered-return',
                                   'riley-native-grid', 'retained-app-visits', 'revoke-cancel',
-                                  'countdown-minutes', 'countdown-resume', 'kiosk-entry', 'kiosk-approval'])
+                                  'countdown-minutes', 'countdown-resume', 'kiosk-entry', 'kiosk-approval',
+                                  'kiosk-preferences'])
 def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
     from vm_probe import validate_boundary
     from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
@@ -663,6 +735,7 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
     from countdown_qualification import MINUTE_PLAN
     from kiosk_entry import PLAN as KIOSK_PLAN
     from kiosk_approved_flow import PLAN as KIOSK_APPROVAL_PLAN
+    from kiosk_preferences_confinement import PLAN as KIOSK_PREFERENCES_PLAN
     plan, boundary, previous = {
         'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
         'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
@@ -676,6 +749,7 @@ def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, sc
         'countdown-resume': (CHILD_UNLOCK_PLAN, 'returned-activity', 'unlock-desktop'),
         'kiosk-entry': (KIOSK_PLAN, 'request-form', 'station-branch'),
         'kiosk-approval': (KIOSK_APPROVAL_PLAN, 'approval-qualified', 'approval-open'),
+        'kiosk-preferences': (KIOSK_PREFERENCES_PLAN, 'preferences-confined', 'open-estimate'),
     }[scene]
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]

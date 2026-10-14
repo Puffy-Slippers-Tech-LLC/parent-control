@@ -124,6 +124,7 @@ OPERATION_LABELS = {
     'parent-kiosk-about-refused': 'Refusing station About entry from Parent management',
     'kiosk-about-open': 'Opening About from the request station',
     'kiosk-about-read': 'Reading station product and legal information without external actions',
+    'kiosk-preferences-confinement': 'Checking confined station Preferences pages and nested editors',
     'kiosk-about-close-ready': 'Rechecking the active station About dialog before closing',
     'kiosk-about-closed': 'Observing About closed and the request station returned',
     'parent-overlay-about-refused': 'Refusing overlay About entry from Parent management',
@@ -1691,6 +1692,15 @@ class UiObservations:
                     and value['collecting'] is False and value['download'] is True,
                     'ui:collection-not-ready')
             expected['collection'] = value
+        if operation == 'kiosk-preferences-confinement':
+            value = result.get('preferences_confinement')
+            require(type(value) is dict and value == {
+                'pages': ['language', 'reminders', 'presets'],
+                'editors': ['reminder-add', 'reminder-edit', 'preset-add', 'preset-edit'],
+                'actions_confined': True, 'drafts_discarded': True}
+                and value['actions_confined'] is True and value['drafts_discarded'] is True,
+                'ui:preferences-confinement-response')
+            expected['preferences_confinement'] = value
         if operation in accessible_ui.KIOSK_REMINDER_OPERATIONS:
             fields = ({'banner_surface': True, 'literal': True, 'critical': True, 'countdown': True}
                       if operation == 'kiosk-reminder-preview' else

@@ -1145,6 +1145,24 @@ enabled delivery and disabled suppression; an extra windowed-return cycle is
 not required. The overlay slice supplies no complete-case acceptance; cases
 311/312 still need their remaining capabilities and numeric inventory bindings.
 
+#### Kiosk Preferences confinement
+
+`AccessibleUI.kiosk_preferences_confinement` shares the public request,
+language and reminder guards to inspect Language, Reminders and Preset Times,
+plus both Add/Edit routes for the reminder and preset editors. It binds the
+selected child and Preferences lifetime, rejects extra identified controls,
+external links and unexpected surfaces, cancels editor/main drafts and leaves
+the request available for an independent comparison.
+`check_e2e_kiosk_preferences_confinement` composes those operations through
+[KioskPreferencesConfinementJourney](../../tests/e2e/kiosk_preferences_confinement.py),
+the shared request preparation and normal station Cancel/greeter return. Its
+engineering census checks every waiting-session process/thread after the visit.
+The source/control audit complements the API inventory, which exposes identified
+controls rather than anonymous toolkit widgets. Exact installed results and
+remaining scope belong to [confinement step 7b](../confinement.md#step-7b-qualification--2026-10-13).
+This qualification supplies no reminder/preset persistence, delivery or complete
+customer-case credit and does not advance the separate E2E queue.
+
 ### Daily allowance selection
 
 PARENT06 uses one Application UI API sequence in every UI/E2E consumer:

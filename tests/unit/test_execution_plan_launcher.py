@@ -588,6 +588,36 @@ def test_plan_namespace_registers_and_cancels_only_recorded_nested_owner(tmp_pat
             pytest.fail('closed workflow admitted another child')
 
 
+def test_backend_clock_is_published_before_spawn_preserved_on_attach_and_reset_on_restart(tmp_path, monkeypatch):
+    import detached_launcher as launcher
+    clock = [1000.0]
+    active = [False]
+    publications = []
+    monkeypatch.setattr(launcher.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(launcher, 'busy', lambda _: active[0])
+
+    def spawn(*args, **kwargs):
+        from test_storage import directory
+        publications.append(json.loads((directory('fix-tests', root=tmp_path) / 'current.json').read_text()))
+
+    monkeypatch.setattr(launcher.subprocess, 'Popen', spawn)
+    command = lambda run, owner: ['private-worker-double']
+    run, started = launcher.select(tmp_path, 'fix-tests', command)
+    assert started
+    assert publications == [dict(run=run.name, started_at=publications[0]['started_at'],
+                                 started_monotonic=1000.0)]
+    record = (run.parent / 'current.json').read_bytes()
+    active[0] = True
+    clock[0] += 720
+    assert launcher.select(tmp_path, 'fix-tests', command) == (run, False)
+    assert (run.parent / 'current.json').read_bytes() == record
+    assert len(publications) == 1
+    active[0] = False
+    next_run, started = launcher.select(tmp_path, 'fix-tests', command)
+    assert started and next_run != run
+    assert publications[-1]['started_monotonic'] == 1720.0
+
+
 @pytest.mark.parametrize('limit', [0, -3, 8])
 def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(tmp_path, limit):
     """Exercise real worker serialization and supervision without a model or VM."""

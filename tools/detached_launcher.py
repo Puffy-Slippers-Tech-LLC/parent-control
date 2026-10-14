@@ -81,6 +81,11 @@ def atomic(path, value):
     temporary.replace(path)
 
 
+def owner_record(run, **fields):
+    """Publish one clock origin per backend spawn, shared by all observers."""
+    return dict(fields, run=run.name, started_at=time.time(), started_monotonic=time.monotonic())
+
+
 def private_directory(path):
     if any(part.is_symlink() for part in (path, *path.parents)):
         raise ValueError('workflow state path contains a symlink')
@@ -372,7 +377,7 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
         if on_start is not None:
             on_start(run)
         fcntl.flock(owner, fcntl.LOCK_EX)
-        atomic(directory / 'current.json', {'run': run.name})
+        atomic(directory / 'current.json', owner_record(run))
         with (run / 'output').open('xb') as output:
             subprocess.Popen(argv, cwd=root, env=environment(), stdin=subprocess.DEVNULL,
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True,

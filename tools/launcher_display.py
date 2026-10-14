@@ -16,15 +16,23 @@ from launcher_render import LauncherDisplay, clean
 
 
 def clock_duration(seconds):
-    """Elapsed whole minutes, shared by the session and terminal-launch clocks."""
+    """Elapsed whole minutes, shared by the session and backend-launch clocks."""
     hours, minutes = divmod(max(0, int(seconds // 60)), 60)
     return f'{hours}h {minutes}m' if hours else f'{minutes}m'
+
+
+def owner_clock(run):
+    try:
+        record = json.loads((run.parent / 'current.json').read_text())
+        return record if record.get('run') == run.name else {}
+    except FileNotFoundError:
+        return {}
 
 
 class TaskDisplay(LauncherDisplay):
     def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
         super().__init__(stream, **kwargs)
-        self.launched_at = time.monotonic()
+        self.owner_clock = owner_clock(run)
         self.run = run
         self.input_mode = input_mode
         self.ratio = .75
@@ -265,7 +273,8 @@ class TaskDisplay(LauncherDisplay):
                 and clean(summary_lines[-1]).startswith((f'Session [{session}]:', f'Session {session}:'))):
             ended = self.chat_state.get('finished_at', time.time())
             summary_lines[-1] += '; ' + clock_duration(ended - started)
-        total_duration = clock_duration(time.monotonic() - self.launched_at)
+        origin = self.owner_clock.get('started_monotonic')
+        total_duration = clock_duration(time.monotonic() - origin) if origin is not None else '—'
         state = (size, self.ratio, self.top_ratio, self.dragging, self.task_totals,
                  tuple(summary_lines), total_duration,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),

@@ -151,8 +151,9 @@ def _select(root, argv):
                 # Popen must not leave a live worker without reconnect metadata.
                 temporary = directory / 'current.tmp'
                 from vm_selection import BATCH
-                temporary.write_text(json.dumps({'run': run.name, 'argv': requested,
-                    'vm_batch': json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None}))
+                from detached_launcher import owner_record
+                temporary.write_text(json.dumps(owner_record(run, argv=requested,
+                    vm_batch=json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None)))
                 temporary.replace(current)
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY

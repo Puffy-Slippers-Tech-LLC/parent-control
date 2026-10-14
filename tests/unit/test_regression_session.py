@@ -184,6 +184,9 @@ def test_idle_empty_argv_starts_all_aggregate(tmp_path, workers):
     assert started
     current = json.loads((tmp_path / 'output/test-runs/host/sessions/current.json').read_text())
     assert current['argv'] == ['all']
+    assert current['started_monotonic'] <= time.monotonic()
+    assert session.select(tmp_path, []) == (run, False)
+    assert json.loads((run.parent / 'current.json').read_text()) == current
     wait_for(tmp_path / 'arguments')
     assert (tmp_path / 'arguments').read_text() == 'all'
     (tmp_path / 'release').touch()

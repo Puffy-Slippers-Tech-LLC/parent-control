@@ -17,6 +17,7 @@ from tests.support.terminal_screen import Terminal
 from tests.support.write_e2e_fixtures import reply
 from write_e2e import task_info_instructions
 from launcher_display import TaskDisplay
+from launcher_view import plan_progress, e2e_progress
 
 
 @pytest.fixture
@@ -428,6 +429,27 @@ def test_session_clock_keeps_owner_origin_across_turns_and_freezes_on_finish(con
     assert state['finished_at'] == started + 125
 
 
+@pytest.mark.parametrize('progress', [plan_progress, e2e_progress])
+def test_fresh_backend_session_clock_reaches_real_workflow_display(conversation, monkeypatch, progress):
+    session, _, _ = conversation
+    run = session.run
+    started = session.started_at
+    # Include the styling used by E2E and a cumulative session number distinct
+    # from the task's session number. Read real owner publications, not UI fields.
+    launcher.atomic(run / 'controller.json', [{'key': 'runtime-1', 'lines': [
+        'Task 001: Countdown', '\033[1mSession [1]\033[22m: gpt-6.1-sol xhigh']}])
+    session.session = 8
+    session.publish('running')
+    monkeypatch.setattr('launcher_display.time.time', lambda: started + 12 * 60)
+    for _ in range(2):
+        terminal = Terminal(240, 36)
+        display = TaskDisplay(terminal, run=run, terminal_size=lambda: terminal.size)
+        display.refresh_chat()
+        steps = json.loads((run / 'controller.json').read_text())
+        display.update(progress(run, steps, []), [])
+        assert 'Session [1]: gpt-6.1-sol xhigh; 12m' in terminal.visible()
+
+
 @pytest.mark.parametrize('progress_key', ['1', '001'])
 def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp_path, monkeypatch, progress_key):
     clock = [1000.0]
@@ -506,10 +528,13 @@ def test_split_drag_resize_and_task_summary_location(tmp_path):
     assert '\033[?1003l' in terminal.getvalue()
 
 
-def test_total_duration_updates_across_tasks_and_resets_on_terminal_launch(tmp_path, monkeypatch):
+def test_total_duration_survives_observers_and_tasks_but_resets_for_new_backend(tmp_path, monkeypatch):
     clock = [1000.0]
     monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
-    display, terminal = display_fixture(tmp_path, width=240)
+    run = tmp_path / 'first'
+    run.mkdir()
+    launcher.atomic(tmp_path / 'current.json', launcher.owner_record(run))
+    display, terminal = display_fixture(run, width=240)
     assert 'Total Duration: 0m' in terminal.visible()
     lines = terminal.visible().splitlines()
     assert 'Total Tasks:' in lines[0].split('│')[1]
@@ -527,8 +552,16 @@ def test_total_duration_updates_across_tasks_and_resets_on_terminal_launch(tmp_p
         clock[0] = 1000 + elapsed
         display.draw()
         assert 'Total Duration: ' + duration in terminal.visible()
-    # Reusing the retained run directory must not reuse the terminal's clock.
-    restarted, screen = display_fixture(tmp_path, width=240)
+    reconnected, screen = display_fixture(run, width=240)
+    assert 'Total Duration: 1h 12m' in screen.visible()
+    clock[0] += 60
+    reconnected.draw()
+    assert 'Total Duration: 1h 13m' in screen.visible()
+    # A new owner publishes a fresh run and clock; reconnecting never does.
+    next_run = tmp_path / 'second'
+    next_run.mkdir()
+    launcher.atomic(tmp_path / 'current.json', launcher.owner_record(next_run))
+    restarted, screen = display_fixture(next_run, width=240)
     assert 'Total Duration: 0m' in screen.visible()
     clock[0] += 60
     restarted.draw()

@@ -130,10 +130,10 @@ tasks in green, unfinished tasks in blue and the total in the normal text color.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`, and refresh automatically as the queue changes.
 Displays without a Markdown plan show unavailable counts as dashes.
-Below the counts, `Total Duration` shows elapsed time for this terminal launch
+Below the counts, `Total Duration` shows elapsed time for the backend launcher
 in the same minute/hour format. It refreshes every minute and continues across
-tasks. Each new terminal invocation resets this clock, including attachment to
-an existing owner; previous invocations never contribute elapsed time.
+tasks and observer reconnections. Each new backend process resets this clock;
+previous backend runs never contribute elapsed time.
 All panels, including the conversation composer, preserve native terminal text
 selection by default: drag with the mouse, then copy with Ctrl+Shift+C or the
 terminal's right-click Copy menu. No Shift selection override is required.

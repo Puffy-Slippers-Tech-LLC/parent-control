@@ -122,6 +122,8 @@ task summary and status/issues at bottom right. Plan/E2E sessions offer conversa
 for developer decisions; `run-tests` has no agent sessions or composer.
 The conversation composer shows a blinking underscore cursor at the current
 insertion position, including while another pane is selected or output scrolls.
+Hovering over its text area requests an I-beam mouse pointer in terminals that
+support pointer shapes.
 The Plan/E2E session line appends elapsed clock time, refreshing every minute even
 without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
 The clock starts with each session, survives observer reconnection and stops

@@ -40,7 +40,7 @@ class TaskDisplay(LauncherDisplay):
         self.dragging = None
         self.totals = totals
         self.task_totals = None
-        self.pointer = False
+        self.pointer = ''
         self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
         self.offsets['summary'] = 0
@@ -50,6 +50,7 @@ class TaskDisplay(LauncherDisplay):
         self.divider_column = 0
         self.top_divider_column = 0
         self.chat_top = 0
+        self.chat_bounds = None
         self.output_height = 0
         self.summary_bottom = 0
         self.cancel_button = None
@@ -127,15 +128,15 @@ class TaskDisplay(LauncherDisplay):
         self.scrollbar_grab = None
         if not self.mouse_capture:
             self.dragging = None
-            self.set_pointer(False)
+            self.set_pointer('')
         elif self.input_fd is not None and self.input_mode == 'chat':
             self.stream.write('\033[?1002l\033[?1003h\033[?1006h')
             self.stream.flush()
 
-    def set_pointer(self, resize):
-        if resize != self.pointer:
-            self.pointer = resize
-            self.stream.write('\033]22;' + ('ew-resize' if resize else '') + '\033\\')
+    def set_pointer(self, shape):
+        if shape != self.pointer:
+            self.pointer = shape
+            self.stream.write('\033]22;' + shape + '\033\\')
             self.stream.flush()
 
     def poll_input(self):
@@ -241,11 +242,18 @@ class TaskDisplay(LauncherDisplay):
         base = button & ~28
         over = ('top' if column == self.top_divider_column and 1 <= row <= self.top_height else
                 'bottom' if column == self.divider_column and row > self.top_height + 1 else None)
-        self.set_pointer(bool(over or self.dragging))
         if released:
             self.dragging = None
             self.scrollbar_grab = None
-            self.set_pointer(bool(over))
+        shape = ''
+        if over or self.dragging:
+            shape = 'ew-resize'
+        elif self.chat_bounds:
+            left, right, top, bottom = self.chat_bounds
+            if left <= column <= right and top <= row <= bottom:
+                shape = 'text'
+        self.set_pointer(shape)
+        if released:
             self.draw()
             return
         if base == 0:
@@ -452,6 +460,9 @@ class TaskDisplay(LauncherDisplay):
         right = right[:available]
         right += [Text('')] * (available - len(right))
         self.chat_top = len(top) + 1 + self.output_height + 1
+        self.chat_bounds = ((3 if boxed else 1, left_width - 2 if boxed else left_width,
+                             self.chat_top + 1, min(height, self.chat_top + len(editor_rows)))
+                            if self.input_mode == 'chat' and editor_rows and width >= 3 else None)
         self.cancel_button = ((9, self.chat_top) if self.input_mode == 'chat'
                               and left_width >= 14 and available else None)
         self.bottom_button = ((left_width, self.chat_top - 1)

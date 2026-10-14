@@ -1010,7 +1010,8 @@ ordinary plan workflows offer the conversation composer described below.
 Its initial width ratio is 75:25; dragging the vertical divider changes the
 ratio, which survives terminal resizing. The divider turns blue while dragging
 and returns to its normal color on release. Hover requests the standard horizontal
-resize pointer using OSC 22; terminals without pointer-shape support keep their
+resize pointer over dividers and an I-beam over the conversation composer's text
+area using OSC 22; terminals without pointer-shape support keep their
 own pointer, including VS Code's integrated terminal (xterm.js does not implement
 OSC 22). The live layout owns an alternate screen, keeping the shell prompt and
 shell scrollback outside the launcher. Mouse controls start enabled: wheels

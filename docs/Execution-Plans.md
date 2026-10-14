@@ -123,6 +123,8 @@ for developer decisions; `run-tests` has no agent sessions or composer.
 The top-left `Tasks: x/y` counts completed tasks in this run plus one against
 the run's task limit. For zero or negative `--tasks`, y is the number completed
 in this run plus the remaining tasks, so an unlimited run shows a numeric total.
+Plan/E2E observers read remaining counts from the current queue, including when
+reconnecting to a backend started before numeric totals were recorded.
 The conversation composer shows a blinking underscore cursor at the current
 insertion position, including while another pane is selected or output scrolls.
 Hovering over its text area requests an I-beam mouse pointer in terminals that

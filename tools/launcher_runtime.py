@@ -81,15 +81,20 @@ class TaskBudget:
         self.update(lambda value: value.update(closed=True))
 
 
-def task_progress(run, steps):
+def task_progress(run, steps, *, remaining=None):
     path = run / 'limits.json'
     if not path.exists():
         return steps
     value = TaskBudget(run).read()
     limit = value['tasks']
+    completed = value.get('completed', 0)
     if limit is None:
         limit = value.get('remaining', '—')
-    completed = value.get('completed', 0)
+        if remaining is not None:
+            try:
+                limit = completed + remaining()
+            except (OSError, ValueError):
+                pass  # Editable plan metadata must never prevent attachment.
     position = completed + 1
     return [{'key': 'runtime-tasks', 'pinned': True,
              'lines': [f'Tasks: {position}/{limit}']}, *steps]

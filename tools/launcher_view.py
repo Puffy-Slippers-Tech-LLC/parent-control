@@ -12,7 +12,7 @@ def unchanged(run, steps, child_steps):
 
 def e2e_progress(run, steps, child_steps):
     from write_e2e import task_progress as progress
-    return progress(run, steps)
+    return progress(run, steps, remaining=lambda: e2e_totals()[1])
 
 
 def repair_progress(run, steps, child_steps):
@@ -20,8 +20,8 @@ def repair_progress(run, steps, child_steps):
     return task_progress(run, overlay(run, steps, child_steps=child_steps))
 
 
-def plan_progress(run, steps, child_steps):
-    return task_progress(run, steps)
+def plan_progress(run, steps, child_steps, *, remaining=None):
+    return task_progress(run, steps, remaining=remaining)
 
 
 def plan_totals(root, path):

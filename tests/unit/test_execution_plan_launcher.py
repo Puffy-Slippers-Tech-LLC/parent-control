@@ -382,6 +382,41 @@ def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(
     assert 'Reconcile interrupted close-out' in checkpoint['handoff']
 
 
+def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget(rig, monkeypatch):
+    # This owner is already running code from before numeric totals were saved.
+    budget = TaskBudget(rig.run)
+    budget.initialize(0)
+    original = (rig.run / 'limits.json').read_text()
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+
+    def select(root, name, command, **options):
+        options['on_attach'](rig.run)
+        return rig.run, False
+
+    def follow(run, **options):
+        view = options['view']
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/2']
+        assert (run / 'limits.json').read_text() == original
+        # Later task completion and explicit limits use current plan data.
+        complete(rig.plan, '001')
+        budget.complete()
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 2/2']
+        budget.set_limit(3)
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 2/3']
+        return 0
+
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    monkeypatch.setattr(workflow.launcher, 'follow', follow)
+    assert workflow.main(rig.spec, []) == 0
+
+
+def test_e2e_observer_counts_legacy_unlimited_run(tmp_path, monkeypatch):
+    import launcher_view
+    TaskBudget(tmp_path).initialize(0)
+    monkeypatch.setattr(launcher_view, 'e2e_totals', lambda: (17, 9, 26))
+    assert view_for('write-e2e').progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 1/9']
+
+
 @pytest.mark.parametrize('action', ['attach', 'limit', 'stop'])
 @pytest.mark.parametrize('damage', ['master', 'queue', 'missing-master'])
 def test_active_plan_attachment_and_stop_do_not_require_parseable_metadata(rig, monkeypatch, action, damage):

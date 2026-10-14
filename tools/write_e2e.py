@@ -249,10 +249,10 @@ def session_progress(root, state, count):
             f"\033[1mSession [{state['task_sessions']}]\033[22m: {summary} ({model} {effort})"]
 
 
-def task_progress(run, steps):
+def task_progress(run, steps, *, remaining=None):
     """Pin runtime task counts above the refreshed task recap."""
     from launcher_runtime import task_progress as progress
-    return progress(run, task_recap(run, steps))
+    return progress(run, task_recap(run, steps), remaining=remaining)
 
 
 def task_recap(run, steps):

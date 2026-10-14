@@ -358,6 +358,61 @@ def display_fixture(tmp_path, width=120, height=36):
     return display, terminal
 
 
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+def test_all_task_panels_leave_selection_and_copy_to_terminal(tmp_path, input_mode):
+    terminal = Terminal(120, 36)
+    display = TaskDisplay(terminal, run=tmp_path, input_mode=input_mode,
+                          terminal_size=lambda: terminal.size)
+    # Only the output protocol needs an attached input descriptor in this
+    # screen double; no OS input or terminal restoration is performed here.
+    display.input_fd = 123
+    display.update([{'key': '1', 'lines': ['Task 001', 'Session [1]']}], [])
+    display.write('Selectable execution text.\n')
+    question = {'id': 'decision', 'question': 'Continue?', 'options': ['Yes', 'No']}
+    display.update_question(question, lambda *args: None)
+    display.update_question(None, lambda *args: None)
+    assert not display.mouse_capture
+    output = terminal.getvalue()
+    for mode in (1000, 1002, 1003, 1006):
+        assert f'\033[?{mode}l' in output
+        assert f'\033[?{mode}h' not in output
+    assert ('F2: scroll/resize' if input_mode == 'chat' else 'm: scroll/resize') in terminal.visible()
+
+
+@pytest.mark.parametrize('toggle', [b'\x1bOQ', b'\x1b[12~'])
+def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_path, toggle):
+    display, terminal = display_fixture(tmp_path)
+    display.input_fd = 123
+    display.set_mouse_mode()
+    display.handle_input(b'keep my draft')
+    column, row = display.cancel_button
+    click = f'\033[<0;{column};{row}M'.encode()
+    # A stale report in selection mode must not activate Cancel.
+    display.handle_input(click)
+    assert not (tmp_path / 'chat-inbox.json').exists()
+    for byte in toggle:
+        display.handle_input(bytes([byte]))
+    assert display.mouse_capture
+    assert '\033[?1003h' in terminal.getvalue()
+    assert 'F2: select text' in terminal.visible()
+    display.handle_input(f'\033[<0;{display.divider_column};4M'.encode())
+    assert display.dragging == 'bottom' and display.pointer
+    display.handle_input(toggle)
+    assert not display.mouse_capture
+    assert display.dragging is None and not display.pointer
+    assert 'F2: scroll/resize' in terminal.visible()
+    restored = terminal.getvalue().rsplit('\033[?1003h', 1)[1]
+    assert '\033[?1003l' in restored and '\033[?1006l' in restored
+    display.handle_input(click)
+    assert not (tmp_path / 'chat-inbox.json').exists()
+    assert display.editor.text == 'keep my draft'
+    # Paste content cannot take ownership of the mouse, nor may the normal
+    # letter m stop being editable conversation text.
+    display.handle_input(b'\x1b[200~' + toggle + b'\x1b[201~m')
+    assert not display.mouse_capture
+    assert display.editor.text.endswith('m')
+
+
 def test_session_clock_keeps_owner_origin_across_turns_and_freezes_on_finish(conversation, monkeypatch):
     session, _, _ = conversation
     started = read_state(session.run)['started_at']

@@ -134,8 +134,13 @@ Below the counts, `Total Duration` shows elapsed time for this terminal launch
 in the same minute/hour format. It refreshes every minute and continues across
 tasks. Each new terminal invocation resets this clock, including attachment to
 an existing owner; previous invocations never contribute elapsed time.
-Non-chat displays preserve native text selection by default; `m` enables mouse
-scrolling. Pipes receive
+All panels, including the conversation composer, preserve native terminal text
+selection by default: drag with the mouse, then copy with Ctrl+Shift+C or the
+terminal's right-click Copy menu. No Shift selection override is required.
+In chat displays, `F2` toggles mouse scrolling, divider dragging and clickable
+controls; press `F2` again to return to text selection and the context menu.
+Non-chat displays use `m` for the same toggle. Page Up/Page Down remain available
+for keyboard scrolling. Pipes receive
 plain output and retain the same owner/result semantics.
 
 `--check` validates a plan and every unfinished brief without model sessions, VM

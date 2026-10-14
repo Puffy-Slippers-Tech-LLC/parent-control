@@ -97,7 +97,7 @@ class TaskDisplay(LauncherDisplay):
     def update_question(self, question, send):
         if self.input_mode != 'chat':
             return super().update_question(question, send)
-        # Keep mouse reporting and the always-editable composer while blocked.
+        # Keep the mouse preference and always-editable composer while blocked.
         from launcher_question import QuestionInput
         identity = self.question.question['id'] if self.question else None
         if (question['id'] if question else None) != identity:
@@ -105,10 +105,14 @@ class TaskDisplay(LauncherDisplay):
             self.draw()
 
     def set_mouse_mode(self):
-        if self.input_mode != 'chat':
-            return super().set_mouse_mode()
-        if self.input_fd is not None:
-            self.stream.write('\033[?1000l\033[?1002l\033[?1003h\033[?1006h')
+        # Native selection, Copy shortcuts and context menus belong to the
+        # terminal. Only capture mouse events when explicitly requested.
+        super().set_mouse_mode()
+        if not self.mouse_capture:
+            self.dragging = None
+            self.set_pointer(False)
+        elif self.input_fd is not None and self.input_mode == 'chat':
+            self.stream.write('\033[?1002l\033[?1003h\033[?1006h')
             self.stream.flush()
 
     def set_pointer(self, resize):
@@ -157,7 +161,8 @@ class TaskDisplay(LauncherDisplay):
             if match:
                 self.input_pending = self.input_pending[match.end():]
                 button, column, row = map(int, match.groups()[:3])
-                self.mouse(button, column, row, match[4] == b'm')
+                if self.mouse_capture:
+                    self.mouse(button, column, row, match[4] == b'm')
                 continue
             if self.input_pending.startswith(b'\x1b[<'):
                 if len(self.input_pending) < 64:
@@ -167,14 +172,20 @@ class TaskDisplay(LauncherDisplay):
             if b'\x1b[<'.startswith(self.input_pending):
                 break
             navigation = (b'\x1b[5~', b'\x1b[6~')
-            key = next((key for key in navigation if self.input_pending.startswith(key)), None)
+            mouse_keys = (b'\x1bOQ', b'\x1b[12~')  # F2: xterm and VT forms.
+            keys = navigation + mouse_keys
+            key = next((key for key in keys if self.input_pending.startswith(key)), None)
             if key:
                 self.input_pending = self.input_pending[len(key):]
-                self.offsets['bottom'] = max(0, self.offsets['bottom'] +
-                    (max(1, self.output_height) if key == navigation[0] else
-                     -max(1, self.output_height)))
+                if key in mouse_keys:
+                    self.mouse_capture = not self.mouse_capture
+                    self.set_mouse_mode()
+                else:
+                    self.offsets['bottom'] = max(0, self.offsets['bottom'] +
+                        (max(1, self.output_height) if key == navigation[0] else
+                         -max(1, self.output_height)))
                 continue
-            if any(key.startswith(self.input_pending) for key in navigation):
+            if any(key.startswith(self.input_pending) for key in keys):
                 break
             byte = self.input_pending[:1]
             self.input_pending = self.input_pending[1:]
@@ -388,8 +399,10 @@ class TaskDisplay(LauncherDisplay):
         self.bottom_button = ((left_width, self.chat_top - 1)
                               if self.output_height > 0 and left_width > 1 else None)
         divider = Text('─' * width, style='dim')
-        if self.input_mode != 'chat' and self.input_fd is not None:
-            divider = Text(' m: select text ' if self.mouse_capture else ' m: scroll ', style='dim')
+        if self.input_fd is not None:
+            key = 'F2' if self.input_mode == 'chat' else 'm'
+            action = 'select text' if self.mouse_capture else 'scroll/resize'
+            divider = Text(f' {key}: {action} ', style='dim')
             divider.truncate(width, overflow='crop')
             divider.append('─' * max(0, width - divider.cell_len))
         rows = top + [divider]

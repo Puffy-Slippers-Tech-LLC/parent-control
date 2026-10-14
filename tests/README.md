@@ -1012,8 +1012,10 @@ ratio, which survives terminal resizing. The divider turns blue while dragging
 and returns to its normal color on release. Hover requests the standard horizontal
 resize pointer using OSC 22; terminals without pointer-shape support keep their
 own pointer, including VS Code's integrated terminal (xterm.js does not implement
-OSC 22). Mouse motion reporting is enabled for this display; use the host
-terminal's Shift selection override for native text selection.
+OSC 22). All panels preserve native mouse selection, Ctrl+Shift+C copying and
+the terminal's right-click Copy menu by default. In chat displays, F2 toggles
+mouse scrolling, divider dragging and clickable controls; F2 again restores
+native selection and context menus. Non-chat displays use m for this toggle.
 The right upper panel shows the current task ID/title, session count/duration,
 session phase and selected model/effort. Below a horizontal separator, the
 plain-language task explanation stays fixed across retries and reconnects unless
@@ -1032,7 +1034,7 @@ same session after interruption. Replies appear in the left transcript. The
 composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
-rule. Mouse wheels scroll the panel under the pointer.
+rule. With mouse mode enabled, mouse wheels scroll the panel under the pointer.
 `write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
 launcher runtime plus one, and y is this runtime's task maximum, refreshed when
 another invocation adjusts `--tasks`. The counter stays pinned while scrolling.
@@ -1059,14 +1061,14 @@ subject to its storage limits. `run-tests` preserves its detailed dashboards whe
 through a workflow launcher, below that workflow's controller summary.
 For `run-tests` and `fix-tests`, mouse capture is off by default: plain dragging selects text and right-click
 uses the host terminal's configured behavior, including VS Code's context menu.
-The divider shows `m: scroll`; press `m` to enable pane clicks, wheel scrolling
-and scrollbar dragging. The scrollbar is shown only in this mode, and the
-divider changes to `m: select text`. A pinned **↓** button at the lower pane's
+The divider shows `m: scroll/resize`; press `m` to enable pane clicks, wheel
+scrolling and divider dragging. The divider changes to `m: select text`.
+A pinned **↓** button at the lower pane's
 bottom-right corner returns to the newest output and resumes following it.
 The button stays outside the scrolling transcript and follows terminal resizing.
 Press `m` again to restore native selection
 and menus. Mouse reporting applies to the whole terminal, so plain native
-selection and scrollbar dragging use separate modes. Use Up/Down or Page Up/Page Down to scroll,
+selection and divider dragging use separate modes. Use Up/Down or Page Up/Page Down to scroll,
 Tab to switch panes (initially the lower pane), and End to return to the newest
 rows in either mode.
 The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown

@@ -272,15 +272,34 @@ def test_fresh_restart_permission_normalization_keeps_every_other_field_exact(fi
     assert detail['cache']['fields'] == [field]
 
 
-def test_ordinary_diagnostics_do_not_disclose_identifiers_or_paths(monkeypatch):
+@pytest.mark.parametrize('role', ['administrator', 'standard'])
+@pytest.mark.parametrize('field', ['uid', 'icon_path', 'cache', 'icon'])
+def test_ordinary_witness_detects_each_role_without_disclosing_identifiers(monkeypatch, role, field):
     metadata = {'sha256': 'a', 'uid': 0, 'gid': 0, 'mode': 0o600, 'xattrs': {}}
-    expected = {'uid': 1000, 'icon_path': '/private/expected', 'cache': metadata, 'icon': metadata}
-    actual = dict(expected, uid=2000, icon_path='/private/actual')
+    state = {'uid': 1000, 'icon_path': '/private/expected', 'cache': metadata, 'icon': metadata}
+    expected = {name: copy.deepcopy(state) for name in accounts.ORDINARY_ACCOUNTS}
+    actual = copy.deepcopy(expected)
+    if field in ('cache', 'icon'):
+        actual[role][field] = dict(metadata, sha256='changed')
+    else:
+        actual[role][field] = 2000 if field == 'uid' else '/private/actual'
     monkeypatch.setattr(accounts, 'ordinary_state', lambda: actual)
     with pytest.raises(accounts.guest.GuestError, match='ordinary-metadata-changed') as error:
         accounts.verify_ordinary(expected)
     detail = json.loads(str(error.value).split('ordinary-metadata-changed:', 1)[1])
-    assert detail == {'fields': ['icon_path', 'uid']}
+    changed = {'fields': [field]}
+    if field in ('cache', 'icon'):
+        changed[field] = {'fields': ['sha256'], 'sha256': {'expected': 'a', 'actual': 'changed'}}
+    assert detail == {role: changed}
+
+
+@pytest.mark.parametrize('missing', ['administrator', 'standard'])
+def test_ordinary_witness_requires_both_roles(monkeypatch, missing):
+    actual = {role: {} for role in accounts.ORDINARY_ACCOUNTS}
+    expected = {role: value for role, value in actual.items() if role != missing}
+    monkeypatch.setattr(accounts, 'ordinary_state', lambda: actual)
+    with pytest.raises(accounts.guest.GuestError, match='ordinary-witness-roles'):
+        accounts.verify_ordinary(expected)
 
 
 @pytest.mark.parametrize('fault', [None, 'missing-marker', 'content', 'extra-xattr',
@@ -350,29 +369,42 @@ def test_reboot_readback_requires_a_new_boot_before_any_mutation(tmp_path, monke
     production.assert_not_called()
 
 
+@pytest.mark.parametrize('role', ['administrator', 'standard'])
 @pytest.mark.parametrize('fault', [None, 'role', 'icon'])
-def test_ordinary_witness_uses_only_the_declared_baseline_role_and_icon(tmp_path, monkeypatch, fault):
+def test_ordinary_witness_uses_only_declared_baseline_roles_and_icons(tmp_path, monkeypatch, role, fault):
     baseline = tmp_path / 'baseline.json'
-    baseline.write_text(json.dumps({'accounts': {accounts.ORDINARY_NAME: {
-        'uid': 1000, 'role': 'standard' if fault == 'role' else 'administrator'}}}))
+    users = {name: SimpleNamespace(pw_uid=1000 + index, pw_shell='/bin/bash')
+             for index, name in enumerate(accounts.ORDINARY_ACCOUNTS.values())}
+    declared = {name: {'uid': users[name].pw_uid,
+                      'role': 'foreign' if fault == 'role' and label == role else label}
+                for label, name in accounts.ORDINARY_ACCOUNTS.items()}
+    baseline.write_text(json.dumps({'accounts': declared}))
     monkeypatch.setattr(accounts.guest, 'BASELINE', baseline)
-    monkeypatch.setattr(accounts.pwd, 'getpwnam', lambda _: SimpleNamespace(
-        pw_uid=1000, pw_shell='/bin/bash'))
-    resolve = Mock(return_value='/org/freedesktop/Accounts/User1000')
+    monkeypatch.setattr(accounts.pwd, 'getpwnam', users.__getitem__)
+    resolve = Mock(side_effect=lambda user: f'/org/freedesktop/Accounts/User{user.pw_uid}')
     monkeypatch.setattr(accounts, 'resolve', resolve)
-    icon = ('/unrelated/private-file' if fault == 'icon' else
-            str(accounts.ICON.parent / accounts.ORDINARY_NAME))
-    monkeypatch.setattr(accounts.guest, 'run', lambda _: 's ' + json.dumps(icon))
+    icons = {f'/org/freedesktop/Accounts/User{users[name].pw_uid}':
+             '/unrelated/private-file' if fault == 'icon' and label == role else
+             str(accounts.ICON.parent / name)
+             for label, name in accounts.ORDINARY_ACCOUNTS.items()}
+    monkeypatch.setattr(accounts.guest, 'run', lambda command: 's ' + json.dumps(icons[command[4]]))
     fingerprint = Mock(return_value={'sha256': 'preserved'})
     monkeypatch.setattr(accounts, 'fingerprint', fingerprint)
     if fault:
-        with pytest.raises(accounts.guest.GuestError, match='ordinary-'):
+        with pytest.raises(accounts.guest.GuestError, match='ordinary-.*:' + role):
             accounts.ordinary_state()
-        fingerprint.assert_not_called()
+        name = accounts.ORDINARY_ACCOUNTS[role]
+        assert all(call.args[0] not in (accounts.CACHE.parent / name,
+                                       accounts.ICON.parent / name)
+                   for call in fingerprint.call_args_list)
         if fault == 'role':
-            resolve.assert_not_called()
+            assert all(call.args[0] != users[name] for call in resolve.call_args_list)
     else:
         result = accounts.ordinary_state()
-        assert result == {'uid': 1000, 'cache': {'sha256': 'preserved'},
-                          'icon_path': icon, 'icon': {'sha256': 'preserved'}}
-        assert fingerprint.call_args_list[0].args == (accounts.CACHE.parent / accounts.ORDINARY_NAME,)
+        assert result == {label: {'uid': users[name].pw_uid, 'cache': {'sha256': 'preserved'},
+                                  'icon_path': str(accounts.ICON.parent / name),
+                                  'icon': {'sha256': 'preserved'}}
+                          for label, name in accounts.ORDINARY_ACCOUNTS.items()}
+        assert [call.args[0] for call in fingerprint.call_args_list] == [
+            path for name in accounts.ORDINARY_ACCOUNTS.values()
+            for path in (accounts.CACHE.parent / name, accounts.ICON.parent / name)]

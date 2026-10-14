@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 3 — Qualify kiosk isolation. Step 8b is next.**
+**Next phase: 3 — Qualify kiosk isolation. Step 8c is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -49,7 +49,8 @@ are omitted; the remaining step numbers are preserved.
 | [x] | **7b — Preferences restrictions** | On both targets, prove the kiosk Preferences surface, including all exposed pages and nested dialogs, cannot launch external handlers, file choosers, management controls or arbitrary programs. Add only missing confinement coverage through maintained shared operations, preserving normal return to the request form; full preference/reminder feature histories remain outside this step. Finish owned cleanup. |
 | [x] | **7c — Error reporting and required services** | On both targets, prove error reporting and its in-app privacy disclosure cannot launch external handlers, file choosers, management controls or arbitrary programs. Verify usable editable in-app reporting and diagnostics without sending feedback, the confined native WebKit/scanner route and required service roles. Reuse applicable qualification first, retain real scanner proof and add only missing confinement coverage. Finish owned cleanup. |
 | [x] | **8a — Ordinary login and desktop availability** | On both targets, verify real fresh graphical login and usable ordinary administrator and standard-user desktops through the maintained guarded entry and desktop observations. Preserve account identity and secret-recipient checks. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
-| [ ] | **8b — Shared PAM, metadata and policy scope** | On both targets, verify preserved vendor PAM callbacks and AccountsService metadata, and kiosk-only scope of changed units/policies. Reuse applicable matrix evidence and add only missing collateral checks, including both ordinary account roles. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
+| [x] | **8b — AccountsService metadata collateral** | On both targets, verify preserved AccountsService cache/icon metadata for both ordinary administrator and standard-user roles throughout the maintained kiosk provisioning, daemon restart and reboot history. Extend only the missing role coverage, preserve the complete selector's assertions and finish owned cleanup. |
+| [ ] | **8c — Shared PAM and policy scope** | On both targets, verify preserved vendor PAM callbacks and effective kiosk-only scope of changed units/policies, including both ordinary account roles. Reuse applicable matrix evidence and add only missing collateral checks. Full Parent/child/overlay feature acceptance is outside this step. Finish owned cleanup. |
 
 Step 5 replaces the former natural-reminder step under the scope decision above.
 The 2026-10-13 coverage audit split it into 5a–5c after finding no installed
@@ -1064,14 +1065,80 @@ required. The product ledger remains `not-run`: this engineering qualification
 proves ordinary login/desktop availability without completing a customer case
 or broader Parent/child/overlay feature acceptance.
 
-Phase 3 remains open. Step 8b must verify applicable vendor PAM preservation,
-metadata for both ordinary roles and effective kiosk-only unit/policy scope.
-Reuse valid matrix evidence first; the source audit identifies ordinary manager
+At 8a close-out, shared integration still required applicable vendor PAM
+preservation, metadata for both ordinary roles and effective kiosk-only
+unit/policy scope. The source audit identified ordinary manager
 labels/namespaces/unit paths, private masks/drop-ins and shared launcher
-environments as installed scope checks, while the existing metadata qualifier
-fingerprints only the ordinary administrator's cache/icon. No 8b assertion or
-Phase 3 exit gate closes with this desktop result. The separate E2E queue is
-unchanged.
+environments as installed scope checks; the metadata qualifier then
+fingerprinted only the ordinary administrator's cache/icon. The 8b–8c split
+below retains those assertions. No shared-integration assertion or Phase 3 exit
+gate closed with this desktop result. The separate E2E queue remained unchanged.
+
+### Step 8b qualification — 2026-10-13
+
+The complete registered
+`package::test_kiosk_account_classification_survives_reboot` history passed
+both installed and rebooted phases on each target, preserving its existing assertions.
+
+| Target | Passed report | Retained system allocation |
+| --- | --- | --- |
+| Ubuntu | `20261014T053421Z-46b46446` | `onpc-system-s9d7_ae2` |
+| Fedora | `20261014T053957Z-fec23e97` | `onpc-system-u1tqx2dd` |
+
+Allocations live under `output/test-runs/privileged/allocations/`.
+Both installed JUnit files record fresh-cache retry/restart, retained-visible
+and hidden preservation, unsafe refusal/recovery, all three atomic interruption
+recoveries and explicit administrator/standard-user metadata preservation.
+Both rebooted files record retained kiosk and ordinary-role preservation after
+the controller's real reboot. All four executions have zero errors, failures or
+skips. Each result reports passing product, infrastructure, collection and
+cleanup outcomes, `cleanup_phase=complete` and verified outer-baseline
+restoration with metadata-only checks. Both pinned VMs were independently
+confirmed off. The acceptance results remain retained.
+
+The coverage audit split the original shared-integration step into the
+independent metadata history (8b) and shared PAM/effective-policy scope (8c).
+The maintained classification selector now captures both declared ordinary
+administrator and standard-user AccountsService cache/icon fingerprints before
+kiosk mutations, then compares them throughout its existing provisioning,
+restart, interruption recovery and reboot history. Baseline UID/role and icon
+route checks remain mandatory; diagnostics expose only fixed role labels and
+bounded metadata differences. No ordinary account receives a fixture write.
+The complete kiosk metadata and recovery assertions remain unchanged.
+
+Both owned online maintenance guests passed `exercise-live`, then
+`verify-reboot` after a real reboot, including explicit administrator and
+standard-user preservation properties. These diagnostics omit only the
+atomic subprocess injections and supply no installed-selector acceptance.
+Both maintenance owners completed guarded stop and outer-baseline restoration
+before the installed runs.
+
+The helper SHA-256 is
+`e580826c444c4b1a08ba54c229a91c8bc7aef745b74d573249aa47134ca17538`.
+The verified named inputs are
+`output/test-runs/host/allocations/onpc-parent-setup-onpc-Ubuntu26.04-b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+and
+`output/test-runs/host/allocations/onpc-parent-setup-onpc-Fedora44-b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`.
+Their package-source, package and fixture hashes exactly match the 5a candidate.
+Both installed attempts retain the same selected-input SHA-256
+`65ff04d9801e0bc972d3fbdb64c111c530a861a72bf6933c85dde9c5d16f4a00`,
+including the helper digest above. Both artifact verification checks passed.
+No product, policy or build input changed, so earlier product qualification
+needs no repetition for this test-only
+extension and `make build` is not required.
+
+Scoped metadata, runner and host-inventory regressions passed 251/251
+(`20261014T053025Z-09ca27b4`); plan/inventory/coverage/composition consistency
+passed 313/313 (`20261014T054400Z-70462751`). The expanded unit cases use the same
+private files and command/account doubles, retaining the reviewed compatible
+resource classification. Independent bounded source review found no blocking
+issue. Generated coverage was refreshed without changing E2E bindings or readiness.
+
+Step 8b closes only the metadata slice. Phase 3 remains open; step 8c must
+qualify preserved vendor PAM callbacks and effective kiosk-only unit/policy
+scope for both ordinary roles before its exit gate can close. No customer
+case or broader Parent/child/overlay feature acceptance is claimed, and the
+separate E2E queue remains unchanged.
 
 ## Operating and qualification routes
 
@@ -1117,22 +1184,28 @@ waiting-session assertions. The error-report/privacy restrictions and
 native/service positives in 7c must be mapped to actual maintained coverage
 before claiming acceptance. Documentation is not registration.
 
-The step 8 coverage audit split its independent graphical-login and shared
-integration histories into 8a–8b. Together they preserve every original step 8
+The step 8 coverage audit separated its independent graphical-login (8a) and
+shared integration histories (8b–8c). Together they preserve every original step 8
 assertion. `check_e2e_fresh_desktop` already owns separate administrator and
 standard-user GDM password-login attempts with independent prompt-free desktop
 observations; reuse it for 8a without adding product-feature acceptance.
 The admission matrix's ordinary account-stage success and the namespace
 fixture's ordinary callbacks do not establish a real graphical desktop.
-Step 8b retains vendor callback preservation, metadata for both ordinary roles
-and effective unit/policy scope; the classification qualifier currently
-fingerprints only the ordinary administrator's cache/icon.
+The original step 8b's vendor callback, ordinary metadata and effective
+unit/policy assertions remain in the bounded 8b–8c split.
+The 2026-10-13 audit found two independent installed histories: the existing
+classification/restart/reboot selector, whose ordinary witness covered only the
+administrator, and the missing shared-PAM/effective-policy scope qualification.
+Step 8b extends and executes the metadata history; step 8c retains every vendor
+callback and unit/policy assertion, including both ordinary roles. Neither slice
+alone closes the original shared-integration step or Phase 3.
 
 ```bash
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_execution_confinement' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_login_admission' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_namespace_guard_callbacks' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'enforcement' --test 'test_kiosk_platform_integrations' --vm '<matching target>'
+tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'package' --test 'test_kiosk_account_classification_survives_reboot' --vm '<matching target>'
 tools/run-tests system --artifacts '<current DEB or RPM allocation>' --area 'removal' --test 'test_remove_reboot_reinstall' --vm '<matching target>'
 tools/run-tests integration 'check_e2e_kiosk_entry' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'
 tools/run-tests e2e --id '50' --vm 'onpc-Ubuntu26.04,onpc-Fedora44'

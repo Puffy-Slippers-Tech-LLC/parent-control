@@ -416,10 +416,12 @@ failed test assertion.
   the daemon. All retained-record fingerprints remain exact. The oracle
   preserves unknown user keys, comments, extension groups and custom icon state,
   including file ownership, mode and xattrs, through the full production kiosk
-  provisioning function. A declared existing ordinary parent role's complete
-  cache and icon fingerprints must also survive every restart and the final
-  reboot without any fixture write to that account. Daemon restarts are independently
-  observed. Bounded child-only injection tests a precommit I/O failure and
+  provisioning function. Both declared ordinary administrator and standard-user
+  roles' complete cache and icon fingerprints must also survive every restart
+  and the final reboot without any fixture write to those accounts. Each witness
+  requires the baseline UID/role and a declared icon route; bounded diagnostics
+  identify only the fixed role and changed metadata fields. Daemon restarts are
+  independently observed. Bounded child-only injection tests a precommit I/O failure and
   immediate exits before and after the exact atomic replacement while the real
   daemon is stopped and activation is masked. It checks the owned pending slot
   and committed xattr marker before normal restart exercises real hook recovery.

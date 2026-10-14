@@ -777,6 +777,8 @@ from regression_ui import Bucket
 # account/service command doubles and synthetic metadata. It never reads a live
 # AccountsService record or changes a host account, daemon, bus or runtime mask;
 # compatible with other private unit work, with no owned child or shared cache.
+# Both ordinary-role witnesses use those same private files and account/command
+# doubles; expanded role/refusal/metadata cases add no resource or cleanup owner.
 # system_kiosk_platform uses private proc/audit-shaped files and process-local
 # command/account doubles. Fixture identity/cleanup checks touch only pytest
 # directories; no live manager, module loader, bus, VM, mount or child lifetime.

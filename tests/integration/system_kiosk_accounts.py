@@ -32,7 +32,7 @@ PROVISION = Path('/usr/libexec/oh-no-parent-control-provision')
 BOOT = Path('/proc/sys/kernel/random/boot_id')
 SLOT = '.onpc-kiosk-visibility-v1'
 TRANSACTION = 'user.oh-no-parent-control.visibility-v1'
-ORDINARY_NAME = 'onpc-parent-jamie'
+ORDINARY_ACCOUNTS = {'administrator': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan'}
 
 
 def owned_bytes(path, *, optional=False, private=False):
@@ -164,36 +164,46 @@ def routing(account):
 
 
 def ordinary_state():
-    """Read one declared baseline role; never create or mutate its metadata."""
+    """Read both declared baseline roles without creating or mutating metadata."""
     baseline = json.loads(guest.BASELINE.read_bytes())
-    account = pwd.getpwnam(ORDINARY_NAME)
-    guest.require(baseline['accounts'].get(ORDINARY_NAME) ==
-                  {'uid': account.pw_uid, 'role': 'administrator'} and
-                  account.pw_uid > 0 and account.pw_shell == '/bin/bash',
-                  'kiosk-accounts:ordinary-baseline-role')
-    path = resolve(account)
-    fields = shlex.split(guest.run(['busctl', '--system', 'get-property',
-        'org.freedesktop.Accounts', path, INTERFACE, 'IconFile']))
-    allowed_icons = {str(ICON.parent / ORDINARY_NAME),
-                     '/usr/share/pixmaps/onpc-baseline-' + ORDINARY_NAME + '.png'}
-    guest.require(len(fields) == 2 and fields[0] == 's' and fields[1] in allowed_icons,
-                  'kiosk-accounts:ordinary-icon-route')
-    return {'uid': account.pw_uid, 'cache': fingerprint(CACHE.parent / ORDINARY_NAME),
-            'icon_path': fields[1], 'icon': fingerprint(Path(fields[1]))}
+    result = {}
+    for role, name in ORDINARY_ACCOUNTS.items():
+        account = pwd.getpwnam(name)
+        guest.require(baseline['accounts'].get(name) ==
+                      {'uid': account.pw_uid, 'role': role} and
+                      account.pw_uid > 0 and account.pw_shell == '/bin/bash',
+                      'kiosk-accounts:ordinary-baseline-role:' + role)
+        path = resolve(account)
+        fields = shlex.split(guest.run(['busctl', '--system', 'get-property',
+            'org.freedesktop.Accounts', path, INTERFACE, 'IconFile']))
+        allowed_icons = {str(ICON.parent / name),
+                         '/usr/share/pixmaps/onpc-baseline-' + name + '.png'}
+        guest.require(len(fields) == 2 and fields[0] == 's' and fields[1] in allowed_icons,
+                      'kiosk-accounts:ordinary-icon-route:' + role)
+        result[role] = {'uid': account.pw_uid, 'cache': fingerprint(CACHE.parent / name),
+                        'icon_path': fields[1], 'icon': fingerprint(Path(fields[1]))}
+    return result
 
 
 def verify_ordinary(expected):
     actual = ordinary_state()
-    if actual != expected:
+    guest.require(set(expected) == set(ORDINARY_ACCOUNTS), 'kiosk-accounts:ordinary-witness-roles')
+    differences = {}
+    for role in ORDINARY_ACCOUNTS:
+        before, after = expected[role], actual[role]
+        if before == after:
+            continue
         # Paths and account identifiers remain private; only fixed role names
         # and bounded cache/icon metadata enter diagnostic output.
-        detail = {'fields': [name for name in sorted(set(expected) | set(actual))
-                             if expected.get(name) != actual.get(name)]}
-        for role in ('cache', 'icon'):
-            if expected[role] != actual[role]:
-                detail[role] = fingerprint_difference(expected[role], actual[role])
+        detail = {'fields': [name for name in sorted(set(before) | set(after))
+                             if before.get(name) != after.get(name)]}
+        for field in ('cache', 'icon'):
+            if before[field] != after[field]:
+                detail[field] = fingerprint_difference(before[field], after[field])
+        differences[role] = detail
+    if differences:
         raise guest.GuestError('kiosk-accounts:ordinary-metadata-changed:' +
-                               json.dumps(detail, sort_keys=True))
+                               json.dumps(differences, sort_keys=True))
 
 
 def interrupt_repair(stage):
@@ -452,6 +462,8 @@ def exercise(record, *, atomic=True):
     save_witness(account, ordinary)
     record('onpc.kiosk.accounts.retained-hidden-daemon-restart', True)
     record('onpc.kiosk.accounts.ordinary-metadata-preserved', True)
+    for role in ORDINARY_ACCOUNTS:
+        record('onpc.kiosk.accounts.' + role + '-metadata-preserved', True)
 
 
 def verify_reboot(record):
@@ -472,6 +484,8 @@ def verify_reboot(record):
     verify_ordinary(witness['ordinary'])
     record('onpc.kiosk.accounts.retained-hidden-reboot-preserved', True)
     record('onpc.kiosk.accounts.ordinary-reboot-preserved', True)
+    for role in ORDINARY_ACCOUNTS:
+        record('onpc.kiosk.accounts.' + role + '-reboot-preserved', True)
 
 
 if __name__ == '__main__':

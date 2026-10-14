@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 4 — Qualify confinement lifecycle and close. Step 1 is next.**
+**Next phase: 4 — Qualify confinement lifecycle and close. Step 2 is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -96,7 +96,7 @@ confinement change affects that code or state, following the
 
 | Done | Phase 4 step | Required result before stopping |
 | --- | --- | --- |
-| [ ] | **1 — Coverage and verified inputs** | Map remaining confinement lifecycle obligations to registered routes and assertions; record missing installed coverage explicitly. Prepare latest-version DEB and RPM assets through the maintained builder. Record source provenance, package hashes, returned allocations, affected selectors and report-retention needs. Preparation proves no installed lifecycle behavior. |
+| [x] | **1 — Coverage and verified inputs** | Map remaining confinement lifecycle obligations to registered routes and assertions; record missing installed coverage explicitly. Prepare latest-version DEB and RPM assets through the maintained builder. Record source provenance, package hashes, returned allocations, affected selectors and report-retention needs. Preparation proves no installed lifecycle behavior. |
 | [ ] | **2 — Latest-version activation and reboot boundary** | On both targets, verify policy loading, safe refusal before required reboot, and confined kiosk readiness after a new boot against exact inputs. Verify account identity/classification and admission gates survive restart. Check only activation behavior needed to prevent an unrestricted kiosk session; general notice wording and saved-data migration acceptance remain with their owners. |
 | [ ] | **3 — Ubuntu removal history** | Pass the complete registered `removal::test_remove_reboot_reinstall` history on current DEB input: active-kiosk and foreign hook/PAM refusals, successful inactive removal/account finalization, reboot, retained-state reinstall, packaged purge, reboot and fresh reinstall. Establish durable kiosk denials until owned account deletion, correct PAM/policy restoration, ordinary login/desktop availability and other-account preservation. |
 | [ ] | **4 — Fedora removal history** | Pass the same complete maintained history on current RPM input, including native DNF removal and packaged purge, restored authselect, enforcing SELinux, account finalization, retained/fresh reinstall behavior and ordinary-user preservation. |
@@ -1221,6 +1221,99 @@ candidate's completed admission, waiting-session census, essential request,
 surface/service and ordinary-login/metadata histories remain applicable;
 the Phase 3 exit gate passes. Phase 4 step 1 is next and requires a separate
 session. The separate E2E queue and its next-task pointer remain unchanged.
+
+### Phase 4 step 1 — coverage and verified inputs — 2026-10-13
+
+This audit maps the remaining lifecycle obligations to executable assertions;
+it supplies no installed activation, removal or recovery pass. Registry listings
+confirmed the four `package` selectors and the single `removal` selector on the
+registered targets. The
+[installed runner](../tests/integration/README.md#running-the-current-installed-suite)
+owns their execution and prerequisite closure.
+
+| Obligation / owning step | Registered coverage and assertion | Remaining installed coverage |
+| --- | --- | --- |
+| Latest-version activation and reboot (2) | `package::test_installed_package` runs before and after reboot: exact payload identity/permissions, active dependencies, PAM integration and a nonempty fapolicyd rule listing. Before reboot, `system_guest.verify_reboot_gate` requires the exact broker `Error.RebootRequired` and unchanged generated execution-policy files. `test_first_install_requests_reboot` and `test_reboot_applies_installation` check the product request, new boot identity and cleared request. | These assertions do not observe the actual kiosk admission/execution boundary in that same activation history or prove the exact loaded/enforcing confinement policy and generation. Pending reboot must leave policy operations unavailable and kiosk entry either safely refused or confined with the restart-required presentation; the reboot marker alone does not require blanket PAM denial. Add direct boundary observations, missing/stale/unenforced-policy refusal and post-boot readiness checks before closing 2. |
+| Account identity/classification and restart (2) | `package::test_kiosk_account_classification_survives_reboot` invokes `system_kiosk_accounts.exercise` and `verify_reboot`: preserved UID/GID/nologin shell, visible/saved classification, dedicated Wayland routing, retained kiosk metadata, both ordinary roles' metadata, AccountsService restart and new-boot witnesses. It also exercises owned metadata-publication interruption/retry. | It does not call kiosk admission gates or observe confined execution after those restarts. Metadata recovery is covered; it is not removal rollback or a confinement readiness assertion. |
+| Execution/admission readiness (2, 10–11) | `enforcement::test_kiosk_execution_confinement` supplies enforcing execution, real credential/teardown, stale manager/generation and policy-loss refusal/recovery; `test_kiosk_login_admission` supplies installed GDM/terminal/SSH account gates with allowed controls. `integration check_e2e_kiosk_entry` owns the strict real waiting-session census. Namespace, shared-integration and platform selectors retain their Phase 3 scopes. | These post-install routes restore a verified app snapshot. Their existing passes do not observe the freshly exercised installation/reboot transition. Reuse their maintained mechanics and exact applicable evidence without substituting a cached snapshot for step 2's transition. |
+| Complete successful removal/reinstall/purge history (3–4) | `removal::test_remove_reboot_reinstall` is one continuous five-phase selector. `system_removal.verify_active_kiosk_refusal` proves allowed native execution, active-manager refusal, intact payload/PAM/records and a still-confined manager. `remove` separately preserves edited GDM hook and `gdm-password` bytes on refusal. Subsequent phases check payload/account/home/marker removal, unloaded kiosk policy, cleared restrictions/grants, ordinary account preservation, native execution, GDM desktop/password health, retained-state reinstall and fresh defaults after packaged purge. Fedora also checks original authselect selection and enforcing SELinux. | Current final PAM assertions require absent product references/barriers, not exact original `gdm-password`/`systemd-user` bytes and original local-versus-vendor disposition. Add that missing restoration assertion to the complete route before claiming the corresponding step 3/4 obligation. The successful endpoint does not prove the payload-erased, surviving-account interval. |
+| In-flight admission, partial cleanup, abort and retry (5–6) | Active-manager refusal above and the execution matrix's non-destructive `check-remove` preflights are installed coverage. Host regressions exercise the root PAM admission lease, `postinst abort-remove`, uninstall snapshot rollback, confinement rearming, interrupted denial publication and failed policy unloading. | No registered installed history holds a root PAM admission/handoff before kiosk credentials appear, aborts after nontrivial cleanup, or interrupts denial publication/MAC unloading/finalization. Add bounded histories with allowed controls, refusal/interruption, preserved records and ordinary-user access, restored enforcement before guard release, and successful owned retry. Host fault fixtures are not installed proof. |
+| Durable denial across payload erasure (5–6) | Production removal publishes distro-PAM account/session denials before unloading policy; embedded finalization restores original PAM only after owned account deletion. The existing installed selector observes completed cleanup only. | No registered installed history checks actual kiosk account/session denials while executable payload is absent and the kiosk identity survives, including interrupted finalization. Require those observations plus ordinary-user controls and exact restoration after verified account deletion. Private embedded-finalizer host fixtures do not close this gap. |
+| Foreign/substituted ownership state (5–6) | The complete removal selector covers regular-file content edits at the GDM hook and `gdm-password`, followed by resolution and successful retry. Host ownership/cleanup fixtures cover additional refusal branches. | Installed coverage is missing for `systemd-user` edits, link substitutions, foreign confinement records, changed kiosk identity and substituted/foreign-owned or mounted home/state roots. Select finite variants under the removal ownership contract, preserve foreign state/recovery records on refusal and prove owned finalization after resolution. Apply the plan's bounded-step rule before executing independent histories. |
+| Failed RPM post-erase recovery (6) | The successful Fedora removal history invokes the installed packaged purge action through native DNF and verifies its postconditions. Host purge fixtures exercise failed callbacks with mocked native transactions. | No registered installed history fails real post-erase cleanup, retains safe admission and recovery records after payload erasure, then uses normal reinstall, conflict resolution, reboot and repeated packaged purge. That complete recovery history remains required. |
+
+Source assertions were traced through
+[package tests](../tests/system/test_install_smoke.py),
+[guest activation checks](../tests/integration/system_guest.py),
+[account restart checks](../tests/integration/system_kiosk_accounts.py),
+[admission checks](../tests/integration/system_kiosk_admission.py),
+[execution checks](../tests/integration/system_kiosk_confinement.py),
+[removal phases](../tests/integration/system_removal.py) and
+[controller registration/order](../tests/integration/system_runner.py).
+The [removal design](SystemDesign/Package-Removal.md) owns recovery expectations.
+Steps 7–8 remain independent source/security reviews, not automated selectors;
+steps 9–11 own final candidate validation and any invalidated confinement
+histories. This audit closes neither review nor any installed coverage gap.
+
+Both inputs were prepared through separate
+`tools/run-tests artifacts prepare --for-vm --vm NAME` invocations. The pinned
+baseline provenance selected DEB for `onpc-Ubuntu26.04` and RPM for
+`onpc-Fedora44`. Ubuntu reused a verified matching bundle; Fedora built fresh
+through the maintained RPM builder. Both preparation reports passed, and the
+builder verified package and fixture digests. Independent `sha256sum` checks
+matched the manifests.
+
+| Input | Returned allocation under `output/test-runs/host/allocations/` | Preparation report under `output/test-runs/host/reports/` | Package |
+| --- | --- | --- | --- |
+| Ubuntu DEB | `onpc-test-artifacts-jes1rj38` | `20261014T063223Z-a52ca0a3/report.md` | `package/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb` |
+| Fedora RPM | `onpc-test-artifacts-7hcj5neh` | `20261014T063230Z-b1f6a6cc/report.md` | `package/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` |
+
+The starting checkout was clean at
+`958f03c73abcb06e82e9b179b6f3807ab0978051`. Both manifests bind 348
+`scope=package` inputs to revision
+`f84b688281f27ade9e737b2b6a2930646db3541c` and package-source SHA-256
+`b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`.
+The package revision records the last commit touching the selected package/build
+inputs; later test/documentation commits do not change that identity. DEB SHA-256 is
+`daa9c180960e1dfc72e026a7019bb71b2b63db3bd4c867a62e300f05f81b94fa`;
+RPM SHA-256 is
+`630ab36562dd7f85d1a2b4f0cbf2f359972b6ac29fe4dcb2e5a051f5723afaf4`.
+Both fixture digests are
+`b605097e70b69abb86e32142a36ab762185d80f8df2e160dbdded5329d5d82ab`.
+These match the Phase 3 candidate; preparation does not independently requalify
+any earlier result or establish snapshot applicability for a future attempt.
+
+The DEB manifest records `amd64`, source epoch `1791921826` and
+`dpkg-buildpackage --build=binary --no-sign -aamd64`. RPM records `x86_64`,
+source epoch `1791914313` and `tools/build_rpm.py`. Recorded build options are
+`nocheck parallel=2`; package preparation supplies no regression-test pass.
+Both manifests retain dpkg tool version `1.23.7` and Flatpak `1.16.6`.
+
+Retention follows the existing
+[three-run/4-GiB journal limits](../tests/README.md#aggregate-output-retention).
+The two preparations and grouped final host verification fit the host window.
+Verify both reports, manifests and package bytes after final validation; do not
+treat these returned allocations as permanent inputs. Reprepare an expired
+bundle through the maintained builder and check exact applicability before use.
+Installed attempts share a separate three-run window per target: plan required
+lifecycle reports, JUnit, input identities and cleanup evidence before steps
+2–6, preserve needed report files through the documented artifact exporter
+before rotation, and recheck exports after later exports. Missing required raw
+evidence needs the affected complete history repeated; a prose reference alone
+does not supply retained acceptance. Step 9 must reconcile any changed candidate.
+
+No guest was started or mutated. Both registered targets were independently
+confirmed powered off through `tools/test-vm status`. No product, policy, test
+inventory or build input changed; this plan edit requires no additional
+`make build`, coverage generation or customer E2E execution. The separate E2E
+queue remains unchanged.
+
+Final grouped validation passed both artifact verifications and 313/313
+plan/inventory/coverage/composition consistency tests (315/315 checks total),
+report `20261014T063732Z-9503cc0f`. Markdown links and whitespace checks passed.
+Both preparation reports, manifests and exact package hashes were rechecked
+afterward and remain retained alongside the final host report. No owned VM
+cleanup was needed. Step 1 is complete; Phase 4 remains open and step 2 is next.
 
 ## Operating and qualification routes
 

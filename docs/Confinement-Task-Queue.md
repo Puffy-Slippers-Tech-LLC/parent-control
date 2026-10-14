@@ -13,6 +13,12 @@ gate. Scope and complete closure assertions remain in the
 Estimates include acceptance and close-out, never permission to cut assertions
 or stop a required continuous history.
 
+The remaining shared scope of original tasks 4-5 and 4-6 is grouped by recovery
+goal in 4-5a–4-5e, each covering both targets. Task 4-6 retains the additional
+Fedora-only post-erase recovery chain. Original 4-11 is absorbed into dual-target
+4-10. These are scheduling changes without completion credit; every original
+assertion remains required. Completed rows through 4-4 retain their history.
+
 ## Ordered task queue
 
 | Done | ID | Task | Requires | Scope | Estimate |
@@ -35,14 +41,17 @@ or stop a required continuous history.
 | [x] | 4-2b | [Real GDM activation readiness](Confinement-Reference.md#phase-4-step-2b--real-gdm-activation-readiness--2026-10-14) | 4-2a2 | Real fresh-install/reboot GDM readiness on both targets; preserve native proof. | 15–30 min; split substantial independent work |
 | [x] | 4-3 | [Ubuntu removal history](Confinement-Reference.md#phase-4-step-3--ubuntu-removal-history--2026-10-14) | 4-2b | Continuous DEB remove/reboot/retained reinstall/purge/reboot/fresh reinstall; exact PAM restoration and ordinary-user controls. | Continuous history; may exceed 30 min |
 | [x] | 4-4 | [Fedora removal history](Confinement-Reference.md#phase-4-step-4--fedora-removal-history--2026-10-14) | 4-3 | Continuous RPM/DNF lifecycle; exact PAM/authselect restoration, enforcing SELinux and ordinary-user preservation. | Continuous history; may exceed 30 min |
-| [ ] | 4-5 | [Ubuntu interruption and recovery gaps](Confinement-Tasks/4-5.md) | 4-4 | Installed Ubuntu interruption, payload-erased admission barriers, foreign ownership refusal and successful owned retry. | 15–30 min; split substantial independent work |
-| [ ] | 4-6 | [Fedora interruption and recovery gaps](Confinement-Tasks/4-6.md) | 4-5 | Installed Fedora interruption/ownership gaps and complete failed post-erase reinstall/reboot/repeated-purge recovery. | Continuous history; may exceed 30 min |
+| [ ] | 4-5a | [In-flight admission refusal](Confinement-Tasks/4-5a.md) | 4-4 | Both targets: held root PAM admission/UID-exec handoff, safe removal refusal, preserved enforcement/records and successful owned retry. | 15–30 min; preserve complete history |
+| [ ] | 4-5b | [Aborted cleanup and rollback](Confinement-Tasks/4-5b.md) | 4-5a | Both targets: abort after nontrivial reversible cleanup, restored enforcement before guard release and successful owned retry. | 15–30 min; preserve complete history |
+| [ ] | 4-5c | [Interrupted finalization and durable admission barriers](Confinement-Tasks/4-5c.md) | 4-5b | Both targets: denial-publication/MAC-unload/finalization interruptions, actual payload-erased account/session denials and successful owned retry. | Continuous histories; may exceed 30 min |
+| [ ] | 4-5d | [PAM and confinement-record ownership refusal](Confinement-Tasks/4-5d.md) | 4-5c | Both targets: systemd-user edits, link substitutions and foreign confinement records; preserve foreign state and prove resolved owned retry. | 15–30 min; split substantial independent variants |
+| [ ] | 4-5e | [Kiosk identity and filesystem ownership refusal](Confinement-Tasks/4-5e.md) | 4-5d | Both targets: changed kiosk identity and foreign-owned/substituted/mounted home/state roots; preserve foreign state and prove resolved owned retry. | 15–30 min; split substantial independent variants |
+| [ ] | 4-6 | [Fedora post-erase recovery](Confinement-Tasks/4-6.md) | 4-5e | Failed real RPM post-erase cleanup, retained barriers/records, normal reinstall/conflict resolution/reboot/repeated packaged purge with enforcing SELinux. | Continuous history; may exceed 30 min |
 | [ ] | 4-7 | [Independent native-boundary review](Confinement-Tasks/4-7.md) | 4-6 | Independent original-partial-fix and complete native GDM/PAM/MAC/namespace boundary review against 697a4c30. | 15–30 min; split substantial independent work |
 | [ ] | 4-8 | [Independent lifecycle/security review](Confinement-Tasks/4-8.md) | 4-7 | Independent lifecycle, APIs, exposed surfaces, collateral effects and harness/evidence review across five scope groups. | 15–30 min; split substantial independent work |
 | [ ] | 4-9 | [Final candidate and host validation](Confinement-Tasks/4-9.md) | 4-8 | Affected host/build checks; exact final DEB/RPM input preparation, evidence applicability and required follow-up inventory. | 15–30 min; split substantial independent work |
-| [ ] | 4-10 | [Final Ubuntu qualification](Confinement-Tasks/4-10.md) | 4-9 | Final DEB confinement matrices, strict real-session census and every invalidated in-scope complete history. | 15–30 min; split substantial independent work |
-| [ ] | 4-11 | [Final Fedora qualification](Confinement-Tasks/4-11.md) | 4-10 | Final RPM confinement/census/public-kiosk qualification with enforcing SELinux and applicable complete lifecycle proof. | 15–30 min; split substantial independent work |
-| [ ] | 4-12 | [Reconcile and close](Confinement-Tasks/4-12.md) | 4-11 | Reconcile five groups, both reviews, retained raw evidence and owned cleanup; close only the confinement exit gate. | 15–30 min; split substantial independent work |
+| [ ] | 4-10 | [Final Ubuntu and Fedora qualification](Confinement-Tasks/4-10.md) | 4-9 | Both targets: final DEB/RPM confinement matrices, strict real-session census, affected public kiosk qualification and every invalidated in-scope complete history; Fedora SELinux remains enforcing. | 15–30 min; split substantial independent goals across both targets |
+| [ ] | 4-12 | [Reconcile and close](Confinement-Tasks/4-12.md) | 4-10 | Reconcile five groups, both reviews, retained raw evidence and owned cleanup; close only the confinement exit gate. | 15–30 min; split substantial independent work |
 
 ## Deferred future work
 

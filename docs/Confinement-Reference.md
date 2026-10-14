@@ -1547,7 +1547,7 @@ payload/policy checks, inactive account finalization, ordinary native execution,
 desktop/password health after removal and purge, retained preferences after
 ordinary reinstall, cleared one-time grants and fresh defaults after purge.
 Completed endpoints do not establish the payload-erased surviving-account
-admission interval; that explicit obligation remains in **4-5**.
+admission interval; that explicit obligation remains in **4-5c** on both targets.
 
 Mechanical fixture repairs preserve those assertions. After public GDM exit, an
 identity-checked read-only wait lets the preceding manager finish naturally
@@ -1626,8 +1626,8 @@ enforcing SELinux, active-kiosk and foreign hook/PAM refusal, payload/policy
 preservation on refusal, inactive kiosk account/home/cache finalization, ordinary
 desktop/password/native-execution controls, retained preferences after ordinary
 reinstall, cleared one-time grants and fresh defaults after purge. The
-payload-erased surviving-account interval and failed real post-erase recovery
-remain explicit **4-6** obligations.
+payload-erased surviving-account interval remains explicit in **4-5c** on both
+targets; failed real RPM post-erase recovery remains explicit in **4-6**.
 
 Mechanical test repairs preserve those assertions. The account fixture's copied
 icon was root-only, causing the blank greeter image observed during testing; it

@@ -12,13 +12,14 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-5 — [Ubuntu interruption and recovery gaps](Confinement-Tasks/4-5.md)**.
+Next task: **4-5a — [In-flight admission refusal](Confinement-Tasks/4-5a.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and
 admission barriers and account ownership on both targets; final security review,
 affected regressions and every required acceptance gap must pass before closure.
-The queue preserves all recorded step numbers, order and completed states.
+The queue preserves completed task identities and evidence. Remaining shared
+goals cover Ubuntu and Fedora together; distro-specific recovery stays explicit.
 
 ## Requirements
 - Drive subagents (stick to 6.1-sol of variant efforts) as needed to divide and conquer especially with lower-tier agent on routine monitoring and coverage refreshes
@@ -85,6 +86,15 @@ The removal selector owns one continuous five-phase reboot history per distro;
 never split its phases into independent apparent passes. Preserve every assertion
 of a shared selector, including ordinary-user controls, while avoiding unrelated
 feature implementation prerequisites.
+
+For shared remaining goals, implement common mechanics once and qualify Ubuntu
+and Fedora concurrently through the [maintained VM scheduler](Mandates/VM-Mandate.MD#target-selection)
+within its configured cap. Keep one editor for shared code under the
+[delegation contract](Execution-Plans.md#execution-and-delegation), separate
+per-target inputs/evidence/cleanup and ordered histories within each VM. Both
+targets must pass before accepting the task; a shared fix requires affected
+qualification on both. Preserve the [serial Preferences qualification route](Confinement-Reference.md#step-7b-qualification--2026-10-13)
+until concurrent execution is qualified. Keep indivisible recovery chains together.
 
 Successful allowed controls must precede execution/admission denials; require
 independent enforcing-boundary observations. Missing coverage, unavailable

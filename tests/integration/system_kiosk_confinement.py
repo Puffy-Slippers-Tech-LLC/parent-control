@@ -1140,31 +1140,40 @@ def verify_updates(account, unit, backend, record):
             backup.rename(plugin_directory)
 
 
+@contextmanager
+def appended_probe(path, suffix):
+    """Restore the opened fixture inode, including package-verified timestamps."""
+    with os.fdopen(os.open(path, os.O_RDWR | os.O_NOFOLLOW), 'r+b') as stream:
+        before = os.fstat(stream.fileno())
+        original = stream.read()
+        try:
+            stream.write(suffix)
+            stream.flush()
+            yield
+        finally:
+            stream.seek(0)
+            stream.write(original)
+            stream.truncate()
+            stream.flush()
+            os.utime(stream.fileno(), ns=(before.st_atime_ns, before.st_mtime_ns))
+
+
 def verify_admission_faults(account, directory, backend, record):
     command = ['/usr/lib/systemd/systemd', '--version']
     status, data = first_exec(account, directory, command, service='systemd-user')
     guest.require(status == 0 and not data, 'kiosk-confinement:manager-first-exec-positive')
     for name in ('/etc/pam.d/gdm-password', '/usr/lib/pam.d/systemd-user'):
-        path = Path(name)
-        original = path.read_bytes()
-        try:
-            path.write_bytes(original + b'\n# owned integration-drift probe\n')
+        with appended_probe(Path(name), b'\n# owned integration-drift probe\n'):
             status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
             guest.require(status == 125 and json.loads(data)['pam'] != 0,
                           'kiosk-confinement:drift-admitted')
-        finally:
-            path.write_bytes(original)
     record('onpc.kiosk.pam-vendor-drift-denied', True)
     policy = Path('/usr/share/oh-no-parent-control/confinement') / (
         'onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil')
-    original = policy.read_bytes()
-    try:
-        policy.write_bytes(original + b'\n')
+    with appended_probe(policy, b'\n'):
         status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
         guest.require(status == 125 and json.loads(data)['pam'] != 0,
                       'kiosk-confinement:unloaded-policy-generation-admitted')
-    finally:
-        policy.write_bytes(original)
     record('onpc.kiosk.unloaded-policy-generation-denied', True)
     if backend == 'apparmor':
         restore = ['/usr/sbin/apparmor_parser', '-r', str(policy)]
@@ -1379,15 +1388,11 @@ def verify(record):
             directory = Path(temporary)
             verify_pam_lifecycle(account, unit, backend, directory, record)
             config = Path('/usr/share/oh-no-parent-control/confinement/config.json')
-            original = config.read_bytes()
-            try:
-                config.write_bytes(original + b'\n')
+            with appended_probe(config, b'\n'):
                 status, data = first_exec(account, directory,
                     ['/usr/libexec/gdm-wayland-session', '--help'], armed=False)
                 guest.require(status == 125 and json.loads(data)['pam'] != 0,
                               'kiosk-confinement:stale-manager-admitted')
-            finally:
-                config.write_bytes(original)
             guest.require(manager_pid(unit) == pid, 'kiosk-confinement:stale-manager-restarted')
             record('onpc.kiosk.stale-manager-denied-without-restart', True)
             status, data = first_exec(account, directory, ['/usr/libexec/gdm-wayland-session', '--help'])

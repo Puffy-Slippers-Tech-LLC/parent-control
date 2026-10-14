@@ -13,7 +13,7 @@ Product expectations belong to the
 
 ## Phased execution plan (current)
 
-**Next phase: 4 — Qualify confinement lifecycle and close. Step 2a2 is next.**
+**Next phase: 4 — Qualify confinement lifecycle and close. Step 2b is next.**
 
 For **"execute next step in confinement.md"** or **"execute next Phase in
 confinement.md"**, execute only the first unchecked step in the active phase,
@@ -98,7 +98,7 @@ confinement change affects that code or state, following the
 | --- | --- | --- |
 | [x] | **1 — Coverage and verified inputs** | Map remaining confinement lifecycle obligations to registered routes and assertions; record missing installed coverage explicitly. Prepare latest-version DEB and RPM assets through the maintained builder. Record source provenance, package hashes, returned allocations, affected selectors and report-retention needs. Preparation proves no installed lifecycle behavior. |
 | [x] | **2a1 — Ubuntu native activation and reboot boundary** | Extend and pass the maintained DEB fresh-install/reboot history against exact inputs: required-reboot policy refusal, exact loaded/enforcing confinement policy and matching manager generation, allowed native execution before execution/admission denials, missing/stale/unenforced-policy refusal/recovery, and preserved account identity/classification and admission gates after AccountsService restart and a new boot. Reconcile observed automatic APT transaction interference through the maintained baseline fixture owner, refresh the Ubuntu baseline and finish owned cleanup. |
-| [ ] | **2a2 — Fedora native activation and reboot boundary** | Pass the corresponding complete RPM fresh-install/reboot history with enforcing SELinux, exact matching inputs and all 2a1 native/account/admission/refusal/recovery assertions. Refresh stale preparation through the maintained route, account for any observed automatic package transaction interference through its baseline owner and finish owned cleanup. |
+| [x] | **2a2 — Fedora native activation and reboot boundary** | Pass the corresponding complete RPM fresh-install/reboot history with enforcing SELinux, exact matching inputs and all 2a1 native/account/admission/refusal/recovery assertions. Refresh stale preparation through the maintained route, account for any observed automatic package transaction interference through its baseline owner and finish owned cleanup. |
 | [ ] | **2b — Real GDM activation readiness** | On both targets, observe the real kiosk admission/execution boundary in the fresh-install/reboot history: before required reboot entry is safely refused or confined with the restart-required presentation; after a new boot the real waiting session passes the strict enforcing-label/private-namespace/matching-generation census with all required roles and usable kiosk readiness. Retain applicable 2a proof, use exact matching inputs and finish owned cleanup. General notice wording and saved-data migration acceptance remain with their owners. |
 | [ ] | **3 — Ubuntu removal history** | Pass the complete registered `removal::test_remove_reboot_reinstall` history on current DEB input: active-kiosk and foreign hook/PAM refusals, successful inactive removal/account finalization, reboot, retained-state reinstall, packaged purge, reboot and fresh reinstall. Establish durable kiosk denials until owned account deletion, correct PAM/policy restoration, ordinary login/desktop availability and other-account preservation. |
 | [ ] | **4 — Fedora removal history** | Pass the same complete maintained history on current RPM input, including native DNF removal and packaged purge, restored authselect, enforcing SELinux, account finalization, retained/fresh reinstall behavior and ordinary-user preservation. |
@@ -1436,6 +1436,91 @@ Step 2a2 is next and requires refreshed Fedora preparation
 and the complete RPM fresh-install/reboot history. Step 2b's real GDM readiness
 and restart-required presentation remain open, as do the original step 2 and
 Phase 4 exit gate. No general customer E2E task was executed or closed.
+
+### Phase 4 step 2a2 — Fedora native activation — 2026-10-14
+
+Fedora auto-mode baseline refresh, independent offline inspection and matching
+online app-snapshot capture passed through the maintained preparation route.
+The builder verified the returned RPM/fixture bundle. The RPM is byte-for-byte
+identical to step 1's candidate; the refreshed fixture identity matches step 2a1.
+Preparation finished with the VM off. No automatic package-transaction drift
+was observed in the subsequent native lifecycle history.
+
+The first complete attempt, `20261014T164051Z-4a9b5a67`, passed before reboot
+but failed the rebooted package verification. Retained RPM output reported only
+`.......T.` for `confinement/config.json` and `confinement/onpc-kiosk.cil`:
+the fault fixtures restored bytes but changed modification times. A clean live
+snapshot reproduced exactly those two timestamp differences after the native
+matrix. This was a fixture-restoration defect; strict RPM verification and all
+confinement expectations remain unchanged.
+
+The shared native helper now restores append-only fault probes through the
+original no-follow file descriptor, including bytes and nanosecond access and
+modification timestamps. It preserves the inode, permissions and SELinux label.
+All four config/policy/PAM append probes use the same context manager. Existing
+executable/library/plugin replacement probes retain their original rename-based
+restoration. Focused host validation passed **499/499** checks in
+`20261014T165120Z-4de55184/report.md`. Three new private-file regressions cover
+normal and exception restoration and symlink refusal. Their tiny pytest-private
+files add no shared resource or cleanup owner; the existing compatible module
+classification remains applicable. Generated coverage adds exactly three unit
+cases (30,050 unit; 31,184 total).
+
+Before the final installed attempt, the exact revised helper (SHA-256
+`6a02d0f42c5e2d597efd1fb2c40db068959e30e5cbc61dc572491298031e79e6`)
+passed the full native matrix in owned live Fedora maintenance, with strict RPM
+verification both before and afterward and SELinux enforcing. That diagnostic
+supplies no fresh-install acceptance. Its owner completed guarded cleanup and
+baseline restoration before qualification.
+
+The final `package::test_kiosk_account_classification_survives_reboot` attempt
+passed **2/2** executions in
+`output/test-runs/host/reports/20261014T165546Z-5dc4b2ba/report.md`.
+Retained evidence is
+`output/test-runs/privileged/allocations/onpc-system-7scvn66q/evidence/`.
+Both `guest/installed.xml` and `guest/rebooted.xml` contain one passed case and
+zero errors, failures or skips. The continuous fresh-install/reboot history
+proved exact package readiness, preboot `RebootRequired` with unchanged execution
+rules, cleared reboot request, loaded/enforcing native confinement, matching
+manager/helper generations, native positives before execution denials, real
+credential/teardown confinement and stale/missing/unenforced-policy refusal and
+recovery. Installed alternate-session/transport refusal, routing repair and
+successful retry passed before the retained witness. Gates after AccountsService
+restart and the new boot preserved dedicated admission, exact terminal/SSH
+denials and ordinary controls. Kiosk identity/classification and both ordinary
+roles' complete metadata witnesses survived. No app snapshot substituted for
+either lifecycle phase.
+
+| Qualified input | Exact identity |
+| --- | --- |
+| Returned RPM/fixture bundle | `output/test-runs/host/allocations/onpc-test-artifacts-rpkjnrlo` |
+| RPM SHA-256 | `630ab36562dd7f85d1a2b4f0cbf2f359972b6ac29fe4dcb2e5a051f5723afaf4` |
+| Fixture SHA-256 | `8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5` |
+| Frozen selected-input SHA-256 (22 files) | `3d2dd08e4368ecf7a09987b3e9e41fd186d570f7b6f059382a23105622ddf457` |
+| Refreshed Fedora baseline provenance SHA-256 | `8d9c69f0f0c1bc1a58db150aa6081dc42ef0f3b035ff396786733b14a68fbf7f` |
+
+The result and manifest agree on package/source/fixture identities. Package
+source remains revision `f84b688281f27ade9e737b2b6a2930646db3541c`, digest
+`b0c09311fe1b52b87bebd7699caab30829edc3c789329e50ae550c38eeb7b6c5`
+and 348 files. Only test/helper and documentation inputs changed; the Makefile's
+package sources and build dependencies are unaffected, so no separate
+`make build` is required. Step 9 must reconcile the changed selected-input
+identity with earlier evidence under its existing applicability gate.
+
+`result.json` records product, infrastructure, collection and cleanup as passed,
+`cleanup_phase=complete`, and two successful baseline verification calls.
+Both registered VMs were independently confirmed off after owned cleanup.
+Final artifact verification and 313 plan/inventory/coverage/composition checks
+passed (**314/314** total) in `20261014T170427Z-ffa2fd8a/report.md`.
+Changed Markdown links and whitespace checks passed. The exact RPM hash and all
+three historical Phase 3 exports recorded in step 2a1 were rechecked after final
+validation and still match; no new export rotated that bounded journal. Retain
+this attempt's raw JUnits and result before future per-VM rotation, following
+the existing evidence-retention gate.
+
+Step 2a2 is complete. Step 2b's real GDM activation/readiness history remains
+next; original step 2 and the Phase 4 exit gate stay open. No general customer
+E2E task was executed or closed.
 
 ## Operating and qualification routes
 

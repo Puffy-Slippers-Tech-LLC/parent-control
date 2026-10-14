@@ -462,7 +462,9 @@ failed test assertion.
   account-gate checks follow the final AccountsService restart and the new boot.
   Ordinary controls precede dedicated kiosk admission and exact terminal/SSH
   denials. Native positive execution precedes the execution, stale-generation,
-  missing-policy and unenforced-policy denials and recovery. The final preboot
+  missing-policy and unenforced-policy denials and recovery. Append-only fault
+  probes restore original bytes and nanosecond timestamps through the opened
+  inode, preserving strict package verification after reboot. The final preboot
   broker check still requires the exact `RebootRequired` error and unchanged
   generated execution-policy state. The selected case stages all shared helpers;
   it never restores an app snapshot between its two phases. This supplies native

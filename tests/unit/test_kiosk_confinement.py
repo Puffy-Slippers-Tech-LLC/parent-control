@@ -817,6 +817,44 @@ def census_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_confinement.py')
 
 
+@pytest.mark.parametrize('fault', [False, True])
+def test_appended_probe_restores_bytes_inode_mode_and_nanosecond_times(
+        census_model, tmp_path, fault):
+    path = tmp_path / 'package-input'
+    path.write_bytes(b'original package bytes')
+    path.chmod(0o640)
+    os.utime(path, ns=(1_600_000_000_123_456_789, 1_600_000_001_987_654_321))
+    before = path.stat()
+
+    def exercise():
+        with census_model.appended_probe(path, b'\nowned fault\n'):
+            assert path.read_bytes() == b'original package bytes\nowned fault\n'
+            if fault:
+                raise RuntimeError('probe failed')
+
+    if fault:
+        with pytest.raises(RuntimeError, match='probe failed'):
+            exercise()
+    else:
+        exercise()
+    after = path.stat()
+    for field in ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid',
+                  'st_size', 'st_atime_ns', 'st_mtime_ns'):
+        assert getattr(after, field) == getattr(before, field)
+    assert path.read_bytes() == b'original package bytes'
+
+
+def test_appended_probe_refuses_symlink_without_changing_target(census_model, tmp_path):
+    target = tmp_path / 'foreign'
+    target.write_bytes(b'preserved bytes')
+    path = tmp_path / 'package-input'
+    path.symlink_to(target)
+    with pytest.raises(OSError):
+        with census_model.appended_probe(path, b'\nfault\n'):
+            pytest.fail('symlink admitted')
+    assert path.is_symlink() and target.read_bytes() == b'preserved bytes'
+
+
 @pytest.fixture
 def admission_model(monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT / 'tests/integration'))

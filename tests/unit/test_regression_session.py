@@ -211,8 +211,8 @@ def test_active_vm_session_keeps_its_guest_when_configured_ids_swap(tmp_path, wo
     import vm_config
     config = tmp_path / 'test-vm.json'
     entries = [
-        {'id': '17', 'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true'},
-        {'id': '83', 'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true'}]
+        {'id': '17', 'name': 'first-guest', 'disk_anchor': '/first', 'enabled': 'true', 'package_format': 'deb'},
+        {'id': '83', 'name': 'second-guest', 'disk_anchor': '/second', 'enabled': 'true', 'package_format': 'rpm'}]
     config.write_text(json.dumps({'vms': entries}))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     run, started = session.select(tmp_path, ['e2e', '--vm', '17'])
@@ -235,7 +235,8 @@ def test_explicit_vm_queue_reattaches_by_canonical_names_and_rejects_other_selec
     import vm_selection
     config = tmp_path / 'test-vm.json'
     entries = [dict(id=str(index + 1), name=f'guest-{index}', disk_anchor=f'/disk-{index}',
-                    enabled='true' if index == 0 else 'false') for index in range(3)]
+                    enabled='true' if index == 0 else 'false',
+                    package_format='rpm' if index % 2 else 'deb') for index in range(3)]
     config.write_text(json.dumps({'concurrency': 2, 'vms': entries}))
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     vm_selection.execution_selection('2,1')

@@ -33,6 +33,8 @@ PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTION
 
 def execution_selection(name=None):
     concurrency, vms = vm_config.execution(name)
+    for vm in vms:
+        vm.require_package_format()
     select(vms[0].name)
     if name is None or name in ('all', 'all-enabled') or len(vms) > 1:
         os.environ[BATCH] = json.dumps({'concurrency': concurrency, 'vms': [vm.name for vm in vms]})

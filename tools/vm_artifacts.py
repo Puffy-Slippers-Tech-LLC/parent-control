@@ -9,10 +9,11 @@ from dev_privileges import check
 from regression_process import Control
 import test_launcher
 import test_retention
-from vm_selection import arguments, extract
+from vm_selection import arguments, extract, selected
 
 
 def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False):
+    package_format = selected().require_package_format()
     helper = '/usr/local/libexec/onpc-test-runner'
     check(helper)
     # This existing probe only reads provenance under the VM lock. Overwrite
@@ -23,7 +24,11 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         *arguments()], cwd=root, env=environment)
     if status not in (3, 5):
         return status or 2
-    package_format = 'rpm' if status == 5 else 'deb'
+    baseline_format = {3: 'deb', 5: 'rpm'}[status]
+    if baseline_format != package_format:
+        print('run-tests: configured package_format does not match the verified VM baseline; '
+              'existing inputs preserved', file=sys.stderr)
+        return 2
     if upgrade_inputs and package_format != 'deb':
         print('run-tests: genuine v1.2 upgrade inputs support DEB only; '
               'RPM upgrade qualification is unavailable', file=sys.stderr)

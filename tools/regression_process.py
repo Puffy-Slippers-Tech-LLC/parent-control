@@ -425,10 +425,9 @@ def category_run(root, category, argv, *, pipe=True):
             status = control.run(preparation, cwd=root, env=env)
             if status:
                 return status
-        if category == 'e2e' and '--list' not in argv and not any(
-                value.startswith('--artifacts=') for value in commands[0]):
+        if category in ('system', 'e2e') and '--list' not in argv and not test_commands.has_artifacts(commands[0]):
             from vm_selection import arguments as vm_arguments
-            directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-', dir='/tmp')
+            directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
             print('run-tests: output=' + directory, flush=True)
             status = control.run(test_commands.python_file(
                 root, 'tools/vm_artifacts.py', '--output', directory,

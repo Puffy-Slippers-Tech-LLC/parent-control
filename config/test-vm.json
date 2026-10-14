@@ -6,12 +6,14 @@
       "id": "1",
       "name": "onpc-Ubuntu26.04",
       "enabled": "true",
+      "package_format": "deb",
       "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2"
     },
     {
       "id": "2",
       "name": "onpc-Fedora44",
       "enabled": "true",
+      "package_format": "rpm",
       "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2"
     }
   ]

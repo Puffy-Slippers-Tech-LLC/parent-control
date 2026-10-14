@@ -46,7 +46,7 @@ CATEGORIES = {
     'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
     'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False, scope='vm'),
-    'system': CategorySpec('sequential installed VM tests; bare category builds inputs; focused --artifacts, --previous-artifacts, --area, --test, --list', scope='vm'),
+    'system': CategorySpec('sequential tests per VM; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --area, --test, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
@@ -240,6 +240,9 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   Each VM retains its report; configured queues retain a combined result summary.
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
+  Focused system --area AREA --test CASE also prepares inputs per VM when
+  --artifacts is omitted. Each VM must declare package_format (deb or rpm) in
+  config/test-vm.json; there is no default. Configured concurrency still applies.
   After host and e2e, only system remains.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.
@@ -368,6 +371,10 @@ def python_file(root, path, *options):
     return ['/usr/bin/python3', '-B', host.confined_file(root, path), *options]
 
 
+def has_artifacts(argv):
+    return any(value == '--artifacts' or value.startswith('--artifacts=') for value in argv)
+
+
 def artifact_output(value):
     """Accept a new direct managed allocation; never replace inputs."""
     path = Path(value)
@@ -480,7 +487,7 @@ def plan(root, category, argv):
         from vm_selection import arguments
         vm_args = arguments() if '--list' not in argv else []
         command = dispatcher['selection'](root, [category, *argv, *vm_args],
-                                          allow_missing_artifacts=category == 'e2e')
+                                          allow_missing_artifacts=category in ('system', 'e2e'))
         if '--list' in argv and category != 'integration':
             return [command], False
         # Forward the validated E2E options, preserving a multi-case selection.
@@ -629,10 +636,10 @@ def _main(argv=None, *, detached=False, checkpoint=None):
             if category in ('unit', 'component', 'ui'):
                 return host_run(root, category, options, pipe=False)
             return category_run(root, category, options, pipe=False)
-        if category == 'e2e' and '--list' not in args:
+        if category in ('system', 'e2e') and '--list' not in args:
             options = args[1:] if args[:1] == ['--unattended'] else args
             planned, _ = plan(root, category, options)
-            if not any(value.startswith('--artifacts=') for value in planned[0]):
+            if not has_artifacts(planned[0]):
                 from test_retention import allocate
                 from vm_selection import arguments as vm_arguments
                 directory = allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')

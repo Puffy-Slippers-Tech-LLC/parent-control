@@ -1,6 +1,7 @@
 """Boundary and execution tests for all approved test category routes."""
 from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
+from dataclasses import replace
 import ast
 import json
 import os
@@ -91,6 +92,8 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         tmp_path, monkeypatch, capsys, status, package_format, candidate_format):
     import vm_artifacts
     import build_test_artifacts
+    configured = vm_artifacts.selected()
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format=package_format or 'deb'))
     output = tmp_path / 'output'
     candidate = tmp_path / 'candidate' if candidate_format else None
     verify = Mock(return_value={'artifacts': {'package': {'path': 'app.' + str(candidate_format)}}})
@@ -132,6 +135,111 @@ def test_vm_preparation_plan_uses_selected_vm():
     assert not safety
 
 
+@pytest.mark.parametrize('declared,baseline', [('deb', 5), ('rpm', 3), (None, 5)])
+def test_vm_preparation_never_defaults_or_builds_for_mismatched_configuration(
+        tmp_path, monkeypatch, declared, baseline):
+    import vm_artifacts
+    configured = replace(vm_artifacts.selected(), package_format=declared)
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
+    authorize = Mock()
+    monkeypatch.setattr(vm_artifacts, 'check', authorize)
+    allocate = Mock(side_effect=AssertionError('invalid declaration allocated output'))
+    monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
+    control = Mock()
+    control.run.return_value = baseline
+    if declared is None:
+        with pytest.raises(ValueError, match='package_format'):
+            vm_artifacts.prepare(ROOT, control, {})
+        authorize.assert_not_called()
+        control.run.assert_not_called()
+    else:
+        assert vm_artifacts.prepare(ROOT, control, {}) == 2
+        assert control.run.call_count == 1
+    allocate.assert_not_called()
+
+
+@pytest.mark.parametrize('status', [0, 7, 130])
+@pytest.mark.parametrize('equal_form', [False, True])
+def test_focused_system_prepares_private_inputs_preserving_selectors_and_guards(
+        monkeypatch, status, equal_form):
+    import dev_privileges
+    import regression_process
+    import test_retention
+
+    selectors = (['--area=authorization', '--test=case[param]'] if equal_form else
+                 ['--area', 'authorization', '--test', 'case[param]'])
+    previous = '/tmp/onpc-previous'
+    args = [*selectors, '--previous-artifacts', previous,
+            '--completed-cases=["prior-case"]', '--qualification-failure', '--skip-backing-verification']
+    # The real checkout preflight validates all options before allocating inputs.
+    planned, _ = commands.plan(ROOT, 'system', args)
+    assert not commands.has_artifacts(planned[0])
+    output = '/tmp/onpc-focused-system'
+    allocate = Mock(return_value=str(output))
+    monkeypatch.setattr(test_retention, 'allocate', allocate)
+    monkeypatch.setattr(test_retention, 'token', lambda: 'a' * 32)
+    authorize = Mock()
+    monkeypatch.setattr(dev_privileges, 'check', authorize)
+    execute = Mock(side_effect=[status, 0])
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(ROOT, 'system', args, pipe=False) == status
+    allocate.assert_called_once()
+    assert 'dir' not in allocate.call_args.kwargs
+    assert execute.call_args_list[0].args[0] == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--output', str(output), *VM_ARGS)
+    if status:
+        assert execute.call_count == 1
+        authorize.assert_not_called()
+    else:
+        authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
+        assert execute.call_args.args[0] == [
+            '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+            '/usr/local/libexec/onpc-test-runner', '--retention-run=' + 'a' * 32,
+            '--unattended', 'system', *args, '--artifacts=' + str(output), *VM_ARGS]
+        assert execute.call_args.kwargs['cooperative'] is True
+
+
+@pytest.mark.parametrize('equal_form', [False, True])
+def test_focused_system_preserves_explicit_artifact_input_without_building(monkeypatch, equal_form):
+    import dev_privileges
+    import regression_process
+    import test_retention
+
+    artifact = '/tmp/onpc-explicit'
+    args = [*(('--artifacts=' + artifact,) if equal_form else ('--artifacts', artifact)),
+            '--area=authorization', '--test=case[param]']
+    monkeypatch.setattr(test_retention, 'allocate', Mock(side_effect=AssertionError('replaced explicit input')))
+    monkeypatch.setattr(dev_privileges, 'check', Mock())
+    execute = Mock(return_value=0)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    assert regression_process.category_run(ROOT, 'system', args, pipe=False) == 0
+    execute.assert_called_once()
+    assert execute.call_args.args[0][0] == '/usr/bin/pkexec'
+    assert args == execute.call_args.args[0][-len(args) - len(VM_ARGS):-len(VM_ARGS)]
+
+
+def test_dispatcher_still_requires_artifacts_for_actual_system_execution():
+    dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
+    args = ['system', '--area=authorization', '--test=case[param]', *VM_ARGS]
+    with pytest.raises(ValueError, match='test-runner:invalid-arguments'):
+        dispatcher['selection'](ROOT, args)
+    prepared = dispatcher['selection'](ROOT, args, allow_missing_artifacts=True)
+    assert prepared[-2:] == ['--area=authorization', '--test=case[param]']
+
+
+@pytest.mark.parametrize('args', [
+    ['--area='], ['--test=bad\nselector'], ['--unknown'], ['--artifacts=relative'],
+    ['--previous-artifacts=relative'], ['--completed-cases=invalid'],
+])
+def test_invalid_focused_system_selection_refuses_before_package_preparation(monkeypatch, args):
+    import regression_process
+    execute = Mock(side_effect=AssertionError('invalid selection started preparation'))
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    with pytest.raises(ValueError):
+        regression_process.category_run(ROOT, 'system', args, pipe=False)
+    execute.assert_not_called()
+
+
 def test_named_vm_preparation_registers_before_platform_builder(monkeypatch):
     import regression_process
     output = str(ROOT / 'output/test-runs/host/allocations/onpc-native-diagnosis-input')
@@ -158,6 +266,8 @@ def test_new_wrapper_automatically_uses_verified_vm_builder(
         tmp_path, monkeypatch, status, expected, profile):
     import vm_artifacts
     import test_storage
+    configured = vm_artifacts.selected()
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format=expected))
 
     wrapper = tmp_path / 'check_future_qualification.py'
     wrapper.write_text('from tools.test_storage import named_input\nASSETS = named_input(' + profile + ')\n')
@@ -200,6 +310,8 @@ def test_fedora_refuses_wrong_cached_format_or_deb_only_upgrade_before_build(
         tmp_path, monkeypatch, upgrade):
     import vm_artifacts
     import build_test_artifacts
+    configured = vm_artifacts.selected()
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format='rpm'))
     candidate = tmp_path / 'existing'
     candidate.mkdir()
     preserved = candidate / 'preserved'

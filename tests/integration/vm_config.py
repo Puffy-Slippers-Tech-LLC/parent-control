@@ -21,6 +21,14 @@ class VMConfig:
     disk_anchor: Path
     enabled: bool = False
     id: str | None = None
+    package_format: str | None = None
+
+    def require_package_format(self):
+        # Non-package maintenance can read an older registry, but no package
+        # consumer may infer a format from a name or silently choose a default.
+        if self.package_format not in ('deb', 'rpm'):
+            raise ValueError('vm-config:package_format must explicitly be deb or rpm for ' + self.name)
+        return self.package_format
 
     @property
     def hostname(self):
@@ -139,7 +147,7 @@ def execution(name=None, path=None):
 def validate_entry(document):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document) or
-            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id'}):
+            not set(document) <= {'name', 'disk_anchor', 'enabled', 'id', 'package_format'}):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
     value = document['disk_anchor']
@@ -153,7 +161,10 @@ def validate_entry(document):
             identifier = str(identifier)
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
-    return VMConfig(name, Path(value), enabled == 'true', identifier)
+    package_format = document.get('package_format')
+    if 'package_format' in document and package_format not in ('deb', 'rpm'):
+        raise ValueError('vm-config:package_format must explicitly be deb or rpm')
+    return VMConfig(name, Path(value), enabled == 'true', identifier, package_format)
 
 
 def load(name=None, path=None):

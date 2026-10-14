@@ -21,7 +21,7 @@ from tests.support.vm_runner import lease_rig
 
 def write_config(tmp_path, **changes):
     path = tmp_path / 'test-vm.json'
-    document = {'name': 'custom-test-vm', 'disk_anchor': '/images/base.qcow2'}
+    document = {'name': 'custom-test-vm', 'disk_anchor': '/images/base.qcow2', 'package_format': 'deb'}
     path.write_text(json.dumps({'vms': [{**document, **changes}]}))
     return path
 
@@ -63,6 +63,30 @@ def test_missing_configuration_has_no_hardcoded_vm_fallback(tmp_path):
         vm_config.load('custom-test-vm', tmp_path / 'absent')
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_vm_package_format_is_explicit_and_independent_of_name(tmp_path, package_format):
+    configured = vm_config.load('custom-test-vm', write_config(tmp_path, package_format=package_format))
+    assert configured.require_package_format() == package_format
+
+
+@pytest.mark.parametrize('value', [None, '', 'DEB', 'exe', True, [], {}])
+def test_invalid_declared_package_formats_refuse_without_a_default(tmp_path, value):
+    with pytest.raises(ValueError, match='vm-config:package_format'):
+        vm_config.registry(write_config(tmp_path, package_format=value))
+
+
+def test_missing_package_format_refuses_the_entire_test_queue_before_binding(selector_config, monkeypatch):
+    import vm_selection
+    path, document = selector_config
+    document['vms'][1].pop('package_format')
+    path.write_text(json.dumps(document))
+    bind = Mock()
+    monkeypatch.setattr(vm_selection, 'select', bind)
+    with pytest.raises(ValueError, match='package_format.*Beta-guest'):
+        vm_selection.execution_selection()
+    bind.assert_not_called()
+
+
 @pytest.mark.parametrize('value', ['true', 'false', True, False, 1, None, '', 'yes', 'TRUE', []])
 def test_removed_clipboard_option_is_refused(tmp_path, value):
     with pytest.raises(ValueError, match='vm-config:fields'):
@@ -93,8 +117,8 @@ def selector_config(tmp_path, monkeypatch):
     path = tmp_path / 'config/test-vm.json'
     path.parent.mkdir()
     document = {'concurrency': 2, 'vms': [
-        {'id': '17', 'name': 'Alpha-guest', 'disk_anchor': '/alpha', 'enabled': 'true'},
-        {'id': 83, 'name': 'Beta-guest', 'disk_anchor': '/beta', 'enabled': 'true'}]}
+        {'id': '17', 'name': 'Alpha-guest', 'disk_anchor': '/alpha', 'enabled': 'true', 'package_format': 'deb'},
+        {'id': 83, 'name': 'Beta-guest', 'disk_anchor': '/beta', 'enabled': 'true', 'package_format': 'rpm'}]}
     path.write_text(json.dumps(document))
     monkeypatch.setattr(vm_config, 'CONFIG', path)
     return path, document
@@ -375,6 +399,8 @@ def test_shared_lock_is_used_by_runner_and_backing_ownership_checks(lease_rig, m
 
 def test_registry_contains_both_requested_vms():
     configured = vm_config.registry()
+    assert configured[vm_name()].require_package_format() == 'deb'
+    assert configured[vm_name(1)].require_package_format() == 'rpm'
     assert configured[vm_name(1)].disk_anchor == Path(
         json.loads((ROOT / 'config/test-vm.json').read_text())['vms'][1]['disk_anchor'])
     assert vm_name() in configured
@@ -739,6 +765,7 @@ def test_legacy_controller_lease_excludes_all_named_leases(rig, monkeypatch):
 
 @pytest.mark.parametrize('requested, expected_host', [
     (['all'], [['host']]), (['vm'], []), (['host', 'vm'], [['host']]),
+    (['system', '--area', 'authorization', '--test', 'case[param]'], []),
 ])
 def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
         tmp_path, monkeypatch, requested, expected_host):
@@ -757,6 +784,9 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     monkeypatch.setattr(queue.test_retention, 'allocate',
                         lambda factory, **kwargs: original_allocate(factory, dir=tmp_path, **kwargs))
     hosts = []
+    # This controller test owns scheduling/evidence. Real option and input
+    # validation is exercised by the focused launcher tests against ROOT.
+    monkeypatch.setattr(test_commands, 'validate_one', lambda *_: None)
     monkeypatch.setattr(test_commands, '_main', lambda argv, **kwargs: hosts.append(argv) or 0)
     monkeypatch.setattr(test_commands, 'qualification_artifact_command',
                         lambda *args: pytest.fail('batch must not allocate VM-owned inputs'))
@@ -780,7 +810,7 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
                 assert len([item for item in calls if item[0] == '--recover']) == len(vms)
                 active += 1
                 peak = max(peak, active)
-            assert command[5:] == ['system', 'e2e']
+            assert command[5:] == (requested if 'system' in requested else ['system', 'e2e'])
             time.sleep(.02)
             if name == 'guest-0':
                 handoff = tmp_path / 'guest-failure.json'
@@ -806,6 +836,13 @@ def test_queue_controller_recovers_serially_runs_host_once_and_drains_guests(
     for vm in vms:
         text = (evidence / (vm.name + '.log')).read_text()
         assert text.startswith('Failure handoff: ' if vm.name == 'guest-0' else 'test output\n')
+
+
+def test_focused_queue_split_preserves_resume_and_exact_options():
+    from vm_test_queue import split
+    args = ['--resume', '--resume-case=case[param]', '--stop-on-error', 'system',
+            '--area=authorization', '--test=case[param]']
+    assert split(ROOT, args) == ([], args)
 
 
 def test_cancelling_parallel_workers_waits_for_each_owned_child_cleanup(tmp_path):
@@ -843,7 +880,8 @@ def test_both_agent_launchers_bind_the_enabled_queue_and_request_shared_tests(mo
     import write_e2e
     import vm_selection
     from detached_launcher import atomic
-    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True) for index in range(3)]
+    vms = [vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}'), True,
+                            package_format='rpm' if index % 2 else 'deb') for index in range(3)]
     monkeypatch.setattr(vm_config, 'execution', lambda name=None: (2, tuple(vms)))
     monkeypatch.setattr(vm_selection, 'select', lambda name: None)
     selected = Mock(return_value=(None, False))

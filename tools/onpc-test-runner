@@ -223,7 +223,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     else:
         target = confined_file(root, 'tests/integration/system_runner.py')
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
-    if not args.list and args.artifacts is None:
+    if not args.list and args.artifacts is None and not allow_missing_artifacts:
         parser.error('system requires --artifacts unless --list is supplied')
     for option in ('artifacts', 'previous_artifacts'):
         artifact = getattr(args, option, None)

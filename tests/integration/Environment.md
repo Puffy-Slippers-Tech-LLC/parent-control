@@ -156,6 +156,7 @@ Snap, Flatpak and game fixtures as well as current declarations.
 | --- | --- |
 | Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
 | Stable fixture folder names across desktop-language changes | `baseline_assets.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the shared fixture reconciler owns placement and read-only verification |
+| Stable Ubuntu package inputs during execution | `baseline_assets.automatic_update_files`: empty regular system-unit masks for `apt-daily.service`, `apt-daily.timer`, `apt-daily-upgrade.service` and `apt-daily-upgrade.timer`; the shared fixture reconciler owns placement and read-only verification. Fedora has no APT masks. |
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
 | A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
 | Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
@@ -180,6 +181,13 @@ and all product-language assertions. Unknown prompts still refuse before input.
 Console preparation preserves an existing supported `LOGIN_TIMEOUT` entry or
 adds `LOGIN_TIMEOUT 600` when none is active. Duplicate or malformed entries
 refuse; test attempts only verify the prepared setting and never add it.
+
+Ubuntu's APT masks prevent restored boots from launching automatic package
+transactions while qualification observes executable generations. They are
+reconciled offline before baseline capture, without stopping a transaction or
+repairing settings in a test. Preparation still performs its explicit APT/DNF
+updates through the maintained auto-mode route. The existing fixture ownership,
+interruption and stale-baseline checks apply to these four files.
 
 Idempotence does not suppress auto-mode system updates or the documented snapshot
 replacement. It does not authorize adopting an unknown file or bypassing the

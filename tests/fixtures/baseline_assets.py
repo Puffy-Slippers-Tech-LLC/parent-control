@@ -102,5 +102,18 @@ def desktop_settings_files(accounts):
     return files
 
 
+def automatic_update_files(os_id):
+    """Keep Ubuntu package changes under the preparation controller's ownership.
+
+    Empty regular systemd units mask the finite automatic APT entry points.
+    Explicit apt-get updates in baseline preparation remain available.
+    """
+    if os_id != 'ubuntu':
+        return {}
+    return {'/etc/systemd/system/' + unit: (b'', 0o644, 'system') for unit in (
+        'apt-daily.timer', 'apt-daily.service',
+        'apt-daily-upgrade.timer', 'apt-daily-upgrade.service')}
+
+
 def files(accounts):
     return native_files(accounts) | catalogue_files(accounts) | desktop_settings_files(accounts)

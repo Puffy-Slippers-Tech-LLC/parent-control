@@ -984,12 +984,14 @@ def test_finalized_snapshot_reuse_detects_missing_or_changed_baseline(rig, kind)
     assert len(rig.source.creations) == 1
 
 
-def guest_fixture():
+def guest_fixture(*, os_id='ubuntu'):
     accounts = {item.username: {"uid": 1000 + i, "role": item.role} for i, item in enumerate(guest.IDENTITIES)}
     marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, "a" * 32, "26.04", "kvm"),
                                    accounts, SCRIPT_DIGEST)
     files = {str(guest.MARKER): host.encode(marker), "/etc/hostname": (guest.HOSTNAME + '\n').encode(),
              "/etc/machine-id": b"a" * 32, "/var/lib/dpkg/status": b"Package: bash\nStatus: install ok installed\n"}
+    files['/etc/os-release'] = (b'ID=ubuntu\nVERSION_ID=26.04\n' if os_id == 'ubuntu' else
+                                b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n')
     files['/var/lib/dpkg/status'] += ('\n' + '\n\n'.join(
         f'Package: {name}\nVersion: {version}\nStatus: install ok installed\n'
         for name, version in guest.guest_tools.VERSIONS.items())).encode()
@@ -1013,7 +1015,7 @@ def guest_fixture():
     # intended guard through the real fixture and console readiness checks.
     metadata = {}
     fixture_accounts = baseline_fixtures.accounts(g)
-    declaration = baseline_fixtures.assets.files(fixture_accounts)
+    declaration = baseline_fixtures.declared_files(g, fixture_accounts)
     record = {'purpose': baseline_fixtures.PURPOSE, 'pending': None, 'files': {}}
     for path, (source, mode, role) in declaration.items():
         data = source if isinstance(source, bytes) else ('fixture-' + source).encode()
@@ -1074,9 +1076,24 @@ def test_offline_inspection_refuses_stale_reusable_inputs_without_repair(fault):
     fixture.g.ln_s.assert_not_called()
 
 
+@pytest.mark.parametrize('fault', ['missing', 'bytes'])
+def test_offline_inspection_refuses_missing_or_changed_apt_masks_without_repair(fault):
+    fixture = guest_fixture()
+    path = '/etc/systemd/system/apt-daily-upgrade.service'
+    if fault == 'missing':
+        del fixture.files[path]
+    else:
+        fixture.files[path] = b'[Service]\nExecStart=/usr/bin/true\n'
+    with pytest.raises(KeyError if fault == 'missing' else ValueError):
+        host.inspect_guest(fixture.module, Path('/images/top.qcow2'), SCRIPT_DIGEST)
+    fixture.g.close.assert_called_once()
+    fixture.g.write.assert_not_called()
+    fixture.g.ln_s.assert_not_called()
+
+
 @pytest.mark.parametrize('fault', [None, 'tools', 'role', 'variant', 'selinux', 'package', 'marker'])
 def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residue(fault):
-    fixture = guest_fixture()
+    fixture = guest_fixture(os_id='fedora')
     g, files = fixture.g, fixture.files
     g.inspect_get_distro.return_value = 'fedora'
     g.inspect_get_major_version.return_value = 44

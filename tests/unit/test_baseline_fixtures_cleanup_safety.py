@@ -29,6 +29,7 @@ class Guest:
             self.chmod(0o700, '/home/' + name)
             rows.append(f'{name}:x:{index}:{index}::/home/{name}:/bin/bash')
         self.write('/etc/passwd', ('\n'.join(rows) + '\n').encode())
+        self.write('/etc/os-release', b'ID=ubuntu\nVERSION_ID=26.04\n')
         self.writes.clear()
 
     def exists(self, path): return path in self.nodes
@@ -222,6 +223,99 @@ def test_folder_renamer_overrides_refuse_unsafe_or_stale_state_without_writes(pr
         if fault == 'link': guest.links[path] = '/foreign'
         if fault == 'hardlink': guest.nodes[path][0]['st_nlink'] = 2
         if fault == 'owner': guest.nodes[path][0]['st_uid'] = 999
+        if fault == 'parent': guest.links[str(PurePosixPath(path).parent)] = '/foreign'
+        if fault == 'bytes': guest.write(path, b'foreign')
+        if fault == 'missing': del guest.nodes[path]
+    before = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    with pytest.raises((ValueError, KeyError)):
+        (fixture.reconcile(guest, payload) if fault == 'collision' else fixture.verify(guest))
+    assert guest.nodes == before and guest.writes == []
+
+
+def test_ubuntu_apt_masks_upgrade_the_owned_inventory_and_repeat_without_writes(prepared, monkeypatch):
+    guest, payload = prepared
+    with monkeypatch.context() as previous:
+        previous.setattr(fixture.assets, 'automatic_update_files', lambda os_id: {})
+        fixture.reconcile(guest, payload)
+    before = copy.deepcopy(guest.nodes)
+    fixture.reconcile(guest, payload)
+    expected = {'/etc/systemd/system/' + unit for unit in (
+        'apt-daily.timer', 'apt-daily.service',
+        'apt-daily-upgrade.timer', 'apt-daily-upgrade.service')}
+    assert set(fixture.assets.automatic_update_files('ubuntu')) == expected
+    for path in expected:
+        assert guest.read_file(path) == b''
+        fixture.regular(guest, path, 0, 0, 0o644)
+    for path, node in before.items():
+        if path != fixture.RECORD:
+            assert guest.nodes[path] == node
+    after = copy.deepcopy(guest.nodes)
+    guest.writes.clear()
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    assert guest.nodes == after and guest.writes == []
+
+
+def test_fedora_fixture_inventory_does_not_add_ubuntu_apt_controls(prepared):
+    guest, payload = prepared
+    guest.write('/etc/os-release', b'ID=fedora\nVERSION_ID=44\nVARIANT_ID=workstation\n')
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    assert fixture.assets.automatic_update_files('fedora') == {}
+    assert not any(path.startswith('/etc/systemd/system/apt-daily') for path in guest.nodes)
+
+
+@pytest.mark.parametrize('boundary', ['write', 'rename', 'record'])
+def test_interrupted_apt_mask_placement_retries_only_its_owned_transaction(prepared, monkeypatch, boundary):
+    guest, payload = prepared
+    path = '/etc/systemd/system/apt-daily-upgrade.service'
+    temporary = path + '.onpc-baseline-new'
+    actual_write, actual_move = guest.write, guest.mv
+    failed = False
+
+    def write(target, data):
+        nonlocal failed
+        actual_write(target, data)
+        if not failed and boundary == 'write' and target == temporary:
+            failed = True
+            raise OSError('interrupted owned mask write')
+
+    def move(source, target):
+        nonlocal failed
+        if not failed and boundary == 'rename' and source == temporary:
+            failed = True
+            raise OSError('interrupted owned mask rename')
+        actual_move(source, target)
+        if not failed and boundary == 'record' and source == temporary:
+            failed = True
+            raise OSError('interrupted owned mask record')
+
+    monkeypatch.setattr(guest, 'write', write)
+    monkeypatch.setattr(guest, 'mv', move)
+    with pytest.raises(OSError):
+        fixture.reconcile(guest, payload)
+    fixture.reconcile(guest, payload)
+    fixture.verify(guest)
+    assert guest.read_file(path) == b''
+    fixture.regular(guest, path, 0, 0, 0o644)
+    assert not any(path.endswith('.onpc-baseline-new') for path in guest.nodes)
+
+
+@pytest.mark.parametrize('fault', ['collision', 'link', 'hardlink', 'owner', 'mode', 'parent', 'bytes', 'missing'])
+@pytest.mark.parametrize('unit', ['apt-daily.timer', 'apt-daily-upgrade.service'])
+def test_apt_masks_refuse_foreign_or_stale_state_without_writes(prepared, fault, unit):
+    guest, payload = prepared
+    path = '/etc/systemd/system/' + unit
+    if fault == 'collision':
+        guest.write(path, b'foreign')
+        guest.chmod(0o644, path)
+    else:
+        fixture.reconcile(guest, payload)
+        if fault == 'link': guest.links[path] = '/foreign'
+        if fault == 'hardlink': guest.nodes[path][0]['st_nlink'] = 2
+        if fault == 'owner': guest.nodes[path][0]['st_uid'] = 999
+        if fault == 'mode': guest.chmod(0o666, path)
         if fault == 'parent': guest.links[str(PurePosixPath(path).parent)] = '/foreign'
         if fault == 'bytes': guest.write(path, b'foreign')
         if fault == 'missing': del guest.nodes[path]

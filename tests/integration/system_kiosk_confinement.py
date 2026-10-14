@@ -389,6 +389,19 @@ def caller_identity(service):
     return f'system_u:system_r:{role}_t:s0', role + '_exec_t'
 
 
+@contextmanager
+def pam_caller_command(directory, service, *, expected_selinux='Enforcing'):
+    """Run an engineering PAM worker in its real Fedora caller domain."""
+    guest.guard(expected_selinux=expected_selinux)
+    context, executable_type = caller_identity(service)
+    with tempfile.TemporaryDirectory(prefix='pam-caller-', dir=directory) as temporary:
+        caller = Path(temporary) / 'caller'
+        shutil.copyfile(Path('/usr/bin/python3').resolve(), caller)
+        caller.chmod(0o700)
+        guest.run(['/usr/bin/chcon', '-t', executable_type, str(caller)])
+        yield ['/usr/bin/runcon', context, str(caller), '-B']
+
+
 def first_exec(account, directory, command, *, fd_mode=None, service='gdm-password', armed=True,
                expected_selinux='Enforcing'):
     """A real PAM final-session call followed by the caller's actual exec.
@@ -403,7 +416,7 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
     fixture = directory / service
     contents = f'session required {module} kiosk-confinement\n'
     if backend == 'selinux':
-        context, executable_type = caller_identity(service)
+        context, _ = caller_identity(service)
         if Path('/proc/self/attr/current').read_text().strip().rstrip('\0') != context:
             # init_t may read the prepared PAM input, but cannot create a
             # user_tmp_t file. Prepare scenario data before entering the real
@@ -414,11 +427,8 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             # /usr view. Adding that permission would test a different boundary.
             # The root-private interpreter copy is only a scenario fixture with
             # a vendor entrypoint label; production policy remains unchanged.
-            with tempfile.TemporaryDirectory(prefix='pam-caller-', dir=directory) as temporary:
-                caller = Path(temporary) / 'caller'
-                shutil.copyfile(Path('/usr/bin/python3').resolve(), caller)
-                caller.chmod(0o700)
-                guest.run(['/usr/bin/chcon', '-t', executable_type, str(caller)])
+            with pam_caller_command(directory, service,
+                                    expected_selinux=expected_selinux) as caller:
                 # init_t cannot write the harness's user_tmp_t capture files.
                 # An inherited pipe carries the bounded result without a
                 # production permission or a differently labelled fixture file.
@@ -427,7 +437,7 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
                     request = json.dumps({'command': command, 'directory': str(directory),
                         'fd_mode': fd_mode, 'service': service, 'armed': armed,
                         'result_fd': result_write, 'expected_selinux': expected_selinux})
-                    guest.commands.run(['/usr/bin/runcon', context, str(caller), '-B',
+                    guest.commands.run([*caller,
                         str(Path(__file__).resolve()), 'first-exec', request], timeout=90,
                         merge_stderr=False, pass_fds=(result_write,))
                     try:
@@ -670,6 +680,60 @@ def lifecycle_wait(pid, pidfd):
     return os.waitstatus_to_exitcode(status)
 
 
+def lifecycle_generation_diagnostic(manager, helper, record):
+    """Explain a failed equality check without changing its failure or state."""
+    try:
+        from system_kiosk_accounts import owned_bytes
+
+        guest.require(all(isinstance(value, str) and
+                          re.fullmatch(r'[a-f0-9]{64}\n', value) for value in (manager, helper)),
+                      'kiosk-lifecycle:diagnostic-marker')
+        record('onpc.kiosk.pam-lifecycle.manager-generation', manager.strip())
+        record('onpc.kiosk.pam-lifecycle.helper-generation', helper.strip())
+        preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+        trusted = preparation['trusted']
+        runtime = trusted(Path('/run/oh-no-parent-control-confinement'), directory=True)
+        guest.require(stat.S_IMODE(runtime.stat().st_mode) == 0o700,
+                      'kiosk-lifecycle:diagnostic-runtime')
+        manifests = []
+        for generation in (manager.strip(), helper.strip()):
+            manifest = json.loads(owned_bytes(trusted(runtime / generation / 'records.json'),
+                                              private=True))
+            guest.require(type(manifest) is dict, 'kiosk-lifecycle:diagnostic-manifest')
+            manifests.append(manifest)
+        differences = {}
+        for section in ('records', 'preserved', 'layout'):
+            states = []
+            for manifest in manifests:
+                rows = manifest[section]
+                guest.require(type(rows) is list and len(rows) <= 32768,
+                              'kiosk-lifecycle:diagnostic-section')
+                paths = {}
+                for row in rows:
+                    path = row.get('path') if type(row) is dict else None
+                    guest.require(isinstance(path, str) and path.startswith('/usr/') and
+                                  str(Path(path)) == path and '..' not in Path(path).parts and
+                                  len(path) <= 4096 and not any(ord(char) < 32 for char in path) and
+                                  path not in paths, 'kiosk-lifecycle:diagnostic-path')
+                    paths[path] = row
+                states.append(paths)
+            before, after = states
+            added, removed = sorted(after.keys() - before.keys()), sorted(before.keys() - after.keys())
+            changed = sorted(path for path in before.keys() & after.keys() if before[path] != after[path])
+            differences[section] = {
+                name: {'count': len(paths), 'paths': paths[:8]}
+                for name, paths in (('added', added), ('removed', removed), ('changed', changed))}
+        record('onpc.kiosk.pam-lifecycle.generation-diagnostic',
+               json.dumps({'status': 'compared', **differences}, sort_keys=True))
+    except Exception:
+        # Diagnostics and their recorder must never replace the equality
+        # failure, including unsafe or unavailable runtime records.
+        try:
+            record('onpc.kiosk.pam-lifecycle.generation-diagnostic', '{"status":"unavailable"}')
+        except Exception:
+            pass
+
+
 def verify_pam_lifecycle(account, unit, backend, directory, record):
     """Hold a real PAM child past executor exit; retain the saved user manager."""
     saved_pid = manager_pid(unit)
@@ -728,8 +792,11 @@ def verify_pam_lifecycle(account, unit, backend, directory, record):
         guest.require((PROC / str(helper) / attribute).read_text().strip().rstrip('\0') == expected,
                       'kiosk-lifecycle:waiting-label')
         marker = 'usr/share/oh-no-parent-control/confinement/generation'
-        guest.require((PROC / str(helper) / 'root' / marker).read_text() ==
-                      (PROC / str(saved_pid) / 'root' / marker).read_text(), 'kiosk-lifecycle:waiting-generation')
+        helper_generation = (PROC / str(helper) / 'root' / marker).read_text()
+        manager_generation = (PROC / str(saved_pid) / 'root' / marker).read_text()
+        if helper_generation != manager_generation:
+            lifecycle_generation_diagnostic(manager_generation, helper_generation, record)
+        guest.require(helper_generation == manager_generation, 'kiosk-lifecycle:waiting-generation')
         os.write(executor_write, b'E')
         status = lifecycle_wait(executor, workers[executor])
         os.close(workers.pop(executor))

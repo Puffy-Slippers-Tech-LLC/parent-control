@@ -6,6 +6,7 @@ import stat
 from types import SimpleNamespace
 
 from tests.fixtures import baseline_assets as assets
+import prepare_vm
 
 RECORD = '/var/lib/onpc-baseline-fixtures.json'
 PURPOSE = 'onpc-reusable-fixtures-v1'
@@ -78,13 +79,19 @@ def write_record(g, record):
     g.sync()
 
 
+def declared_files(g, identities):
+    os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
+        g.read_file('/etc/os-release').decode('utf-8')))
+    return assets.files(identities) | assets.automatic_update_files(os_id)
+
+
 def reconcile(g, payload):
     """Repeat without writes; atomic owned upgrades and interrupted retries."""
     # Appliance-created staging files stay private even if writing is interrupted
     # before chmod. Guest modes are set explicitly before each atomic placement.
     g.umask(0o077)
     identities = accounts(g)
-    declaration = assets.files(identities)
+    declaration = declared_files(g, identities)
     desired = {}
     contents = {}
     for path, (source, mode, role) in declaration.items():
@@ -156,7 +163,7 @@ def verify(g):
     regular(g, RECORD, 0, 0, 0o600)
     record = json.loads(g.read_file(RECORD))
     identities = accounts(g)
-    declaration = assets.files(identities)
+    declaration = declared_files(g, identities)
     require(set(record) == {'purpose', 'files', 'pending'} and record['purpose'] == PURPOSE
             and record['pending'] is None and set(record['files']) == set(declaration))
     for path, (source, mode, role) in declaration.items():

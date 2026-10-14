@@ -823,6 +823,127 @@ def admission_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_admission.py')
 
 
+def test_restart_admission_gates_use_controls_and_exact_denials_without_routing_mutation(
+        admission_model, monkeypatch):
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
+    monkeypatch.setattr(helper.guest, 'enable_diagnostics', Mock())
+    identities = {
+        helper.USERS['kiosk']: SimpleNamespace(pw_uid=41001, pw_shell='/usr/sbin/nologin'),
+        helper.USERS['ordinary']: SimpleNamespace(pw_uid=41002),
+    }
+    monkeypatch.setattr(helper.pwd, 'getpwnam', identities.__getitem__)
+    probe = Mock()
+    mutation = Mock(side_effect=AssertionError('retained routing must stay unchanged'))
+    monkeypatch.setattr(helper, 'probe', probe)
+    monkeypatch.setattr(helper, 'set_routing', mutation)
+    record = Mock()
+    helper.verify_gates(record)
+    assert [call.args for call in probe.call_args_list] == [
+        ('gdm-password', 'ordinary', 0, 'gdm-password.ordinary-before', record),
+        ('login', 'ordinary', 0, 'login.ordinary-before', record),
+        ('sshd', 'ordinary', 0, 'sshd.ordinary-before', record),
+        ('gdm-password', 'kiosk', 0, 'dedicated-before', record),
+        ('login', 'kiosk', 6, 'login.denied', record),
+        ('login', 'ordinary', 0, 'login.ordinary-after', record),
+        ('sshd', 'kiosk', 6, 'sshd.denied', record),
+        ('sshd', 'ordinary', 0, 'sshd.ordinary-after', record),
+    ]
+    mutation.assert_not_called()
+
+
+def test_restart_admission_guest_refusal_precedes_identity_and_pam_workers(
+        admission_model, monkeypatch):
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock(side_effect=helper.guest.GuestError('identity')))
+    identity, probe = Mock(), Mock()
+    monkeypatch.setattr(helper.pwd, 'getpwnam', identity)
+    monkeypatch.setattr(helper, 'probe', probe)
+    with pytest.raises(helper.guest.GuestError, match='identity'):
+        helper.verify_gates(Mock())
+    identity.assert_not_called()
+    probe.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'worker'])
+def test_fedora_kiosk_account_probe_uses_real_gdm_domain_and_removes_owned_fixture(
+        admission_model, tmp_path, monkeypatch, fault):
+    import system_kiosk_confinement as confinement
+
+    helper = admission_model
+    guard = Mock()
+    monkeypatch.setattr(helper.guest, 'guard', guard)
+    monkeypatch.setattr(helper.guest, 'package_path', lambda: Path('package.rpm'))
+    monkeypatch.setattr(helper.guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(confinement.shutil, 'copyfile',
+                        lambda source, target: target.write_bytes(b'private interpreter fixture'))
+    label = Mock()
+    monkeypatch.setattr(helper.guest, 'run', label)
+
+    def worker(argv, **options):
+        assert argv[:2] == ['/usr/bin/runcon', 'system_u:system_r:xdm_t:s0']
+        caller = Path(argv[2])
+        assert caller.is_relative_to(tmp_path) and caller.stat().st_mode & 0o777 == 0o700
+        assert label.call_args.args[0] == ['/usr/bin/chcon', '-t', 'xdm_exec_t', str(caller)]
+        assert argv[3:] == ['-B', str(Path(helper.__file__).resolve()),
+                           'pam-account', 'gdm-password', 'kiosk']
+        assert options == {'timeout': 45, 'merge_stderr': False}
+        if fault:
+            raise helper.guest.GuestError('worker-failed')
+        return b'{"account":0,"end":0}'
+
+    monkeypatch.setattr(helper.guest.commands, 'run', worker)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='worker-failed'):
+            helper.probe('gdm-password', 'kiosk', 0, 'dedicated', Mock())
+    else:
+        helper.probe('gdm-password', 'kiosk', 0, 'dedicated', Mock())
+    guard.assert_called_once_with(expected_selinux='Enforcing')
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('service,role', [('gdm-password', 'ordinary'),
+                                         ('login', 'kiosk'), ('sshd', 'kiosk')])
+def test_other_fedora_account_probes_preserve_the_original_caller_command(
+        admission_model, monkeypatch, service, role):
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'package_path', lambda: Path('package.rpm'))
+    command = Mock(return_value=b'{"account":0,"end":0}')
+    monkeypatch.setattr(helper.guest.commands, 'run', command)
+    helper.probe(service, role, 0, 'control', Mock())
+    command.assert_called_once_with([
+        '/usr/bin/python3', '-B', str(Path(helper.__file__).resolve()),
+        'pam-account', service, role], timeout=45, merge_stderr=False)
+
+
+def test_fedora_caller_fixture_guard_refusal_precedes_any_fixture_write(
+        census_model, tmp_path, monkeypatch):
+    helper = census_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock(side_effect=helper.guest.GuestError('identity')))
+    copy = Mock()
+    monkeypatch.setattr(helper.shutil, 'copyfile', copy)
+    with pytest.raises(helper.guest.GuestError, match='identity'):
+        with helper.pam_caller_command(tmp_path, 'gdm-password'):
+            pytest.fail('refused fixture admitted a worker')
+    copy.assert_not_called()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fedora_kiosk_account_worker_refuses_an_unconfined_caller_before_pam(
+        admission_model, monkeypatch):
+    helper = admission_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
+    monkeypatch.setattr(helper.guest, 'package_path', lambda: Path('package.rpm'))
+    monkeypatch.setattr(Path, 'read_text', lambda _: 'unconfined_u:unconfined_r:unconfined_t:s0\0')
+    identity, library = Mock(), Mock()
+    monkeypatch.setattr(helper.pwd, 'getpwnam', identity)
+    monkeypatch.setattr(helper.ctypes, 'CDLL', library)
+    with pytest.raises(helper.guest.GuestError, match='caller-context'):
+        helper.pam_account('gdm-password', 'kiosk')
+    identity.assert_not_called()
+    library.assert_not_called()
+
+
 @pytest.mark.parametrize('result', [b'{"account": 9, "end": 0}',
                                   b'{"account": 6, "end": 4}',
                                   b'{"account": true, "end": 0}', b'not-json'])
@@ -919,6 +1040,7 @@ def test_final_pam_probe_enters_real_vendor_caller_without_policy_changes(
         census_model, tmp_path, monkeypatch, service, context, label, fault):
     from unittest.mock import Mock
     helper = census_model
+    monkeypatch.setattr(helper.guest, 'guard', Mock())
     original_read = Path.read_text
     original_is_file = Path.is_file
     def read(path, *args, **kwargs):
@@ -1064,7 +1186,57 @@ def test_pam_lifecycle_denial_workers_reap_and_validate_exec_errno(census_model,
     helper.lifecycle_denials()
 
 
-@pytest.mark.parametrize('fault', [None, 'waiting-label', 'finished', 'credential-status', 'establish-status'])
+def test_pam_lifecycle_generation_diagnostic_records_bounded_system_path_differences(
+        census_model, tmp_path, monkeypatch):
+    import system_kiosk_accounts as accounts
+
+    helper = census_model
+    runtime = tmp_path / 'runtime'
+    runtime.mkdir(mode=0o700)
+    before, after = 'a' * 64, 'b' * 64
+    manifests = {
+        before: {'records': [{'path': '/usr/bin/required', 'sha256': 'before'}],
+                 'preserved': [{'path': '/usr/lib/polkit-1/helper'}],
+                 'layout': [{'path': '/usr/lib/removed-' + str(index), 'kind': 'file'}
+                            for index in range(10)] +
+                           [{'path': '/usr/lib/changed-' + str(index), 'kind': 'file'}
+                            for index in range(10)]},
+        after: {'records': [{'path': '/usr/bin/required', 'sha256': 'after'}],
+                'preserved': [],
+                'layout': [{'path': '/usr/lib/added-' + str(index), 'kind': 'directory'}
+                           for index in range(10)] +
+                          [{'path': '/usr/lib/changed-' + str(index), 'kind': 'directory'}
+                           for index in range(10)]},
+    }
+    for generation, manifest in manifests.items():
+        directory = runtime / generation
+        directory.mkdir()
+        (directory / 'records.json').write_text(json.dumps(manifest))
+
+    def trusted(path, **options):
+        return path if path.is_relative_to(runtime) else (
+            runtime / path.relative_to('/run/oh-no-parent-control-confinement'))
+
+    monkeypatch.setattr(helper.runpy, 'run_path', Mock(return_value={'trusted': trusted}))
+    reader = Mock(side_effect=lambda path, **options: path.read_bytes())
+    monkeypatch.setattr(accounts, 'owned_bytes', reader)
+    events = {}
+    helper.lifecycle_generation_diagnostic(before + '\n', after + '\n', events.__setitem__)
+    assert events['onpc.kiosk.pam-lifecycle.manager-generation'] == before
+    assert events['onpc.kiosk.pam-lifecycle.helper-generation'] == after
+    result = json.loads(events['onpc.kiosk.pam-lifecycle.generation-diagnostic'])
+    assert result['status'] == 'compared'
+    assert result['records']['changed'] == {'count': 1, 'paths': ['/usr/bin/required']}
+    assert result['preserved']['removed'] == {'count': 1, 'paths': ['/usr/lib/polkit-1/helper']}
+    for change in ('added', 'removed', 'changed'):
+        assert result['layout'][change]['count'] == 10
+        assert len(result['layout'][change]['paths']) == 8
+        assert all(path.startswith('/usr/') for path in result['layout'][change]['paths'])
+    assert all(call.kwargs == {'private': True} for call in reader.call_args_list)
+
+
+@pytest.mark.parametrize('fault', [None, 'waiting-label', 'finished', 'credential-status',
+                                  'establish-status', 'invalid-generation', 'diagnostic-read'])
 def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
         census_model, tmp_path, monkeypatch, fault):
     helper = census_model
@@ -1076,10 +1248,17 @@ def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
         if path.name == 'current' and 'attr' in path.parts:
             return 'unconfined' if fault == 'waiting-label' else expected
         if path.name == 'generation':
+            if fault in ('invalid-generation', 'diagnostic-read'):
+                if str(observer) in path.parts:
+                    return 'a' * 64 + '\n'
+                return '../outside-runtime\n' if fault == 'invalid-generation' else 'b' * 64 + '\n'
             return 'private generation'
         return original_read(path, *args, **kwargs)
     monkeypatch.setattr(Path, 'read_text', read)
     monkeypatch.setattr(helper.shutil, 'copyfile', lambda source, target: target.write_bytes(b'private executor'))
+    diagnostic_source = Mock(side_effect=OSError('private diagnostic read failure'))
+    if fault in ('invalid-generation', 'diagnostic-read'):
+        monkeypatch.setattr(helper.runpy, 'run_path', diagnostic_source)
     # Keep the real observer/forks, PIDFDs, subreaper, pipe protocol, identity
     # checks and cleanup. The fixture replaces only the vendor/PAM executor.
     def executor(program, arguments, environment):
@@ -1110,7 +1289,9 @@ def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
     events = []
     account = SimpleNamespace(pw_uid=os.getuid())
     if fault:
-        with pytest.raises(helper.guest.GuestError, match='kiosk-lifecycle:'):
+        category = ('kiosk-lifecycle:waiting-generation' if fault in (
+            'invalid-generation', 'diagnostic-read') else 'kiosk-lifecycle:')
+        with pytest.raises(helper.guest.GuestError, match=category):
             helper.verify_pam_lifecycle(account, 'private-unit', 'apparmor', tmp_path,
                                        lambda *event: events.append(event))
     else:
@@ -1122,6 +1303,10 @@ def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
         # Boundary evidence is retained, while a failed delete callback still
         # refuses completed teardown qualification.
         assert events[-1] == ('onpc.kiosk.pam-lifecycle.post-parent-close-setcred-end-denials', True)
+    if fault in ('invalid-generation', 'diagnostic-read'):
+        assert events[-1] == ('onpc.kiosk.pam-lifecycle.generation-diagnostic',
+                              '{"status":"unavailable"}')
+        assert diagnostic_source.call_count == (fault == 'diagnostic-read')
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])

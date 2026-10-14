@@ -1,6 +1,7 @@
 """Installed account/routing admission, separate from final-exec and UI proof."""
 
 import ctypes
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import pwd
@@ -26,6 +27,10 @@ def pam_account(service, role):
     """
     guest.guard()
     guest.require(service in SERVICES and role in USERS, 'kiosk-admission:arguments')
+    if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
+        from system_kiosk_confinement import caller_identity
+        guest.require(Path('/proc/self/attr/current').read_text().strip().rstrip('\0') ==
+                      caller_identity(service)[0], 'kiosk-admission:caller-context')
     # pam_start otherwise falls back to "other" for a missing service.
     configurations = [Path(root) / service for root in ('/etc/pam.d', '/usr/lib/pam.d')]
     path = next((path for path in configurations if path.exists()), None)
@@ -57,9 +62,17 @@ def pam_account(service, role):
 
 
 def probe(service, role, expected, stage, record):
-    raw = guest.commands.run([
-        '/usr/bin/python3', '-B', str(Path(__file__).resolve()), 'pam-account', service, role],
-        timeout=45, merge_stderr=False)
+    with ExitStack() as resources:
+        caller = ['/usr/bin/python3', '-B']
+        if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
+            from system_kiosk_confinement import pam_caller_command
+            # The native GDM callback creates its leased runtime inode in
+            # xdm_t. An unconfined engineering caller would create the wrong
+            # SELinux object type before a later real session could use it.
+            caller = resources.enter_context(pam_caller_command(guest.PAYLOAD, service))
+        raw = guest.commands.run([
+            *caller, str(Path(__file__).resolve()), 'pam-account', service, role],
+            timeout=45, merge_stderr=False)
     try:
         result = json.loads(raw)
     except (ValueError, UnicodeError):
@@ -83,6 +96,21 @@ def set_routing(uid, values):
         guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                    f'/org/freedesktop/Accounts/User{uid}', INTERFACE, method, 's', value])
     guest.require(routing(uid) == values, 'kiosk-admission:routing-write')
+
+
+def verify_gates(record):
+    """Observe installed account gates without changing retained routing state."""
+    guest.guard()
+    guest.enable_diagnostics()
+    kiosk, ordinary = (pwd.getpwnam(USERS[role]) for role in ('kiosk', 'ordinary'))
+    guest.require(kiosk.pw_uid != ordinary.pw_uid and kiosk.pw_shell == '/usr/sbin/nologin',
+                  'kiosk-admission:identities')
+    for service in SERVICES:
+        probe(service, 'ordinary', 0, service + '.ordinary-before', record)
+    probe('gdm-password', 'kiosk', 0, 'dedicated-before', record)
+    for service in ('login', 'sshd'):
+        probe(service, 'kiosk', PAM_PERM_DENIED, service + '.denied', record)
+        probe(service, 'ordinary', 0, service + '.ordinary-after', record)
 
 
 def verify(record):

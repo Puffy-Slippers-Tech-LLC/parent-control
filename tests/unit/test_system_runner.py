@@ -21,6 +21,7 @@ from tests.support.vm_runner import UUID, RUN, INVENTORIES, xml, write_junit_res
 import system_runner as runner
 import system_guest as guest
 from guest_test_dependencies import ubuntu_archive_sources
+from tests.support.modules import load_module
 
 
 @pytest.mark.parametrize('fault', [None, 'name', 'relative', 'traversal', 'special', 'empty'])
@@ -459,6 +460,9 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
             'chinese_language_assets.py',
         'guest_install_recipe.py', 'install-source/Makefile',
         'system_kiosk_accounts.py',
+        'system_kiosk_admission.py', 'system_assertions.py',
+        'system_kiosk_confinement.py', 'system_kiosk_scope.py',
+        'system_kiosk_platform.py', 'system_wellbeing_qualification.py',
         'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
         'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',
     }
@@ -500,9 +504,76 @@ def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
         ('installed', case), ('rebooted', case)]
     runner.stage_selected_inputs(selection, tmp_path)
     identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
-    assert 'system_kiosk_accounts.py' in identity['files']
+    assert {'system_kiosk_accounts.py', 'system_kiosk_admission.py',
+            'system_kiosk_confinement.py', 'system_assertions.py'} <= identity['files'].keys()
     for phase in selection.phases:
         assert runner.pytest_command(RUN, phase, selection)[-1].endswith('::' + case)
+
+
+@pytest.mark.parametrize('phase,fault', [
+    ('installed', None), ('rebooted', None),
+    ('installed', 'routing'), ('installed', 'exercise'),
+    ('installed', 'gates'), ('installed', 'execution'),
+    ('installed', 'reboot-gate'), ('rebooted', 'verify-reboot'),
+    ('rebooted', 'gates'), ('rebooted', 'execution'),
+    ('installed', 'reboot-requested'), ('rebooted', 'reboot-cleared'),
+    ('installed', 'policy-changed'),
+])
+def test_kiosk_activation_keeps_boundary_checks_in_the_same_guarded_history(
+        monkeypatch, phase, fault):
+    import system_kiosk_accounts as accounts
+    import system_kiosk_admission as admission
+    import system_kiosk_confinement as confinement
+
+    case = load_module('private_install_activation',
+                       runner.ROOT / 'tests/system/test_install_smoke.py')
+    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
+    events = []
+    expected = {
+        'installed': ['policy', 'installed', 'reboot-requested', 'routing', 'exercise',
+                      'gates', 'execution', 'reboot-gate', 'policy'],
+        'rebooted': ['installed', 'reboot-cleared', 'verify-reboot', 'gates', 'execution'],
+    }[phase]
+
+    def action(name, result=None):
+        def invoke(*arguments, **options):
+            events.append(name)
+            if name == fault:
+                if name in ('reboot-requested', 'reboot-cleared'):
+                    return False
+                raise guest.GuestError('activation:' + name)
+            return result
+        return invoke
+
+    installed = Mock(side_effect=action('installed'))
+    monkeypatch.setattr(guest, 'installed', installed)
+    for name in ('reboot_requested', 'reboot_cleared'):
+        monkeypatch.setattr(guest, name, action(name.replace('_', '-'), True))
+    rule_reads = iter(('original', 'changed' if fault == 'policy-changed' else 'original'))
+
+    def read_rules():
+        events.append('policy')
+        return next(rule_reads)
+
+    monkeypatch.setattr(guest, 'execution_rule_state', read_rules)
+    monkeypatch.setattr(guest, 'verify_reboot_gate', action('reboot-gate'))
+    monkeypatch.setattr(accounts, 'exercise', action('exercise'))
+    monkeypatch.setattr(accounts, 'verify_reboot', action('verify-reboot'))
+    monkeypatch.setattr(admission, 'verify', action('routing'))
+    monkeypatch.setattr(admission, 'verify_gates', action('gates'))
+    monkeypatch.setattr(confinement, 'verify', action('execution'))
+
+    if fault is None:
+        case.test_kiosk_account_classification_survives_reboot(Mock())
+    else:
+        category = {'policy-changed': 'policy-changed-before-reboot',
+                    'reboot-requested': 'reboot-not-requested',
+                    'reboot-cleared': 'reboot-request-retained'}.get(fault, 'activation:')
+        with pytest.raises(guest.GuestError, match=category):
+            case.test_kiosk_account_classification_survives_reboot(Mock())
+    assert events == (expected if fault in (None, 'policy-changed') else
+                      expected[:expected.index(fault) + 1])
+    installed.assert_called_once_with(reboot_required=phase == 'installed')
 
 
 def test_conflicting_helper_targets_are_refused_before_any_staging(tmp_path, monkeypatch):

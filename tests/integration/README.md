@@ -166,6 +166,12 @@ must select PAM and the tested service. The test opens no session and changes
 no authentication credentials or shell. It qualifies installed account/routing
 admission, combined with the separate final-exec matrix; it does not establish
 graphical login, session-stage transport checks or customer-journey acceptance.
+Fedora's kiosk GDM workers reuse the final-exec matrix's private interpreter
+fixture in the real `xdm_t` caller domain and verify that domain before libpam.
+This preserves the native named transition for the admission lock after reboot;
+an unconfined synthetic caller must not create that inode with a different type.
+The fixture changes no policy or runtime-lock label and cleans up its own
+interpreter after success or failure.
 
 `enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
 PAM callback bytes/options and the manager credential fallback, then starts and
@@ -449,7 +455,20 @@ failed test assertion.
   failed, inactive or transitioning services without clearing their failure or
   retrying their start. This keeps the bounded engineering restart sequence
   within systemd's start limit. The check
-  provides no customer UI acceptance. Select it with
+  also verifies exact installed-package readiness in both phases, the product's
+  pending/cleared reboot request, and the complete native confinement matrix
+  within that same fresh-install/reboot attempt. Before reboot, routing admission
+  mutations run before the retained-metadata witness; nonmutating installed
+  account-gate checks follow the final AccountsService restart and the new boot.
+  Ordinary controls precede dedicated kiosk admission and exact terminal/SSH
+  denials. Native positive execution precedes the execution, stale-generation,
+  missing-policy and unenforced-policy denials and recovery. The final preboot
+  broker check still requires the exact `RebootRequired` error and unchanged
+  generated execution-policy state. The selected case stages all shared helpers;
+  it never restores an app snapshot between its two phases. This supplies native
+  activation evidence, not real GDM entry, restart-modal presentation or a real
+  waiting-session census; those require a separate fresh lifecycle history.
+  The check provides no customer UI acceptance. Select it with
   `tools/run-tests system --vm NAME --artifacts '<verified-format-allocation>' --area package --test test_kiosk_account_classification_survives_reboot`.
   Before that system run, owned maintenance can feed the same helper through
   `tools/test-vm --vm NAME exec --timeout 180 --input-file 'tests/integration/system_kiosk_accounts.py' -- env 'PYTHONPATH=/var/tmp/onpc-system-input' 'ONPC_EXPECTED_RUN=RUN' /usr/bin/python3 -B - exercise-live`.

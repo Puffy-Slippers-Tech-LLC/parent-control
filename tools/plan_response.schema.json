@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "task_id", "summary", "handoff", "checks", "cleanup_complete", "stage_paths", "blocker"],
+  "properties": {
+    "status": {"enum": ["task_complete", "continue", "blocked", "prerequisite_required"]},
+    "task_id": {"type": "string"},
+    "summary": {"type": "string"},
+    "handoff": {"type": "string"},
+    "cleanup_complete": {"type": "boolean"},
+    "stage_paths": {"type": "array", "items": {"type": "string"}},
+    "checks": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "target", "result", "evidence"],
+      "properties": {
+        "kind": {"enum": ["installed", "review", "host", "reconciliation"]},
+        "target": {"type": "string"},
+        "result": {"enum": ["passed", "failed", "not_run"]},
+        "evidence": {"type": "string"}
+      }
+    }},
+    "blocker": {"anyOf": [{"type": "null"}, {
+      "type": "object", "additionalProperties": false,
+      "required": ["explanation", "question", "options"],
+      "properties": {
+        "explanation": {"type": "string"}, "question": {"type": "string"},
+        "options": {"type": "array", "minItems": 2, "maxItems": 3, "items": {"type": "string"}}
+      }
+    }]}
+  }
+}

@@ -173,13 +173,13 @@ def _select(root, argv):
 
 def follow(run, stream=None):
     from detached_launcher import follow_output, atomic
-    from launcher_render import LauncherDisplay
+    from launcher_view import view_for
     stream = stream or sys.stdout
     # A supervising fix-tests process retains frames separately from its log.
     # Only the final observer knows whether (and how large) its terminal is.
     destination = os.environ.get(FRAME_DIRECTORY)
     try:
-        with LauncherDisplay(stream, log_path=run / 'output') as display:
+        with view_for('run-tests').display(stream, run) as display:
             return follow_output(run, stream, display, label='run-tests',
                                  test_session=True, destination=Path(destination) if destination else None,
                                  owner_busy=lambda owner: busy(owner))

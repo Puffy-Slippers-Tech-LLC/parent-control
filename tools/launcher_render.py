@@ -1,7 +1,7 @@
 """Shared launcher panes and presentation of noninteractive Codex JSONL events.
 
 Render once in the detached supervisor, so reconnecting observers see the same
-agent transcript. Only the observer owns the terminal and its two-pane display.
+agent transcript. Only the observer owns the terminal and its display.
 """
 
 import json

@@ -26,6 +26,7 @@ from detached_launcher import (
 )
 import detached_launcher
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
+from launcher_runtime import TaskBudget, TaskLimitReached, add_options, warn_remaining
 
 
 DEFAULT_MODEL = 'gpt-6.1-sol'
@@ -284,7 +285,8 @@ def category_status(category, categories):
 
 def run_loop(categories, test, repair, check_stop, *, selected=False, round_changed=lambda _: None,
              verified=lambda _repair, _passed: None, rounds=1, resume_test=None, completed=(), start_round=1,
-             verification_started=lambda _completed: None):
+             verification_started=lambda _completed: None,
+             task_started=lambda: None, task_completed=lambda: None):
     """Keep each case's latest repair handoff until its category passes."""
     def finish_category(category, failure):
         handoffs = {}
@@ -334,16 +336,20 @@ def run_loop(categories, test, repair, check_stop, *, selected=False, round_chan
             if category in completed:
                 continue
             check_stop()
+            task_started()
             finish_category(category, test(category))
+            task_completed()
     for number in range(max(2, start_round), rounds + 1):
         round_changed(number)
         verify_round(categories, test, finish_category, check_stop, selected=selected,
                      completed=completed if number == start_round else (),
-                     resume_test=resume_test, verification_started=verification_started)
+                     resume_test=resume_test, verification_started=verification_started,
+                     task_started=task_started, task_completed=task_completed)
 
 
 def verify_round(categories, test, finish_category, check_stop, *, selected, completed=(),
-                 resume_test=None, verification_started=lambda _completed: None):
+                 resume_test=None, verification_started=lambda _completed: None,
+                 task_started=lambda: None, task_completed=lambda: None):
     """Repeat verification and repairs until this round has a clean pass."""
     if not selected and all(category in completed for category in categories):
         return
@@ -357,10 +363,12 @@ def verify_round(categories, test, finish_category, check_stop, *, selected, com
                 if category in completed:
                     continue
                 check_stop()
+                task_started()
                 failure = test(category)
                 if failure is not None:
                     clean = False
                     finish_category(category, failure)
+                task_completed()
             if clean:
                 return
             completed = ()
@@ -368,8 +376,10 @@ def verify_round(categories, test, finish_category, check_stop, *, selected, com
         verification_started(completed)
         completed = ()
         check_stop()
+        task_started()
         failure = test('all')
         if failure is None:
+            task_completed()
             return
         failed = failure['categories']
         if not failed or any(category not in categories for category in failed):
@@ -425,6 +435,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     checkpoint = None
     resuming = resume == 'true'
     pending = None
+    budget = TaskBudget(run)
+
+    def task_started():
+        if not budget.admit():
+            raise TaskLimitReached()
 
     def round_changed(number):
         nonlocal round_number
@@ -672,6 +687,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         record_usage(run, observation, event=event)
 
     status = 1
+    limited = False
     try:
         try:
             from launcher_render import AgentRenderer  # Check before expensive tests.
@@ -692,16 +708,28 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         if start_round > int(rounds):
             raise ValueError('resume round exceeds --rounds; retain the original round count')
         rounds = int(rounds)
+        remaining_current = len(categories) - len(completed)
+        if start_round > 1 and not requested:
+            remaining_current = int(remaining_current > 0)  # A complete verification pass is one task.
+        remaining = remaining_current + max(0, rounds - max(1, start_round)) * (
+            len(categories) if requested else 1)
+        budget.update(lambda value: value.update(remaining=remaining + value['completed']))
+        warn_remaining(budget.read()['tasks'], remaining, label='fix-tests')
         print(f'fix-tests: category pass, then {rounds - 1} verification round(s)', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
         run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
                  round_changed=round_changed,
                  completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),
                  start_round=start_round, verification_started=verification_started,
+                 task_started=task_started, task_completed=budget.complete,
                  verified=verified)
         print('\nfix-tests: ' + ('all selected categories passed.' if requested else
               'all categories passed.' if rounds == 1 else
               'all categories and the complete regression passed.'), flush=True)
+        status = 0
+    except TaskLimitReached:
+        print('\nfix-tests: task limit reached; remaining work is saved for --resume.', flush=True)
+        limited = True
         status = 0
     except Stopped:
         print('\nfix-tests: stopped; owned operation cleanup finished.', flush=True)
@@ -712,14 +740,16 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         previous = repair_progress(run, read_progress(run))
         if previous:
             lines = previous[-1]['lines']
-            lines[-1] = 'Status: ' + {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked')
+            lines[-1] = 'Status: ' + ('Task limit reached' if limited else
+                                     {0: 'Complete', 130: 'Stopped'}.get(status, 'Blocked'))
             publish_progress(run, previous[-1]['key'], lines)
-        atomic(run / 'result.json', {'status': status})
+        budget.close()
+        atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
         os.close(owner)
     return status
 
 
-def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False):
+def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None):
     from vm_selection import execution_binding, check_binding, save_binding
     from test_commands import repair_host_only_request
     name = execution_binding()
@@ -746,12 +776,21 @@ def select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
+        TaskBudget(run).initialize(tasks)
         save_binding(run, name)
         from test_checkpoint import request_record
         request_record(root, 'fix-tests', dict(categories=list(categories), rounds=rounds,
                                              vm=name))
+    def attached(run):
+        check_binding(run, name, stopping=stop)
+        if tasks is not None:
+            budget = TaskBudget(run)
+            limit = budget.set_limit(tasks)
+            if 'remaining' in budget.read():
+                warn_remaining(limit, budget.read()['remaining'], label='fix-tests')
+            print(f"fix-tests: limits now tasks={limit if limit is not None else 'all'}", flush=True)
     return detached_launcher.select(root, kind, command, stop=stop,
-        on_attach=lambda run: check_binding(run, name, stopping=stop),
+        on_attach=attached,
         on_start=started)
 
 
@@ -763,7 +802,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     from vm_selection import SELECTOR_HELP
     parser.add_argument('--vm', help=SELECTOR_HELP)
-    parser.add_argument('--stop', action='store_true', help='stop the active run, like Ctrl+C')
+    add_options(parser, stop_help='stop the active run, like Ctrl+C')
     parser.add_argument('--resume', action='store_true',
                         help='resume passed categories and the failed/interrupted test checkpoint')
     parser.add_argument('--model', help='repair model (only gpt-6.1-sol is supported)')
@@ -822,6 +861,7 @@ def main(argv=None):
         requested_inventory(root, args.categories)
         run, started = select(root, stop=requested, model=args.model, effort=args.effort,
                               categories=args.categories, rounds=args.rounds,
+                              **({'tasks': args.tasks} if args.tasks is not None else {}),
                               **({'resume': True} if args.resume else {}))
         if run is None:
             print('fix-tests: no active launcher.')

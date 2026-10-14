@@ -2,7 +2,6 @@
 
 import argparse
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,6 +15,8 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
+from launcher_runtime import TaskBudget, add_options, task_limit, warn_remaining
+from launcher_git import git_output, worktree_snapshot, session_changes
 
 
 PLAN = 'docs/TestAutomation/E2E-Execution-Plan.md'
@@ -85,18 +86,8 @@ investigate the previous failure before the session's acceptance attempt.
 
 
 def queue_state(root):
-    text = (root / QUEUE).read_text().split('## Deferred future work', 1)[0]
-    rows = re.findall(r'^\| \[([ x])\] \| ([^|]+) \|', text, re.MULTILINE)
-    if not rows:
-        raise ValueError('no active task table found in the canonical queue')
-    tasks = {task.strip(): mark == 'x' for mark, task in rows}
-    if len(tasks) != len(rows):
-        raise ValueError('duplicate task IDs in the canonical queue')
-    current = next((task for task, complete in tasks.items() if not complete), None)
-    pointer = re.search(r'^Next task: \*\*([^ ]+) —', (root / PLAN).read_text(), re.MULTILINE)
-    if current is not None and (pointer is None or pointer[1] != current):
-        raise ValueError(f'plan pointer must name first unchecked task {current}')
-    return current, tasks
+    from execution_plan import queue_state as read_queue
+    return read_queue(root, PLAN, QUEUE)
 
 
 def fresh_state(task):
@@ -260,13 +251,8 @@ def session_progress(root, state, count):
 
 def task_progress(run, steps):
     """Pin runtime task counts above the refreshed task recap."""
-    steps = task_recap(run, steps)
-    path = run / 'limits.json'
-    if not path.exists():
-        return steps
-    limits = json.loads(path.read_text())
-    return [{'key': 'runtime-tasks', 'pinned': True,
-             'lines': [f"Tasks: {limits.get('completed', 0) + 1}/{limits['tasks']}"]}, *steps]
+    from launcher_runtime import task_progress as progress
+    return progress(run, task_recap(run, steps))
 
 
 def task_recap(run, steps):
@@ -318,7 +304,8 @@ def session_command(root, state, run=None):
     command = launcher.agent_command(
         root, model, effort, run,
         schema=Path(__file__).with_name('write_e2e_response.schema.json'),
-        adviser_config=ADVISER_CONFIG if effort == 'high' and not state.get('optimization_session') else None)
+        adviser_config=ADVISER_CONFIG if effort == 'high' and not state.get('optimization_session') else None,
+        delegation=effort == 'high' and not state.get('optimization_session'))
     # Personal Fast settings must not silently spend more of the weekly budget.
     command[-1:-1] = ['-c', 'service_tier="default"', '-c', 'features.fast_mode=false']
     return command
@@ -371,7 +358,7 @@ design question remains unresolved. Consult before implementing such an unresolv
 risky design, including in the first session; a failed attempt is not required.
 State the concrete escalation reason and what High already established.
 Missing prerequisites, permissions and preparation failures use their maintained
-repair or blocker routes. Do not delegate routine work or the whole task.
+repair or blocker routes. Do not send routine work or the whole task to the adviser.
 Give it the exact question, relevant file/evidence paths, applicable contracts,
 attempted corrections, user decisions and expected deliverable; use a fresh context rather than a full
 conversation fork. Request concise findings, evidence, a proposed correction,
@@ -387,6 +374,12 @@ question. Cosmetic rewording, another session or another failed run is not new
 evidence. Carry the question, findings, attempted correction and remaining
 uncertainty in the handoff so a restart does not repeat the same consultation.
 Read-only access and sequential execution are not token budgets.
+Apply docs/Execution-Plans.md for bounded routine delegation: plan_monitor uses
+GPT-6.1 Sol Low for read-only monitoring; plan_worker uses GPT-6.1 Sol Medium for
+explicitly assigned coverage refreshes. Keep the same single child slot and
+sequential join/close protocol. Coverage workers may change only assigned generated
+coverage assets; they never implement the repair, control VMs, run acceptance,
+stage, commit or close tasks. You verify their output and own final acceptance.
 """
     else:
         model_policy += """You own the higher-effort repair directly. Delegation is disabled;
@@ -802,66 +795,8 @@ def wait_for_answer(run, state, progress_key):
 
 
 def stage_task(root, paths, *, require_closeout=True):
-    """Stage only explicit reported files; never interpret Git pathspec magic."""
-    paths = list(dict.fromkeys(paths))
-    if require_closeout and not {PLAN, QUEUE}.issubset(paths):
-        raise ValueError('completed task must include plan and queue in stage_paths')
-    for value in paths:
-        path = Path(value)
-        if (not value or '\x00' in value or path.is_absolute() or '..' in path.parts
-                or '.git' in path.parts or path.parts[:1] == ('output',)
-                or value != path.as_posix() or path == Path('.')
-                or (root / path).is_dir()
-                or any(parent.is_symlink() for parent in (root / path).parents if parent != root)):
-            raise ValueError('stage_paths must contain explicit checkout files')
-    indexed = subprocess.run(
-        ['git', '--literal-pathspecs', 'ls-files', '--cached', '-z', '--', *paths],
-        cwd=root, env=launcher.environment(), capture_output=True, check=True)
-    tracked = {os.fsdecode(path) for path in indexed.stdout.split(b'\0') if path}
-    # A temporary brief can be created and removed before ever entering the
-    # index. It has no deletion to stage. Keep indexed deletions and symlinks.
-    paths = [path for path in paths if path in tracked or os.path.lexists(root / path)]
-    if not paths:
-        return []
-    result = subprocess.run(['git', '--literal-pathspecs', 'add', '--', *paths], cwd=root,
-                            env=launcher.environment(), capture_output=True, text=True)
-    if result.returncode:
-        raise ValueError('task staging failed: ' + result.stderr.strip())
-    return paths
-
-
-def worktree_snapshot(root):
-    """Fingerprint unstaged and untracked files without including existing index work."""
-    result = subprocess.run(
-        ['git', 'ls-files', '--modified', '--deleted', '--others',
-         '--exclude-standard', '-z'], cwd=root, env=launcher.environment(),
-        capture_output=True, check=True)
-    snapshot = {}
-    for raw in result.stdout.split(b'\0'):
-        if not raw:
-            continue
-        name = os.fsdecode(raw)
-        if name.startswith('output/'):
-            continue
-        path = root / name
-        if path.is_symlink():
-            fingerprint = 'link:' + os.readlink(path)
-        elif path.is_file():
-            digest = hashlib.sha256()
-            with path.open('rb') as source:
-                for block in iter(lambda: source.read(1024 * 1024), b''):
-                    digest.update(block)
-            fingerprint = 'file:' + digest.hexdigest()
-        else:
-            fingerprint = 'deleted'
-        snapshot[name] = fingerprint
-    return snapshot
-
-
-def session_changes(root, before):
-    after = worktree_snapshot(root)
-    return [name for name, fingerprint in after.items()
-            if before.get(name) != fingerprint]
+    from launcher_git import stage_task as stage
+    return stage(root, paths, required_paths=(PLAN, QUEUE) if require_closeout else ())
 
 
 def stage_completion(root, state, result):
@@ -876,62 +811,12 @@ def stage_completion(root, state, result):
                       require_closeout=not state.get('optimization_session'))
 
 
-def git_output(root, *arguments, check=True):
-    return subprocess.run(['git', *arguments], cwd=root, env=launcher.environment(),
-                          capture_output=True, text=True, check=check)
-
-
 def finish_commit(root, run, state, paths):
-    """Checkpoint commit intent before writing Git, and recognize a completed write."""
-    head = git_output(root, 'rev-parse', '--verify', 'HEAD', check=False)
-    parent = head.stdout.strip() if head.returncode == 0 else None
+    from launcher_git import finish_commit as commit
     batch = state.get('optimization', {}).get('pending', [])
     message = (f'TA: Refactored task {batch[0]} to {batch[-1]}'
                if state.get('optimization_session') else f"TA: Completed task {state['task_id']}")
-    intent = state.get('commit_intent')
-    if intent is not None:
-        if intent['message'] != message or intent['paths'] != paths:
-            raise ValueError('completion commit scope changed; inspect retained checkpoint')
-        if parent != intent['parent']:
-            # A worker may die after Git commits but before the checkpoint is saved.
-            # Only the exact immediate commit and unchanged owned files earn credit.
-            subject = git_output(root, 'log', '-1', '--format=%s').stdout.strip()
-            parents = git_output(root, 'log', '-1', '--format=%P').stdout.strip()
-            changed = git_output(root, 'diff-tree', '--root', '--no-commit-id',
-                                 '--name-only', '-r', '-z', 'HEAD').stdout.split('\0')
-            matches = (not paths or (
-                git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                           '--', *paths).stdout == intent['entries']
-                and not git_output(root, '--literal-pathspecs', 'status', '--porcelain',
-                                   '--untracked-files=all', '--ignored', '-z', '--', *paths).stdout))
-            if (subject != message or parents != (intent['parent'] or '')
-                    or not set(filter(None, changed)).issubset(paths) or not matches):
-                raise ValueError('HEAD changed outside pending completion commit; inspect checkpoint')
-            return parent
-    else:
-        entries = (git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                             '--', *paths).stdout if paths else '')
-        state['commit_intent'] = {'parent': parent, 'message': message, 'paths': paths,
-                                  'entries': entries}
-        launcher.atomic(run / 'checkpoint.json', state)
-    if paths:
-        entries = git_output(root, '--literal-pathspecs', 'ls-files', '--stage', '-z',
-                             '--', *paths).stdout
-        if (entries != state['commit_intent']['entries']
-                or git_output(root, '--literal-pathspecs', 'diff', '--quiet', '--',
-                              *paths, check=False).returncode != 0):
-            raise ValueError('owned files changed after staging; inspect pending commit')
-    # --only prevents unrelated pre-staged files from entering either commit.
-    # An audit with no edits still records its completed checkpoint as an empty commit.
-    arguments = ['--literal-pathspecs', 'commit', '--only', '--allow-empty', '-m', message]
-    if paths:
-        arguments += ['--', *paths]
-    result = git_output(root, *arguments, check=False)
-    if result.returncode:
-        raise ValueError('completion commit failed: ' + result.stderr.strip())
-    # Verify the same committed write on the normal path as on recovery; hooks
-    # must not silently change the validated content or include unrelated files.
-    return finish_commit(root, run, state, paths)
+    return commit(root, run, state, paths, message, git=git_output)
 
 
 def finish_completion(root, run, state, result, updated):
@@ -1143,6 +1028,7 @@ def worker(root, run, owner, tasks, state_json):
     total = state.get('total_sessions', state.get('task_sessions', 0))
     count, completed, status, reason = 0, 0, 0, 'task limit reached'
     completions = []
+    budget = TaskBudget(run)
 
     def compact_completions():
         for task_id, task_sessions, duration, keys, heading in completions:
@@ -1171,19 +1057,14 @@ def worker(root, run, owner, tasks, state_json):
                 state['task_session_limit'] = max(state.get('task_session_limit', MAX_TASK_SESSIONS),
                                                   state['task_sessions'] + 1)
                 launcher.atomic(run / 'checkpoint.json', state)
-            with launcher.lock(run / 'limits-gate') as gate:
-                fcntl.flock(gate, fcntl.LOCK_EX)
-                limits = json.loads((run / 'limits.json').read_text())
-                tasks = limits['tasks']
-                if task_session_limit_reached(state):
-                    status, reason = 1, 'task session limit reached'
-                    launcher.atomic(run / 'limits.json', dict(limits, closed=True))
-                    break
-                if completed >= tasks and not state.get('optimization_session'):
-                    reason = 'task limit reached'
-                    launcher.atomic(run / 'limits.json', dict(limits, closed=True))
-                    break
-                launcher.atomic(run / 'limits.json', dict(limits, started=count + 1))
+            if task_session_limit_reached(state):
+                status, reason = 1, 'task session limit reached'
+                budget.close()
+                break
+            if not budget.admit(exempt=bool(state.get('optimization_session'))):
+                reason = 'task limit reached'
+                break
+            tasks = budget.read()['tasks']
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
             if (run / 'stop').exists():
@@ -1252,10 +1133,7 @@ def worker(root, run, owner, tasks, state_json):
                 updated = finish_completion(root, run, state, result, updated)
                 if not optimizing:
                     completed += 1
-                    with launcher.lock(run / 'limits-gate') as gate:
-                        fcntl.flock(gate, fcntl.LOCK_EX)
-                        limits = json.loads((run / 'limits.json').read_text())
-                        launcher.atomic(run / 'limits.json', dict(limits, completed=completed))
+                    budget.complete()
             state = updated
             state.pop('worktree_before', None)
             if state['phase'] == 'complete':
@@ -1274,7 +1152,7 @@ def worker(root, run, owner, tasks, state_json):
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
                                     state['completed_at'] - state['started_at'], keys, progress_lines[0]))
-                if tasks > 1 or completed > 1:
+                if tasks is None or tasks > 1 or completed > 1:
                     compact_completions()
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
@@ -1305,12 +1183,6 @@ def worker(root, run, owner, tasks, state_json):
                                              'tasks': completed})
         os.close(owner)
     return status
-
-
-def positive(value):
-    if not value.isdecimal() or int(value) < 1:
-        raise argparse.ArgumentTypeError('must be a positive integer')
-    return int(value)
 
 
 def initial_state(root, directory, *, destination=None, defer_closeout=False):
@@ -1411,10 +1283,7 @@ def select(root, argv):
     def parse(attaching=False):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
         parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
-        kind = int if attaching else positive
-        parser.add_argument('--tasks', type=kind,
-                            help='new run: maximum completed tasks (default 1); active run: signed adjustment')
-        parser.add_argument('--stop', action='store_true', help='finish the current session and stop before the next')
+        add_options(parser, stop_help='finish the current session and stop before the next')
         return parser.parse_args(argv)
 
     if any(option in argv for option in ('--help', '-h')):
@@ -1425,23 +1294,18 @@ def select(root, argv):
         args = parse(attaching=True)
         if args.tasks is None:
             return
-        with launcher.lock(run / 'limits-gate') as gate:
-            fcntl.flock(gate, fcntl.LOCK_EX)
-            path = run / 'limits.json'
-            if not path.exists():
-                raise ValueError('active launcher predates adjustable limits; attach without parameters or restart after it stops')
-            limits = json.loads(path.read_text())
-            if limits.get('closed') or (run / 'result.json').exists():
-                raise ValueError('active launcher is finishing; limits can no longer be adjusted')
-            limits['tasks'] = max(0, limits['tasks'] + args.tasks)
-            launcher.atomic(path, limits)
-            print(f"write-e2e: limits now tasks={limits['tasks']}", flush=True)
+        limit = TaskBudget(run).set_limit(args.tasks)
+        warn_remaining(limit, sum(not done for done in queue_state(root)[1].values()) +
+                       TaskBudget(run).read().get('completed', 0), label='write-e2e')
+        print(f"write-e2e: limits now tasks={limit if limit is not None else 'all'}", flush=True)
 
     def command(run, owner):
         args = parse()
         if args.tasks is None:
             args.tasks = 1
-        initial_limits.update(tasks=args.tasks, started=0, completed=0)
+        initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0)
+        warn_remaining(task_limit(args.tasks), sum(not done for done in queue_state(root)[1].values()),
+                       label='write-e2e')
         state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         previous = launcher.current_run(run.parent)

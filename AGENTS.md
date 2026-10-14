@@ -49,6 +49,9 @@
   task briefs instead of copying them. For reconciliation, use its
   [working route](docs/TestAutomation/README.md#working-route);
   updating a plan does not execute or close its tasks.
+- When creating or executing a large job's execution plan, follow
+  [Execution plans](docs/Execution-Plans.md): master, ordered queue, task briefs,
+  resumable launcher contract and GPT-6.1 Sol delegation guidance.
 - Reuse unchanged instructions/source in context, including injected AGENTS.md.
   After a new session or compaction, retrieve missing applicable requirements.
   Read complete relevant functions and necessary callers, callees and shared

@@ -16,7 +16,7 @@ from launcher_render import AgentRenderer
 from tests.support.terminal_screen import Terminal
 from tests.support.write_e2e_fixtures import reply
 from write_e2e import task_info_instructions
-from write_e2e_display import WriteE2EDisplay
+from launcher_display import TaskDisplay
 
 
 @pytest.fixture
@@ -349,7 +349,7 @@ def test_multiline_editor_paste_delete_unicode_and_submission():
 
 def display_fixture(tmp_path, width=120, height=36):
     terminal = Terminal(width, height)
-    display = WriteE2EDisplay(terminal, run=tmp_path, terminal_size=lambda: terminal.size)
+    display = TaskDisplay(terminal, run=tmp_path, terminal_size=lambda: terminal.size)
     display.chat_state = {'session': 1, 'task_session': 1, 'task_id': '001', 'status': 'running'}
     display.task_info = {'task_id': '001', 'explanation': 'Checks the child countdown.'}
     display.update([{'key': 'counter', 'pinned': True, 'lines': ['Tasks: 1/3']},
@@ -437,7 +437,7 @@ def test_escape_interrupts_turn_and_preserves_session_and_draft(conversation, tm
     ready(session)
     display, _ = display_fixture(tmp_path)
     clock = [0.0]
-    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
     display.handle_input(b'keep this draft\x1b')
     display.poll_input()
     assert packets(session) == []
@@ -469,7 +469,7 @@ def test_escape_never_exits_idle_or_interrupted_launcher(tmp_path, monkeypatch, 
     display, _ = display_fixture(tmp_path)
     launcher.atomic(tmp_path / 'chat-state.json', dict(display.chat_state, status=status))
     clock = [0.0]
-    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
     display.handle_input(b'\x1b')
     clock[0] = .2
     display.poll_input()
@@ -481,7 +481,7 @@ def test_escape_prefixes_and_paste_do_not_interrupt(tmp_path, monkeypatch):
     display, _ = display_fixture(tmp_path)
     launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
     clock = [0.0]
-    monkeypatch.setattr('write_e2e_display.time.monotonic', lambda: clock[0])
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
     display.handle_input(b'ab\x1b')
     clock[0] = .05
     display.handle_input(b'[D!\x1b')
@@ -530,7 +530,7 @@ def test_input_flags_restore_after_exception(tmp_path, monkeypatch):
             monkeypatch.setattr('os.tcgetpgrp', lambda _: os.getpgrp())
             monkeypatch.setenv('TERM', 'xterm')
             with pytest.raises(RuntimeError):
-                with WriteE2EDisplay(stream, run=tmp_path) as display:
+                with TaskDisplay(stream, run=tmp_path) as display:
                     assert not termios.tcgetattr(slave)[3] & termios.ISIG
                     sent = []
                     display.editor.send = sent.append
@@ -545,7 +545,17 @@ def test_input_flags_restore_after_exception(tmp_path, monkeypatch):
                     raise RuntimeError('observer failed')
             assert termios.tcgetattr(slave) == original
             os.set_blocking(master, False)
-            output = os.read(master, 65536)
+            # A PTY read may return only one kernel packet even after flush.
+            # Drain all available packets before asserting restored modes.
+            output = b''
+            while True:
+                try:
+                    packet = os.read(master, 65536)
+                except BlockingIOError:
+                    break
+                if not packet:
+                    break
+                output += packet
             assert b'\x1b[>4;2m\x1b[>1u' in output
             assert b'\x1b[<u\x1b[>4;0m' in output
     finally:

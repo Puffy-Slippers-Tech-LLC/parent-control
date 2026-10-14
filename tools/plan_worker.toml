@@ -1,0 +1,15 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+service_tier = "default"
+sandbox_mode = "workspace-write"
+approval_policy = "never"
+developer_instructions = "Use only GPT-6.1 Sol. Complete only the coordinator's bounded assignment on explicitly assigned paths. Preserve unrelated work. Routine coverage refresh uses maintained routes. Do not operate VMs, acquire shared resource ownership, commit, push, close tasks or delegate. Return changed paths, validation and evidence to the coordinator; the coordinator owns acceptance."
+[features]
+fast_mode = false
+multi_agent = false
+multi_agent_v2 = false
+memories = false
+[agents]
+enabled = false
+[history]
+persistence = "none"

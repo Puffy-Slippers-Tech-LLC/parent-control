@@ -1265,9 +1265,9 @@ def test_concurrent_plain_attach_preserves_limits_and_terminal_loss(checkout):
 
 @pytest.mark.parametrize('initial, adjustment, sessions, completed', [
     (['--tasks', '1'], ['--tasks', '2'], 4, 2),
-    (['--tasks', '2'], ['--tasks', '-1'], 2, 1),
-    (['--tasks', '2'], ['--tasks', '-9'], 1, 0),
-    ([], ['--tasks', '0'], 2, 1),
+    (['--tasks', '2'], ['--tasks', '-1'], 4, 2),
+    (['--tasks', '2'], ['--tasks', '-9'], 4, 2),
+    ([], ['--tasks', '0'], 4, 2),
 ])
 def test_attached_adjustments_control_next_boundary(
         checkout, initial, adjustment, sessions, completed, tmp_path_factory):
@@ -1290,20 +1290,21 @@ def test_attached_adjustments_control_next_boundary(
     assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{initial_total}']
     assert select_vm(root, adjustment) == (run, False)
     adjusted_total = json.loads((run / 'limits.json').read_text())['tasks']
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{adjusted_total}']
+    display_total = adjusted_total if adjusted_total is not None else 'all'
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{display_total}']
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed + 1}/{adjusted_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed + 1}/{display_total}']
     if completed:
         assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
             workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
 
-def test_concurrent_adjustments_accumulate_without_resetting_completed_work(
+def test_concurrent_limit_replacements_preserve_completed_work(
         checkout, tmp_path_factory):
     root, _ = checkout
     # Reach the adjustment boundary only after the completed task's real push.
@@ -1324,9 +1325,8 @@ def test_concurrent_adjustments_accumulate_without_resetting_completed_work(
         attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {
-        'tasks': 6, 'started': 3, 'completed': 1}
-    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/6']
-    select_vm(root, ['--tasks', '-6'])
+        'tasks': 1, 'started': 3, 'completed': 1}
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/1']
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()

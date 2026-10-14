@@ -904,3 +904,84 @@ def test_supervisor_does_not_spawn_work_after_startup_cancellation(checkout, rea
         os.close(read_fd)
         if reason != 'parent-death':
             os.close(write_fd)
+
+
+def test_task_limit_stops_after_first_category_and_preserves_resume_checkpoint(checkout):
+    root, spawned = checkout
+    (root / 'mode').write_text('pass')
+    run, started = fix_tests.select(root, categories=('unit', 'ui'), tasks=1)
+    assert started
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit']
+    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=1)
+    assert 'task limit reached' in output.getvalue()
+    progress = json.loads((run / 'controller.json').read_text())
+    assert progress[-1]['lines'][-1] == 'Status: Task limit reached'
+    from test_checkpoint import Checkpoint
+    checkpoint = Checkpoint(root, [('unit', []), ('ui', [])], namespace='fix-tests', resume=True)
+    assert checkpoint.complete('unit') and not checkpoint.complete('ui')
+    with lock(run.parent / 'owner') as owner:
+        assert not busy(owner)
+
+
+@pytest.mark.parametrize('limit', [0, -4, 10])
+def test_nonpositive_and_oversized_task_limits_exhaust_selected_categories(checkout, limit):
+    root, spawned = checkout
+    (root / 'mode').write_text('pass')
+    run, started = fix_tests.select(root, categories=('unit', 'ui'), tasks=limit)
+    assert started
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit', 'ui']
+    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=2)
+    limits = json.loads((run / 'limits.json').read_text())
+    assert limits['tasks'] == (None if limit <= 0 else limit)
+    assert 'all selected categories passed' in output.getvalue()
+    assert 'task limit reached' not in output.getvalue()
+    if limit > 2:
+        assert 'requested 10 tasks, but only 2 remain' in output.getvalue()
+    with lock(run.parent / 'owner') as owner:
+        assert not busy(owner)
+
+
+def test_live_task_limit_replacement_allows_second_selected_category(checkout):
+    root, spawned = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(agents=[], tests=[None, None], wait_test=0)))
+    run, started = fix_tests.select(root, categories=('unit', 'ui'), tasks=1)
+    assert started
+    wait_for(root / 'test-ready')
+    assert fix_tests.select(root, categories=('unit', 'ui'), tasks=2) == (run, False)
+    limits = json.loads((run / 'limits.json').read_text())
+    assert limits['tasks'] == 2 and limits['completed'] == 0
+    (root / 'release').touch()
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['unit', 'ui']
+    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=2)
+    assert len(spawned) == 1
+
+
+def test_resumed_composite_verification_warns_with_actual_remaining_task_count(checkout):
+    root, spawned = checkout
+    (root / 'mode').write_text('pass')
+    from test_checkpoint import Checkpoint
+    checkpoint = Checkpoint(root, [(kind, []) for kind in ('unit', 'ui', 'system', 'e2e')],
+                            namespace='fix-tests')
+    checkpoint.state.update(round=2, pending='all')
+    checkpoint.save()
+    run, _ = fix_tests.select(root, rounds=3, resume=True, tasks=3)
+    spawned[-1].wait(timeout=20)
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['category'] for call in calls] == ['all', 'all']
+    assert json.loads((run / 'result.json').read_text()) == dict(status=0, tasks=2)
+    assert 'requested 3 tasks, but only 2 remain' in output.getvalue()

@@ -1,4 +1,4 @@
-"""Private observer mailbox and Codex app-server conversation for write-e2e.
+"""Private observer mailbox and Codex app-server conversation for workflows.
 
 The existing supervisor owns the process, logs and nested-test cleanup. This
 module owns only the conversation protocol; observers never signal agent PIDs.
@@ -87,8 +87,8 @@ class AppSession:
         self.interrupting = False
         self.on_interrupted = on_interrupted
         self.publish('starting')
-        self.request('initialize', {'clientInfo': {'name': 'onpc_write_e2e',
-                     'title': 'Write E2E', 'version': '1.0'},
+        self.request('initialize', {'clientInfo': {'name': 'onpc_launcher',
+                     'title': 'Task launcher', 'version': '1.0'},
                      'capabilities': {'experimentalApi': True}})
 
     def publish(self, status):

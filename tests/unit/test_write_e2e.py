@@ -1151,7 +1151,7 @@ def test_generic_prerequisite_graph_preserves_consumer_through_completion_and_re
     assert all(workflow.queue_state(tmp_path)[1][key] == done for key, done in before.items())
 
 
-@pytest.mark.parametrize('value', ['0', '-1', 'garbage', '1.5'])
+@pytest.mark.parametrize('value', ['garbage', '1.5'])
 def test_invalid_limit_refuses_before_spawn(tmp_path, value):
     with pytest.raises(SystemExit) as error:
         workflow.select(tmp_path, ['--tasks', value, '--vm', vm_name()])

@@ -27,6 +27,7 @@ class SelectedRun(Run):
                          scope='selected categories only', continue_on_errors=not stop_on_error)
         self.serial_host = (len(selections) == 1 and selections[0][0] in ('unit', 'component', 'ui')
                             and selections[0][1][:1] == ['--unattended'])
+        self.serial_status = None
         self.selections = [(kind, args[1:] if args[:1] == ['--unattended'] else args)
                            for kind, args in selections]
         self.dashboard.controller_category = (self.selections[0][0], 1, len(self.selections))
@@ -72,6 +73,15 @@ class SelectedRun(Run):
         self.cleanup_jobs(safety)
         return 130 if self.control.stopped.is_set() else 0
 
+    def result_status(self):
+        return self.serial_status if self.serial_status is not None else super().result_status()
+
+    def pytest_result(self, inventory, status):
+        result = status or int(inventory.state != 'Passed')
+        if self.serial_host:
+            self.serial_status = result
+        return result
+
     def run_pytest(self, kind, inventory, args):
         if kind == 'ui':
             args, options = selected_options(self.root, args)
@@ -86,12 +96,16 @@ class SelectedRun(Run):
             inventory.branch = 1
             inventory.launch_order = self.sequence + 1
             status, _ = self.execute(inventory, self.command(kind, *args), events=True)
-            return status or int(inventory.state != 'Passed')
+            return self.pytest_result(inventory, status)
 
         status, _ = self.execute(inventory, self.command(kind, *args, '--collect-only'),
                                  collect=True, events=True)
         if self.control.stopped.is_set():
             return 130
+        if self.serial_host and status:
+            # Direct pytest launchers preserve its public exit codes, including
+            # no tests selected (5), while retaining the shared report/dashboard.
+            return self.pytest_result(inventory, status)
         if status or (not inventory.total and inventory.state != 'Passed'):
             raise ValueError(f'{kind.upper()} collection failed or collected no tests')
         if inventory.state == 'Passed' and not inventory.total:
@@ -101,7 +115,7 @@ class SelectedRun(Run):
             inventory.branch = 1
             inventory.launch_order = self.sequence + 1
             status, _ = self.execute(inventory, self.command(kind, *args), events=True)
-            return status or int(inventory.state != 'Passed')
+            return self.pytest_result(inventory, status)
         # The common builder validates the inventory before protected work.
         # Exact IDs retain partial files, parametrization, -k, -m and ignores.
         jobs = self.pytest_jobs(kind, inventory, options, exact=True)

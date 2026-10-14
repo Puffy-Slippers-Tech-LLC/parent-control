@@ -554,9 +554,9 @@ All passed collection, owned cleanup and baseline restoration.
 Cases 51 and 52 include the recipe's initial restriction cycle as well as the
 post-rejection or post-cancellation cycle. Case 51's current qualification on
 both targets is recorded in
-[confinement step 6b](../confinement.md#step-6b-qualification--2026-10-13).
+[confinement step 6b](../Confinement-Reference.md#step-6b-qualification--2026-10-13).
 Case 52's complete current qualification on both targets is recorded in
-[confinement step 6c](../confinement.md#step-6c-qualification--2026-10-13).
+[confinement step 6c](../Confinement-Reference.md#step-6c-qualification--2026-10-13).
 About/Help and report restrictions remain under
 E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
 

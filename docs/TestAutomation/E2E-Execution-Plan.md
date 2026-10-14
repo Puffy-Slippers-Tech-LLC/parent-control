@@ -11,6 +11,10 @@ in [execution contracts](E2E-Execution-Contracts.md). Its canonical
 [queue](E2E-Task-Queue.md) is one fixed sequence, including provider qualification
 and retained regressions. Briefs never select a different task.
 
+The [shared execution-plan instructions](../Execution-Plans.md) own the reusable
+plan structure and delegation guidance. This plan retains its specialized
+acceptance, bounded consultation and coordinator escalation policy.
+
 Queue IDs identify tasks. Numeric case IDs in briefs and `--id` commands identify
 inventory variant `coverage_id` values; `E2E-NNN` identifies their scenario family.
 Keep each brief's case, variant parameters, recipe and consumer hints aligned

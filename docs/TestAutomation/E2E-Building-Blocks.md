@@ -1159,7 +1159,7 @@ the shared request preparation and normal station Cancel/greeter return. Its
 engineering census checks every waiting-session process/thread after the visit.
 The source/control audit complements the API inventory, which exposes identified
 controls rather than anonymous toolkit widgets. Exact installed results and
-remaining scope belong to [confinement step 7b](../confinement.md#step-7b-qualification--2026-10-13).
+remaining scope belong to [confinement step 7b](../Confinement-Reference.md#step-7b-qualification--2026-10-13).
 This qualification supplies no reminder/preset persistence, delivery or complete
 customer-case credit and does not advance the separate E2E queue.
 
@@ -3535,7 +3535,7 @@ choices, real approval, explicit success and automatic usable-GDM return passed,
 with private capture reconciliation, collection, owned cleanup and baseline
 restoration. About/report actions remain E2E-042/045 obligations.
 The unchanged complete case also passed on both confinement targets under the
-current candidate; see [step 6a qualification](../confinement.md#step-6a-qualification--2026-10-13).
+current candidate; see [step 6a qualification](../Confinement-Reference.md#step-6a-qualification--2026-10-13).
 The added host regressions use private trees, bounded owned Perl doubles and
 the existing private durable-recorder fixtures. Unit and cleanup scheduler
 classifications remain compatible: no shared cache, bus, display, VM or heavy
@@ -3629,7 +3629,7 @@ restoration. Cancellation enters no approval password and compares the preserved
 choices before repeating restrictions and exiting normally.
 Case 52's complete current qualification, including both restriction cycles,
 passed on both confinement targets; see
-[step 6c qualification](../confinement.md#step-6c-qualification--2026-10-13).
+[step 6c qualification](../Confinement-Reference.md#step-6c-qualification--2026-10-13).
 The host regression exercises both prepared operations through the real decoder,
 including changed choices and forbidden surfaces/controls. It uses private
 trees and bounded Perl workers; both unapproved worker branches are checked for

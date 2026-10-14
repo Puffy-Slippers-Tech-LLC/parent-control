@@ -1,0 +1,15 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "low"
+service_tier = "default"
+sandbox_mode = "read-only"
+approval_policy = "never"
+developer_instructions = "Use only GPT-6.1 Sol. Perform only the coordinator's bounded read-only monitoring assignment. Do not edit, run tests, operate VMs, acquire resource ownership, commit, push, close tasks or delegate. Report observations and evidence to the coordinator."
+[features]
+fast_mode = false
+multi_agent = false
+multi_agent_v2 = false
+memories = false
+[agents]
+enabled = false
+[history]
+persistence = "none"

@@ -17,6 +17,7 @@ edits supply no reason to discard valid results or overwrite unrelated work.
 | Source | Owns | Does not establish |
 | --- | --- | --- |
 | [Approval tools](../Approval-Tools.md) | Authorized command routes, setup and unattended execution | Permission for work outside the requested scope |
+| [Generic execution plans](../Execution-Plans.md) | Shared master/queue/brief format, launcher extension boundaries, task budgets and delegation | A replacement for E2E-specific acceptance, repair rules or model ladders |
 | [UI automation mandate](../Mandates/UI-Automation-Mandate.MD) | GUI versus supporting-command selection, public IDs, external-provider exception and input/result guards | Qualification of an adapter merely because its technique is permitted |
 | [Application UI API](Application-UI-API.md) | Product-control operations, canonical values, adapter boundaries and control inventory | Installed desktop qualification or route selection independent of the UI mandate |
 | [VM mandate](../Mandates/VM-Mandate.MD) | Target selection, leases, observation and baseline preparation lifetime | A passing product result or permission to use the development host as an installed target |

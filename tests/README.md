@@ -346,7 +346,7 @@ Optional categories restrict both repair and verification: `tools/fix-tests host
 Category arguments pass through to the runner, for example `tools/fix-tests e2e --id 6`
 or `tools/fix-tests unit 'tests/unit/test_fix_tests.py' -q`. The exact selectors
 are retained for repairs and every verification round. Launcher options such as
-`--vm`, `--model`, `--effort`, `--rounds` and `--stop` remain launcher-owned,
+`--vm`, `--model`, `--effort`, `--rounds`, `--tasks` and `--stop` remain launcher-owned,
 are recognized before or after categories, and are removed from the forwarded
 arguments. For example, `tools/fix-tests e2e --id 6 --rounds 3` forwards
 `e2e --id 6` for each of three rounds. Inspection
@@ -588,15 +588,16 @@ running launcher does not renew the cap. If the task is still incomplete at
 that cap, the entire launcher exits with failure and prints a bold
 red warning as the final line after the summary and follow-up instructions.
 The next task starts with its own cap of 5.
-The task limit accepts positive integers for a new run. A task counts only after
+Zero and negative task limits run all remaining tasks. An oversized positive
+limit warns and finishes when the queue is exhausted. A task counts only after
 acceptance, queue close-out, successful staging, its completion commit and
 `git push`. An empty active queue stops the workflow. A task blocker pauses for
 your answer as described below.
 With a live run, an invocation without parameters attaches without changing the
 task limit. Explicit `--tasks`
-values are signed adjustments to the existing maximum: `--tasks 2` changes a
-maximum of 1 to 3; `--tasks -1` changes 2 to 1. An omitted limit stays unchanged.
-Adjustments accumulate across terminals and clamp at zero. They take effect
+values replace the existing maximum: `--tasks 2` sets it to 2; `--tasks -1`
+or `--tasks 0` removes the task limit. An omitted limit stays unchanged.
+Replacements are serialized across terminals. They take effect
 before the next session; the current session
 finishes normally and completed work is preserved. Invalid options are rejected.
 An owner already finishing at its limit refuses adjustments; restart after it exits.
@@ -734,7 +735,13 @@ are agent instructions; the launcher enforces the coordinator session cap and
 concurrency/depth bounds, not semantic novelty or an adviser token ceiling.
 Consultations are part of the coordinator session, not extra task sessions;
 they still consume model usage. Do not introduce parallel agents or overlapping
-coordinator work. `fix-tests` keeps delegation disabled.
+coordinator work. While Sol High coordinates, the same single slot also supports
+bounded GPT-6.1 Sol Low `plan_monitor` observations or Sol Medium `plan_worker`
+coverage refreshes under the [common delegation contract](../docs/Execution-Plans.md#execution-and-delegation).
+These roles never implement repairs, operate VMs, run acceptance or close tasks;
+coverage writes are limited to explicitly assigned generated assets. The
+coordinator verifies their output. Higher coordinator tiers retain their existing
+direct-work policy. `fix-tests` keeps delegation disabled.
 Start a new launcher run to adopt this policy; attaching to an existing run
 does not reconfigure its already-running coordinator.
 
@@ -991,12 +998,15 @@ task asks for its answer before doing more work.
 
 The shared [session renderer](../tools/launcher_render.py) applies these display
 rules to every supervised agent; launchers do not format agent events themselves.
-All three launchers use the same output-following loop. `run-tests` and `fix-tests`
-use its two-pane terminal display. The upper pane pins the controller journey: `run-tests` shows the selected
+All launchers use the same output-following loop and
+[three-pane task display](../tools/launcher_display.py), customized with
+[presentation strategies](../tools/launcher_view.py). The upper pane pins the controller journey: `run-tests` shows the selected
 category and position with overall progress; `fix-tests` adds the current round number and
 the running-tests/fixing-errors status.
-`write-e2e` uses a [specialized display](../tools/write_e2e_display.py): the lower
-frame divides output on the left from task information and chat on the right.
+The lower frame divides execution details and optional session input on the left
+from current task summary and status/issues on the right. `run-tests` has no
+session composer; `fix-tests` offers input for developer decisions. E2E and
+ordinary plan workflows offer the conversation composer described below.
 Its initial width ratio is 75:25; dragging the vertical divider changes the
 ratio, which survives terminal resizing. The divider turns blue while dragging
 and returns to its normal color on release. Hover requests the standard horizontal
@@ -1011,7 +1021,7 @@ the task scope changes. The agent writes it once rather than repeating it in
 progress output. A separate status shows `Running session 1.` initially; later
 sessions explain the previous failure and attempted resolution in parent/child
 scenario language. These updates are presentation only, never acceptance evidence.
-The bottom-right composer accepts typing during work. Enter sends; Shift+Enter
+The bottom-left composer accepts typing during work. Enter sends; Shift+Enter
 inserts a newline in terminals supporting modified-key reporting, which the
 display enables while attached. Alt+Enter and Ctrl+J also insert a newline;
 multiline paste never sends
@@ -1059,11 +1069,22 @@ and menus. Mouse reporting applies to the whole terminal, so plain native
 selection and scrollbar dragging use separate modes. Use Up/Down or Page Up/Page Down to scroll,
 Tab to switch panes (initially the lower pane), and End to return to the newest
 rows in either mode.
+The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown
+plans, delegation, shared `--tasks` semantics and extension boundaries. The
+[confinement launcher](../tools/confinement) is an ordinary plan adapter with a
+fixed GPT-6.1 Sol xHigh coordinator and no escalation; E2E and repair retain
+their specialized state machines and existing model ladders. Repair's optional
+`--tasks` bounds completed category passes (an unfiltered verification `all`
+pass counts as one composite task); omission retains the full selected loop.
+
 The shared [detached launcher module](../tools/detached_launcher.py) owns
 workflow attachment, process supervision, fresh Codex transport, log rotation
-and output following for `fix-tests` and `write-e2e`; `run-tests` shares its lock
+and output following for `fix-tests`, `write-e2e` and ordinary plan workflows;
+`run-tests` shares its lock
 primitives, output following and terminal display, and registers test owners
-started inside an E2E agent session.
+started inside an E2E or ordinary plan agent session. The
+[adapter map](../docs/Execution-Plans.md#extension-boundary) distinguishes their
+shared components and retained execution engines.
 Cancellation or worker death cancels only those recorded test runs, validates
 their directory identities and waits for guarded cleanup before releasing the
 workflow lock. Already-running tests that the agent merely attaches to remain

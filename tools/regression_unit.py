@@ -1,5 +1,19 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+execution_plan_launcher uses tiny pytest-private Markdown/checkpoint/lock trees,
+process-local Git/agent/cleanup doubles, recorded private nested-directory
+identities with synchronous ownership doubles, in-memory VT panes and four finite
+joined budget-update threads. Its relocated CLI check owns one bounded, waited Python
+child without model inference. No VM, bus, display, network, shared mutable path
+or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
+scheduling is appropriate. Cleanup and UI inventories gain no module.
+Its detached adapter integration reuses the maintained private app-server double
+with a tiny relocated Git checkout and the shared storage/retention libraries.
+The public observer is bounded and reaped; its exact recorded worker is cancelled
+through the shared owner/run contract and awaited before fixture teardown. It
+adds no model inference, VM, network, commit/publication or new cleanup mechanic;
+the same compatible unit classification applies.
+
 Fullscreen reminder qualification extends the existing overlay reminder facade,
 journey and registration modules with private API/transport/recorder values and
 bounded, synchronously waited Perl children. No VM, bus, display, shared cache
@@ -865,7 +879,7 @@ graphical_attachment_cleanup_safety graphical_backend graphical_expiry graphical
 graphical_lease graphical_serial_cleanup_safety graphical_smoke graphical_smoke_cleanup_safety
 graphical_transport_cleanup_safety graphical_worker graphical_worker_cleanup_safety guest_inputs
 installed_journey_cleanup_safety installer integration_harness kiosk_confinement kiosk_login kiosk_model kiosk_rendering
-launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
+execution_plan_launcher launcher_chat launcher_render licensing lightning logs mutter_input package_activation package_authority_cleanup_safety package_configuration package_inputs
 package_content package_install_cleanup_safety
 package_os_gate package_payload package_removal package_transaction_notice pam_runtime_cap
 parent_about_cleanup_safety parent_about_worker parent_access_worker parent_client

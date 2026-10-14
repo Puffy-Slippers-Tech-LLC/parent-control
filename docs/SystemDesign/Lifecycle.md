@@ -250,7 +250,7 @@ time limits avoid setter calls, so a successful visibility migration is not
 followed by an unrelated save that canonicalizes retained metadata. Necessary
 routing/time-limit corrections retain their public setters and normal daemon
 serialization semantics. The current engineering qualification belongs to the
-[confinement execution record](../confinement.md#phased-execution-plan-current).
+[confinement execution record](../Confinement-Reference.md#qualification-and-reusable-evidence).
 The upstream [manager implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/daemon.c),
 [user-state implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/user.c)
 and [public user interface](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/data/org.freedesktop.Accounts.User.xml)
@@ -324,7 +324,7 @@ The engineering census requires every kiosk thread to have a confined current
 domain; it has no `init_t` waiting-helper exception. Current-package installed
 startup, credential/teardown and active namespace engineering qualification
 passes on both targets; the
-[confinement evidence](../confinement.md#qualification-and-reusable-evidence)
+[confinement evidence](../Confinement-Reference.md#qualification-and-reusable-evidence)
 retains exact inputs and separate remaining functional/lifecycle gates.
 The intermediate domain can write the inherited `kernel_t` datagram socket used
 by systemd's pre-exec handoff timestamp; that object label was measured on Fedora
@@ -399,7 +399,7 @@ every thread's exact mixed UID tuple, native executable/inode/metadata, enforcin
 domain, read-only file bind, private generation/namespace, live confined Polkit
 parent and stable PIDFD/starttime/task snapshots. Unknown labels and `init_t`
 remain rejected. Required final installed acceptance remains recorded in
-[confinement evidence](../confinement.md).
+[confinement evidence](../Confinement-Reference.md).
 Ubuntu uses an immediate AppArmor profile change. Fedora's systemd caller uses
 the immediate PAM domain above; GDM uses a verified pending SELinux execution
 context whose entrypoint check applies to the actual next executable. Missing policy, permissive profiles or

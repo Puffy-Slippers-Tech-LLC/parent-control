@@ -114,7 +114,7 @@ def environment():
     return result
 
 
-def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=None):
+def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=None, delegation=False):
     codex = shutil.which('codex')
     if codex is None:
         raise ValueError('Codex CLI is missing; install and authenticate it before running this launcher')
@@ -122,9 +122,9 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '--sandbox', 'workspace-write', '--model', model,
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
-            '-c', f'features.multi_agent={str(adviser_config is not None).lower()}',
+            '-c', f'features.multi_agent={str(adviser_config is not None or delegation).lower()}',
             '-c', 'features.multi_agent_v2=false',
-            '-c', f'agents.enabled={str(adviser_config is not None).lower()}',
+            '-c', f'agents.enabled={str(adviser_config is not None or delegation).lower()}',
             '--json', '--color', 'never', '--cd', str(root)]
     if adviser_config is not None:
         # V1 supports a depth bound. One child slot plus the coordinator's
@@ -135,6 +135,15 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
                     '-c', 'agents.default_subagent_reasoning_effort="max"',
                     '-c', 'agents.e2e_adviser.description="Bounded read-only diagnosis or review; no implementation or tests"',
                     '-c', 'agents.e2e_adviser.config_file=' + json.dumps(str(adviser_config))]
+    if delegation:
+        if adviser_config is None:
+            command += ['-c', 'agents.max_concurrent_threads_per_session=3', '-c', 'agents.max_depth=1',
+                    '-c', 'agents.default_subagent_model="gpt-6.1-sol"',
+                    '-c', 'agents.default_subagent_reasoning_effort="medium"']
+        command += ['-c', 'agents.plan_monitor.description="Routine read-only monitoring; no resource ownership or mutations"',
+                    '-c', 'agents.plan_monitor.config_file=' + json.dumps(str(Path(__file__).with_name('plan_monitor.toml'))),
+                    '-c', 'agents.plan_worker.description="Bounded routine work or coverage refresh on explicitly assigned files"',
+                    '-c', 'agents.plan_worker.config_file=' + json.dumps(str(Path(__file__).with_name('plan_worker.toml')))]
     if run is not None:
         command += ['--output-schema', str(schema or Path(__file__).with_name('fix_tests_response.schema.json')),
                     '--output-last-message', str(run / 'agent-result.json')]
@@ -332,10 +341,14 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
 
 
 def select(root, name, command, *, stop=False, stop_marker='cancel',
-           on_attach=None, on_start=None):
+           on_attach=None, on_start=None, namespace=None):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
+    if namespace is not None:
+        if name != 'plans' or len(namespace) != 64 or any(c not in '0123456789abcdef' for c in namespace):
+            raise ValueError('invalid plan workflow namespace')
+        directory = private_directory(directory / namespace)
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
         fcntl.flock(gate, fcntl.LOCK_EX)
         if busy(owner):
@@ -380,7 +393,11 @@ def nested_operation(root, child_run):
         return
     from test_storage import directory
     parent = Path(value)
-    if parent.parent != directory('write-e2e', root=root) or len(parent.name) != 32:
+    plan_owner = (parent.parent.parent == directory('plans', root=root)
+                  and len(parent.parent.name) == 64
+                  and all(c in '0123456789abcdef' for c in parent.parent.name))
+    if (parent.parent != directory('write-e2e', root=root) and not plan_owner) or (
+            len(parent.name) != 32 or any(c not in '0123456789abcdef' for c in parent.name)):
         raise ValueError('invalid workflow owner directory')
     private_directory(parent)
     with lock(parent / 'nested-gate') as gate:
@@ -429,24 +446,22 @@ def finish_nested(root, run):
     return active
 
 
-def follow(run, stream=None, *, label='launcher'):
-    from launcher_render import LauncherDisplay
+def follow(run, stream=None, *, label='launcher', view=None):
+    from launcher_view import view_for
     stream = stream or sys.stdout
-    if label == 'write-e2e':
-        from write_e2e_display import WriteE2EDisplay
-        display = WriteE2EDisplay(stream, run=run, log_path=run / 'output')
-    else:
-        display = LauncherDisplay(stream, log_path=run / 'output')
+    view = view or view_for(label)
+    display = view.display(stream, run)
     with display:
-        return follow_output(run, stream, display, label=label)
+        return follow_output(run, stream, display, label=label, view=view)
 
 
 def follow_output(run, stream, display, *, label='launcher', test_session=False,
-                  destination=None, owner_busy=None):
-    from launcher_progress import repair_progress
+                  destination=None, owner_busy=None, view=None):
+    from launcher_view import view_for
     from launcher_render import clean
     from watch_output import JsonReader, snapshot
     reader = JsonReader()
+    view = view or view_for(label)
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     forwarded = None
     with lock((run if test_session else run.parent) / 'owner') as owner, (run / 'output').open('rb') as output:
@@ -455,9 +470,9 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
         if offset:
             output.readline()  # Reattach at a full line, not midway through UTF-8/ANSI.
         while True:
-            if label == 'write-e2e' and hasattr(display, 'refresh_chat'):
+            if hasattr(display, 'refresh_chat'):
                 display.refresh_chat()
-            if label in ('write-e2e', 'fix-tests'):
+            if view.questions:
                 from launcher_question import pending, submit
                 display.update_question(pending(run), lambda identity, choice, text:
                                         submit(run, identity, choice, text))
@@ -472,9 +487,9 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
             try:
                 steps = snapshot(run / 'controller.json', steps=True, reader=reader)
                 lines = snapshot(run / 'frame.json', reader=reader)
-                if destination is None and label == 'fix-tests':
-                    steps = repair_progress(run, steps,
-                        child_steps=snapshot(run / 'test-controller.json', steps=True, reader=reader))
+                if destination is None and steps is not None:
+                    steps = view.progress(run, steps,
+                        snapshot(run / 'test-controller.json', steps=True, reader=reader))
             except (OSError, ValueError, KeyError, TypeError):
                 # Refused metadata must not prevent draining the complete log
                 # or delivering the owner's final result. Never forward it.
@@ -488,9 +503,6 @@ def follow_output(run, stream, display, *, label='launcher', test_session=False,
                     atomic(destination / 'test-controller.json', steps)
                     forwarded = (steps, lines)
             else:
-                if label == 'write-e2e':
-                    from write_e2e import task_progress
-                    steps = task_progress(run, steps)
                 # Overall progress belongs to the controller pane, not the
                 # rapidly refreshed detailed test tree. Legacy frames still work.
                 if steps:

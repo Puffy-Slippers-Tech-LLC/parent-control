@@ -694,6 +694,9 @@ class Run:
         self.report.resources({**sample, 'running_categories': [item.name for item in self.categories
                                                              if item.state == 'Running']})
 
+    def result_status(self):
+        return int(any(item.state != 'Passed' for item in self.categories))
+
     def command(self, category, *args):
         if category == 'ui':
             return [str(self.root / 'tools/run-ui-tests'), '--unattended', *args]
@@ -1216,7 +1219,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                 run = SelectedRun(root, report, control, selections, stop_on_error=stop_on_error)
             run.checkpoint = checkpoint
             run.run()
-            status = 0 if all(item.state == 'Passed' for item in run.categories) else 1
+            status = run.result_status()
         except (Exception, KeyboardInterrupt) as error:
             failed = not isinstance(error, KeyboardInterrupt)
             if report is None and failed:

@@ -1,4 +1,4 @@
-"""Write-e2e's resizable output, task information and conversation panes."""
+"""Shared resizable task overview, execution/input and summary/status panes."""
 
 import json
 import os
@@ -15,14 +15,15 @@ from launcher_chat import ChatEditor, read_state, send_input
 from launcher_render import LauncherDisplay
 
 
-class WriteE2EDisplay(LauncherDisplay):
-    def __init__(self, stream, *, run, **kwargs):
+class TaskDisplay(LauncherDisplay):
+    def __init__(self, stream, *, run, input_mode='chat', **kwargs):
         super().__init__(stream, **kwargs)
         self.run = run
+        self.input_mode = input_mode
         self.ratio = .75
         self.dragging = False
         self.pointer = False
-        self.focus = 'chat'
+        self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
         self.offsets['summary'] = 0
         self.chat_state = {}
@@ -34,11 +35,12 @@ class WriteE2EDisplay(LauncherDisplay):
         self.summary_bottom = 0
         self.cancel_button = None
         self.escape_since = None
+        self.mouse_pending = b''
 
     def __enter__(self):
         super().__enter__()
         try:
-            if self.input_fd is not None:
+            if self.input_fd is not None and self.input_mode == 'chat':
                 # Deliver Ctrl+C to the conversation instead of the observer's
                 # process signal handler. Restore the original flags on every exit.
                 attributes = termios.tcgetattr(self.input_fd)
@@ -75,6 +77,8 @@ class WriteE2EDisplay(LauncherDisplay):
         return max(1, self.divider_column - 1)
 
     def update_question(self, question, send):
+        if self.input_mode != 'chat':
+            return super().update_question(question, send)
         # Keep mouse reporting and the always-editable composer while blocked.
         from launcher_question import QuestionInput
         identity = self.question.question['id'] if self.question else None
@@ -83,6 +87,8 @@ class WriteE2EDisplay(LauncherDisplay):
             self.draw()
 
     def set_mouse_mode(self):
+        if self.input_mode != 'chat':
+            return super().set_mouse_mode()
         if self.input_fd is not None:
             self.stream.write('\033[?1000l\033[?1002l\033[?1003h\033[?1006h')
             self.stream.flush()
@@ -105,6 +111,24 @@ class WriteE2EDisplay(LauncherDisplay):
             self.draw()
 
     def handle_input(self, data):
+        if self.input_mode != 'chat':
+            self.mouse_pending += data
+            while self.mouse_pending:
+                match = re.match(rb'\x1b\[<(\d+);(\d+);(\d+)([Mm])', self.mouse_pending)
+                if match:
+                    self.mouse_pending = self.mouse_pending[match.end():]
+                    if self.mouse_capture:
+                        self.mouse(*map(int, match.groups()[:3]), match[4] == b'm')
+                elif (b'\x1b[<'.startswith(self.mouse_pending) or
+                      self.mouse_pending.startswith(b'\x1b[<') and len(self.mouse_pending) < 64):
+                    break
+                else:
+                    split = self.mouse_pending.find(b'\x1b[<', 1)
+                    value = self.mouse_pending if split < 0 else self.mouse_pending[:split]
+                    self.mouse_pending = b'' if split < 0 else self.mouse_pending[split:]
+                    super().handle_input(value)
+            self.draw()
+            return
         self.input_pending += data
         while self.input_pending:
             if self.editor.paste:
@@ -172,9 +196,10 @@ class WriteE2EDisplay(LauncherDisplay):
             elif (self.cancel_button and row == self.cancel_button[1]
                   and self.cancel_button[0] <= column < self.divider_column):
                 send_input(self.run, 'interrupt')
-            self.focus = 'bottom' if column < self.divider_column and row < self.chat_top else 'chat'
+            self.focus = ('bottom' if self.input_mode != 'chat' or
+                          column < self.divider_column and row < self.chat_top else 'chat')
         elif base in (64, 65):
-            if column < self.divider_column and row >= self.chat_top:
+            if self.input_mode == 'chat' and column < self.divider_column and row >= self.chat_top:
                 return
             pane = ('top' if row <= self.top_height else 'bottom' if column < self.divider_column else
                     'summary' if row <= self.summary_bottom else 'info')
@@ -194,7 +219,8 @@ class WriteE2EDisplay(LauncherDisplay):
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
                  self.editor.text, self.editor.cursor, self.editor.error,
                  json.dumps(self.task_info, sort_keys=True), json.dumps(self.chat_state, sort_keys=True),
-                 self.question.question['id'] if self.question else None, self.focus)
+                 (self.question.question['id'], self.question.selected, self.question.text)
+                 if self.question else None, self.focus, self.mouse_capture)
         if self.screen and state == self.draw_state:
             return
         width, height = max(1, size.columns - 1), max(1, size.lines)
@@ -203,6 +229,8 @@ class WriteE2EDisplay(LauncherDisplay):
         # Only completed/suspended history stays above the lower split.
         history = [line for s in self.steps if not s.get('pinned') and
                    (s.get('replaces') or (s is not current and len(s['lines']) == 1)) for line in s['lines']]
+        if self.input_mode != 'chat':
+            history = [s['lines'][0] for s in self.steps if not s.get('pinned') and s['lines']]
         top = self.wrapped(pinned, width)[:max(0, height - 3)]
         room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
         top += self.scroll_rows('top', history, width, room)
@@ -225,7 +253,8 @@ class WriteE2EDisplay(LauncherDisplay):
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
         task_info = self.task_info if self.task_info.get('task_id') == self.chat_state.get('task_id') else {}
-        explanation = task_info.get('explanation', 'Preparing the task explanation…')
+        explanation = task_info.get('explanation', 'Preparing the task explanation…'
+                                    if self.input_mode == 'chat' else 'Execution details appear on the left.')
         session = self.chat_state.get('task_session', self.chat_state.get('session'))
         status = ('Running session 1.' if session == 1 and self.chat_state.get('status') == 'running' else
                   task_info.get('status', f'Running session {session}. Reviewing the previous attempt.'
@@ -247,6 +276,11 @@ class WriteE2EDisplay(LauncherDisplay):
                            *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
                            'Type a number or your own instructions below.']
 
+        if self.input_mode != 'chat':
+            info_lines = [explanation, '', task_info.get('status', current['lines'][-1] if current else 'Starting…')]
+            if self.question:
+                info_lines += ['', self.question.question.get('explanation', '')]
+
         editor_width = max(1, left_width - 4) if boxed else left_width
         editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
         # Grow and shrink with content; a long draft scrolls around its caret
@@ -255,6 +289,10 @@ class WriteE2EDisplay(LauncherDisplay):
         editor_room = min(len(editor_rows), max(1, editor_capacity - 1) if editor_capacity else 0)
         start = max(0, caret_row - editor_room + 1)
         editor_rows = editor_rows[start:start + editor_room]
+        if self.input_mode != 'chat':
+            editor_rows = self.wrapped(self.question.lines(left_width), left_width) if self.question else []
+            editor_rows = editor_rows[-max(1, available // 2):]
+            chrome_height = 0
         self.output_height = max(0, available - len(editor_rows) - chrome_height)
         logs = [*self.transcript, *([self.pending] if self.pending else []), *self.details]
         left = self.scroll_rows('bottom', logs, left_width, self.output_height)
@@ -271,7 +309,7 @@ class WriteE2EDisplay(LauncherDisplay):
         cancel = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
         cancel.truncate(left_width, overflow='crop')
         bottom = []
-        if boxed:
+        if boxed and self.input_mode == 'chat':
             bordered = []
             for row in editor_rows:
                 row = row.copy()
@@ -279,16 +317,23 @@ class WriteE2EDisplay(LauncherDisplay):
                 bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
             editor_rows = bordered
             bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
-        left += [cancel] + editor_rows + bottom + ([hint] if show_hint else [])
+        left += ([cancel] + editor_rows + bottom + ([hint] if show_hint else [])
+                 if self.input_mode == 'chat' else editor_rows)
         left = left[:available]
         right = summary + separator + info
         right = right[:available]
         right += [Text('')] * (available - len(right))
         self.chat_top = len(top) + 1 + self.output_height + 1
-        self.cancel_button = (9, self.chat_top) if left_width >= 14 and available else None
+        self.cancel_button = ((9, self.chat_top) if self.input_mode == 'chat'
+                              and left_width >= 14 and available else None)
         self.bottom_button = ((left_width, self.chat_top - 1)
                               if self.output_height > 0 and left_width > 1 else None)
-        rows = top + [Text('─' * width, style='dim')]
+        divider = Text('─' * width, style='dim')
+        if self.input_mode != 'chat' and self.input_fd is not None:
+            divider = Text(' m: select text ' if self.mouse_capture else ' m: scroll ', style='dim')
+            divider.truncate(width, overflow='crop')
+            divider.append('─' * max(0, width - divider.cell_len))
+        rows = top + [divider]
         for index in range(available):
             row = left[index].copy()
             if self.bottom_button and index == self.output_height - 1:
@@ -306,7 +351,7 @@ class WriteE2EDisplay(LauncherDisplay):
         for row in rows:
             row.truncate(width, overflow='crop')
         self.paint(rows, size)
-        if self.focus == 'chat' and editor_rows and width >= 3:
+        if self.input_mode == 'chat' and self.focus == 'chat' and editor_rows and width >= 3:
             cursor_row = min(height, self.chat_top + 1 + caret_row - start)
             cursor_column = min(left_width, 1 + (2 if boxed else 0) + caret_column)
             # DECSCUSR: use the standard blinking I-beam for text editing.

@@ -19,6 +19,13 @@ Fedora-only post-erase recovery chain. Original 4-11 is absorbed into dual-targe
 4-10. These are scheduling changes without completion credit; every original
 assertion remains required. Completed rows through 4-4 retain their history.
 
+Remaining validation follows the
+[allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger).
+Task 4-5b establishes focused recovery execution for the later recovery briefs;
+the existing complete removal regression remains intact. Task order, dependencies,
+target acceptance and every continuous history remain unchanged. This reconciliation
+implements no selector and supplies no task-completion credit.
+
 ## Ordered task queue
 
 | Done | ID | Task | Requires | Scope | Estimate |

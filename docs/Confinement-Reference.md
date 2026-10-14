@@ -1153,8 +1153,12 @@ session. The separate E2E queue and its next-task pointer remain unchanged.
 
 ### Phase 4 step 1 — coverage and verified inputs — 2026-10-13
 
-This audit maps the remaining lifecycle obligations to executable assertions;
-it supplies no installed activation, removal or recovery pass. Registry listings
+This historical starting audit maps the then-remaining lifecycle obligations to
+executable assertions; it supplies no installed activation, removal or recovery
+pass. Later qualification sections record delivered coverage; use the
+[current validation allocation](#validation-allocation-and-evidence-ledger) for
+remaining work rather than treating this dated gap column as current readiness.
+Registry listings
 confirmed the four `package` selectors and the single `removal` selector on the
 registered targets. The
 [installed runner](../tests/integration/README.md#running-the-current-installed-suite)
@@ -1734,6 +1738,112 @@ close-out. Changed Markdown links and whitespace checks passed. Retained raw
 acceptance evidence was rechecked after final validation. Only **4-5a** was
 checked, its temporary brief was removed and the master pointer advanced to
 **4-5b**; every other row retains its status, order and scope.
+
+## Validation allocation and evidence ledger
+
+This section allocates remaining confinement validation. The
+[test-maintenance contract](../tests/README.md#all-established-regressions)
+owns launcher selection, and [retention](../tests/README.md#aggregate-output-retention)
+owns evidence lifetime. Keep detailed results and identities in their existing
+qualification sections and runner artifacts; this ledger links them once rather
+than copying hashes or creating another task queue.
+
+### Remaining validation allocation
+
+| Owner | Required validation | Reuse and duplication boundary |
+| --- | --- | --- |
+| 4-5b | Implement and qualify focused native rollback/retry histories on both targets, including the controller contract below. | Reuse applicable successful lifecycle evidence; do not make the five-phase removal regression or unrelated public kiosk cases the automatic wrapper for each new fault. |
+| 4-5c–4-5e | Extend the focused route for each finite interruption or ownership variant; pass its complete protection/resolution/retry history on both targets. | Reuse shared mechanics and applicable independent results, never a different variant's refusal or successful endpoint. |
+| 4-6 | Complete the distinct Fedora native failed-post-erase/reinstall/conflict/reboot/repeated-purge chain. | Retain applicable 4-5 proof without replaying those independent variants; all barriers and ordinary-user controls required inside this chain still run. |
+| 4-7–4-8 | Independent reviews and affected host/installed validation for demonstrated fixes. | Review-only changes need no automatic installed/E2E batch. Validate fixes before accepting the review; record other invalidated histories for 4-10. |
+| 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Reuse unchanged valid task-local host results where their exact scope and inputs cover the final candidate; run missing/affected checks. No blanket schema or VM/E2E run. |
+| 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | Keep this final gate. Choose a covering registered route once: the shared-integration selector already includes the complete namespace qualifier, so a second standalone namespace run adds no coverage when that result applies. |
+| 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | No unchanged live rerun merely for close-out; missing/invalid required evidence needs the affected complete history. |
+
+For each selected task, identify changed product/helper/fixture/baseline inputs
+and the assertions they affect before launching tests. Group exact affected host
+selectors in one supported invocation after the final relevant edit. Additional
+edits or failures can require another check; task boundaries alone do not.
+Run `make build` after package-affecting edits under the repository build contract.
+Prepare and verify inputs before live acceptance where possible and reuse matching
+inputs/snapshots only through maintained guards. Preparation is not acceptance.
+Use both-target scheduling where supported and the existing serial Preferences
+exception. Keep separate attempts, evidence and cleanup for each target/history.
+
+### Focused recovery controller deliverable
+
+The current registered `removal::test_remove_reboot_reinstall` selector has six
+installation/reboot prerequisite executions and five continuous removal phases.
+It now includes 4-5a's held-admission refusal. Preserve that selector's complete
+assertions, phase order, failure stopping and ordinary-user controls. Do not add
+every new fault to its unconditional path merely to obtain installed acceptance.
+
+Focused recovery selectors are **planned**, not registered or qualified by this
+reconciliation. Implement the initial route within 4-5b, then extend it in each
+owning recovery task. Inspect the controller's `case_phases`, prerequisite closure,
+snapshot attempt grouping, dispatch and `resume_selection`: another test in the
+`removal` area currently inherits all five phases, so adding a pytest case alone
+does not provide focused execution. Use explicit finite history metadata and shared
+mechanics rather than a second runner or a destructive test disguised as enforcement.
+
+Before using the new route, cover exact listing/selection and prerequisite closure,
+frozen source inputs, verified starting state, guest/controller dispatch, timeouts,
+continuous execution, failure stopping, replay/resume, JUnit/result identities and
+owned cleanup in the affected runner/snapshot host regressions. Qualify the initial
+installed rollback history on both targets through that same maintained route.
+Later tasks extend these contracts only for their additional histories.
+
+A verified installed snapshot may supply a focused history's initial state only
+when fresh installation/reboot is not the assertion under test. Every variant
+keeps its allowed controls, real native callback/fault, independently observed
+protection, foreign-state preservation, restoration before guard release and
+successful owned retry/finalization in one attempt. Retain exact original PAM
+restoration after owned-account deletion and relevant ordinary-user controls.
+Do not splice prior passes into a state-changing history or skip its predecessors
+on resume. The Fedora post-erase chain remains indivisible. Diagnostics such as
+`exercise-live-refusals` supply no acceptance. If the focused route is unavailable,
+keep its implementation/acceptance open; an unregistered command is not a shortcut.
+
+### Evidence applicability ledger
+
+The entries below identify recorded evidence candidates, **not newly verified
+reuse**. Their linked sections own package/source/helper/fixture/baseline identities
+and raw result locations. At each task's close-out update only affected entries
+with verified raw paths, exact applicable identities, covered assertions and cleanup,
+or a concrete invalidation/missing-evidence reason plus the required follow-up owner.
+Use `execution pending` for unqualified new histories, and `reuse verified`,
+`verification pending` or `repeat required` for recorded results. A checked queue
+row alone never establishes current applicability. Keep per-target decisions explicit.
+
+| Assertion scope | Target | Recorded evidence | Current reuse decision / follow-up owner |
+| --- | --- | --- | --- |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Ubuntu | [4-2a1](#phase-4-step-2a1--ubuntu-native-activation--2026-10-14), [4-2b](#phase-4-step-2b--real-gdm-activation-readiness--2026-10-14), later complete [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14) prerequisites | Verification pending; 4-9 selects the applicable complete proof and 4-10 repeats any invalidated transition. |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | [4-2a2](#phase-4-step-2a2--fedora-native-activation--2026-10-14), [4-2b](#phase-4-step-2b--real-gdm-activation-readiness--2026-10-14), later complete [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14) prerequisites | Verification pending; 4-9 selects the applicable complete proof and 4-10 repeats any invalidated transition. |
+| Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding the corresponding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) assertions | Verification pending before recovery-task reuse; final applicability in 4-9, any required rerun in 4-10. |
+| Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding the corresponding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) assertions | Verification pending before recovery-task reuse; final applicability in 4-9, any required rerun in 4-10. |
+| Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Applicable [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Verification pending per target and assertion; 4-9 maps final applicability, 4-10 keeps its required final matrix/census gate and repeats other invalidated scope. |
+| Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
+| New rollback/interruption/ownership and failed RPM post-erase histories | Both targets for 4-5b–4-5e; Fedora for 4-6 | No acceptance claimed; populate from each owning task's installed results | Execution pending in each owning task; final applicability in 4-9 and affected reruns in 4-10. |
+
+Changes outside a result's required inputs do not automatically invalidate it.
+Conversely, equal package bytes do not excuse changed selected helpers, fixtures,
+baseline or installation recipe. Preserve all manifest/snapshot/runtime guards;
+do not relabel stale inputs or weaken matching to permit reuse. An unexplained
+input difference or uncertain assertion coverage remains unproven and requires
+the affected complete history. One complete result may cover multiple ledger
+assertions only when its actual checks and exact inputs establish each assertion.
+
+Before each preparation/run/export, account for the required raw evidence set
+and upcoming rotation in both execution and export journals. Prefer a retained
+complete covering result over exporting each duplicate predecessor. Reuse an
+existing valid export; the maintained exporter currently accepts one regular file
+per invocation, and every export opens a bounded retention session. Serial exports
+cannot promise to retain an arbitrary set of JUnits, provenance and cleanup files.
+If required evidence will not fit the maintained routes, record the exact set and
+add a bounded retention/bundle prerequisite through the execution-plan workflow
+before the consumer rotates it. Do not invent an archive command, bypass allocation
+or increase retention limits in a task brief. Recheck every required raw path after
+the last export/check; missing proof requires repeating its complete history.
 
 ## Operating and qualification routes
 

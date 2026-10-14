@@ -87,6 +87,14 @@ never split its phases into independent apparent passes. Preserve every assertio
 of a shared selector, including ordinary-user controls, while avoiding unrelated
 feature implementation prerequisites.
 
+Use the [validation allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger)
+before selecting tests. Remaining recovery tasks add focused installed histories;
+they do not automatically rerun the full removal history or Phase 3 public kiosk
+cases. Task 4-5b owns the first focused controller route, which remains planned
+until implemented and qualified. Keep the existing full removal regression intact.
+Final task 4-10 owns broad final confinement qualification and required invalidated
+histories; task-local affected validation remains mandatory before close-out.
+
 For shared remaining goals, implement common mechanics once and qualify Ubuntu
 and Fedora concurrently through the [maintained VM scheduler](Mandates/VM-Mandate.MD#target-selection)
 within its configured cap. Keep one editor for shared code under the
@@ -111,6 +119,7 @@ in-scope gaps and unaccepted limits block closure. Product mismatches follow
 | Native boundaries and source files | Relevant [technical boundaries](Confinement-Reference.md#technical-boundaries) and complete affected functions/callers/callees. |
 | Missing lifecycle assertions | [Coverage audit](Confinement-Reference.md#phase-4-step-1--coverage-and-verified-inputs--2026-10-13). |
 | Historical inputs and results | Only the applicable [qualification evidence](Confinement-Reference.md#qualification-and-reusable-evidence) section. |
+| Test allocation, reuse and required reruns | [Validation allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger), then only the affected evidence rows. |
 | Registered selectors and installation mechanics | [Installed runner](../tests/integration/README.md#running-the-current-installed-suite), launcher help/listings and the selected brief's routes. |
 | Independent security review | [Review checklist](Confinement-Reference.md#primary-source-routes-and-independent-review-checklist) and original baseline. |
 | VM, UI or storage work | Applicable [VM](Mandates/VM-Mandate.MD), [UI automation](Mandates/UI-Automation-Mandate.MD) or [storage](Mandates/Test-Storage-Mandate.md) mandate. |
@@ -127,6 +136,12 @@ checked historical rows do not silently qualify a later candidate. The
 requires exported raw results before journal rotation and rechecking exports after
 later exports. Missing required evidence requires repeating the affected complete
 history. Never read online snapshot `snapshot.json` credentials.
+
+Update the ledger at each accepted task with exact applicability, retained raw
+evidence and required follow-ups. A new chat, documentation close-out or unchanged
+candidate is not itself a reason to rerun a valid attempt. Export sessions also
+rotate: check the required evidence set against both execution and export budgets
+before starting more runs; a collection of remembered export paths is insufficient.
 
 Run scoped affected host checks, and `make build` after the final package-affecting
 edit. Preparation and host checks supply no installed/customer acceptance.

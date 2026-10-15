@@ -684,7 +684,10 @@ from regression_ui import Bucket
 # Ownership-conflict restoration checks use only private tmp_path inodes,
 # process-local UID/mount doubles and no subprocess. They add no shared path,
 # VM, mount, service, bus, socket, display, external service or cache ownership;
-# system_removal_ownership is compatible bounded unit work.
+# system_removal_ownership is compatible bounded unit work. Identity/root
+# conflict tests likewise use private roots, process-local UID and mount rows,
+# and command doubles; no host mounts, accounts, services or shared caches.
+# system_removal_identity and its stage-aware recovery checks are compatible.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.
@@ -860,6 +863,7 @@ package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal
 system_removal_faults
+system_removal_identity
 system_removal_ownership
 system_kiosk_admission
 parent_language_cleanup_safety

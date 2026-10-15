@@ -68,11 +68,19 @@ REMOVAL_HISTORIES = (
       for variant in ('systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
                       'gdm-hook-link', 'confinement-record-owner',
                       'confinement-record-link', 'confinement-record-uid')),
+    *(History(f'test_identity_filesystem_refusal_retry[{variant}]',
+              (variant, variant + '-retry-rebooted'),
+              (variant + '-installed', variant + '-rebooted'))
+      for variant in ('kiosk-marker-uid', 'home-owner', 'home-link', 'home-mount',
+                      'state-owner', 'state-link', 'state-mount')),
 )
 REMOVAL_FAMILIES = {
     'test_ownership_refusal_retry': tuple(
         history.case_id for history in REMOVAL_HISTORIES
         if history.case_id.startswith('test_ownership_refusal_retry[')),
+    'test_identity_filesystem_refusal_retry': tuple(
+        history.case_id for history in REMOVAL_HISTORIES
+        if history.case_id.startswith('test_identity_filesystem_refusal_retry[')),
 }
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]

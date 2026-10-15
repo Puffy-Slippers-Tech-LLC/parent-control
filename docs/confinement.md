@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-5e — [Kiosk identity and filesystem ownership refusal](Confinement-Tasks/4-5e.md)**.
+Next task: **4-6 — [Fedora post-erase recovery](Confinement-Tasks/4-6.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and

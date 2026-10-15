@@ -1959,6 +1959,211 @@ def test_admission_snapshot_excludes_only_conflict_under_separate_identity_guard
         removal.admission_removal_state()
 
 
+@pytest.mark.parametrize('entry', ['identity_filesystem_refusal_retry',
+                                 'identity_filesystem_retry_rebooted'])
+def test_identity_filesystem_guard_precedes_setup(monkeypatch, entry):
+    monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
+    start = Mock()
+    monkeypatch.setattr(removal, 'focused_recovery_start', start)
+    with pytest.raises(removal.guest.GuestError, match='identity'):
+        getattr(removal, entry)(Mock(), 'home-owner')
+    start.assert_not_called()
+
+
+@pytest.fixture
+def identity_filesystem_machine(ownership_machine, monkeypatch):
+    import system_removal_identity as identity
+    machine = ownership_machine
+    machine.state['identity_filesystem_retry'] = machine.recovery
+    conflict = machine.conflict
+    conflict.variant = 'state-owner'
+    conflict.preflight = True
+    conflict.expected_marker_uid = None
+    conflict.reason = b'exact-ownership-refusal'
+    machine.commands.run.return_value = conflict.reason
+    durable, removed = Mock(), Mock()
+    monkeypatch.setattr(removal, 'verify_durable_interval', durable)
+    monkeypatch.setattr(removal, 'verify_removed', removed)
+    monkeypatch.setattr(removal, 'private_recovery_record', lambda target:
+                        SimpleNamespace(contents=target.read_bytes()))
+    monkeypatch.setattr(removal.guest, 'install_package', Mock())
+    monkeypatch.setattr(removal, 'account_state', lambda _: (
+        b'preferences', 1, 3600, [0, 0], [False, []]))
+    snapshot_path = machine.write('/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+        json.dumps({'version': 1, 'accounts': [{'uid': machine.state['accounts']['child'],
+            'limit_type': 1, 'daily_limit': 3600, 'active_extension': [0, 0],
+            'app_filter': [False, []], 'extension_enabled': True}]}))
+    snapshot_path.chmod(0o600)
+    machine.write('/var/lib/oh-no-parent-control/uninstall-broker-mask', '')
+    mask = machine.path('/run/systemd/system/oh-no-parent-control-broker.service')
+    mask.parent.mkdir(parents=True, exist_ok=True)
+    mask.symlink_to('/dev/null')
+    lstat = Path.lstat
+    def root_mask_info(path):
+        info = lstat(path)
+        if path == mask:
+            fields = list(info)
+            fields[4] = 0
+            return os.stat_result(fields)
+        return info
+    monkeypatch.setattr(Path, 'lstat', root_mask_info)
+    machine.write('/var/lib/oh-no-parent-control/fedora-authselect.json',
+                  json.dumps({'version': 1, 'phase': 'installed', 'original': ['sssd']}))
+    machine.write('/var/lib/oh-no-parent-control/fedora-execution-policy.json', 'execution-provenance')
+    @contextmanager
+    def fixture(variant, foreign_uid, record):
+        conflict.variant = variant
+        conflict.preflight = variant in ('state-owner', 'state-link')
+        machine.events.append(('start', variant))
+        try:
+            if not conflict.preflight:
+                machine.write('/var/lib/oh-no-parent-control/fedora-authselect.json',
+                              json.dumps({'version': 1, 'phase': 'restored', 'original': ['sssd']}))
+            yield conflict
+        finally:
+            machine.events.append(('resolved', variant))
+    monkeypatch.setattr(identity, 'identity_filesystem_conflict', fixture)
+    machine.durable_interval, machine.removed = durable, removed
+    return machine
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('variant', ['kiosk-marker-uid', 'home-owner', 'home-link',
+                                  'home-mount', 'state-owner', 'state-link', 'state-mount'])
+def test_identity_filesystem_refusal_keeps_native_stage_and_owned_retry(
+    identity_filesystem_machine, monkeypatch, package_format, variant,
+):
+    machine = identity_filesystem_machine
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
+    machine.recovery['variant'] = variant
+    record = Mock()
+    removal.identity_filesystem_refusal_retry(record, variant)
+    preflight = variant in ('state-owner', 'state-link')
+    completed = not preflight and package_format == 'deb'
+    assert machine.commands.run.call_args_list[0] == mock_call(
+        ['native-remove'], check=False, timeout=1800, merge_stderr=True)
+    assert machine.commands.run.call_count == 1 + completed
+    assert machine.events == [('start', variant), ('resolved', variant)]
+    assert machine.conflict.verify.call_count == 2
+    assert machine.durable_interval.call_count == (not preflight)
+    if not preflight:
+        assert machine.durable_interval.call_args.kwargs == {'conflict': machine.conflict}
+    assert machine.removed.call_count == completed
+    assert removal.guest.install_package.call_count == (not preflight and package_format == 'rpm')
+    assert machine.recovery['completed'] == completed
+    assert machine.save.call_args.args[0]['identity_filesystem_retry']['boot'] == 'old'
+    assert record.call_args.args[0] == 'onpc.identity-filesystem.resolved'
+
+
+@pytest.mark.parametrize('fault', ['reason', 'status', 'foreign-state', 'durable', 'identity',
+                                  'snapshot', 'mask', 'retry', 'final-state'])
+def test_identity_filesystem_failed_proof_never_claims_resolution(
+    identity_filesystem_machine, monkeypatch, fault,
+):
+    machine = identity_filesystem_machine
+    error = removal.guest.GuestError('fixture:' + fault)
+    if fault == 'reason':
+        machine.commands.run.return_value = b'unrelated failure'
+    elif fault == 'status':
+        machine.commands.last_returncode = 0
+    elif fault == 'foreign-state':
+        machine.conflict.verify.side_effect = error
+    elif fault == 'durable':
+        machine.durable_interval.side_effect = error
+    elif fault == 'identity':
+        removal.verify_surviving_identity.side_effect = error
+    elif fault == 'snapshot':
+        machine.write('/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+                      json.dumps({'version': 1, 'accounts': []})).chmod(0o600)
+    elif fault == 'mask':
+        machine.path('/run/systemd/system/oh-no-parent-control-broker.service').unlink()
+        machine.path('/run/systemd/system/oh-no-parent-control-broker.service').symlink_to('/foreign')
+    elif fault == 'retry':
+        machine.commands.run.side_effect = [machine.conflict.reason, error]
+    else:
+        machine.removed.side_effect = error
+    record = Mock()
+    with pytest.raises(removal.guest.GuestError):
+        removal.identity_filesystem_refusal_retry(record, 'home-owner')
+    machine.save.assert_not_called()
+    assert all(item.args[0] != 'onpc.identity-filesystem.resolved' for item in record.call_args_list)
+
+
+@pytest.mark.parametrize('variant', ['home-owner', 'home-link', 'kiosk-marker-uid', 'state-mount'])
+def test_durable_ownership_interval_keeps_identity_and_foreign_state_guards(
+    finalization_machine, variant,
+):
+    machine = finalization_machine
+    conflict = SimpleNamespace(variant=variant, expected_marker_uid=None, verify=Mock())
+    if variant.startswith('home-'):
+        # The foreign home has its own exact descriptor-bound fixture witness.
+        machine.recovery['kiosk_home'][3] += 1
+    elif variant == 'kiosk-marker-uid':
+        conflict.expected_marker_uid = 41003
+        machine.write('/var/lib/oh-no-parent-control/package-created-kiosk-uid', '41003\n')
+    removal.verify_durable_interval(machine.state, machine.recovery, machine.saved, Mock(),
+                                    conflict=conflict)
+    conflict.verify.assert_called_once_with()
+    assert machine.durable.call_count == 8
+    machine.kiosk.pw_uid += 1
+    with pytest.raises(removal.guest.GuestError, match='kiosk-identity-changed'):
+        removal.verify_durable_interval(machine.state, machine.recovery, machine.saved, Mock(),
+                                        conflict=conflict)
+
+
+@pytest.mark.parametrize('gid', [0, 10, 27])
+@pytest.mark.parametrize('fault', [None, 'owner', 'mode', 'link', 'type'])
+def test_private_recovery_record_accepts_only_root_private_single_regular_file(monkeypatch, gid, fault):
+    import system_removal_ownership as ownership
+    info = [1, 2, 0, gid, stat.S_IFREG | 0o600, 1]
+    if fault == 'owner':
+        info[2] = 1000
+    elif fault == 'mode':
+        info[4] |= 0o040
+    elif fault == 'link':
+        info[5] = 2
+    elif fault == 'type':
+        info[4] = stat.S_IFLNK | 0o600
+    value = ownership.Witness(tuple(info), 0, (), b'provenance')
+    monkeypatch.setattr(ownership, 'witness', Mock(return_value=value))
+    if fault:
+        with pytest.raises(removal.guest.GuestError, match='unsafe-recovery-record'):
+            removal.private_recovery_record(Path('/fixed-record'))
+    else:
+        assert removal.private_recovery_record(Path('/fixed-record')) == value
+
+
+@pytest.mark.parametrize('completed', [False, True])
+@pytest.mark.parametrize('fault', [None, 'variant', 'boot', 'request', 'native-removal', 'removed-check'])
+def test_identity_filesystem_retry_requires_its_complete_history(
+    finalization_reboot, monkeypatch, completed, fault,
+):
+    machine = finalization_reboot
+    machine.recovery.update(variant='home-owner', completed=completed)
+    machine.state['identity_filesystem_retry'] = machine.recovery
+    if fault == 'variant':
+        machine.recovery['variant'] = 'home-link'
+    if fault == 'boot':
+        monkeypatch.setattr(removal, 'boot', lambda: 'old')
+    monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: fault != 'request')
+    if fault == 'native-removal':
+        machine.commands.run.side_effect = removal.guest.GuestError('native-removal')
+    elif fault == 'removed-check':
+        machine.verify.side_effect = removal.guest.GuestError('removed-check')
+    machine.state_file.write_text(json.dumps(machine.state))
+    record = Mock()
+    fails = fault is not None and not (completed and fault == 'native-removal')
+    if fails:
+        with pytest.raises(removal.guest.GuestError):
+            removal.identity_filesystem_retry_rebooted(record, 'home-owner')
+        assert all(item.args[0] != 'onpc.identity-filesystem.retry-finalized'
+                   for item in record.call_args_list)
+    else:
+        removal.identity_filesystem_retry_rebooted(record, 'home-owner')
+        assert record.call_args.args[0] == 'onpc.identity-filesystem.retry-finalized'
+    assert machine.commands.run.call_count == (not completed and fault not in ('variant', 'boot', 'request'))
+
+
 @pytest.mark.parametrize('fault', [None, 'variant', 'boot', 'request', 'identity',
                                   'preflight', 'native-removal', 'removed-check'])
 def test_ownership_reboot_requires_continuous_proof_before_finalization(finalization_reboot,

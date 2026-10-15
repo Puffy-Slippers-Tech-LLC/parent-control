@@ -854,11 +854,14 @@ def persistent_home_identity(path, info=None):
             info.st_ino, info.st_uid, info.st_gid, info.st_mode]
 
 
-def verify_surviving_identity(state, recovery, record=None):
+def verify_surviving_identity(state, recovery, record=None, *, home_conflict=False):
     kiosk = pwd.getpwnam(state['kiosk_name'])
-    home = Path(kiosk.pw_dir).lstat()
     identity = [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell]
-    home_identity = persistent_home_identity(Path(kiosk.pw_dir), home)
+    # A separately pinned ownership fixture verifies the substituted home while
+    # it is active. All ordinary identities and the real kiosk NSS entry still
+    # participate; the exact original home is checked again after resolution.
+    home = None if home_conflict else Path(kiosk.pw_dir).lstat()
+    home_identity = None if home_conflict else persistent_home_identity(Path(kiosk.pw_dir), home)
     if record is not None:
         record('onpc.finalization.identity-comparison', json.dumps({
             'account_fields': dict(zip(('uid', 'gid', 'home', 'shell'),
@@ -866,11 +869,14 @@ def verify_surviving_identity(state, recovery, record=None):
                  zip(identity, recovery['kiosk_identity'])))),
             'home_fields': dict(zip(('filesystem', 'uuid', 'subvolume', 'inode', 'uid', 'gid', 'mode'),
                 (actual == expected for actual, expected in
-                 zip(home_identity, recovery['kiosk_home'])))),
-            'home_device': home.st_dev, 'saved_home_device': recovery['home_device'],
+                 zip(home_identity or (), recovery['kiosk_home'])))),
+            'home_conflict': home_conflict,
+            'home_device': home.st_dev if home is not None else None,
+            'saved_home_device': recovery['home_device'],
         }, sort_keys=True))
     guest.require(identity == recovery['kiosk_identity'] and
-                  home_identity == recovery['kiosk_home'], 'finalization:kiosk-identity-changed')
+                  (home_conflict or home_identity == recovery['kiosk_home']),
+                  'finalization:kiosk-identity-changed')
     for role, before in recovery['ordinary'].items():
         account = pwd.getpwuid(before['uid'])
         guest.require([account.pw_name, account.pw_uid, account.pw_gid,
@@ -884,17 +890,24 @@ def verify_surviving_identity(state, recovery, record=None):
                   'finalization:preferences-changed')
 
 
-def verify_durable_interval(state, recovery, saved, record):
+def verify_durable_interval(state, recovery, saved, record, *, conflict=None):
     """Exercise actual installed account and session callbacks with no product code."""
     from system_kiosk_admission import durable_probe, probe
     verify_payload_erased(state)
-    verify_surviving_identity(state, recovery, record)
+    if conflict is None:
+        verify_surviving_identity(state, recovery, record)
+    else:
+        conflict.verify()
+        verify_surviving_identity(state, recovery, record,
+                                  home_conflict=conflict.variant.startswith('home-'))
     current = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
     guest.require(current.get('removing') is True and
                   {key: value for key, value in current.items() if key != 'removing'} == saved and
                   Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing').read_text() == 'removing\n' and
                   Path('/var/lib/oh-no-parent-control/package-created-kiosk-uid').read_text().strip() ==
-                  str(recovery['kiosk_identity'][0]), 'finalization:recovery-records-changed')
+                  str(conflict.expected_marker_uid if conflict is not None and
+                      conflict.expected_marker_uid is not None else recovery['kiosk_identity'][0]),
+                  'finalization:recovery-records-changed')
     for service, expected in removal_denials(saved).items():
         target = Path('/etc/pam.d') / service
         guest.require(fault_file_identity(target)[-1] == expected and
@@ -1069,20 +1082,26 @@ def interrupted_finalization_retry(record, variant):
 
 def finalization_retry_rebooted(record, variant):
     """Finish only the same history after a real reboot, with no snapshot splice."""
+    recovery_retry_rebooted(record, variant, 'finalization_retry', FINALIZATION_VARIANTS,
+                            'finalization')
+
+
+def recovery_retry_rebooted(record, variant, state_key, variants, label):
+    """Shared endpoint for one resolved, identity-bound recovery history."""
     guest.guard()
-    guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
+    guest.require(variant in variants, label + ':variant')
     guest.enable_diagnostics()
     from system_kiosk_admission import probe, verify_gates
     state = json.loads(state_path().read_text())
-    recovery = state['finalization_retry']
+    recovery = state[state_key]
     guest.require(recovery['variant'] == variant and boot() != recovery['boot'],
-                  'finalization:retry-identity-or-boot')
+                  label + ':retry-identity-or-boot')
     if not recovery['completed']:
         guest.installed()
         verify_surviving_identity(state, recovery, record)
         guest.require(account_digest(state['accounts']['child']) == recovery['policy'] and
                       extension_lists(state['accounts']['child']) == recovery['extensions'],
-                      'finalization:reboot-changed-enforcement')
+                      label + ':reboot-changed-enforcement')
         verify_loaded_confinement()
         verify_gates(record)
         observe_launch(state['accounts']['child'], False)
@@ -1092,10 +1111,153 @@ def finalization_retry_rebooted(record, variant):
         guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
     verify_removed(state, record=record)
     for role in ('ordinary', 'other'):
-        probe('login', role, 0, 'finalization.completed.' + role, record)
+        probe('login', role, 0, label + '.completed.' + role, record)
     observe_launch(state['accounts']['parent'], True)
-    record('onpc.finalization.retry-finalized',
+    record('onpc.' + label + '.retry-finalized',
            'new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
+
+
+def private_recovery_record(path):
+    """Private root-owned records may retain the package's administrator group."""
+    from system_removal_ownership import witness
+    value = witness(path)
+    _, _, uid, _, mode, links = value.metadata
+    guest.require(stat.S_ISREG(mode) and uid == 0 and
+                  stat.S_IMODE(mode) == 0o600 and links == 1,
+                  'identity-filesystem:unsafe-recovery-record')
+    return value
+
+
+def identity_filesystem_refusal_retry(record, variant):
+    """Keep each foreign root/identity, native refusal and owned retry together."""
+    guest.guard()
+    from system_kiosk_admission import probe, verify_gates
+    from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS, identity_filesystem_conflict
+    guest.require(variant in IDENTITY_FILESYSTEM_VARIANTS, 'identity-filesystem:variant')
+    state, recovery, saved, before, generated = focused_recovery_start(
+        record, variant, 'identity_filesystem_retry')
+    child = state['accounts']['child']
+    fedora = guest.package_path().suffix == '.rpm'
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    guards = ('/var/lib/oh-no-parent-control/kiosk-confinement-removing',
+              '/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+              '/var/lib/oh-no-parent-control/uninstall-broker-mask',
+              '/run/systemd/system/oh-no-parent-control-broker.service')
+    guest.require(all(not os.path.lexists(name) for name in guards),
+                  'identity-filesystem:nonfresh-guards')
+    snapshot_account = dict(zip(('limit_type', 'daily_limit', 'active_extension', 'app_filter'),
+                                account_state(child)[1:]))
+    snapshot_account.update(uid=child, extension_enabled=True)
+    authselect_before = (json.loads(Path(
+        '/var/lib/oh-no-parent-control/fedora-authselect.json').read_text()) if fedora else None)
+    execution_provenance = (private_recovery_record(Path(
+        '/var/lib/oh-no-parent-control/fedora-execution-policy.json')) if fedora else None)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'identity-filesystem.before.' + role, record)
+    with identity_filesystem_conflict(variant, state['accounts']['other'], record) as conflict:
+        output = guest.commands.run(removal_command(), check=False, timeout=1800,
+                                    merge_stderr=True)
+        status = guest.commands.last_returncode
+        record('onpc.identity-filesystem.native-status', str(status))
+        guest.require(conflict.reason in output and (fedora or status != 0),
+                      'identity-filesystem:native-conflict-not-refused')
+        conflict.verify()
+        if conflict.preflight:
+            guest.require(status != 0 and not package_absent(),
+                          'identity-filesystem:preflight-erased-payload')
+            guest.verify_package_payload()
+            verify_surviving_identity(state, recovery, record)
+            guest.require(account_digest(child) == recovery['policy'] and
+                          extension_lists(child) == recovery['extensions'] and all(
+                              (Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                              for name, value in generated.items()),
+                          'identity-filesystem:enforcement-changed')
+            current = admission_removal_state()
+            guest.require(current.keys() == before.keys() and all(
+                rollback_record_matches(name, value, current[name])
+                for name, value in before.items()), 'identity-filesystem:recovery-records-changed')
+            guest.require(all(not os.path.lexists(name) for name in guards),
+                          'identity-filesystem:preflight-published-removal-guards')
+            verify_loaded_confinement()
+            observe_launch(child, False)
+            for role in ('ordinary', 'other'):
+                probe('login', role, 0, 'identity-filesystem.refused.' + role, record)
+            probe('login', 'kiosk', 6, 'identity-filesystem.refused.kiosk', record)
+        else:
+            # Fedora may report a successful erase despite failed postun. The
+            # retained account, exact callback diagnostic and live distribution
+            # PAM denials, rather than that exit code, establish safe refusal.
+            verify_durable_interval(state, recovery, saved, record, conflict=conflict)
+            snapshot_path = Path('/var/lib/oh-no-parent-control/uninstall-enforcement.json')
+            snapshot = json.loads(fault_file_identity(snapshot_path)[-1])
+            guest.require(stat.S_IMODE(snapshot_path.lstat().st_mode) == 0o600 and
+                          snapshot == {'version': 1, 'accounts': [snapshot_account]},
+                          'identity-filesystem:rollback-snapshot-not-retained')
+            record('onpc.identity-filesystem.rollback-snapshot',
+                   hashlib.sha256(snapshot_path.read_bytes()).hexdigest())
+            mask = Path('/run/systemd/system/oh-no-parent-control-broker.service')
+            guest.require(fault_file_identity(Path(guards[2]))[-1] == b'' and
+                          stat.S_ISLNK(mask.lstat().st_mode) and mask.lstat().st_uid == 0 and
+                          os.readlink(mask) == '/dev/null',
+                          'identity-filesystem:removal-mask-not-retained')
+            current = admission_removal_state()
+            retained = ('/var/lib/oh-no-parent-control/malcontent-pam-before-install',)
+            if variant == 'state-mount':
+                retained += tuple('/var/lib/oh-no-parent-control/' + name for name in (
+                    'installed-gdm-presession', 'installed-fapolicyd-fallback',
+                    'installed-child-extension-trust', 'fapolicyd-before-install',
+                    'child-trust-backend'))
+            guest.require(all(current.get(name) == value for name, value in before.items()
+                              if any(name == root or name.startswith(root + '/') for root in retained)),
+                          'identity-filesystem:owned-recovery-records-changed')
+            if fedora:
+                guest.require(json.loads(private_recovery_record(Path(
+                    '/var/lib/oh-no-parent-control/fedora-authselect.json')).contents) ==
+                    dict(authselect_before, phase='restored') and private_recovery_record(Path(
+                    '/var/lib/oh-no-parent-control/fedora-execution-policy.json')) == execution_provenance,
+                    'identity-filesystem:fedora-recovery-provenance-changed')
+        conflict.verify()
+        record('onpc.identity-filesystem.refused', variant +
+               '; exact-conflict-and-foreign-state-preserved; recovery-records-retained; ordinary-users-allowed; kiosk-admission-denied')
+    # Restore only the attempt's conflict before invoking any recovery callback.
+    verify_surviving_identity(state, recovery, record)
+    if not conflict.preflight and not fedora:
+        guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
+        verify_removed(state, record=record)
+        recovery['completed'] = True
+    else:
+        if fedora and not conflict.preflight:
+            guest.install_package()
+        elif not fedora:
+            status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
+            guest.require(status in ('install ok installed', 'install ok half-configured'),
+                          'identity-filesystem:unexpected-rearm-package-status')
+            if status == 'install ok half-configured':
+                guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+        guest.verify_package_files()
+        verify_surviving_identity(state, recovery, record)
+        guest.require(account_digest(child) == recovery['policy'] and
+                      extension_lists(child) == recovery['extensions'],
+                      'identity-filesystem:rearm-changed-enforcement')
+        verify_loaded_confinement()
+        guest.require(all(not os.path.lexists(name) for name in guards),
+                      'identity-filesystem:rearm-guards-retained')
+        verify_gates(record)
+        recovery['completed'] = False
+    recovery['boot'] = boot()
+    save_state(state)
+    record('onpc.identity-filesystem.resolved', variant +
+           '; only-recorded-conflict-resolved; ' + ('native-retry-complete' if recovery['completed']
+           else 'native-rearm-complete; reboot-and-removal-pending'))
+
+
+def identity_filesystem_retry_rebooted(record, variant):
+    guest.guard()
+    from system_removal_identity import IDENTITY_FILESYSTEM_VARIANTS
+    guest.require(guest.reboot_cleared(), 'identity-filesystem:reboot-required')
+    recovery_retry_rebooted(record, variant, 'identity_filesystem_retry',
+                            IDENTITY_FILESYSTEM_VARIANTS, 'identity-filesystem')
 
 
 def ownership_refusal_retry(record, variant):

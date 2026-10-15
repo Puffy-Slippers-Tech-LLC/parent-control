@@ -135,8 +135,9 @@ def test_broad_recovery_partitions_unique_executions_into_baseline_history():
         assert len(focused.executions) == 8
 
 
-def test_ownership_family_is_seven_baseline_attempts_and_replays_unfinished_histories():
-    family = 'test_ownership_refusal_retry'
+@pytest.mark.parametrize('family', ['test_ownership_refusal_retry',
+                                   'test_identity_filesystem_refusal_retry'])
+def test_ownership_family_is_seven_baseline_attempts_and_replays_unfinished_histories(family):
     selection = system.resolve_selection('removal', family, inventories=RECOVERY_INVENTORIES)
     exact = [system.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
              for case in system.REMOVAL_FAMILIES[family]]
@@ -169,6 +170,7 @@ def test_ownership_family_is_seven_baseline_attempts_and_replays_unfinished_hist
 
 @pytest.mark.parametrize('area,case', [(None, None), ('removal', None),
                                      ('removal', 'test_ownership_refusal_retry'),
+                                     ('removal', 'test_identity_filesystem_refusal_retry'),
                                      *(('removal', history.case_id)
                                        for history in system.REMOVAL_HISTORIES[1:])])
 def test_recovery_refuses_previous_package_selection(area, case):

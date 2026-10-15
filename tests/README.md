@@ -1025,13 +1025,14 @@ enabled, use the terminal's native selection modifier to select text. Unmodified
 native selection and application mouse controls cannot be offered simultaneously
 through this terminal protocol. Non-chat displays also accept m when no blocker
 question is pending; F2 remains available during questions.
-The right upper panel shows the current task ID/title, session count/duration,
+The bottom-right panel shows the current task ID/title, session count/duration,
 session phase and selected model/effort. Below a horizontal separator, the
 plain-language task explanation stays fixed across retries and reconnects unless
 the task scope changes. The agent writes it once rather than repeating it in
-progress output. A separate status shows `Running session 1.` initially; later
-sessions explain the previous failure and attempted resolution in parent/child
-scenario language. These updates are presentation only, never acceptance evidence.
+progress output. The shared [panel contract](../docs/Execution-Plans.md#common-launcher-interface)
+owns the bold explanation/error/status labels, separators, task-local error age
+and colored status values. These updates are presentation only, never
+acceptance evidence.
 The bottom-left composer accepts typing during work. Enter sends; Shift+Enter
 inserts a newline in terminals supporting modified-key reporting, which the
 display enables while attached. Alt+Enter and Ctrl+J also insert a newline;

@@ -17,6 +17,68 @@ from launcher_progress import read_progress
 MAX_INPUT = 64 * 1024
 MAX_QUEUE = 256 * 1024
 STATUS_PREFIX = 'LAUNCHER_STATUS '
+TASK_STATUSES = (
+    'Investigating',
+    'Root cause identified, fixing',
+    'Testing fix, previous error point not reached yet',
+    'Testing fix, previous error point passed',
+    'Running',
+)
+
+
+def task_info(run, task):
+    path = run / 'task-info.json'
+    info = json.loads(path.read_text()) if path.exists() else {}
+    if info.get('task_id') == task:
+        return {key: value for key, value in info.items() if key != 'previous_tasks'}
+    return info.get('previous_tasks', {}).get(task, {'task_id': task})
+
+
+def update_task_info(run, task, value):
+    """Keep task-local errors and their original clock through retries/suspension."""
+    path = run / 'task-info.json'
+    previous = json.loads(path.read_text()) if path.exists() else {}
+    history = previous.get('previous_tasks', {}).copy()
+    if previous.get('task_id') not in (None, task):
+        history[previous['task_id']] = {key: item for key, item in previous.items()
+                                       if key != 'previous_tasks'}
+    current = task_info(run, task)
+    current.update(value)
+    if 'last_error' in value:
+        current['last_error_at'] = time.time()
+        current['status'] = value.get('status', TASK_STATUSES[0])
+    if not current.get('last_error') or current['last_error'] == '-':
+        current['status'] = 'Running'
+    elif current.get('status') not in TASK_STATUSES or current['status'] == 'Running':
+        current['status'] = TASK_STATUSES[0]
+    history.pop(task, None)
+    launcher.atomic(path, dict(current, previous_tasks=history))
+
+
+def task_info_instructions(run, task):
+    info = task_info(run, task)
+    explanation = info.get('explanation')
+    return ("\nThe launcher has a separate reader-facing task panel. In your first commentary, "
+            "send a single line beginning LAUNCHER_STATUS followed by a JSON object. "
+            "Use everyday, non-technical language without commands, paths or error codes. "
+            + ("The task explanation is already saved: " + json.dumps(explanation) +
+               ". Omit explanation unless the task's scope has actually changed. " if explanation else
+               "Include explanation: briefly describe the plain-language purpose of this task. ")
+            + "Use status only with one of these exact values: " + json.dumps(TASK_STATUSES) + ". "
+            "Use Running while there is no last error. Use Investigating when a new error occurs. "
+            "Otherwise keep the retained "
+            "status until the facts change. Report Root cause identified, fixing only after identifying "
+            "the cause. While testing a fix, report whether the previous error point has actually "
+            "been reached and passed; starting or completing unrelated tests does not prove that. "
+            "When an error occurs in this task, send last_error with a short plain-language summary "
+            "and status Investigating. The launcher timestamps it. Report each new occurrence once, "
+            "including a recurrence; do not repeat an old error on retries or reconnects. "
+            "Omit last_error until an error occurs; never clear it or replace it with a dash after fixing it. "
+            "Retained task information: " + json.dumps(info) + ". "
+            "Update status when it changes; never repeat the explanation in progress updates. "
+            "These fields are presentation only, never acceptance evidence, and are independent "
+            "of your required final workflow JSON. Developer messages steer the current work; "
+            "preserve the original task and acceptance requirements.\n")
 
 
 def read_state(run):
@@ -73,6 +135,7 @@ class AppSession:
         self.session = state.get('total_sessions', state['task_sessions'])
         self.task_session = state['task_sessions']
         self.task = state['task_id']
+        update_task_info(run, self.task, {})
         self.model = command[command.index('--model') + 1]
         self.schema = json.loads(Path(command[command.index('--output-schema') + 1]).read_text())
         self.prompt = (run / 'prompt.txt').read_text()
@@ -304,15 +367,18 @@ class AppSession:
     def status_update(self, text):
         try:
             value = json.loads(text)
-            if not isinstance(value, dict) or set(value) - {'explanation', 'status'}:
+            if not isinstance(value, dict) or set(value) - {'explanation', 'status', 'last_error'}:
                 raise ValueError('invalid task update')
             if any(not isinstance(v, str) or not v.strip() or len(v) > 2000 for v in value.values()):
                 raise ValueError('invalid task update')
-            path = self.run / 'task-info.json'
-            previous = json.loads(path.read_text()) if path.exists() else {}
-            if previous.get('task_id') != self.task:
-                previous = {'task_id': self.task}
-            launcher.atomic(path, dict(previous, **{k: clean(v) for k, v in value.items()}))
+            value = {k: clean(v).strip() for k, v in value.items()}
+            if any(not v for v in value.values()) or ('status' in value and value['status'] not in TASK_STATUSES):
+                raise ValueError('invalid task update')
+            if value.get('last_error') == '-':
+                raise ValueError('last error must describe a new occurrence')
+            if 'last_error' in value:
+                value.setdefault('status', TASK_STATUSES[0])
+            update_task_info(self.run, self.task, value)
         except (ValueError, TypeError):
             self.renderer.message(STATUS_PREFIX + text)
 

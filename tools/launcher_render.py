@@ -290,7 +290,7 @@ class LauncherDisplay:
             # Reflow from the newest end and stop once the visible history is
             # full; narrow terminals must not multiply the retained row count.
             for line in reversed(lines):
-                wrapped = self.wrapped([line], width)
+                wrapped = self.wrapped([line], width, task_labels=pane == 'top')
                 rows.extendleft(reversed(wrapped[-(SCROLLBACK_LINES - len(rows)):]))
                 if len(rows) == SCROLLBACK_LINES:
                     break
@@ -301,10 +301,14 @@ class LauncherDisplay:
         end = len(rows) - self.offsets[pane]
         return rows[max(0, end - height):end] if height else []
 
-    def wrapped(self, lines, width):
+    def wrapped(self, lines, width, *, task_labels=False):
         rows = []
         for line in lines:
-            text = Text.from_ansi(line)
+            text = line.copy() if isinstance(line, Text) else Text.from_ansi(line)
+            if task_labels:
+                label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
+                if label:
+                    text.stylize('bold', *label.span(1))
             if self.is_rule(text):
                 rows.append(Text('─' * width, style='dim'))
             else:

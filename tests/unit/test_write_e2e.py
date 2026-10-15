@@ -11,6 +11,41 @@ import write_e2e as workflow
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
+def test_launcher_restart_preserves_task_error_and_original_timestamp(tmp_path, monkeypatch):
+    import vm_selection
+    from launcher_chat import task_info, update_task_info
+
+    prepare(tmp_path)
+    previous, resumed = tmp_path / 'previous', tmp_path / 'resumed'
+    previous.mkdir()
+    resumed.mkdir()
+    workflow.launcher.atomic(previous / 'checkpoint.json', workflow.fresh_state('001'))
+    retained = dict(task_id='001', explanation='Checks the child countdown.',
+                    last_error='The countdown stopped.', last_error_at=1000.0,
+                    status='Testing fix, previous error point not reached yet')
+    workflow.launcher.atomic(previous / 'task-info.json', retained)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    monkeypatch.setattr(workflow, 'session_command', lambda *_: [])
+    monkeypatch.setattr(vm_selection, 'extract', lambda argv, **_: (argv, None))
+    monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
+    monkeypatch.setattr(vm_selection, 'save_binding', lambda *_: None)
+
+    def select(root, name, command, **options):
+        command(resumed, -1)
+        options['on_start'](resumed)
+        return resumed, True
+
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    assert workflow.select(tmp_path, ['--stop']) == (resumed, True)
+    assert task_info(resumed, '001') == retained
+    update_task_info(resumed, '001', {})  # Starting its next session keeps the old error.
+    assert task_info(resumed, '001') == retained
+    update_task_info(resumed, '002', {})
+    assert 'last_error' not in task_info(resumed, '002')
+    update_task_info(resumed, '001', {})
+    assert task_info(resumed, '001') == retained
+
+
 @pytest.mark.parametrize('phase', ['implement', 'live', 'recover'])
 def test_sequential_adviser_config_preserves_coordinator_and_transport_boundaries(tmp_path, monkeypatch, phase):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/opt/codex')

@@ -11,7 +11,8 @@ import termios
 import pytest
 
 import detached_launcher as launcher
-from launcher_chat import AppSession, ChatEditor, app_command, read_state, send_input
+from launcher_chat import (AppSession, ChatEditor, TASK_STATUSES, app_command, read_state,
+                           send_input, task_info, update_task_info)
 from launcher_render import AgentRenderer
 from tests.support.terminal_screen import Terminal
 from tests.support.write_e2e_fixtures import reply
@@ -311,13 +312,53 @@ def test_explanation_is_retained_while_only_status_changes(conversation, tmp_pat
     ready(session)
     explanation = 'Checks that the time shown to a child decreases once each minute.'
     session.status_update(json.dumps({'explanation': explanation}))
-    session.status_update(json.dumps({'status': 'The timer skipped a minute. Checking how it refreshes.'}))
+    session.status_update(json.dumps({'last_error': 'The timer skipped a minute.',
+                                     'status': 'Investigating'}))
+    session.status_update(json.dumps({'status': 'Root cause identified, fixing'}))
     info = json.loads((tmp_path / 'task-info.json').read_text())
     assert info['explanation'] == explanation
+    assert info['last_error'] == 'The timer skipped a minute.'
+    assert info['status'] == 'Root cause identified, fixing'
     prompt = task_info_instructions(tmp_path, '001')
     assert 'Omit explanation unless' in prompt
     assert explanation in prompt
     assert 'Include explanation:' in task_info_instructions(tmp_path, '002')
+    assert all(status in prompt for status in TASK_STATUSES)
+
+
+def test_errors_keep_their_age_across_retries_and_task_suspension(conversation, tmp_path, monkeypatch):
+    session, _, _ = conversation
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_chat.time.time', lambda: clock[0])
+    session.status_update(json.dumps({'last_error': 'The child countdown stopped.'}))
+    assert task_info(tmp_path, '001')['last_error_at'] == 1000.0
+    clock[0] += 120
+    session.status_update(json.dumps({'status': TASK_STATUSES[2]}))
+    update_task_info(tmp_path, '001', {})  # A new session must retain the error clock.
+    assert task_info(tmp_path, '001')['last_error_at'] == 1000.0
+    update_task_info(tmp_path, '002', {})
+    assert 'last_error' not in task_info(tmp_path, '002')
+    update_task_info(tmp_path, '002', {'last_error': 'The request could not be sent.'})
+    update_task_info(tmp_path, '001', {})
+    assert task_info(tmp_path, '001')['last_error'] == 'The child countdown stopped.'
+    assert task_info(tmp_path, '001')['last_error_at'] == 1000.0
+    assert task_info(tmp_path, '001')['status'] == TASK_STATUSES[2]
+    session.status_update(json.dumps({'last_error': 'The child countdown stopped.'}))
+    assert task_info(tmp_path, '001')['last_error_at'] == 1120.0  # A real recurrence.
+    assert task_info(tmp_path, '001')['status'] == 'Investigating'
+
+
+@pytest.mark.parametrize('value', [
+    {'status': 'Running session 1.'}, {'last_error_at': 0},
+    {'last_error': ''}, {'last_error': '-'}, {'last_error': 42}, {'status': '\033[31m'},
+])
+def test_invalid_panel_updates_preserve_the_previous_task_information(conversation, tmp_path, value):
+    session, output, _ = conversation
+    session.status_update(json.dumps({'last_error': 'The countdown stopped.'}))
+    before = (tmp_path / 'task-info.json').read_text()
+    session.status_update(json.dumps(value))
+    assert (tmp_path / 'task-info.json').read_text() == before
+    assert 'LAUNCHER_STATUS' in output.getvalue()
 
 
 def test_app_transport_preserves_policy_and_model_config():
@@ -358,6 +399,102 @@ def display_fixture(tmp_path, width=120, height=36, input_mode='chat'):
     display.update([{'key': 'counter', 'pinned': True, 'lines': ['Tasks: 1/3']},
                     {'key': '1', 'lines': ['Task 001: Countdown', 'Session [1]: Writing code']}], [])
     return display, terminal
+
+
+@pytest.mark.parametrize('heading,elapsed', [
+    ('Task 4-5b: Aborted cleanup and rollback — complete', 'duration unavailable'),
+    ('Task 4-5b: Aborted cleanup and rollback (sessions=2, duration=12m) — Complete', '12m'),
+    ('\033[32m✓ Task 4-5b: Aborted cleanup and rollback (1h 12m)\033[0m', '1h 12m'),
+])
+def test_completed_overview_normalizes_legacy_rows_without_changing_owner_records(tmp_path, heading, elapsed):
+    display, terminal = display_fixture(tmp_path, width=240)
+    steps = [{'key': 'complete-4-5b', 'lines': [heading], 'replaces': ['4-5b']},
+             {'key': '4-5c', 'lines': ['Task 4-5c: Current task', 'Session [1]: Working']}]
+    original = json.dumps(steps)
+    display.update(steps, [])
+    expected = f'✓ Task 4-5b: Aborted cleanup and rollback ({elapsed})'
+    assert expected in terminal.visible()
+    row = next(row for row in display.previous[:display.top_height] if row.plain.startswith('✓ Task 4-5b:'))
+    assert all(row.get_style_at_offset(display.console, offset).color.number == 2
+               for offset in range(len(expected)))
+    assert all(row.get_style_at_offset(display.console, offset).bold
+               for offset in range(len('✓ '), len('✓ Task 4-5b:')))
+    assert '— complete' not in terminal.visible().lower()
+    assert json.dumps(steps) == original
+    before = terminal.getvalue()
+    display.update(steps, [])
+    assert terminal.getvalue() == before
+
+
+@pytest.mark.parametrize('status,color', zip(TASK_STATUSES, ('blue', 'blue', 'yellow', 'green')))
+def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monkeypatch, status, color):
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_display.time.time', lambda: clock[0])
+    display, terminal = display_fixture(tmp_path, width=400)
+
+    def panel():
+        return [row[display.divider_column:] for row in display.previous[display.top_height + 1:]]
+
+    def line(prefix):
+        return next(row for row in panel() if row.plain.startswith(prefix))
+
+    empty = line('Last Error:')
+    assert empty.plain.rstrip() == 'Last Error: -'
+    assert not empty.get_style_at_offset(display.console, len('Last Error: ')).bold
+    assert empty.get_style_at_offset(display.console, len('Last Error: ')).color is None
+    assert line('Status:').plain.rstrip() == 'Status: Running'
+    assert line('Status:').get_style_at_offset(display.console, len('Status: ')).color.name == 'blue'
+    for no_error in ('', '-', '  '):
+        display.task_info.update(last_error=no_error, status=status)
+        display.draw()
+        assert line('Last Error:').plain.rstrip() == 'Last Error: -'
+        assert line('Status:').plain.rstrip() == 'Status: Running'
+    display.task_info.update(last_error='The countdown stopped.', last_error_at=1000.0, status=status)
+    clock[0] += 120
+    display.draw()
+    rows = [row.plain.rstrip() for row in panel()]
+    header = rows.index('Explanation:')
+    assert rows[header + 1] == 'Checks the child countdown.'
+    assert set(rows[header - 1]) == set(rows[header + 2]) == {'─'}
+    assert rows[header + 3] == 'Last Error: The countdown stopped. (2m ago)'
+    assert rows[header + 4] == 'Status: ' + status
+    for prefix in ('Explanation:', 'Last Error:', 'Status:'):
+        row = line(prefix)
+        assert all(row.get_style_at_offset(display.console, offset).bold for offset in range(len(prefix)))
+    error = line('Last Error:')
+    for offset in range(len('Last Error: '), len('Last Error: The countdown stopped.')):
+        style = error.get_style_at_offset(display.console, offset)
+        assert style.color.name == 'red' and not style.bold
+    status_row = line('Status:')
+    for offset in range(len('Status: '), len('Status: ' + status)):
+        style = status_row.get_style_at_offset(display.console, offset)
+        assert style.color.name == color and not style.bold
+    assert '**' not in terminal.visible()
+    before = terminal.getvalue()
+    clock[0] += 59
+    display.draw()
+    assert terminal.getvalue() == before
+    clock[0] += 1
+    display.draw()
+    assert '(3m ago)' in line('Last Error:').plain
+    # An observer reconnect keeps the owner's timestamp.
+    launcher.atomic(tmp_path / 'task-info.json', display.task_info)
+    launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
+    reconnected, _ = display_fixture(tmp_path, width=400)
+    reconnected.refresh_chat()
+    reconnected.chat_state = display.chat_state.copy()
+    reconnected.draw()
+    assert '(3m ago)' in ''.join(row.plain for row in reconnected.previous)
+    # A suspended task can be rendered before its next agent session starts.
+    update_task_info(tmp_path, '002', {})
+    reconnected.refresh_chat()
+    reconnected.draw()
+    assert 'Last Error: The countdown stopped. (3m ago)' in ''.join(row.plain for row in reconnected.previous)
+    # Stale metadata must not leak while the next task's session starts.
+    display.chat_state['progress_key'] = '1'
+    display.update([{'key': '2', 'lines': ['Task 002: Next', 'Session [1]: Writing code']}], [])
+    assert line('Last Error:').plain.rstrip() == 'Last Error: -'
+    assert line('Status:').plain.rstrip() == 'Status: Running'
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])

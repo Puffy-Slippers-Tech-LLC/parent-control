@@ -1126,6 +1126,17 @@ def test_first_limit_stops_after_accepted_completion(
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
     assert reason in (run / 'handoff.txt').read_text()
+    from launcher_progress import read_progress
+    from rich.console import Console
+    from rich.text import Text
+    summaries = read_progress(run)
+    assert len(summaries) == completed
+    for index, step in enumerate(summaries, start=1):
+        assert step['replaces'] and len(step['lines']) == 1
+        text = Text.from_ansi(step['lines'][0])
+        assert re.fullmatch(rf'✓ Task {index:03}: .+ \(\d+m\)', text.plain)
+        assert all(text.get_style_at_offset(Console(), offset).color.number == 2
+                   for offset in range(len(text.plain)))
     _, queue = workflow.queue_state(root)
     assert sum(queue.values()) == completed
     if completed:

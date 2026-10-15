@@ -1003,23 +1003,8 @@ def execute(root, run, owner, phase, live_attempts=0):
 
 
 def task_info_instructions(run, task):
-    """Retain task prose rather than asking the model to repeat it each turn."""
-    path = run / 'task-info.json'
-    info = json.loads(path.read_text()) if path.exists() else {}
-    explanation = info.get('explanation') if info.get('task_id') == task else None
-    return ("\nThe launcher has a separate reader-facing task panel. In your first commentary, "
-            "send a single line beginning LAUNCHER_STATUS followed by a JSON object. "
-            "Use everyday, non-technical, end-user scenario language. "
-            + ("The task explanation is already saved: " + json.dumps(explanation) +
-               ". Omit explanation unless the task's scope has actually changed. " if explanation else
-               "Include explanation: briefly describe what this task checks for a parent or child. " )
-            + "For session 1 omit status; the launcher displays Running session 1. "
-            "For later sessions include status: describe the previous failure's effect on the "
-            "parent or child and what you are trying to resolve it, without commands, paths, "
-            "test-system terms or error codes. Update status only when the situation changes. "
-            "Never repeat the explanation in progress updates. This commentary is independent "
-            "of your required final workflow JSON. Chat messages from the developer can steer "
-            "your current work; preserve the original task and acceptance requirements.\n")
+    from launcher_chat import task_info_instructions as instructions
+    return instructions(run, task) + 'Describe the task in parent/child scenario language.\n'
 
 
 def worker(root, run, owner, tasks, state_json):
@@ -1162,8 +1147,7 @@ def worker(root, run, owner, tasks, state_json):
                 keys = state['progress_keys']
                 completions.append((task, state['task_sessions'],
                                     state['completed_at'] - state['started_at'], keys, progress_lines[0]))
-                if tasks is None or tasks > 1 or completed > 1:
-                    compact_completions()
+                compact_completions()
         if (run / 'stop').exists():
             reason = 'stopped at a session boundary'
     except launcher.Stopped:
@@ -1321,8 +1305,7 @@ def select(root, argv):
         previous = launcher.current_run(run.parent)
         if previous is not None and (previous / 'task-info.json').exists():
             info = json.loads((previous / 'task-info.json').read_text())
-            if info.get('task_id') == state.get('task_id'):
-                initial_info.update(info)
+            initial_info.update(info)
         # Preflight transport/rendering only; do not spend a model session here.
         from launcher_render import AgentRenderer
         session_command(root, state)

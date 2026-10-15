@@ -11,7 +11,7 @@ import time
 from rich.cells import get_character_cell_size
 from rich.text import Text
 
-from launcher_chat import ChatEditor, read_state, send_input
+from launcher_chat import ChatEditor, TASK_STATUSES, read_state, send_input, task_info as read_task_info
 from launcher_render import LauncherDisplay, clean
 
 
@@ -94,8 +94,7 @@ class TaskDisplay(LauncherDisplay):
 
     def refresh_chat(self):
         self.chat_state = read_state(self.run)
-        path = self.run / 'task-info.json'
-        self.task_info = json.loads(path.read_text()) if path.exists() else {}
+        self.task_info = read_task_info(self.run, self.chat_state.get('task_id'))
         if self.totals is not None:
             try:
                 self.task_totals = self.totals()
@@ -106,6 +105,29 @@ class TaskDisplay(LauncherDisplay):
 
     def output_width(self):
         return max(1, self.divider_column - 1 - int(self.mouse_capture))
+
+    def overview_lines(self, step):
+        """Normalize retained completions from older, still-running backends."""
+        if not step.get('replaces') or not step['lines']:
+            return step['lines']
+        text = Text.from_ansi(step['lines'][0])
+        if not re.match(r'^(?:✓ )?Task [\w.-]+:', text.plain):
+            return step['lines']
+        suffix = re.search(r'\s+[—–-]\s+complete\.?$', text.plain, re.IGNORECASE)
+        if suffix:
+            text = text[:suffix.start()]
+        duration = re.search(r'\s+\((?:sessions=\d+,\s*duration=)?(\d+(?:h \d+m|m)|duration unavailable)\)$',
+                             text.plain)
+        elapsed = duration[1] if duration else 'duration unavailable'
+        if duration:
+            text = text[:duration.start()]
+        if not text.plain.startswith('✓ '):
+            text = Text('✓ ') + text
+        text.append(f' ({elapsed})')
+        text.stylize('green')
+        with self.console.capture() as capture:
+            self.console.print(text, end='', soft_wrap=True)
+        return [capture.get()]
 
     def update_question(self, question, send):
         if self.input_mode != 'chat':
@@ -333,8 +355,14 @@ class TaskDisplay(LauncherDisplay):
                 working = f'Working ({working_duration(time.time() - turn_started)})'
         origin = self.owner_clock.get('started_monotonic')
         total_duration = clock_duration(time.monotonic() - origin) if origin is not None else '—'
+        task_info = (self.task_info if self.task_info.get('task_id') == self.chat_state.get('task_id')
+                     and (not current or self.chat_state.get('progress_key') in (None, current['key'])) else {})
+        error_summary = clean(task_info.get('last_error', '')).strip()
+        has_error = bool(error_summary and error_summary != '-')
+        error_at = task_info.get('last_error_at') if has_error else None
+        error_age = clock_duration(time.time() - error_at) if error_at is not None else None
         state = (size, self.ratio, self.dragging, self.task_totals,
-                 tuple(summary_lines), total_duration, working,
+                 tuple(summary_lines), total_duration, working, error_age,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
@@ -360,10 +388,11 @@ class TaskDisplay(LauncherDisplay):
         pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
         # Only completed/suspended history stays above the lower split.
         history = [line for s in self.steps if not s.get('pinned') and
-                   (s.get('replaces') or (s is not current and len(s['lines']) == 1)) for line in s['lines']]
+                   (s.get('replaces') or (s is not current and len(s['lines']) == 1))
+                   for line in self.overview_lines(s)]
         if self.input_mode != 'chat':
-            history = [s['lines'][0] for s in self.steps if not s.get('pinned') and s['lines']]
-        top = self.wrapped(pinned, left_width)[:max(0, height - 3)]
+            history = [self.overview_lines(s)[0] for s in self.steps if not s.get('pinned') and s['lines']]
+        top = self.wrapped(pinned, left_width, task_labels=True)[:max(0, height - 3)]
         room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
         top += self.scroll_rows('top', history, left_width, room)
         top += [Text('')] * max(0, len(total_rows) - len(top))
@@ -380,39 +409,48 @@ class TaskDisplay(LauncherDisplay):
         # Reserve the bottom composer independently of session-output scrolling.
         # Very short terminals give up the hint first.
         chrome_height = 1 + int(boxed) + int(show_hint)
-        summary = self.wrapped(summary_lines, right_width)
+        summary = self.wrapped(summary_lines, right_width, task_labels=True)
         summary_height = min(len(summary), max(0, available // 2),
                              max(0, available - len(separator) - 1))
         summary = self.from_top('summary', summary_lines, right_width, summary_height)
         self.summary_bottom = len(top) + 1 + summary_height
-        task_info = self.task_info if self.task_info.get('task_id') == self.chat_state.get('task_id') else {}
         explanation = task_info.get('explanation', 'Preparing the task explanation…'
                                     if self.input_mode == 'chat' else 'Execution details appear on the left.')
-        session = self.chat_state.get('task_session', self.chat_state.get('session'))
-        status = ('Running session 1.' if session == 1 and self.chat_state.get('status') == 'running' else
-                  task_info.get('status', f'Running session {session}. Reviewing the previous attempt.'
-                                if session else 'Starting…'))
-        if self.chat_state.get('status') == 'waiting':
-            status = 'Interrupted. Waiting for your instructions. Ctrl+C again exits.'
-        elif self.chat_state.get('status') == 'interrupting':
-            status = 'Interrupting the current work…'
-        elif self.chat_state.get('status') == 'cleaning':
-            status = 'Finishing cleanup before accepting more instructions…'
-        elif self.chat_state.get('status') == 'blocked':
-            status = 'Waiting for your answer below.'
-        elif self.chat_state.get('status') == 'finished':
-            status = 'Session finished. Preparing the next step.'
-        info_lines = [explanation, '', status]
+        status = task_info.get('status')
+        if not has_error:
+            status = 'Running'
+        elif status not in TASK_STATUSES or status == 'Running':
+            status = TASK_STATUSES[0]
+        last_error = Text('Last Error: ')
+        last_error.stylize('bold', 0, len('Last Error:'))
+        if has_error:
+            last_error.append(error_summary, style='red')
+            if error_age is not None:
+                last_error.append(f' ({error_age} ago)')
+        else:
+            last_error.append('-')
+        # Only labels are bold; values keep their own normal/red styling.
+        status_line = Text('Status: ')
+        status_line.stylize('bold', 0, len('Status:'))
+        colors = dict(zip(TASK_STATUSES, ('blue', 'blue', 'yellow', 'green', 'blue')))
+        status_line.append(status, style=colors[status])
+        info_lines = [Text('Explanation:', style='bold'), Text(clean(explanation)),
+                      Text('─'), last_error, status_line]
+        lifecycle = {
+            'waiting': 'Interrupted. Waiting for your instructions. Ctrl+C again exits.',
+            'interrupting': 'Interrupting the current work…',
+            'cleaning': 'Finishing cleanup before accepting more instructions…',
+            'blocked': 'Waiting for your answer below.',
+            'finished': 'Session finished. Preparing the next step.',
+        }.get(self.chat_state.get('status'))
+        if lifecycle:
+            info_lines += ['', lifecycle]
         if self.question:
-            info_lines += ['', self.question.question.get('explanation', ''),
-                           self.question.question['question'],
-                           *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
-                           'Type a number or your own instructions below.']
-
-        if self.input_mode != 'chat':
-            info_lines = [explanation, '', task_info.get('status', current['lines'][-1] if current else 'Starting…')]
-            if self.question:
-                info_lines += ['', self.question.question.get('explanation', '')]
+            info_lines += ['', self.question.question.get('explanation', '')]
+            if self.input_mode == 'chat':
+                info_lines += [self.question.question['question'],
+                               *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
+                               'Type a number or your own instructions below.']
 
         editor_width = max(1, left_width - 4) if boxed else left_width
         editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
@@ -531,7 +569,7 @@ class TaskDisplay(LauncherDisplay):
         return rows, caret_row, caret_column
 
     def from_top(self, pane, lines, width, height):
-        rows = self.wrapped(lines, width)
+        rows = self.wrapped(lines, width, task_labels=pane == 'summary')
         offset = self.offsets[pane] = min(self.offsets[pane], max(0, len(rows) - height))
         return rows[offset:offset + height]
 

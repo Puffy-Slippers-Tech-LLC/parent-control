@@ -118,10 +118,41 @@ session allowance stops with a retained handoff rather than skipping the task.
 
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
-task summary and status/issues at bottom right. Completed task entries in the
-top-left overview start with a green `✓` checkmark and use green text.
+task summary and status/issues at bottom right. Task entries in the
+overview and task summary use bold task labels, such as `Task 4-5c:`; the
+top-left counter also uses bold `Tasks:` with normal-weight numeric counts.
+Completed task entries in the top-left overview start with a green `✓`
+checkmark and use green text.
 The title is followed by one space and the task's elapsed duration in parentheses,
 using the shared minute/hour format: `✓ Task title (12m)` or `✓ Task title (1h 12m)`.
+Observers normalize completed rows retained by older backends to this green
+checkmark format and remove the old `— complete` suffix. When an old row has
+no recorded elapsed time, show `(duration unavailable)`; never fabricate timing.
+Single-task E2E runs publish the same completed recap as multi-task runs.
+
+Below the current task summary's separator, a bold `Explanation:` header precedes
+the short plain-language purpose. Another separator precedes bold `Last Error:`
+and `Status:` labels. The last error summary is red, followed by its elapsed age
+in parentheses, for example `(12m ago)`; with no reported error, show a normal
+`-` and no age. Errors belong only to the current task and retain their original
+timestamp across retries, suspension, observer reconnections and backend restarts.
+The age refreshes every minute without requiring new output. The status value is
+exactly one of the following. With no last error, it is always blue `Running`:
+
+| Status | Text color |
+| --- | --- |
+| Running (no last error) | Blue |
+| Investigating | Blue |
+| Root cause identified, fixing | Blue |
+| Testing fix, previous error point not reached yet | Yellow |
+| Testing fix, previous error point passed | Green |
+
+Plan/E2E coordinators report a short `last_error` once per new occurrence and
+update `status` through `LAUNCHER_STATUS` commentary. The launcher supplies the
+error timestamp; repeated old failures must not reset it. Testing statuses require
+evidence about the previous error point, not merely starting an unrelated test.
+These fields are presentation only and never acceptance evidence. Conversation
+lifecycle notices and developer questions appear separately from the status value.
 Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
 The top-left `Tasks: x/y` counts completed tasks in this run plus one against

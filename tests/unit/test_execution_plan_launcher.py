@@ -378,6 +378,10 @@ def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(
     previous = rig.root / 'previous'
     previous.mkdir()
     workflow.launcher.atomic(previous / 'checkpoint.json', state_for(rig.plan, in_flight=True))
+    retained_info = dict(task_id='001', explanation='Checks the child countdown.',
+                         last_error='The countdown stopped.', last_error_at=1000.0,
+                         status='Root cause identified, fixing')
+    workflow.launcher.atomic(previous / 'task-info.json', retained_info)
     (rig.root / 'docs/001.md').unlink()
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
@@ -392,6 +396,13 @@ def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(
     checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
     assert checkpoint['task_id'] == '001' and checkpoint['in_flight'] is True
     assert 'Reconcile interrupted close-out' in checkpoint['handoff']
+    assert json.loads((rig.run / 'task-info.json').read_text()) == retained_info
+    display = TaskDisplay(Terminal(400, 36), run=rig.run,
+                          terminal_size=lambda: os.terminal_size((400, 36)))
+    workflow.launcher.atomic(rig.run / 'chat-state.json', {'task_id': '001'})
+    display.refresh_chat()
+    display.update([dict(key='001', lines=['Task 001: Countdown'])], [])
+    assert 'Last Error: The countdown stopped.' in ''.join(row.plain for row in display.previous)
 
 
 def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget(rig, monkeypatch):

@@ -130,9 +130,7 @@ An interrupted predecessor may have checked its row before saving an accepted
 result. Reconcile its retained evidence and cleanup, complete missing work or
 restore its unchecked row/brief/pointer before returning continue or blocked.
 {BLOCKER_INSTRUCTIONS}
-Send LAUNCHER_STATUS {{"explanation":"Plain-language purpose of this task"}}
-in your first commentary, and LAUNCHER_STATUS {{"status":"Current result or issue"}}
-when useful. These are presentation only. Return the required JSON response.
+Return the required JSON response.
 Each checks item names kind, one declared canonical target (empty only when the
 brief declares no Targets), actual
 passed/failed/not_run result and exact retained evidence or review findings.
@@ -236,6 +234,7 @@ def execute(root, spec, run, owner):
 
 
 def worker(root, run, owner, spec, state):
+    from launcher_chat import task_info_instructions
     from launcher_display import clock_duration
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -313,7 +312,8 @@ def worker(root, run, owner, spec, state):
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
-            (run / 'prompt.txt').write_text(session_prompt(plan, spec, state))
+            (run / 'prompt.txt').write_text(session_prompt(plan, spec, state)
+                                           + task_info_instructions(run, state['task_id']))
             (run / 'agent-result.json').unlink(missing_ok=True)
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
@@ -398,6 +398,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             os.environ.pop(BATCH, None)
         binding = execution_binding()
         initial = {}
+        initial_info = {}
         initial_remaining = 0
         def attach(selected):
             check_binding(selected, binding, stopping=args.stop)
@@ -421,6 +422,9 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 validation_error = error
                 records = []
             initial.update(initial_state(plan, spec, selected.parent))
+            previous = launcher.current_run(selected.parent)
+            if previous is not None and (previous / 'task-info.json').exists():
+                initial_info.update(json.loads((previous / 'task-info.json').read_text()))
             if records or initial.get('phase') != 'complete':
                 session_command(root, spec)  # Dependency/transport preflight, no model session.
             if validation_error is not None:
@@ -438,6 +442,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1,
                                             remaining=initial_remaining)
             launcher.atomic(selected / 'checkpoint.json', initial)
+            if initial_info:
+                launcher.atomic(selected / 'task-info.json', initial_info)
             save_binding(selected, binding)
         run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
                                        on_attach=attach, on_start=start, namespace=plan_namespace(path))

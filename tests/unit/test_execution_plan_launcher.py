@@ -522,14 +522,14 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
         assert display.mouse_capture
         display.handle_input(f'\x1b[<0;{display.top_divider_column};1M'.encode())
         display.handle_input(b'\x1b[<32;75;1M\x1b[<0;75;1m')
-        assert display.top_ratio == 74 / 118
-        assert display.ratio == .75
+        assert display.ratio == 74 / 118
+        assert display.top_divider_column == display.divider_column
         row, divider = display.top_height + 3, display.divider_column
         for fragment in (b'\x1b[<0;', f'{divider};{row}M'.encode()):
             display.handle_input(fragment)
         display.handle_input(f'\x1b[<32;61;{row}M\x1b[<0;61;{row}m'.encode())
         assert display.ratio == 60 / 118
-        assert display.top_ratio == 74 / 118
+        assert display.top_divider_column == display.divider_column
         display.handle_input(f'\x1b[<65;100;{display.summary_bottom + 2}M'.encode())
         assert display.offsets['info'] > 0
         assert display.editor.text == ''

@@ -41,7 +41,6 @@ class TaskDisplay(LauncherDisplay):
         self.run = run
         self.input_mode = input_mode
         self.ratio = .75
-        self.top_ratio = self.ratio
         self.dragging = None
         self.totals = totals
         self.task_totals = None
@@ -290,11 +289,7 @@ class TaskDisplay(LauncherDisplay):
             self.dragging = over
             self.draw()
         elif base == 32 and self.dragging and self.size:
-            ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
-            if self.dragging == 'top':
-                self.top_ratio = ratio
-            else:
-                self.ratio = ratio
+            self.ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
             self.draw()
         elif base == 0:
             if row <= self.top_height:
@@ -342,7 +337,7 @@ class TaskDisplay(LauncherDisplay):
                 working = f'Working ({working_duration(time.time() - turn_started)})'
         origin = self.owner_clock.get('started_monotonic')
         total_duration = clock_duration(time.monotonic() - origin) if origin is not None else '—'
-        state = (size, self.ratio, self.top_ratio, self.dragging, self.task_totals,
+        state = (size, self.ratio, self.dragging, self.task_totals,
                  tuple(summary_lines), total_duration, working,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
@@ -354,9 +349,9 @@ class TaskDisplay(LauncherDisplay):
         if self.screen and state == self.draw_state:
             return
         width, height = max(1, size.columns - 1), max(1, size.lines)
-        top_left_width = max(1, min(width - 2, round((width - 1) * self.top_ratio))) if width >= 3 else 1
-        top_right_width = max(1, width - top_left_width - 1)
-        self.top_divider_column = top_left_width + 1
+        left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
+        right_width = max(1, width - left_width - 1)
+        self.top_divider_column = self.divider_column = left_width + 1
         totals = Text('Total Tasks: ')
         completed, unfinished, total = self.task_totals or ('—', '—', '—')
         totals.append(str(completed), style='green')
@@ -365,34 +360,30 @@ class TaskDisplay(LauncherDisplay):
         totals.append('/')
         totals.append(str(total))
         totals.append('\nTotal Duration: ' + total_duration)
-        total_rows = totals.wrap(self.console, top_right_width, overflow='fold')[:max(0, height - 4)]
+        total_rows = totals.wrap(self.console, right_width, overflow='fold')[:max(0, height - 4)]
         pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
         # Only completed/suspended history stays above the lower split.
         history = [line for s in self.steps if not s.get('pinned') and
                    (s.get('replaces') or (s is not current and len(s['lines']) == 1)) for line in s['lines']]
         if self.input_mode != 'chat':
             history = [s['lines'][0] for s in self.steps if not s.get('pinned') and s['lines']]
-        top = self.wrapped(pinned, top_left_width)[:max(0, height - 3)]
+        top = self.wrapped(pinned, left_width)[:max(0, height - 3)]
         room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
-        top += self.scroll_rows('top', history, top_left_width, room)
+        top += self.scroll_rows('top', history, left_width, room)
         top += [Text('')] * max(0, len(total_rows) - len(top))
         for index, row in enumerate(top):
-            row.pad_right(max(0, top_left_width - row.cell_len))
-            top[index] = row + Text('│', style='#0098ff' if self.dragging == 'top' else 'dim')
+            row.pad_right(max(0, left_width - row.cell_len))
+            top[index] = row + Text('│', style='#0098ff' if self.dragging else 'dim')
             if index < len(total_rows):
                 top[index] += total_rows[index]
         self.top_height = len(top)
         available = max(0, height - len(top) - 1)
-        left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
-        right_width = max(1, width - left_width - 1)
         boxed = left_width >= 5
         separator = [Text('─' * right_width, style='dim')] if available >= 5 else []
         show_hint = available >= 4
         # Reserve the bottom composer independently of session-output scrolling.
         # Very short terminals give up the hint first.
         chrome_height = 1 + int(boxed) + int(show_hint)
-        self.divider_column = left_width + 1
-
         summary = self.wrapped(summary_lines, right_width)
         summary_height = min(len(summary), max(0, available // 2),
                              max(0, available - len(separator) - 1))
@@ -507,7 +498,7 @@ class TaskDisplay(LauncherDisplay):
                 row += Text('↓', style='bold reverse')
             row.truncate(left_width, overflow='crop')
             row.pad_right(max(0, left_width - row.cell_len))
-            rows.append(row + Text('│', style='#0098ff' if self.dragging == 'bottom' else 'dim') + right[index])
+            rows.append(row + Text('│', style='#0098ff' if self.dragging else 'dim') + right[index])
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height

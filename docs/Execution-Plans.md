@@ -137,8 +137,9 @@ The Plan/E2E session line appends elapsed clock time, refreshing every minute ev
 without new output: `12m` below one hour, then `1h 0m`, `1h 12m`, and so on.
 The clock starts with each session, survives observer reconnection and stops
 when the session finishes.
-The top and lower splits start at 75:25 with aligned dividers; each divider resizes
-independently by dragging. The top-right `Total Tasks: x/y/z` shows completed
+The top and lower splits share one 75:25 width ratio. Dragging either vertical
+divider resizes both frames together; their dividers stay aligned during dragging
+and terminal resizing. The top-right `Total Tasks: x/y/z` shows completed
 tasks in green, unfinished tasks in blue and the total in the normal text color.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`, and refresh automatically as the queue changes.
@@ -182,7 +183,7 @@ single state machine containing every task type's acceptance branches.
 | [`plan_launcher.py`](../tools/plan_launcher.py) | Resumable ordinary-plan session driver | Immutable `PlanWorkflow`: name, plan, model/effort, session allowance, VM selection, Git policy |
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
-| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Independently split overview/totals and execution/status layout and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
+| [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
 | [`launcher_git.py`](../tools/launcher_git.py) | Literal file paths, worktree fingerprints and commit-intent recovery | Required close-out files and commit message; workflow owns push policy |
 
 The current adapters use these components according to their workflow:

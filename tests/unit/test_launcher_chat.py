@@ -769,26 +769,37 @@ def test_total_duration_survives_observers_and_tasks_but_resets_for_new_backend(
     assert 'Total Duration: 1m' in screen.visible()
 
 
-def test_top_and_bottom_dividers_drag_independently(tmp_path):
-    display, terminal = display_fixture(tmp_path)
-    assert display.top_divider_column == display.divider_column
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+def test_top_and_bottom_dividers_stay_aligned_during_drag_and_resize(tmp_path, input_mode):
+    display, terminal = display_fixture(tmp_path, input_mode=input_mode)
+
+    def assert_aligned():
+        assert display.top_divider_column == display.divider_column
+        if terminal.size.columns >= 4:
+            lines = terminal.visible().splitlines()
+            assert all(line[display.divider_column - 1] == '│'
+                       for index, line in enumerate(lines) if index != display.top_height)
+
+    assert_aligned()
     display.mouse(0, display.top_divider_column, 1, False)
     display.mouse(32, 61, 1, False)
+    assert display.ratio == 60 / 118
+    assert_aligned()
     display.mouse(0, 61, 1, True)
-    top_ratio = display.top_ratio
-    assert top_ratio == 60 / 118
-    assert display.ratio == .75
-    assert display.top_divider_column != display.divider_column
-    # Drag across the horizontal boundary; retain the originally grabbed split.
+    assert_aligned()
+    # Drag the lower divider across the horizontal boundary.
     display.mouse(0, display.divider_column, display.top_height + 2, False)
     display.mouse(32, 80, 1, False)
-    display.mouse(0, 80, 1, True)
     assert display.ratio == 79 / 118
-    assert display.top_ratio == top_ratio
-    terminal.resize(160, 40)
-    display.draw()
-    assert display.top_divider_column == round(158 * top_ratio) + 1
-    assert display.divider_column == round(158 * display.ratio) + 1
+    assert_aligned()
+    display.mouse(0, 80, 1, True)
+    assert_aligned()
+    for width, height in ((160, 40), (40, 20), (2, 2), (120, 36)):
+        terminal.resize(width, height)
+        display.draw()
+        assert display.ratio == 79 / 118
+        assert_aligned()
+    display.close()
 
 
 @pytest.mark.parametrize('draft', ['', 'abc', 'first\nsecond', '界x'])

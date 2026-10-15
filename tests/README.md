@@ -1007,9 +1007,10 @@ The lower frame divides execution details and optional session input on the left
 from current task summary and status/issues on the right. `run-tests` has no
 session composer; `fix-tests` offers input for developer decisions. E2E and
 ordinary plan workflows offer the conversation composer described below.
-Its initial width ratio is 75:25; dragging the vertical divider changes the
-ratio, which survives terminal resizing. The divider turns blue while dragging
-and returns to its normal color on release. Hover requests the standard horizontal
+The upper and lower frames share an initial width ratio of 75:25; dragging either
+vertical divider resizes both frames together and keeps their dividers aligned.
+The shared ratio survives terminal resizing. Both dividers turn blue while dragging
+and return to their normal color on release. Hover requests the standard horizontal
 resize pointer over dividers and an I-beam over the conversation composer's text
 area using OSC 22; terminals without pointer-shape support keep their
 own pointer, including VS Code's integrated terminal (xterm.js does not implement

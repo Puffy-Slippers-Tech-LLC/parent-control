@@ -3020,6 +3020,170 @@ the old preparation allocations after their reports, manifests and package bytes
 were preserved. A readable bundle is evidence, not a replacement executable input
 directory. The existing finite 4-10 selection and all repeat obligations remain.
 
+## Phase 4 step 9 — final candidate and host acceptance — 2026-10-15
+
+**Accepted: host, onpc-Ubuntu26.04 and onpc-Fedora44.** This resumes the
+[checkpoint](#phase-4-step-9--candidate-checkpoint-and-retention-prerequisite--2026-10-15)
+after 4-9a. No product or test implementation changed. Preparation and retained
+installed evidence supply no new installed/customer acceptance; 4-10 remains open.
+The existing VersionHistory bytes remain unchanged at the checkpoint's SHA-256.
+
+### Final executable inputs and snapshots
+
+Separate maintained format-specific preparations passed. Paths below are under
+`output/test-runs/host/`; **U** and **F** identify these exact inputs throughout
+the final selection.
+
+| Input / target | Executable allocation | Preparation report | Package SHA-256 |
+| --- | --- | --- | --- |
+| U / onpc-Ubuntu26.04 | `allocations/onpc-test-artifacts-4miadd6e` | `reports/20261015T195926Z-dc1eef03/report.md` | `dcc4729a0676876aa1786379add480e7b40cfdc8c71e1cd7fad6748745d4473c` |
+| F / onpc-Fedora44 | `allocations/onpc-test-artifacts-ex649iwo` | `reports/20261015T200114Z-d06e8801/report.md` | `89e6bb8c462922fa6a99e18ab65ff3df21e55a7e66580de94fa488c59ca327d6` |
+
+Both manifests bind the unchanged 348-file package-source digest
+`9454f190377353cf7e299b5c0a2c1bad0a971dad8942d70ddee50f1cf51656e4`
+and fixture digest `7559a7c6ebee0078c29f9dcb2f15c684ad41f52c1df226c82bbdb996ad8c119b`.
+Their package-source revision is now `512e1fd0fbdfc9a9a69916f635054bbf0ea9d330`.
+U records `amd64`, epoch `1792094257` and
+`dpkg-buildpackage --build=binary --no-sign -aamd64`; F records `x86_64`,
+epoch `1791914313` and `tools/build_rpm.py`. Both retain `nocheck parallel=2`.
+Manifest hashes are respectively
+`57302ec042e9d77285ee2746ad027b998378f6d2d04ccaed317a066221abced4` and
+`adcfa03ea03cac9a88987ae923ca256bc02e79cbaa175410a676c5482eb6d9b2`.
+Independent hashes match the actual executable packages.
+
+The DEB's recorded build epoch changed after the VersionHistory commit, although
+its source bytes did not. Its maintained installed-content fingerprint remains
+`ad2b7e844cf27379d7510a0b4c403b1d3077463273cb69d53b0e74a9510b463d`;
+the RPM remains byte-identical. Keep the old DEB histories tied to their original
+archive, and repeat Ubuntu's complete first-configuration history in 4-10.
+
+`make build` passed for both formats. The maintained dual-target
+`prepare-appsnapshot --y --overwrite true` route then installed, rebooted,
+verified, captured and restored both online `onpc-v1.4` snapshots successfully.
+Its separately built inputs `onpc-test-artifacts-b68cpv_j` (U) and
+`onpc-test-artifacts-fusvma4z` (F) independently match the packages above.
+Public snapshot metadata binds those exact package hashes, schema 2, recipe
+`c511450ae4ac05a2994c3210a986d7cdc3f0219c82a37239674614446164def6`,
+and unchanged baseline digests from the checkpoint. Creation times are
+`1792094903` (U) and `1792094778` (F); both have internal running-memory state
+and no host filesystem sharing. Normal preparation/restore guards verified
+baseline, package, source, fixture, SSH and clock readiness. No online
+`snapshot.json` credentials were read. Recheck the normal freshness/input guards
+before 4-10; an expired snapshot must refresh through the same maintained route.
+
+### Host and retained-result applicability
+
+The checkpoint's complete **2,187/2,187** host report and 4-9a's **636/636** and
+final **312/312** reports were reread and verified in the cumulative bundle.
+They cover the unchanged confinement implementation and the subsequent evidence,
+retention and scheduling changes. The three older applicable host exports also
+retain their recorded hashes and complete passing totals 1,698, 648 and 149.
+No schema implementation/state changed, so no blanket schema suite is selected.
+
+The only missing affected host scope was current plan/coverage consistency after
+the intervening launcher changes, plus verification of both new executable inputs.
+One maintained grouped invocation passed **140/140**: 138 cases from
+`test_execution_plan_launcher.py` / `test_coverage_generation.py` and both artifact
+verifications. Its report is `reports/20261015T200459Z-77881119/report.md`, SHA-256
+`42d8cfdd15c55720d27c2785f0f1c779f03fbccfc172653aa1a76b0fdcf73a36`.
+Both preparation reports, manifests, executable packages and this final report
+remain together in the three-run host journal after owned cleanup.
+
+All six retained installed results were reread, as were their eight complete
+JUnits, artifact/selected-input manifests and first-configuration continuity
+records. Expected/executed cases agree; every JUnit has zero failures/errors/skips,
+every result has complete passing cleanup and two successful baseline checks.
+All 31 distinct selected checkout files independently match their recorded hashes;
+4-9a changed none of those bindings. The execution matrices retain nine distinct
+native/kernel service-denial witnesses and owned resets per target; the platform
+matrices retain two more each. Fedora's eleven AVC witnesses retain `permissive=0`.
+First-configuration continuity preserves both ordinary roles, unchanged owned
+identity, the two exact interruptions and successful new-boot recovery.
+
+Fedora's first-configuration result is **reuse verified** for F, including exact
+package/source/helper/fixture/baseline/recipe applicability. Its execution/platform
+results remain applicable supporting proof, while 4-10 still owns the mandatory
+final matrices. Ubuntu's three results remain valid for their recorded archive;
+the new U archive requires the complete first-configuration repeat and final
+matrices below. Earlier Phase 3/public/lifecycle raw proof remains missing or
+invalidated as recorded in the ledger. No remembered report replaces it.
+
+### Accepted finite 4-10 selection
+
+This supersedes the checkpoint's input selection, preserving every existing repeat
+obligation. **Both** means separate `onpc-Ubuntu26.04` U and `onpc-Fedora44` F
+results. Automatically prepared/named inputs must match those identities before
+execution. A changed package, helper, fixture, baseline or recipe requires a new
+applicability decision; do not relabel stale inputs.
+
+| Target / input | Registered selection | Complete scope / reason |
+| --- | --- | --- |
+| Both / U,F | `system --area enforcement --test test_kiosk_execution_confinement` | Mandatory final execution, credentials, bootstrap, policy-loss and H1 proofs. |
+| Both / U,F | `system --area enforcement --test test_kiosk_login_admission` | Complete GDM/terminal/SSH admission and successful controls; old raw proof is absent. |
+| Both / U,F | `system --area enforcement --test test_kiosk_shared_integration_scope` | Shared PAM, effective kiosk-only policy and both ordinary roles, including the complete namespace qualifier. |
+| Both / U,F | `system --area enforcement --test test_kiosk_platform_integrations` | Mandatory final platform/API/loader/configuration matrix and enforcing Fedora domains. |
+| Both / U,F | `system --area removal` | Complete successful five-phase history, rollback, all three finalization variants, all seven PAM/record variants and all seven identity/filesystem variants; Fedora also retains its complete native post-erase chain. Old package/helper/fixture or missing raw proof prevents reuse. |
+| Both / U,F | `e2e --id '50,51,52,192'` | Complete approved/denied/cancelled station and About journeys; old raw proof is absent. |
+| Both / U,F | `integration check_e2e_kiosk_preferences_confinement` | Complete Preferences/pages/nested dialogs, unchanged request and normal exit; run the targets serially under the retained qualification exception. |
+| Both / U,F | `integration check_e2e_kiosk_feedback_confinement` | Complete report/privacy/editor/scanner and required-service confinement; old raw proof is absent. |
+| Both / U,F | `integration check_e2e_fresh_desktop` | Separate fresh graphical administrator and standard-user login/usable-desktop attempts; old raw proof is absent. |
+| onpc-Ubuntu26.04 / U | `system --area package --test test_first_configuration_interruption_retry` | Both continuous interruption/retry and reboot phases; historical DEB archive differs. Fedora reuses its verified complete result. |
+
+Current listings confirm every selector and all four ready E2E bindings on both
+distributions. The complete removal area executes 155 cases on DEB and 163 on RPM;
+its list-only format-neutral inventory shows 163. Preserve each history's six
+fresh-install/reboot prerequisites and bracketed finalization variants. Those
+prerequisites call the real GDM activation observer and strict every-thread census,
+with enforcing roles, private namespaces, matching generation and both ordinary
+roles' restart/reboot metadata. Feedback adds its eight-role census and separately
+observed real scanner. Use those actual complete observations for the final census;
+missing observations remain a gap. Do not duplicate their namespace, classification
+or entry scope with standalone invocations.
+
+Group the four enforcement selectors, complete removal area and four E2E IDs in
+one supported repeated-category dual-target queue, omitting `--artifacts` so each
+target selects its own verified format. This is 163 executions on U and 171 on F.
+Run Ubuntu's additional two-phase first-configuration history once and preserve it.
+The three integration dispatches remain separate per target. No 4-10 selection
+was executed as part of this host task.
+
+### Final preservation budget and cleanup
+
+The final common seed is
+`output/test-runs/host/exports/onpc-evidence-bundle-h6s6l9pe/evidence.zip`:
+**4,329 files**, 171,167,341 logical bytes, 174,684,219 ZIP bytes, SHA-256
+`360cd60410070501476b7c5a6c33361bbbae2c6aa62efcf5f168bb95d8fa6001`.
+Manifest/selection SHA-256 is
+`d81f71d788ec0515f48f1fb3b708dd93c1213b32ed2ecd55059aefb8009aeffd`.
+It carries the entire 4-9a seed, both final package/manifests/preparation reports,
+the final 140-check report and snapshot preparation's nonsecret input manifests
+and command diagnostics. SSH keys and online snapshot credentials are excluded.
+Publication and retirement completed; inspection verified all member checksums
+after the final export/cleanup and reread all six original raw results.
+
+The public plan measured 176,429,113 projected output bytes and 558,204,985
+simultaneous export bytes. Source journals used 622,899,200 bytes (U),
+616,468,480 (F) and 280,940,544 (host), all below 4 GiB. Preserve this newer common
+seed in the two alternating cumulative target bundles through 4-12. The finite
+campaign now needs at least **five U sessions/updates and four F sessions/updates**,
+including Ubuntu's extra history. Keep each newest target bundle in the latest
+three exports and verify both after every later export. Preserve each complete
+invocation before source rotation; snapshot refreshes and retries need the same
+preflight and preservation.
+
+The unchanged 960-MiB reservation per cumulative target bundle leaves
+**830,203,847 projected bytes and 55,671 file entries** beyond this seed. Three
+generations plus staging still reserve 3,840 MiB, leaving 256 MiB within 4 GiB.
+Measure every actual complete selection with `bundle-plan`; this reservation does
+not certify unexecuted output sizes. Preserve proof and resolve any overrun before
+rotation, without raising limits or omitting files.
+
+Both preparation workers finished successfully. Both owned maintenance instances
+were stopped through the maintained route; explicit dual-target and host cleanup
+passed, followed by independent powered-off status checks. No subagent remains.
+Only 4-9 is accepted; its brief is removed and the master advances to 4-10.
+No staging, commit, push or other workflow launcher ran in this session.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -3042,7 +3206,7 @@ than copying hashes or creating another task queue.
 | 4-8a | First-configuration protection and complete interrupted-install/retry/reboot histories passed on both targets in [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15). | Exact matching raw inputs, native admission/execution, ordinary controls and cleanup verified. Existing invalidated complete-history repeats remain with 4-9/4-10; this new history replaces none of them. |
 | 4-8b | Eleven manager/service API negative proofs and both complete affected execution/platform selectors passed on both targets in [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15). | Exact inputs, per-attack native/kernel witnesses and cleanup verified. 4-8 reviews the accepted repair; 4-9 checks final applicability and 4-10 retains its final matrix/census and invalidated-history gates. |
 | 4-9a | Bounded cumulative preservation qualified on both targets; six raw histories, input/JUnit/native/cleanup records and applicable host reports retained. | [Accepted host evidence and finite budget](#phase-4-step-9a--complete-qualification-evidence--2026-10-15); final 3,753-file bundle verified after the last export and cleanup, with unchanged three-run/4-GiB limits. No installed credit; 4-9 resumes. |
-| 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Resumes without acceptance after 4-9a; earlier affected host/build/input work remains in the [checkpoint](#phase-4-step-9--candidate-checkpoint-and-retention-prerequisite--2026-10-15) and preserved bundle. Recheck executable inputs, applicability, matching snapshots and the full retention budget; no blanket schema or VM/E2E run. |
+| 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | [Accepted on both targets](#phase-4-step-9--final-candidate-and-host-acceptance--2026-10-15): current U/F inputs and matching snapshots verified, retained host scope plus final 140 checks pass, cumulative raw evidence/budget and cleanup verified. The finite 4-10 selection retains every invalidated complete history, including the new U archive's first-configuration repeat. |
 | 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | Keep this final gate. Choose a covering registered route once: the shared-integration selector already includes the complete namespace qualifier, so a second standalone namespace run adds no coverage when that result applies. |
 | 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | No unchanged live rerun merely for close-out; missing/invalid required evidence needs the affected complete history. |
 
@@ -3130,14 +3294,14 @@ row alone never establishes current applicability. Keep per-target decisions exp
 | Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | Historical [4-6 prerequisites](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), covering the corresponding earlier activation assertions | Repeat required in 4-10: 4-7 changed package policy and the selected native helper. The retained six prerequisites, GDM observations and cleanup passed with enforcing SELinux for the 4-6 candidate. 4-9 maps complete matching activation/GDM prerequisite coverage; the 4-7 standalone matrix supplies no fresh-install/reboot history. |
 | Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-2hdf70p_`; original 4-8a raw expired | Reuse verified for the recorded candidate: both complete phases, exact current package/source/helper/fixture/baseline inputs, native account/execution denial and recovery, ordinary controls and cleanup. This resolves the earlier missing-proof repeat condition for this candidate. 4-9 checks final applicability; changed/expired required inputs or evidence require the complete history again in 4-10. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-wc0i7djg`; original 4-8a raw expired | Reuse verified for the recorded candidate: both complete phases with enforcing SELinux, exact current package/source/helper/fixture/baseline inputs, native account/execution denial and recovery, ordinary controls and cleanup. This resolves the earlier missing-proof repeat condition for this candidate. 4-9 checks final applicability; changed/expired required inputs or evidence require the complete history again in 4-10. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-2hdf70p_`, retained in the final 4-9 bundle | Repeat required in 4-10 for final input U: both old phases, source/helper/fixture/baseline bindings, native observations, continuity and cleanup reverified, but the final DEB archive hash changed. Preserve the complete two-phase history; no replacement by another lifecycle chain. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-wc0i7djg`, retained in the final 4-9 bundle | Reuse verified in 4-9 for final input F: exact unchanged RPM/source/helper/fixture/baseline/recipe, both complete JUnits, enforcing native observations, ordinary controls, continuity and cleanup. Preserve the cumulative bundle through 4-12; changed required inputs need the complete history again. |
 | Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcement witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
 | Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcing AVC witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed enforcing in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-v88_np_p` and `onpc-system-ah4hdc98` | Reuse reverified in resumed 4-8 after its final installed run: exact current source/package/helper/fixture/baseline inputs, both complete JUnits, all native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
-| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-odq44btb` and `onpc-system-uhk5x11_` | Reuse reverified in resumed 4-8 after its final installed run: exact current source/package/helper/fixture/baseline inputs, both complete JUnits, all enforcing native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-v88_np_p` and `onpc-system-ah4hdc98`, retained in the final 4-9 bundle | Complete JUnits, all eleven native/kernel witnesses, current selected-file bindings, successful controls and cleanup reverified in 4-9 for their recorded archive. Final U has a new DEB archive hash; the complete mandatory final matrices run in 4-10. No public kiosk or fresh lifecycle credit. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-odq44btb` and `onpc-system-uhk5x11_`, retained in the final 4-9 bundle | Supporting reuse verified in 4-9 for exact final F inputs: complete JUnits, all eleven enforcing native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-10 still runs its mandatory final matrices. |
 | Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Historical [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Repeat required for missing/invalidated scope in 4-10: the six Phase 3 execution/platform/shared raw allocations and both platform exports are absent. The incomplete Ubuntu shared JUnit export lacked complete input/native provenance and also expired under bounded export rotation. Current execution/platform matrices passed in 4-8b above; 4-9 still maps uncovered admission/shared/ordinary controls and 4-10 retains its final matrix/census gate. |
-| Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
+| Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Repeat required on each target in 4-10: required raw evidence is absent. The accepted finite selection maps each complete public/engineering history to current U/F inputs; no full unrelated feature batch is selected. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Ubuntu | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Fedora | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
 | Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Ubuntu | Historical [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and the MAC-unload raw allocation expired. Preserve all three complete histories and their assertions; 4-9 retains this follow-up. |
@@ -3158,15 +3322,15 @@ assertions only when its actual checks and exact inputs establish each assertion
 
 Before each preparation/run/export, account for the required raw evidence set
 and upcoming rotation in both execution and export journals. Prefer a retained
-complete covering result over exporting each duplicate predecessor. Reuse an
-existing valid export; the maintained exporter currently accepts one regular file
-per invocation, and every export opens a bounded retention session. Serial exports
-cannot promise to retain an arbitrary set of JUnits, provenance and cleanup files.
-If required evidence will not fit the maintained routes, record the exact set and
-add a bounded retention/bundle prerequisite through the execution-plan workflow
-before the consumer rotates it. Do not invent an archive command, bypass allocation
-or increase retention limits in a task brief. Recheck every required raw path after
-the last export/check; missing proof requires repeating its complete history.
+complete covering result over exporting each duplicate predecessor. Use the
+[qualified cumulative bundle route](../tests/README.md#complete-qualification-evidence-bundles)
+and [accepted final budget](#final-preservation-budget-and-cleanup), carrying all
+required raw JUnits, provenance, native observations and cleanup records forward.
+If the measured complete set will not fit, preserve it and resolve the exact
+shortfall through the execution-plan workflow before the consumer rotates proof.
+Do not invent an archive command, bypass allocation or increase limits. Recheck
+both newest target bundles after every later export/check; missing proof requires
+repeating its complete history.
 
 ## Operating and qualification routes
 

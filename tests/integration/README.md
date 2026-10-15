@@ -267,6 +267,32 @@ unfinished focused history, including its installation/reboot prerequisites;
 completed independent histories retain their passes. App-snapshot bootstrap
 retires its old payload, including `before.json`, so this original-PAM history
 does not start from an app snapshot.
+
+`removal::test_interrupted_finalization_retry[denial-publication]`,
+`[mac-unload]` and `[account-finalization]` are separate continuous focused
+histories with the same baseline and six package prerequisites. Each uses its
+variant name for the first recovery phase and `<variant>-retry-rebooted` for
+the second; package phases are `<variant>-installed` and `<variant>-rebooted`.
+Selection, frozen inputs, JUnit identities, failure stopping and complete replay
+use the same controller metadata as rollback. Quote the full parametrized case
+when selecting it. Previous-package and app-snapshot starts refuse.
+The fixtures interrupt an atomic PAM denial publication, the exact native MAC
+unload command, or native account finalization after real payload erasure.
+Owned mount identities and any native unload witness must match; unrelated
+command failures supply no interruption proof. The surviving-account interval
+requires actual account and session denials through both installed service
+stacks, successful ordinary-account controls and exact retained recovery records.
+Across reboots, home identity uses the filesystem UUID, Btrfs subvolume when
+applicable, inode, owner and mode. Same-boot fault cleanup still requires the
+exact device, inode, pinned descriptor, mount namespace and mount inventory.
+Only native owned retry may restore original PAM after account deletion.
+Fedora's account-finalization history uses normal reinstall, reboot and removal;
+the separate failed post-erase/repeated packaged-purge history remains additional
+coverage. These engineering faults do not replace customer UI acceptance.
+The finite `system_removal.py exercise-live-finalization VARIANT` diagnostic
+dispatch calls the same first recovery function in owned maintenance. It supplies
+no acceptance; finish maintenance cleanup before a fresh installed history.
+
 The five-phase selector's assertions cover cleared live restrictions/grants,
 removed payload
 and generated integrations, retained preferences/logs, unrelated account

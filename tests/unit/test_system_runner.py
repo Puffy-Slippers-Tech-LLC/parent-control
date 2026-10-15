@@ -26,37 +26,93 @@ from tests.support.modules import load_module
 from tests.support.vm_runner import RECOVERY_INVENTORIES
 
 
-def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys):
+def test_interrupted_finalization_registration_has_three_distinct_baseline_histories():
+    variants = ('denial-publication', 'mac-unload', 'account-finalization')
+    histories = runner.REMOVAL_HISTORIES[2:]
+    assert tuple(history.case_id for history in histories) == tuple(
+        f'test_interrupted_finalization_retry[{variant}]' for variant in variants)
+    for history, variant in zip(histories, variants):
+        assert history.start == 'baseline'
+        assert history.prerequisites == (variant + '-installed', variant + '-rebooted')
+        assert history.phases == (variant, variant + '-retry-rebooted')
+    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
+
+
+@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+@pytest.mark.parametrize('phase_kind', ['interruption', 'rebooted', 'foreign'])
+def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
+        monkeypatch, variant, phase_kind):
+    helpers = SimpleNamespace(**{name: Mock() for name in (
+        'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
+        'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
+        'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
+        'finalization_retry_rebooted')})
+    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
+    case = load_module('private_finalization_dispatch',
+                       runner.ROOT / 'tests/system/test_removal.py')
+    registration = case.test_interrupted_finalization_retry.pytestmark[0]
+    assert registration.args == ('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+    phase = {'interruption': variant, 'rebooted': variant + '-retry-rebooted',
+             'foreign': 'rollback'}[phase_kind]
+    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
+    record = Mock()
+    if phase_kind == 'foreign':
+        with pytest.raises(KeyError):
+            case.test_interrupted_finalization_retry(record, variant)
+    else:
+        case.test_interrupted_finalization_retry(record, variant)
+    expected = {'interruption': 'interrupted_finalization_retry',
+                'rebooted': 'finalization_retry_rebooted'}.get(phase_kind)
+    for name, helper in vars(helpers).items():
+        if name == expected:
+            helper.assert_called_once_with(record, variant)
+        else:
+            helper.assert_not_called()
+
+
+@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys, history):
     selection = runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
-    assert selection.phases == runner.ROLLBACK_PHASES
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
+    assert selection.phases == (*history.prerequisites, *history.phases)
     assert len(selection.executions) == 8
     assert sum(item.prerequisite for item in selection.executions) == 6
+    assert [sum(item.phase == phase for item in selection.executions)
+            for phase in history.prerequisites] == [3, 3]
     assert selection.executions[-1] == runner.CaseExecution(
-        'rollback-rearmed-rebooted', 'removal', selection.test, False)
-    assert runner.PHASE_DEPENDENCIES['rollback-rearmed-rebooted'] == (
-        'rollback-installed', 'rollback-rebooted', 'rollback')
+        history.phases[-1], 'removal', selection.test, False)
+    assert runner.PHASE_DEPENDENCIES[history.phases[-1]] == (
+        *history.prerequisites, history.phases[0])
     assert 'package-install' in selection.prerequisites
     assert 'retained-app-snapshot' not in selection.prerequisites
     runner.print_selection(selection)
     output = capsys.readouterr().out
     assert 'expected-executions: 8' in output
-    assert 'rollback::test_aborted_cleanup_rollback_retry [selected]' in output
-    assert 'rollback-rearmed-rebooted::test_aborted_cleanup_rollback_retry [selected]' in output
-    for phase, semantic in runner.PHASE_SEMANTICS.items():
+    for phase in history.phases:
+        assert f'{phase}::{history.case_id} [selected]' in output
+        command = runner.pytest_command(RUN, phase, selection)
+        assert 'ONPC_SYSTEM_PHASE=' + phase in command
+        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
+        assert command[-1] == runner.PAYLOAD + '/test_removal.py::' + history.case_id
+    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted')):
+        assert runner.PHASE_SEMANTICS[phase] == semantic
         command = runner.pytest_command(RUN, phase, selection)
         assert 'ONPC_SYSTEM_PHASE=' + semantic in command
         assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
 
 
-def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path):
+@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     selection = runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     digest = runner.stage_selected_inputs(selection, tmp_path)
     identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
     assert digest == runner.baseline.digest(tmp_path / 'selected-inputs.json')
-    assert identity['selection']['phases'] == list(runner.ROLLBACK_PHASES)
+    assert identity['selection']['phases'] == [*history.prerequisites, *history.phases]
     assert len(identity['selection']['executions']) == 8
+    assert identity['selection']['executions'][-1] == {
+        'phase': history.phases[-1], 'area': 'removal', 'case_id': history.case_id,
+        'prerequisite': False}
     for name in ('test_removal.py', 'system_removal.py', 'system_guest.py',
                  'test_install_smoke.py', 'system_kiosk_accounts.py'):
         record = identity['files'][name]
@@ -65,17 +121,19 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
-@pytest.mark.parametrize('phase', runner.REMOVAL_HISTORIES[1].phases)
-def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, fault, phase):
+@pytest.mark.parametrize('history,phase', [(history, phase)
+                         for history in runner.REMOVAL_HISTORIES[1:]
+                         for phase in history.phases])
+def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, fault, history, phase):
     selection = runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     write_junit_results(tmp_path, selection, fault)
     if fault:
         # Both recovery phases execute the same registered case, while keeping
         # separate JUnit identities. Exercise each phase's audit independently.
         output = tmp_path / 'guest-results'
         (output / (phase + '.xml')).write_bytes(
-            (output / 'rollback-rearmed-rebooted.xml').read_bytes())
+            (output / (history.phases[-1] + '.xml')).read_bytes())
         with pytest.raises(runner.Error):
             runner.reconcile_junit(tmp_path, phase, selection)
     else:
@@ -84,13 +142,15 @@ def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, faul
         evidence = runner.selection_evidence(tmp_path, selection)
         assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 8
         assert evidence['executed_cases'][-1] == {
-            'phase': 'rollback-rearmed-rebooted', 'area': 'removal', 'case_id': selection.test}
+            'phase': history.phases[-1], 'area': 'removal', 'case_id': selection.test}
 
 
-@pytest.mark.parametrize('phase', runner.REMOVAL_HISTORIES[1].phases)
-def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(phase):
+@pytest.mark.parametrize('history,phase', [(history, phase)
+                         for history in runner.REMOVAL_HISTORIES[1:]
+                         for phase in history.phases])
+def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(history, phase):
     selection = runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     vm = Mock()
     previous = vm.commands.progress
     def call(command, *, timeout):
@@ -104,11 +164,12 @@ def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(ph
     assert vm.commands.progress is previous
 
 
+@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
 def test_recovery_installed_activation_calls_guest_and_observer_with_installed_semantics(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, history):
     import kiosk_entry
     selection = runner.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     (tmp_path / 'input').mkdir()
     identity = {'entry.py': 'a' * 64}
     (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
@@ -118,13 +179,27 @@ def test_recovery_installed_activation_calls_guest_and_observer_with_installed_s
     vm.call.side_effect = [json.dumps(state).encode(), b'', json.dumps(state).encode()]
     observer = Mock(return_value={'boot_sha256': 'a' * 64})
     monkeypatch.setattr(kiosk_entry, 'observe_activation', observer)
-    runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rollback-installed')
+    runner.observe_kiosk_activation(vm, lease, tmp_path, selection, history.prerequisites[0])
     observer.assert_called_once_with(vm, lease, 'installed')
     assert [call.args[0] for call in vm.call.call_args_list] == [
         runner.guest_command(RUN, 'activation-state', 'installed'),
         runner.guest_command(RUN, 'prepare-activation-greeter'),
         runner.guest_command(RUN, 'activation-state', 'installed')]
-    assert (tmp_path / 'guest-results/gdm-rollback-installed.json').is_file()
+    assert (tmp_path / ('guest-results/gdm-' + history.prerequisites[0] + '.json')).is_file()
+
+
+@pytest.mark.parametrize('history', runner.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_rejects_foreign_phase_and_result_identity(tmp_path, history):
+    selection = runner.resolve_selection('removal', history.case_id, inventories=RECOVERY_INVENTORIES)
+    with pytest.raises(runner.Error, match='pytest:unselected-phase'):
+        runner.pytest_command(RUN, 'removal', selection)
+    write_junit_results(tmp_path, selection)
+    path = tmp_path / ('guest-results/' + history.phases[-1] + '.xml')
+    root = ET.parse(path)
+    next(root.iter('testcase')).set('name', 'test_interrupted_finalization_retry[foreign]')
+    root.write(path)
+    with pytest.raises(runner.Error, match='pytest:missing-extra-or-duplicate-tests'):
+        runner.reconcile_junit(tmp_path, history.phases[-1], selection)
 
 
 @pytest.mark.parametrize('fault', [None, 'name', 'relative', 'traversal', 'special', 'empty'])
@@ -615,16 +690,16 @@ def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'before-source', 'after-source', 'policy', 'boot', 'same-boot'])
-@pytest.mark.parametrize('recovery', [False, True])
-def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault, recovery):
+@pytest.mark.parametrize('history', [None, *runner.REMOVAL_HISTORIES[1:]],
+                         ids=lambda history: history.case_id if history else 'package')
+def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault, history):
     import kiosk_entry
     case = runner.KIOSK_ACTIVATION_CASE
     inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
-    selection = (runner.resolve_selection('removal', 'test_aborted_cleanup_rollback_retry',
-                                         inventories=RECOVERY_INVENTORIES) if recovery else
+    selection = (runner.resolve_selection('removal', history.case_id,
+                                         inventories=RECOVERY_INVENTORIES) if history else
                  runner.resolve_selection('package', case, inventories=inventories))
-    installed_phase = 'rollback-installed' if recovery else 'installed'
-    phase = 'rollback-rebooted' if recovery else 'rebooted'
+    installed_phase, phase = history.prerequisites if history else ('installed', 'rebooted')
     (tmp_path / 'input').mkdir()
     (tmp_path / 'guest-results').mkdir()
     identity = {'entry.py': 'a' * 64}

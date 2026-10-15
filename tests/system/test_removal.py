@@ -6,7 +6,8 @@ import pytest
 
 from system_removal import (remove, removed_rebooted, reinstalled_rebooted,
                             purged_rebooted, purge_reinstalled_rebooted,
-                            aborted_cleanup_rollback_retry, rollback_rearmed_rebooted)
+                            aborted_cleanup_rollback_retry, rollback_rearmed_rebooted,
+                            interrupted_finalization_retry, finalization_retry_rebooted)
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -22,3 +23,10 @@ def test_aborted_cleanup_rollback_retry(record_testsuite_property):
     {'rollback': aborted_cleanup_rollback_retry,
      'rollback-rearmed-rebooted': rollback_rearmed_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
+
+
+@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+def test_interrupted_finalization_retry(record_testsuite_property, variant):
+    {variant: interrupted_finalization_retry,
+     variant + '-retry-rebooted': finalization_retry_rebooted}[
+         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)

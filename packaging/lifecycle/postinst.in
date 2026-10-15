@@ -144,13 +144,6 @@ if [ "$1" = configure ]; then
         /etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules \
         /var/lib/oh-no-parent-control/installed-fapolicyd-fallback 0644
 @execution_policy_install@
-    # A failed RPM post-erase may already have removed an owned integration.
-    # Re-establish the validated original-policy layer before rollback loads
-    # its execution adapter. Migration exclusion still prevents broker entry.
-    if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
-        /usr/libexec/oh-no-parent-control-uninstall --restore
-    fi
-
 @readiness_install@
     if [ -L /etc/fapolicyd ] || [ -L /etc/fapolicyd/trust.d ]; then
         echo 'oh-no-parent-control: refusing substituted child trust directory' >&2
@@ -165,7 +158,6 @@ if [ "$1" = configure ]; then
 @trust_label@
 @initial_setup@
 @pam_enable@
-    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
     chown root:@admin_group@ \
         /usr/share/applications/com.puffyslippers.OhNoParentControl.Parent.desktop
     chmod 0640 \
@@ -235,6 +227,14 @@ if [ "$1" = configure ]; then
     if [ "$trust_deferred" -eq 0 ]; then
 @readiness_start@
     fi
+    # Failed post-erase cleanup may have stopped the original-policy daemon.
+    # Restore derived enforcement only after its native endpoint is ready,
+    # while migration exclusion and durable kiosk admission denials remain.
+    if [ -f /var/lib/oh-no-parent-control/uninstall-enforcement.json ]; then
+        /usr/libexec/oh-no-parent-control-uninstall --restore
+    fi
+    # Load MAC policy before restoring PAM and releasing kiosk admission.
+    /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
     # Migration stops the broker even on an unchanged reinstall. Ensure it is
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.

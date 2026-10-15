@@ -21,6 +21,8 @@ USERS = {'ordinary': 'onpc-parent-jamie', 'other': 'onpc-child-jordan',
 INTERFACE = 'org.freedesktop.Accounts.User'
 DEDICATED = ('oh-no-parent-control', 'wayland')
 PAM_PERM_DENIED = 6
+PAM_AUTH_ERR = 7
+DURABLE_SERVICES = ('gdm-password', 'systemd-user')
 
 
 def pam_account(service, role, *, hold=None):
@@ -30,15 +32,24 @@ def pam_account(service, role, *, hold=None):
     shell change or executable fixture can cause an inconclusive login failure
     to masquerade as the installed account gate's permission denial.
     """
+    result = pam_callback(service, role, 'account', hold=hold)
+    return {'account': result['status'], 'end': result['end']}
+
+
+def pam_callback(service, role, callback, *, durable=False, hold=None):
+    """Call exactly one installed PAM boundary and retire its real handle."""
     guest.guard()
-    guest.require(service in SERVICES and role in USERS, 'kiosk-admission:arguments')
+    services = DURABLE_SERVICES if durable else SERVICES
+    guest.require(service in services and role in USERS and
+                  callback in ('account', 'session') and (durable or callback == 'account'),
+                  'kiosk-admission:arguments')
     if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
         from system_kiosk_confinement import caller_identity
         guest.require(Path('/proc/self/attr/current').read_text().strip().rstrip('\0') ==
                       caller_identity(service)[0], 'kiosk-admission:caller-context')
     # pam_start otherwise falls back to "other" for a missing service.
     configurations = [Path(root) / service for root in ('/etc/pam.d', '/usr/lib/pam.d')]
-    path = next((path for path in configurations if path.exists()), None)
+    path = next((path for path in configurations if path.exists() or path.is_symlink()), None)
     guest.require(path is not None, 'kiosk-admission:missing-service')
     info = path.lstat()
     guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and
@@ -52,20 +63,28 @@ def pam_account(service, role, *, hold=None):
 
     pam.pam_start.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
                              ctypes.POINTER(Conversation), ctypes.POINTER(ctypes.c_void_p)]
-    for name in ('pam_acct_mgmt', 'pam_end'):
+    for name in ('pam_acct_mgmt', 'pam_open_session', 'pam_close_session', 'pam_end'):
         getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
+        getattr(pam, name).restype = ctypes.c_int
+    pam.pam_start.restype = ctypes.c_int
     handle, conversation = ctypes.c_void_p(), Conversation()
     guest.require(pam.pam_start(service.encode(), account.pw_name.encode(),
                                ctypes.byref(conversation), ctypes.byref(handle)) == 0,
                   'kiosk-admission:pam-start')
     status = 4  # PAM_SYSTEM_ERR if the account call fails before returning.
+    closed = None
     try:
-        status = pam.pam_acct_mgmt(handle, 0)
+        operation = pam.pam_acct_mgmt if callback == 'account' else pam.pam_open_session
+        status = operation(handle, 0)
         if hold is not None:
             hold(status)
     finally:
-        ended = pam.pam_end(handle, status)
-    return {'account': status, 'end': ended}
+        try:
+            if callback == 'session' and status == 0:
+                closed = pam.pam_close_session(handle, 0)
+        finally:
+            ended = pam.pam_end(handle, status)
+    return {'callback': callback, 'status': status, 'close': closed, 'end': ended}
 
 
 def root_uids(pid):
@@ -196,6 +215,37 @@ def probe(service, role, expected, stage, record):
                   'kiosk-admission:unexpected-status:' + stage)
 
 
+def durable_probe(service, role, callback, expected, stage, record):
+    """Observe retained distribution-module barriers after payload erasure."""
+    guest.guard()
+    guest.require(service in DURABLE_SERVICES and role in USERS and
+                  callback in ('account', 'session') and type(expected) is int,
+                  'kiosk-admission:arguments')
+    with ExitStack() as resources:
+        caller = ['/usr/bin/python3', '-B']
+        if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
+            from system_kiosk_confinement import pam_caller_command
+            # This baseline native caller route uses no erased product config.
+            caller = resources.enter_context(pam_caller_command(guest.PAYLOAD, service))
+        raw = guest.commands.run([
+            *caller, str(Path(__file__).resolve()), 'pam-durable', service, role, callback],
+            timeout=45, merge_stderr=False)
+    try:
+        result = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise guest.GuestError('kiosk-admission:worker-result') from None
+    guest.require(type(result) is dict and
+                  set(result) == {'callback', 'status', 'close', 'end'} and
+                  type(result['callback']) is str and
+                  type(result['status']) is int and type(result['end']) is int and
+                  (result['close'] is None or type(result['close']) is int),
+                  'kiosk-admission:worker-result')
+    record('onpc.kiosk.admission.' + stage, json.dumps(result, sort_keys=True))
+    guest.require(result == {'callback': callback, 'status': expected,
+                            'close': 0 if callback == 'session' and expected == 0 else None,
+                            'end': 0}, 'kiosk-admission:unexpected-status:' + stage)
+
+
 def routing(uid):
     from system_assertions import account_property
     return tuple(account_property(uid, INTERFACE, prop) for prop in ('Session', 'SessionType'))
@@ -274,6 +324,9 @@ def verify(record):
 if __name__ == '__main__':
     if sys.argv[1:] == ['held-account']:
         held_worker()
+    elif len(sys.argv) == 5 and sys.argv[1] == 'pam-durable':
+        print(json.dumps(pam_callback(sys.argv[2], sys.argv[3], sys.argv[4], durable=True),
+                         sort_keys=True))
     else:
         guest.require(len(sys.argv) == 4 and sys.argv[1] == 'pam-account',
                       'kiosk-admission:arguments')

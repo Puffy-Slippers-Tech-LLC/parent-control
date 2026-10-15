@@ -100,20 +100,22 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
 
     monkeypatch.setattr(system, 'installed_run', execute)
     ledger = system.RunLedger()
+    baseline_count = len(system.REMOVAL_HISTORIES) if recovery else 1
     if failure:
         with pytest.raises(system.Error):
             snapshots.run_attempts(suite, tmp_path, selection, manifest, 'selected', ledger)
-        assert len(seen) == ((3 if recovery else 2) if failure == 'test' else
-                             (2 if recovery else 1) if failure == 'prepare' else 1)
+        assert len(seen) == (baseline_count + 1 if failure == 'test' else
+                             baseline_count if failure == 'prepare' else 1)
     else:
         snapshots.run_attempts(suite, tmp_path, selection, manifest, 'selected', ledger)
         assert seen == [('installed', 'rebooted', *system.REMOVAL_PHASES),
-                        *([system.ROLLBACK_PHASES] if recovery else []),
+                        *([(*history.prerequisites, *history.phases)
+                           for history in system.REMOVAL_HISTORIES[1:]] if recovery else []),
                         ('authorization',), ('enforcement',), ('session',)]
         assert suite.prepare_case.call_count == 3
         for phase in selection.phases:
             system.reconcile_junit(tmp_path, phase, selection)
-    assert lease.prepare.call_count == (2 if recovery and failure != 'evidence' else 1)
+    assert lease.prepare.call_count == (baseline_count if failure != 'evidence' else 1)
     assert lease.__enter__.call_count == lease.__exit__.call_count
     lease.source.domain.snapshotLookupByName.assert_not_called()  # Only shared E2E code owns snapshots.
     assert suite._input_bundle is frozen
@@ -125,24 +127,29 @@ def test_broad_recovery_partitions_unique_executions_into_baseline_history():
     identities = [item.phase + '::' + item.case_id for part, _ in planned for item in part.executions]
     assert len(identities) == len(set(identities)) == len(selection.executions)
     assert set(identities) == {item.phase + '::' + item.case_id for item in selection.executions}
-    focused, installed = next((part, installed) for part, installed in planned
-                              if 'rollback' in part.phases)
-    assert focused.phases == system.ROLLBACK_PHASES
-    assert not installed
-    assert len(focused.executions) == 8
+    for history in system.REMOVAL_HISTORIES[1:]:
+        focused, installed = next((part, installed) for part, installed in planned
+                                  if history.phases[0] in part.phases)
+        assert focused.phases == (*history.prerequisites, *history.phases)
+        assert not installed
+        assert len(focused.executions) == 8
 
 
 @pytest.mark.parametrize('area,case', [(None, None), ('removal', None),
-                                     ('removal', 'test_aborted_cleanup_rollback_retry')])
+                                     *(('removal', history.case_id)
+                                       for history in system.REMOVAL_HISTORIES[1:])])
 def test_recovery_refuses_previous_package_selection(area, case):
     with pytest.raises(system.Error, match='selection:recovery-requires-current-package'):
         system.resolve_selection(area, case, inventories=RECOVERY_INVENTORIES, fresh_install=True)
 
 
-@pytest.mark.parametrize('failed_phase', [None, *system.ROLLBACK_PHASES])
-def test_recovery_dispatch_is_continuous_and_stops_on_failure(tmp_path, monkeypatch, failed_phase):
+@pytest.mark.parametrize('history,failed_phase', [(history, phase)
+                         for history in system.REMOVAL_HISTORIES[1:]
+                         for phase in (None, *history.prerequisites, *history.phases)])
+def test_recovery_dispatch_is_continuous_and_stops_on_failure(
+        tmp_path, monkeypatch, history, failed_phase):
     selection = system.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     assert snapshots.attempts(selection) == [(selection, False)]
     vm, lease = Mock(), Mock()
     lease.state = {'run': RUN}
@@ -163,8 +170,8 @@ def test_recovery_dispatch_is_continuous_and_stops_on_failure(tmp_path, monkeypa
         assert ledger.outcomes['product']['category'] == 'pytest:failed:' + failed_phase
     else:
         assert set(system.installed_run(vm, lease, tmp_path, selection, ledger)) == set(selection.phases)
-    expected = ['rollback-installed', 'reboot', 'rollback-rebooted', 'rollback',
-                'reboot', 'rollback-rearmed-rebooted']
+    expected = [history.prerequisites[0], 'reboot', history.prerequisites[1], history.phases[0],
+                'reboot', history.phases[1]]
     assert events == (expected[:expected.index(failed_phase) + 1] if failed_phase else expected)
     calls = [call.args[0] for call in vm.call.call_args_list]
     assert calls[0] == system.guest_command(RUN, 'install')
@@ -173,15 +180,54 @@ def test_recovery_dispatch_is_continuous_and_stops_on_failure(tmp_path, monkeypa
     lease.restore.assert_not_called()
 
 
-def test_focused_recovery_refuses_app_snapshot_start_before_install(tmp_path):
+@pytest.mark.parametrize('history', system.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_refuses_app_snapshot_start_before_install(tmp_path, history):
     selection = system.resolve_selection(
-        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+        'removal', history.case_id, inventories=RECOVERY_INVENTORIES)
     vm, lease = Mock(), Mock(state={'run': RUN})
     with pytest.raises(system.Error, match='installation-requires-baseline'):
         system.installed_run(vm, lease, tmp_path, selection, already_installed=True)
     assert [call.args[0] for call in vm.call.call_args_list] == [
         system.guest_command(RUN, 'collect', 'failed')]
     vm.reboot.assert_not_called()
+
+
+@pytest.mark.parametrize('history', system.REMOVAL_HISTORIES[1:], ids=lambda history: history.case_id)
+def test_focused_recovery_resume_replays_only_whole_unfinished_history(history):
+    selection = system.resolve_selection(inventories=RECOVERY_INVENTORIES)
+    focused = system.resolve_selection('removal', history.case_id, inventories=RECOVERY_INVENTORIES)
+    for pending_phase in focused.phases:
+        completed = {item.phase + '::' + item.case_id for item in selection.executions
+                     if item.phase != pending_phase}
+        resumed = system.resume_selection(selection, completed)
+        assert resumed.phases == focused.phases
+        assert resumed.executions == focused.executions
+        assert snapshots.attempts(resumed) == [(resumed, False)]
+    for count in range(len(focused.executions) + 1):
+        completed = {item.phase + '::' + item.case_id for item in focused.executions[:count]}
+        assert system.resume_selection(focused, completed) == focused
+    with pytest.raises(system.Error, match='selection:resume-inventory-changed'):
+        system.resume_selection(focused, {'foreign::' + history.case_id})
+    completed = {item.phase + '::' + item.case_id for item in selection.executions
+                 if item.phase != 'authorization'}
+    assert system.resume_selection(selection, completed).phases == ('authorization',)
+
+
+@pytest.mark.parametrize('fault', [None, 'outcome', 'package_sha256', 'selected_inputs_sha256'])
+def test_attempt_result_requires_exact_frozen_package_and_source_inputs(tmp_path, fault):
+    (tmp_path / 'guest-results').mkdir()
+    result = {'outcome': 'passed', 'package_sha256': 'package', 'selected_inputs_sha256': 'selected'}
+    if fault:
+        result[fault] = 'foreign'
+    (tmp_path / 'guest-results/result.json').write_text(json.dumps(result))
+    manifest = {'artifacts': {'package': {'sha256': 'package'}}}
+    ledger = system.RunLedger()
+    if fault:
+        with pytest.raises(system.Error, match='pytest:guest-evidence'):
+            snapshots.verify_result(tmp_path, manifest, 'selected', ledger)
+        assert ledger.outcomes['collection']['category'] == 'pytest:guest-evidence'
+    else:
+        snapshots.verify_result(tmp_path, manifest, 'selected', ledger)
 
 
 @pytest.mark.parametrize('failed_phase', [None, *system.REMOVAL_PHASES])

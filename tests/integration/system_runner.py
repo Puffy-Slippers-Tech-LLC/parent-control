@@ -58,10 +58,17 @@ REMOVAL_HISTORIES = (
     History('test_remove_reboot_reinstall', REMOVAL_PHASES, ('installed', 'rebooted')),
     History('test_aborted_cleanup_rollback_retry', ('rollback', 'rollback-rearmed-rebooted'),
             ('rollback-installed', 'rollback-rebooted')),
+    *(History(f'test_interrupted_finalization_retry[{variant}]',
+              (variant, variant + '-retry-rebooted'),
+              (variant + '-installed', variant + '-rebooted'))
+      for variant in ('denial-publication', 'mac-unload', 'account-finalization')),
 )
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
-PHASE_SEMANTICS = {'rollback-installed': 'installed', 'rollback-rebooted': 'rebooted'}
-PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES, *ROLLBACK_PHASES,
+PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
+                   for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
+PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES,
+               *(phase for history in REMOVAL_HISTORIES[1:]
+                 for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
@@ -102,8 +109,8 @@ PHASE_DEPENDENCIES = {
     **{phase: (*history.prerequisites, *history.phases[:index])
        for history in REMOVAL_HISTORIES
        for index, phase in enumerate(history.phases)},
-    'rollback-installed': (),
-    'rollback-rebooted': ('rollback-installed',),
+    **{phase: history.prerequisites[:index] for history in REMOVAL_HISTORIES[1:]
+       for index, phase in enumerate(history.prerequisites)},
     'authorization': (),
     'enforcement': (),
     'session': (),
@@ -116,10 +123,15 @@ PHASE_PREREQUISITES = {
     'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
     'purged-rebooted': ('purge-phase', 'guest-reboot', 'desktop-health'),
     'purge-reinstalled-rebooted': ('purge-reinstall-phase', 'guest-reboot', 'boot-readiness'),
-    'rollback-installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
-    'rollback-rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
-    'rollback': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
-    'rollback-rearmed-rebooted': ('rollback-phase', 'guest-reboot', 'boot-readiness'),
+    **{history.prerequisites[0]:
+       ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install')
+       for history in REMOVAL_HISTORIES[1:]},
+    **{history.prerequisites[1]: ('installed-phase', 'guest-reboot', 'boot-readiness')
+       for history in REMOVAL_HISTORIES[1:]},
+    **{history.phases[0]: ('installed-phase', 'guest-reboot', 'native-enforcement-fixture')
+       for history in REMOVAL_HISTORIES[1:]},
+    **{history.phases[1]: (history.phases[0] + '-phase', 'guest-reboot', 'boot-readiness')
+       for history in REMOVAL_HISTORIES[1:]},
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
@@ -339,8 +351,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     chosen = {name: inventories[name] for name in chosen_areas}
     if test is not None:
         chosen[area] = (test,)
-    require(not fresh_install or 'test_aborted_cleanup_rollback_retry' not in
-            chosen.get('removal', ()), 'selection:recovery-requires-current-package')
+    require(not fresh_install or not any(history.case_id in chosen.get('removal', ())
+            for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
 
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}

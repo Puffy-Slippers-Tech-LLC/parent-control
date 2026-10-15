@@ -18,7 +18,126 @@ BROKER = "oh-no-parent-control-broker.service"
 REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
 
 
-from tests.support.package_scripts import package_machine, use_real_state_migration
+from tests.support.package_scripts import package_machine, rpm_script_source, use_real_state_migration
+from tests.support.shell import relocate_system_paths
+
+
+@pytest.mark.parametrize('package_machine,entrypoint', [
+    ('ubuntu', 'configure'), ('fedora', 'configure'), ('fedora', 'rpm-posttrans'),
+], indirect=['package_machine'])
+@pytest.mark.parametrize('failure', [None, 'startup', 'trust', 'readiness', 'restore'])
+def test_reinstall_restores_snapshot_only_after_enforcement_is_ready(
+    package_machine, entrypoint, failure,
+):
+    root, state, run = package_machine
+    canary = root / 'usr/share/oh-no-parent-control/00-oh-no-parent-control-canary.rules'
+    distribution = 'fedora' if canary.exists() else 'ubuntu'
+    if entrypoint == 'rpm-posttrans':
+        renderer = runpy.run_path(str(ROOT / 'packaging/render_lifecycle.py'))
+        scripts = root / 'rpm-lifecycle'
+        renderer['rpm_scripts'](ROOT, scripts)
+        (root / 'postinst').write_text(relocate_system_paths(
+            rpm_script_source(scripts / 'rpm-posttrans'), root))
+
+    # Interrupted post-erase retained the exact policy snapshot and durable
+    # admission barrier, but restored the baseline with fapolicyd stopped.
+    snapshot = state / 'uninstall-enforcement.json'
+    snapshot.write_text('{"retained": "derived policy before removal"}\n')
+    before = snapshot.read_bytes()
+    barrier = state / 'kiosk-admission-barrier'
+    barrier.write_text('owned removal barrier\n')
+    stub = root / 'bin/stub'
+    source = stub.read_text()
+    boundary = 'case "$name" in\n'
+    stateful_commands = r'''case "$name:$*" in
+    systemctl:'start fapolicyd.service '*|deb-systemd-invoke:'start fapolicyd.service '*)
+        test "${REINSTALL_FAILURE:-}" != startup || exit 7
+        touch "$AUDIT_ROOT/fapolicyd-active"
+        # Ubuntu's ordinary service start includes its readiness drop-in.
+        if [ "$REINSTALL_DISTRIBUTION" = ubuntu ]; then
+            test "${REINSTALL_FAILURE:-}" != readiness || exit 9
+            touch "$AUDIT_ROOT/enforcement-ready"
+        fi
+        ;;
+    oh-no-parent-control-package-activation:'wait-child-trust --refresh')
+        test -f "$AUDIT_ROOT/fapolicyd-active" || exit 96
+        test "${REINSTALL_FAILURE:-}" != trust || exit 8
+        touch "$AUDIT_ROOT/trust-refreshed"
+        ;;
+    systemctl:'start oh-no-parent-control-execution-policy-ready.service')
+        test -f "$AUDIT_ROOT/fapolicyd-active" || exit 96
+        test -f "$AUDIT_ROOT/trust-refreshed" || exit 97
+        test -f "$AUDIT_ROOT/canary-loaded" || exit 92
+        test "${REINSTALL_FAILURE:-}" != readiness || exit 9
+        touch "$AUDIT_ROOT/enforcement-ready"
+        ;;
+    oh-no-parent-control-uninstall:--restore)
+        test -f "$AUDIT_ROOT/fapolicyd-active" || exit 6
+        test -f "$AUDIT_ROOT/trust-refreshed" || exit 97
+        test -f "$AUDIT_ROOT/enforcement-ready" || exit 98
+        test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 99
+        test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/kiosk-admission-barrier" || exit 99
+        test "${REINSTALL_FAILURE:-}" != restore || exit 10
+        rm "$AUDIT_ROOT/var/lib/oh-no-parent-control/uninstall-enforcement.json"
+        touch "$AUDIT_ROOT/snapshot-restored"
+        exit 0
+        ;;
+    oh-no-parent-control-kiosk-confinement-integration:install)
+        test -f "$AUDIT_ROOT/snapshot-restored" || exit 99
+        test -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/migration-in-progress" || exit 99
+        test ! -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/uninstall-enforcement.json" || exit 99
+        rm "$AUDIT_ROOT/var/lib/oh-no-parent-control/kiosk-admission-barrier"
+        touch "$AUDIT_ROOT/confinement-armed"
+        ;;
+    systemctl:'--system restart oh-no-parent-control-broker.service')
+        test -f "$AUDIT_ROOT/confinement-armed" || exit 99
+        test ! -f "$AUDIT_ROOT/var/lib/oh-no-parent-control/kiosk-admission-barrier" || exit 99
+        ;;
+esac
+'''
+    assert source.count(boundary) == 1
+    stub.write_text(source.replace(boundary, stateful_commands + boundary, 1))
+    (root / 'usr/libexec/oh-no-parent-control-uninstall').symlink_to(stub)
+    environment = {'REINSTALL_DISTRIBUTION': distribution,
+                   'FAPOLICYD_ACTIVE_STATUS': '1'}
+    result = run(**environment, REINSTALL_FAILURE=failure or '')
+    if failure:
+        assert result.returncode == {
+            'startup': 7, 'trust': 8, 'readiness': 9, 'restore': 10,
+        }[failure], result.stderr
+        assert snapshot.read_bytes() == before
+        assert barrier.read_text() == 'owned removal barrier\n'
+        for name in ('migration-in-progress', 'package-activation-pending',
+                     'previous-package-activation.json'):
+            assert (state / name).exists(), name
+        assert not (root / 'confinement-armed').exists()
+        commands = (root / 'commands').read_text()
+        assert 'oh-no-parent-control-kiosk-confinement-integration install' not in commands
+        assert f'systemctl --system restart {BROKER}' not in commands
+        assert ('oh-no-parent-control-uninstall --restore' in commands) == (failure == 'restore')
+        # Retry the same owned state through the same native entry point.
+        (root / 'commands').write_text('')
+        result = run(**environment)
+
+    assert result.returncode == 0, result.stderr
+    assert not snapshot.exists() and not barrier.exists()
+    assert (root / 'snapshot-restored').exists()
+    assert (root / 'confinement-armed').exists()
+    for name in ('migration-in-progress', 'package-activation-pending',
+                 'previous-package-activation.json'):
+        assert not (state / name).exists(), name
+    commands = (root / 'commands').read_text().splitlines()
+    restore = commands.index('oh-no-parent-control-uninstall --restore')
+    confinement = commands.index('oh-no-parent-control-kiosk-confinement-integration install')
+    startup = ('systemctl' if distribution == 'fedora' else 'deb-systemd-invoke') + (
+        ' start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service')
+    assert commands.index(startup) < commands.index(
+        'oh-no-parent-control-package-activation wait-child-trust --refresh') < restore
+    if distribution == 'fedora':
+        assert commands.index('systemctl start oh-no-parent-control-execution-policy-ready.service') < restore
+    assert restore < confinement < commands.index(f'systemctl --system restart {BROKER}')
+    assert commands.count('oh-no-parent-control-uninstall --restore') == 1
+    assert commands.count('oh-no-parent-control-kiosk-confinement-integration install') == 1
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)

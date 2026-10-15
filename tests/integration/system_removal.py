@@ -793,6 +793,299 @@ def rollback_rearmed_rebooted(record):
     record('onpc.rollback.retry-finalized', 'native-remove-succeeded; owned-account-deleted; exact-original-PAM-restored')
 
 
+FINALIZATION_VARIANTS = ('denial-publication', 'mac-unload', 'account-finalization')
+
+
+def removal_denials(saved):
+    """Independent expected vendor-only stacks, retaining original callback bytes."""
+    prefix = ('# Oh No Parent Control removal admission barrier\n'
+              'account requisite pam_succeed_if.so quiet user != oh-no-parent-control\n'
+              'session requisite pam_succeed_if.so quiet user != oh-no-parent-control\n')
+    return {name: (prefix + (value['before'] if value['before'] is not None
+                            else value['vendor'])).encode()
+            for name, value in saved['pam'].items()}
+
+
+def verify_payload_erased(state):
+    """A failed postrm can leave dpkg half-installed despite actual file erasure."""
+    for name in state['payload']:
+        if name == DEBIAN_NOTICE:
+            continue
+        guest.require(not os.path.lexists(name), 'finalization:payload-not-erased')
+
+
+def persistent_home_identity(path, info=None):
+    """Btrfs device numbers can change across boots; UUID/subvolume IDs persist."""
+    def unique_fields(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate filesystem field')
+            result[key] = value
+        return result
+
+    try:
+        observed = json.loads(guest.run([
+            'findmnt', '--json', '--target', str(path), '--output',
+            'UUID,FSTYPE,FS-OPTIONS'], timeout=15), object_pairs_hook=unique_fields)
+    except (ValueError, TypeError):
+        raise guest.GuestError('finalization:home-filesystem-identity') from None
+    category = 'finalization:home-filesystem-identity'
+    guest.require(type(observed) is dict and set(observed) == {'filesystems'} and
+                  type(observed['filesystems']) is list and
+                  len(observed['filesystems']) == 1, category)
+    filesystem = observed['filesystems'][0]
+    guest.require(type(filesystem) is dict and
+                  set(filesystem) == {'uuid', 'fstype', 'fs-options'} and
+                  type(filesystem['uuid']) is str and re.fullmatch(
+                      r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+                      r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', filesystem['uuid']) and
+                  type(filesystem['fstype']) is str and
+                  re.fullmatch(r'[a-z0-9_+-]+', filesystem['fstype']) and
+                  type(filesystem['fs-options']) is str and filesystem['fs-options'], category)
+    subvolume = None
+    if filesystem['fstype'] == 'btrfs':
+        values = [option.partition('=')[2] for option in filesystem['fs-options'].split(',')
+                  if option.partition('=')[0] == 'subvolid']
+        guest.require(len(values) == 1 and re.fullmatch(r'[0-9]+', values[0]), category)
+        subvolume = str(int(values[0]))
+    info = path.lstat() if info is None else info
+    return [filesystem['fstype'], filesystem['uuid'].lower(), subvolume,
+            info.st_ino, info.st_uid, info.st_gid, info.st_mode]
+
+
+def verify_surviving_identity(state, recovery, record=None):
+    kiosk = pwd.getpwnam(state['kiosk_name'])
+    home = Path(kiosk.pw_dir).lstat()
+    identity = [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell]
+    home_identity = persistent_home_identity(Path(kiosk.pw_dir), home)
+    if record is not None:
+        record('onpc.finalization.identity-comparison', json.dumps({
+            'account_fields': dict(zip(('uid', 'gid', 'home', 'shell'),
+                (actual == expected for actual, expected in
+                 zip(identity, recovery['kiosk_identity'])))),
+            'home_fields': dict(zip(('filesystem', 'uuid', 'subvolume', 'inode', 'uid', 'gid', 'mode'),
+                (actual == expected for actual, expected in
+                 zip(home_identity, recovery['kiosk_home'])))),
+            'home_device': home.st_dev, 'saved_home_device': recovery['home_device'],
+        }, sort_keys=True))
+    guest.require(identity == recovery['kiosk_identity'] and
+                  home_identity == recovery['kiosk_home'], 'finalization:kiosk-identity-changed')
+    for role, before in recovery['ordinary'].items():
+        account = pwd.getpwuid(before['uid'])
+        guest.require([account.pw_name, account.pw_uid, account.pw_gid,
+                       account.pw_dir, account.pw_shell] == before['identity'] and
+                      account_digest(before['uid']) == before['policy'] and
+                      extension_lists(before['uid']) == before['extensions'],
+                      'finalization:ordinary-account-changed')
+        observe_launch(before['uid'], True)
+    verify_other_account(state)
+    guest.require(preference_digest(state['accounts']['child']) == state['preferences'],
+                  'finalization:preferences-changed')
+
+
+def verify_durable_interval(state, recovery, saved, record):
+    """Exercise actual installed account and session callbacks with no product code."""
+    from system_kiosk_admission import durable_probe, probe
+    verify_payload_erased(state)
+    verify_surviving_identity(state, recovery, record)
+    current = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+    guest.require(current.get('removing') is True and
+                  {key: value for key, value in current.items() if key != 'removing'} == saved and
+                  Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing').read_text() == 'removing\n' and
+                  Path('/var/lib/oh-no-parent-control/package-created-kiosk-uid').read_text().strip() ==
+                  str(recovery['kiosk_identity'][0]), 'finalization:recovery-records-changed')
+    for service, expected in removal_denials(saved).items():
+        target = Path('/etc/pam.d') / service
+        guest.require(fault_file_identity(target)[-1] == expected and
+                      b'pam_oh_no_parent_control' not in expected,
+                      'finalization:durable-denial-not-installed')
+        record('onpc.finalization.durable.' + service, hashlib.sha256(expected).hexdigest())
+        for role in ('ordinary', 'other'):
+            durable_probe(service, role, 'account', 0, service + '.' + role, record)
+        for callback in ('account', 'session'):
+            durable_probe(service, 'kiosk', callback, 7, service + '.kiosk.' + callback, record)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'finalization.payload-erased.' + role, record)
+    if guest.package_path().suffix == '.rpm':
+        guest.require(guest.run(['getenforce']) == 'Enforcing', 'finalization:selinux-not-enforcing')
+        permissive = guest.run(['/usr/sbin/semanage', 'permissive', '-l'])
+        guest.require(not {'xdm_t', 'init_t', 'onpc_kiosk_t'} & set(permissive.split()),
+                      'finalization:domain-not-enforcing')
+        guest.require(not any(row.split()[0] == 'onpc-kiosk' for row in
+                              guest.run(['/usr/sbin/semodule', '-l']).splitlines() if row.split()),
+                      'finalization:mac-not-unloaded')
+    else:
+        guest.require(not any(row.startswith('onpc-kiosk-') for row in
+                              Path('/sys/kernel/security/apparmor/profiles').read_text().splitlines()),
+                      'finalization:mac-not-unloaded')
+    record('onpc.finalization.payload-erased-interval',
+           'owned-account-and-recovery-records-retained; native-account-and-session-denied; ordinary-users-allowed; product-MAC-unloaded')
+
+
+def interrupted_finalization_retry(record, variant):
+    """One native interruption, protected interval and owned recovery per history."""
+    guest.guard()
+    guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
+    guest.enable_diagnostics()
+    from system_kiosk_admission import durable_probe, probe, verify_gates
+    from system_removal_faults import interruption_fault
+    accounts = provision_native()
+    parent, child = accounts['parent'], accounts['child']
+    defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
+    guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
+                  'finalization:nonfresh-start')
+    other = account_digest(accounts['other'])
+    other_policy = account_digest(accounts['other'], include_preferences=False)
+    other_extensions = extension_lists(accounts['other'])
+    for role in ('child', 'parent', 'other'):
+        observe_launch(accounts[role], True)
+    verify_gates(record)
+    for service in ('gdm-password', 'systemd-user'):
+        for role in ('ordinary', 'other'):
+            durable_probe(service, role, 'account', 0, service + '.' + role + '.before', record)
+    configure_restrictions(accounts)
+    kiosk = pwd.getpwnam(PRODUCT)
+    wait_kiosk_inactive(kiosk)
+    guest.retain_identity_for_redaction(kiosk.pw_uid)
+    home = Path(kiosk.pw_dir).lstat()
+    fedora = guest.package_path().suffix == '.rpm'
+    state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'other_extensions': other_extensions, 'defaults': defaults,
+             'preferences': preference_digest(child), 'boot': boot(),
+             'pam_services': json.loads((guest.PAYLOAD / 'before.json').read_text())['pam_services'],
+             'hook': '/etc/gdm/PreSession/Default' if fedora else '/etc/gdm3/PreSession/Default',
+             'kiosk_name': kiosk.pw_name, 'kiosk_home': kiosk.pw_dir,
+             'payload': [item['path'] for item in json.loads(
+                 (guest.PAYLOAD / 'installed-files.json').read_text())]}
+    if fedora:
+        state['authselect'] = original_authselect()
+    saved = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+    before = admission_removal_state()
+    generated = {name: Path(name).read_bytes() if os.path.lexists(name) else None
+                 for name in GENERATED_POLICY}
+    policy = account_digest(child)
+    extensions = extension_lists(child)
+    recovery = {'variant': variant, 'policy': policy, 'extensions': extensions,
+                'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
+                'kiosk_home': persistent_home_identity(Path(kiosk.pw_dir), home),
+                'home_device': home.st_dev,
+                'ordinary': {}}
+    for role in ('parent', 'other'):
+        account = pwd.getpwuid(accounts[role])
+        recovery['ordinary'][role] = {
+            'uid': accounts[role], 'policy': account_digest(accounts[role]),
+            'extensions': extension_lists(accounts[role]),
+            'identity': [account.pw_name, account.pw_uid, account.pw_gid,
+                         account.pw_dir, account.pw_shell]}
+    state['finalization_retry'] = recovery
+    save_state(state)
+    expected = dict(zip(('limit_type', 'daily_limit', 'active_extension', 'app_filter'),
+                        account_state(child)[1:]))
+    expected.update(uid=child, extension_enabled=True)
+    with interruption_fault(variant, record) as fault:
+        output, status = observe_aborted_transaction(
+            child, expected, removal_denials(saved)['gdm-password'], record)
+        fault.verify_triggered()
+        record('onpc.finalization.native-status', str(status))
+        if variant == 'account-finalization':
+            guest.require(b'refusing cleanup of a mounted directory' in output,
+                          'finalization:account-callback-not-interrupted')
+            verify_durable_interval(state, recovery, saved, record)
+        else:
+            guest.require(not package_absent() and
+                          b'kiosk confinement configuration failed' in output,
+                          'finalization:preerase-callback-not-interrupted')
+            guest.verify_package_payload()
+            verify_surviving_identity(state, recovery, record)
+            guest.require(account_digest(child) == policy and extension_lists(child) == extensions and
+                          all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                              for name, value in generated.items()),
+                          'finalization:enforcement-not-restored')
+            current = admission_removal_state()
+            mutable = {'/var/lib/oh-no-parent-control/kiosk-confinement.json',
+                       '/var/lib/oh-no-parent-control/kiosk-confinement-removing',
+                       '/var/lib/oh-no-parent-control/uninstall-broker-mask'}
+            guest.require(current.keys() == before.keys() and all(
+                rollback_record_matches(name, value, current[name])
+                for name, value in before.items() if name not in mutable),
+                          'finalization:foreign-or-ownership-state-changed')
+            confinement = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+            guest.require({name: value for name, value in confinement.items()
+                           if name not in ('removing', 'previous_pam')} == saved,
+                          'finalization:confinement-recovery-record-changed')
+            verify_loaded_confinement()
+            observe_launch(child, False)
+            for role in ('ordinary', 'other'):
+                probe('login', role, 0, 'finalization.restored.' + role, record)
+            record('onpc.finalization.restored-before-fault-release',
+                   'exact-native-policy-restored; child-denied; ordinary-users-allowed; MAC-enforcing')
+    if variant == 'account-finalization' and not fedora:
+        # dpkg retains its native postrm and reruns that callback without payload.
+        guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
+        verify_removed(state, record=record)
+        recovery['completed'] = True
+    else:
+        # RPM has no postun retry entry after erasure. Its supported normal
+        # reinstall rearms the surviving owned account; purge chains stay in 4-6.
+        if fedora:
+            guest.install_package()
+        else:
+            status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
+            guest.require(status in ('install ok installed', 'install ok half-configured'),
+                          'finalization:unexpected-rearm-package-status')
+            # An unload-only fault allows abort-remove to finish rearming.
+            # dpkg rejects --configure for that already configured package.
+            if status == 'install ok half-configured':
+                guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+        guest.verify_package_files()
+        verify_surviving_identity(state, recovery, record)
+        guest.require(account_digest(child) == policy and extension_lists(child) == extensions,
+                      'finalization:rearm-changed-enforcement')
+        verify_loaded_confinement()
+        guest.require(not os.path.lexists('/var/lib/oh-no-parent-control/kiosk-confinement-removing') and
+                      not os.path.lexists('/var/lib/oh-no-parent-control/uninstall-broker-mask') and
+                      not os.path.lexists('/run/systemd/system/oh-no-parent-control-broker.service'),
+                      'finalization:rearm-guards-retained')
+        verify_gates(record)
+        recovery['completed'] = False
+    recovery['boot'] = boot()
+    save_state(state)
+    record('onpc.finalization.owned-recovery', 'native-retry-complete' if recovery['completed']
+           else 'native-rearm-complete; reboot-and-removal-pending')
+
+
+def finalization_retry_rebooted(record, variant):
+    """Finish only the same history after a real reboot, with no snapshot splice."""
+    guest.guard()
+    guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
+    guest.enable_diagnostics()
+    from system_kiosk_admission import probe, verify_gates
+    state = json.loads(state_path().read_text())
+    recovery = state['finalization_retry']
+    guest.require(recovery['variant'] == variant and boot() != recovery['boot'],
+                  'finalization:retry-identity-or-boot')
+    if not recovery['completed']:
+        guest.installed()
+        verify_surviving_identity(state, recovery, record)
+        guest.require(account_digest(state['accounts']['child']) == recovery['policy'] and
+                      extension_lists(state['accounts']['child']) == recovery['extensions'],
+                      'finalization:reboot-changed-enforcement')
+        verify_loaded_confinement()
+        verify_gates(record)
+        observe_launch(state['accounts']['child'], False)
+        wait_kiosk_inactive(pwd.getpwnam(PRODUCT))
+        guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+                   'check-remove'], timeout=30)
+        guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
+    verify_removed(state, record=record)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'finalization.completed.' + role, record)
+    observe_launch(state['accounts']['parent'], True)
+    record('onpc.finalization.retry-finalized',
+           'new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
+
+
 def remove(record):
     guest.guard()
     guest.enable_diagnostics()
@@ -1165,9 +1458,15 @@ def purge_reinstalled_rebooted(record):
 
 def main(argv=None):
     arguments = sys.argv[1:] if argv is None else argv
-    guest.require(arguments == ['exercise-live-refusals'], 'removal:diagnostic-arguments')
-    exercise_live_refusals(lambda name, value: print(
-        json.dumps({'property': name, 'value': value}, sort_keys=True), flush=True))
+    guest.require(arguments == ['exercise-live-refusals'] or
+                  (len(arguments) == 2 and arguments[0] == 'exercise-live-finalization' and
+                   arguments[1] in FINALIZATION_VARIANTS), 'removal:diagnostic-arguments')
+    def record(name, value):
+        print(json.dumps({'property': name, 'value': value}, sort_keys=True), flush=True)
+    if arguments == ['exercise-live-refusals']:
+        exercise_live_refusals(record)
+    else:
+        interrupted_finalization_retry(record, arguments[1])
     return 0
 
 

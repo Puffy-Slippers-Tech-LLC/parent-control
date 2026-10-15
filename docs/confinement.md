@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-5c — [Interrupted finalization and durable admission barriers](Confinement-Tasks/4-5c.md)**.
+Next task: **4-5d — [PAM and confinement-record ownership refusal](Confinement-Tasks/4-5d.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and

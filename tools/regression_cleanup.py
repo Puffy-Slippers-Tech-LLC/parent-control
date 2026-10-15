@@ -76,6 +76,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # private pytest logs and process-local transport/command doubles. It starts no
 # real subprocess and adds no shared state or independent cleanup lifetime;
 # compatible classification holds in both cleanup and unit inventories.
+# Finalization history dispatch/replay adds private phase/result files and VM
+# doubles only to system_runner; its compatible cleanup classification holds.
 
 # Explicit VM-name forwarding retains private journals and process-local API
 # doubles; cleanup checks add no real guest, desktop, socket or shared cache.

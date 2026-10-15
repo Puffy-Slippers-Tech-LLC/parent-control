@@ -676,6 +676,11 @@ from regression_ui import Bucket
 # Bind-mount ownership and transaction-watcher tests use synthetic mount rows
 # and joined local threads with command doubles, never host mounts or packages;
 # system_removal, system_runner and system_snapshots stay compatible.
+# Interrupted-finalization cases and durable PAM workers use private files and
+# process-local account/PAM/VM doubles. system_removal_faults also owns finite,
+# waited harmless shell children; no host mount, policy, package, bus, socket,
+# display, external service or shared cache is changed. Both new modules are
+# compatible unit work, with small bounded CPU, memory and disk use.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.
@@ -850,6 +855,8 @@ parent_presentation_cleanup_safety
 package_lifecycle_cleanup_safety
 package_purge_cleanup_safety
 system_removal
+system_removal_faults
+system_kiosk_admission
 parent_language_cleanup_safety
 language_persistence_cleanup_safety
 kiosk_language_cleanup_safety

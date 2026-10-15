@@ -116,6 +116,11 @@ files and clears the ownership record only after verified kiosk account
 deletion. An aborted removal reloads policy before restoring the final gates
 and clearing the admission marker. Interrupted or foreign changes retain the
 barrier and refuse cleanup, preserving recovery evidence.
+Reconfiguration starts and verifies the native enforcement dependencies before
+restoring a retained removal snapshot, then reloads MAC policy and restores
+PAM. Migration exclusion and durable kiosk admission denials remain through
+that recovery; a failed dependency start or snapshot restore leaves them in
+place for retry.
 Completed private executable generations under `/run` remain until reboot;
 they are bounded and cannot be used after the kiosk identity is removed.
 

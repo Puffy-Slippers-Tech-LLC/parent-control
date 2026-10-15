@@ -568,6 +568,10 @@ def test_fedora_rpm_scriptlet_owns_configuration_and_preserves_failures(
     assert commands.index('systemctl start fapolicyd.service malcontent-timerd.service malcontent-timer-extension-agent.service') < commands.index(readiness)
     assert commands.index('fagenrules ') < commands.index('fapolicyd-cli --reload-rules')
     assert commands.index('fapolicyd-cli --reload-rules') < commands.index(readiness)
+    confinement = 'oh-no-parent-control-kiosk-confinement-integration install'
+    assert commands.count(confinement) == 1
+    assert commands.index(readiness) < commands.index(confinement)
+    assert commands.index(confinement) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
     assert commands.index(readiness) < commands.index('systemctl --system restart oh-no-parent-control-broker.service')
     assert any(command.startswith('oh-no-parent-control-provision --kiosk-user ') for command in commands)
     assert any(command.startswith('restorecon -R ') for command in commands)

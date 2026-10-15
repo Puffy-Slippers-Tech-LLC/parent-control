@@ -3288,3 +3288,317 @@ finally:
         result = subprocess.run([sys.executable, '-I', '-c', probe, library],
             cwd=tmp_path, env=child_environment, capture_output=True, text=True, check=True, timeout=5)
         assert json.loads(result.stdout) == {'loaded': not restricted, 'missing': restricted}
+
+
+@pytest.fixture
+def service_denial_evidence(census_model):
+    helper = census_model
+    account = SimpleNamespace(pw_uid=1234, pw_gid=1234)
+    target = {'path': '/usr/bin/private-denied', 'device': 7, 'inode': 987,
+              'audit_device': 'privatefs', 'audit_name': 'private-denied', 'sha256': 'target-digest'}
+    unit, invocation, boot = 'private-denial.service', 'a' * 32, 'b' * 32
+
+    def native(stage='EXEC'):
+        return {'MESSAGE_ID': '641257651c1b4ec9a8624d7a40a9e1e7',
+                'CODE_FILE': 'src/core/executor.c', 'USER_UNIT': unit,
+                'USER_INVOCATION_ID': invocation, '_PID': '4321', '_UID': '1234',
+                '_BOOT_ID': boot, 'EXECUTABLE': target['path'], 'ERRNO': '13',
+                '__REALTIME_TIMESTAMP': '100000001',
+                'MESSAGE': f'{unit}: Failed at step {stage} spawning {target["path"]}: Permission denied'}
+
+    def audit(backend, profile=False):
+        prefix = 'audit(100.001:71): pid=4321 '
+        if backend == 'apparmor':
+            return prefix + 'apparmor="DENIED" profile="onpc-kiosk-manager" ' + (
+                'operation="change_onexec" name="unconfined" target="unconfined"' if profile else
+                f'operation="exec" name="{target["path"]}" denied_mask="x" fsuid=1234 ouid=0')
+        return prefix + 'avc:  denied ' + (
+            '{ setexec } tclass=process ' if profile else
+            '{ execute } tclass=file ino=987 name="private-denied" dev="privatefs" ') + (
+            f'scontext={helper.MANAGER_SID} tcontext={helper.MANAGER_SID} permissive=0')
+
+    return SimpleNamespace(account=account, target=target, unit=unit, invocation=invocation,
+                           boot=boot, command=[target['path']], native=native, audit=audit)
+
+
+@pytest.mark.parametrize('stage', ['EXEC', 'APPARMOR', 'SELINUX_CONTEXT'])
+@pytest.mark.parametrize('fault', [None, 'pid', 'uid', 'unit', 'invocation', 'boot', 'target',
+                                  'source', 'message-id', 'stale', 'missing-error',
+                                  'wrong-error', 'wrong-stage', 'unrelated-setup', 'trusted-unit'])
+def test_service_native_denial_requires_fresh_executor_failure(
+        census_model, service_denial_evidence, stage, fault):
+    evidence = service_denial_evidence
+    row = evidence.native(stage)
+    changes = {'pid': ('_PID', '14321'), 'uid': ('_UID', '0'),
+               'unit': ('USER_UNIT', 'other.service'),
+               'invocation': ('USER_INVOCATION_ID', 'c' * 32), 'boot': ('_BOOT_ID', 'd' * 32),
+               'target': ('EXECUTABLE', '/usr/bin/other'),
+               'source': ('CODE_FILE', 'src/core/service.c'), 'message-id': ('MESSAGE_ID', 'other'),
+               'stale': ('__REALTIME_TIMESTAMP', '99999999'),
+               'wrong-error': ('ERRNO', '2'), 'trusted-unit': ('_SYSTEMD_USER_UNIT', 'other.service')}
+    if fault in changes:
+        key, value = changes[fault]
+        row[key] = value
+    elif fault == 'missing-error':
+        row.pop('ERRNO')
+    elif fault == 'wrong-stage':
+        row['MESSAGE'] = row['MESSAGE'].replace(f'step {stage}', 'step NAMESPACE')
+    elif fault == 'unrelated-setup':
+        row['MESSAGE'] = 'Failed to set up mount namespacing: Permission denied'
+    assert census_model.service_native_denial(row, evidence.account, evidence.unit,
+        evidence.invocation, '4321', evidence.command, stage, evidence.boot, 100) is (fault is None)
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('profile', [False, True], ids=['exec', 'profile'])
+@pytest.mark.parametrize('fault', [None, 'pid', 'role', 'operation', 'target', 'unenforced'])
+def test_service_audit_denial_requires_exact_enforcing_operation(
+        census_model, service_denial_evidence, backend, profile, fault):
+    evidence = service_denial_evidence
+    line = evidence.audit(backend, profile)
+    if fault == 'pid':
+        line = line.replace('pid=4321', 'pid=14321')
+    elif fault == 'role':
+        line = line.replace('onpc-kiosk-manager', 'onpc-kiosk-app').replace(
+            'onpc_kiosk_manager_t', 'onpc_kiosk_app_t')
+    elif fault == 'operation':
+        line = line.replace('change_onexec', 'change_profile').replace('operation="exec"',
+            'operation="open"').replace('{ execute }', '{ read }').replace('{ setexec }', '{ transition }')
+    elif fault == 'target':
+        line = (line.replace('target="unconfined"', 'target="other"') if backend == 'apparmor' and profile
+                else line.replace('name="/usr/bin/private-denied"', 'name="/usr/bin/other"')
+                if backend == 'apparmor' else
+                line.replace('tcontext=' + census_model.MANAGER_SID, 'tcontext=unconfined_u:unconfined_r:unconfined_t:s0')
+                if profile else line.replace('ino=987', 'ino=988'))
+    elif fault == 'unenforced':
+        line = line.replace('apparmor="DENIED"', 'apparmor="ALLOWED"').replace('permissive=0', 'permissive=1')
+    assert census_model.service_audit_denial(line, backend, '4321', evidence.target,
+        evidence.account.pw_uid, profile=profile) is (fault is None)
+
+
+@pytest.mark.parametrize('replacement', ['dev="otherfs"', ''])
+def test_service_selinux_audit_refuses_wrong_or_missing_device(
+        census_model, service_denial_evidence, replacement):
+    evidence = service_denial_evidence
+    line = evidence.audit('selinux').replace('dev="privatefs"', replacement)
+    assert not census_model.service_audit_denial(line, 'selinux', '4321', evidence.target, 1234)
+
+
+@pytest.mark.parametrize('case', ['private-name', 'canonical-path', 'wrong-name', 'conflicting-path'])
+def test_service_selinux_audit_binds_private_copy_name_and_optional_canonical_path(
+        census_model, service_denial_evidence, case):
+    evidence = service_denial_evidence
+    target = {**evidence.target, 'audit_name': '37'}
+    line = evidence.audit('selinux').replace('name="private-denied"', 'name="37"')
+    if case == 'canonical-path':
+        line += ' path="' + target['path'] + '"'
+    elif case == 'wrong-name':
+        line = line.replace('name="37"', 'name="private-denied"')
+    elif case == 'conflicting-path':
+        line += ' path="/usr/bin/other"'
+    assert census_model.service_audit_denial(line, 'selinux', '4321', target, 1234) is (
+        case in ('private-name', 'canonical-path'))
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-loader', 'nonexecutable-loader', 'bad-elf',
+                                  'truncated-loader', 'control-target', 'control-loader', 'garbage-loader'])
+def test_service_target_measures_private_namespace_elf_and_loader(
+        census_model, tmp_path, monkeypatch, fault):
+    import hashlib
+    import struct
+
+    helper = census_model
+    manager = tmp_path / 'manager'
+    command, loader = tmp_path / 'program', tmp_path / 'loader'
+    visible = manager / 'root' / command.relative_to('/')
+    native = manager / 'root' / loader.relative_to('/')
+    native.parent.mkdir(parents=True)
+    interpreter = os.fsencode(loader) + b'\0'
+    header = bytearray(64)
+    header[:7] = b'\x7fELF\x02\x01\x01'
+    struct.pack_into('<HHI', header, 16, 3, 62, 1)
+    struct.pack_into('<Q', header, 32, 64)
+    struct.pack_into('<H', header, 52, 64)
+    struct.pack_into('<HH', header, 54, 56, 1)
+    program = bytearray(56)
+    struct.pack_into('<I', program, 0, 3)
+    struct.pack_into('<Q', program, 8, 120)
+    struct.pack_into('<Q', program, 32, len(interpreter))
+    payload = bytes(header + program) + interpreter
+    loader_header = bytearray(header)
+    struct.pack_into('<Q', loader_header, 32, 0)
+    struct.pack_into('<H', loader_header, 56, 0)
+    loader_payload = bytes(loader_header) + b'private native loader'
+    command.write_bytes(payload + (b'control drift' if fault == 'control-target' else b''))
+    command.chmod(0o755)
+    loader.write_bytes(loader_payload + (b'control drift' if fault == 'control-loader' else b''))
+    loader.chmod(0o755)
+    visible.write_bytes(b'invalid' if fault == 'bad-elf' else
+                        payload[:-1] if fault == 'truncated-loader' else payload)
+    visible.chmod(0o755)
+    if fault != 'missing-loader':
+        native.write_bytes(b'garbage loader' if fault == 'garbage-loader' else loader_payload)
+        native.chmod(0o644 if fault == 'nonexecutable-loader' else 0o755)
+    info = visible.stat()
+    mount = f'1 0 {os.major(info.st_dev)}:{os.minor(info.st_dev)} / / rw - tmpfs tmpfs rw'
+    (manager / 'mountinfo').write_text(mount + '\n')
+    if fault is not None:
+        expected = FileNotFoundError if fault == 'missing-loader' else helper.guest.GuestError
+        reasons = {'nonexecutable-loader': 'loader-not-executable', 'bad-elf': 'target-format',
+                   'truncated-loader': 'elf-loader-missing', 'control-target': 'control-target-drift',
+                   'control-loader': 'control-loader-drift', 'garbage-loader': 'loader-format'}
+        with pytest.raises(expected, match=None if fault == 'missing-loader' else
+                           'kiosk-service:' + reasons[fault]):
+            helper.service_target(manager, str(command))
+        return
+    measured = helper.service_target(manager, str(command))
+    entry = command.lstat()
+    assert measured == {'path': str(command), 'device': info.st_dev, 'inode': info.st_ino,
+        'sha256': hashlib.sha256(payload).hexdigest(), 'audit_device': 'tmpfs', 'mount': mount,
+        'audit_name': command.name,
+        'entry': {'device': entry.st_dev, 'inode': entry.st_ino, 'mode': entry.st_mode,
+                  'uid': entry.st_uid, 'gid': entry.st_gid},
+        'loader': {'path': str(loader), 'sha256': hashlib.sha256(loader_payload).hexdigest()}}
+
+
+@pytest.mark.parametrize('bind_first', [False, True], ids=['root-first', 'bind-first'])
+def test_service_target_file_bind_uses_backing_device_despite_anonymous_stat_device(
+        census_model, tmp_path, monkeypatch, bind_first):
+    import struct
+
+    helper = census_model
+    manager = tmp_path / 'manager'
+    command = tmp_path / 'private program'
+    visible = manager / 'root' / command.relative_to('/')
+    visible.parent.mkdir(parents=True)
+    # A static ELF-shaped target needs no interpreter or live executable reads.
+    header = bytearray(64)
+    header[:7] = b'\x7fELF\x02\x01\x01'
+    struct.pack_into('<Q', header, 32, 64)
+    struct.pack_into('<HH', header, 54, 56, 1)
+    payload = bytes(header) + bytes(56)
+    for path in (command, visible):
+        path.write_bytes(payload)
+        path.chmod(0o755)
+    backing = tmp_path / 'backing-block'
+    backing.touch()
+    sysfs = tmp_path / 'sysfs'
+    (sysfs / '8:17').mkdir(parents=True)
+    (sysfs / '8:17/uevent').write_text('MAJOR=8\nMINOR=17\nDEVNAME=private-disk1\n')
+    monkeypatch.setattr(helper, 'Path', lambda value: sysfs if value == '/sys/dev/block' else
+                        backing if value == '/dev/private-disk1' else Path(value))
+    original_stat = Path.stat
+    anonymous_device = os.makedev(0, 421)
+
+    def metadata(path, *args, **kwargs):
+        info = original_stat(path, *args, **kwargs)
+        if path == backing:
+            return SimpleNamespace(st_mode=stat.S_IFBLK | 0o600, st_rdev=os.makedev(8, 17))
+        if path == visible:
+            return SimpleNamespace(st_mode=info.st_mode, st_dev=anonymous_device, st_ino=info.st_ino)
+        return info
+
+    monkeypatch.setattr(Path, 'stat', metadata)
+    root_mount = '1 0 0:7 / / rw - tmpfs tmpfs rw'
+    escaped_target = str(command).replace(' ', r'\040')
+    bind_mount = f'2 1 8:17 /subvolume/program {escaped_target} ro - btrfs /dev/private-disk1 ro'
+    mounts = [bind_mount, root_mount] if bind_first else [root_mount, bind_mount]
+    (manager / 'mountinfo').write_text('\n'.join(mounts) + '\n')
+    measured = helper.service_target(manager, str(command))
+    assert measured['device'] == anonymous_device
+    assert measured['mount'] == bind_mount
+    assert measured['audit_device'] == 'private-disk1'
+    assert measured['audit_name'] == 'program'
+    assert 'loader' not in measured
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('mode', ['transient', 'strict-profile', 'writable'])
+@pytest.mark.parametrize('fault', [None, 'old-audit', 'replayed-audit', 'missing-time',
+                                  'native-setup', 'executor-target', 'unit-replaced', 'target-replaced'])
+def test_service_denial_composes_fresh_proofs_and_guards_owned_reset(
+        census_model, service_denial_evidence, tmp_path, monkeypatch, backend, mode, fault):
+    helper, evidence = census_model, service_denial_evidence
+    strict = mode == 'strict-profile'
+    stage = ('APPARMOR' if backend == 'apparmor' else 'SELINUX_CONTEXT') if strict else 'EXEC'
+    status = (231 if backend == 'apparmor' else 229) if strict else 203
+    setting = ('AppArmorProfile=unconfined' if backend == 'apparmor'
+               else 'SELinuxContext=unconfined_u:unconfined_r:unconfined_t:s0') if strict else None
+    row = evidence.native(stage)
+    if fault == 'native-setup':
+        row['MESSAGE'] = 'Failed to set up credentials: Permission denied'
+    line = evidence.audit(backend, strict)
+    if fault == 'old-audit':
+        line = line.replace('100.001', '99.999')
+    elif fault == 'missing-time':
+        line = line.replace('audit(100.001:71): ', '')
+    audit_reads = iter([line if fault == 'replayed-audit' else '', line])
+
+    def wait_for(predicate, reason):
+        helper.guest.require(predicate(), reason)
+
+    monkeypatch.setitem(sys.modules, 'system_kiosk_platform', SimpleNamespace(
+        settle_kernel_audit=lambda selected: None, kernel_audit=lambda selected: next(audit_reads),
+        wait_for=wait_for))
+    monkeypatch.setattr(helper, 'PROC', tmp_path / 'proc')
+    monkeypatch.setattr(helper, 'manager_pid', lambda unit: 500)
+    monkeypatch.setattr(helper, 'process_identity', lambda process: ('start', 1, ('1234',) * 4))
+    targets = iter([evidence.target, {**evidence.target, 'sha256': 'replacement'}
+                    if fault == 'target-replaced' else evidence.target])
+    monkeypatch.setattr(helper, 'service_target', lambda manager, command: next(targets))
+    monkeypatch.setattr(helper.time, 'time', lambda: 100)
+    boot_file = tmp_path / 'boot-id'
+    boot_file.write_text(evidence.boot)
+    monkeypatch.setattr(helper, 'Path', lambda value: boot_file
+                        if value == '/proc/sys/kernel/random/boot_id' else Path(value))
+    properties = {'InvocationID': evidence.invocation, 'ExecMainPID': '4321',
+                  'ExecMainCode': '1', 'ExecMainStatus': str(status), 'Result': 'exit-code',
+                  'ActiveState': 'failed',
+                  'ExecStart': '{ path=' + evidence.command[0] + ' ; argv[]=private ; pid=4321 ; code=exited ; }'}
+    if fault == 'executor-target':
+        properties['ExecStart'] = properties['ExecStart'].replace(evidence.command[0], '/usr/bin/other')
+    commands, records = [], {}
+
+    def user_command(account, command, *, check=True):
+        commands.append(command)
+        if '--property=InvocationID,ActiveState' in command:
+            return b'InvocationID=\nActiveState=inactive\n'
+        if any(value.startswith('--property=InvocationID,ExecMainPID,') for value in command):
+            return ''.join(f'{key}={value}\n' for key, value in properties.items()).encode()
+        if '--property=InvocationID' in command:
+            return (('c' * 32 if fault == 'unit-replaced' else evidence.invocation) + '\n').encode()
+        helper.guest.commands.last_returncode = status
+        return b''
+
+    def run(command):
+        if command[0] == 'systemctl':
+            return 'manager-invocation'
+        if '--show-cursor' in command:
+            return '-- cursor: private-cursor'
+        assert '--after-cursor=private-cursor' in command
+        return json.dumps(row)
+
+    monkeypatch.setattr(helper, 'user_command', user_command)
+    monkeypatch.setattr(helper.guest, 'run', run)
+    monkeypatch.setattr(helper.guest, 'commands', SimpleNamespace(last_returncode=status))
+    reasons = {'old-audit': 'kernel-denial-not-observed', 'replayed-audit': 'kernel-denial-not-observed',
+               'missing-time': 'kernel-denial-not-observed', 'native-setup': 'native-denial-not-observed',
+               'executor-target': 'executor-target', 'unit-replaced': 'unit-replaced',
+               'target-replaced': 'target-changed'}
+    if fault is None:
+        helper.require_service_denial(evidence.account, backend, evidence.unit, evidence.command,
+            records.__setitem__, setting=setting, writable=mode == 'writable')
+        assert records['onpc.kiosk.service-denial.' + evidence.unit + '.kernel-denial'] == line
+    else:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-service:' + reasons[fault]):
+            helper.require_service_denial(evidence.account, backend, evidence.unit, evidence.command,
+                records.__setitem__, setting=setting, writable=mode == 'writable')
+    resets = [command for command in commands if 'reset-failed' in command]
+    assert resets == ([] if fault == 'unit-replaced' else
+                      [['/usr/bin/systemctl', '--user', 'reset-failed', evidence.unit]])
+    launch = commands[1]
+    if mode == 'writable':
+        assert launch == ['/usr/bin/systemctl', '--user', 'start', evidence.unit]
+    else:
+        assert launch[:5] == ['/usr/bin/systemd-run', '--user', '--wait', '--pipe', '--unit=' + evidence.unit]
+        assert launch[5:] == (['--property=' + setting] if strict else []) + evidence.command

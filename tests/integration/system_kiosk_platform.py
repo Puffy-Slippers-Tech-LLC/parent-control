@@ -11,7 +11,7 @@ import time
 from contextlib import ExitStack, contextmanager
 
 import system_guest as guest
-from system_kiosk_confinement import manager_pid, process_identity, user_command
+from system_kiosk_confinement import manager_pid, process_identity, require_service_denial, user_command
 
 
 LUA_PROBE = '''import ctypes, json, os, sys
@@ -345,14 +345,11 @@ def verify_service_api(account, backend, record):
         (profile, ['/usr/bin/systemctl', '--version'], expected),
         (profile.replace('=', '=-', 1), ['/bin/sh', '-c', 'exit 0'], 203),
     )):
-        user_command(account, ['systemd-run', '--user', '--wait', '--collect', '--pipe',
-            '--unit=onpc-platform-profile-' + str(index), '--property=' + setting,
-            *command], check=False)
-        actual = guest.commands.last_returncode
         # Even when the service asks to ignore a profile-setting error, the
         # forbidden executable remains subject to the existing kernel boundary.
-        guest.require(actual == status, 'platform:service-profile-escape')
-        record('onpc.platform.service-profile-denied.' + str(index), actual)
+        require_service_denial(account, backend, f'onpc-platform-profile-{index}.service',
+                               command, record, setting=setting)
+        record('onpc.platform.service-profile-denied.' + str(index), status)
 
 
 def verify(record):

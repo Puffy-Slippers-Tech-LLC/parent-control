@@ -2474,6 +2474,105 @@ also no longer match; 4-8b must pass its complete affected execution/platform
 selectors, and 4-10 retains final matrix/census qualification. Task 4-8 remains
 unchecked for its resumed independent review.
 
+## Phase 4 step 8b — Manager and service API denial proofs — 2026-10-15
+
+Accepted on both targets after both complete registered selectors, affected host
+checks and owned cleanup passed. All eleven H1 attacks remain: six manager
+commands, the copied executable and interpreter alias, the writable `ExecStart=+`
+unit and both profile/context requests. This repairs a harness proof defect;
+no product escape was demonstrated and no production permission changed.
+
+The matrices share `require_service_denial`. Each attack retains its exact unit
+invocation, executor PID, manager identity, target/loader hashes, native failure
+step/error and independently matching fresh enforcing kernel event. Targets and
+native loaders must exist and match the successful control's bytes. Failed
+units remain available until observation, then only the recorded invocation is
+reset. The writable unit also pins its bytes, ownership, mode, loaded fragment
+and effective native `privileged` flag. All prior controls and matrix assertions,
+including the six separately witnessed bubblewrap attacks, remain intact.
+
+Owned live diagnosis established the native journal fields and failure stages
+on both distributions. Two mechanical lookup corrections were required during
+qualification: Btrfs's anonymous per-subvolume `st_dev` differs from the audit
+backing device, and a private file bind's audited name is its source basename.
+The helper now derives both from the exact containing mount and retains that
+mount record, while still requiring the exact inode/device, native target and
+executor. Ubuntu's effective `ExecStartEx` spells the `+` flag `privileged`.
+The complete final reruns below passed after these corrections.
+
+| Target | Complete selector | Retained report under `output/test-runs/host/reports/` | Raw allocation under `output/test-runs/privileged/allocations/` |
+| --- | --- | --- | --- |
+| onpc-Ubuntu26.04 | `enforcement::test_kiosk_execution_confinement` | `20261015T180838Z-b593e2ed/report.md` | `onpc-system-v88_np_p` |
+| onpc-Fedora44 | `enforcement::test_kiosk_execution_confinement` | `20261015T180838Z-e2ab91ab/report.md` | `onpc-system-odq44btb` |
+| onpc-Ubuntu26.04 | `enforcement::test_kiosk_platform_integrations` | `20261015T181309Z-5ea27f9f/report.md` | `onpc-system-ah4hdc98` |
+| onpc-Fedora44 | `enforcement::test_kiosk_platform_integrations` | `20261015T181309Z-823ecc91/report.md` | `onpc-system-uhk5x11_` |
+
+Every allocation retains `evidence/result.json`, `guest-results/enforcement.xml`,
+`input/artifact-manifest.json` and `input/selected-inputs.json`, with native
+diagnostics, per-attack witnesses and command streams. Each JUnit contains its
+one exact expected case, with zero failures/errors/skips. All four results report
+product, infrastructure, collection and cleanup passed, `cleanup_phase=complete`
+and two successful baseline checks. Each execution JUnit contains nine distinct
+manager witnesses and resets; each platform JUnit contains its two profile/API
+witnesses and resets. Fedora's strict context request retains native
+`SELINUX_CONTEXT`/EPERM plus the exact enforcing `setexec` AVC; the ignored-setting
+request retains native `EXEC`/EACCES plus its enforcing execution AVC. Ubuntu
+retains the corresponding `APPARMOR`/EACCES `change_onexec` denial and final
+`EXEC`/EACCES execution denial. All Fedora proof events have `permissive=0`;
+global/per-domain enforcement and the existing policy-loss refusal/restoration
+assertions passed in their original scopes.
+
+Both selectors bind the same 348-file package-source SHA-256
+`9454f190377353cf7e299b5c0a2c1bad0a971dad8942d70ddee50f1cf51656e4`,
+revision `c0cc19ff2b28386b2f544bbc0e4b0021b818f618`, and fixture SHA-256
+`7559a7c6ebee0078c29f9dcb2f15c684ad41f52c1df226c82bbdb996ad8c119b`.
+Ubuntu package SHA-256 is
+`49dbccce5fb45a72307231e4a444d15cdac4a02ef12d555c5ca2c83cb30a80a4`;
+Fedora remains
+`89e6bb8c462922fa6a99e18ab65ff3df21e55a7e66580de94fa488c59ca327d6`.
+Baseline provenance remains Ubuntu
+`5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93`
+and Fedora
+`fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c`.
+Selected-input SHA-256 is
+`1c3137915d5c0bc67ac1cc6f9c6acef3f49779028aa4357e882bf9d042735d07`
+for execution and
+`e26891ba6ad800dfd5d7f7e1ce5e135a1063994ceeec947e16e82b4dbca01d08`
+for platform. Their 27 bindings/25 distinct checkout files were independently
+hashed; both targets' manifests match per selector, and all four artifact
+manifests match their results. The required raw evidence remained present after
+the final installed run; no evidence export or additional VM run followed it.
+
+Final affected host validation passed **638/638**, report
+`output/test-runs/host/reports/20261015T180713Z-5654191c/report.md`, including
+133 new proof regressions. The initial runner/resource selection also passed
+**1,547/1,547**, report
+`output/test-runs/host/reports/20261015T175236Z-868072ae/report.md`.
+New host fixtures use only private files and process-local doubles; the existing
+compatible unit classification remains applicable. Coverage was regenerated.
+Final plan/coverage metadata checks passed **125/125**, report
+`output/test-runs/host/reports/20261015T181853Z-70983731/report.md`;
+all 131 links in the five changed Markdown documents resolve and
+`git diff --check` passed.
+This task changes tests/documentation only; it changes no `PACKAGE_SOURCE_FILES`
+or build dependency, so no additional `make build` is required.
+
+All subagents finished before final installed acceptance. Owned maintenance
+managers and sessions stopped, both installed controllers restored their outer
+baselines and final independent status reads confirmed both VMs powered off.
+Only 4-8b is checked and its temporary brief removed; 4-8 resumes its independent
+review without acceptance credit from this prerequisite alone. These engineering
+matrices replace no public kiosk, fresh lifecycle or real-session history.
+
+Actual provenance invalidation for 4-9/4-10: the selected shared confinement and
+platform helpers changed. The Ubuntu DEB also changed because preparation now
+uses the accepted source revision's build timestamp; product-source and fixture
+bytes did not change, and Fedora's RPM bytes remain identical. Both historical
+4-8a raw allocations have expired under bounded retention. Its complete
+interrupted-first-configuration/retry/reboot history must therefore repeat on
+both targets in 4-10 under 4-9's applicability gate. Every previously recorded
+complete-history repeat remains required.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -2494,7 +2593,7 @@ than copying hashes or creating another task queue.
 | 4-6 | Complete Fedora native failed-post-erase/reinstall/conflict/reboot/repeated-purge chain qualified in [4-6](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15). | Reuse only the verified matching complete history; 4-9 checks final applicability and 4-10 retains affected repeats. Independent 4-5 variants are not replaced by this history. |
 | 4-7–4-8 | Independent reviews and affected host/installed validation for demonstrated fixes. | Review-only changes need no automatic installed/E2E batch. Validate fixes before accepting the review; record other invalidated histories for 4-10. |
 | 4-8a | First-configuration protection and complete interrupted-install/retry/reboot histories passed on both targets in [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15). | Exact matching raw inputs, native admission/execution, ordinary controls and cleanup verified. Existing invalidated complete-history repeats remain with 4-9/4-10; this new history replaces none of them. |
-| 4-8b | Repair eleven manager/service API negative proofs and pass both complete affected execution/platform selectors on both targets. | New prerequisite from [H1](#phase-4-step-8--independent-lifecyclesecurity-review--2026-10-15); retained generic statuses supply no enforcing-boundary proof. Keep independently witnessed native/bubblewrap results within their exact scope; 4-8 reviews the accepted repair before closing. |
+| 4-8b | Eleven manager/service API negative proofs and both complete affected execution/platform selectors passed on both targets in [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15). | Exact inputs, per-attack native/kernel witnesses and cleanup verified. 4-8 reviews the accepted repair; 4-9 checks final applicability and 4-10 retains its final matrix/census and invalidated-history gates. |
 | 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Reuse unchanged valid task-local host results where their exact scope and inputs cover the final candidate; run missing/affected checks. No blanket schema or VM/E2E run. |
 | 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | Keep this final gate. Choose a covering registered route once: the shared-integration selector already includes the complete namespace qualifier, so a second standalone namespace run adds no coverage when that result applies. |
 | 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | No unchanged live rerun merely for close-out; missing/invalid required evidence needs the affected complete history. |
@@ -2583,11 +2682,13 @@ row alone never establishes current applicability. Keep per-target decisions exp
 | Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | Historical [4-6 prerequisites](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), covering the corresponding earlier activation assertions | Repeat required in 4-10: 4-7 changed package policy and the selected native helper. The retained six prerequisites, GDM observations and cleanup passed with enforcing SELinux for the 4-6 candidate. 4-9 maps complete matching activation/GDM prerequisite coverage; the 4-7 standalone matrix supplies no fresh-install/reboot history. |
 | Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-gpmzey9c` | Reuse verified for the recorded candidate: both complete phases, exact package/source/helper/fixture/baseline inputs, independent native admission/execution, identity/ordinary controls and cleanup passed. 4-8 reviews the repair; 4-9 checks final applicability. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-22di3qrn` | Reuse verified for the recorded candidate: both complete phases and all exact inputs, native admission/execution, identity/ordinary controls and cleanup passed with SELinux enforcing throughout. 4-8 reviews the repair; 4-9 checks final applicability. |
-| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcement witnesses and outcome/cleanup checks were reverified in 4-8. Repeat required: 4-8a changed the package and selected shared PAM/execution helpers, so those inputs no longer match. H1 still leaves nine manager negatives and two platform profile negatives unproven; 4-8b must repair/pass both complete affected selectors. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcing AVC witnesses and outcome/cleanup checks were reverified in 4-8. Repeat required: 4-8a changed the package and selected shared PAM/execution helpers, so those inputs no longer match. H1 still leaves nine manager negatives and two platform profile negatives unproven; 4-8b must repair/pass both complete affected selectors with enforcing SELinux. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Historical [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Repeat required for missing/invalidated scope in 4-10: the six Phase 3 execution/platform/shared raw allocations and both platform exports are absent. The incomplete Ubuntu shared JUnit export lacked complete input/native provenance and also expired under bounded export rotation. The current 4-7 matrix covers only its named native assertions; 4-9 maps uncovered admission/platform/shared/ordinary controls and 4-10 retains its final matrix/census gate. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Historical [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-gpmzey9c` now absent | Repeat required in 4-10: 4-8b changed selected shared helpers; prepared DEB build metadata also changed, and raw evidence expired. Product-source/fixture/baseline bytes remain unchanged. Preserve the historical complete pass and every assertion; 4-9 maps final applicability. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Historical [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-22di3qrn` now absent | Repeat required in 4-10: 4-8b changed selected shared helpers and raw evidence expired. RPM/product-source/fixture/baseline bytes remain unchanged. Preserve the historical complete enforcing-SELinux pass and every assertion; 4-9 maps final applicability. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcement witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcing AVC witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed enforcing in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-v88_np_p` and `onpc-system-ah4hdc98` | Reuse verified for the recorded candidate: exact source/package/helper/fixture/baseline inputs, both complete JUnits, all native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-odq44btb` and `onpc-system-uhk5x11_` | Reuse verified for the recorded candidate: exact source/package/helper/fixture/baseline inputs, both complete JUnits, all enforcing native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
+| Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Historical [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Repeat required for missing/invalidated scope in 4-10: the six Phase 3 execution/platform/shared raw allocations and both platform exports are absent. The incomplete Ubuntu shared JUnit export lacked complete input/native provenance and also expired under bounded export rotation. Current execution/platform matrices passed in 4-8b above; 4-9 still maps uncovered admission/shared/ordinary controls and 4-10 retains its final matrix/census gate. |
 | Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Ubuntu | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Fedora | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |

@@ -16,6 +16,7 @@ import runpy
 import shlex
 import re
 import stat
+import struct
 from contextlib import ExitStack, contextmanager
 
 import system_guest as guest
@@ -419,6 +420,224 @@ def user_command(account, command, *, check=True):
          f'XDG_RUNTIME_DIR=/run/user/{account.pw_uid}',
          f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{account.pw_uid}/bus', *command],
         check=check, timeout=45, merge_stderr=False)
+
+
+def service_target(manager, command):
+    """Measure the actual namespace object, and refuse absent native loaders."""
+    canonical = Path(command).resolve(strict=True)
+    visible = manager / 'root' / canonical.relative_to('/')
+    info = visible.stat()
+    guest.require(stat.S_ISREG(info.st_mode) and info.st_mode & 0o111,
+                  'kiosk-service:target-not-executable')
+    with visible.open('rb') as stream:
+        header = stream.read(64)
+        if header.startswith(b'#!'):
+            loader = header[2:].splitlines()[0].split()[0].decode()
+        else:
+            guest.require(header[:6] == b'\x7fELF\x02\x01', 'kiosk-service:target-format')
+            offset = struct.unpack_from('<Q', header, 32)[0]
+            size, count = struct.unpack_from('<HH', header, 54)
+            guest.require(size == 56 and 0 < count <= 256, 'kiosk-service:elf-headers')
+            loader = None
+            for index in range(count):
+                stream.seek(offset + index * size)
+                program = stream.read(size)
+                guest.require(len(program) == size, 'kiosk-service:elf-header-missing')
+                if struct.unpack_from('<I', program)[0] == 3:  # PT_INTERP
+                    start, length = struct.unpack_from('<Q', program, 8)[0], struct.unpack_from('<Q', program, 32)[0]
+                    guest.require(1 < length <= 4096, 'kiosk-service:elf-loader-size')
+                    stream.seek(start)
+                    value = stream.read(length)
+                    guest.require(len(value) == length and value.endswith(b'\0'),
+                                  'kiosk-service:elf-loader-missing')
+                    loader = value[:-1].decode()
+                    break
+    result = {'path': str(canonical), 'device': info.st_dev, 'inode': info.st_ino,
+              'sha256': guest.sha(visible)}
+    guest.require(result['sha256'] == guest.sha(canonical), 'kiosk-service:control-target-drift')
+    entry = Path(command).lstat()
+    result['entry'] = {'device': entry.st_dev, 'inode': entry.st_ino, 'mode': entry.st_mode,
+                       'uid': entry.st_uid, 'gid': entry.st_gid}
+    if stat.S_ISLNK(entry.st_mode):
+        result['entry']['link'] = os.readlink(command)
+    # Btrfs stat() reports a per-subvolume anonymous device, whereas AVCs
+    # identify the backing superblock. Use the actual containing namespace
+    # mount, including any more specific file bind, rather than st_dev lookup.
+    mounts = []
+    for line in (manager / 'mountinfo').read_text().splitlines():
+        left, right = line.split(' - ', 1)
+        mountpoint = Path(re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), left.split()[4]))
+        if canonical.is_relative_to(mountpoint):
+            mounts.append((len(mountpoint.parts), right.split(), line))
+    depth = max((item[0] for item in mounts), default=-1)
+    containing = [item for item in mounts if item[0] == depth]
+    guest.require(len(containing) == 1, 'kiosk-service:target-filesystem')
+    _, mount, result['mount'] = containing[0]
+    fields = result['mount'].split(' - ', 1)[0].split()
+    unescape = lambda value: re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), value)
+    result['audit_name'] = (Path(unescape(fields[3])).name
+                            if canonical == Path(unescape(fields[4])) else canonical.name)
+    if mount[0] == 'tmpfs':
+        result['audit_device'] = 'tmpfs'
+    else:
+        source = Path(mount[1]).resolve(strict=True)
+        device = source.stat()
+        guest.require(stat.S_ISBLK(device.st_mode), 'kiosk-service:target-block-device')
+        block = Path('/sys/dev/block') / f'{os.major(device.st_rdev)}:{os.minor(device.st_rdev)}' / 'uevent'
+        values = dict(line.split('=', 1) for line in block.read_text().splitlines())
+        result['audit_device'] = values['DEVNAME']
+    if loader is not None:
+        loader = Path(loader).resolve(strict=True)
+        native = manager / 'root' / loader.relative_to('/')
+        metadata = native.stat()
+        guest.require(stat.S_ISREG(metadata.st_mode) and metadata.st_mode & 0o111,
+                      'kiosk-service:loader-not-executable')
+        with native.open('rb') as stream:
+            guest.require(stream.read(6) == b'\x7fELF\x02\x01', 'kiosk-service:loader-format')
+        result['loader'] = {'path': str(loader), 'sha256': guest.sha(native)}
+        guest.require(result['loader']['sha256'] == guest.sha(loader), 'kiosk-service:control-loader-drift')
+    return result
+
+
+def service_audit_denial(line, backend, pid, target, uid, *, profile=False):
+    """Match one native executor's enforcing operation and exact target object."""
+    if not re.search(r'\bpid=' + re.escape(str(pid)) + r'\b', line):
+        return False
+    quoted = dict(re.findall(r'\b(apparmor|operation|profile|name|target|path|dev|denied_mask)="([^"]*)"', line))
+    if backend == 'apparmor':
+        if (quoted.get('apparmor'), quoted.get('profile')) != ('DENIED', 'onpc-kiosk-manager'):
+            return False
+        if profile:
+            return all(quoted.get(key) == value for key, value in {
+                'operation': 'change_onexec', 'name': 'unconfined', 'target': 'unconfined'}.items())
+        owners = dict(re.findall(r'\b(fsuid|ouid)=([0-9]+)\b', line))
+        return (quoted.get('operation') == 'exec' and quoted.get('name') == target['path'] and
+                quoted.get('denied_mask') == 'x' and owners.get('fsuid') == str(uid))
+    if backend != 'selinux' or 'avc:  denied' not in line:
+        return False
+    fields = dict(re.findall(r'\b(scontext|tcontext|tclass|permissive|ino)=([^\s]+)', line))
+    if fields.get('scontext') != MANAGER_SID or fields.get('permissive') != '0':
+        return False
+    if profile:
+        return (re.search(r'\{\s*setexec\s*\}', line) is not None and
+                fields.get('tcontext') == MANAGER_SID and fields.get('tclass') == 'process')
+    return (re.search(r'\{\s*(?:execute|execute_no_trans)\s*\}', line) is not None and
+            fields.get('tclass') == 'file' and fields.get('ino') == str(target['inode']) and
+            ('path' not in quoted or quoted['path'] == target['path']) and
+            quoted.get('name') == target['audit_name'] and
+            quoted.get('dev') == target['audit_device'])
+
+
+def service_native_denial(row, account, unit, invocation, pid, command, stage, boot, started):
+    expected = {'MESSAGE_ID': '641257651c1b4ec9a8624d7a40a9e1e7',
+                'CODE_FILE': 'src/core/executor.c', 'USER_UNIT': unit,
+                'USER_INVOCATION_ID': invocation, '_PID': str(pid),
+                '_UID': str(account.pw_uid), '_BOOT_ID': boot, 'EXECUTABLE': command[0]}
+    if not all(row.get(key) == value for key, value in expected.items()):
+        return False
+    if any(key in row and row[key] != value for key, value in {
+            '_SYSTEMD_USER_UNIT': unit, '_SYSTEMD_INVOCATION_ID': invocation}.items()):
+        return False
+    error = row.get('ERRNO')
+    return (error in ('1', '13') and str(row.get('__REALTIME_TIMESTAMP', '')).isdigit() and
+            int(row['__REALTIME_TIMESTAMP']) >= started * 1_000_000 and
+            row.get('MESSAGE') == f'{unit}: Failed at step {stage} spawning {command[0]}: ' +
+            ('Permission denied' if error == '13' else 'Operation not permitted'))
+
+
+def require_service_denial(account, backend, unit, command, record, *, setting=None, writable=False):
+    """Keep native/unit identity until its independent fresh kernel proof is saved."""
+    from system_kiosk_platform import kernel_audit, settle_kernel_audit, wait_for
+    manager_unit = f'user@{account.pw_uid}.service'
+    manager = PROC / str(manager_pid(manager_unit))
+    identity = process_identity(manager)
+    manager_invocation = guest.run(['systemctl', 'show', '--value', '--property=InvocationID', manager_unit])
+    target = service_target(manager, command[0])
+    before_unit = user_command(account, ['/usr/bin/systemctl', '--user', 'show', unit,
+        '--property=InvocationID,ActiveState'], check=False).decode()
+    guest.require('InvocationID=\n' in before_unit and 'ActiveState=inactive\n' in before_unit,
+                  'kiosk-service:unit-already-active')
+    strict = setting is not None and '=-' not in setting
+    stage = ('APPARMOR' if backend == 'apparmor' else 'SELINUX_CONTEXT') if strict else 'EXEC'
+    status = (231 if backend == 'apparmor' else 229) if strict else 203
+    settle_kernel_audit(backend)
+    before = set(kernel_audit(backend).splitlines())
+    cursor = guest.run(['journalctl', '-b', '-n', '0', '--show-cursor', '--no-pager', '-o', 'cat'])
+    guest.require(cursor.startswith('-- cursor: ') and '\n' not in cursor, 'kiosk-service:journal-cursor')
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip().replace('-', '')
+    started = time.time()
+    if writable:
+        launch = ['/usr/bin/systemctl', '--user', 'start', unit]
+    else:
+        launch = ['/usr/bin/systemd-run', '--user', '--wait', '--pipe', '--unit=' + unit]
+        if setting is not None:
+            launch.append('--property=' + setting)
+        launch.extend(command)
+    output = user_command(account, launch, check=False)
+    actual = guest.commands.last_returncode
+    properties = dict(line.split('=', 1) for line in user_command(account,
+        ['/usr/bin/systemctl', '--user', 'show', unit,
+         '--property=InvocationID,ExecMainPID,ExecMainCode,ExecMainStatus,ExecStart,Result,ActiveState']).decode().splitlines())
+    record_key = 'onpc.kiosk.service-denial.' + unit
+    record(record_key + '.request', json.dumps({'command': command, 'setting': setting,
+        'target': target, 'manager_pid': manager.name, 'manager_identity': identity,
+        'manager_invocation': manager_invocation, 'unit': properties,
+        'returncode': actual, 'stdout': output.decode(errors='replace')}, sort_keys=True))
+    invocation = properties.get('InvocationID', '')
+    guest.require(re.fullmatch(r'[a-f0-9]{32}', invocation) is not None,
+                  'kiosk-service:invocation-missing')
+    try:
+        pid = properties.get('ExecMainPID', '')
+        guest.require(re.fullmatch(r'[1-9][0-9]*', pid) is not None and
+                      properties.get('ExecMainCode') == '1' and properties.get('ExecMainStatus') == str(status) and
+                      properties.get('Result') == 'exit-code' and properties.get('ActiveState') == 'failed' and
+                      (writable or actual == status), 'kiosk-service:native-status')
+        guest.require(properties.get('ExecStart', '').startswith('{ path=' + command[0] + ' ; ') and
+                      ' ; pid=' + pid + ' ; ' in properties['ExecStart'], 'kiosk-service:executor-target')
+
+        native_rows = ''
+
+        def native():
+            nonlocal native_rows
+            rows = guest.run(['journalctl', '-b', 'USER_UNIT=' + unit,
+                'MESSAGE_ID=641257651c1b4ec9a8624d7a40a9e1e7',
+                '--after-cursor=' + cursor.removeprefix('-- cursor: '), '-n', '20', '--no-pager', '-o', 'json'])
+            native_rows = rows
+            return any(service_native_denial(json.loads(line), account, unit, invocation,
+                       pid, command, stage, boot, started) for line in rows.splitlines())
+
+        try:
+            wait_for(native, 'kiosk-service:native-denial-not-observed')
+        finally:
+            record(record_key + '.native-diagnostics', native_rows)
+
+        kernel_rows = []
+        def enforcing():
+            nonlocal kernel_rows
+            kernel_rows = [line for line in kernel_audit(backend).splitlines()
+                if line not in before and re.search(r'\bpid=' + re.escape(pid) + r'\b', line)]
+            for line in kernel_rows:
+                event = re.search(r'\baudit\(([0-9]+(?:\.[0-9]+)?):[0-9]+\)', line)
+                if (line not in before and event and float(event[1]) >= started and
+                        service_audit_denial(line, backend, pid, target, account.pw_uid, profile=strict)):
+                    record(record_key + '.kernel-denial', line)
+                    return True
+            return False
+
+        try:
+            wait_for(enforcing, 'kiosk-service:kernel-denial-not-observed')
+        finally:
+            record(record_key + '.kernel-observations', json.dumps(kernel_rows))
+        guest.require(process_identity(manager) == identity and
+                      guest.run(['systemctl', 'show', '--value', '--property=InvocationID', manager_unit]) ==
+                      manager_invocation, 'kiosk-service:manager-changed')
+        guest.require(service_target(manager, command[0]) == target, 'kiosk-service:target-changed')
+    finally:
+        current = user_command(account, ['/usr/bin/systemctl', '--user', 'show', unit,
+            '--value', '--property=InvocationID']).decode().strip()
+        guest.require(current == invocation, 'kiosk-service:unit-replaced')
+        user_command(account, ['/usr/bin/systemctl', '--user', 'reset-failed', unit])
+        record(record_key + '.owned-unit-reset', True)
 
 
 def caller_identity(service):
@@ -1182,7 +1401,7 @@ def verify_bwrap_inputs(account, directory, record):
                       'kiosk-bwrap:manager-changed')
 
 
-def verify_user_inputs(account, record):
+def verify_user_inputs(account, backend, record):
     runtime = Path(f'/run/user/{account.pw_uid}')
     with tempfile.TemporaryDirectory(prefix='onpc-confinement-input-', dir=runtime) as temporary:
         directory = Path(temporary)
@@ -1195,10 +1414,10 @@ def verify_user_inputs(account, record):
         alias.symlink_to('/usr/bin/python3')
         os.lchown(alias, account.pw_uid, account.pw_gid)
         for index, command in enumerate(([str(copied), '--version'], [str(alias), '-c', 'pass'])):
-            user_command(account, ['/usr/bin/systemd-run', '--user', '--wait', '--collect', '--pipe',
-                '--unit=onpc-confinement-writable-' + str(index), *command], check=False)
-            guest.require(guest.commands.last_returncode == 203,
-                          'kiosk-confinement:writable-command-not-denied')
+            user_command(account, command)
+            record('onpc.kiosk.writable-input-positive.' + str(index), True)
+            require_service_denial(account, backend, f'onpc-confinement-writable-{index}.service',
+                                   command, record)
         verify_bwrap_inputs(account, directory, record)
     unit_directory = runtime / 'systemd/user'
     created = []
@@ -1212,15 +1431,29 @@ def verify_user_inputs(account, record):
         stream.write('[Service]\nType=oneshot\nExecStart=+/bin/sh -c "exit 0"\n')
     os.chown(unit, account.pw_uid, account.pw_gid)
     identity = (unit.stat().st_dev, unit.stat().st_ino)
+    contents = unit.read_bytes()
+    metadata = unit.stat()
     try:
         user_command(account, ['/usr/bin/systemctl', '--user', 'daemon-reload'])
-        user_command(account, ['/usr/bin/systemctl', '--user', 'start', unit.name], check=False)
-        status = user_command(account, ['/usr/bin/systemctl', '--user', 'show',
-                                       '--value', '--property=ExecMainStatus', unit.name])
-        guest.require(status.strip() == b'203', 'kiosk-confinement:plus-unit-not-denied')
+        effective = dict(line.split('=', 1) for line in user_command(account,
+            ['/usr/bin/systemctl', '--user', 'show', unit.name,
+             '--property=FragmentPath,ExecStartEx']).decode().splitlines())
+        record('onpc.kiosk.plus-unit-input', json.dumps({'sha256': guest.sha(unit),
+            'uid': metadata.st_uid, 'gid': metadata.st_gid, 'mode': metadata.st_mode,
+            'effective': effective}, sort_keys=True))
+        guest.require(effective.get('FragmentPath') == str(unit) and
+                      ' ; flags=privileged ; ' in effective.get('ExecStartEx', ''),
+                      'kiosk-confinement:plus-unit-input')
+        user_command(account, ['/bin/sh', '-c', 'exit 0'])
+        record('onpc.kiosk.plus-unit-input-positive', True)
+        require_service_denial(account, backend, unit.name, ['/bin/sh', '-c', 'exit 0'],
+                               record, writable=True)
         record('onpc.kiosk.copied-alias-and-plus-unit-denied', True)
     finally:
-        guest.require((unit.stat().st_dev, unit.stat().st_ino) == identity,
+        current = unit.stat()
+        guest.require((current.st_dev, current.st_ino) == identity and unit.read_bytes() == contents and
+                      (current.st_uid, current.st_gid, current.st_mode) ==
+                      (metadata.st_uid, metadata.st_gid, metadata.st_mode),
                       'kiosk-confinement:unit-identity-changed')
         unit.unlink()
         user_command(account, ['/usr/bin/systemctl', '--user', 'reset-failed', unit.name], check=False)
@@ -1611,12 +1844,12 @@ def verify_execution_boundary(record):
             ['/usr/bin/wireplumber', '--version'],
         )
         for index, command in enumerate(denied):
-            name = f'onpc-confinement-deny-{index}'
-            user_command(account, ['/usr/bin/systemd-run', '--user', '--wait', '--collect', '--pipe',
-                                  '--unit=' + name, *command], check=False)
-            guest.require(guest.commands.last_returncode == 203, 'kiosk-confinement:manager-exec-not-denied')
+            user_command(account, command)
+            record('onpc.kiosk.manager-input-positive.' + str(index), True)
+            require_service_denial(account, backend, f'onpc-confinement-deny-{index}.service',
+                                   command, record)
             record('onpc.kiosk.manager-denied.' + str(index), True)
-        verify_user_inputs(account, record)
+        verify_user_inputs(account, backend, record)
         verify_updates(account, unit, backend, record)
         # GDM's saved-session metadata is deliberately irrelevant here: test
         # the executable selected after final PAM admission, including FDs.

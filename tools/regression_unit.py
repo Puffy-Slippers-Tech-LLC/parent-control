@@ -765,6 +765,8 @@ from regression_ui import Bucket
 # source/destination inventory checks use only private ELF-shaped files.
 # Bubblewrap role-proof checks use credential, namespace, label and exec doubles;
 # no host UID, namespace, MAC policy, VM or extra cleanup owner is changed.
+# Manager/service denial proofs use private ELF/proc/audit records and command
+# doubles; they add no live unit, namespace, audit setting or shared resource.
 # Preserved password-helper metadata/census checks use private ELF/proc trees
 # and xattr/pidfd doubles. One additional bounded native identity fixture uses
 # private compilation/output; it changes no mounts, labels, PAM or host policy.

@@ -263,6 +263,16 @@ and a missing denial is a failure. Transient services also exercise native
 positive execution, rejected unconfined profile/context selection and forbidden
 shell execution when profile-setting errors are ignored.
 
+The execution and platform matrices share `require_service_denial` in
+`system_kiosk_confinement.py`. Each manager command, writable executable/alias,
+`ExecStart=+` unit and profile/context request retains its own unit invocation,
+executor PID, target/loader identities, native failure step/error and fresh
+matching enforcing AppArmor/SELinux event. Failed units remain available until
+those observations are saved, then only the matching invocation is reset.
+Native status alone, missing inputs/loaders and unrelated setup errors fail.
+Successful native controls precede the negatives; the writable unit also pins
+its exact bytes/metadata, loaded fragment and effective privileged-prefix flag.
+
 Small planted runtime files are deliberate user-runtime test targets, rather
 than a report or scratch root. Root holds their directory descriptor, writes
 exclusively and checks every owned inode before cleanup; foreign or replaced

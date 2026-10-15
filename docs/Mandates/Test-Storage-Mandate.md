@@ -18,6 +18,7 @@ journals, rotation and safe deletion. The operational contract is
 | Disposable pytest files | `tmp_path` or `tmp_path_factory` through the maintained test launchers, which configure disk scratch. |
 | Disposable standalone scratch | `tools.test_storage.scratch_directory()` as the parent of `TemporaryDirectory`, temporary files or subprocess scratch. |
 | Retained reports, artifacts or failure evidence | `tools.test_retention.allocate(tempfile.mkdtemp, prefix='onpc-...')` inside the owning retention session. Register the empty allocation before writing payloads. |
+| Atomic qualification evidence export | `tools.test_retention.Store.publication()` and its single `allocate` method, with complete verification before commit/recovery retirement; use the maintained [bundle route](../../tests/README.md#complete-qualification-evidence-bundles). |
 | Qualification evidence | `tests.integration.qualification_storage.session()` and its `allocate` helper; reuse an existing qualification session. |
 | Recovery diagnostics | `tests.integration.qualification_storage.recovery_session()` and its `allocate` helper, preserving the separate unfinished VM journal. |
 | Launcher category roots, frozen inputs or privileged journals | `tools.test_storage.directory(kind)`, `named_input()` or `privileged_state(uid)`; let the shared library choose and validate the root. |

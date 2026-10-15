@@ -1456,6 +1456,18 @@ reports before their execution journal rotates, and verify their actual paths
 after the final export/preparation/check. A remembered export path is not a
 retention guarantee; see [artifact access](#prompt-free-test-artifact-access).
 
+Multi-file evidence uses `Store.inspection()` and `Store.publication()` in the
+same export journal, with the same three-run/4-GiB limits. Publication registers
+one empty staging allocation before writing, measures existing plus projected
+output before allocation, and checks actual simultaneous usage before commit.
+It leaves the previous journal and every existing export unchanged on precommit
+failure. A durable committed receipt owns any interrupted retirement. Ordinary
+writers refuse a pending publication; the bundle route re-verifies its complete
+payload before finishing retirement. `--defer-cleanup` commits verified evidence
+while retaining old exports until `bundle-finish`; this permits safety validation
+before the first changed deletion. It is unfinished cleanup, not another export
+slot. No new export may start until that cleanup is finished.
+
 When retained builder output establishes an interruption before manifest
 publication, use `tools/cleanup-e2e --vm NAME --discard-unpublished-input CHECK`
 for its exact named qualification input, then resume normal preparation. The
@@ -1785,6 +1797,71 @@ These development-only helpers are absent from the product package. Follow
 refresh and rule loading, and [approval limits](../docs/Approval-Tools.md#approval-limits-and-review-findings)
 for policy refusals. Initial bootstrap and routine refresh have different
 authorization requirements; a missing grant is not permission to retry authentication.
+
+#### Complete qualification evidence bundles
+
+Use the same installed artifact helper for a finite set of files from recorded,
+finished allocations. Select exact files or directories containing only evidence;
+never select an attempt directory containing SSH keys or online snapshot state.
+Use repeated `--source` arguments for result/JUnit/native/cleanup records,
+input manifests and the corresponding host reports. Directories are inventoried
+recursively with finite depth/file/byte limits; no glob or arbitrary archive
+command is accepted. `--target` accepts registered canonical names and selects
+only their retention journals; it performs no VM operation.
+
+```sh
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-plan --target 'onpc-Ubuntu26.04' --target 'onpc-Fedora44' --source '<recorded-allocation>/evidence' --source '<recorded-allocation>/guest-results' --source '<recorded-host-report>' --bundle '<previous-export>/evidence.zip' --summary
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-export --target 'onpc-Ubuntu26.04' --target 'onpc-Fedora44' --source '<recorded-allocation>/evidence' --source '<recorded-allocation>/guest-results' --source '<recorded-host-report>' --bundle '<previous-export>/evidence.zip' --expect '<selection_sha256>'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-list '<returned-export>/evidence.zip' --summary
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-list '<returned-export>/evidence.zip' --path '<original-file-path>'
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-read '<returned-export>/evidence.zip' --path '<original-file-path>' --bytes 8000 --offset 0
+```
+
+Omit `--bundle` for the first bundle. The plan inventories every selected original
+path, logical/allocated size, file/allocation identity, owning journal/run and
+SHA-256; `--summary` displays allocation totals instead of the complete file list.
+It also checks source budgets and conservative simultaneous export space before
+publication. Export requires the exact plan digest and repeats these guards.
+Earlier verified bundles are flattened with new evidence; identical original
+records deduplicate and conflicting records refuse. Every selected file is
+preserved, including host selection/results. No file is silently omitted.
+
+Bundles contain at most 60,000 files, a 64-MiB manifest and 1 GiB total projected
+output. Source depth is at most 32, with at most 256 explicit selections. The
+unchanged export journal accounts all simultaneous old and staging allocations;
+an insufficient budget refuses before rotation. Plan each finite campaign and
+preserve required proof before another source session can rotate it. Alternate
+two cumulative target bundles when needed; keep each target's newest complete
+bundle within the three-export window and check both after every later export.
+Do not increase budgets or drop files on refusal.
+
+Publication returns a private caller-owned `onpc-evidence-bundle-*/evidence.zip`
+and receipt under shared exports. The bundle has generated member names, a
+path/digest/provenance manifest and its checksum; the receipt binds the complete
+ZIP checksum and file identity. Inspection checks all bytes, names, provenance
+and digests before returning a manifest or an original-file slice (at most
+16 MiB). It bounds the archive directory before parsing and never extracts files.
+Links, hard links, special files, unsafe owners/groups, substitutions, source
+mutation, mount escapes, credentials and incomplete publications refuse. Private
+group metadata is allowed only when that group admits the caller and root.
+Sources remain unchanged; sharing retains the raw-export privacy restriction.
+
+For an explicit validation boundary, append `--defer-cleanup` to export. Inspect
+the returned bundle, finish the required safety checks, then run:
+
+```sh
+pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-finish
+```
+
+This re-verifies the committed bundle before deleting only recorded retired
+exports. Interrupted commit/cleanup resumes through the same maintained route;
+an unsafe replacement or corrupted committed payload stays preserved and refused.
+`bundle-finish` accepts no caller-selected path. For a preparing interruption,
+use `pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-recover`.
+This removes only its recorded incomplete staging allocation and preserves every
+prior export; a committed interruption instead verifies the bundle before
+finishing recorded retirement. Then inspect a fresh plan and retry export.
+Ordinary plan/inspection refuses the pending transaction rather than rotating it.
 
 ### Manual entry points
 

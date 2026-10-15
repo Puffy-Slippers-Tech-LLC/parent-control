@@ -26,6 +26,12 @@ the existing complete removal regression remains intact. Task order, dependencie
 target acceptance and every continuous history remain unchanged. The reference
 records each implemented selector and its separate installed qualification.
 
+Task 4-9 resumes without acceptance credit after the accepted
+[evidence-preservation prerequisite](Confinement-Reference.md#phase-4-step-9a--complete-qualification-evidence--2026-10-15). Its
+[retained checkpoint](Confinement-Reference.md#phase-4-step-9--candidate-checkpoint-and-retention-prerequisite--2026-10-15)
+records passing host work, verified package inputs and the finite remaining
+qualification/evidence set. Recheck applicability and executable inputs in 4-9.
+
 ## Ordered task queue
 
 | Done | ID | Task | Requires | Scope | Estimate |
@@ -58,7 +64,8 @@ records each implemented selector and its separate installed qualification.
 | [x] | 4-8a | [Protect first configuration before kiosk access](Confinement-Reference.md#phase-4-step-8a--first-configuration-protection--2026-10-15) | 4-7 | Both targets: fix the first-configure passwordless interval before admission/execution guards; qualify interrupted configuration, owned retry/reboot and ordinary-user preservation. | 30–60 min; preserve the interrupted-install/retry history |
 | [x] | 4-8b | [Prove manager and service API denials](Confinement-Reference.md#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15) | 4-8a | Both targets: repair eleven generic-status negatives with independent enforcing-boundary observations; pass both complete affected execution/platform selectors. | 30–60 min; shared proof mechanics, separate target evidence |
 | [x] | 4-8 | [Independent lifecycle/security review](Confinement-Reference.md#phase-4-step-8--resumed-review-acceptance--2026-10-15) | 4-7, 4-8a, 4-8b | Independent lifecycle, APIs, exposed surfaces, collateral effects and harness/evidence review across five scope groups. | 15–30 min; split substantial independent work |
-| [ ] | 4-9 | [Final candidate and host validation](Confinement-Tasks/4-9.md) | 4-8 | Affected host/build checks; exact final DEB/RPM input preparation, evidence applicability and required follow-up inventory. | 15–30 min; split substantial independent work |
+| [x] | 4-9a | [Preserve complete qualification evidence](Confinement-Reference.md#phase-4-step-9a--complete-qualification-evidence--2026-10-15) | 4-8 | Maintain and qualify bounded multi-file evidence preservation for both targets before required raw histories rotate; preserve identity, ownership, source and retention guards. | Both targets: 3,753-file cumulative bundle verified; 636 scoped checks and final 312 affected checks pass; unchanged three-run/4-GiB limits, cleanup complete. |
+| [ ] | 4-9 | [Final candidate and host validation](Confinement-Tasks/4-9.md) | 4-8, 4-9a | Affected host/build checks; exact final DEB/RPM input preparation, evidence applicability and required follow-up inventory. | 15–30 min; split substantial independent work |
 | [ ] | 4-10 | [Final Ubuntu and Fedora qualification](Confinement-Tasks/4-10.md) | 4-9 | Both targets: final DEB/RPM confinement matrices, strict real-session census, affected public kiosk qualification and every invalidated in-scope complete history; Fedora SELinux remains enforcing. | 15–30 min; split substantial independent goals across both targets |
 | [ ] | 4-12 | [Reconcile and close](Confinement-Tasks/4-12.md) | 4-10 | Reconcile five groups, both reviews, retained raw evidence and owned cleanup; close only the confinement exit gate. | 15–30 min; split substantial independent work |
 

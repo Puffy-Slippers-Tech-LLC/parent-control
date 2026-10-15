@@ -19,6 +19,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # threads and owned agent cleanup remain
 # unchanged; no network, shared cache, VM or new cleanup owner is added. Existing
 # compatible unit and cleanup classifications remain appropriate.
+# Atomic publication/deferred retirement extends test_retention with small private
+# journals, files, local locks and synchronous interruption/metadata doubles. All
+# descriptors close in their fixture; no process, VM, service, cache or shared
+# path is added, so its existing compatible cleanup classification remains valid.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch; test_test_retention_cleanup_safety remains compatible in both inventories.
 # Batch-input transfer coverage adds paired private journals/local locks and

@@ -42,6 +42,343 @@ def advance_to_expiry(store):
             pass
 
 
+def export_fixture(tmp_path):
+    store = retention.Store(tmp_path / 'exports-state')
+    paths = []
+    for index in range(3):
+        with store.session():
+            paths.append(allocated(tmp_path, f'export-{index}'))
+    return store, paths
+
+
+def publication_allocation(transaction, tmp_path):
+    path = transaction.allocate(tempfile.mkdtemp, prefix='export-', dir=str(tmp_path))
+    (path / 'bundle.zip').write_bytes(b'verified bundle bytes')
+    return path
+
+
+def test_publication_failure_preserves_three_exports_then_commit_rotates(tmp_path):
+    store, originals = export_fixture(tmp_path)
+    original = (store.path / 'current.json').read_bytes()
+    with pytest.raises(SimulatedFailure):
+        with store.publication(projected_bytes=16384) as transaction:
+            staging = publication_allocation(transaction, tmp_path)
+            assert (store.path / retention.PUBLICATION).is_file()
+            assert (store.path / 'current.json').read_bytes() == original
+            assert all(path.exists() for path in originals)
+            raise SimulatedFailure
+    assert not staging.exists()
+    assert (store.path / 'current.json').read_bytes() == original
+    assert all((path / 'test.log').read_bytes() == b'evidence' * 128 for path in originals)
+    with store.publication(projected_bytes=16384) as transaction:
+        published = publication_allocation(transaction, tmp_path)
+        transaction.commit()
+    assert not originals[0].exists()
+    assert all(path.exists() for path in originals[1:])
+    assert (published / 'bundle.zip').read_bytes() == b'verified bundle bytes'
+    assert not (store.path / retention.PUBLICATION).exists()
+    with store.inspection() as state:
+        assert len(state['history']) == 2 and state['paths'][0]['path'] == str(published)
+
+
+@pytest.mark.parametrize('boundary', ['precommit', 'journal', 'retirement'])
+def test_publication_recovers_durable_intent_without_losing_exports(tmp_path, monkeypatch, boundary):
+    store, originals = export_fixture(tmp_path)
+    journal = (store.path / 'current.json').read_bytes()
+    save, remove = store.save, retention.remove
+    interrupted = False
+    def save_fault(fd, value, *, name='current.json'):
+        nonlocal interrupted
+        if boundary == 'journal' and name == 'current.json' and not interrupted:
+            interrupted = True
+            raise SimulatedInterrupt
+        return save(fd, value, name=name)
+    def remove_fault(record, *, validate_only=False):
+        nonlocal interrupted
+        should_fail = (boundary == 'precommit' and record['path'] not in {str(p) for p in originals}
+                       or boundary == 'retirement' and record['path'] == str(originals[0]))
+        if not validate_only and should_fail and not interrupted:
+            interrupted = True
+            raise SimulatedInterrupt
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(store, 'save', save_fault)
+    monkeypatch.setattr(retention, 'remove', remove_fault)
+    with pytest.raises(SimulatedInterrupt):
+        with store.publication(projected_bytes=16384) as transaction:
+            staging = publication_allocation(transaction, tmp_path)
+            if boundary != 'precommit':
+                transaction.commit()
+    assert (store.path / retention.PUBLICATION).exists()
+    if boundary in ('precommit', 'journal'):
+        assert (store.path / 'current.json').read_bytes() == journal
+        assert all(path.exists() for path in originals)
+    with pytest.raises(ValueError, match='publication pending'):
+        with store.session():
+            pytest.fail('ordinary session accepted pending publication')
+    with pytest.raises(ValueError, match='publication pending'):
+        with store.inspection():
+            pytest.fail('inspection accepted pending publication')
+    with store.publication(projected_bytes=0):
+        pass
+    assert not (store.path / retention.PUBLICATION).exists()
+    assert staging.exists() == (boundary != 'precommit')
+    assert originals[0].exists() == (boundary == 'precommit')
+    assert all(path.exists() for path in originals[1:])
+
+
+@pytest.mark.parametrize('fault', ['replacement', 'owner', 'symlink', 'hardlink', 'mount', 'nested-mount', 'file-mount'])
+def test_publication_audits_all_existing_exports_before_allocation(tmp_path, monkeypatch, fault):
+    store, originals = export_fixture(tmp_path)
+    journal = (store.path / 'current.json').read_bytes()
+    victim = originals[0]
+    if fault == 'replacement':
+        victim.rename(tmp_path / 'original-export')
+        victim.mkdir(mode=0o700)
+    elif fault == 'owner':
+        os.chmod(victim, 0o755)
+    elif fault == 'symlink':
+        (victim / 'link').symlink_to(originals[1] / 'test.log')
+    elif fault == 'hardlink':
+        os.link(victim / 'test.log', victim / 'second-link')
+    else:
+        mounted = (victim if fault == 'mount' else victim / 'test.log'
+                   if fault == 'file-mount' else victim / 'nested')
+        if fault == 'nested-mount':
+            mounted.mkdir(mode=0o700)
+        mount_id = retention.mount_id
+        def fake_mount(fd):
+            return 'fixture-mount' if Path(os.readlink(f'/proc/self/fd/{fd}')) == mounted else mount_id(fd)
+        monkeypatch.setattr(retention, 'mount_id', fake_mount)
+    with pytest.raises((ValueError, OSError)):
+        with store.publication(projected_bytes=0):
+            pytest.fail('unsafe existing export accepted')
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert all(path.exists() for path in originals)
+
+
+@pytest.mark.parametrize('when', ['entry', 'commit'])
+def test_publication_budget_preserves_original_journal_and_all_exports(tmp_path, monkeypatch, when):
+    store, originals = export_fixture(tmp_path)
+    journal = (store.path / 'current.json').read_bytes()
+    original_size = sum(retention.allocation_bytes(record) for _, record in
+                        retention.latest_allocations([*json.loads(journal)['history'], json.loads(journal)]))
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', original_size + 8192)
+    with pytest.raises(ValueError, match='publication exceeds'):
+        with store.publication(projected_bytes=16384 if when == 'entry' else 0) as transaction:
+            staging = publication_allocation(transaction, tmp_path)
+            (staging / 'bundle.zip').write_bytes(b'x' * 32768)
+            transaction.commit()
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert all(path.exists() for path in originals)
+    assert not (store.path / retention.PUBLICATION).exists()
+
+
+def test_publication_registers_empty_allocation_before_return_and_holds_locks(tmp_path):
+    store, originals = export_fixture(tmp_path)
+    with store.publication(projected_bytes=16384) as transaction:
+        staging = transaction.allocate(tempfile.mkdtemp, prefix='export-', dir=str(tmp_path))
+        intent = json.loads((store.path / retention.PUBLICATION).read_text())
+        assert intent['staging']['path'] == str(staging)
+        assert intent['staging']['inode'] == staging.stat().st_ino
+        assert list(staging.iterdir()) == []
+        with pytest.raises(ValueError, match='another owner'):
+            with store.inspection():
+                pass
+        with pytest.raises(ValueError, match='one allocation'):
+            transaction.allocate(tempfile.mkdtemp, dir=str(tmp_path))
+    assert not staging.exists() and all(path.exists() for path in originals)
+    with pytest.raises(ValueError, match='no uncommitted'):
+        transaction.commit()
+
+
+def test_publication_refuses_an_inherited_execution_token(tmp_path, monkeypatch):
+    store, originals = export_fixture(tmp_path)
+    journal = (store.path / 'current.json').read_bytes()
+    monkeypatch.setenv(retention.VARIABLE, json.dumps([str(store.path), 'a' * 32]))
+    with pytest.raises(ValueError, match='independent owner'):
+        with store.publication(projected_bytes=0):
+            pytest.fail('publication accepted an execution owner')
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert all(path.exists() for path in originals)
+
+
+@pytest.mark.parametrize('replace', ['staging', 'retirement'])
+def test_publication_recovery_refuses_replaced_staging_and_retirement(tmp_path, monkeypatch, replace):
+    store, originals = export_fixture(tmp_path)
+    remove = retention.remove
+    def interrupt(record, *, validate_only=False):
+        if not validate_only:
+            raise SimulatedInterrupt
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'remove', interrupt)
+    with pytest.raises(SimulatedInterrupt):
+        with store.publication(projected_bytes=16384) as transaction:
+            staging = publication_allocation(transaction, tmp_path)
+            transaction.commit()
+    monkeypatch.setattr(retention, 'remove', remove)
+    journal = (store.path / 'current.json').read_bytes()
+    victim = staging if replace == 'staging' else originals[0]
+    victim.rename(tmp_path / 'displaced-export')
+    victim.mkdir(mode=0o700)
+    (victim / 'keep').write_text('replacement')
+    with pytest.raises(ValueError, match='replaced'):
+        with store.publication(projected_bytes=0):
+            pass
+    assert (store.path / 'current.json').read_bytes() == journal
+    assert (victim / 'keep').read_text() == 'replacement'
+    assert staging.exists() and (store.path / retention.PUBLICATION).exists()
+
+
+def test_deferred_publication_is_durable_inspectable_and_finishes_exact_retirement(tmp_path):
+    store, originals = export_fixture(tmp_path)
+    with store.publication(projected_bytes=16384) as transaction:
+        staging = publication_allocation(transaction, tmp_path)
+        transaction.commit(defer_cleanup=True)
+    assert all(path.exists() for path in originals)
+    assert staging.exists() and (store.path / retention.PUBLICATION).is_file()
+    with pytest.raises(ValueError, match='publication pending'):
+        with store.inspection():
+            pass
+    with store.inspection(include_committed=True) as state:
+        assert state['paths'][0]['path'] == str(staging)
+        assert all(path.exists() for path in originals)
+    assert store.finish_publication()
+    assert not store.finish_publication()
+    assert not originals[0].exists()
+    assert all(path.exists() for path in originals[1:]) and staging.exists()
+    assert not (store.path / retention.PUBLICATION).exists()
+
+
+def test_deferred_finish_and_inspection_refuse_uncommitted_staging(tmp_path, monkeypatch):
+    store, originals = export_fixture(tmp_path)
+    remove = retention.remove
+    def interrupted(record, *, validate_only=False):
+        if not validate_only:
+            raise SimulatedInterrupt
+        return remove(record, validate_only=validate_only)
+    monkeypatch.setattr(retention, 'remove', interrupted)
+    with pytest.raises(SimulatedInterrupt):
+        with store.publication(projected_bytes=16384) as transaction:
+            staging = publication_allocation(transaction, tmp_path)
+    with pytest.raises(ValueError, match='not committed'):
+        store.finish_publication()
+    with pytest.raises(ValueError, match='not durably committed'):
+        with store.inspection(include_committed=True):
+            pass
+    assert staging.exists() and all(path.exists() for path in originals)
+
+
+@pytest.mark.parametrize('resume', ['finish', 'publication'])
+@pytest.mark.parametrize('corruption', ['changed', 'missing'])
+def test_committed_publication_verifies_payload_before_retirement_and_retries(
+        tmp_path, resume, corruption):
+    store, originals = export_fixture(tmp_path)
+    expected = b'verified bundle bytes'
+    calls = []
+    def verify(record):
+        calls.append(record['path'])
+        assert (Path(record['path']) / 'bundle.zip').read_bytes() == expected, 'corrupt bundle'
+    with store.publication(projected_bytes=16384, verify=verify) as transaction:
+        stage = publication_allocation(transaction, tmp_path)
+        transaction.commit(defer_cleanup=True)
+    assert calls and set(calls) == {str(stage)}
+    original = (store.path / 'current.json').read_bytes()
+    payload = stage / 'bundle.zip'
+    if corruption == 'changed':
+        payload.write_bytes(b'corrupted payload')
+    else:
+        payload.unlink()
+    def recover():
+        if resume == 'finish':
+            store.finish_publication(verify=verify)
+        else:
+            with store.publication(projected_bytes=0, verify=verify):
+                pass
+    with pytest.raises((AssertionError, FileNotFoundError)):
+        recover()
+    assert (store.path / 'current.json').read_bytes() == original
+    assert all(path.exists() for path in originals)
+    assert (store.path / retention.PUBLICATION).is_file()
+    payload.write_bytes(expected)
+    recover()
+    assert not originals[0].exists()
+    assert all(path.exists() for path in originals[1:]) and payload.read_bytes() == expected
+    assert not (store.path / retention.PUBLICATION).exists()
+
+
+def test_initial_publication_verification_refusal_preserves_journal_and_exports(tmp_path):
+    store, originals = export_fixture(tmp_path)
+    original = (store.path / 'current.json').read_bytes()
+    expected = b'required verified payload'
+    def refuse(record):
+        if (Path(record['path']) / 'bundle.zip').read_bytes() != expected:
+            raise SimulatedFailure('bundle verification refused')
+    with pytest.raises(SimulatedFailure, match='verification refused'):
+        with store.publication(projected_bytes=16384, verify=refuse) as transaction:
+            stage = publication_allocation(transaction, tmp_path)
+            transaction.commit()
+    assert not stage.exists() and all(path.exists() for path in originals)
+    assert (store.path / 'current.json').read_bytes() == original
+    assert not (store.path / retention.PUBLICATION).exists()
+    with store.publication(projected_bytes=16384, verify=refuse) as transaction:
+        retried = publication_allocation(transaction, tmp_path)
+        (retried / 'bundle.zip').write_bytes(expected)
+        transaction.commit()
+    assert not originals[0].exists() and retried.exists()
+
+
+@pytest.mark.parametrize('resume', ['finish', 'publication'])
+def test_committed_publication_recovery_refuses_grown_aggregate_before_retirement(
+        tmp_path, monkeypatch, resume):
+    store, originals = export_fixture(tmp_path)
+    with store.publication(projected_bytes=16384) as transaction:
+        stage = publication_allocation(transaction, tmp_path)
+        transaction.commit(defer_cleanup=True)
+    original = (store.path / 'current.json').read_bytes()
+    intent = json.loads((store.path / retention.PUBLICATION).read_text())
+    records = [record for _, record in retention.latest_allocations(
+        [*intent['original']['history'], intent['original']])]
+    usage = retention.publication_usage([*records, intent['staging']])
+    with monkeypatch.context() as limited:
+        limited.setattr(retention, 'MAX_RETAINED_BYTES', usage - 1)
+        with pytest.raises(ValueError, match='publication exceeds'):
+            if resume == 'finish':
+                store.finish_publication()
+            else:
+                with store.publication(projected_bytes=0):
+                    pass
+    assert (store.path / 'current.json').read_bytes() == original
+    assert all(path.exists() for path in originals) and stage.exists()
+    assert (store.path / retention.PUBLICATION).is_file()
+    assert store.finish_publication()
+    assert not originals[0].exists() and stage.exists()
+
+
+def test_preparing_publication_recovery_can_remove_only_its_oversized_staging(tmp_path, monkeypatch):
+    store, originals = export_fixture(tmp_path)
+    original = (store.path / 'current.json').read_bytes()
+    state = json.loads(original)
+    records = [record for _, record in retention.latest_allocations([*state['history'], state])]
+    original_size = retention.publication_usage(records)
+    remove = retention.remove
+    def interrupt(record, *, validate_only=False):
+        if not validate_only:
+            raise SimulatedInterrupt
+        return remove(record, validate_only=validate_only)
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(retention, 'remove', interrupt)
+        with pytest.raises(SimulatedInterrupt):
+            with store.publication(projected_bytes=16384) as transaction:
+                stage = publication_allocation(transaction, tmp_path)
+    (stage / 'bundle.zip').write_bytes(b'x' * 32768)
+    monkeypatch.setattr(retention, 'MAX_RETAINED_BYTES', original_size + 8192)
+    with store.publication(projected_bytes=0):
+        pass
+    assert not stage.exists() and all(path.exists() for path in originals)
+    assert (store.path / 'current.json').read_bytes() == original
+    assert not (store.path / retention.PUBLICATION).exists()
+
+
 @pytest.mark.parametrize('fault', [None, 'active', 'guard', 'replaced', 'marker-link'])
 def test_idle_reconciliation_preserves_evidence_and_refuses_unsafe_recovery(tmp_path, fault):
     store = retention.Store(tmp_path / 'state')

@@ -897,7 +897,7 @@ e2e_overlay_valid_choices
 e2e_overlay_license
 e2e_overlay_cancel
 vm_internet_cleanup_safety baseline_fixtures_cleanup_safety
-about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice chinese_language_assets_cleanup_safety
+about_dialog accessible_e2e_ui accessible_observation adapters app_policy app_termination appsnapshot_cleanup_safety apt_removal_notice chinese_language_assets_cleanup_safety evidence_bundle
 authentication_evidence automation_ids backing_verification_cleanup_safety baseline_guest_cleanup_safety broker_properties
 broker_state_machine build_package build_test_artifacts bump_version catalog catalog_scope challenges_cleanup_safety child_preview
 child_preview_cleanup_safety clean_install_cleanup_safety codex_test_rules config core coverage_generation customer_reboot_cleanup_safety data_migration
@@ -1264,5 +1264,9 @@ def buckets(nodeids):
 # leases/live references; transfer fingerprints use bounded in-memory archives
 # and private files. Retention and vm_transport stay compatible; no live guest,
 # shared storage, process or additional resource lifetime is introduced.
+# Evidence bundles and publication transactions use small pytest-private journals,
+# ZIP files, descriptors and synchronous metadata/failure doubles. They start no
+# subprocess, VM, network, display or service and mutate no shared cache/path;
+# evidence_bundle and test_retention remain compatible with reviewed unit work.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.

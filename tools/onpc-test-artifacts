@@ -11,6 +11,7 @@ import re
 import stat
 import sys
 import tempfile
+import zipfile
 
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 
@@ -116,11 +117,72 @@ def main(argv=None):
             command.add_argument('--bytes', type=nonnegative, default=8000)
         if action == 'read':
             command.add_argument('--offset', type=nonnegative, default=0)
+    for action in ('bundle-plan', 'bundle-export'):
+        command = actions.add_parser(action, allow_abbrev=False)
+        command.add_argument('--target', action='append', default=[])
+        command.add_argument('--source', action='append', default=[])
+        command.add_argument('--bundle', action='append', default=[])
+        if action == 'bundle-plan':
+            command.add_argument('--summary', action='store_true')
+        if action == 'bundle-export':
+            command.add_argument('--expect', required=True)
+            command.add_argument('--defer-cleanup', action='store_true')
+    for action in ('bundle-list', 'bundle-read'):
+        command = actions.add_parser(action, allow_abbrev=False)
+        command.add_argument('source')
+        if action == 'bundle-list':
+            command.add_argument('--summary', action='store_true')
+            command.add_argument('--path')
+        if action == 'bundle-read':
+            command.add_argument('--path', required=True)
+            command.add_argument('--bytes', type=nonnegative, default=8000)
+            command.add_argument('--offset', type=nonnegative, default=0)
+    actions.add_parser('bundle-finish', allow_abbrev=False)
+    actions.add_parser('bundle-recover', allow_abbrev=False)
     args = parser.parse_args(argv)
     try:
         if CHECKOUT is None:
             raise ValueError('installation required')
         uid, gid = caller()
+        if args.action.startswith('bundle-'):
+            sys.dont_write_bytecode = True
+            sys.path.insert(0, str(Path(CHECKOUT) / 'tools'))
+            import evidence_bundle
+            if args.action in ('bundle-plan', 'bundle-export'):
+                with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
+                                               args.source, args.bundle) as selection:
+                    result = (selection.plan() if args.action == 'bundle-plan' else
+                              evidence_bundle.export(selection, expected=args.expect,
+                                                     defer_cleanup=args.defer_cleanup))
+            elif args.action == 'bundle-finish':
+                result = {'cleanup_complete': True,
+                          'retirement_finished': evidence_bundle.finish(CHECKOUT, uid, gid)}
+            elif args.action == 'bundle-recover':
+                evidence_bundle.recover(CHECKOUT, uid, gid)
+                result = {'cleanup_complete': True}
+            else:
+                result = evidence_bundle.inspect(CHECKOUT, uid, gid, args.source, **(
+                    dict(member=args.path, offset=args.offset, count=args.bytes)
+                    if args.action == 'bundle-read' else {}))
+            if isinstance(result, bytes):
+                sys.stdout.buffer.write(result)
+            else:
+                if args.action == 'bundle-list' and args.path is not None:
+                    result['manifest']['files'] = [entry for entry in result['manifest']['files']
+                                                  if entry['path'] == args.path]
+                    if not result['manifest']['files']:
+                        raise ValueError('bundle: original path is not in the manifest')
+                if getattr(args, 'summary', False):
+                    inventory = {}
+                    for entry in result['manifest'].pop('files'):
+                        item = inventory.setdefault(entry['allocation']['path'],
+                                                    dict(files=0, bytes=0, allocated_bytes=0))
+                        item['files'] += 1
+                        item['bytes'] += entry['bytes']
+                        item['allocated_bytes'] += entry['allocated_bytes']
+                    result['inventory'] = inventory
+                print(json.dumps(result, sort_keys=True))
+            return 0
         with open_source(args.source, CHECKOUT, uid) as (fd, info):
             directory = stat.S_ISDIR(info.st_mode)
             if args.action == 'stat':
@@ -142,7 +204,7 @@ def main(argv=None):
                     os.lseek(fd, offset, os.SEEK_SET)
                     copy_bytes(fd, sys.stdout.buffer, min(args.bytes, max(0, info.st_size - offset)))
         return 0
-    except (ValueError, KeyError, OSError) as error:
+    except (ValueError, KeyError, OSError, TypeError, zipfile.BadZipFile, RuntimeError) as error:
         # Source contents and account/path details belong only in requested output.
         detail = str(error) if isinstance(error, ValueError) else type(error).__name__
         print(f'test-artifacts: {detail}', file=sys.stderr)

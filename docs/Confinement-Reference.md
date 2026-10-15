@@ -2662,6 +2662,364 @@ Only 4-8 is checked, its temporary brief is removed, and the master advances to
 4-9. Final applicability/retention and every other recorded missing or invalidated
 history remain with 4-9/4-10; this review supplies no public-kiosk acceptance.
 
+## Phase 4 step 9 — candidate checkpoint and retention prerequisite — 2026-10-15
+
+**Not accepted.** At this checkpoint, task 4-9 was suspended for
+[4-9a](#phase-4-step-9a--complete-qualification-evidence--2026-10-15), which needed to provide bounded complete-evidence
+preservation before more privileged sessions can rotate required proof. Its row
+remains unchecked; every existing row retains its status, order and scope.
+Snapshot matching, final raw/JUnit applicability and the complete retention
+budget still need acceptance when 4-9 resumes. No 4-10 qualification ran here.
+
+### Candidate and completed host work
+
+The starting HEAD is `1d079351664b738e47ac4e5bd342ee9b649c8898`.
+The only pre-existing change is `docs/VersionHistory.md`, preserved byte for byte
+(SHA-256 `2c8d0d7abfece54c759963f669b62411cf96aad53d886565576a610743bf3f83`).
+It is a package input, but it was already present in the earlier prepared
+candidate. Do not infer invalidation from its dirty Git status: current maintained
+preparation binds the same exact package-source digest and package bytes below.
+No product or test implementation changed in this task.
+
+`make build` passed for both formats. Its build outputs are not substituted for
+the format-specific qualified inputs. Missing retained final host reports from
+4-7/4-8a/4-8b required a grouped affected unit selection; its initial 2,060-case
+pass and the first prepared DEB later expired during separate host checks.
+The actual host journal confirmed that these preparations and checks share its
+three-run window. Both inputs were therefore reprepared, followed by one final
+grouped unit/metadata/artifact-verification selection, recorded below.
+No required raw installed evidence was rotated.
+The exact ten selected files are `test_kiosk_confinement.py`,
+`test_system_first_configure.py`, `test_system_kiosk_admission.py`,
+`test_system_kiosk_platform.py`, `test_system_kiosk_scope.py`,
+`test_system_removal_faults.py`, `test_system_runner.py`,
+`test_system_runner_cleanup_safety.py`, `test_system_snapshots.py` and
+`test_regression_unit.py`, all under `tests/unit/`, with `-q` through
+`tools/run-tests unit`. The maintained scheduler used four reviewed buckets.
+No new module or resource behavior was introduced.
+
+The read-only host audit also verified complete passing exports
+`onpc-artifact-export-gj6rley5/report.md` (1,698 cases),
+`onpc-artifact-export-o4j31ihv/report.md` (648) and
+`onpc-artifact-export-xfkxkjjn/report.md` (149), under host `exports/`.
+Their SHA-256 values are respectively
+`82d652b119a638eaca1fcf8d5388ab6dffe92524aa794c32eb49f4909b88104c`,
+`9f0e9f45aff2e374755bf5d090bc2201b62200903b85f0c6efffba2c53def995` and
+`f716765f1e527adcffc7aa8a801bc405b67ef1daeeac5f05b2e3ec22829a502a`.
+Reuse only their unchanged provision/configuration/activation/removal/packaging
+scope; the fresh selection covers subsequently changed helpers and proofs.
+4-9a must preserve these applicable exports before rotating their journal.
+Preference schemas and saved-data migration implementations were unaffected;
+UID/expiry ownership is covered by the scoped provision/removal tests, so no
+blanket schema suite is selected.
+
+Separate maintained `artifacts prepare --for-vm --vm NAME` invocations passed:
+
+| Target | Allocation under host `allocations/` | Report under host `reports/` | Package SHA-256 |
+| --- | --- | --- | --- |
+| onpc-Ubuntu26.04 | `onpc-test-artifacts-503na7zv` | `20261015T184411Z-f16336a6/report.md` | `49dbccce5fb45a72307231e4a444d15cdac4a02ef12d555c5ca2c83cb30a80a4` |
+| onpc-Fedora44 | `onpc-test-artifacts-e4djgmf6` | `20261015T184504Z-96a37f7f/report.md` | `89e6bb8c462922fa6a99e18ab65ff3df21e55a7e66580de94fa488c59ca327d6` |
+
+Both manifests bind the 348-file package-source SHA-256
+`9454f190377353cf7e299b5c0a2c1bad0a971dad8942d70ddee50f1cf51656e4`,
+revision `c0cc19ff2b28386b2f544bbc0e4b0021b818f618`, and fixture SHA-256
+`7559a7c6ebee0078c29f9dcb2f15c684ad41f52c1df226c82bbdb996ad8c119b`.
+DEB records `amd64`, epoch `1792086152` and
+`dpkg-buildpackage --build=binary --no-sign -aamd64`; RPM records `x86_64`,
+epoch `1791914313` and `tools/build_rpm.py`. Both use `nocheck parallel=2`.
+The final bundles were built fresh; the earlier content-qualified Ubuntu reuse
+also checked current source/build metadata before and after copying. Independent
+package hashes match both manifests. Preparation supplies no installed acceptance
+or snapshot matching. The final combined check retains both inputs and its
+complete report together in three host sessions; do not add another separate
+host run after it merely for documentation bookkeeping.
+
+Final grouped validation passed **2,187/2,187**: the 2,060 affected unit cases,
+125 `test_execution_plan_launcher.py` / `test_coverage_generation.py` cases and
+both maintained artifact verifications. Its retained report is
+`output/test-runs/host/reports/20261015T184610Z-f566b345/report.md`.
+After final owned host cleanup, both preparation reports, both exact manifests/
+package files and that complete report were rechecked together in the actual
+three-run host journal. The three applicable host exports and all six required
+installed allocations remain present. All 133 Markdown links and whitespace
+checks pass. This repairs the task-local host rotation loss; the separate final
+installed-campaign preservation obligation still requires 4-9a.
+
+### Retained installed inputs and required preservation
+
+All six current raw `evidence/result.json` files were read through the maintained
+reader. Their exact selections passed, expected and executed cases agree,
+`cleanup_phase=complete`, and two baseline checks passed in each result.
+They agree with the prepared package/source/fixture identities above.
+Their baseline digests remain Ubuntu
+`5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93`
+and Fedora
+`fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c`.
+
+| Scope | Ubuntu raw allocation | Fedora raw allocation | Selected-input SHA-256 |
+| --- | --- | --- | --- |
+| Complete first-configuration interruption/retry/reboot | `onpc-system-2hdf70p_` | `onpc-system-wc0i7djg` | `16b9c0957f23d5c39a64ee9c2911a4ff4e23ba1486e69d829f657a14bf2cf0a5` |
+| Complete execution matrix | `onpc-system-v88_np_p` | `onpc-system-odq44btb` | `1c3137915d5c0bc67ac1cc6f9c6acef3f49779028aa4357e882bf9d042735d07` |
+| Complete platform matrix | `onpc-system-ah4hdc98` | `onpc-system-uhk5x11_` | `e26891ba6ad800dfd5d7f7e1ce5e135a1063994ceeec947e16e82b4dbca01d08` |
+
+The first-configuration manifest's 31 bindings/29 distinct checkout files were
+independently hashed again with no mismatch. Full JUnit/native-proof and snapshot
+reverification remains pending; these preliminary checks grant no new installed
+credit. Preserve each allocation's results, input/artifact/selected/transfer
+manifests, complete JUnits, continuity state, native fault/control/denial
+observations and command diagnostics before another privileged session.
+For first configuration, both required JUnits are under
+`guest-results/attempt-first-configure/`; each matrix retains
+`guest-results/enforcement.xml`. Keep their matching host reports/queue selection
+and recorded cleanup too. Never export online snapshot credentials or SSH keys.
+
+The Phase 3 public request, About, Preferences, feedback/service, ordinary-login
+and shared-integration raw allocations recorded in their historical sections
+are absent from the current privileged allocation inventory. The same holds for
+the historical lifecycle allocations in the ledger; no remembered path or prose
+entry supplies reuse. Their existing complete-history repeat obligations remain.
+The six retained current allocations above do not replace those histories.
+
+### Finite 4-10 selection after resumed 4-9 acceptance
+
+The following is the bounded current selection, not execution or acceptance.
+Both canonical targets require their own verified format-specific input above;
+the maintained dual-target scheduler may prepare those same exact identities
+when `--artifacts` is omitted. A changed source/package/helper/fixture/baseline or
+installation recipe requires remapping the affected histories first.
+
+| Registered route, on each target | Required complete scope / invalidation reason |
+| --- | --- |
+| `enforcement::test_kiosk_execution_confinement` | Mandatory final execution/credential/bootstrap/policy-loss matrix, including all current H1 proofs. |
+| `enforcement::test_kiosk_login_admission` | Installed GDM/terminal/SSH admission with successful controls; historical Phase 3 raw proof is absent. |
+| `enforcement::test_kiosk_shared_integration_scope` | Shared vendor-PAM/effective kiosk-only policy and both ordinary roles; includes the complete namespace qualifier, so no overlapping standalone namespace run. |
+| `enforcement::test_kiosk_platform_integrations` | Mandatory final platform/API/loader/configuration matrix with enforcing Fedora domains. |
+| Entire registered `removal` area | Every invalidated complete successful removal, rollback, three finalization, seven PAM/record ownership and seven identity/filesystem histories; Fedora additionally retains its native post-erase/reinstall/conflict/reboot/repeated-purge chain. Changed package/helpers/fixtures and missing raw proof prohibit historical reuse. |
+| E2E IDs `50,51,52,192` | Complete approved/denied/cancelled request journeys and About restrictions, separately on both targets; old raw proof is absent. |
+| `integration check_e2e_kiosk_preferences_confinement` | Complete Preferences/pages/nested editors and unchanged request/normal exit; run Ubuntu and Fedora serially under the established qualification exception. |
+| `integration check_e2e_kiosk_feedback_confinement` | Complete report/privacy/editor/scanner and required-service confinement; old raw proof is absent. |
+| `integration check_e2e_fresh_desktop` | Separate fresh administrator and standard-user graphical password-login/usable-desktop attempts; old raw proof is absent. |
+
+The complete removal area has 155 executions on DEB and 163 on RPM, including
+each history's six baseline installation/reboot prerequisites. Its continuous
+successful history has eleven executions; rollback has eight; finalization has
+three times eight; each ownership family has seven times eight; Fedora's extra
+post-erase history has eight. Runtime filters that RPM-only history on DEB;
+list-only currently reports the format-neutral 163. Preserve the bracketed
+finalization variants: their bare family name is not a registered selector.
+The four selected enforcement cases add four executions per target.
+
+The removal prerequisites' actual `observe_kiosk_activation` route retains real
+installed/rebooted GDM observations and invokes the strict every-process/thread
+waiting-session census with required roles, enforcing labels, private namespaces
+and matching generation. They also cover both ordinary roles' metadata through
+classification/restart/reboot. The feedback qualifier adds its stronger real
+scanner/eight-role census. Use those complete final raw observations for the
+mandatory census and metadata assertions; another standalone namespace,
+classification or entry invocation would duplicate the same current assertions.
+If their actual retained observations do not establish that scope, the gap stays
+open and its maintained complete route must run. The first-configuration history
+may be reused only after 4-9a preservation and full resumed applicability checks;
+otherwise repeat its two phases together, never splice them into another chain.
+
+Group the four exact enforcement selections, the complete removal area and
+E2E IDs `50,51,52,192` in one supported repeated-category invocation per target
+queue. This keeps system/E2E proof in one privileged retention session and avoids
+unrelated authorization/session/feature tests. Preferences, feedback and fresh
+desktop remain three distinct integration dispatches per target. Public actions,
+ordinary controls, exact inputs and cleanup assertions remain unchanged.
+
+### Proven retention shortfall and return condition
+
+`tools/regression_process.py::category_run` forwards the aggregate retention token
+only for system/E2E. The installed dispatch contract explicitly rejects that
+token for integration; each integration dispatch opens its own privileged session
+even when grouped under one host report. Consequently the finite selection needs
+**at least four privileged sessions per target** (five with a separate entry
+qualification), exceeding the existing three-run window. Snapshot preparation or
+retries can consume more sessions. The per-target journals do not share budgets.
+
+The exporter in `tools/onpc-test-artifacts` accepts one regular file per call
+and opens one separate bounded export session each time. Even a single complete
+first-configuration result requires more than three files: its result, artifact
+manifest, selected-input manifest and both JUnits, before native observations
+and continuity/cleanup evidence. Repeated single-file exports therefore cannot
+preserve the declared current plus final evidence set. No unsupported archive,
+manual copy, raised limit or repeated qualification is used to hide this gap.
+
+**Prerequisite: 4-9a.** Preserve the six current allocations and applicable host
+reports together through a qualified bounded route; inventory the exact retained
+paths/allocated sizes and budget the complete final campaign through 4-12 before
+any required proof rotates. A feasible route must allow earlier bundles and new
+raw evidence to be preserved together within the existing three-run/4-GiB limits.
+After it passes, resume 4-9: recheck these host reports/inputs, verify matching
+snapshots through normal maintained guards without reading online `snapshot.json`,
+finish every raw/JUnit applicability decision and publish the exact finite budget.
+Expired or changed proof requires its complete history again in 4-10.
+
+No VM was booted, restored or modified here. Both format probes were read-only;
+independent target status reads found both powered off. Both read-only workers
+finished before the coordinator's final decision. Owned builds/tests/preparations
+finished their cleanup; no maintenance instance or process remains. The new
+prerequisite suspends 4-9 without acceptance credit and changes no other task's
+status or scope.
+
+## Phase 4 step 9a — complete qualification evidence — 2026-10-15
+
+**Accepted: host, onpc-Ubuntu26.04 and onpc-Fedora44.** The maintained
+[evidence bundle route](../tests/README.md#complete-qualification-evidence-bundles)
+now preserves explicit files from multiple completed recorded allocations and
+earlier verified bundles. It uses the existing export journal and unchanged
+three-run/4-GiB limits. This supplies no installed acceptance and does not close
+4-9, 4-10 or any missing historical qualification.
+
+The artifact helper retains its installed authorization and trusted checkout
+resolver. Shared retention owns identity-registered staging, atomic commit,
+interrupted recovery and deferred retirement. Complete verification precedes
+commit intent and every retirement. Source journals are pinned without rotation;
+sources remain unchanged. Original paths, logical/allocated sizes, file and
+allocation identities, journal/run provenance and SHA-256 values are retained
+for every file. The ZIP and manifest have checksums; inspection verifies all
+members without extraction. Credential paths/private-key contents, unsafe owners
+or groups, links, substitutions, mutation, mounts, malformed/oversized selections
+and incomplete output refuse. No general privileged command or selected output
+path was added.
+
+### Exact retained set and verification
+
+Before any rotation, the public plan inventoried **3,710 files**, 115,019,310
+logical bytes and a conservative 119,550,074-byte output. Existing exports used
+1,802,240 allocated bytes; simultaneous projected usage was 121,352,314 bytes.
+The two privileged source journals used 944,394,240 bytes (Ubuntu) and
+925,659,136 bytes (Fedora), each below 4 GiB. The initial bundle was committed
+with deferred retirement, preserving all three old exports until explicit safety
+tests passed. Its complete bytes were publicly verified before host tests could
+rotate preparation reports or inputs.
+
+All six required raw allocations retain their complete `evidence/`,
+`guest-results/`, `private/` diagnostics and four `input/` manifests
+(`artifact-manifest.json`, `selected-inputs.json`, `transfer-sha256.json`,
+`installed-files.json`). This includes native observations, both first-configure
+continuity/JUnit records and recorded cleanup. Attempt SSH keys, online snapshot
+credentials and unselected fixture payloads are excluded from the explicit set.
+Both original prepared package files/manifests and corresponding host reports
+are also retained.
+
+| Target / raw allocation | Files | Logical bytes | Selected allocated bytes |
+| --- | ---: | ---: | ---: |
+| Ubuntu `onpc-system-2hdf70p_` | 1,137 | 18,707,949 | 22,355,968 |
+| Fedora `onpc-system-wc0i7djg` | 1,187 | 1,145,630 | 4,993,024 |
+| Ubuntu `onpc-system-v88_np_p` | 438 | 34,244,001 | 35,450,880 |
+| Fedora `onpc-system-odq44btb` | 538 | 920,046 | 2,322,432 |
+| Ubuntu `onpc-system-ah4hdc98` | 192 | 32,295,909 | 32,837,632 |
+| Fedora `onpc-system-uhk5x11_` | 180 | 676,771 | 1,208,320 |
+
+The final bundle is
+`output/test-runs/host/exports/onpc-evidence-bundle-k42jyta8/evidence.zip`:
+**3,753 files**, 117,089,633 original logical bytes, 120,148,133 ZIP bytes,
+SHA-256 `6ed31e4741263934f3547c5c0c1ef011cf8425f95e4aa0ff4511f1f202ab0846`.
+Its manifest/selection SHA-256 is
+`f35da85d89cf1418ccb58d3998a9cf2f1bfae3bdebf418d86ab562a1fc394e03`.
+Its adjacent `receipt.json` binds the ZIP identity/digest. It flattens earlier
+bundles `onpc-evidence-bundle-ozts4syw` (118,045,352 bytes,
+SHA-256 `86bc11e572eacef160b9c2241b6d5800182ebfe8a536560ce33ecab3957494eb`)
+and `onpc-evidence-bundle-f8urx4cm` (119,674,354 bytes,
+SHA-256 `f0deb8424fd9fd50e6b798073186bda868b0c58410147c9e0dadcc1dbf34db71`)
+with subsequent host results. Those three allocations are the finished export
+journal's complete retained set, using **357,912,576 allocated bytes**. The final
+publication preflight projected 359,524,259 simultaneous bytes, including staging.
+No pending publication receipt remains.
+
+After the last export and owned cleanup, `bundle-list` and `bundle-read` verified
+every manifest/member checksum and separately reread all six raw results, all
+eight required JUnits and the four input-manifest identities per allocation.
+Expected and executed cases agree: two first-configure phases or the exact
+execution/platform case. All results pass, `cleanup_phase=complete`, and each
+records two successful baseline checks. Package/source/fixture/baseline and the
+three selected-input SHA-256 values agree exactly with the preceding checkpoint;
+both retained prepared package bytes independently match those package hashes.
+Full current file-binding and snapshot applicability remains with 4-9.
+
+All three original host-report exports were carried forward before their old
+paths rotated. Final inspection verifies the unchanged hashes recorded above
+and their complete passing totals **1,698**, **648** and **149**. The final bundle
+also retains the three checkpoint preparation/2,187-case reports, their raw host
+selection/results, and the new reports below. A later source-path expiration
+does not invalidate the retained raw copy.
+
+### Host qualification and cleanup
+
+The grouped affected nine-module selection passed **636/636**, retained as
+`host/reports/20261015T191058Z-7e8a9c9d/report.md` inside the bundle; report SHA-256
+`ccfa963bee1f778b68bdcb5088bbfe49d8bc23c4446b83479a9059bfc5a5363d`.
+It covers bundle/artifact/retention/storage helpers, installation, unit/cleanup
+scheduling and plan/coverage consistency. A later **267/267** bundle/retention
+selection qualified precommit verification and retry; its retained report is
+`host/reports/20261015T191245Z-c55f7206/report.md`, SHA-256
+`12ec5dd777007ce1ac88a1077d50f6289886dbde02d97a9c010f2e319878ee7c`.
+The final **312/312** bundle/retention/storage selection passed after the checkout
+root and mounted-file guards, including all 59 bundle cases and 210 retention
+cases. Its report is `host/reports/20261015T191657Z-82982338/report.md`, SHA-256
+`23d4ecf5323a4783b0e340deba5d63127f2a1773965effada1641f60802d7d49`.
+These paths are original manifest paths under `output/test-runs/`; use the bundle
+reader after their source journal rotates.
+
+Fixtures qualify six cumulative generations beyond both three-run windows,
+subsequent rotation, all-or-nothing failure/retry, crash recovery/deferred cleanup,
+source/destination mutation and replacement, owner/group/link/mount refusals,
+privacy, budget limits and safe inspection. Mechanical fixes preserved all
+assertions: support the runner's private-group metadata, restore root authority
+before changing groups, verify before commit intent, and pass the checkout root
+to bundle inspection. The failed 59-case attempt's original
+`host/reports/20261015T191455Z-7ea67c11/` diagnostics are retained too; the final
+312-case pass covers its complete selection. No product behavior changed.
+
+The new bundle module and extended retention fixtures use private pytest trees,
+local descriptors/locks and synchronous doubles, with no shared service, VM,
+display, socket, cache or independent process lifetime. Compatible unit and
+cleanup inventories were reviewed. `make build` passed for DEB and RPM. The
+helper was refreshed through `./setup.sh --test-tools-only`. All workers finished
+before acceptance; explicit host cleanup and export retirement finished. No VM
+was booted, installed, restored or modified. The unrelated VersionHistory edit
+still has SHA-256 `2c8d0d7abfece54c759963f669b62411cf96aad53d886565576a610743bf3f83`.
+
+### Finite preservation budget through 4-12
+
+Use the final bundle as the common seed. After the grouped complete system/E2E
+invocation, then after each separate Preferences, feedback and fresh-desktop
+invocation, preserve the new raw records and matching finished host report.
+Do not group those integration dispatches across an unexported rotation boundary.
+Keep the serial Preferences exception and both targets' complete histories.
+Snapshot preparation and retries also require preflight before they can rotate
+required proof; they do not share an integration retention token.
+
+Maintain two alternating cumulative bundles, one for each target, each carrying
+the common seed plus that target's new proof. The minimum campaign has four
+sessions per target and eight target updates. Keep each target's newest bundle
+among the latest three exports; verify both after every later export and at
+4-12. Updating Ubuntu carries its previous Ubuntu bundle; updating Fedora carries
+its previous Fedora bundle. Once both carry the seed, expiration of the seed's
+standalone path is harmless. No histories or files are dropped.
+
+Reserve at most **960 MiB of projected/allocated output per cumulative target
+bundle**, within the route's 1-GiB/60,000-file cap. Three retained generations plus
+one staging generation then require at most **3,840 MiB**, leaving **256 MiB**
+inside the unchanged 4-GiB journal limit. Against the final 121,669,539-byte
+projection, each target has **884,963,421 bytes** of additional projected capacity
+and **56,247 additional file entries**. This is a finite reservation, not a claim
+that unexecuted results have already been measured. Each public plan must measure
+the actual complete selection, source journals and simultaneous export budget
+before proceeding. An overrun must preserve proof and report the exact shortfall;
+never raise budgets or omit records. Preserve after each completed invocation
+before a fourth unpreserved source session can expire its oldest proof.
+
+There is no current preservation shortfall. Task 4-9 must still recheck matching
+snapshots and every current applicability decision, and prepare/verify executable
+DEB/RPM inputs through the maintained builder: host tests legitimately rotated
+the old preparation allocations after their reports, manifests and package bytes
+were preserved. A readable bundle is evidence, not a replacement executable input
+directory. The existing finite 4-10 selection and all repeat obligations remain.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -2683,7 +3041,8 @@ than copying hashes or creating another task queue.
 | 4-7–4-8 | Both independent reviews accepted; repairs and current affected installed evidence reconciled in [resumed 4-8](#phase-4-step-8--resumed-review-acceptance--2026-10-15). | Missing L1 raw evidence was replaced by complete dual-target repeats. Applicable H1 matrices were reverified without repetition. Every other invalidated history remains with 4-9/4-10. |
 | 4-8a | First-configuration protection and complete interrupted-install/retry/reboot histories passed on both targets in [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15). | Exact matching raw inputs, native admission/execution, ordinary controls and cleanup verified. Existing invalidated complete-history repeats remain with 4-9/4-10; this new history replaces none of them. |
 | 4-8b | Eleven manager/service API negative proofs and both complete affected execution/platform selectors passed on both targets in [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15). | Exact inputs, per-attack native/kernel witnesses and cleanup verified. 4-8 reviews the accepted repair; 4-9 checks final applicability and 4-10 retains its final matrix/census and invalidated-history gates. |
-| 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Reuse unchanged valid task-local host results where their exact scope and inputs cover the final candidate; run missing/affected checks. No blanket schema or VM/E2E run. |
+| 4-9a | Bounded cumulative preservation qualified on both targets; six raw histories, input/JUnit/native/cleanup records and applicable host reports retained. | [Accepted host evidence and finite budget](#phase-4-step-9a--complete-qualification-evidence--2026-10-15); final 3,753-file bundle verified after the last export and cleanup, with unchanged three-run/4-GiB limits. No installed credit; 4-9 resumes. |
+| 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Resumes without acceptance after 4-9a; earlier affected host/build/input work remains in the [checkpoint](#phase-4-step-9--candidate-checkpoint-and-retention-prerequisite--2026-10-15) and preserved bundle. Recheck executable inputs, applicability, matching snapshots and the full retention budget; no blanket schema or VM/E2E run. |
 | 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | Keep this final gate. Choose a covering registered route once: the shared-integration selector already includes the complete namespace qualifier, so a second standalone namespace run adds no coverage when that result applies. |
 | 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | No unchanged live rerun merely for close-out; missing/invalid required evidence needs the affected complete history. |
 

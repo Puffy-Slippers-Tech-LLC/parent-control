@@ -21,6 +21,7 @@ import tempfile
 VARIABLE = 'ONPC_TEST_RETENTION'
 RUNS_TO_KEEP = 3
 MAX_RETAINED_BYTES = 4 * 1024 ** 3
+PUBLICATION = 'publication.json'
 _locks = set()
 
 
@@ -103,9 +104,96 @@ def ensure_directory(path):
         os.close(fd)
 
 
+def validate_state(value):
+    if (not isinstance(value, dict)
+            or set(value) not in ({'run', 'finished', 'paths'},
+                                  {'run', 'finished', 'paths', 'history'})
+            or not isinstance(value['paths'], list) or type(value['finished']) is not bool):
+        raise ValueError('retention: invalid journal')
+    uuid.UUID(hex=value['run'])
+    history = value.setdefault('history', [])
+    if not isinstance(history, list) or len(history) >= RUNS_TO_KEEP:
+        raise ValueError('retention: invalid history')
+    tokens = {value['run']}
+    for entry in history:
+        if (not isinstance(entry, dict) or set(entry) != {'run', 'paths'}
+                or not isinstance(entry['paths'], list) or entry['run'] in tokens):
+            raise ValueError('retention: invalid history')
+        uuid.UUID(hex=entry['run'])
+        tokens.add(entry['run'])
+    return value
+
+
 class Store:
     def __init__(self, path):
         self.path = Path(path)
+
+    @contextmanager
+    def inspection(self, *, include_committed=False):
+        """Pin a finished owner for read-only inspection without rotating it."""
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            with self.locked(fd, 'writer.lock', publication=include_committed):
+                state = self.read(fd)
+                finished_owner(fd, state)
+                if include_committed:
+                    intent = read_publication(self, fd)
+                    if intent is not None:
+                        replacement, _ = publication_states(intent)
+                        if intent['phase'] != 'committed' or state != replacement:
+                            raise ValueError('retention: publication is not durably committed')
+                        original = intent['original']
+                        records = ([] if original is None else [record for _, record in
+                                   latest_allocations([*original['history'], original])])
+                        publication_usage([*records, intent['staging']])
+                        with directory_descriptor(intent['staging']['path']):
+                            pass
+                if state is not None:
+                    for _, record in latest_allocations([*state['history'], state]):
+                        remove(record, validate_only=True)
+                yield state
+
+    def finish_publication(self, *, verify=None):
+        """Finish only a committed output's recorded, deferred retirement."""
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            with self.locked(fd, 'writer.lock', publication=True):
+                intent = read_publication(self, fd)
+                if intent is None:
+                    return False
+                if intent['phase'] != 'committed':
+                    raise ValueError('retention: publication is not committed; resume publication recovery')
+                recover_publication(self, fd, verify=verify)
+                return True
+
+    @contextmanager
+    def publication(self, *, projected_bytes, verify=None):
+        """Build one export before committing its bounded retention rotation.
+
+        The caller verifies and fsyncs its payload before commit(). An interrupted
+        commit resumes from its durable intent; ordinary writers cannot erase it.
+        """
+        if VARIABLE in os.environ:
+            raise ValueError('retention: publication requires an independent owner')
+        if type(projected_bytes) is not int or projected_bytes < 0:
+            raise ValueError('retention: invalid publication size')
+        if not self.path.is_absolute() or '..' in self.path.parts:
+            raise ValueError('retention: invalid storage path')
+        ensure_directory(self.path)
+        with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False):
+            with self.locked(fd, 'writer.lock', publication=True):
+                recover_publication(self, fd, verify=verify)
+                state = self.read(fd)
+                finished_owner(fd, state)
+                records = ([] if state is None else
+                           [record for _, record in latest_allocations([*state['history'], state])])
+                if publication_usage(records) + projected_bytes > MAX_RETAINED_BYTES:
+                    raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
+                transaction = Publication(self, fd, state, projected_bytes, verify)
+                try:
+                    yield transaction
+                finally:
+                    transaction.active = False
+                    if transaction.intent is not None and not transaction.committing:
+                        recover_publication(self, fd, verify=verify)
 
     def discard_unpublished_input(self, path):
         """Explicit recovery of one recorded, interrupted artifact build.
@@ -222,7 +310,7 @@ class Store:
             os.close(fd)
 
     @contextmanager
-    def locked(self, fd, name, *, blocking=True, transfer=False):
+    def locked(self, fd, name, *, blocking=True, transfer=False, publication=False):
         lock = os.open(name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
                        0o600, dir_fd=fd)
         try:
@@ -232,6 +320,8 @@ class Store:
             except BlockingIOError as error:
                 raise ValueError('retention: another owner is active') from error
             _locks.add(lock)
+            if name == 'writer.lock' and not publication and PUBLICATION in os.listdir(fd):
+                raise ValueError('retention: publication pending; resume publication recovery')
             if name == 'writer.lock' and not transfer:
                 if __package__:
                     from .test_input_transfer import mutation_guard
@@ -251,25 +341,7 @@ class Store:
         with os.fdopen(source) as stream:
             private(os.fstat(stream.fileno()), regular=True)
             value = json.load(stream)
-        if (not isinstance(value, dict)
-                or set(value) not in ({'run', 'finished', 'paths'},
-                                      {'run', 'finished', 'paths', 'history'})
-                or not isinstance(value['paths'], list) or type(value['finished']) is not bool):
-            raise ValueError('retention: invalid journal')
-        uuid.UUID(hex=value['run'])
-        # Upgrade the original single-run journal without losing its ownership
-        # records. History is oldest first and contains only completed owners.
-        history = value.setdefault('history', [])
-        if not isinstance(history, list) or len(history) >= RUNS_TO_KEEP:
-            raise ValueError('retention: invalid history')
-        tokens = {value['run']}
-        for entry in history:
-            if (not isinstance(entry, dict) or set(entry) != {'run', 'paths'}
-                    or not isinstance(entry['paths'], list) or entry['run'] in tokens):
-                raise ValueError('retention: invalid history')
-            uuid.UUID(hex=entry['run'])
-            tokens.add(entry['run'])
-        return value
+        return validate_state(value)
 
     def save(self, fd, value, *, name='current.json'):
         out = os.open('current.tmp', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW,
@@ -398,6 +470,199 @@ class Store:
                     self.save(fd, state)
                     if state['finished']:
                         self.prune(fd, state)
+
+
+def finished_owner(fd, state):
+    if 'recovery-required' in os.listdir(fd) or (state is not None and not state['finished']):
+        raise ValueError('retention: publication/inspection requires a finished, unmarked owner')
+
+
+def publication_record(record):
+    if (not isinstance(record, dict) or set(record) != {'path', 'device', 'inode', 'mode'}
+            or not isinstance(record['path'], str)
+            or not Path(record['path']).is_absolute() or '..' in Path(record['path']).parts
+            or any(type(record[key]) is not int or record[key] <= 0 for key in ('device', 'inode'))
+            or record['mode'] != 0o700):
+        raise ValueError('retention: invalid publication allocation')
+
+
+def publication_conflict(stage, record):
+    path, existing = Path(stage['path']), Path(record['path'])
+    return path == existing or path in existing.parents or existing in path.parents
+
+
+def publication_usage(records):
+    """Audit the complete export set, including links and payload ownership."""
+    total = 0
+    for record in records:
+        publication_record(record)
+        remove(record, validate_only=True)
+        try:
+            target = directory(record['path'])
+        except FileNotFoundError:
+            continue
+        try:
+            info = os.fstat(target)
+            allocation_identity(info, 0o700)
+            if (info.st_dev, info.st_ino) != (record['device'], record['inode']):
+                raise ValueError('retention: recorded allocation was replaced')
+            check_tree(target, info.st_dev, regular_only=True)
+            total += allocation_bytes(record)
+        finally:
+            os.close(target)
+    return total
+
+
+def publication_states(intent):
+    original, stage = intent['original'], intent['staging']
+    entries = [] if original is None else [*original['history'],
+                                          dict(run=original['run'], paths=original['paths'])]
+    expire = max(0, len(entries) - (RUNS_TO_KEEP - 1))
+    retired = [record for index, record in latest_allocations(entries) if index < expire]
+    replacement = dict(run=intent['run'], finished=True, paths=[stage], history=entries[expire:])
+    return replacement, retired
+
+
+def read_publication(store, fd):
+    try:
+        source = os.open(PUBLICATION, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(source) as stream:
+        private(os.fstat(stream.fileno()), regular=True)
+        intent = json.load(stream)
+    if (not isinstance(intent, dict) or set(intent) != {'run', 'phase', 'original', 'staging'}
+            or not valid_token(intent['run']) or intent['phase'] not in ('staging', 'committed')):
+        raise ValueError('retention: invalid publication intent')
+    publication_record(intent['staging'])
+    original = intent['original']
+    if original is not None:
+        validate_state(original)
+        if not original['finished'] or intent['run'] in {entry['run'] for entry in [*original['history'], original]}:
+            raise ValueError('retention: invalid publication owner')
+        records = [record for _, record in latest_allocations([*original['history'], original])]
+        for record in records:
+            publication_record(record)
+            if publication_conflict(intent['staging'], record):
+                raise ValueError('retention: publication staging conflicts with retained evidence')
+    return intent
+
+
+def committed_publication_audit(intent, verify):
+    original = intent['original']
+    records = ([] if original is None else
+               [record for _, record in latest_allocations([*original['history'], original])])
+    if publication_usage([*records, intent['staging']]) > MAX_RETAINED_BYTES:
+        raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
+    with directory_descriptor(intent['staging']['path']):
+        pass  # Committed output must exist even after partial owned retirement.
+    if verify is not None:
+        verify(intent['staging'])
+
+
+def recover_publication(store, fd, *, verify=None):
+    intent = read_publication(store, fd)
+    if intent is None:
+        return
+    current = store.read(fd)
+    finished_owner(fd, current)
+    original = intent['original']
+    replacement, retired = publication_states(intent)
+    if current != original and not (intent['phase'] == 'committed' and current == replacement):
+        raise ValueError('retention: publication owner changed; evidence preserved')
+    original_records = ([] if original is None else
+                        [record for _, record in latest_allocations([*original['history'], original])])
+    if intent['phase'] == 'staging':
+        publication_usage([*original_records, intent['staging']])
+        remove(intent['staging'])
+    else:
+        # The committed intent is the write-ahead retirement receipt. Keep it
+        # until all deletions finish; a retry only accepts these exact identities.
+        committed_publication_audit(intent, verify)
+        if current != replacement:
+            store.save(fd, replacement)
+        for record in retired:
+            if verify is not None:
+                verify(intent['staging'])
+            remove(record)
+    os.unlink(PUBLICATION, dir_fd=fd)
+    os.fsync(fd)
+
+
+@contextmanager
+def directory_descriptor(path):
+    fd = directory(path)
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
+class Publication:
+    """One identity-bound output; usable only while its Store context is held."""
+    def __init__(self, store, fd, original, projected_bytes, verify):
+        self.store, self.fd, self.original = store, fd, original
+        self.projected_bytes = projected_bytes
+        self.verify = verify
+        self.intent = None
+        self.active = True
+        self.committing = False
+
+    def allocate(self, factory, **options):
+        if not self.active or self.intent is not None:
+            raise ValueError('retention: publication permits one allocation')
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+        try:
+            path = Path(factory(**options))
+            with directory_descriptor(path) as target:
+                info = os.fstat(target)
+                allocation_identity(info, 0o700)
+                if os.listdir(target):
+                    raise ValueError('retention: publication requires an empty allocation')
+                record = dict(path=str(path), device=info.st_dev, inode=info.st_ino, mode=0o700)
+                if self.original is not None and any(publication_conflict(record, existing)
+                        for _, existing in latest_allocations([*self.original['history'], self.original])):
+                    raise ValueError('retention: publication staging conflicts with retained evidence')
+                remove(record, validate_only=True)
+                os.fsync(target)
+            with directory_descriptor(path.parent) as parent:
+                os.fsync(parent)
+            self.intent = dict(run=uuid.uuid4().hex, phase='staging', original=self.original, staging=record)
+            try:
+                self.store.save(self.fd, self.intent, name=PUBLICATION)
+            except BaseException:
+                if read_publication(self.store, self.fd) is None:
+                    remove(record)
+                raise
+            return path
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+    def commit(self, *, defer_cleanup=False):
+        if type(defer_cleanup) is not bool:
+            raise ValueError('retention: invalid deferred cleanup option')
+        if not self.active or self.intent is None or self.committing:
+            raise ValueError('retention: publication has no uncommitted allocation')
+        if self.store.read(self.fd) != self.original or read_publication(self.store, self.fd) != self.intent:
+            raise ValueError('retention: publication owner changed; evidence preserved')
+        finished_owner(self.fd, self.original)
+        records = ([] if self.original is None else
+                   [record for _, record in latest_allocations([*self.original['history'], self.original])])
+        if publication_usage([*records, self.intent['staging']]) > MAX_RETAINED_BYTES:
+            raise ValueError('retention: publication exceeds 4 GiB storage budget; evidence preserved')
+        with directory_descriptor(self.intent['staging']['path']) as target:
+            os.fsync(target)
+        if self.verify is not None:
+            self.verify(self.intent['staging'])
+        self.committing = True
+        self.intent = dict(self.intent, phase='committed')
+        self.store.save(self.fd, self.intent, name=PUBLICATION)
+        if defer_cleanup:
+            replacement, _ = publication_states(self.intent)
+            committed_publication_audit(self.intent, self.verify)
+            self.store.save(self.fd, replacement)
+        else:
+            recover_publication(self.store, self.fd, verify=self.verify)
 
 
 def environment():
@@ -734,6 +999,15 @@ def check_tree(fd, device, *, regular_only=False):
                 if os.fstat(child).st_dev != device or mount_id(child) != mount_id(fd):
                     raise ValueError('retention: mounted storage is not disposable')
                 check_tree(child, device, regular_only=regular_only)
+            finally:
+                os.close(child)
+        elif regular_only:
+            child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+            try:
+                opened = os.fstat(child)
+                if ((opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)
+                        or mount_id(child) != mount_id(fd)):
+                    raise ValueError('retention: mounted or replaced file is not disposable')
             finally:
                 os.close(child)
 

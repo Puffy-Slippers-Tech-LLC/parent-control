@@ -93,6 +93,14 @@ INVENTORIES = {
     'session': ('test_kiosk_expiry_graphical_runtime',),
 }
 
+# Include the real activation prerequisite to cover the six package executions
+# in each removal history without changing older finite controller fixtures.
+RECOVERY_INVENTORIES = {
+    **INVENTORIES,
+    'package': (*INVENTORIES['package'], runner.KIOSK_ACTIVATION_CASE),
+    'removal': tuple(history.case_id for history in runner.REMOVAL_HISTORIES),
+}
+
 
 def write_junit_results(directory, selection, fault=None):
     output = directory / 'guest-results'

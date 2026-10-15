@@ -44,7 +44,25 @@ QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
 REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted',
                   'purged-rebooted', 'purge-reinstalled-rebooted')
-PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES, 'authorization', 'enforcement', 'session')
+
+
+@dataclass(frozen=True)
+class History:
+    case_id: str
+    phases: tuple[str, ...]
+    prerequisites: tuple[str, ...]
+    start: str = 'baseline'
+
+
+REMOVAL_HISTORIES = (
+    History('test_remove_reboot_reinstall', REMOVAL_PHASES, ('installed', 'rebooted')),
+    History('test_aborted_cleanup_rollback_retry', ('rollback', 'rollback-rearmed-rebooted'),
+            ('rollback-installed', 'rollback-rebooted')),
+)
+ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
+PHASE_SEMANTICS = {'rollback-installed': 'installed', 'rollback-rebooted': 'rebooted'}
+PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES, *ROLLBACK_PHASES,
+               'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -81,8 +99,11 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
-    **{phase: ('installed', 'rebooted', *REMOVAL_PHASES[:index])
-       for index, phase in enumerate(REMOVAL_PHASES)},
+    **{phase: (*history.prerequisites, *history.phases[:index])
+       for history in REMOVAL_HISTORIES
+       for index, phase in enumerate(history.phases)},
+    'rollback-installed': (),
+    'rollback-rebooted': ('rollback-installed',),
     'authorization': (),
     'enforcement': (),
     'session': (),
@@ -95,6 +116,10 @@ PHASE_PREREQUISITES = {
     'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
     'purged-rebooted': ('purge-phase', 'guest-reboot', 'desktop-health'),
     'purge-reinstalled-rebooted': ('purge-reinstall-phase', 'guest-reboot', 'boot-readiness'),
+    'rollback-installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
+    'rollback-rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
+    'rollback': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
+    'rollback-rearmed-rebooted': ('rollback-phase', 'guest-reboot', 'boot-readiness'),
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot', 'one-shot-gdm-grant-fixture-and-second-reboot'),
@@ -273,7 +298,9 @@ def collect_area_cases(area, *, invoke=None):
 
 def case_phases(area, case_id):
     if area == 'removal':
-        return REMOVAL_PHASES
+        history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
+        require(history is not None, 'selection:unregistered-removal-case')
+        return history.phases
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
@@ -312,6 +339,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     chosen = {name: inventories[name] for name in chosen_areas}
     if test is not None:
         chosen[area] = (test,)
+    require(not fresh_install or 'test_aborted_cleanup_rollback_retry' not in
+            chosen.get('removal', ()), 'selection:recovery-requires-current-package')
 
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}
@@ -330,7 +359,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                         executions.append(CaseExecution(phase, name, case, False))
         if phase not in terminal_phases:
             for case in inventories['package']:
-                if phase in case_phases('package', case):
+                if PHASE_SEMANTICS.get(phase, phase) in case_phases('package', case):
                     executions.append(CaseExecution(phase, 'package', case, True))
 
     prerequisites = ['accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap']
@@ -385,14 +414,18 @@ def resume_selection(selection, completed, *, fresh_install=False):
                       if item.phase + '::' + item.case_id not in completed)
     # A failed suite audit after the final case needs a real guarded attempt.
     remaining = remaining or selection.executions[-1:]
-    if fresh_install or any(item.phase in REMOVAL_PHASES for item in remaining):
-        # Removal cases mutate the installation for the next phase. Replaying
-        # their predecessors is required to reach the failed lifecycle state.
-        # Upgrade attempts also reinstall from the baseline; their boot phases
-        # must run again before dependent areas can use the upgraded product.
-        lifecycle = ('installed', 'rebooted', *REMOVAL_PHASES)
+    if fresh_install:
+        # Upgrade attempts reinstall from the baseline before dependent areas.
+        lifecycle = ('installed', 'rebooted')
         remaining = tuple(item for item in selection.executions
                           if item in remaining or item.phase in lifecycle)
+    for history in REMOVAL_HISTORIES:
+        # State-changing histories cannot splice retained predecessor passes
+        # into a newly restored guest.
+        lifecycle = (*history.prerequisites, *history.phases)
+        if any(item.phase in lifecycle for item in remaining):
+            remaining = tuple(item for item in selection.executions
+                              if item in remaining or item.phase in lifecycle)
     phases = tuple(phase for phase in selection.phases if any(item.phase == phase for item in remaining))
     return replace(selection, phases=phases, executions=remaining)
 
@@ -1236,21 +1269,23 @@ def observe_kiosk_activation(vm, lease, directory, selection, phase):
                for item in phase_executions(selection, phase)):
         return
     from kiosk_entry import observe_activation
+    semantic = PHASE_SEMANTICS.get(phase, phase)
     inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
     require(kiosk_activation_host_inputs() == inputs['host_files'],
             'kiosk-activation:host-inputs-changed')
-    before = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', phase)))
-    if phase == 'installed':
+    before = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
+    if semantic == 'installed':
         vm.call(guest_command(lease.state['run'], 'prepare-activation-greeter'), timeout=150)
     lease.save('gdm-activation-' + phase)
-    observed = observe_activation(vm, lease, phase)
-    after = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', phase)))
+    observed = observe_activation(vm, lease, semantic)
+    after = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
     require(before == after and observed['boot_sha256'] == before['boot_sha256'],
             'kiosk-activation:boot-or-policy-changed')
     require(kiosk_activation_host_inputs() == inputs['host_files'],
             'kiosk-activation:host-inputs-changed')
-    if phase == 'rebooted':
-        previous = json.loads((directory / 'guest-results/gdm-installed.json').read_bytes())
+    if semantic == 'rebooted':
+        installed_phase = phase.removesuffix('rebooted') + 'installed'
+        previous = json.loads((directory / ('guest-results/gdm-' + installed_phase + '.json')).read_bytes())
         require(previous['boot_sha256'] != observed['boot_sha256'],
                 'kiosk-activation:boot-not-changed')
     observed['activation_state'] = after
@@ -1479,7 +1514,7 @@ def pytest_command(run, phase, selection):
     qualification = (['-p', 'system_qualification', '--onpc-qualification-failure']
                      if selection.qualification_failure and phase == 'authorization' else [])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
-            f'ONPC_SYSTEM_PHASE={phase}',
+            f'ONPC_SYSTEM_PHASE={PHASE_SEMANTICS.get(phase, phase)}',
             'ONPC_REGRESSION_EVENTS=1', f'ONPC_REGRESSION_PRIVATE={PAYLOAD}/results',
             f'PYTHONPATH={PAYLOAD}',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
@@ -1591,7 +1626,8 @@ def run_pytest(vm, run, phase, selection):
     vm.commands.progress = Progress(phase, phase_executions(selection, phase))
     try:
         return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if phase in REMOVAL_PHASES else 900)
+                       timeout=2400 if any(phase in history.phases
+                                           for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress = previous
 
@@ -1609,8 +1645,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     for extension in ('deb', 'rpm')]
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
         has_previous = any(path.exists() for path in previous)
+        install_phases = tuple(phase for phase in selection.phases
+                               if PHASE_SEMANTICS.get(phase, phase) == 'installed')
+        reboot_phases = tuple(phase for phase in selection.phases
+                              if PHASE_SEMANTICS.get(phase, phase) == 'rebooted')
+        require(len(install_phases) <= 1 and len(reboot_phases) <= 1,
+                'selection:multiple-installation-histories')
         require(not already_installed or (not has_previous and
-                not any(phase in selection.phases for phase in ('installed', 'rebooted'))),
+                not install_phases and not reboot_phases),
                 'selection:installation-requires-baseline')
         if already_installed:
             lease.save('snapshot-readiness')
@@ -1627,20 +1669,21 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
-        if 'installed' in selection.phases:
+        if install_phases:
+            phase = install_phases[0]
             # Observe fresh installation before deliberate metadata/fault
             # fixtures establish their retained reboot oracle. The public exit
             # leaves no graphical kiosk session for the native manager probes.
             with ledger.measure('test'):
-                run_kiosk_activation(vm, lease, directory, selection, 'installed', ledger)
-            lease.save('pytest-installed')
+                run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+            lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
-                    run_pytest(vm, run, 'installed', selection)
+                    run_pytest(vm, run, phase, selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
-                    ledger.fail_outcome(domain, 'pytest:failed:installed' if domain == 'product'
+                    ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                         else error_category(error))
                     raise
             # Preserve the successful first phase if a required reboot loses transport.
@@ -1648,26 +1691,31 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                 vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
             ledger.pass_outcome('collection')
-        if 'rebooted' in selection.phases:
+        if reboot_phases:
+            phase = reboot_phases[0]
             lease.save('reboot-requested')
             with ledger.measure('reboot'):
                 vm.reboot()
-            lease.save('pytest-rebooted')
+            lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
-                    run_pytest(vm, run, 'rebooted', selection)
+                    run_pytest(vm, run, phase, selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
-                    ledger.fail_outcome(domain, 'pytest:failed:rebooted' if domain == 'product'
+                    ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                         else error_category(error))
                     raise
             with ledger.measure('test'):
-                run_kiosk_activation(vm, lease, directory, selection, 'rebooted', ledger)
-        for phase in (*REMOVAL_PHASES, 'authorization', 'enforcement', 'session'):
+                run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+        recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
+                                for phase in history.phases)
+        rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
+                                         for phase in history.phases[1:])
+        for phase in (*recovery_phases, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
-            if phase in REMOVAL_PHASES[1:]:
+            if phase in rebooted_recovery_phases:
                 # Keep removal, the health boot and reinstallation in one
                 # attempt. Restoration is cleanup, never a lifecycle step.
                 lease.save('reboot-' + phase)

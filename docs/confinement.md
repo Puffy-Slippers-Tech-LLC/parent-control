@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-5b — [Aborted cleanup and rollback](Confinement-Tasks/4-5b.md)**.
+Next task: **4-5c — [Interrupted finalization and durable admission barriers](Confinement-Tasks/4-5c.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and
@@ -90,8 +90,8 @@ feature implementation prerequisites.
 Use the [validation allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger)
 before selecting tests. Remaining recovery tasks add focused installed histories;
 they do not automatically rerun the full removal history or Phase 3 public kiosk
-cases. Task 4-5b owns the first focused controller route, which remains planned
-until implemented and qualified. Keep the existing full removal regression intact.
+cases. Task 4-5b established the first focused controller route; later recovery
+tasks extend it. Keep the existing full removal regression intact.
 Final task 4-10 owns broad final confinement qualification and required invalidated
 histories; task-local affected validation remains mandatory before close-out.
 

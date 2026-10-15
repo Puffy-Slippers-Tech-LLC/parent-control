@@ -23,6 +23,108 @@ import system_runner as runner
 import system_guest as guest
 from guest_test_dependencies import ubuntu_archive_sources
 from tests.support.modules import load_module
+from tests.support.vm_runner import RECOVERY_INVENTORIES
+
+
+def test_focused_recovery_listing_has_exact_prerequisite_closure(capsys):
+    selection = runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    assert selection.phases == runner.ROLLBACK_PHASES
+    assert len(selection.executions) == 8
+    assert sum(item.prerequisite for item in selection.executions) == 6
+    assert selection.executions[-1] == runner.CaseExecution(
+        'rollback-rearmed-rebooted', 'removal', selection.test, False)
+    assert runner.PHASE_DEPENDENCIES['rollback-rearmed-rebooted'] == (
+        'rollback-installed', 'rollback-rebooted', 'rollback')
+    assert 'package-install' in selection.prerequisites
+    assert 'retained-app-snapshot' not in selection.prerequisites
+    runner.print_selection(selection)
+    output = capsys.readouterr().out
+    assert 'expected-executions: 8' in output
+    assert 'rollback::test_aborted_cleanup_rollback_retry [selected]' in output
+    assert 'rollback-rearmed-rebooted::test_aborted_cleanup_rollback_retry [selected]' in output
+    for phase, semantic in runner.PHASE_SEMANTICS.items():
+        command = runner.pytest_command(RUN, phase, selection)
+        assert 'ONPC_SYSTEM_PHASE=' + semantic in command
+        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
+
+
+def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path):
+    selection = runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    digest = runner.stage_selected_inputs(selection, tmp_path)
+    identity = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert digest == runner.baseline.digest(tmp_path / 'selected-inputs.json')
+    assert identity['selection']['phases'] == list(runner.ROLLBACK_PHASES)
+    assert len(identity['selection']['executions']) == 8
+    for name in ('test_removal.py', 'system_removal.py', 'system_guest.py',
+                 'test_install_smoke.py', 'system_kiosk_accounts.py'):
+        record = identity['files'][name]
+        assert (tmp_path / name).read_bytes() == (runner.ROOT / record['source']).read_bytes()
+        assert record['sha256'] == runner.baseline.digest(tmp_path / name)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
+@pytest.mark.parametrize('phase', runner.REMOVAL_HISTORIES[1].phases)
+def test_focused_recovery_junit_requires_exact_logical_identities(tmp_path, fault, phase):
+    selection = runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    write_junit_results(tmp_path, selection, fault)
+    if fault:
+        # Both recovery phases execute the same registered case, while keeping
+        # separate JUnit identities. Exercise each phase's audit independently.
+        output = tmp_path / 'guest-results'
+        (output / (phase + '.xml')).write_bytes(
+            (output / 'rollback-rearmed-rebooted.xml').read_bytes())
+        with pytest.raises(runner.Error):
+            runner.reconcile_junit(tmp_path, phase, selection)
+    else:
+        for phase in selection.phases:
+            runner.reconcile_junit(tmp_path, phase, selection)
+        evidence = runner.selection_evidence(tmp_path, selection)
+        assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 8
+        assert evidence['executed_cases'][-1] == {
+            'phase': 'rollback-rearmed-rebooted', 'area': 'removal', 'case_id': selection.test}
+
+
+@pytest.mark.parametrize('phase', runner.REMOVAL_HISTORIES[1].phases)
+def test_recovery_timeout_and_progress_use_logical_phase_and_restore_callback(phase):
+    selection = runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    vm = Mock()
+    previous = vm.commands.progress
+    def call(command, *, timeout):
+        assert timeout == 2400
+        assert vm.commands.progress.phase == phase
+        assert command == runner.pytest_command(RUN, phase, selection)
+        raise runner.CommandError('test-refused')
+    vm.call.side_effect = call
+    with pytest.raises(runner.CommandError, match='test-refused'):
+        runner.run_pytest(vm, RUN, phase, selection)
+    assert vm.commands.progress is previous
+
+
+def test_recovery_installed_activation_calls_guest_and_observer_with_installed_semantics(
+        tmp_path, monkeypatch):
+    import kiosk_entry
+    selection = runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    identity = {'entry.py': 'a' * 64}
+    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
+    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', Mock(return_value=identity))
+    state = {'phase': 'installed', 'boot_sha256': 'a' * 64, 'execution_rules': {}}
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm.call.side_effect = [json.dumps(state).encode(), b'', json.dumps(state).encode()]
+    observer = Mock(return_value={'boot_sha256': 'a' * 64})
+    monkeypatch.setattr(kiosk_entry, 'observe_activation', observer)
+    runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rollback-installed')
+    observer.assert_called_once_with(vm, lease, 'installed')
+    assert [call.args[0] for call in vm.call.call_args_list] == [
+        runner.guest_command(RUN, 'activation-state', 'installed'),
+        runner.guest_command(RUN, 'prepare-activation-greeter'),
+        runner.guest_command(RUN, 'activation-state', 'installed')]
+    assert (tmp_path / 'guest-results/gdm-rollback-installed.json').is_file()
 
 
 @pytest.mark.parametrize('fault', [None, 'name', 'relative', 'traversal', 'special', 'empty'])
@@ -513,16 +615,21 @@ def test_kiosk_classification_selection_preserves_its_reboot_history(tmp_path):
 
 
 @pytest.mark.parametrize('fault', [None, 'before-source', 'after-source', 'policy', 'boot', 'same-boot'])
-def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('recovery', [False, True])
+def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monkeypatch, fault, recovery):
     import kiosk_entry
     case = runner.KIOSK_ACTIVATION_CASE
     inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], case)}
-    selection = runner.resolve_selection('package', case, inventories=inventories)
+    selection = (runner.resolve_selection('removal', 'test_aborted_cleanup_rollback_retry',
+                                         inventories=RECOVERY_INVENTORIES) if recovery else
+                 runner.resolve_selection('package', case, inventories=inventories))
+    installed_phase = 'rollback-installed' if recovery else 'installed'
+    phase = 'rollback-rebooted' if recovery else 'rebooted'
     (tmp_path / 'input').mkdir()
     (tmp_path / 'guest-results').mkdir()
     identity = {'entry.py': 'a' * 64}
     (tmp_path / 'input/selected-inputs.json').write_text(json.dumps({'host_files': identity}))
-    (tmp_path / 'guest-results/gdm-installed.json').write_text(json.dumps({
+    (tmp_path / ('guest-results/gdm-' + installed_phase + '.json')).write_text(json.dumps({
         'boot_sha256': ('b' if fault == 'same-boot' else 'a') * 64}))
     inputs = Mock(side_effect=[{'entry.py': 'changed'} if fault == 'before-source' else identity,
                               {'entry.py': 'changed'} if fault == 'after-source' else identity])
@@ -538,14 +645,14 @@ def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monke
     monkeypatch.setattr(kiosk_entry, 'observe_activation', entry)
     if fault:
         with pytest.raises(runner.Error, match='kiosk-activation:'):
-            runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rebooted')
-        assert not (tmp_path / 'guest-results/gdm-rebooted.json').exists()
+            runner.observe_kiosk_activation(vm, lease, tmp_path, selection, phase)
+        assert not (tmp_path / ('guest-results/gdm-' + phase + '.json')).exists()
         if fault == 'before-source':
             entry.assert_not_called()
             vm.call.assert_not_called()
     else:
-        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'rebooted')
-        retained = json.loads((tmp_path / 'guest-results/gdm-rebooted.json').read_bytes())
+        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, phase)
+        retained = json.loads((tmp_path / ('guest-results/gdm-' + phase + '.json')).read_bytes())
         assert retained == {**observation, 'activation_state': after, 'host_files': identity}
         entry.assert_called_once_with(vm, lease, 'rebooted')
         assert [call.args[0] for call in vm.call.call_args_list] == [

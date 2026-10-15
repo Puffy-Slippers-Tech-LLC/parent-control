@@ -672,6 +672,10 @@ from regression_ui import Bucket
 # preparation/SELinux/pidfd doubles only, with no real subprocess or policy read.
 # system_runner's retained refusal dispatch likewise uses private logs and
 # process-local transport doubles; its unit/cleanup classifications stay compatible.
+# Focused rollback histories retain private files and mocked VM/native commands.
+# Bind-mount ownership and transaction-watcher tests use synthetic mount rows
+# and joined local threads with command doubles, never host mounts or packages;
+# system_removal, system_runner and system_snapshots stay compatible.
 # Mapped-module identity regressions use private map_files-shaped symlinks and
 # stat/permission doubles; locked SELinux relabel tests use command doubles and
 # existing private advisory locks, with no host /proc scan or MAC mutation.

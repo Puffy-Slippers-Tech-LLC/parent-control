@@ -21,10 +21,10 @@ assertion remains required. Completed rows through 4-4 retain their history.
 
 Remaining validation follows the
 [allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger).
-Task 4-5b establishes focused recovery execution for the later recovery briefs;
+Task 4-5b established focused recovery execution for the later recovery briefs;
 the existing complete removal regression remains intact. Task order, dependencies,
-target acceptance and every continuous history remain unchanged. This reconciliation
-implements no selector and supplies no task-completion credit.
+target acceptance and every continuous history remain unchanged. The reference
+records each implemented selector and its separate installed qualification.
 
 ## Ordered task queue
 
@@ -49,7 +49,7 @@ implements no selector and supplies no task-completion credit.
 | [x] | 4-3 | [Ubuntu removal history](Confinement-Reference.md#phase-4-step-3--ubuntu-removal-history--2026-10-14) | 4-2b | Continuous DEB remove/reboot/retained reinstall/purge/reboot/fresh reinstall; exact PAM restoration and ordinary-user controls. | Continuous history; may exceed 30 min |
 | [x] | 4-4 | [Fedora removal history](Confinement-Reference.md#phase-4-step-4--fedora-removal-history--2026-10-14) | 4-3 | Continuous RPM/DNF lifecycle; exact PAM/authselect restoration, enforcing SELinux and ordinary-user preservation. | Continuous history; may exceed 30 min |
 | [x] | 4-5a | [In-flight admission refusal](Confinement-Reference.md#phase-4-step-5a--in-flight-admission-refusal--2026-10-14) | 4-4 | Both targets: held root PAM admission/UID-exec handoff, safe removal refusal, preserved enforcement/records and successful owned retry. | 15–30 min; preserve complete history |
-| [ ] | 4-5b | [Aborted cleanup and rollback](Confinement-Tasks/4-5b.md) | 4-5a | Both targets: abort after nontrivial reversible cleanup, restored enforcement before guard release and successful owned retry. | 15–30 min; preserve complete history |
+| [x] | 4-5b | [Aborted cleanup and rollback](Confinement-Reference.md#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | 4-5a | Both targets: abort after nontrivial reversible cleanup, restored enforcement before guard release and successful owned retry. | 15–30 min; preserve complete history |
 | [ ] | 4-5c | [Interrupted finalization and durable admission barriers](Confinement-Tasks/4-5c.md) | 4-5b | Both targets: denial-publication/MAC-unload/finalization interruptions, actual payload-erased account/session denials and successful owned retry. | Continuous histories; may exceed 30 min |
 | [ ] | 4-5d | [PAM and confinement-record ownership refusal](Confinement-Tasks/4-5d.md) | 4-5c | Both targets: systemd-user edits, link substitutions and foreign confinement records; preserve foreign state and prove resolved owned retry. | 15–30 min; split substantial independent variants |
 | [ ] | 4-5e | [Kiosk identity and filesystem ownership refusal](Confinement-Tasks/4-5e.md) | 4-5d | Both targets: changed kiosk identity and foreign-owned/substituted/mounted home/state roots; preserve foreign state and prove resolved owned retry. | 15–30 min; split substantial independent variants |

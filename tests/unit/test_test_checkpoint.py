@@ -395,7 +395,7 @@ def test_repair_replays_the_specific_case_even_after_a_passing_diagnostic():
 def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecycle():
     import system_runner
     inventories = dict(package=('test_installed_package',),
-                       removal=('test_removal',), authorization=('test_a', 'test_b'),
+                       removal=('test_remove_reboot_reinstall',), authorization=('test_a', 'test_b'),
                        enforcement=('test_enforcement',), session=('test_session',))
     selection = system_runner.resolve_selection('authorization', inventories=inventories)
     resumed = system_runner.resume_selection(selection, {'authorization::test_a'})
@@ -410,6 +410,29 @@ def test_system_resume_excludes_completed_independent_cases_and_preserves_lifecy
     completed = {item.phase + '::' + item.case_id for item in upgrade.executions
                  if item.phase in ('installed', 'rebooted')}
     assert system_runner.resume_selection(upgrade, completed, fresh_install=True).executions == upgrade.executions
+
+
+@pytest.mark.parametrize('pending_phase', ['rollback', 'rollback-rearmed-rebooted'])
+def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_phase):
+    import system_runner
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    selection = system_runner.resolve_selection(inventories=RECOVERY_INVENTORIES)
+    completed = {item.phase + '::' + item.case_id for item in selection.executions
+                 if item.phase != pending_phase}
+    resumed = system_runner.resume_selection(selection, completed)
+    assert resumed.phases == system_runner.ROLLBACK_PHASES
+    assert resumed.executions == tuple(item for item in selection.executions
+                                      if item.phase in system_runner.ROLLBACK_PHASES)
+    # Completed destructive histories are not replayed for an independent area.
+    completed = {item.phase + '::' + item.case_id for item in selection.executions
+                 if item.phase != 'authorization'}
+    resumed = system_runner.resume_selection(selection, completed)
+    assert resumed.phases == ('authorization',)
+    focused = system_runner.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    for count in range(len(focused.executions) + 1):
+        completed = {item.phase + '::' + item.case_id for item in focused.executions[:count]}
+        assert system_runner.resume_selection(focused, completed) == focused
 
 
 def test_vm_queue_preserves_resume_and_first_failure_policy():

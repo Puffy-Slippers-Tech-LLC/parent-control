@@ -2,6 +2,7 @@
 
 import json
 import os
+import stat
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,8 @@ import system_removal as removal
 @pytest.mark.parametrize('entry', ['remove', 'removed_rebooted', 'reinstalled_rebooted',
                                  'purged_rebooted', 'purge_reinstalled_rebooted',
                                  'exercise_live_refusals',
+                                 'aborted_cleanup_rollback_retry', 'rollback_rearmed_rebooted',
+                                 'mounted_pam_fault',
                                  'verify_removed', 'password_login_health',
                                  'verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'])
 def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
@@ -27,7 +30,11 @@ def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
         if entry in ('verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'):
             getattr(removal, entry)(Mock(), {})
         else:
-            getattr(removal, entry)(Mock())
+            if entry == 'mounted_pam_fault':
+                with removal.mounted_pam_fault(Mock()):
+                    pass
+            else:
+                getattr(removal, entry)(Mock())
     diagnostics.assert_not_called()
     commands.run.assert_not_called()
 
@@ -153,6 +160,141 @@ def test_removal_state_stays_private_and_refuses_symlink(tmp_path, monkeypatch, 
         removal.save_state({'accounts': [1004]})
         assert removal.state_path() == tmp_path / 'private/removal-state.json'
         assert removal.state_path().stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize('fault', ['none', 'preexisting', 'remount', 'foreign-mount',
+                                 'foreign-file', 'namespace', 'body'])
+def test_pam_fault_unmounts_only_exact_owned_mount(monkeypatch, fault):
+    path = Path('/etc/pam.d/systemd-user')
+    identity = (1, 2, 0, 0, 0o100644, 1, b'unchanged')
+    rows = {}
+    namespace = 'mnt:[123]'
+    row = lambda options: (('42', '1', '8:1', '/etc/pam.d/systemd-user', str(path), options),
+                           ('ext4', '/dev/root', 'rw'))
+    if fault == 'preexisting':
+        rows['99'] = row('rw')
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal, 'fault_file_identity', lambda current: identity)
+    monkeypatch.setattr(removal, 'mount_inventory', lambda: (namespace, dict(rows)))
+    operations = []
+    def run(argv, **kwargs):
+        operations.append(argv)
+        if argv[:2] == ['mount', '--bind']:
+            rows['42'] = row('rw')
+        elif argv[0] == 'mount':
+            if fault == 'remount':
+                raise removal.guest.CommandError('remount-failed')
+            rows['42'] = row('ro')
+        elif argv[0] == 'umount':
+            rows.clear()
+        else:
+            pytest.fail('unexpected OS command')
+    monkeypatch.setattr(removal.guest, 'run', run)
+    def exercise():
+        nonlocal namespace
+        with removal.mounted_pam_fault(Mock()):
+            if fault == 'foreign-mount':
+                rows['99'] = rows.pop('42')
+            elif fault == 'foreign-file':
+                monkeypatch.setattr(removal, 'fault_file_identity', lambda current: (*identity[:-1], b'foreign'))
+            elif fault == 'namespace':
+                namespace = 'mnt:[456]'
+            elif fault == 'body':
+                raise RuntimeError('body-failed')
+    if fault == 'none':
+        exercise()
+    else:
+        with pytest.raises((removal.guest.GuestError, removal.guest.CommandError, RuntimeError)):
+            exercise()
+    unmounts = [argv for argv in operations if argv[0] == 'umount']
+    assert unmounts == ([['umount', '--', str(path)]]
+                        if fault in ('none', 'remount', 'body') else [])
+    if fault == 'preexisting':
+        assert operations == []
+    else:
+        assert operations[0] == ['mount', '--bind', str(path), str(path)]
+        assert all('lazy' not in arg and arg != '-l' for argv in operations for arg in argv)
+
+
+@pytest.mark.parametrize('fault', ['none', 'limit', 'grant', 'filter', 'extension', 'rules', 'snapshot'])
+def test_cleanup_transition_requires_positive_complete_native_clearing(tmp_path, monkeypatch, fault):
+    snapshot = tmp_path / 'snapshot'
+    snapshot.write_text(json.dumps({'version': 1, 'accounts': []}))
+    snapshot.chmod(0o600)
+    native = [0, 0, [0, 0], [False, []]]
+    if fault == 'limit':
+        native[0] = 1
+    elif fault == 'grant':
+        native[2] = [10, 600]
+    elif fault == 'filter':
+        native[3] = [False, ['blocked']]
+    monkeypatch.setattr(removal, 'account_state', lambda uid: (b'preferences', *native))
+    monkeypatch.setattr(removal, 'extension_lists', lambda uid:
+                        [[removal.EXTENSION], []] if fault == 'extension' else [[], []])
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda path: fault == 'rules')
+    native_stat = snapshot.lstat()
+    wrapped = Mock(lstat=Mock(return_value=SimpleNamespace(
+        st_mode=native_stat.st_mode, st_uid=0)), read_text=snapshot.read_text)
+    if fault == 'snapshot':
+        wrapped.lstat.side_effect = FileNotFoundError
+    monkeypatch.setattr(removal, 'Path', lambda value: wrapped)
+    result = removal.cleanup_transition(1004)
+    assert result == ({'snapshot': {'version': 1, 'accounts': []},
+                       'native': (0, 0, [0, 0], [False, []]), 'extensions': [[], []],
+                       'policy_absent': list(removal.GENERATED_POLICY)} if fault == 'none' else None)
+
+
+@pytest.mark.parametrize('fault', ['none', 'watcher', 'command', 'missed', 'snapshot', 'gdm'])
+def test_aborted_watcher_has_private_commands_and_always_joins(tmp_path, monkeypatch, fault):
+    events = []
+    expected = {'uid': 1004}
+    transaction = SimpleNamespace(directory=None, last_returncode=7)
+    def run(argv, **kwargs):
+        events.append('native')
+        assert kwargs == {'check': False, 'timeout': 1800, 'merge_stderr': True}
+        if fault == 'command':
+            raise removal.guest.CommandError('native-failed')
+        return b'native callback failure'
+    transaction.run = run
+    monkeypatch.setattr(removal.guest, 'Commands', lambda: transaction)
+    monkeypatch.setattr(removal.guest, 'commands', SimpleNamespace(directory=tmp_path))
+    monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
+    class Worker:
+        def __init__(self, *, target, name):
+            self.target = target
+        def start(self):
+            self.target()
+        def is_alive(self):
+            return fault != 'missed'
+        def join(self):
+            events.append('joined')
+    monkeypatch.setattr(removal.threading, 'Thread', Worker)
+    ticks = iter([0, 1, 1801])
+    monkeypatch.setattr(removal.time, 'monotonic', lambda: next(ticks))
+    monkeypatch.setattr(removal.time, 'sleep', lambda value: None)
+    gdm = tmp_path / 'gdm'
+    gdm.write_bytes(b'foreign' if fault == 'gdm' else b'denial')
+    real_path = Path
+    monkeypatch.setattr(removal, 'Path', lambda value: gdm if value == '/etc/pam.d/gdm-password'
+                        else real_path(value))
+    def transition(uid):
+        if fault == 'watcher':
+            raise RuntimeError('watcher-failed')
+        return {'snapshot': {'version': 1, 'accounts': [] if fault == 'snapshot' else [expected]},
+                'native': [0, 0, [0, 0], [False, []]], 'extensions': [[], []],
+                'policy_absent': list(removal.GENERATED_POLICY)}
+    monkeypatch.setattr(removal, 'cleanup_transition', transition)
+    record = Mock()
+    if fault == 'none':
+        assert removal.observe_aborted_transaction(1004, expected, b'denial', record) == (
+            b'native callback failure', 7)
+        assert (transaction.directory / 'observed-snapshot.txt').stat().st_mode & 0o777 == 0o600
+    else:
+        with pytest.raises((RuntimeError, removal.guest.GuestError, removal.guest.CommandError)):
+            removal.observe_aborted_transaction(1004, expected, b'denial', record)
+    assert events == ['native', 'joined']
+    assert transaction.directory.parent == tmp_path.parent
+    assert transaction.directory.name.startswith('rollback-')
 
 
 @pytest.mark.parametrize('replacement', ['content', 'inode', 'symlink'])
@@ -1034,6 +1176,22 @@ def test_original_authselect_uses_recorded_profile_and_features(removed_machine)
         removal.original_authselect()
 
 
+@pytest.mark.parametrize('changed', [None, 'mode', 'uid', 'group', 'bytes', 'absent', 'other-record'])
+def test_rollback_allows_only_private_authselect_native_group_republication(monkeypatch, changed):
+    monkeypatch.setattr(removal.grp, 'getgrnam', lambda _: SimpleNamespace(gr_gid=10))
+    name = '/var/lib/oh-no-parent-control/fedora-authselect.json'
+    before = (0o600, 0, 10, 'original-digest')
+    after = [0o600, 0, 0, 'original-digest']
+    if changed in ('mode', 'uid', 'group', 'bytes'):
+        index, value = {'mode': (0, 0o640), 'uid': (1, 1000),
+                        'group': (2, 1000), 'bytes': (3, 'changed-digest')}[changed]
+        after[index] = value
+    if changed == 'other-record':
+        name = '/var/lib/oh-no-parent-control/package-created-kiosk-uid'
+    assert removal.rollback_record_matches(
+        name, before, None if changed == 'absent' else tuple(after)) is (changed is None)
+
+
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_policy_diagnostics_use_bounded_native_reads_and_keep_probe_failures(monkeypatch, package_format):
     monkeypatch.setattr(removal.guest, 'guard', Mock())
@@ -1058,3 +1216,66 @@ def test_policy_diagnostics_use_bounded_native_reads_and_keep_probe_failures(mon
         with pytest.raises(removal.guest.GuestError, match='identity'):
             removal.original_policy_diagnostics(record, 'removed')
         commands.run.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'boot', 'policy', 'home', 'ordinary', 'preflight'])
+def test_rollback_reboot_requires_preserved_state_before_native_finalization(tmp_path, monkeypatch, fault):
+    import system_kiosk_admission as admission
+    home = tmp_path / 'home'
+    home.mkdir()
+    info = home.lstat()
+    kiosk = SimpleNamespace(pw_uid=info.st_uid, pw_gid=info.st_gid,
+                            pw_dir='/home/oh-no-parent-control', pw_shell='/usr/sbin/nologin')
+    parent = SimpleNamespace(pw_name='parent', pw_uid=41002, pw_gid=41002,
+                             pw_dir='/home/parent', pw_shell='/bin/bash')
+    state = {'accounts': {'child': 41001, 'parent': 41002}, 'kiosk_name': 'oh-no-parent-control',
+             'rollback_rearm': {
+                 'boot': 'old', 'policy': 'child-policy', 'extensions': ['child-extension'],
+                 'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
+                 'kiosk_home': [info.st_ino, info.st_uid, info.st_gid, info.st_mode],
+                 'ordinary': {'parent': {'uid': 41002, 'policy': 'parent-policy',
+                     'extensions': ['parent-extension'],
+                     'identity': [parent.pw_name, parent.pw_uid, parent.pw_gid,
+                                  parent.pw_dir, parent.pw_shell]}},
+             }}
+    path = tmp_path / 'state.json'
+    path.write_text(json.dumps(state))
+    monkeypatch.setattr(removal, 'state_path', lambda: path)
+    monkeypatch.setattr(removal, 'Path', lambda _: home)
+    monkeypatch.setattr(removal, 'boot', lambda: 'old' if fault == 'boot' else 'new')
+    monkeypatch.setattr(removal.guest, 'guard', Mock())
+    monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: True)
+    monkeypatch.setattr(removal.guest, 'installed', Mock())
+    monkeypatch.setattr(removal.pwd, 'getpwnam', lambda _: kiosk)
+    monkeypatch.setattr(removal.pwd, 'getpwuid', lambda _: parent)
+    monkeypatch.setattr(removal, 'account_digest', lambda uid: (
+        'changed' if fault == 'policy' and uid == 41001 else
+        'child-policy' if uid == 41001 else 'parent-policy'))
+    monkeypatch.setattr(removal, 'extension_lists', lambda uid: (
+        ['changed'] if fault == 'ordinary' and uid == 41002 else
+        ['child-extension'] if uid == 41001 else ['parent-extension']))
+    if fault == 'home':
+        home.chmod(0o700 if stat.S_IMODE(info.st_mode) != 0o700 else 0o755)
+    for name in ('observe_launch', 'verify_loaded_confinement', 'wait_kiosk_inactive'):
+        monkeypatch.setattr(removal, name, Mock())
+    monkeypatch.setattr(admission, 'verify_gates', Mock())
+    monkeypatch.setattr(admission, 'probe', Mock())
+    monkeypatch.setattr(removal.guest, 'run', Mock(side_effect=(
+        removal.guest.GuestError('preflight') if fault == 'preflight' else None)))
+    commands, verify = Mock(), Mock()
+    monkeypatch.setattr(removal.guest, 'commands', commands)
+    monkeypatch.setattr(removal, 'verify_removed', verify)
+    monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
+    if fault:
+        with pytest.raises(removal.guest.GuestError):
+            removal.rollback_rearmed_rebooted(Mock())
+        commands.run.assert_not_called()
+        verify.assert_not_called()
+    else:
+        record = Mock()
+        removal.rollback_rearmed_rebooted(record)
+        commands.run.assert_called_once_with(['native-remove'], timeout=1800, merge_stderr=True)
+        verify.assert_called_once_with(state, record=record)
+        assert [call.args[0] for call in record.call_args_list] == [
+            'onpc.rollback.rearm-reboot', 'onpc.rollback.retry-finalized']

@@ -997,8 +997,9 @@ def test_installed_admission_never_counts_unavailable_or_malformed_worker_as_den
 
 
 @pytest.mark.parametrize('status', [0, 6])
+@pytest.mark.parametrize('role', ['kiosk', 'ordinary', 'other'])
 def test_installed_admission_uses_real_service_name_and_ends_denied_transactions(
-        admission_model, monkeypatch, status):
+        admission_model, monkeypatch, status, role):
     from unittest.mock import MagicMock
     helper = admission_model
     monkeypatch.setattr(helper.guest, 'guard', Mock())
@@ -1008,14 +1009,15 @@ def test_installed_admission_uses_real_service_name_and_ends_denied_transactions
     directory.__truediv__.return_value = service
     monkeypatch.setattr(helper, 'Path', Mock(return_value=directory))
     monkeypatch.setattr(helper.pwd, 'getpwnam', Mock(return_value=SimpleNamespace(
-        pw_uid=41001, pw_name='oh-no-parent-control')))
+        pw_uid=41001, pw_name=helper.USERS[role])))
     pam = Mock()
     pam.pam_start.return_value = 0
     pam.pam_acct_mgmt.return_value = status
     pam.pam_end.return_value = 0
     monkeypatch.setattr(helper.ctypes, 'CDLL', Mock(return_value=pam))
-    assert helper.pam_account('sshd', 'kiosk') == {'account': status, 'end': 0}
-    assert pam.pam_start.call_args.args[:2] == (b'sshd', b'oh-no-parent-control')
+    assert helper.pam_account('sshd', role) == {'account': status, 'end': 0}
+    helper.pwd.getpwnam.assert_called_once_with(helper.USERS[role])
+    assert pam.pam_start.call_args.args[:2] == (b'sshd', helper.USERS[role].encode())
     pam.pam_start_confdir.assert_not_called()
     pam.pam_open_session.assert_not_called()
     assert pam.pam_end.call_args.args[1] == status

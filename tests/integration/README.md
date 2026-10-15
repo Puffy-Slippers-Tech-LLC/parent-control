@@ -234,13 +234,41 @@ controller's existing private allocation. These engineering checks remain
 separate from customer journeys and do not attest to every optional native
 plugin or the remaining scanner/lifecycle acceptance.
 
-The `removal` area starts product-free and keeps installation, configuration,
+The `removal::test_remove_reboot_reinstall` selector starts product-free and
+keeps installation, configuration,
 refused removal of an edited owned integration, retry, erase, reboot, health
 verification, reinstall, package-delivered purge and a fresh reinstall in one
 guarded attempt on either distribution.
 The same case executes across five explicit lifecycle phases; a failed phase
 stops later transitions. Package checks are its installation prerequisites.
-The shared assertions cover cleared live restrictions/grants, removed payload
+
+`removal::test_aborted_cleanup_rollback_retry` is the focused aborted-cleanup
+rollback and owned-retry history. List it with
+`tools/run-tests system --area removal --test test_aborted_cleanup_rollback_retry --list`,
+then execute that same selection with `--vm NAME` and without `--list`.
+It starts from the accepted product-free baseline, installs and reboots in one
+guarded attempt, and preserves the independently measured original PAM oracle
+in `before.json`. It has six package prerequisite executions and two recovery
+executions. The logical phases `rollback-installed`, `rollback-rebooted`,
+`rollback` and `rollback-rearmed-rebooted` keep progress, JUnit and result
+identities distinct; package assertions
+receive the established `installed` and `rebooted` semantics.
+After native rearming, a real reboot retires cached native PAM workers before
+the same history verifies restored protection and finalizes removal.
+This focused route accepts the current package only; combining it (including
+unfiltered removal/system selection) with `--previous-artifacts` refuses before
+VM acquisition because upgrade does not preserve its independent original PAM
+oracle.
+An unfiltered removal/system run gives this history its own baseline attempt,
+so earlier erase/purge phases cannot supply its initial state. Failure stops
+later phases and uses the shared lease cleanup and evidence collection.
+`tools/run-tests --resume` preserves the original selector and replays the whole
+unfinished focused history, including its installation/reboot prerequisites;
+completed independent histories retain their passes. App-snapshot bootstrap
+retires its old payload, including `before.json`, so this original-PAM history
+does not start from an app snapshot.
+The five-phase selector's assertions cover cleared live restrictions/grants,
+removed payload
 and generated integrations, retained preferences/logs, unrelated account
 preservation, native execution, GDM and password-login health, reinstalled
 readiness, and fresh policy/request defaults after purge. Ordinary erase retains

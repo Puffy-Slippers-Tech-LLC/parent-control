@@ -6,6 +6,7 @@ The existing outer VM lease owns restoration, including failed transactions.
 """
 
 import ast
+from contextlib import contextmanager
 import grp
 import hashlib
 import json
@@ -16,6 +17,8 @@ import re
 import runpy
 import stat
 import sys
+import tempfile
+import threading
 import time
 
 import system_guest as guest
@@ -27,6 +30,9 @@ EXTENSION = 'oh-no-parent-control@tech.puffyslippers.com'
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 DEBIAN_NOTICE = '/etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice'
 REMOVAL_NOTICE = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
+RECOVERY_PAM = Path('/etc/pam.d/systemd-user')
+GENERATED_POLICY = ('/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules',
+                    '/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
 
 
 def state_path():
@@ -426,6 +432,365 @@ def exercise_live_refusals(record):
     configure_restrictions(accounts)
     foreign_integration_refusals(record, accounts, other,
                                 fedora=guest.package_path().suffix == '.rpm')
+
+
+def mount_inventory():
+    """Retain exact kernel identities, including bind source roots and namespace."""
+    rows = {}
+    for line in Path('/proc/self/mountinfo').read_text().splitlines():
+        fields = line.split()
+        separator = fields.index('-')
+        rows[fields[0]] = (tuple(fields[:separator]), tuple(fields[separator + 1:]))
+    return os.readlink('/proc/self/ns/mnt'), rows
+
+
+def fault_file_identity(path):
+    info = path.lstat()
+    guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0 and
+                  not info.st_mode & 0o022 and info.st_nlink == 1,
+                  'rollback:unsafe-fault-file')
+    return (info.st_dev, info.st_ino, info.st_uid, info.st_gid,
+            info.st_mode, info.st_nlink, path.read_bytes())
+
+
+def release_pam_fault(path, original, namespace, owned):
+    """Never unmount a foreign overlay or a replaced underlying file."""
+    current_namespace, rows = mount_inventory()
+    matches = {key: value for key, value in rows.items() if value[0][4] == str(path)}
+    guest.require(current_namespace == namespace and matches == owned and
+                  fault_file_identity(path) == original,
+                  'rollback:fault-ownership-changed')
+    guest.run(['umount', '--', str(path)], timeout=30)
+    current_namespace, rows = mount_inventory()
+    guest.require(current_namespace == namespace and
+                  not any(row[0][4] == str(path) for row in rows.values()) and
+                  fault_file_identity(path) == original,
+                  'rollback:fault-release-not-verified')
+
+
+@contextmanager
+def mounted_pam_fault(record):
+    """An unchanged read-only self bind makes native atomic replacement fail EBUSY."""
+    guest.guard()
+    path = RECOVERY_PAM
+    original = fault_file_identity(path)
+    namespace, before = mount_inventory()
+    guest.require(not any(row[0][4] == str(path) for row in before.values()),
+                  'rollback:preexisting-fault-mount')
+    guest.run(['mount', '--bind', str(path), str(path)], timeout=30)
+    current_namespace, rows = mount_inventory()
+    owned = {key: row for key, row in rows.items()
+             if key not in before and row[0][4] == str(path)}
+    # If publication cannot be attributed, preserve it for the VM owner.
+    guest.require(current_namespace == namespace and len(owned) == 1 and
+                  fault_file_identity(path) == original,
+                  'rollback:fault-mount-not-attributable')
+    try:
+        guest.run(['mount', '-o', 'remount,bind,ro', str(path)], timeout=30)
+    finally:
+        # Remount changes only options. Pin the new exact kernel row even on
+        # command failure; never adopt a replacement mount ID/source/target.
+        current_namespace, rows = mount_inventory()
+        updated = {key: rows[key] for key in owned if key in rows}
+        guest.require(current_namespace == namespace and len(updated) == 1 and
+                      all(updated[key][0][:5] == row[0][:5] and
+                          updated[key][1] == row[1] for key, row in owned.items()),
+                      'rollback:fault-mount-changed')
+        owned = updated
+        if sys.exc_info()[0] is not None:
+            release_pam_fault(path, original, namespace, owned)
+    try:
+        guest.require(all('ro' in row[0][5].split(',') for row in owned.values()),
+                      'rollback:fault-not-readonly')
+        record('onpc.rollback.fault', json.dumps({
+            'namespace': namespace, 'mounts': owned,
+            'device': original[0], 'inode': original[1],
+            'sha256': hashlib.sha256(original[-1]).hexdigest()}, sort_keys=True))
+        yield
+    finally:
+        release_pam_fault(path, original, namespace, owned)
+
+
+def cleanup_transition(uid):
+    """Positive native observations only; neither logs nor snapshots prove clearing."""
+    values = account_state(uid)[1:]
+    if values != (0, 0, [0, 0], [False, []]):
+        return None
+    extensions = extension_lists(uid)
+    if any(EXTENSION in values for values in extensions):
+        return None
+    if any(os.path.lexists(name) for name in GENERATED_POLICY):
+        return None
+    snapshot = Path('/var/lib/oh-no-parent-control/uninstall-enforcement.json')
+    try:
+        info = snapshot.lstat()
+        guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and
+                      stat.S_IMODE(info.st_mode) == 0o600, 'rollback:unsafe-snapshot')
+        return {'snapshot': json.loads(snapshot.read_text()), 'native': values,
+                'extensions': extensions, 'policy_absent': list(GENERATED_POLICY)}
+    except FileNotFoundError:
+        return None
+
+
+def observe_aborted_transaction(uid, expected, denial, record):
+    """Join the separately owned native command on every watcher exit."""
+    transaction = guest.Commands()
+    guest.require(guest.commands.directory is not None, 'rollback:diagnostics-unavailable')
+    transaction.directory = Path(tempfile.mkdtemp(
+        prefix='rollback-', dir=guest.commands.directory.parent))
+    result = {}
+    def execute():
+        try:
+            result['output'] = transaction.run(removal_command(), check=False,
+                                               timeout=1800, merge_stderr=True)
+        except BaseException as error:
+            result['error'] = error
+    worker = threading.Thread(target=execute, name='onpc-native-removal')
+    deadline = time.monotonic() + 1800
+    worker.start()
+    observed = None
+    admission_denied = False
+    try:
+        while worker.is_alive() and time.monotonic() < deadline:
+            admission_denied |= Path('/etc/pam.d/gdm-password').read_bytes() == denial
+            observation = cleanup_transition(uid) if observed is None else None
+            if observation is not None:
+                snapshot = observation['snapshot']
+                guest.require(snapshot.get('version') == 1 and
+                              expected in snapshot.get('accounts', []),
+                              'rollback:snapshot-differs-from-precleanup')
+                observed = snapshot
+                (transaction.directory / 'observed-snapshot.txt').write_text(json.dumps(observation))
+                (transaction.directory / 'observed-snapshot.txt').chmod(0o600)
+            if observed is not None and admission_denied:
+                break
+            time.sleep(0.01)
+    finally:
+        # Commands owns the spawned pidfd and finite timeout cleanup. No
+        # process discovery or inferred descendant signal belongs here.
+        worker.join()
+    if 'error' in result:
+        raise result['error']
+    record('onpc.rollback.native-status', str(transaction.last_returncode))
+    guest.require(observed is not None, 'rollback:cleared-transition-not-observed')
+    guest.require(admission_denied, 'rollback:gdm-denial-transition-not-observed')
+    record('onpc.rollback.snapshot', hashlib.sha256(
+        json.dumps(observed, sort_keys=True).encode()).hexdigest())
+    record('onpc.rollback.gdm-denial', hashlib.sha256(denial).hexdigest())
+    witness = transaction.directory / 'observed-gdm-denial.txt'
+    witness.write_bytes(denial)
+    witness.chmod(0o600)
+    record('onpc.rollback.cleared',
+           'native-limits-grant-filter-extension-cleared; generated-policy-absent; snapshot-matched')
+    return result['output'], transaction.last_returncode
+
+
+def rollback_record_matches(name, before, after):
+    if before == after:
+        return True
+    # fedora_pam.save atomically republishes this package-owned private record
+    # as root. Its group can change from the broker's wheel group to root;
+    # neither group has access at 0600. Preserve every authoritative field.
+    return (name == '/var/lib/oh-no-parent-control/fedora-authselect.json' and
+            before is not None and after is not None and
+            before[:2] == after[:2] == (0o600, 0) and
+            before[2] == grp.getgrnam('wheel').gr_gid and after[2] == 0 and
+            before[3] == after[3])
+
+
+def aborted_cleanup_rollback_retry(record):
+    """One native aborted cleanup, guarded restoration and successful owned retry."""
+    guest.guard()
+    guest.enable_diagnostics()
+    from system_kiosk_admission import probe, verify_gates
+    accounts = provision_native()
+    parent, child = accounts['parent'], accounts['child']
+    defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
+    guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
+                  'rollback:nonfresh-start')
+    other, other_policy = account_digest(accounts['other']), account_digest(
+        accounts['other'], include_preferences=False)
+    other_extensions = extension_lists(accounts['other'])
+    for role in ('child', 'parent', 'other'):
+        observe_launch(accounts[role], True)
+    verify_gates(record)
+    probe('login', 'other', 0, 'rollback.other-before', record)
+    configure_restrictions(accounts)
+    kiosk = pwd.getpwnam(PRODUCT)
+    wait_kiosk_inactive(kiosk)
+    guest.retain_identity_for_redaction(kiosk.pw_uid)
+    fedora = guest.package_path().suffix == '.rpm'
+    state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'other_extensions': other_extensions, 'defaults': defaults,
+             'preferences': preference_digest(child), 'boot': boot(),
+             'pam_services': json.loads((guest.PAYLOAD / 'before.json').read_text())['pam_services'],
+             'hook': '/etc/gdm/PreSession/Default' if fedora else '/etc/gdm3/PreSession/Default',
+             'kiosk_name': kiosk.pw_name, 'kiosk_home': kiosk.pw_dir,
+             'payload': [item['path'] for item in json.loads(
+                 (guest.PAYLOAD / 'installed-files.json').read_text())]}
+    if fedora:
+        state['authselect'] = original_authselect()
+    save_state(state)
+    before = admission_removal_state()
+    confinement_before = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+    gdm = confinement_before['pam']['gdm-password']
+    source = gdm['before'] if gdm['before'] is not None else gdm['vendor']
+    denial = ('# Oh No Parent Control removal admission barrier\n'
+              'account requisite pam_succeed_if.so quiet user != oh-no-parent-control\n'
+              'session requisite pam_succeed_if.so quiet user != oh-no-parent-control\n' + source).encode()
+    home = Path(kiosk.pw_dir).lstat()
+    policy = account_digest(child)
+    extensions = extension_lists(child)
+    native = account_state(child)[1:]
+    expected = dict(zip(('limit_type', 'daily_limit', 'active_extension', 'app_filter'), native))
+    expected.update(uid=child, extension_enabled=True)
+    generated = {name: Path(name).read_bytes() if os.path.lexists(name) else None
+                 for name in GENERATED_POLICY}
+    pam = guest.pam_service_state()
+    ordinary = {role: (pwd.getpwuid(accounts[role]), account_digest(accounts[role]),
+                       extension_lists(accounts[role])) for role in ('parent', 'other')}
+    integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    with mounted_pam_fault(record):
+        guest.run([integration, 'check-remove'], timeout=30)
+        output, status = observe_aborted_transaction(child, expected, denial, record)
+        failure = b'kiosk confinement configuration failed reason=unavailable; preserving ownership records'
+        guest.require(not package_absent() and output.count(failure) >= 2,
+                      'rollback:native-callback-not-failed')
+        if fedora:
+            guest.require(b'preun' in output, 'rollback:rpm-preun-not-observed')
+            guest.run(['rpm', '-q', PRODUCT])
+        else:
+            guest.require(status != 0 and b'package prerm maintainer script subprocess failed' in output and
+                          b'package postinst maintainer script subprocess failed' in output,
+                          'rollback:deb-callbacks-not-observed')
+            guest.require(guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT]) ==
+                          'install ok half-configured', 'rollback:unexpected-package-status')
+        guest.verify_package_payload()
+        guest.require(account_digest(child) == policy and extension_lists(child) == extensions and
+                      all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                          for name, value in generated.items()), 'rollback:enforcement-not-restored')
+        verify_other_account(state)
+        guest.require(extension_lists(accounts['other']) == other_extensions,
+                      'rollback:other-extension-changed')
+        current = admission_removal_state()
+        changed = {'/var/lib/oh-no-parent-control/kiosk-confinement.json',
+                   '/var/lib/oh-no-parent-control/kiosk-confinement-removing',
+                   '/var/lib/oh-no-parent-control/uninstall-broker-mask'}
+        record('onpc.rollback.changed-records', json.dumps({
+            name: {'before': value, 'after': current.get(name)}
+            for name, value in before.items() if name not in changed and current.get(name) != value},
+            sort_keys=True))
+        guest.require(current.keys() == before.keys() and all(
+            rollback_record_matches(name, value, current[name])
+            for name, value in before.items() if name not in changed),
+                      'rollback:foreign-or-ownership-state-changed')
+        confinement = json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+        guest.require({name: value for name, value in confinement.items()
+                       if name not in ('removing', 'previous_pam')} == confinement_before,
+                      'rollback:confinement-recovery-record-changed')
+        guest.require(confinement.get('removing') is True and
+                      Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing').read_text() == 'removing\n' and
+                      Path('/var/lib/oh-no-parent-control/uninstall-broker-mask').is_file() and
+                      os.readlink('/run/systemd/system/oh-no-parent-control-broker.service') == '/dev/null',
+                      'rollback:guards-released-before-restoration')
+        guest.require(guest.pam_service_state() == pam and pwd.getpwnam(PRODUCT) == kiosk and
+                      (Path(kiosk.pw_dir).lstat().st_dev, Path(kiosk.pw_dir).lstat().st_ino,
+                       Path(kiosk.pw_dir).lstat().st_uid, Path(kiosk.pw_dir).lstat().st_gid,
+                       Path(kiosk.pw_dir).lstat().st_mode) ==
+                      (home.st_dev, home.st_ino, home.st_uid, home.st_gid, home.st_mode),
+                      'rollback:identity-or-pam-changed')
+        verify_loaded_confinement()
+        observe_launch(child, False)
+        for role in ('parent', 'other'):
+            identity, digest, lists = ordinary[role]
+            guest.require(pwd.getpwuid(accounts[role]) == identity and
+                          account_digest(accounts[role]) == digest and
+                          extension_lists(accounts[role]) == lists,
+                          'rollback:ordinary-account-changed')
+            observe_launch(accounts[role], True)
+        probe('login', 'ordinary', 0, 'rollback.ordinary-guarded', record)
+        probe('login', 'other', 0, 'rollback.other-guarded', record)
+        probe('gdm-password', 'kiosk', 6, 'rollback.kiosk-guarded', record)
+        record('onpc.rollback.restored-before-release',
+               'exact-enforcement-restored; native-child-denied; ordinary-users-allowed; MAC-enforcing; removing-marker-and-mask-retained')
+    if fedora:
+        guest.install_package()
+    else:
+        guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+    guest.verify_package_files()
+    guest.require(not os.path.lexists('/var/lib/oh-no-parent-control/kiosk-confinement-removing') and
+                  not os.path.lexists('/var/lib/oh-no-parent-control/uninstall-broker-mask') and
+                  not os.path.lexists('/run/systemd/system/oh-no-parent-control-broker.service') and
+                  not json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text()).get('removing') and
+                  account_digest(child) == policy, 'rollback:rearm-incomplete')
+    verify_loaded_confinement()
+    verify_gates(record)
+    probe('login', 'other', 0, 'rollback.other-rearmed', record)
+    output = guest.commands.run([integration, 'check-remove'], check=False,
+                                timeout=30, merge_stderr=True)
+    status = guest.commands.last_returncode
+    guest.require(status == 0 or (status != 0 and b'legacy-pam-reboot-required' in output),
+                  'rollback:unexpected-rearm-preflight-refusal')
+    record('onpc.rollback.rearm-preflight',
+           'passed' if status == 0 else 'legacy-pam-reboot-required')
+    # RPM reinstall replaces the native PAM inode. Cached root login workers
+    # must retire naturally at reboot before the same history retries removal.
+    # Both platforms keep that reboot and finalization in this guarded attempt.
+    state['rollback_rearm'] = {
+        'boot': boot(), 'policy': policy, 'extensions': extensions,
+        'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
+        'kiosk_home': [home.st_ino, home.st_uid, home.st_gid, home.st_mode],
+        'ordinary': {role: {'uid': accounts[role], 'policy': digest, 'extensions': lists,
+                            'identity': [identity.pw_name, identity.pw_uid, identity.pw_gid,
+                                         identity.pw_dir, identity.pw_shell]}
+                     for role, (identity, digest, lists) in ordinary.items()},
+    }
+    save_state(state)
+    record('onpc.rollback.rearmed', 'guards-released-after-restoration; native-rearm-complete')
+
+
+def rollback_rearmed_rebooted(record):
+    """Retire cached native PAM workers, then finalize the same owned retry."""
+    guest.guard()
+    guest.enable_diagnostics()
+    from system_kiosk_admission import probe, verify_gates
+    state = json.loads(state_path().read_text())
+    rearm = state['rollback_rearm']
+    guest.require(boot() != rearm['boot'] and guest.reboot_cleared(),
+                  'rollback:rearm-reboot-not-observed')
+    guest.installed()
+    child, parent = state['accounts']['child'], state['accounts']['parent']
+    guest.require(account_digest(child) == rearm['policy'] and
+                  extension_lists(child) == rearm['extensions'],
+                  'rollback:reboot-changed-restored-enforcement')
+    kiosk = pwd.getpwnam(state['kiosk_name'])
+    home = Path(kiosk.pw_dir).lstat()
+    guest.require([kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell] ==
+                  rearm['kiosk_identity'] and
+                  [home.st_ino, home.st_uid, home.st_gid, home.st_mode] == rearm['kiosk_home'],
+                  'rollback:reboot-changed-kiosk-identity')
+    observe_launch(child, False)
+    for role, before in rearm['ordinary'].items():
+        identity = pwd.getpwuid(before['uid'])
+        guest.require([identity.pw_name, identity.pw_uid, identity.pw_gid,
+                       identity.pw_dir, identity.pw_shell] == before['identity'] and
+                      account_digest(before['uid']) == before['policy'] and
+                      extension_lists(before['uid']) == before['extensions'],
+                      'rollback:reboot-changed-ordinary-account')
+        observe_launch(before['uid'], True)
+    verify_loaded_confinement()
+    verify_gates(record)
+    probe('login', 'other', 0, 'rollback.other-rebooted', record)
+    wait_kiosk_inactive(kiosk)
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    record('onpc.rollback.rearm-reboot', 'new-boot; restored-enforcement-and-identities-preserved; removal-preflight-passed')
+    guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
+    verify_removed(state, record=record)
+    probe('login', 'ordinary', 0, 'rollback.ordinary-removed', record)
+    probe('login', 'other', 0, 'rollback.other-removed', record)
+    observe_launch(parent, True)
+    record('onpc.rollback.retry-finalized', 'native-remove-succeeded; owned-account-deleted; exact-original-PAM-restored')
 
 
 def remove(record):

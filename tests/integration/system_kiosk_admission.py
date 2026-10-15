@@ -16,7 +16,8 @@ import system_guest as guest
 
 
 SERVICES = ('gdm-password', 'login', 'sshd')
-USERS = {'ordinary': 'onpc-parent-jamie', 'kiosk': 'oh-no-parent-control'}
+USERS = {'ordinary': 'onpc-parent-jamie', 'other': 'onpc-child-jordan',
+         'kiosk': 'oh-no-parent-control'}
 INTERFACE = 'org.freedesktop.Accounts.User'
 DEDICATED = ('oh-no-parent-control', 'wayland')
 PAM_PERM_DENIED = 6

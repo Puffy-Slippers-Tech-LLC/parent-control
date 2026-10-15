@@ -10,17 +10,22 @@ import system_runner as system
 
 def attempts(selection, *, fresh_install=False):
     """Keep lifecycle transitions together; restore before each installed area."""
-    if fresh_install:
-        return [(selection, False)]
-    groups = [('installed', 'rebooted', *system.REMOVAL_PHASES),
-              ('authorization',), ('enforcement',), ('session',)]
+    full = system.REMOVAL_HISTORIES[0]
+    lifecycle = (*full.prerequisites, *full.phases)
+    independent = ('authorization', 'enforcement', 'session')
+    groups = ([((*lifecycle, *independent), False)] if fresh_install else
+              [(lifecycle, full.start == 'installed'), *(((phase,), True) for phase in independent)])
+    # Each destructive focused history starts from its own product-free
+    # baseline, even when an earlier history erased or purged the product.
+    groups[1:1] = [((*history.prerequisites, *history.phases), history.start == 'installed')
+                   for history in system.REMOVAL_HISTORIES[1:]]
     result = []
-    for phases in groups:
+    for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)
         if selected:
             result.append((replace(selection, phases=selected,
                 executions=tuple(item for item in selection.executions if item.phase in selected)),
-                selected[0] not in ('installed', 'rebooted')))
+                installed))
     return result
 
 

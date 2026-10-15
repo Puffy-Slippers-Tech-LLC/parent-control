@@ -7,7 +7,7 @@ import pytest
 
 import system_runner as system
 import system_snapshots as snapshots
-from tests.support.vm_runner import INVENTORIES, RUN, write_junit_results
+from tests.support.vm_runner import INVENTORIES, RECOVERY_INVENTORIES, RUN, write_junit_results
 
 
 @pytest.mark.parametrize('area', [None, 'package', 'removal', 'authorization', 'enforcement', 'session'])
@@ -60,10 +60,11 @@ def test_snapshot_verification_failure_never_installs_or_runs_tests(tmp_path):
 
 
 @pytest.mark.parametrize('failure', [None, 'prepare', 'test', 'evidence'])
-def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize('recovery', [False, True])
+def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monkeypatch, failure, recovery):
     import vm_transport
     import guest_inputs
-    selection = system.resolve_selection(inventories=INVENTORIES)
+    selection = system.resolve_selection(inventories=RECOVERY_INVENTORIES if recovery else INVENTORIES)
     (tmp_path / 'input').mkdir()
     (tmp_path / 'input/frozen').write_bytes(b'input')
     frozen = Mock()
@@ -102,18 +103,85 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     if failure:
         with pytest.raises(system.Error):
             snapshots.run_attempts(suite, tmp_path, selection, manifest, 'selected', ledger)
-        assert len(seen) == (2 if failure == 'test' else 1)
+        assert len(seen) == ((3 if recovery else 2) if failure == 'test' else
+                             (2 if recovery else 1) if failure == 'prepare' else 1)
     else:
         snapshots.run_attempts(suite, tmp_path, selection, manifest, 'selected', ledger)
         assert seen == [('installed', 'rebooted', *system.REMOVAL_PHASES),
+                        *([system.ROLLBACK_PHASES] if recovery else []),
                         ('authorization',), ('enforcement',), ('session',)]
         assert suite.prepare_case.call_count == 3
         for phase in selection.phases:
             system.reconcile_junit(tmp_path, phase, selection)
-    lease.prepare.assert_called_once()
+    assert lease.prepare.call_count == (2 if recovery and failure != 'evidence' else 1)
     assert lease.__enter__.call_count == lease.__exit__.call_count
     lease.source.domain.snapshotLookupByName.assert_not_called()  # Only shared E2E code owns snapshots.
     assert suite._input_bundle is frozen
+
+
+def test_broad_recovery_partitions_unique_executions_into_baseline_history():
+    selection = system.resolve_selection(inventories=RECOVERY_INVENTORIES)
+    planned = snapshots.attempts(selection)
+    identities = [item.phase + '::' + item.case_id for part, _ in planned for item in part.executions]
+    assert len(identities) == len(set(identities)) == len(selection.executions)
+    assert set(identities) == {item.phase + '::' + item.case_id for item in selection.executions}
+    focused, installed = next((part, installed) for part, installed in planned
+                              if 'rollback' in part.phases)
+    assert focused.phases == system.ROLLBACK_PHASES
+    assert not installed
+    assert len(focused.executions) == 8
+
+
+@pytest.mark.parametrize('area,case', [(None, None), ('removal', None),
+                                     ('removal', 'test_aborted_cleanup_rollback_retry')])
+def test_recovery_refuses_previous_package_selection(area, case):
+    with pytest.raises(system.Error, match='selection:recovery-requires-current-package'):
+        system.resolve_selection(area, case, inventories=RECOVERY_INVENTORIES, fresh_install=True)
+
+
+@pytest.mark.parametrize('failed_phase', [None, *system.ROLLBACK_PHASES])
+def test_recovery_dispatch_is_continuous_and_stops_on_failure(tmp_path, monkeypatch, failed_phase):
+    selection = system.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    assert snapshots.attempts(selection) == [(selection, False)]
+    vm, lease = Mock(), Mock()
+    lease.state = {'run': RUN}
+    events = []
+    vm.reboot.side_effect = lambda: events.append('reboot')
+    monkeypatch.setattr(system, 'run_kiosk_activation', Mock())
+    def execute(vm, token, phase, selected):
+        events.append(phase)
+        if phase == failed_phase:
+            vm.commands.last_returncode = 1
+            raise system.CommandError('recovery-failed')
+    monkeypatch.setattr(system, 'run_pytest', execute)
+    write_junit_results(tmp_path, selection)
+    ledger = system.RunLedger()
+    if failed_phase:
+        with pytest.raises(system.CommandError, match='recovery-failed'):
+            system.installed_run(vm, lease, tmp_path, selection, ledger)
+        assert ledger.outcomes['product']['category'] == 'pytest:failed:' + failed_phase
+    else:
+        assert set(system.installed_run(vm, lease, tmp_path, selection, ledger)) == set(selection.phases)
+    expected = ['rollback-installed', 'reboot', 'rollback-rebooted', 'rollback',
+                'reboot', 'rollback-rearmed-rebooted']
+    assert events == (expected[:expected.index(failed_phase) + 1] if failed_phase else expected)
+    calls = [call.args[0] for call in vm.call.call_args_list]
+    assert calls[0] == system.guest_command(RUN, 'install')
+    assert calls[-1] == system.guest_command(RUN, 'collect', 'failed' if failed_phase else 'passed')
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
+
+
+def test_focused_recovery_refuses_app_snapshot_start_before_install(tmp_path):
+    selection = system.resolve_selection(
+        'removal', 'test_aborted_cleanup_rollback_retry', inventories=RECOVERY_INVENTORIES)
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    with pytest.raises(system.Error, match='installation-requires-baseline'):
+        system.installed_run(vm, lease, tmp_path, selection, already_installed=True)
+    assert [call.args[0] for call in vm.call.call_args_list] == [
+        system.guest_command(RUN, 'collect', 'failed')]
+    vm.reboot.assert_not_called()
 
 
 @pytest.mark.parametrize('failed_phase', [None, *system.REMOVAL_PHASES])

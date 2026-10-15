@@ -2573,6 +2573,95 @@ interrupted-first-configuration/retry/reboot history must therefore repeat on
 both targets in 4-10 under 4-9's applicability gate. Every previously recorded
 complete-history repeat remains required.
 
+## Phase 4 step 8 — resumed review acceptance — 2026-10-15
+
+Accepted on **onpc-Ubuntu26.04 and onpc-Fedora44** after independently reviewing
+both repairs, verifying applicable installed evidence and completing owned cleanup.
+This closes the unfinished [4-8 review](#phase-4-step-8--independent-lifecyclesecurity-review--2026-10-15),
+including L1 and H1; it does not close the confinement exit gate.
+
+Three read-only Sol High reviewers completed disjoint lifecycle, first-configuration
+harness and manager/service-proof reviews. The coordinator assessed their reports,
+read the changed enforcing/proof boundaries and owns this acceptance. The retained
+original-baseline review through `f250b7dac421df530d9b258674cfb974d81e7e39`
+is combined with the complete confinement deltas in `c0cc19ff` and `6a05f04d`.
+There were no untracked files. Unrelated launcher changes and the pre-existing
+VersionHistory edit were preserved outside this task.
+
+No further demonstrated product or harness defect was found. Account creation,
+quarantine/release, initial home setup, activation-origin durability and journal-aware
+removal preserve identity and fail closed across the reviewed interruptions/retries.
+All eleven H1 attacks and prior assertions remain. Their shared proof binds native
+failure stage/error to the exact invocation, executor, manager, target/loader and
+fresh enforcing event before invocation-guarded cleanup. The ignored-setting
+platform case uses the successful manager control and measured shell/loader rather
+than a separate shell positive; its required exact kernel execution denial rules
+out the original missing-input false pass.
+
+The two review slices and accepted repairs reconcile all five scoped groups:
+
+| Group | Review result and remaining acceptance owner |
+| --- | --- |
+| 1 — Admission/account ownership | L1 is resolved by native expiry until verified final integration; interrupted install/retry/reboot passed below. Final admission and real-session qualification remain with 4-9/4-10. |
+| 2 — Execution and APIs | The retained native/namespace review and repaired H1 proofs cover fixed launchers, imports/plugins/loaders, writable units, command prefixes, service APIs and enforcing transitions. Current complete execution/platform results were reverified; 4-10 retains its final matrix/shared-integration/census gate. |
+| 3 — Essential flows and surfaces | The earlier request/authentication/exit, About/Help, Preferences/nested dialogs, release notes, error/privacy/editor, WebKit/Glycin/scanner, Polkit, notification and Wellbeing review remains applicable to unchanged source. Per-target public journeys and real required-role/scanner evidence still need 4-9 applicability checks and affected/missing 4-10 qualification. |
+| 4 — Safe lifecycle | Both package formats, dependencies, activation origins, durable barriers, rollback ordering, exact restoration and account/home/cache/removal ownership were reconciled with 4-8a. The complete first-configuration repeat below resolves its expired-proof gap; every other invalidated continuous lifecycle/recovery history remains required. |
+| 5 — Independent review and ordinary accounts | Both independent review slices, harness isolation/provenance, positive controls, kernel witnesses and identity-bound cleanup are reconciled. Both ordinary roles passed the repeated native/shared-integration controls. Separate ordinary login/desktop/metadata and final shared-scope obligations remain with 4-9/4-10. |
+
+**L1 installed acceptance was repeated**, because both original 4-8a raw allocations
+had expired. One maintained dual-target invocation of
+`package::test_first_configuration_interruption_retry` passed both complete baseline
+histories. Each retains both expected executions in order, a real reboot, and two
+JUnits with one exact case and zero failures/errors/skips:
+
+| Target | Raw allocation under `output/test-runs/privileged/allocations/` | Report under `output/test-runs/host/reports/` |
+| --- | --- | --- |
+| onpc-Ubuntu26.04 | `onpc-system-2hdf70p_` | `20261015T182421Z-3b968550/report.md` |
+| onpc-Fedora44 | `onpc-system-wc0i7djg` | `20261015T182421Z-e6672839/report.md` |
+
+Each allocation retains `evidence/result.json`, both input manifests and
+`guest-results/attempt-first-configure/{first-configure.xml,first-configure-rebooted.xml}`
+with raw commands, native fault observations and continuity state. The queue result
+is `output/test-runs/host/allocations/onpc-vm-queue-zrdank4c/results.json`.
+The selected-input SHA-256 is
+`16b9c0957f23d5c39a64ee9c2911a4ff4e23ba1486e69d829f657a14bf2cf0a5`;
+both manifests match, and all 31 bindings/29 distinct checkout files were hashed
+against current bytes. Source, package, fixture and target-specific baseline
+identities exactly match [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15).
+Prepared DEB/RPM inputs are `onpc-test-artifacts-1ttgppym` and
+`onpc-test-artifacts-k07oj7bm` under host allocations; both package files were
+independently hashed. Native package inventories after reboot also exactly match
+the corresponding 4-8b execution inventories.
+
+Empty-token authentication succeeds while account admission refuses at both
+interruptions and the owned passwordless retry: Ubuntu retains account status 7;
+Fedora retains 13 before shared activation, then the expected shared refusal and
+native expiry denial before final integration. Each interval retains expiry day 1,
+the exact private UID journal and an unsuccessful manager start. Successful retry
+and reboot restore dedicated admission, preserve account/home/cache identity and
+pass enforcing execution plus both ordinary roles' native/shared controls. Every
+owned fault is restored. Fedora remains globally and per-domain enforcing.
+
+**H1 installed evidence remains applicable.** All four 4-8b raw allocations and
+complete JUnits were read again: nine execution and two platform witnesses per
+target retain exact native diagnostics, matching fresh kernel denials and owned
+unit resets, with preceding successful controls. All 27 bindings/25 distinct
+checkout files match current hashes; package/source/fixture/baseline manifests
+and result identities agree with the repeated L1 histories. No unchanged matrix
+was rerun merely for review. All six allocations' required raw results, JUnits and
+input manifests remained present after the last installed run; no exports were
+needed and no further retention session was opened.
+
+All six results report product, infrastructure, collection and cleanup passed,
+`cleanup_phase=complete` and two successful baseline checks. The three reviewers
+finished before installed acceptance. Runner restoration completed and independent
+final status reads confirmed both VMs powered off; no owned process, mount or lease
+remains. This task changes documentation only, so no build or product regression
+rerun is required. Changed Markdown links and `git diff --check` passed.
+Only 4-8 is checked, its temporary brief is removed, and the master advances to
+4-9. Final applicability/retention and every other recorded missing or invalidated
+history remain with 4-9/4-10; this review supplies no public-kiosk acceptance.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -2591,7 +2680,7 @@ than copying hashes or creating another task queue.
 | 4-5d | Seven focused PAM/link/confinement-record ownership histories qualified on both targets in [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14). | Reuse only verified matching complete histories; final applicability remains with 4-9 and affected repeats with 4-10. |
 | 4-5e | Seven focused identity/home/state-root ownership histories qualified on both targets in [4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14). | Reuse only verified matching complete histories; final applicability remains with 4-9 and affected repeats with 4-10. |
 | 4-6 | Complete Fedora native failed-post-erase/reinstall/conflict/reboot/repeated-purge chain qualified in [4-6](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15). | Reuse only the verified matching complete history; 4-9 checks final applicability and 4-10 retains affected repeats. Independent 4-5 variants are not replaced by this history. |
-| 4-7–4-8 | Independent reviews and affected host/installed validation for demonstrated fixes. | Review-only changes need no automatic installed/E2E batch. Validate fixes before accepting the review; record other invalidated histories for 4-10. |
+| 4-7–4-8 | Both independent reviews accepted; repairs and current affected installed evidence reconciled in [resumed 4-8](#phase-4-step-8--resumed-review-acceptance--2026-10-15). | Missing L1 raw evidence was replaced by complete dual-target repeats. Applicable H1 matrices were reverified without repetition. Every other invalidated history remains with 4-9/4-10. |
 | 4-8a | First-configuration protection and complete interrupted-install/retry/reboot histories passed on both targets in [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15). | Exact matching raw inputs, native admission/execution, ordinary controls and cleanup verified. Existing invalidated complete-history repeats remain with 4-9/4-10; this new history replaces none of them. |
 | 4-8b | Eleven manager/service API negative proofs and both complete affected execution/platform selectors passed on both targets in [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15). | Exact inputs, per-attack native/kernel witnesses and cleanup verified. 4-8 reviews the accepted repair; 4-9 checks final applicability and 4-10 retains its final matrix/census and invalidated-history gates. |
 | 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Reuse unchanged valid task-local host results where their exact scope and inputs cover the final candidate; run missing/affected checks. No blanket schema or VM/E2E run. |
@@ -2682,12 +2771,12 @@ row alone never establishes current applicability. Keep per-target decisions exp
 | Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | Historical [4-6 prerequisites](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), covering the corresponding earlier activation assertions | Repeat required in 4-10: 4-7 changed package policy and the selected native helper. The retained six prerequisites, GDM observations and cleanup passed with enforcing SELinux for the 4-6 candidate. 4-9 maps complete matching activation/GDM prerequisite coverage; the 4-7 standalone matrix supplies no fresh-install/reboot history. |
 | Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Historical [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-gpmzey9c` now absent | Repeat required in 4-10: 4-8b changed selected shared helpers; prepared DEB build metadata also changed, and raw evidence expired. Product-source/fixture/baseline bytes remain unchanged. Preserve the historical complete pass and every assertion; 4-9 maps final applicability. |
-| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Historical [4-8a](#phase-4-step-8a--first-configuration-protection--2026-10-15), raw `onpc-system-22di3qrn` now absent | Repeat required in 4-10: 4-8b changed selected shared helpers and raw evidence expired. RPM/product-source/fixture/baseline bytes remain unchanged. Preserve the historical complete enforcing-SELinux pass and every assertion; 4-9 maps final applicability. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-2hdf70p_`; original 4-8a raw expired | Reuse verified for the recorded candidate: both complete phases, exact current package/source/helper/fixture/baseline inputs, native account/execution denial and recovery, ordinary controls and cleanup. This resolves the earlier missing-proof repeat condition for this candidate. 4-9 checks final applicability; changed/expired required inputs or evidence require the complete history again in 4-10. |
+| First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), raw `onpc-system-wc0i7djg`; original 4-8a raw expired | Reuse verified for the recorded candidate: both complete phases with enforcing SELinux, exact current package/source/helper/fixture/baseline inputs, native account/execution denial and recovery, ordinary controls and cleanup. This resolves the earlier missing-proof repeat condition for this candidate. 4-9 checks final applicability; changed/expired required inputs or evidence require the complete history again in 4-10. |
 | Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcement witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
 | Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcing AVC witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed enforcing in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-v88_np_p` and `onpc-system-ah4hdc98` | Reuse verified for the recorded candidate: exact source/package/helper/fixture/baseline inputs, both complete JUnits, all native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
-| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-odq44btb` and `onpc-system-uhk5x11_` | Reuse verified for the recorded candidate: exact source/package/helper/fixture/baseline inputs, both complete JUnits, all enforcing native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-v88_np_p` and `onpc-system-ah4hdc98` | Reuse reverified in resumed 4-8 after its final installed run: exact current source/package/helper/fixture/baseline inputs, both complete JUnits, all native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
+| Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | [4-8b](#phase-4-step-8b--manager-and-service-api-denial-proofs--2026-10-15), raw `onpc-system-odq44btb` and `onpc-system-uhk5x11_` | Reuse reverified in resumed 4-8 after its final installed run: exact current source/package/helper/fixture/baseline inputs, both complete JUnits, all enforcing native/kernel witnesses, successful controls and cleanup. No public kiosk or fresh lifecycle credit; 4-9 checks final applicability and 4-10 retains its final gate. |
 | Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Historical [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Repeat required for missing/invalidated scope in 4-10: the six Phase 3 execution/platform/shared raw allocations and both platform exports are absent. The incomplete Ubuntu shared JUnit export lacked complete input/native provenance and also expired under bounded export rotation. Current execution/platform matrices passed in 4-8b above; 4-9 still maps uncovered admission/shared/ordinary controls and 4-10 retains its final matrix/census gate. |
 | Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Ubuntu | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |

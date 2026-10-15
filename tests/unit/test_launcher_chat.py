@@ -1,8 +1,10 @@
 """Conversation delivery, interruption and editable resizable terminal panes."""
 
+import base64
 import io
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -535,7 +537,7 @@ def test_all_task_panels_enable_wheel_by_default_and_release_mouse_with_f2(tmp_p
     assert display.mouse_capture
     output = terminal.getvalue()
     assert '\033[?1006h' in output and '\033[?1049h' in output
-    assert ('F2: select text' if input_mode == 'chat' else 'F2/m: select text') in terminal.visible()
+    assert ('F2: native selection' if input_mode == 'chat' else 'F2/m: native selection') in terminal.visible()
     display.handle_input(b'\x1bOQ')
     assert not display.mouse_capture
     for mode in (1000, 1002, 1003, 1006):
@@ -683,7 +685,7 @@ def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_
         display.handle_input(bytes([byte]))
     assert display.mouse_capture
     assert '\033[?1003h' in terminal.getvalue()
-    assert 'F2: select text' in terminal.visible()
+    assert 'F2: native selection' in terminal.visible()
     display.handle_input(f'\033[<0;{display.divider_column};4M'.encode())
     assert display.dragging == 'bottom' and display.pointer
     display.handle_input(toggle)
@@ -700,6 +702,106 @@ def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_
     display.handle_input(b'\x1b[200~' + toggle + b'\x1b[201~m')
     assert not display.mouse_capture
     assert display.editor.text.endswith('m')
+
+
+def copied_text(terminal):
+    return [base64.b64decode(value).decode('utf-8') for value in
+            re.findall(r'\x1b\]52;c;([^\x1b]*)\x1b\\', terminal.getvalue())]
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+@pytest.mark.parametrize('side', ['left', 'right'])
+def test_drag_copy_stays_in_starting_panel_across_vertical_separator(tmp_path, input_mode, side):
+    display, terminal = display_fixture(tmp_path, input_mode=input_mode)
+    display.update([{'key': 'task', 'lines': ['right first', 'right second']}], [])
+    display.write('left first\nleft second\n')
+    row = display.top_height + 2
+    if side == 'left':
+        start, end = (1, row), (terminal.size.columns, row + 1)
+    else:
+        # Reverse selection across the divider exercises clipping on the left.
+        start = (display.divider_column + len('right second'), row + 1)
+        end = (1, row)
+    for button, point, suffix in [(0, start, 'M'), (32, end, 'M'), (0, end, 'm')]:
+        report = f'\033[<{button};{point[0]};{point[1]}{suffix}'.encode()
+        for byte in report:  # Fragmented mouse reports must remain selections.
+            display.handle_input(bytes([byte]))
+    assert copied_text(terminal) == [f'{side} first\n{side} second']
+    assert not (tmp_path / 'chat-inbox.json').exists()
+    assert display.editor.text == ''
+    assert display.ratio == .75
+
+
+def test_panel_copy_preserves_wide_and_combining_characters_without_other_panel(tmp_path):
+    display, terminal = display_fixture(tmp_path)
+    display.write('孩子 e\u0301\nsecond\n')
+    row = display.top_height + 2
+    # Begin in the second cell of a wide character; include the whole glyph.
+    display.handle_input(f'\033[<0;2;{row}M'.encode())
+    display.handle_input(f'\033[<32;7;{row}M'.encode())
+    display.handle_input(f'\033[<0;7;{row}m'.encode())
+    assert copied_text(terminal) == ['孩子 e\u0301']
+
+
+def test_panel_copy_uses_drag_snapshot_and_resize_cancels_selection(tmp_path):
+    display, terminal = display_fixture(tmp_path)
+    display.write('original first\noriginal second\n')
+    row = display.top_height + 2
+    display.handle_input(f'\033[<0;1;{row}M'.encode())
+    display.handle_input(f'\033[<32;100;{row + 1}M'.encode())
+    display.write('new output while selecting\n')
+    display.handle_input(f'\033[<0;100;{row + 1}m'.encode())
+    assert copied_text(terminal) == ['original first\noriginal second']
+    display.handle_input(f'\033[<0;1;{row}M'.encode())
+    terminal.resize(80, 30)
+    display.draw()
+    display.handle_input(f'\033[<0;80;{row + 1}m'.encode())
+    assert len(copied_text(terminal)) == 1
+    assert display.selection is None
+
+
+def test_panel_click_and_divider_drag_do_not_replace_clipboard(tmp_path):
+    display, terminal = display_fixture(tmp_path)
+    row = display.top_height + 2
+    for column in (1, display.divider_column):
+        display.handle_input(f'\033[<0;{column};{row}M'.encode())
+        display.handle_input(f'\033[<0;{column};{row}m'.encode())
+    assert copied_text(terminal) == []
+    assert display.dragging is None
+
+
+@pytest.mark.parametrize('side', ['left', 'right'])
+def test_top_panel_copy_cannot_escape_to_other_panels(tmp_path, side):
+    display, terminal = display_fixture(tmp_path)
+    display.task_totals = (1, 2, 3)
+    display.draw()
+    column = 1 if side == 'left' else display.divider_column + 1
+    display.handle_input(f'\033[<0;{column};1M'.encode())
+    # Cross both the vertical and horizontal panel boundaries.
+    end_column = 120 if side == 'left' else 1
+    display.handle_input(f'\033[<32;{end_column};36M'.encode())
+    display.handle_input(f'\033[<0;{end_column};36m'.encode())
+    copied = copied_text(terminal)
+    assert len(copied) == 1
+    assert copied[0].startswith('Tasks: 1/3' if side == 'left' else 'Total Tasks: 1/2/3')
+    assert '│' not in copied[0]
+    assert 'Task 001' not in copied[0]
+    assert ('Total Tasks:' if side == 'left' else 'Tasks: 1/3') not in copied[0]
+
+
+def test_description_copy_excludes_scrollbar_and_status_panel(tmp_path):
+    display, terminal = display_fixture(tmp_path, height=50)
+    display.description = {'lines': [f'description {index}' for index in range(100)]}
+    display.draw()
+    assert display.description_scrollbar
+    column, row = display.divider_column + 1, display.description_top
+    display.handle_input(f'\033[<0;{column};{row}M'.encode())
+    display.handle_input(b'\033[<32;120;60M')
+    display.handle_input(b'\033[<0;120;60m')
+    copied = copied_text(terminal)[0]
+    assert copied.startswith('description ')
+    assert copied.endswith('description 99')
+    assert all(line.startswith('description ') for line in copied.splitlines())
 
 
 def test_session_clock_keeps_owner_origin_across_turns_and_freezes_on_finish(conversation, monkeypatch):

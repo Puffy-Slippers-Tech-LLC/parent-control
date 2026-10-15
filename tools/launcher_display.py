@@ -1,5 +1,6 @@
 """Shared resizable task overview/totals and execution/input/status panes."""
 
+import base64
 import json
 import os
 import re
@@ -34,6 +35,58 @@ def owner_clock(run):
         return {}
 
 
+class PanelSelection:
+    """A stable screen snapshot, clipped to the panel where a drag began."""
+
+    def __init__(self, rows, bounds, column, row):
+        self.rows = [line.copy() for line in rows]
+        self.bounds = bounds
+        self.anchor = self.end = (row, column)
+        self.active = True
+
+    def move(self, column, row):
+        left, right, top, bottom = self.bounds
+        self.end = (min(bottom, max(top, row)), min(right, max(left, column)))
+
+    @staticmethod
+    def character_span(text, left, right):
+        # Mouse columns count terminal cells, not Unicode code points. Include
+        # whole wide characters and their trailing combining marks.
+        position = 1
+        start = end = None
+        for index, char in enumerate(text):
+            cells = get_character_cell_size(char)
+            if cells and position <= right and position + cells > left:
+                if start is None:
+                    start = index
+                end = index + 1
+            elif not cells and end == index:
+                end = index + 1
+            position += cells
+        return (start, end) if start is not None else (0, 0)
+
+    def spans(self):
+        if self.anchor == self.end:
+            return
+        first, last = sorted((self.anchor, self.end))
+        left, right, _, _ = self.bounds
+        for row in range(first[0], last[0] + 1):
+            start, end = self.character_span(self.rows[row - 1].plain,
+                first[1] if row == first[0] else left,
+                last[1] if row == last[0] else right)
+            yield row - 1, start, end
+
+    def text(self):
+        return clean('\n'.join(self.rows[row].plain[start:end].rstrip()
+                              for row, start, end in self.spans()))
+
+    def highlighted(self):
+        rows = [line.copy() for line in self.rows]
+        for row, start, end in self.spans():
+            rows[row].stylize('reverse', start, end)
+        return rows
+
+
 class TaskDisplay(LauncherDisplay):
     def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
         super().__init__(stream, **kwargs)
@@ -66,6 +119,9 @@ class TaskDisplay(LauncherDisplay):
         self.escape_since = None
         self.mouse_pending = b''
         self.mouse_capture = True
+        self.selection = None
+        self.selection_panels = []
+        self.visible_rows = []
 
     def __enter__(self):
         super().__enter__()
@@ -179,6 +235,7 @@ class TaskDisplay(LauncherDisplay):
         # Wheel events belong to the panes by default. F2 releases the mouse
         # for native terminal selection and context menus in every display.
         super().set_mouse_mode()
+        self.selection = None
         self.scrollbar_grab = None
         self.description_grab = None
         if not self.mouse_capture:
@@ -217,6 +274,7 @@ class TaskDisplay(LauncherDisplay):
                 keys = toggles + (b'\x1b[5~', b'\x1b[6~', b'\x1b[200~', b'\x1b[201~')
                 key = next((key for key in keys if self.mouse_pending.startswith(key)), None)
                 if key:
+                    self.selection = None
                     self.mouse_pending = self.mouse_pending[len(key):]
                     if key in toggles:
                         self.mouse_capture = not self.mouse_capture
@@ -238,6 +296,7 @@ class TaskDisplay(LauncherDisplay):
                     split = self.mouse_pending.find(b'\x1b', 1)
                     value = self.mouse_pending if split < 0 else self.mouse_pending[:split]
                     self.mouse_pending = b'' if split < 0 else self.mouse_pending[split:]
+                    self.selection = None
                     super().handle_input(value)
             self.draw()
             return
@@ -266,6 +325,7 @@ class TaskDisplay(LauncherDisplay):
             keys = navigation + mouse_keys
             key = next((key for key in keys if self.input_pending.startswith(key)), None)
             if key:
+                self.selection = None
                 self.input_pending = self.input_pending[len(key):]
                 if key in mouse_keys:
                     self.mouse_capture = not self.mouse_capture
@@ -280,6 +340,7 @@ class TaskDisplay(LauncherDisplay):
                 break
             byte = self.input_pending[:1]
             self.input_pending = self.input_pending[1:]
+            self.selection = None
             if byte == b'\x03' and not self.editor.paste:
                 self.focus = 'chat'
                 send_input(self.run, 'interrupt')
@@ -296,6 +357,19 @@ class TaskDisplay(LauncherDisplay):
 
     def mouse(self, button, column, row, released):
         base = button & ~28
+        if self.selection and self.selection.active and (released or base == 32):
+            self.selection.move(column, row)
+            if released:
+                self.selection.active = False
+                text = self.selection.text()
+                if text:
+                    # OSC 52 writes only the explicit selection, never queries
+                    # clipboard contents. Terminals may disable this operation.
+                    encoded = base64.b64encode(text.encode('utf-8')).decode('ascii')
+                    self.stream.write('\033]52;c;' + encoded + '\033\\')
+                    self.stream.flush()
+            self.draw()
+            return
         over = ('top' if column == self.top_divider_column and 1 <= row <= self.top_height else
                 'bottom' if column == self.divider_column and row > self.top_height + 1 else None)
         if released:
@@ -314,6 +388,7 @@ class TaskDisplay(LauncherDisplay):
             self.draw()
             return
         if base == 0:
+            self.selection = None
             self.dragging = None
             self.scrollbar_grab = None
             self.description_grab = None
@@ -366,6 +441,11 @@ class TaskDisplay(LauncherDisplay):
             self.ratio = min(.9, max(.1, (column - 1) / max(1, self.size.columns - 2)))
             self.draw()
         elif base == 0:
+            for bounds in self.selection_panels:
+                left, right, top, bottom = bounds
+                if left <= column <= right and top <= row <= bottom:
+                    self.selection = PanelSelection(self.visible_rows, bounds, column, row)
+                    break
             if row <= self.top_height:
                 if column < self.top_divider_column:
                     self.focus = 'top'
@@ -376,6 +456,7 @@ class TaskDisplay(LauncherDisplay):
             self.focus = ('bottom' if self.input_mode != 'chat' or
                           column < self.divider_column and row < self.chat_top else 'chat')
         elif base in (64, 65):
+            self.selection = None
             if row <= self.top_height and column >= self.top_divider_column:
                 return
             if self.input_mode == 'chat' and column < self.divider_column and row >= self.chat_top:
@@ -428,7 +509,9 @@ class TaskDisplay(LauncherDisplay):
                  self.editor.text, self.editor.cursor, self.editor.error,
                  json.dumps(self.task_info, sort_keys=True), json.dumps(self.chat_state, sort_keys=True),
                  (self.question.question['id'], self.question.selected, self.question.text)
-                 if self.question else None, self.focus, self.mouse_capture)
+                 if self.question else None, self.focus, self.mouse_capture,
+                 (self.selection.anchor, self.selection.end, self.selection.active)
+                 if self.selection else None)
         if self.screen and state == self.draw_state:
             return
         width, height = max(1, size.columns - 1), max(1, size.lines)
@@ -597,8 +680,9 @@ class TaskDisplay(LauncherDisplay):
         divider = Text('─' * width, style='dim')
         if self.input_fd is not None:
             key = 'F2' if self.input_mode == 'chat' else 'F2/m'
-            action = 'select text' if self.mouse_capture else 'scroll/resize'
-            divider = Text(f' {key}: {action} ', style='dim')
+            action = 'native selection' if self.mouse_capture else 'scroll/resize'
+            hint = 'Drag: select/copy panel · ' if self.mouse_capture else ''
+            divider = Text(f' {hint}{key}: {action} ', style='dim')
             divider.truncate(width, overflow='crop')
             divider.append('─' * max(0, width - divider.cell_len))
         rows = top + [divider]
@@ -624,6 +708,19 @@ class TaskDisplay(LauncherDisplay):
             self.description_scrollbar = None
         for row in rows:
             row.truncate(width, overflow='crop')
+        self.selection_panels = [
+            (1, left_width, 1, self.top_height),
+            (left_width + 2, width, 1, self.top_height),
+            (1, self.output_width(), self.top_height + 2,
+             self.top_height + 1 + self.output_height),
+            (left_width + 2, width, self.top_height + 2, self.description_top - 2),
+            (left_width + 2, width - int(self.mouse_capture), self.description_top,
+             self.description_top + self.description_height - 1),
+        ] if width >= 3 else []
+        if self.chat_bounds:
+            self.selection_panels.append(self.chat_bounds)
+        elif self.input_mode != 'chat' and editor_rows and width >= 3:
+            self.selection_panels.append((1, left_width, self.chat_top, height))
         self.paint(rows, size)
         if self.input_mode == 'chat' and editor_rows and width >= 3:
             cursor_row = min(height, self.chat_top + 1 + caret_row - editor_start)
@@ -668,8 +765,15 @@ class TaskDisplay(LauncherDisplay):
             self.set_mouse_mode()
             self.previous = None
         if size != self.size:
+            self.selection = None
             self.stream.write('\033[H\033[2J')
             self.previous = None
+        if self.selection:
+            if self.selection.active or rows == self.selection.rows:
+                rows = self.selection.highlighted()
+            else:
+                self.selection = None
+        self.visible_rows = self.selection.rows if self.selection else [row.copy() for row in rows]
         for index, row in enumerate(rows):
             if (self.previous is None or index >= len(self.previous)
                     or row != self.previous[index] or row.style != self.previous[index].style):

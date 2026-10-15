@@ -213,13 +213,18 @@ the wheel scrolls the pane under the pointer, the output pane has its own
 draggable scrollbar and **↓** returns to the newest output. Scrolling output
 leaves the overview, totals, task summary and composer fixed. No F2 switch is
 needed to start scrolling. The terminal's scrollbar does not control these panes.
-Native terminal selection requires the terminal's selection modifier while
-mouse controls are enabled. `F2` releases the mouse for ordinary drag-to-select,
-Ctrl+Shift+C and the terminal's right-click menu; press `F2` again to restore
-pane controls. Non-chat displays also accept `m` outside a pending question.
-This terminal protocol cannot provide unmodified native selection and application
-mouse controls simultaneously. Page Up/Page Down remain available for keyboard
-pane scrolling in either mode.
+Drag text with mouse controls enabled to select within the starting panel.
+Selection and copied text stop at its boundaries, including the vertical divider;
+releasing the drag sends the selected text to the clipboard through OSC 52.
+The terminal must support and permit OSC 52 clipboard writes. Wide characters
+and combining marks remain intact. Output arriving during a drag does not change
+the text being copied; resizing cancels the selection. A click without a drag
+does not replace the clipboard. Scrollbars and divider drags retain their controls.
+`F2` releases the mouse for native terminal selection, Ctrl+Shift+C and the
+terminal's right-click menu; press `F2` again to restore pane controls. Native
+selection, including the terminal's selection modifier, belongs to the terminal
+and can cross panel boundaries. Non-chat displays also accept `m` outside a pending
+question. Page Up/Page Down remain available for keyboard pane scrolling in either mode.
 The live panes keep bounded history; the retained run log remains the complete
 output source. On exit, the launcher restores the shell and input/cursor modes,
 then appends the saved run log to native terminal scrollback for later copying

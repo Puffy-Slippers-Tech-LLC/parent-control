@@ -119,8 +119,9 @@ to the first unchecked row (Next task: none. when finished), record concise
 evidence in the queue/reference and remove its temporary brief if appropriate.
 Preserve every other row's status, order and scope. If this session cannot finish,
 leave this task unchecked and the pointer on it; return continue with a usable
-handoff. For a newly discovered prerequisite, insert only explicit unchecked
-prerequisite rows immediately before this unfinished consumer, with valid briefs
+handoff. At close-out, you may update this row's Estimate with timing/evidence;
+keep its Scope and Requires unchanged. For a newly discovered prerequisite,
+insert only explicit unchecked prerequisite rows immediately before this unfinished consumer, with valid briefs
 and backward Requires links, and move Next task to the first new prerequisite.
 Preserve all existing rows' completion, relative order and scope. After owned
 cleanup return prerequisite_required; this suspends the consumer without any
@@ -182,6 +183,16 @@ def initial_state(plan, spec, directory):
                 if plan.prerequisite_repair(state) is None:
                     raise
                 state = defer_to_prerequisite(plan, state)
+            if state.get('in_flight') and not state.get('pending_completion'):
+                result_path = previous / 'agent-result.json'
+                if result_path.is_file():
+                    result = json.loads(result_path.read_text())
+                    if isinstance(result, dict) and result.get('status') == 'task_complete':
+                        # The supervisor can finish before validation/checkpointing.
+                        # Reapply every acceptance and queue guard before Git writes.
+                        validate_result(plan, state, result)
+                        state.update(pending_completion=result, in_flight=False,
+                                     summary=result['summary'], handoff=result['handoff'])
             state['recovery_run'] = str(previous)
             question_path = previous / 'question.json'
             if state.get('phase') == 'blocked' and question_path.exists():
@@ -312,13 +323,15 @@ def worker(root, run, owner, spec, state):
             state.setdefault('started_at', time.time())
             state['task_sessions'] += 1
             state['total_sessions'] += 1
+            # Clear the preceding response before publishing a new in-flight turn,
+            # so restart recovery cannot adopt a stale response for this task.
+            (run / 'agent-result.json').unlink(missing_ok=True)
             state['in_flight'] = True
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
             launcher.atomic(run / 'checkpoint.json', state)
             (run / 'prompt.txt').write_text(session_prompt(plan, spec, state)
                                            + task_info_instructions(run, state['task_id']))
-            (run / 'agent-result.json').unlink(missing_ok=True)
             launcher.atomic(run / 'nested.json', [])
             (run / 'nested-closed').unlink(missing_ok=True)
             publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",

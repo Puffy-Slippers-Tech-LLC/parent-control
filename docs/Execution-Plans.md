@@ -32,6 +32,10 @@ to an existing regular Markdown brief in the checkout. Keep scheduling exclusion
 separate. An optional `## Deferred future work` heading ends the active queue;
 rows below it never run automatically. Completed rows may link to retained
 evidence after their temporary briefs are removed.
+The selected row's Estimate cell is planning/close-out bookkeeping: it may be
+updated with timing or concise evidence without changing Scope or Requires.
+Shared transition and restart guards normalize that cell and the selected task
+link, including older checkpoints; every other row field remains protected.
 
 Each brief includes `Acceptance: installed`, `Acceptance: host`,
 `Acceptance: review` or `Acceptance: reconciliation` on its own line. Installed
@@ -115,6 +119,12 @@ execution still validate the plan. A fresh plan run automatically resumes unfini
 Git close-out and interrupted validation. It allows five more coordinator
 sessions for that task; attaching never renews this allowance. An exhausted
 session allowance stops with a retained handoff rather than skipping the task.
+If a completed structured response survived before its acceptance checkpoint,
+the ordinary-plan driver revalidates it against the retained task, targets,
+queue and cleanup requirements before resuming Git close-out. It completes owned
+nested cleanup first and counts the recovered task against the new run's limit;
+it starts no new model session for an already valid completion. A changed scope,
+dependency, acceptance declaration or unrelated completion still refuses recovery.
 
 If Codex rejects a turn with `cyberPolicy`, execution stops without automatically
 retrying or changing models, prompts or permissions. Ordinary plan launchers

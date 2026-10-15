@@ -45,6 +45,19 @@ def plan_namespace(path):
     return hashlib.sha256(path.encode()).hexdigest()
 
 
+def closeout_structure(rows, selected):
+    """Normalize selected-row bookkeeping, including pre-normalization checkpoints."""
+    normalized = []
+    for original in rows:
+        row = original.copy()
+        if row[2] == selected:
+            row[3] = '<selected task link>'
+            if len(row) > 7:  # Optional Estimate column, before the trailing delimiter.
+                row[6] = '<selected task estimate>'
+        normalized.append(row)
+    return normalized
+
+
 @dataclass(frozen=True)
 class Task:
     id: str
@@ -131,10 +144,8 @@ class Plan:
             if re.match(r'^\| \[[ x]\] \|', line):
                 fields = [field.strip() for field in line.split('|')]
                 fields[1] = '[ ]'
-                if fields[2] == selected:
-                    fields[3] = '<selected task link>'  # Close-out may link evidence instead of its removed brief.
                 rows.append(fields)
-        return rows
+        return closeout_structure(rows, selected)
 
     def validate_recovery(self, state):
         """Only an interrupted selected row may have partially closed out."""
@@ -143,7 +154,8 @@ class Plan:
         if (list(after) != list(before)
                 or any(after[key] != done for key, done in before.items() if key != state['task_id'])
                 or (state.get('queue_structure') is not None and
-                    self.structure(selected=state['task_id']) != state['queue_structure'])):
+                    self.structure(selected=state['task_id']) !=
+                    closeout_structure(state['queue_structure'], state['task_id']))):
             raise ValueError('interrupted plan changed outside its selected task; inspect retained handoff')
         return after
 
@@ -180,6 +192,7 @@ class Plan:
         position = ids.index(consumer)
         if ids[max(0, position - len(added)):position] != added:
             return None
+        saved = closeout_structure(saved, consumer)
         # Existing rows retain every field; only the consumer's Requires field
         # may change. Its link is already masked in the saved structure.
         current = {row[2]: row for row in self.structure(selected=consumer)}
@@ -217,5 +230,6 @@ class Plan:
             expected[task_id] = True
         if list(after) != list(expected) or after != expected:
             raise ValueError('only the selected task may change completion; preserve task order and scope')
-        if structure is not None and self.structure(selected=task_id) != structure:
+        if (structure is not None and self.structure(selected=task_id) !=
+                closeout_structure(structure, task_id)):
             raise ValueError('task scope or prerequisites changed; retain the queue for review')

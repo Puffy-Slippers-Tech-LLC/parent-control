@@ -530,6 +530,140 @@ def test_selected_closeout_link_may_change_but_other_metadata_stays_guarded(tmp_
         plan.validate_transition(before, '001', complete=True, structure=structure)
 
 
+def queue_estimates(plan):
+    queue = plan.root / plan.queue
+    text = queue.read_text().replace('| Scope |', '| Scope | Estimate |')
+    for task in plan.tasks():
+        text = text.replace(f'finite scope {task.id} |', f'finite scope {task.id} | 15–30 min |')
+    queue.write_text(text)
+    return queue
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_selected_estimate_closeout_preserves_scope_and_old_checkpoints(tmp_path, legacy):
+    plan = prepare(tmp_path)
+    queue = queue_estimates(plan)
+    state = state_for(plan, in_flight=True)
+    if legacy:
+        # Old launchers normalized the link, but retained the literal estimate.
+        state['queue_structure'][0][6] = '15–30 min'
+    original = json.dumps(state, sort_keys=True)
+    complete(plan, '001')
+    queue.write_text(queue.read_text().replace('finite scope 001 | 15–30 min',
+                                               'finite scope 001 | Scoped checks passed; cleanup complete'))
+    plan.validate_transition(state['queue_before'], '001', complete=True,
+                             structure=state['queue_structure'])
+    assert plan.validate_recovery(state)['001'] is True
+    assert json.dumps(state, sort_keys=True) == original
+
+
+@pytest.mark.parametrize('identity, field, replacement', [
+    ('001', 4, 'changed prerequisite'), ('001', 5, 'reduced scope'),
+    ('002', 3, '[Different task](002.md)'), ('002', 5, 'changed other scope'),
+    ('002', 6, 'unrelated estimate edit'),
+])
+def test_estimate_normalization_keeps_other_queue_fields_guarded(tmp_path, identity, field, replacement):
+    plan = prepare(tmp_path)
+    queue = queue_estimates(plan)
+    state = state_for(plan, in_flight=True)
+    complete(plan, '001')
+    lines = queue.read_text().splitlines()
+    for number, line in enumerate(lines):
+        if line.startswith(f'| [x] | {identity} |') or line.startswith(f'| [ ] | {identity} |'):
+            fields = line.split('|')
+            fields[field] = f' {replacement} '
+            lines[number] = '|'.join(fields)
+    queue.write_text('\n'.join(lines) + '\n')
+    with pytest.raises(ValueError):
+        plan.validate_transition(state['queue_before'], '001', complete=True,
+                                 structure=state['queue_structure'])
+    with pytest.raises(ValueError, match='outside its selected task'):
+        plan.validate_recovery(state)
+
+
+def test_retained_completion_recovers_estimate_closeout_without_another_session(rig, monkeypatch):
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    queue = queue_estimates(rig.plan)
+    state = state_for(rig.plan, in_flight=True, task_sessions=2, total_sessions=3)
+    # Keep the original literal estimate to exercise existing retained runs.
+    state['queue_structure'][0][6] = '15–30 min'
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    result = response(state)
+    workflow.launcher.atomic(previous / 'agent-result.json', result)
+    complete(rig.plan, '001')
+    queue.write_text(queue.read_text().replace('finite scope 001 | 15–30 min',
+                                               'finite scope 001 | Acceptance and cleanup passed'))
+    (rig.root / 'docs/001.md').unlink()
+    retained = (previous / 'checkpoint.json').read_bytes()
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    recovered = workflow.initial_state(rig.plan, rig.spec, rig.root)
+    assert (previous / 'checkpoint.json').read_bytes() == retained
+    assert recovered['pending_completion'] == result and not recovered['in_flight']
+    assert recovered['task_sessions'] == 2 and recovered['total_sessions'] == 3
+    assert recovered['handoff'] == result['handoff']
+    events = []
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda root, run: events.append(('cleanup', run)))
+    monkeypatch.setattr(workflow, 'stage_task', lambda root, paths, **kwargs:
+                        events.append(('stage', paths)) or paths)
+    monkeypatch.setattr(workflow, 'finish_commit', lambda *_args: events.append(('commit', None)))
+    monkeypatch.setattr(workflow, 'git_output', lambda root, *args, **kwargs:
+                        events.append((args[0], None)) or SimpleNamespace(returncode=0))
+    owner = os.open(rig.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    spec = replace(rig.spec, commit_prefix='Fixture', push=True)
+    assert workflow.worker(rig.root, rig.run, owner, spec, recovered) == 0
+    assert rig.calls == []
+    assert [event[0] for event in events] == ['cleanup', 'stage', 'commit', 'push', 'cleanup']
+    assert events[0][1] == previous
+    assert TaskBudget(rig.run).read()['completed'] == 1
+    final = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert final['phase'] == 'complete' and 'pending_completion' not in final
+    assert rig.plan.next_task().id == '002'
+
+
+@pytest.mark.parametrize('defect', ['wrong-task', 'failed-check', 'unfinished-cleanup', 'scope'])
+def test_retained_completion_cannot_bypass_acceptance_or_queue_guards(rig, monkeypatch, defect):
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    state = state_for(rig.plan, in_flight=True)
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    result = response(state)
+    if defect == 'wrong-task':
+        result['task_id'] = '002'
+    elif defect == 'failed-check':
+        result['checks'][0]['result'] = 'failed'
+    elif defect == 'unfinished-cleanup':
+        result['cleanup_complete'] = False
+    complete(rig.plan, '001')
+    if defect == 'scope':
+        queue = rig.root / rig.plan.queue
+        queue.write_text(queue.read_text().replace('finite scope 001', 'reduced scope'))
+    workflow.launcher.atomic(previous / 'agent-result.json', result)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    with pytest.raises(ValueError):
+        workflow.initial_state(rig.plan, rig.spec, rig.root)
+    assert rig.calls == [] and TaskBudget(rig.run).read()['completed'] == 0
+    assert json.loads((previous / 'checkpoint.json').read_text()) == state
+
+
+def test_new_inflight_checkpoint_cannot_retain_preceding_session_result(rig, monkeypatch):
+    workflow.launcher.atomic(rig.run / 'agent-result.json', response(state_for(rig.plan), 'continue'))
+    atomic = workflow.launcher.atomic
+    checkpoints = []
+
+    def write(path, value):
+        if path.name == 'checkpoint.json' and value.get('in_flight') and not checkpoints:
+            checkpoints.append(value['task_id'])
+            assert not (rig.run / 'agent-result.json').exists()
+            raise workflow.launcher.Stopped()
+        atomic(path, value)
+
+    monkeypatch.setattr(workflow.launcher, 'atomic', write)
+    assert rig.worker() == 130
+    assert checkpoints == ['001'] and rig.calls == []
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
 def test_accepted_pending_completion_counts_toward_restarted_limit(rig):
     state = state_for(rig.plan)
     state['pending_completion'] = response(state)
@@ -758,6 +892,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     from test_storage import directory
 
     plan = prepare(tmp_path)
+    queue_estimates(plan)
     tools = tmp_path / 'tools'
     tools.mkdir()
     source = Path(workflow.__file__).parent
@@ -784,8 +919,10 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
                      f'runpy.run_path({str(child_double)!r}, run_name="__main__")\n')
     codex.chmod(0o700)
     queue = (tmp_path / plan.queue).read_text()
-    first_queue = queue.replace('| [ ] | 001 |', '| [x] | 001 |')
-    final_queue = first_queue.replace('| [ ] | 002 |', '| [x] | 002 |')
+    first_queue = queue.replace('| [ ] | 001 |', '| [x] | 001 |').replace(
+        'finite scope 001 | 15–30 min', 'finite scope 001 | Scoped acceptance passed')
+    final_queue = first_queue.replace('| [ ] | 002 |', '| [x] | 002 |').replace(
+        'finite scope 002 | 15–30 min', 'finite scope 002 | Scoped acceptance passed')
     steps = []
     for identity, updated_queue, pointer in [
         ('001', first_queue, 'Next task: **002 — Next**.'),

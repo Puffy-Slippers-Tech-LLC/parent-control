@@ -515,9 +515,9 @@ def test_chat_mouse_toggle_restores_native_selection_without_touching_draft(tmp_
     display.mouse_capture = False
     display.set_mouse_mode()
     display.handle_input(b'keep my draft')
-    column, row = display.cancel_button
+    column, row = 9, display.chat_top
     click = f'\033[<0;{column};{row}M'.encode()
-    # A stale report in selection mode must not activate Cancel.
+    # A stale report in selection mode must not affect the conversation.
     display.handle_input(click)
     assert not (tmp_path / 'chat-inbox.json').exists()
     for byte in toggle:
@@ -862,16 +862,43 @@ def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(tm
             assert left[border_index + 1].startswith('Enter:')
 
 
-def test_chat_ctrl_c_does_not_signal_output_and_cancel_button_uses_same_mailbox(tmp_path):
+def test_chat_ctrl_c_does_not_signal_output_and_uses_mailbox(tmp_path):
     display, _ = display_fixture(tmp_path)
     launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
     display.focus = 'bottom'
     display.handle_input(b'\x03')
     assert not (tmp_path / 'cancel').exists()
     assert json.loads((tmp_path / 'chat-inbox.json').read_text())[0]['kind'] == 'interrupt'
-    column, row = display.cancel_button
-    display.mouse(0, column, row, False)
-    assert len(json.loads((tmp_path / 'chat-inbox.json').read_text())) == 2
+
+
+@pytest.mark.parametrize('width,height', [(40, 20), (120, 36)])
+def test_clicking_composer_after_scrolling_to_bottom_keeps_turn_running(conversation, tmp_path, width, height):
+    session, _, _ = conversation
+    ready(session)
+    display, terminal = display_fixture(tmp_path, width=width, height=height)
+    display.handle_input(b'keep this draft')
+    display.write(''.join(f'output {index}\n' for index in range(100)))
+    display.handle_input(b'\x1b[5~')
+    assert display.offsets['bottom'] > 0
+    column, row = display.bottom_button
+    display.handle_input(f'\033[<0;{column};{row}M\033[<0;{column};{row}m'.encode())
+    assert display.offsets['bottom'] == 0
+
+    # The whole composer, including its border, must be safe to click for focus.
+    for row in range(display.chat_top, height + 1):
+        for column in range(1, display.divider_column):
+            display.handle_input(f'\033[<0;{column};{row}M\033[<0;{column};{row}m'.encode())
+    session.poll()
+    assert packets(session) == []
+    assert read_state(tmp_path)['status'] == 'running'
+    assert '[Cancel]' not in terminal.visible()
+    assert display.editor.text == 'keep this draft'
+    assert not (tmp_path / 'cancel').exists()
+    display.handle_input(b'\r')
+    session.poll()
+    steer, = packets(session)
+    assert steer['method'] == 'turn/steer'
+    assert steer['params']['input'][0]['text'] == 'keep this draft'
 
 
 def test_escape_interrupts_turn_and_preserves_session_and_draft(conversation, tmp_path, monkeypatch):

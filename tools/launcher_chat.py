@@ -33,7 +33,7 @@ def send_input(run, kind, text='', *, cancel_waiting=True):
         fcntl.flock(gate, fcntl.LOCK_EX)
         state = read_state(run)
         if kind == 'interrupt' and state['status'] in ('interrupting', 'cleaning'):
-            # Repeated Cancel/Ctrl+C during the same interruption must not
+            # Repeated Escape/Ctrl+C during the same interruption must not
             # become a fresh interrupt after cleanup has reopened the session.
             return
         if kind == 'interrupt' and state['status'] in ('waiting', 'blocked', 'finished'):

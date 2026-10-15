@@ -57,7 +57,6 @@ class TaskDisplay(LauncherDisplay):
         self.chat_bounds = None
         self.output_height = 0
         self.summary_bottom = 0
-        self.cancel_button = None
         self.escape_since = None
         self.mouse_pending = b''
         self.mouse_capture = True
@@ -296,9 +295,6 @@ class TaskDisplay(LauncherDisplay):
                 if column < self.top_divider_column:
                     self.focus = 'top'
                 return
-            if (self.cancel_button and row == self.cancel_button[1]
-                  and self.cancel_button[0] <= column < self.divider_column):
-                send_input(self.run, 'interrupt')
             self.focus = ('bottom' if self.input_mode != 'chat' or
                           column < self.divider_column and row < self.chat_top else 'chat')
         elif base in (64, 65):
@@ -442,9 +438,9 @@ class TaskDisplay(LauncherDisplay):
         if self.editor.error:
             hint = Text(self.editor.error, style='red')
             hint.truncate(left_width, overflow='crop')
-        label = ' Chat [Cancel] ' + (f'· {working} ' if working else '')
-        cancel = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
-        cancel.truncate(left_width, overflow='crop')
+        label = ' Chat ' + (f'· {working} ' if working else '')
+        border = Text('╭' + label[:max(0, left_width - 2)].ljust(max(0, left_width - 2), '─') + '╮', style='dim')
+        border.truncate(left_width, overflow='crop')
         bottom = []
         if boxed and self.input_mode == 'chat':
             bordered = []
@@ -454,7 +450,7 @@ class TaskDisplay(LauncherDisplay):
                 bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
             editor_rows = bordered
             bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
-        left += ([cancel] + editor_rows + bottom + ([hint] if show_hint else [])
+        left += ([border] + editor_rows + bottom + ([hint] if show_hint else [])
                  if self.input_mode == 'chat' else editor_rows)
         left = left[:available]
         right = summary + separator + info
@@ -464,8 +460,6 @@ class TaskDisplay(LauncherDisplay):
         self.chat_bounds = ((3 if boxed else 1, left_width - 2 if boxed else left_width,
                              self.chat_top + 1, min(height, self.chat_top + len(editor_rows)))
                             if self.input_mode == 'chat' and editor_rows and width >= 3 else None)
-        self.cancel_button = ((9, self.chat_top) if self.input_mode == 'chat'
-                              and left_width >= 14 and available else None)
         self.bottom_button = ((left_width, self.chat_top - 1)
                               if self.mouse_capture and self.output_height > 0 and left_width > 1 else None)
         self.scrollbar = None
@@ -502,7 +496,6 @@ class TaskDisplay(LauncherDisplay):
         if width < 3:
             # Preserve terminal ownership without emitting over-wide rows.
             rows = [Text('')] * height
-            self.cancel_button = None
             self.bottom_button = None
             self.scrollbar = None
         for row in rows:

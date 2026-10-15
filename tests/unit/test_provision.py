@@ -1,4 +1,5 @@
 import unittest
+import json
 import os
 import signal
 import tempfile
@@ -239,6 +240,149 @@ class ProvisionTests(unittest.TestCase):
         run.return_value = SimpleNamespace(stdout='s "ubuntu"\ns "wayland"\n')
         with self.assertRaisesRegex(SystemExit, "routing failed verification"):
             provision.accounts_service_set_kiosk_session("/org/freedesktop/Accounts/User1002")
+
+
+class KioskConfigurationAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.directory = self.root / "var/lib/oh-no-parent-control"
+        self.directory.mkdir(parents=True)
+        self.marker = self.directory / "package-created-kiosk-uid"
+        self.marker.write_text("1002\n")
+        self.marker.chmod(0o600)
+        self.record = self.directory / "kiosk-configuration-account.json"
+        self.user = SimpleNamespace(pw_name=provision.KIOSK_USER, pw_uid=1002)
+        self.expiry = None
+        self.commands = []
+        for target, value in (("_ACCOUNT_FILESYSTEM_ROOT", self.root),
+                              ("_ACCOUNT_OWNER_UID", os.getuid()),
+                              ("_ACCOUNT_OWNER_GID", os.getgid()),
+                              ("KIOSK_OWNERSHIP", self.marker),
+                              ("KIOSK_CONFIGURATION_ACCOUNT", self.record)):
+            patcher = mock.patch.object(provision, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(provision.os, "chown")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(provision.subprocess, "run", side_effect=self.shadow_command)
+        self.runner = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def shadow_command(self, arguments, **options):
+        self.commands.append(arguments)
+        if arguments[:2] == ["getent", "shadow"]:
+            expiry = "" if self.expiry is None else str(self.expiry)
+            return SimpleNamespace(stdout=f"{provision.KIOSK_USER}:private-hash:20000:0:99999:7::{expiry}:\n")
+        self.assertEqual(arguments[:2], ["usermod", "--expiredate"])
+        self.assertEqual(arguments[-1], provision.KIOSK_USER)
+        self.expiry = None if arguments[2] == "-1" else int(arguments[2])
+        return SimpleNamespace(returncode=0)
+
+    def test_empty_password_owned_retry_is_expired_and_original_expiry_is_restored(self):
+        for original in (None, 0, 1, 24000):
+            with self.subTest(original=original):
+                self.expiry = original
+                provision.configure_account_access(self.user)
+                self.assertEqual(self.expiry, 1)
+                self.assertEqual(json.loads(self.record.read_text())["expires"], original)
+                provision.configure_account_access(self.user)
+                provision.configure_account_access(self.user, release=True)
+                self.assertEqual(self.expiry, original)
+                self.assertFalse(self.record.exists())
+
+    def test_fresh_expired_account_is_journaled_before_uid_ownership_publication(self):
+        self.marker.unlink()
+        self.expiry = 1
+        provision.configure_account_access(self.user, new_account=True)
+        self.assertEqual(json.loads(self.record.read_text())["expires"], None)
+        self.marker.write_text("1002\n")
+        self.marker.chmod(0o600)
+        provision.configure_account_access(self.user)
+        provision.configure_account_access(self.user, release=True)
+        self.assertIsNone(self.expiry)
+
+    def test_interruption_before_shadow_write_retains_original_and_retries(self):
+        def fail_write(arguments, **options):
+            if arguments[0] == "usermod":
+                raise OSError("owned simulated shadow failure")
+            return self.shadow_command(arguments, **options)
+        self.runner.side_effect = fail_write
+        with self.assertRaises(OSError):
+            provision.configure_account_access(self.user)
+        self.assertIsNone(self.expiry)
+        self.assertIsNone(json.loads(self.record.read_text())["expires"])
+        self.runner.side_effect = self.shadow_command
+        provision.configure_account_access(self.user)
+        self.assertEqual(self.expiry, 1)
+
+    def test_interrupted_release_is_requarantined_without_losing_original(self):
+        provision.configure_account_access(self.user)
+        with mock.patch.object(provision.os, "unlink", side_effect=OSError("owned cleanup failure")):
+            with self.assertRaises(OSError):
+                provision.configure_account_access(self.user, release=True)
+        self.assertIsNone(self.expiry)
+        self.assertEqual(json.loads(self.record.read_text())["phase"], "releasing")
+        provision.configure_account_access(self.user)
+        self.assertEqual(self.expiry, 1)
+        provision.configure_account_access(self.user, release=True)
+        self.assertIsNone(self.expiry)
+
+    def test_release_failure_keeps_account_expired_and_retry_record(self):
+        provision.configure_account_access(self.user)
+        def fail_write(arguments, **options):
+            if arguments[0] == "usermod":
+                raise OSError("owned simulated release failure")
+            return self.shadow_command(arguments, **options)
+        self.runner.side_effect = fail_write
+        with self.assertRaises(OSError):
+            provision.configure_account_access(self.user, release=True)
+        self.assertEqual(self.expiry, 1)
+        self.assertEqual(json.loads(self.record.read_text())["phase"], "releasing")
+
+    def test_foreign_expiry_and_uid_changes_are_preserved(self):
+        provision.configure_account_access(self.user)
+        before = self.record.read_bytes()
+        self.expiry = 12345
+        for release in (False, True):
+            with self.assertRaisesRegex(SystemExit, "changed kiosk configuration"):
+                provision.configure_account_access(self.user, release=release)
+        self.assertEqual(self.expiry, 12345)
+        self.assertEqual(self.record.read_bytes(), before)
+        self.expiry = 1
+        self.marker.write_text("9999\n")
+        with self.assertRaisesRegex(SystemExit, "ownership changed"):
+            provision.configure_account_access(self.user)
+        self.assertEqual(self.record.read_bytes(), before)
+
+    def test_unsafe_record_metadata_and_links_are_preserved(self):
+        provision.configure_account_access(self.user)
+        before = self.record.read_bytes()
+        self.record.chmod(0o640)
+        with self.assertRaises(SystemExit):
+            provision.configure_account_access(self.user)
+        self.record.chmod(0o600)
+        other = self.directory / "foreign"
+        other.hardlink_to(self.record)
+        with self.assertRaises(SystemExit):
+            provision.configure_account_access(self.user)
+        other.unlink()
+        self.record.rename(other)
+        self.record.symlink_to(other)
+        with self.assertRaises(OSError):
+            provision.configure_account_access(self.user)
+        self.assertEqual(other.read_bytes(), before)
+        self.assertEqual(self.expiry, 1)
+
+    def test_unknown_record_schema_is_preserved(self):
+        self.record.write_text('{"foreign": true}\n')
+        self.record.chmod(0o600)
+        with self.assertRaisesRegex(SystemExit, "invalid kiosk configuration"):
+            provision.configure_account_access(self.user)
+        self.assertEqual(self.record.read_text(), '{"foreign": true}\n')
+        self.assertIsNone(self.expiry)
 
 
 class KioskCacheMigrationTests(unittest.TestCase):

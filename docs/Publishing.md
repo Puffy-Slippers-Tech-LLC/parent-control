@@ -597,7 +597,21 @@ Qualification also compares every activation digest against files extracted
 from the final Debian package. This package
 activation manifest is separate from test-artifact source provenance.
 
-During an APT install or upgrade, `debian/preinst` records that an activation comparison is pending and, for upgrades, saves the manifest from the currently installed package. After unpacking, `debian/postinst` compares that saved manifest with the new one. Added, changed, and removed files all count. The pending marker prevents a later `dpkg --configure` retry from inventing a reboot requirement. A package without a prior manifest is treated as a first installation and requires a reboot, which is conservative for migrations from releases that predate this mechanism.
+During installation or upgrade, the shared pre-installation script records that
+an activation comparison is pending and, for upgrades, saves the currently
+installed manifest. It publishes that original comparison durably before the
+pending marker. An interrupted unpack/configure retry preserves the original
+manifest or its deliberate absence; the already-unpacked candidate must never
+replace that origin. A retained first-install marker also preserves an absent
+origin across retries. Substituted bookkeeping paths refuse before mutation.
+Successful configuration consumes the comparison; a later unchanged reinstall
+captures a new origin and requires no new reboot.
+
+After unpacking, configuration compares the saved manifest with the new one.
+Added, changed and removed files all count. The pending marker prevents a later
+`dpkg --configure` retry from inventing a reboot requirement. A package without
+a prior manifest requires a reboot, which is conservative for first installation
+and migration from releases that predate this mechanism.
 
 ### Activation levels
 

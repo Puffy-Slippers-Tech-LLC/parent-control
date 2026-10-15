@@ -19,6 +19,7 @@ def attempts(selection, *, fresh_install=False):
     # baseline, even when an earlier history erased or purged the product.
     groups[1:1] = [((*history.prerequisites, *history.phases), history.start == 'installed')
                    for history in system.REMOVAL_HISTORIES[1:]]
+    groups.insert(1, (system.FIRST_CONFIGURE_PHASES, False))
     result = []
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)

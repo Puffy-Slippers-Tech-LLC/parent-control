@@ -39,12 +39,15 @@ prepare_package_notice() { :; }
 # Distribution has no Debian package-service/notice hook.
 
 # @create_account@
-        useradd --create-home --comment "Oh No! Parent Control" \
-            --home-dir "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
+        useradd --create-home --user-group --comment "Oh No! Parent Control" \
+            --home-dir "/home/$kiosk_user" --shell /usr/sbin/nologin \
+            --expiredate 1 "$kiosk_user"
 
 # @initial_setup@
     # Write home-local initial-setup markers as their owner.
-    runuser -u "$kiosk_user" -- /bin/sh -c '
+    setpriv --reuid "$(id -u "$kiosk_user")" --regid "$(id -g "$kiosk_user")" --init-groups -- \
+        /usr/bin/env -i HOME=/home/oh-no-parent-control USER="$kiosk_user" LOGNAME="$kiosk_user" \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/sh -c '
         umask 077
         mkdir -p /home/oh-no-parent-control/.config &&
         touch /home/oh-no-parent-control/.config/gnome-initial-setup-done

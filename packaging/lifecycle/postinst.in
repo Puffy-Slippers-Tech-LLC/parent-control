@@ -51,6 +51,9 @@ if [ "$1" = configure ]; then
             echo 'oh-no-parent-control: preserving changed kiosk home' >&2
             exit 1
         fi
+        # A retry may already own an empty-password, visible account. Close
+        # native account admission before any configure work can fail or pause.
+        /usr/libexec/oh-no-parent-control-provision --kiosk-user oh-no-parent-control --quarantine-account
     elif [ -e /home/oh-no-parent-control ] || [ -L /home/oh-no-parent-control ]; then
         echo 'oh-no-parent-control: reserved kiosk home already exists; preserving it' >&2
         exit 1
@@ -78,7 +81,8 @@ if [ "$1" = configure ]; then
     kiosk_user=oh-no-parent-control
     package_created_kiosk=0
     if ! getent passwd "$kiosk_user" >/dev/null; then
-@create_account@        kiosk_uid=$(id -u "$kiosk_user")
+@create_account@        /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --quarantine-account --new-account
+        kiosk_uid=$(id -u "$kiosk_user")
         printf '%s\n' "$kiosk_uid" \
             > /var/lib/oh-no-parent-control/package-created-kiosk-uid
         chown root:root \
@@ -235,6 +239,9 @@ if [ "$1" = configure ]; then
     fi
     # Load MAC policy before restoring PAM and releasing kiosk admission.
     /usr/libexec/oh-no-parent-control-kiosk-confinement-integration install
+    # Shared PAM has been verified and final MAC/PAM integration succeeded.
+    # Restore only the expiry captured before this owned configuration.
+    /usr/libexec/oh-no-parent-control-provision --kiosk-user "$kiosk_user" --release-account
     # Migration stops the broker even on an unchanged reinstall. Ensure it is
     # running after every configure, without restarting an already-active
     # broker unless the changed payload requires reconciliation.

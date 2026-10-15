@@ -173,6 +173,44 @@ JUnits, binds the exact host observer/transport source hashes, and checks boot
 and execution-rule continuity around entry. No app snapshot replaces either
 phase. This system history supplies no general customer E2E completion.
 
+`package` → `test_first_configuration_interruption_retry` starts from the
+verified product-free baseline in its own attempt. Its `first-configure` phase
+owns fresh installation, failures after visibility publication and before final
+confinement integration, the already-passwordless owned retry, and successful
+configuration. Native account admission must remain denied while configuration
+is incomplete; ordinary-account controls precede the denials. The controller
+then reboots normally and runs `first-configure-rebooted` against the same
+identity, routing and enforcing execution boundary. Both phases retain exact
+JUnit identities and raw diagnostics. An app snapshot or previous-version input
+cannot supply this initial state; resume replays the whole unfinished history.
+Faults belong to this engineering qualification and use an owned read-only
+integration directory plus an exact native policy-loader refusal. Mount identity,
+native empty-token authentication/account results and retained expiry are
+independent observations. Ubuntu's vendor account stack maps expiry to its
+requisite denial; Fedora preserves expiry or the earlier shared admission denial.
+No product test hook or second installation route is used.
+Ubuntu dependency configuration can enable newly unpacked default profiles
+before the product's explicit activation. For the first interruption only, an
+owned wrapper delegates those default updates to the real `pam-auth-update`
+with public `--disable` flags for the two product profiles. The test verifies
+their absence at the pause; the product's later explicit `--enable` call and
+all final admission assertions remain intact. This engineering fixture ensures
+the missing-shared-gate interval is actually exercised.
+As in removal recovery, DEB retries finish the verified already-unpacked
+configuration through native `dpkg --configure`; APT cannot reinstall its
+half-configured same-version state. Payload installation and RPM retries use
+the frozen checkout's `make install`. Both retain the original activation
+comparison and require the restart request before the controller's real reboot.
+Identity continuity reuses the existing fresh AccountsService startup oracle:
+the native daemon makes a new cache private at startup while all cache bytes,
+ownership and extended attributes remain exact. The broker's native private
+state-directory group normalization likewise preserves the marker inode,
+root ownership, private mode and bytes; every other identity field stays exact.
+The reboot endpoint uses the shared native execution boundary and both ordinary
+roles' scope checks with MAC enforcement continuously enabled. The complete
+standalone confinement matrix additionally retains its deliberate policy-loss
+faults; those faults are outside this first-configuration history.
+
 `enforcement` → `test_kiosk_login_admission` checks the installed
 `gdm-password`, `login` and `sshd` account stacks through libpam's `pam_start`
 and `pam_acct_mgmt`, with individually bounded workers and `pam_end` readbacks.

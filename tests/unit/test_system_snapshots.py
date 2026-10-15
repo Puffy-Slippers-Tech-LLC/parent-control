@@ -10,6 +10,174 @@ import system_snapshots as snapshots
 from tests.support.vm_runner import INVENTORIES, RECOVERY_INVENTORIES, RUN, write_junit_results
 
 
+@pytest.fixture
+def first_configure_inventories():
+    return {**RECOVERY_INVENTORIES,
+            'package': (*RECOVERY_INVENTORIES['package'], system.FIRST_CONFIGURE_CASE)}
+
+
+@pytest.mark.parametrize('area', [None, 'package'])
+def test_first_configuration_broad_selection_keeps_its_history_in_an_isolated_baseline_attempt(
+        first_configure_inventories, area):
+    selection = system.resolve_selection(area, inventories=first_configure_inventories)
+    focused = system.resolve_selection('package', system.FIRST_CONFIGURE_CASE,
+                                      inventories=first_configure_inventories)
+    planned = snapshots.attempts(selection)
+    identities = [item for part, _ in planned for item in part.executions]
+    assert len(identities) == len(set(identities)) == len(selection.executions)
+    assert set(identities) == set(selection.executions)
+    matches = [(part, installed) for part, installed in planned
+               if any(phase in system.FIRST_CONFIGURE_PHASES for phase in part.phases)]
+    assert len(matches) == 1
+    part, installed = matches[0]
+    assert not installed
+    assert part.phases == focused.phases
+    assert part.executions == focused.executions
+    assert snapshots.attempts(focused) == [(focused, False)]
+    for other, _ in planned:
+        if other is not part:
+            assert not any(item.case_id == system.FIRST_CONFIGURE_CASE for item in other.executions)
+
+
+def test_first_configuration_resume_replays_both_whole_phases(
+        first_configure_inventories):
+    focused = system.resolve_selection('package', system.FIRST_CONFIGURE_CASE,
+                                      inventories=first_configure_inventories)
+    for count in range(3):
+        completed = {item.phase + '::' + item.case_id for item in focused.executions[:count]}
+        assert system.resume_selection(focused, completed) == focused
+    broad = system.resolve_selection(inventories=first_configure_inventories)
+    for pending_phase in focused.phases:
+        completed = {item.phase + '::' + item.case_id for item in broad.executions
+                     if item.phase != pending_phase}
+        resumed = system.resume_selection(broad, completed)
+        assert resumed.phases == focused.phases
+        assert resumed.executions == focused.executions
+        assert snapshots.attempts(resumed) == [(resumed, False)]
+    completed = {item.phase + '::' + item.case_id for item in broad.executions
+                 if item.phase != 'authorization'}
+    assert system.resume_selection(broad, completed).phases == ('authorization',)
+    with pytest.raises(system.Error, match='selection:resume-inventory-changed'):
+        system.resume_selection(focused, {'installed::' + system.FIRST_CONFIGURE_CASE})
+
+
+@pytest.mark.parametrize('failure', [None, 'first-configure', 'reboot', 'first-configure-rebooted'])
+def test_first_configuration_runs_before_normal_reboot_and_never_preinstalls(
+        tmp_path, monkeypatch, first_configure_inventories, failure):
+    selection = system.resolve_selection('package', system.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    events = []
+
+    def reboot():
+        events.append('reboot')
+        if failure == 'reboot':
+            raise system.CommandError('reboot-failed')
+
+    def execute(vm, token, phase, selected):
+        assert token == RUN and selected == selection
+        events.append(phase)
+        if phase == failure:
+            vm.commands.last_returncode = 1
+            raise system.CommandError('configure-failed')
+
+    vm.reboot.side_effect = reboot
+    monkeypatch.setattr(system, 'run_pytest', execute)
+    activation = Mock()
+    monkeypatch.setattr(system, 'run_kiosk_activation', activation)
+    write_junit_results(tmp_path, selection)
+    ledger = system.RunLedger()
+    if failure:
+        with pytest.raises(system.CommandError):
+            system.installed_run(vm, lease, tmp_path, selection, ledger)
+        if failure != 'reboot':
+            assert ledger.outcomes['product']['category'] == 'pytest:failed:' + failure
+    else:
+        assert tuple(system.installed_run(vm, lease, tmp_path, selection, ledger)) == selection.phases
+    expected = ['first-configure', 'reboot', 'first-configure-rebooted']
+    assert events == (expected[:expected.index(failure) + 1] if failure else expected)
+    assert [call.args[0] for call in vm.call.call_args_list] == [
+        system.guest_command(RUN, 'collect', 'failed' if failure else 'passed')]
+    activation.assert_not_called()
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_first_configuration_attempt_uses_baseline_and_retains_phase_evidence_on_failure(
+        tmp_path, monkeypatch, first_configure_inventories, failed):
+    import guest_inputs
+    import vm_transport
+    selection = system.resolve_selection('package', system.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'input/frozen').write_bytes(b'frozen')
+    frozen = Mock()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock(return_value=frozen))
+    suite = Mock(verified=None)
+    lease = suite.lease
+    lease.state = {'run': RUN}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(system, 'bootstrap', Mock(return_value='host-key'))
+    monkeypatch.setattr(system, 'address', lambda _: 'guest')
+    monkeypatch.setattr(vm_transport, 'Transport', Mock())
+
+    def execute(vm, owned_lease, directory, selected, ledger, *, already_installed):
+        assert owned_lease is lease
+        assert not already_installed
+        assert selected == selection
+        assert (directory / 'input/frozen').read_bytes() == b'frozen'
+        write_junit_results(directory, selected)
+        if failed:
+            (directory / ('guest-results/' + selected.phases[-1] + '.xml')).unlink()
+            raise system.CommandError('configure-failed')
+        (directory / 'guest-results/result.json').write_text(json.dumps({
+            'outcome': 'passed', 'package_sha256': 'package',
+            'selected_inputs_sha256': 'selected'}))
+
+    monkeypatch.setattr(system, 'installed_run', execute)
+    arguments = (suite, tmp_path, selection, {'artifacts': {'package': {'sha256': 'package'}}},
+                 'selected', system.RunLedger())
+    if failed:
+        with pytest.raises(system.CommandError, match='configure-failed'):
+            snapshots.run_attempts(*arguments)
+    else:
+        snapshots.run_attempts(*arguments)
+    lease.prepare.assert_called_once_with()
+    lease.__enter__.assert_called_once_with()
+    lease.__exit__.assert_called_once()
+    lease.start.assert_called_once_with()
+    suite.prepare_case.assert_not_called()
+    assert suite._input_bundle is frozen
+    for phase in selection.phases:
+        expected = not failed or phase == selection.phases[0]
+        assert (tmp_path / ('guest-results/' + phase + '.xml')).is_file() == expected
+        assert (tmp_path / ('guest-results/attempt-first-configure/' + phase + '.xml')).is_file() == expected
+
+
+@pytest.mark.parametrize('start', ['installed', 'previous-deb', 'previous-rpm', 'mixed-selection'])
+def test_first_configuration_refuses_nonbaseline_or_mixed_start_before_any_guest_action(
+        tmp_path, monkeypatch, first_configure_inventories, start):
+    selection = system.resolve_selection('package', None if start == 'mixed-selection'
+                                         else system.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    if start.startswith('previous-'):
+        (tmp_path / 'input').mkdir()
+        (tmp_path / ('input/previous-package.' + start.removeprefix('previous-'))).write_bytes(b'old')
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    execute = Mock()
+    monkeypatch.setattr(system, 'run_pytest', execute)
+    category = ('installation-requires-baseline' if start == 'installed' else
+                'first-configure-requires-isolated-baseline')
+    with pytest.raises(system.Error, match=category):
+        system.installed_run(vm, lease, tmp_path, selection, already_installed=start == 'installed')
+    assert [call.args[0] for call in vm.call.call_args_list] == [
+        system.guest_command(RUN, 'collect', 'failed')]
+    vm.reboot.assert_not_called()
+    execute.assert_not_called()
+
+
 @pytest.mark.parametrize('area', [None, 'package', 'removal', 'authorization', 'enforcement', 'session'])
 def test_attempt_partition_preserves_every_selected_execution(area):
     selection = system.resolve_selection(area, inventories=INVENTORIES)

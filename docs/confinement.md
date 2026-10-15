@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-8 — [Independent lifecycle/security review](Confinement-Tasks/4-8.md)**.
+Next task: **4-8b — [Prove manager and service API denials](Confinement-Tasks/4-8b.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and

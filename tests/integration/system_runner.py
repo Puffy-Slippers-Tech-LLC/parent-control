@@ -44,6 +44,8 @@ QUALIFICATION_CASE = 'test_method_role_matrix[ListManagedUsers-parent1]'
 QUALIFICATION_FAILURE = 'harness:qualification-failure'
 REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted',
                   'purged-rebooted', 'purge-reinstalled-rebooted')
+FIRST_CONFIGURE_CASE = 'test_first_configuration_interruption_retry'
+FIRST_CONFIGURE_PHASES = ('first-configure', 'first-configure-rebooted')
 
 
 @dataclass(frozen=True)
@@ -89,7 +91,7 @@ REMOVAL_FAMILIES = {
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
                    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
-PHASE_ORDER = ('installed', 'rebooted', *REMOVAL_PHASES,
+PHASE_ORDER = ('installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session')
@@ -129,6 +131,8 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
 PHASE_DEPENDENCIES = {
     'installed': (),
     'rebooted': ('installed',),
+    FIRST_CONFIGURE_PHASES[0]: (),
+    FIRST_CONFIGURE_PHASES[1]: (FIRST_CONFIGURE_PHASES[0],),
     **{phase: (*history.prerequisites, *history.phases[:index])
        for history in REMOVAL_HISTORIES
        for index, phase in enumerate(history.phases)},
@@ -141,6 +145,9 @@ PHASE_DEPENDENCIES = {
 PHASE_PREREQUISITES = {
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
+    FIRST_CONFIGURE_PHASES[0]: ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap',
+                              'owned-configure-interruption-retry'),
+    FIRST_CONFIGURE_PHASES[1]: ('first-configure-phase', 'guest-reboot', 'boot-readiness'),
     'removal': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
     'removed-rebooted': ('removal-phase', 'guest-reboot', 'desktop-health'),
     'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
@@ -339,6 +346,7 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
+        FIRST_CONFIGURE_CASE: FIRST_CONFIGURE_PHASES,
         'test_installed_package': ('installed', 'rebooted'),
         'test_first_install_requests_reboot': ('installed',),
         'test_reboot_applies_installation': ('rebooted',),
@@ -388,6 +396,8 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         chosen[area] = family if family is not None else (test,)
     require(not fresh_install or not any(history.case_id in chosen.get('removal', ())
             for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
+    require(not fresh_install or FIRST_CONFIGURE_CASE not in chosen.get('package', ()),
+            'selection:first-configure-requires-current-package')
 
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}
@@ -471,6 +481,9 @@ def resume_selection(selection, completed, *, fresh_install=False):
         lifecycle = ('installed', 'rebooted')
         remaining = tuple(item for item in selection.executions
                           if item in remaining or item.phase in lifecycle)
+    if any(item.phase in FIRST_CONFIGURE_PHASES for item in remaining):
+        remaining = tuple(item for item in selection.executions
+                          if item in remaining or item.phase in FIRST_CONFIGURE_PHASES)
     for history in REMOVAL_HISTORIES:
         # State-changing histories cannot splice retained predecessor passes
         # into a newly restored guest.
@@ -1687,7 +1700,7 @@ def run_pytest(vm, run, phase, selection):
     vm.commands.progress = Progress(phase, phase_executions(selection, phase))
     try:
         return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if any(phase in history.phases
+                       timeout=2400 if phase in FIRST_CONFIGURE_PHASES or any(phase in history.phases
                                            for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress = previous
@@ -1706,6 +1719,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     for extension in ('deb', 'rpm')]
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
         has_previous = any(path.exists() for path in previous)
+        first_configure = any(phase in FIRST_CONFIGURE_PHASES for phase in selection.phases)
         install_phases = tuple(phase for phase in selection.phases
                                if PHASE_SEMANTICS.get(phase, phase) == 'installed')
         reboot_phases = tuple(phase for phase in selection.phases
@@ -1713,8 +1727,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         require(len(install_phases) <= 1 and len(reboot_phases) <= 1,
                 'selection:multiple-installation-histories')
         require(not already_installed or (not has_previous and
-                not install_phases and not reboot_phases),
+                not install_phases and not reboot_phases and not first_configure),
                 'selection:installation-requires-baseline')
+        require(not first_configure or (not has_previous and not install_phases and
+                not reboot_phases and selection.phases == FIRST_CONFIGURE_PHASES),
+                'selection:first-configure-requires-isolated-baseline')
         if already_installed:
             lease.save('snapshot-readiness')
             with ledger.measure('bootstrap'):
@@ -1726,7 +1743,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             lease.save('previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
-        if not already_installed:
+        if not already_installed and not first_configure:
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
@@ -1773,10 +1790,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                 for phase in history.phases)
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
-        for phase in (*recovery_phases, 'authorization', 'enforcement', 'session'):
+        for phase in (*FIRST_CONFIGURE_PHASES, *recovery_phases, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
-            if phase in rebooted_recovery_phases:
+            if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1]):
                 # Keep removal, the health boot and reinstallation in one
                 # attempt. Restoration is cleanup, never a lifecycle step.
                 lease.save('reboot-' + phase)

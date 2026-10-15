@@ -12,6 +12,16 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         echo 'oh-no-parent-control: refusing substituted package state directory' >&2
         exit 1
     fi
+    activation_pending="$state/package-activation-pending"
+    previous_activation="$state/previous-package-activation.json"
+    first_install="$state/first-install-in-progress"
+    for activation_record in "$activation_pending" "$previous_activation" "$first_install"; do
+        if [ -L "$activation_record" ] ||
+           { [ -e "$activation_record" ] && [ ! -f "$activation_record" ]; }; then
+            echo 'oh-no-parent-control: refusing substituted activation bookkeeping' >&2
+            exit 1
+        fi
+    done
     marker="$state/package-created-kiosk-uid"
     if getent passwd oh-no-parent-control >/dev/null && [ ! -f "$marker" ]; then
         echo 'oh-no-parent-control: reserved kiosk account already exists; refusing to modify an account not created by this package' >&2
@@ -90,7 +100,6 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
             *) echo 'oh-no-parent-control: broker did not stop; unpack must be retried' >&2; exit 1 ;;
         esac
     fi
-    touch /var/lib/oh-no-parent-control/package-activation-pending
     # Bootstrap the release-history origin even when the old payload predates
     # What's New. Keep the input across interrupted unpack/configure retries.
     previous_product="$state/previous-product.json"
@@ -113,13 +122,35 @@ if [ "$1" = install ] || [ "$1" = upgrade ]; then
         # Also finish durability after a failed directory sync on an earlier try.
         sync "$previous_product" "$state"
     fi
-    if [ "$1" = upgrade ] && [ -f /usr/share/oh-no-parent-control/package-activation.json ]; then
-        install -o root -g root -m 0644 \
-            /usr/share/oh-no-parent-control/package-activation.json \
-            /var/lib/oh-no-parent-control/previous-package-activation.json
-    else
-        rm -f /var/lib/oh-no-parent-control/previous-package-activation.json
+    # A reinstall can follow an interrupted unpack/configure. Its installed
+    # payload is already the candidate, not the original activation baseline.
+    # Retain both the original manifest and its deliberate absence until the
+    # successful postinst consumes this comparison. The first-install marker
+    # also preserves that absent origin when retrying older partial installs.
+    if [ -f "$first_install" ]; then
+        rm -f "$previous_activation"
+        sync "$state"
     fi
+    if [ ! -f "$activation_pending" ]; then
+        if [ "$1" = upgrade ] && [ ! -f "$first_install" ] &&
+           [ -f /usr/share/oh-no-parent-control/package-activation.json ]; then
+            (
+                activation_temporary=$(mktemp "$state/.previous-package-activation.XXXXXX")
+                trap 'rm -f -- "$activation_temporary"' 0
+                install -o root -g root -m 0644 \
+                    /usr/share/oh-no-parent-control/package-activation.json "$activation_temporary"
+                sync "$activation_temporary"
+                mv -T "$activation_temporary" "$previous_activation"
+            )
+        else
+            rm -f "$previous_activation"
+        fi
+        # Publish pending only after its original comparison is complete and
+        # durable. A failed preinst cannot leave a partial manifest to adopt.
+        sync "$state"
+        touch "$activation_pending"
+    fi
+    sync "$activation_pending" "$state"
 fi
 
 #DEBHELPER#

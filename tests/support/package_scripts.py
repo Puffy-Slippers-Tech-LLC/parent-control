@@ -192,6 +192,8 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
         source = source.replace(
             "/usr/bin/python3 -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'",
             "ONPC_FIXTURE_PYTHON -I - <<'ONPC_CONFINEMENT_FINISH_REMOVE'")
+        source = source.replace(
+            '/usr/bin/python3 -I - "$1" "$2"', 'ONPC_FIXTURE_PYTHON -I - "$1" "$2"')
         # Redirect every absolute system prefix, including executable paths.
         source = relocate_system_paths(source, self.root)
         source = source.replace('ONPC_FIXTURE_PYTHON', shlex.quote(sys.executable))
@@ -202,6 +204,10 @@ test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
                                 '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
         source = source.replace('_CONFINEMENT_OWNER_UID = 0',
                                 '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
+        source = source.replace("_CONFIGURATION_FILESYSTEM_ROOT = Path('/')",
+                                '_CONFIGURATION_FILESYSTEM_ROOT = Path(' + repr(str(self.root)) + ')')
+        source = source.replace('_CONFIGURATION_OWNER_UID = 0',
+                                '_CONFIGURATION_OWNER_UID = ' + str(os.getuid()))
         source = source.replace(
             "except Exception:\n    print('oh-no-parent-control: confinement cleanup failed;",
             "except Exception:\n    import traceback\n    traceback.print_exc()\n    print('oh-no-parent-control: confinement cleanup failed;")
@@ -463,7 +469,7 @@ case "$name" in
                 ;;
         esac
         ;;
-    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|runuser|\
+    restorecon|chown|chmod|systemd-sysusers|invoke-rc.d|usermod|passwd|setpriv|\
     oh-no-parent-control-kiosk-confinement-integration) exit "${CONFINEMENT_STATUS:-0}" ;;
     oh-no-parent-control-fedora-pam|\
     oh-no-parent-control-provision) ;;
@@ -473,7 +479,7 @@ esac
     stub.chmod(0o755)
     for name in ("getent", "id", "systemctl", "deb-systemd-invoke", "install",
                  "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
-                 "stat", "debconf-communicate", "usermod", "passwd", "runuser", "restorecon"):
+                 "stat", "debconf-communicate", "usermod", "passwd", "setpriv", "restorecon"):
         (bin_dir / name).symlink_to(stub)
     for name in ("rm", "touch", "grep", "cut", "cat", "cmp"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)

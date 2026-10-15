@@ -22,6 +22,149 @@ from tests.support.package_scripts import package_machine, rpm_script_source, us
 from tests.support.shell import relocate_system_paths
 
 
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('older_partial', [False, True])
+def test_first_install_activation_origin_survives_interrupted_reinstall(tmp_path, distribution, older_partial):
+    from tests.support.package_scripts import Machine
+    machine = Machine(tmp_path, distribution)
+    state = tmp_path / 'var/lib/oh-no-parent-control'
+    first = state / 'first-install-in-progress'
+    pending = state / 'package-activation-pending'
+    previous = state / 'previous-package-activation.json'
+    result = machine.run('preinst', 'install')
+    assert result.returncode == 0, result.stderr
+    assert first.is_file() and pending.is_file() and not previous.exists()
+    manifest = machine.write('usr/share/oh-no-parent-control/package-activation.json',
+        json.dumps({'version': 1, 'files': []}))
+    if older_partial:
+        # Earlier preinst generations replaced the absent origin with the
+        # already-unpacked candidate. The retained first-install marker still
+        # proves that no initial configuration has consumed its activation.
+        previous.write_bytes(manifest.read_bytes())
+    changed_impacts = runpy.run_path(str(ROOT / 'packaging/package_activation.py'))['changed_impacts']
+    for _ in range(2):
+        # Retain all bookkeeping just as failed configuration does, then use
+        # the shared preinst entered by same-version APT/RPM reinstall.
+        result = machine.run('preinst', 'upgrade')
+        assert result.returncode == 0, result.stderr
+        assert first.is_file() and pending.is_file() and not previous.exists()
+        assert changed_impacts(previous, manifest) == ['reboot']
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('prior_manifest', [False, True])
+def test_upgrade_activation_origin_is_retained_until_successful_configuration(tmp_path, distribution, prior_manifest):
+    from tests.support.package_scripts import Machine
+    machine = Machine(tmp_path, distribution)
+    machine.baseline()
+    state = tmp_path / 'var/lib/oh-no-parent-control'
+    previous = state / 'previous-package-activation.json'
+    pending = state / 'package-activation-pending'
+    manifest_path = 'usr/share/oh-no-parent-control/package-activation.json'
+    before = json.dumps({'version': 1, 'files': [{'path': 'etc/pam.d/product',
+        'sha256': 'a' * 64, 'activation': 'reboot'}]})
+    if prior_manifest:
+        machine.write(manifest_path, before)
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode == 0, result.stderr
+    assert pending.is_file() and previous.exists() == prior_manifest
+    manifest = machine.write(manifest_path, json.dumps({'version': 1, 'files': [{
+        'path': 'etc/pam.d/product', 'sha256': 'b' * 64, 'activation': 'reboot'}]}))
+    changed_impacts = runpy.run_path(str(ROOT / 'packaging/package_activation.py'))['changed_impacts']
+    for _ in range(2):
+        result = machine.run('preinst', 'upgrade')
+        assert result.returncode == 0, result.stderr
+        assert pending.is_file() and previous.exists() == prior_manifest
+        if prior_manifest:
+            assert previous.read_text() == before
+        assert changed_impacts(previous, manifest) == ['reboot']
+    # Successful postinst consumes these exact records. A subsequent unchanged
+    # reinstall must establish a new origin and avoid inventing another reboot.
+    previous.unlink(missing_ok=True)
+    pending.unlink()
+    result = machine.run('preinst', 'upgrade')
+    assert result.returncode == 0, result.stderr
+    assert previous.read_bytes() == manifest.read_bytes()
+    assert changed_impacts(previous, manifest) == []
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('name', ['package-activation-pending', 'previous-package-activation.json',
+                                 'first-install-in-progress'])
+@pytest.mark.parametrize('substitution', ['symlink', 'directory'])
+def test_preinst_preserves_substituted_activation_bookkeeping(tmp_path, distribution, name, substitution):
+    from tests.support.package_scripts import Machine
+    machine = Machine(tmp_path, distribution)
+    state = tmp_path / 'var/lib/oh-no-parent-control'
+    record = state / name
+    if substitution == 'symlink':
+        foreign = machine.write('unrelated-state', 'preserve me\n')
+        record.symlink_to(foreign)
+    else:
+        record.mkdir()
+    result = machine.run('preinst', 'install')
+    assert result.returncode != 0
+    assert 'refusing substituted activation bookkeeping' in result.stderr
+    if substitution == 'symlink':
+        assert record.is_symlink() and foreign.read_text() == 'preserve me\n'
+    else:
+        assert record.is_dir()
+    assert not (state / 'migration-in-progress').exists()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('failure', ['provision', 'setup', 'pam', 'confinement', 'release'])
+def test_owned_passwordless_configuration_stays_expired_until_both_guards_pass(package_machine, failure):
+    root, state, run = package_machine
+    stub = root / 'bin/stub'
+    source = stub.read_text()
+    boundary = 'case "$name" in\n'
+    lifecycle = r'''case "$name:$*" in
+    oh-no-parent-control-provision:*--quarantine-account*)
+        printf '1\n' > "$AUDIT_ROOT/account-expiry"
+        ;;
+    usermod:*|passwd:*)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
+        ;;
+    oh-no-parent-control-provision:*--release-account)
+        test -f "$AUDIT_ROOT/shared-pam-verified" || exit 92
+        test -f "$AUDIT_ROOT/final-confinement-verified" || exit 93
+        test "${CONFIGURE_FAILURE:-}" != release || exit 71
+        printf '\n' > "$AUDIT_ROOT/account-expiry"
+        ;;
+    oh-no-parent-control-provision:*)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
+        test "${CONFIGURE_FAILURE:-}" != provision || exit 71
+        ;;
+    setpriv:*)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
+        test "${CONFIGURE_FAILURE:-}" != setup || exit 71
+        ;;
+    pam-auth-update:*|oh-no-parent-control-fedora-pam:install)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
+        test "${CONFIGURE_FAILURE:-}" != pam || exit 71
+        touch "$AUDIT_ROOT/shared-pam-verified"
+        ;;
+    oh-no-parent-control-kiosk-confinement-integration:install)
+        test "$(cat "$AUDIT_ROOT/account-expiry")" = 1 || exit 91
+        test "${CONFIGURE_FAILURE:-}" != confinement || exit 71
+        touch "$AUDIT_ROOT/final-confinement-verified"
+        ;;
+esac
+'''
+    assert source.count(boundary) == 1
+    stub.write_text(source.replace(boundary, lifecycle + boundary, 1))
+    result = run(CONFIGURE_FAILURE=failure)
+    assert result.returncode == 71, result.stderr
+    assert (root / 'account-expiry').read_text() == '1\n'
+    assert (state / 'package-created-kiosk-uid').read_text() == '1006\n'
+    assert run().returncode == 0
+    assert (root / 'account-expiry').read_text() == '\n'
+    commands = (root / 'commands').read_text()
+    assert 'setpriv --reuid 1006 --regid 1006 --init-groups -- ' in commands
+    assert not any(line.startswith('runuser ') for line in commands.splitlines())
+
+
 @pytest.mark.parametrize('package_machine,entrypoint', [
     ('ubuntu', 'configure'), ('fedora', 'configure'), ('fedora', 'rpm-posttrans'),
 ], indirect=['package_machine'])

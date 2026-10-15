@@ -3,6 +3,7 @@
 
 import argparse
 from contextlib import contextmanager
+import fcntl
 import grp
 import hashlib
 import json
@@ -21,6 +22,7 @@ ADMIN_GROUPS = {"sudo", "adm", "wheel"}
 KIOSK_ICON_FILE = "/usr/share/oh-no-parent-control/kiosk_account_icon.png"
 KIOSK_USER = "oh-no-parent-control"
 KIOSK_OWNERSHIP = Path("/var/lib/oh-no-parent-control/package-created-kiosk-uid")
+KIOSK_CONFIGURATION_ACCOUNT = Path("/var/lib/oh-no-parent-control/kiosk-configuration-account.json")
 KIOSK_CACHE_DIRECTORY = Path("/var/lib/AccountsService/users")
 _ACCOUNT_OWNER_UID = 0
 _ACCOUNT_OWNER_GID = 0
@@ -350,6 +352,101 @@ def atomic_write(path, contents, mode=0o644):
             os.unlink(temporary)
 
 
+def kiosk_account_expiry(user):
+    """Read only the fixed account's expiry; never emit shadow credentials."""
+    result = subprocess.run(["getent", "shadow", user.pw_name], check=True,
+                            capture_output=True, text=True, timeout=30, env=_ACCOUNT_ENV)
+    fields = result.stdout.rstrip("\n").split(":")
+    if (len(fields) != 9 or fields[0] != KIOSK_USER or
+            (fields[7] and not re.fullmatch(r"[0-9]+", fields[7]))):
+        fail("invalid kiosk account expiry")
+    return int(fields[7]) if fields[7] else None
+
+
+def _configuration_account_record(directory):
+    try:
+        info, contents, _ = _account_file(directory, KIOSK_CONFIGURATION_ACCOUNT.name)
+    except FileNotFoundError:
+        return None
+    try:
+        record = json.loads(contents)
+    except (ValueError, UnicodeError):
+        fail("invalid kiosk configuration account record")
+    if (stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096 or not isinstance(record, dict) or
+            set(record) != {"version", "uid", "expires", "phase"} or
+            type(record["version"]) is not int or record["version"] != 1 or
+            type(record["uid"]) is not int or record["uid"] <= 0 or
+            (record["expires"] is not None and
+             (type(record["expires"]) is not int or record["expires"] < 0)) or
+            record["phase"] not in ("quarantined", "releasing")):
+        fail("invalid kiosk configuration account record")
+    return record
+
+
+def _write_configuration_account(directory, record):
+    atomic_write(KIOSK_CONFIGURATION_ACCOUNT, json.dumps(record, sort_keys=True) + "\n", 0o600)
+    os.fsync(directory)
+
+
+def configure_account_access(user, *, release=False, new_account=False):
+    """Keep native account admission expired until both installed guards pass.
+
+    The record precedes the shadow write and survives reboot. Its releasing
+    phase makes a crash after restoring the original expiry safely retryable.
+    New accounts are born expired and journaled before their UID marker exists.
+    """
+    if user.pw_name != KIOSK_USER:
+        fail("configuration quarantine requires the reserved kiosk identity")
+    with _account_directory(KIOSK_OWNERSHIP.parent) as directory:
+        fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            ownership, marker, _ = _account_file(directory, KIOSK_OWNERSHIP.name)
+        except FileNotFoundError:
+            if not new_account:
+                fail("missing kiosk configuration ownership")
+        else:
+            if (new_account or stat.S_IMODE(ownership.st_mode) != 0o600 or
+                    marker != f"{user.pw_uid}\n".encode()):
+                fail("kiosk configuration ownership changed")
+        record = _configuration_account_record(directory)
+        current = kiosk_account_expiry(user)
+        if new_account:
+            if release or record is not None or current != 1:
+                fail("unexpected new kiosk configuration state")
+            original = None
+        elif record is not None:
+            if record["uid"] != user.pw_uid or current not in (1, record["expires"]):
+                fail("changed kiosk configuration account")
+            original = record["expires"]
+        elif release:
+            fail("missing kiosk configuration account record")
+        else:
+            original = current
+        if record is None:
+            record = {"version": 1, "uid": user.pw_uid, "expires": original,
+                      "phase": "quarantined"}
+        if release:
+            if current != 1 and record["phase"] != "releasing":
+                fail("kiosk account quarantine was not retained")
+            record["phase"] = "releasing"
+            _write_configuration_account(directory, record)
+            desired = original
+        else:
+            record["phase"] = "quarantined"
+            _write_configuration_account(directory, record)
+            desired = 1
+        if current != desired:
+            # Numeric days are shadow-utils' supported expiry representation;
+            # -1 removes expiry without changing any other shadow field.
+            subprocess.run(["usermod", "--expiredate", str(desired) if desired is not None else "-1",
+                            user.pw_name], check=True, capture_output=True, timeout=30, env=_ACCOUNT_ENV)
+        if kiosk_account_expiry(user) != desired:
+            fail("kiosk account expiry failed verification")
+        if release:
+            os.unlink(KIOSK_CONFIGURATION_ACCOUNT.name, dir_fd=directory)
+            os.fsync(directory)
+
+
 def accounts_service_user_path(user):
     """Resolve and load an NSS account through the AccountsService manager."""
     result = subprocess.run([
@@ -473,8 +570,16 @@ def main():
     parser.add_argument("--kiosk-user")
     parser.add_argument("--prefix", default="/")
     parser.add_argument("--check-account", action="store_true")
+    parser.add_argument("--quarantine-account", action="store_true")
+    parser.add_argument("--release-account", action="store_true")
+    parser.add_argument("--new-account", action="store_true")
     parser.add_argument("--repair-kiosk-visibility", action="store_true")
     args = parser.parse_args()
+    if (args.quarantine_account and args.release_account or
+            args.new_account and not args.quarantine_account or
+            (args.quarantine_account or args.release_account) and
+            (args.check_account or args.repair_kiosk_visibility or args.prefix != "/")):
+        parser.error("invalid account quarantine options")
     if os.geteuid() != 0:
         fail("must run as root")
     if args.repair_kiosk_visibility:
@@ -492,6 +597,9 @@ def main():
         fail("kiosk home has unsafe ownership")
     if args.check_account:
         print("Validated package kiosk identity [Kiosk user]", file=sys.stderr)
+        return 0
+    if args.quarantine_account or args.release_account:
+        configure_account_access(kiosk, release=args.release_account, new_account=args.new_account)
         return 0
 
     prefix = Path(args.prefix)

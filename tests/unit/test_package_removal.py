@@ -17,6 +17,38 @@ def machine(tmp_path, request):
 ubuntu_only = pytest.mark.parametrize('machine', ['ubuntu'], indirect=True)
 
 
+@pytest.mark.parametrize('fault', ['', 'uid', 'mode', 'link', 'hardlink', 'schema', 'missing-marker'])
+def test_configuration_quarantine_record_is_removed_only_with_verified_owned_identity(machine, fault):
+    import json
+    machine.kiosk()
+    record = machine.write('var/lib/oh-no-parent-control/kiosk-configuration-account.json',
+        json.dumps({'version': 1, 'uid': 9999 if fault == 'uid' else 1006,
+                    'expires': None, 'phase': 'quarantined'}) + '\n')
+    record.chmod(0o640 if fault == 'mode' else 0o600)
+    foreign = machine.root / 'retained-record'
+    if fault == 'link':
+        record.rename(foreign)
+        record.symlink_to(foreign)
+    elif fault == 'hardlink':
+        foreign.hardlink_to(record)
+    elif fault == 'schema':
+        record.write_text('{"foreign": true}\n')
+    elif fault == 'missing-marker':
+        (record.parent / 'package-created-kiosk-uid').unlink()
+    before = record.read_bytes()
+    result = machine.run('postrm', 'remove')
+    if fault:
+        assert result.returncode != 0, result.stderr
+        assert record.read_bytes() == before
+        assert (machine.root / 'account').exists()
+        assert machine.delete_account not in machine.commands
+    else:
+        assert result.returncode == 0, result.stderr
+        assert not record.exists()
+        assert not (machine.root / 'account').exists()
+        assert not (record.parent / 'package-created-kiosk-uid').exists()
+
+
 @pytest.mark.parametrize('stop_status', ['0', '1'])
 @pytest.mark.parametrize('state', ['inactive', 'failed', 'active', 'activating', 'deactivating'])
 def test_unpack_verifies_broker_exit_even_when_stop_job_is_canceled(machine, stop_status, state):

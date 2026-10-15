@@ -141,6 +141,11 @@ cached icon and session metadata before deleting the account. The
 verified package-created home is removed without following symlinks or crossing
 mounted filesystems, including files left behind by account deletion. The
 ownership marker is retained until cleanup succeeds, allowing safe retries.
+An interrupted configuration can also retain the UID-bound account-expiry
+transaction described in [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).
+Removal validates that private record before deleting the account and retires
+it only after the owned identity and home cleanup have succeeded. A changed or
+unowned record is preserved and refuses cleanup.
 
 ## Execution-policy baseline
 

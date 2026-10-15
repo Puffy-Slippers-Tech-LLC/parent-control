@@ -83,13 +83,17 @@ prepare_package_notice() {
     esac
 
 # @create_account@
-        adduser --disabled-password --gecos "Oh No! Parent Control" \
-            --home "/home/$kiosk_user" --shell /usr/sbin/nologin "$kiosk_user"
+        useradd --create-home --user-group --comment "Oh No! Parent Control" \
+            --home-dir "/home/$kiosk_user" --shell /usr/sbin/nologin \
+            --expiredate 1 "$kiosk_user"
 
 # @initial_setup@
     # User-controlled home paths must never be traversed with root's write
-    # privileges. runuser also keeps these files owned by the kiosk naturally.
-    runuser -u "$kiosk_user" -- /bin/sh -c '
+    # privileges. Drop credentials directly: kiosk PAM deliberately denies
+    # runuser, and the account remains expired until configuration succeeds.
+    setpriv --reuid "$(id -u "$kiosk_user")" --regid "$(id -g "$kiosk_user")" --init-groups -- \
+        /usr/bin/env -i HOME=/home/oh-no-parent-control USER="$kiosk_user" LOGNAME="$kiosk_user" \
+        PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/sh -c '
         umask 077
         mkdir -p /home/oh-no-parent-control/.config/gnome-initial-setup &&
         touch /home/oh-no-parent-control/.config/gnome-initial-setup-done \

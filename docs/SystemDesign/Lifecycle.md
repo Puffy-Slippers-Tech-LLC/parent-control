@@ -213,6 +213,21 @@ or acquire a station lock. A root-owned, no-follow, private-mode `/run` lock
 serializes station authentication from the account check through session opening;
 contention, unsafe lock files and missing account-stage state deny admission.
 
+First configuration creates the reserved account already expired through the
+native account tool. Before reconfiguration, the provisioner validates the
+package-owned identity, home and administrative groups, records its original
+account expiry in a private UID-bound transaction, and expires it before other
+configuration work. Native account admission therefore remains closed even for
+an already visible passwordless identity. The transaction survives interruption
+and reboot; retries preserve the original expiry and refuse changed ownership,
+unsafe records or unrelated expiry changes. Home-local initial-setup markers
+are written after directly dropping UID, GID and supplementary groups with
+`setpriv`, so setup does not need admission through the deliberately restricted
+kiosk PAM service. Only after shared PAM verification and successful final
+confinement integration does configuration restore the recorded expiry and
+retire the transaction. Removal preserves this barrier until verified owned
+account deletion under the [account cleanup contract](Package-Removal.md#pam-and-kiosk-ownership).
+
 Provisioning sets and reads back AccountsService `Session=oh-no-parent-control`,
 `SessionType=wayland` and `SystemAccount=false`. AccountsService's public
 `CacheUser` operation creates retained state for a fresh nologin account; the

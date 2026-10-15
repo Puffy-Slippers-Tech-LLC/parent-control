@@ -45,6 +45,53 @@ remove_integration() {
     rm -f "$2"
 }
 
+configuration_account_record() {
+    /usr/bin/python3 -I - "$1" "$2" <<'ONPC_CONFIGURATION_ACCOUNT_RECORD'
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+_CONFIGURATION_FILESYSTEM_ROOT = Path('/')
+_CONFIGURATION_OWNER_UID = 0
+path = Path('/var/lib/oh-no-parent-control/kiosk-configuration-account.json')
+try:
+    if os.path.lexists(path):
+        for ancestor in (path, *path.parents):
+            info = ancestor.lstat()
+            if (stat.S_ISLNK(info.st_mode) or info.st_uid != _CONFIGURATION_OWNER_UID or
+                    info.st_mode & 0o022):
+                raise ValueError('unsafe configuration record path')
+            if ancestor == path:
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                        stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096):
+                    raise ValueError('unsafe configuration record')
+            elif not stat.S_ISDIR(info.st_mode):
+                raise ValueError('unsafe configuration record directory')
+            if ancestor == _CONFIGURATION_FILESYSTEM_ROOT:
+                break
+        record = json.loads(path.read_bytes())
+        if (not isinstance(record, dict) or set(record) != {'version', 'uid', 'expires', 'phase'} or
+                type(record['version']) is not int or record['version'] != 1 or
+                type(record['uid']) is not int or record['uid'] != int(sys.argv[2]) or
+                (record['expires'] is not None and
+                 (type(record['expires']) is not int or record['expires'] < 0)) or
+                record['phase'] not in ('quarantined', 'releasing')):
+            raise ValueError('changed configuration record')
+        if sys.argv[1] == 'remove':
+            path.unlink()
+            descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+except (OSError, ValueError):
+    print('oh-no-parent-control: preserving unsafe kiosk configuration account record', file=sys.stderr)
+    sys.exit(1)
+ONPC_CONFIGURATION_ACCOUNT_RECORD
+}
+
 remove_package_created_kiosk() {
     kiosk_user=oh-no-parent-control
     marker=/var/lib/oh-no-parent-control/package-created-kiosk-uid
@@ -52,7 +99,14 @@ remove_package_created_kiosk() {
         echo 'oh-no-parent-control: unsafe kiosk ownership marker' >&2
         exit 1
     fi
-    if [ ! -f "$marker" ]; then return; fi
+    if [ ! -f "$marker" ]; then
+        if [ -e /var/lib/oh-no-parent-control/kiosk-configuration-account.json ] ||
+           [ -L /var/lib/oh-no-parent-control/kiosk-configuration-account.json ]; then
+            echo 'oh-no-parent-control: preserving unowned kiosk configuration account record' >&2
+            exit 1
+        fi
+        return
+    fi
     if [ "$(stat -c '%u:%a' "$marker")" != 0:600 ]; then
         echo 'oh-no-parent-control: unsafe kiosk ownership marker' >&2
         exit 1
@@ -90,6 +144,7 @@ remove_package_created_kiosk() {
         echo 'oh-no-parent-control: preserving substituted kiosk home' >&2
         exit 1
     fi
+    configuration_account_record check "$marker_uid"
     if [ -n "$entry" ]; then
         # Use AccountsService's public API while the identity still exists so
         # the kiosk's cached icon/session metadata is removed as well.
@@ -101,6 +156,10 @@ remove_package_created_kiosk() {
         # be traversed by an account-management tool.
         @delete_account@
     fi
+    if getent passwd "$kiosk_user" >/dev/null || getent passwd "$marker_uid" >/dev/null; then
+        echo 'oh-no-parent-control: kiosk identity remains after account deletion' >&2
+        exit 1
+    fi
     # deluser can leave files owned by other UIDs in the package-created home.
     # Retain the marker until the entire verified home is gone, including retries.
     remove_tree /home/oh-no-parent-control
@@ -108,6 +167,7 @@ remove_package_created_kiosk() {
        [ "$(stat -c %u /var/mail/oh-no-parent-control)" = "$marker_uid" ]; then
         rm -f /var/mail/oh-no-parent-control
     fi
+    configuration_account_record remove "$marker_uid"
     rm -f "$marker"
     echo 'oh-no-parent-control: kiosk cleanup outcome=accepted' >&2
 }

@@ -33,6 +33,12 @@ def test_reboot_applies_installation():
     assert guest.reboot_cleared()
 
 
+def test_first_configuration_interruption_retry(record_testsuite_property):
+    from system_first_configure import exercise, verify_reboot
+    {'first-configure': exercise, 'first-configure-rebooted': verify_reboot}[
+        os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
+
+
 def test_kiosk_account_classification_survives_reboot(record_testsuite_property):
     from system_kiosk_accounts import exercise, verify_reboot
     from system_kiosk_admission import verify as verify_admission, verify_gates

@@ -26,6 +26,99 @@ from tests.support.modules import load_module
 from tests.support.vm_runner import RECOVERY_INVENTORIES
 
 
+@pytest.fixture
+def first_configure_inventories():
+    return {**INVENTORIES,
+            'package': (*INVENTORIES['package'], runner.FIRST_CONFIGURE_CASE)}
+
+
+def test_first_configuration_selection_has_only_its_two_exact_package_executions(
+        first_configure_inventories, capsys):
+    assert runner.FIRST_CONFIGURE_CASE == 'test_first_configuration_interruption_retry'
+    assert runner.FIRST_CONFIGURE_PHASES == ('first-configure', 'first-configure-rebooted')
+    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    assert selection.phases == runner.FIRST_CONFIGURE_PHASES
+    assert selection.executions == tuple(runner.CaseExecution(
+        phase, 'package', runner.FIRST_CONFIGURE_CASE, False) for phase in selection.phases)
+    assert runner.PHASE_DEPENDENCIES[selection.phases[0]] == ()
+    assert runner.PHASE_DEPENDENCIES[selection.phases[1]] == selection.phases[:1]
+    assert {'accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap'} <= set(selection.prerequisites)
+    assert not {'installed-phase', 'retained-app-snapshot'} & set(selection.prerequisites)
+    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
+    runner.print_selection(selection)
+    output = capsys.readouterr().out
+    assert 'expected-executions: 2' in output
+    assert 'phases: first-configure,first-configure-rebooted' in output
+    for phase in selection.phases:
+        assert phase + '::' + runner.FIRST_CONFIGURE_CASE + ' [selected]' in output
+        command = runner.pytest_command(RUN, phase, selection)
+        assert 'ONPC_SYSTEM_PHASE=' + phase in command
+        assert runner.PAYLOAD + '/results/' + phase + '.xml' in command
+        assert command[-1] == runner.PAYLOAD + '/test_install_smoke.py::' + runner.FIRST_CONFIGURE_CASE
+        assert sum('::' in argument for argument in command) == 1
+
+
+@pytest.mark.parametrize('area,case', [(None, None), ('package', None),
+                                     ('package', 'test_first_configuration_interruption_retry')])
+def test_first_configuration_rejects_previous_artifact_selection(
+        first_configure_inventories, area, case):
+    with pytest.raises(runner.Error, match='selection:first-configure-requires-current-package'):
+        runner.resolve_selection(area, case, inventories=first_configure_inventories,
+                                 fresh_install=True)
+
+
+@pytest.mark.parametrize('phase', ['first-configure', 'first-configure-rebooted'])
+@pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])
+def test_first_configuration_junit_requires_exact_unskipped_package_identity(
+        tmp_path, first_configure_inventories, phase, fault):
+    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    write_junit_results(tmp_path, selection, fault)
+    if fault:
+        output = tmp_path / 'guest-results'
+        (output / (phase + '.xml')).write_bytes(
+            (output / (selection.phases[-1] + '.xml')).read_bytes())
+        with pytest.raises(runner.Error):
+            runner.reconcile_junit(tmp_path, phase, selection)
+    else:
+        assert runner.reconcile_junit(tmp_path, phase, selection) == (
+            ('package', runner.FIRST_CONFIGURE_CASE),)
+        evidence = runner.selection_evidence(tmp_path, selection)
+        assert evidence['expected_executions'] == [
+            {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE,
+             'prerequisite': False} for item in selection.phases]
+        assert evidence['executed_cases'] == [
+            {'phase': item, 'area': 'package', 'case_id': runner.FIRST_CONFIGURE_CASE}
+            for item in selection.phases]
+
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_first_configuration_has_bounded_install_timeout_and_restores_progress(
+        first_configure_inventories, fails):
+    selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
+                                         inventories=first_configure_inventories)
+    vm = Mock()
+    previous = vm.commands.progress
+    phase = selection.phases[0]
+
+    def call(command, *, timeout):
+        assert timeout == 2400
+        assert command == runner.pytest_command(RUN, phase, selection)
+        assert vm.commands.progress.phase == phase
+        if fails:
+            raise runner.CommandError('first-configure-failed')
+        return b'passed'
+
+    vm.call.side_effect = call
+    if fails:
+        with pytest.raises(runner.CommandError, match='first-configure-failed'):
+            runner.run_pytest(vm, RUN, phase, selection)
+    else:
+        assert runner.run_pytest(vm, RUN, phase, selection) == b'passed'
+    assert vm.commands.progress is previous
+
+
 def test_rpm_posterase_registration_is_one_fedora_baseline_history():
     history = next(history for history in runner.REMOVAL_HISTORIES
                    if history.case_id == 'test_rpm_posterase_recovery')
@@ -861,8 +954,12 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'system_kiosk_admission.py', 'system_assertions.py',
         'system_kiosk_confinement.py', 'system_kiosk_scope.py',
         'system_kiosk_platform.py', 'system_wellbeing_qualification.py',
+        'system_first_configure.py', 'system_removal.py', 'system_removal_faults.py',
+        'system_removal_identity.py', 'system_removal_ownership.py',
+        'system_enforcement.py', 'system_session_expiry.py', 'system_caller.py',
         'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
         'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',
+        'tests/fixtures/baseline_assets.py',
     }
 
 
@@ -1293,12 +1390,15 @@ def test_native_kiosk_handoff_wait_is_guarded_bounded_and_read_only(monkeypatch,
 
 
 @pytest.mark.parametrize('settled', ['inactive', 'failed', None])
-def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch, settled):
+@pytest.mark.parametrize('entrypoint', ['verify', 'verify_execution_boundary'])
+def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch, settled, entrypoint):
     import system_kiosk_confinement as confinement
 
     account = SimpleNamespace(pw_uid=1007, pw_shell='/usr/sbin/nologin')
     monkeypatch.setattr(confinement.guest, 'guard', Mock())
     monkeypatch.setattr(confinement.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(confinement.Path, 'read_text', Mock(return_value='{"backend":"apparmor"}'))
+    monkeypatch.setattr(confinement, 'record_native_packages', Mock())
     monkeypatch.setattr(confinement.pwd, 'getpwnam', Mock(return_value=account))
     monkeypatch.setattr(confinement.time, 'sleep', Mock())
     monkeypatch.setattr(confinement.time, 'monotonic', Mock(
@@ -1313,11 +1413,36 @@ def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch
     monkeypatch.setattr(confinement.guest, 'run', run)
     with pytest.raises(guest.GuestError, match=(
             'owned-start' if settled else 'kiosk-confinement:manager-already-active')):
-        confinement.verify(Mock())
+        getattr(confinement, entrypoint)(Mock())
     assert [call.args[0] for call in run.call_args_list] == (
         [classification, query, query, start] if settled else [classification, query])
     if settled:
         assert run.call_args.kwargs == {'timeout': 75}
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('execution_failed', [False, True])
+def test_complete_native_matrix_retains_policy_loss_checks_after_execution(
+        tmp_path, monkeypatch, backend, execution_failed):
+    import system_kiosk_confinement as confinement
+    account, record = SimpleNamespace(pw_uid=1007), Mock()
+    execution = Mock(side_effect=guest.GuestError('execution-failed') if execution_failed else None,
+                     return_value=(account, backend))
+    faults = Mock()
+    monkeypatch.setattr(confinement, 'verify_execution_boundary', execution)
+    monkeypatch.setattr(confinement, 'verify_admission_faults', faults)
+    monkeypatch.setattr(confinement.guest, 'PAYLOAD', tmp_path)
+    if execution_failed:
+        with pytest.raises(guest.GuestError, match='execution-failed'):
+            confinement.verify(record)
+        faults.assert_not_called()
+    else:
+        confinement.verify(record)
+        observed_account, directory, observed_backend, observed_record = faults.call_args.args
+        assert (observed_account, observed_backend, observed_record) == (account, backend, record)
+        assert directory.parent == tmp_path and not directory.exists()
+        faults.assert_called_once()
+    execution.assert_called_once_with(record)
 
 
 @pytest.fixture

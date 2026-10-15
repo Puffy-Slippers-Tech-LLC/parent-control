@@ -1550,7 +1550,8 @@ def record_native_packages(config, record):
     record('onpc.kiosk.native.files', json.dumps(files, sort_keys=True))
 
 
-def verify(record):
+def verify_execution_boundary(record):
+    """Verify native execution while the installed MAC boundary stays enforcing."""
     guest.guard()
     guest.enable_diagnostics()
     config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
@@ -1654,6 +1655,12 @@ def verify(record):
         guest.run(['systemctl', 'stop', unit], timeout=75)
     guest.run([integration, 'check-remove'], timeout=30)
     record('onpc.kiosk.inactive-removal-admitted', True)
+    return account, backend
+
+
+def verify(record):
+    """Complete matrix, including deliberate policy-loss refusal/recovery."""
+    account, backend = verify_execution_boundary(record)
     # Removing AppArmor policy detaches profiles from live processes. Faults
     # therefore run only after the explicitly owned manager has stopped.
     with tempfile.TemporaryDirectory(prefix='kiosk-admission-', dir=guest.PAYLOAD) as temporary:

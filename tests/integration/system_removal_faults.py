@@ -139,7 +139,7 @@ class Fault:
 
 
 @contextmanager
-def mounted_fault(fault, source, record):
+def mounted_fault(fault, source, record, *, readonly=False):
     """Hold the original inode and refuse cleanup after any ownership change."""
     from system_removal import mount_inventory
     namespace, before = mount_inventory()
@@ -159,6 +159,22 @@ def mounted_fault(fault, source, record):
         require(visible == (fault.wrapper if fault.wrapper is not None else fault.expected),
                 'mounted-target-changed')
         try:
+            if readonly:
+                try:
+                    guest.run(['mount', '-o', 'remount,bind,ro', str(fault.path)], timeout=30)
+                finally:
+                    # A failed remount may still have changed its options.
+                    # Keep only the same recorded mount identity, including
+                    # its source and namespace, before attempting cleanup.
+                    current, rows = mount_inventory()
+                    updated = {key: rows[key] for key in owned if key in rows}
+                    require(current == namespace and len(updated) == 1 and
+                            all(updated[key][0][:5] == row[0][:5] and
+                                updated[key][1] == row[1] for key, row in owned.items()),
+                            'readonly-mount-changed')
+                    owned = updated
+                require(all('ro' in row[0][5].split(',') for row in owned.values()),
+                        'mount-not-readonly')
             record('onpc.interruption.fault', json.dumps({
                 'variant': fault.variant, 'namespace': namespace, 'mounts': owned,
                 'device': fault.expected[0], 'inode': fault.expected[1]}, sort_keys=True))

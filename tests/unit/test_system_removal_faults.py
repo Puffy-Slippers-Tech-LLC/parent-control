@@ -65,6 +65,11 @@ def mount_double(monkeypatch, target, *, variant='denial-publication', directory
             state['source'] = Path(argv[2])
             rows['42'] = (('42', '1', '8:1', argv[2], str(target), 'rw'),
                           ('ext4', '/dev/root', 'rw'))
+        elif argv[:3] == ['mount', '-o', 'remount,bind,ro']:
+            row = rows['42']
+            rows['42'] = ((*row[0][:5], 'ro'), row[1])
+            if state.get('fail_remount'):
+                raise faults.guest.GuestError('remount-failed')
         elif argv[:2] == ['umount', '--']:
             if state['fail_unmount']:
                 raise faults.guest.GuestError('unmount-failed')
@@ -77,6 +82,26 @@ def mount_double(monkeypatch, target, *, variant='denial-publication', directory
     fault = faults.Fault(variant, target, native_identity(target, directory=directory),
                          directory=directory)
     return fault, rows, operations, state
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_readonly_fault_records_same_mount_and_cleans_after_remount_failure(
+        machine, monkeypatch, failure):
+    machine.unlink()
+    machine.mkdir(mode=0o700)
+    fault, rows, operations, state = mount_double(monkeypatch, machine, directory=True)
+    state['fail_remount'] = failure
+    def exercise():
+        with faults.mounted_fault(fault, machine, Mock(), readonly=True):
+            assert rows['42'][0][5] == 'ro'
+    if failure:
+        with pytest.raises(faults.guest.GuestError, match='remount-failed'):
+            exercise()
+    else:
+        exercise()
+    assert not rows
+    assert operations == [['mount', '--bind', str(machine), str(machine)],
+        ['mount', '-o', 'remount,bind,ro', str(machine)], ['umount', '--', str(machine)]]
 
 
 @pytest.mark.parametrize('directory', [False, True])

@@ -25,6 +25,54 @@ PAM_AUTH_ERR = 7
 DURABLE_SERVICES = ('gdm-password', 'systemd-user')
 
 
+def empty_token_conversation(user):
+    """A real libpam conversation whose only credential is the empty token.
+
+    PAM takes ownership of calloc/strdup responses on success. Keep the callback
+    alive until pam_end; reject unknown styles and bound the provider's batch.
+    """
+    class Message(ctypes.Structure):
+        _fields_ = [('style', ctypes.c_int), ('message', ctypes.c_char_p)]
+
+    class Response(ctypes.Structure):
+        _fields_ = [('response', ctypes.c_void_p), ('code', ctypes.c_int)]
+
+    callback_type = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int,
+        ctypes.POINTER(ctypes.POINTER(Message)), ctypes.POINTER(ctypes.POINTER(Response)),
+        ctypes.c_void_p)
+    libc = ctypes.CDLL('libc.so.6')
+    libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    libc.calloc.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+    libc.strdup.restype = ctypes.c_void_p
+    libc.free.argtypes = [ctypes.c_void_p]
+
+    @callback_type
+    def reply(count, messages, output, _data):
+        if count < 1 or count > 16 or not messages or not output:
+            return 19  # PAM_CONV_ERR
+        styles = [messages[index].contents.style for index in range(count)]
+        if any(style not in (1, 2, 3, 4) for style in styles):
+            return 19
+        allocation = libc.calloc(count, ctypes.sizeof(Response))
+        if not allocation:
+            return 5  # PAM_BUF_ERR
+        responses = ctypes.cast(allocation, ctypes.POINTER(Response))
+        for index, style in enumerate(styles):
+            if style in (1, 2):
+                value = libc.strdup(b'' if style == 1 else user.encode())
+                if not value:
+                    for previous in range(index):
+                        libc.free(responses[previous].response)
+                    libc.free(allocation)
+                    return 5
+                responses[index].response = value
+        output[0] = responses
+        return 0
+
+    return reply
+
+
 def pam_account(service, role, *, hold=None):
     """Use libpam's installed configuration, with no authentication or session.
 
@@ -41,7 +89,10 @@ def pam_callback(service, role, callback, *, durable=False, hold=None):
     guest.guard()
     services = DURABLE_SERVICES if durable else SERVICES
     guest.require(service in services and role in USERS and
-                  callback in ('account', 'session') and (durable or callback == 'account'),
+                  callback in ('account', 'session', 'authentication-account') and
+                  (durable or callback == 'account') and
+                  (callback != 'authentication-account' or
+                   (service == 'gdm-password' and role == 'kiosk' and hold is None)),
                   'kiosk-admission:arguments')
     if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
         from system_kiosk_confinement import caller_identity
@@ -67,15 +118,25 @@ def pam_callback(service, role, callback, *, durable=False, hold=None):
         getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
         getattr(pam, name).restype = ctypes.c_int
     pam.pam_start.restype = ctypes.c_int
-    handle, conversation = ctypes.c_void_p(), Conversation()
+    reply = empty_token_conversation(account.pw_name) if callback == 'authentication-account' else None
+    handle = ctypes.c_void_p()
+    conversation = Conversation(ctypes.cast(reply, ctypes.c_void_p).value if reply else None, None)
     guest.require(pam.pam_start(service.encode(), account.pw_name.encode(),
                                ctypes.byref(conversation), ctypes.byref(handle)) == 0,
                   'kiosk-admission:pam-start')
     status = 4  # PAM_SYSTEM_ERR if the account call fails before returning.
     closed = None
+    authenticated = accounted = None
     try:
-        operation = pam.pam_acct_mgmt if callback == 'account' else pam.pam_open_session
-        status = operation(handle, 0)
+        if callback == 'authentication-account':
+            pam.pam_authenticate.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            pam.pam_authenticate.restype = ctypes.c_int
+            authenticated = status = pam.pam_authenticate(handle, 0)
+            if authenticated == 0:
+                accounted = status = pam.pam_acct_mgmt(handle, 0)
+        else:
+            operation = pam.pam_acct_mgmt if callback == 'account' else pam.pam_open_session
+            status = operation(handle, 0)
         if hold is not None:
             hold(status)
     finally:
@@ -84,6 +145,8 @@ def pam_callback(service, role, callback, *, durable=False, hold=None):
                 closed = pam.pam_close_session(handle, 0)
         finally:
             ended = pam.pam_end(handle, status)
+    if callback == 'authentication-account':
+        return {'authenticate': authenticated, 'account': accounted, 'end': ended}
     return {'callback': callback, 'status': status, 'close': closed, 'end': ended}
 
 
@@ -246,6 +309,30 @@ def durable_probe(service, role, callback, expected, stage, record):
                             'end': 0}, 'kiosk-admission:unexpected-status:' + stage)
 
 
+def empty_authentication_probe(expected_account, stage, record):
+    """An actually authenticated empty-token caller must still pass account admission."""
+    guest.guard()
+    with ExitStack() as resources:
+        caller = ['/usr/bin/python3', '-B']
+        if guest.package_path().suffix == '.rpm':
+            from system_kiosk_confinement import pam_caller_command
+            caller = resources.enter_context(pam_caller_command(guest.PAYLOAD, 'gdm-password'))
+        raw = guest.commands.run([
+            *caller, str(Path(__file__).resolve()), 'pam-authentication-account'],
+            timeout=45, merge_stderr=False)
+    try:
+        result = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise guest.GuestError('kiosk-admission:worker-result') from None
+    guest.require(type(result) is dict and set(result) == {'authenticate', 'account', 'end'} and
+                  type(result['authenticate']) is int and type(result['end']) is int and
+                  (result['account'] is None or type(result['account']) is int),
+                  'kiosk-admission:worker-result')
+    record('onpc.kiosk.admission.' + stage, json.dumps(result, sort_keys=True))
+    guest.require(result == {'authenticate': 0, 'account': expected_account, 'end': 0},
+                  'kiosk-admission:unexpected-status:' + stage)
+
+
 def routing(uid):
     from system_assertions import account_property
     return tuple(account_property(uid, INTERFACE, prop) for prop in ('Session', 'SessionType'))
@@ -324,6 +411,9 @@ def verify(record):
 if __name__ == '__main__':
     if sys.argv[1:] == ['held-account']:
         held_worker()
+    elif sys.argv[1:] == ['pam-authentication-account']:
+        print(json.dumps(pam_callback('gdm-password', 'kiosk', 'authentication-account', durable=True),
+                         sort_keys=True))
     elif len(sys.argv) == 5 and sys.argv[1] == 'pam-durable':
         print(json.dumps(pam_callback(sys.argv[2], sys.argv[3], sys.argv[4], durable=True),
                          sort_keys=True))

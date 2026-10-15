@@ -684,6 +684,8 @@ from regression_ui import Bucket
 # waited harmless shell children; no host mount, policy, package, bus, socket,
 # display, external service or shared cache is changed. Both new modules are
 # compatible unit work, with small bounded CPU, memory and disk use.
+# Read-only bind/remount recovery extends those same synthetic mount rows and
+# private directory fixtures; it adds no live mount or shared cleanup owner.
 # Ownership-conflict restoration checks use only private tmp_path inodes,
 # process-local UID/mount doubles and no subprocess. They add no shared path,
 # VM, mount, service, bus, socket, display, external service or cache ownership;
@@ -848,7 +850,14 @@ from regression_ui import Bucket
 # doubles and small records process-local, without sockets, services or children.
 # VM-control's fixed reproduction binding adds only mocks to its reviewed private
 # fixture resources; no live maintenance lease or guest is acquired by host tests.
+# First-configuration controller checks use tiny pytest-private wrapper/witness
+# files, bounded waited harmless shell children and process-local PAM/command
+# doubles. Their conversation owns only bounded libc response allocations.
+# No live package manager, mount, account, VM, bus, display, service or shared
+# cache is touched; system_first_configure is compatible unit work. Existing
+# system_kiosk_admission classification remains applicable with no new owner.
 REVIEWED = frozenset("""
+system_first_configure
 e2e_natural_expiry
 e2e_natural_expiry_cleanup_safety
 kiosk_reminder_journey_cleanup_safety

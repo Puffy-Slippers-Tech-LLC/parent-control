@@ -219,6 +219,8 @@ def closeout(plan, spec, run, state):
 
 
 def execute(root, spec, run, owner):
+    error_path = run / 'agent-error.json'
+    error_path.unlink(missing_ok=True)
     command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--supervise',
                str(root), str(run), str(owner), json.dumps(asdict(spec))]
     with subprocess.Popen(command, cwd=root, env=launcher.environment(), stdin=subprocess.PIPE,
@@ -229,6 +231,8 @@ def execute(root, spec, run, owner):
     if (run / 'cancel').exists():
         raise launcher.Stopped()
     if status:
+        if error_path.exists():
+            raise ValueError(json.loads(error_path.read_text())['message'])
         raise ValueError(f'agent session exited {status}; inspect retained output and handoff')
     return json.loads((run / 'agent-result.json').read_text())
 

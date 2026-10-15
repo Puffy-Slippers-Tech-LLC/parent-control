@@ -116,6 +116,17 @@ Git close-out and interrupted validation. It allows five more coordinator
 sessions for that task; attaching never renews this allowance. An exhausted
 session allowance stops with a retained handoff rather than skipping the task.
 
+If Codex rejects a turn with `cyberPolicy`, execution stops without automatically
+retrying or changing models, prompts or permissions. Ordinary plan launchers
+retain the provider's reason in `agent-error.json`, the checkpoint and handoff;
+the unfinished task receives no acceptance credit. For a suspected false positive,
+report it through Codex `/feedback`. For authorized security work requiring
+Daybreak, resolve access for the identity, workspace or API project and product
+surface in use before resuming; follow the
+[official OpenAI guidance](https://learn.chatgpt.com/docs/cyber-safety).
+Resume through the same launcher after resolution, preserving the saved task and
+rechecking prior evidence and owned cleanup.
+
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
 task summary and status/issues at bottom right. Task entries in the

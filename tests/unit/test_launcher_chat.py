@@ -192,6 +192,27 @@ def test_non_race_steering_error_refuses_without_replaying(conversation):
     with pytest.raises(ValueError, match='turn/steer'):
         session.event({'id': request['id'], 'error': {'message': 'Invalid request'}})
     assert not session.messages
+    assert read_state(session.run)['status'] == 'finished'
+    assert 'Invalid request' in json.loads((session.run / 'agent-error.json').read_text())['message']
+
+
+@pytest.mark.parametrize('code', ['cyberPolicy', 'internalServerError', None])
+def test_failed_turn_retains_provider_reason_without_acceptance_or_retry(conversation, code):
+    session, _, _ = conversation
+    ready(session)
+    final(session)  # A partial final message cannot qualify a failed turn.
+    error = {'message': 'Provider rejected the turn.', 'codexErrorInfo': code}
+    with pytest.raises(ValueError, match='Provider rejected the turn') as failure:
+        notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'failed', 'error': error})
+    retained = json.loads((session.run / 'agent-error.json').read_text())
+    assert retained['message'] == str(failure.value)
+    if code:
+        assert code in retained['message']
+    assert read_state(session.run)['status'] == 'finished'
+    assert task_info(session.run, session.task)['last_error']
+    assert not session.done and session.final is None and not session.completed
+    assert not (session.run / 'agent-result.json').exists()
+    assert packets(session) == []
 
 
 def test_interrupt_racing_completed_turn_leaves_input_open(conversation):

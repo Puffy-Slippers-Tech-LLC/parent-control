@@ -19,6 +19,7 @@ from launcher_display import TaskDisplay
 from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaining
 from launcher_view import WorkflowView, plan_totals, view_for
 import plan_launcher as workflow
+from plan_launcher import execute as execute_session
 from tests.support.terminal_screen import Terminal
 
 
@@ -107,6 +108,41 @@ def test_plan_selects_first_unfinished_and_excludes_deferred_rows(tmp_path):
     complete(plan, '002')
     assert plan.next_task() is None
     assert plan.namespace == Plan.load(tmp_path, plan.path).namespace
+
+
+@pytest.mark.parametrize('provider_error', [True, False])
+def test_failed_agent_preserves_current_reason_and_unfinished_task(rig, monkeypatch, provider_error):
+    reason = 'Codex turn failed (cyberPolicy): Provider rejected the turn.'
+    error_path = rig.run / 'agent-error.json'
+    error_path.write_text(json.dumps({'message': 'Stale failure from a previous session.'}))
+    launches = []
+
+    class FailedSupervisor:
+        def __enter__(self):
+            assert not error_path.exists()
+            launches.append(True)
+            if provider_error:
+                error_path.write_text(json.dumps({'message': reason}))
+            return self
+
+        def wait(self):
+            return 1
+
+        def __exit__(self, *_):
+            pass
+
+    monkeypatch.setattr(workflow.subprocess, 'Popen', lambda *_args, **_kwargs: FailedSupervisor())
+    monkeypatch.setattr(workflow.launcher, 'compact_log', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(workflow, 'execute', execute_session)
+    assert rig.worker() == 1
+    checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
+    expected = reason if provider_error else 'agent session exited 1; inspect retained output and handoff'
+    assert checkpoint['reason'] == expected
+    assert expected in (rig.run / 'handoff.txt').read_text()
+    assert checkpoint['in_flight'] and checkpoint['task_sessions'] == 1
+    assert rig.plan.next_task().id == '001'
+    assert json.loads((rig.run / 'result.json').read_text()) == dict(status=1, tasks=0)
+    assert launches == [True] and rig.cleanups == [rig.run]
 
 
 @pytest.mark.parametrize('defect, message', [

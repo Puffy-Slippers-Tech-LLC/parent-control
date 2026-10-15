@@ -262,6 +262,20 @@ class AppSession:
         for line in lines:
             self.event(json.loads(line))
 
+    def fail(self, context, error):
+        """Retain the provider's reason before supervisor cleanup exits."""
+        code = error.get('codexErrorInfo') if isinstance(error, dict) else None
+        detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
+        message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
+        self.final = None
+        self.completed = False
+        launcher.atomic(self.run / 'agent-error.json', {'message': message})
+        update_task_info(self.run, self.task, {'last_error':
+            'OpenAI stopped this session under its cybersecurity safeguards.'
+            if code == 'cyberPolicy' else clean(message)})
+        self.publish('finished')
+        raise ValueError(message)
+
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
@@ -276,7 +290,7 @@ class AppSession:
                     # conversation open rather than accepting its old result.
                     self.final = None
                     return
-                raise ValueError(f"Codex {method}: {packet['error']}")
+                self.fail(method, packet['error'])
             result = packet['result']
             if method == 'initialize':
                 self.encode({'method': 'initialized', 'params': {}})
@@ -319,7 +333,7 @@ class AppSession:
                 self.completed = True
                 self.publish('interrupting')
             elif turn['status'] == 'failed':
-                raise ValueError(f"Codex turn failed: {turn.get('error')}")
+                self.fail('turn failed', turn.get('error'))
             else:
                 # Poll the mailbox before accepting the result, including text
                 # submitted while the completion notification was in transit.

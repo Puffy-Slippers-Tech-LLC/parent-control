@@ -377,11 +377,42 @@ def test_errors_keep_their_age_across_retries_and_task_suspension(conversation, 
 ])
 def test_invalid_panel_updates_preserve_the_previous_task_information(conversation, tmp_path, value):
     session, output, _ = conversation
+    session.renderer.on_description = launcher.descriptive_output(tmp_path)
     session.status_update(json.dumps({'last_error': 'The countdown stopped.'}))
     before = (tmp_path / 'task-info.json').read_text()
     session.status_update(json.dumps(value))
     assert (tmp_path / 'task-info.json').read_text() == before
     assert 'LAUNCHER_STATUS' in output.getvalue()
+    record = json.loads((tmp_path / 'descriptive-output.json').read_text())
+    assert '\n'.join(record['lines']) + '\n' == output.getvalue()
+
+
+@pytest.mark.parametrize('separator', [' ', '\n', '\n\n'])
+def test_status_commentary_with_prose_is_duplicated(conversation, tmp_path, separator):
+    session, output, _ = conversation
+    ready(session)
+    session.renderer.on_description = launcher.descriptive_output(tmp_path)
+    prose = ('The retry exposed two separate issues. Ubuntu needs the existing route for '
+             'finishing configuration that is already unpacked. Fedora loses the original '
+             'installation’s restart requirement during a retry. I’m preserving that '
+             'requirement and keeping both final restart checks.')
+    text = 'LAUNCHER_STATUS {"status":"Root cause identified, fixing"}' + separator + prose
+    notify(session, 'item/completed', item={'id': 'commentary', 'type': 'agentMessage', 'text': text})
+    record = json.loads((tmp_path / 'descriptive-output.json').read_text())
+    assert record['lines']
+    assert '\n'.join(record['lines']) + '\n' == output.getvalue()
+    assert session.final is None
+
+
+def test_valid_panel_update_stays_out_of_descriptive_output(conversation, tmp_path):
+    session, output, _ = conversation
+    ready(session)
+    session.renderer.on_description = launcher.descriptive_output(tmp_path)
+    text = 'LAUNCHER_STATUS ' + json.dumps({'explanation': 'Checks the restart requirement.'})
+    notify(session, 'item/completed', item={'id': 'status', 'type': 'agentMessage', 'text': text})
+    assert task_info(tmp_path, session.task)['explanation'] == 'Checks the restart requirement.'
+    assert not output.getvalue()
+    assert not json.loads((tmp_path / 'descriptive-output.json').read_text())['lines']
 
 
 def test_app_transport_preserves_policy_and_model_config():

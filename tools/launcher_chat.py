@@ -394,7 +394,10 @@ class AppSession:
                 value.setdefault('status', TASK_STATUSES[0])
             update_task_info(self.run, self.task, value)
         except (ValueError, TypeError):
-            self.renderer.message(STATUS_PREFIX + text)
+            # Rejected metadata is still an agent message. Use the shared
+            # renderer so its prose reaches both transcript panes.
+            self.renderer.event({'type': 'item.completed', 'item': {
+                'type': 'agent_message', 'text': STATUS_PREFIX + text}})
 
 
 class ChatEditor:

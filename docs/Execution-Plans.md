@@ -165,6 +165,9 @@ error timestamp; repeated old failures must not reset it. Testing statuses requi
 evidence about the previous error point, not merely starting an unrelated test.
 These fields are presentation only and never acceptance evidence. Conversation
 lifecycle notices and developer questions appear separately from the status value.
+Valid `LAUNCHER_STATUS` metadata is omitted from the general transcript and
+descriptive output. Natural-language text following its JSON object is preserved
+in both outputs, including when it follows on the same line.
 Below `Status:`, a horizontal separator introduces the latest agent session's
 descriptive output. This duplicates the agent's natural-language messages from
 the full bottom-left transcript, excluding command activity such as `Ran …`,

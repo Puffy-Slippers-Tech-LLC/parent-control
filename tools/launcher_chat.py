@@ -348,8 +348,16 @@ class AppSession:
                 return
             text = item['text']
             if text.startswith(STATUS_PREFIX):
-                self.status_update(text[len(STATUS_PREFIX):])
-                return
+                payload = text[len(STATUS_PREFIX):].lstrip()
+                try:
+                    _, end = json.JSONDecoder().raw_decode(payload)
+                except ValueError:
+                    self.status_update(payload)
+                    return
+                self.status_update(payload[:end])
+                text = payload[end:].lstrip()
+                if not text:
+                    return
             try:
                 value = json.loads(text)
             except ValueError:

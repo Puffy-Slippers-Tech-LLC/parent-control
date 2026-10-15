@@ -388,16 +388,30 @@ def test_invalid_panel_updates_preserve_the_previous_task_information(conversati
 
 
 @pytest.mark.parametrize('separator', [' ', '\n', '\n\n'])
-def test_status_commentary_with_prose_is_duplicated(conversation, tmp_path, separator):
+@pytest.mark.parametrize('indent', [None, 2])
+def test_status_commentary_preserves_only_prose_in_both_transcripts(conversation, tmp_path, separator, indent):
     session, output, _ = conversation
     ready(session)
     session.renderer.on_description = launcher.descriptive_output(tmp_path)
+    session.status_update(json.dumps({'last_error': 'The restart requirement was lost.'}))
+    error_at = task_info(tmp_path, session.task)['last_error_at']
     prose = ('The retry exposed two separate issues. Ubuntu needs the existing route for '
              'finishing configuration that is already unpacked. Fedora loses the original '
              'installation’s restart requirement during a retry. I’m preserving that '
              'requirement and keeping both final restart checks.')
-    text = 'LAUNCHER_STATUS {"status":"Root cause identified, fixing"}' + separator + prose
+    update = {'status': 'Root cause identified, fixing',
+              'explanation': 'Preserves the "restart" requirement, including a literal }.'}
+    text = 'LAUNCHER_STATUS ' + json.dumps(update, indent=indent) + separator + prose
     notify(session, 'item/completed', item={'id': 'commentary', 'type': 'agentMessage', 'text': text})
+    expected = io.StringIO()
+    AgentRenderer(expected).event({'type': 'item.completed', 'item': {
+        'type': 'agent_message', 'text': prose}})
+    assert output.getvalue() == expected.getvalue()
+    assert 'LAUNCHER_STATUS' not in output.getvalue()
+    info = task_info(tmp_path, session.task)
+    assert info['status'] == update['status']
+    assert info['explanation'] == update['explanation']
+    assert info['last_error_at'] == error_at
     record = json.loads((tmp_path / 'descriptive-output.json').read_text())
     assert record['lines']
     assert '\n'.join(record['lines']) + '\n' == output.getvalue()

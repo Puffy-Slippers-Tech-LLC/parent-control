@@ -13,6 +13,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -235,6 +236,7 @@ def execute(root, spec, run, owner):
 
 
 def worker(root, run, owner, spec, state):
+    from launcher_display import clock_duration
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: (run / 'cancel').touch(mode=0o600))
@@ -304,6 +306,7 @@ def worker(root, run, owner, spec, state):
             if state['task_sessions'] >= state['session_limit']:
                 status, reason = 1, 'task session limit reached; resume with a fresh run'
                 break
+            state.setdefault('started_at', time.time())
             state['task_sessions'] += 1
             state['total_sessions'] += 1
             state['in_flight'] = True
@@ -324,8 +327,10 @@ def worker(root, run, owner, spec, state):
                 launcher.atomic(run / 'checkpoint.json', state)
                 closeout(plan, spec, run, state)
                 budget.complete()
+                duration = clock_duration(time.time() - state['started_at'])
                 publish_progress(run, 'complete-' + state['task_id'],
-                    [f"Task {state['task_id']}: {state['title']} — complete"], replaces=[state['task_id']])
+                    [f"\033[32m✓ Task {state['task_id']}: {state['title']} ({duration})\033[0m"],
+                    replaces=[state['task_id']])
             elif result['status'] == 'blocked':
                 state.update(phase='blocked', blocker=result['blocker'], blocker_id=uuid.uuid4().hex)
             elif result['status'] == 'prerequisite_required':

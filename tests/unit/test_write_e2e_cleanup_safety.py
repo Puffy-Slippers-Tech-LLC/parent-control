@@ -1007,9 +1007,9 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     from launcher_progress import read_progress
     steps = read_progress(run)
     assert len(steps) == 2
-    for step, task, title, sessions in zip(steps, ['001', '002'], ['First', 'Second'], [2, 3]):
+    for step, task, title in zip(steps, ['001', '002'], ['First', 'Second']):
         assert re.fullmatch(
-            rf'Task {task}: {title} \(sessions={sessions}, duration=\d+m\)',
+            rf'✓ Task {task}: {title} \(\d+m\)',
             Text.from_ansi(step['lines'][0]).plain)
     assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
         'TA: Completed task 001', 'TA: Completed task 002']
@@ -1043,12 +1043,14 @@ def test_completed_task_is_compacted_while_next_task_keeps_live_updates(
     steps = read_progress(run)
     assert [step['key'] for step in steps] == ['complete-001', '3', '4']
     summary = Text.from_ansi(steps[0]['lines'][0])
-    assert re.fullmatch(r'Task 001: First \(sessions=2, duration=\d+m\)', summary.plain)
-    label_style = summary.get_style_at_offset(Console(), 0)
+    assert re.fullmatch(r'✓ Task 001: First \(\d+m\)', summary.plain)
+    assert summary.get_style_at_offset(Console(), 0).color.number == 2
+    label_style = summary.get_style_at_offset(Console(), len('✓ '))
     assert label_style.bold
     assert label_style.link == (queue.parent / 'first.md').as_uri()
-    title_style = summary.get_style_at_offset(Console(), len('Task 001: '))
+    title_style = summary.get_style_at_offset(Console(), len('✓ Task 001: '))
     assert not title_style.bold and not title_style.link
+    assert title_style.color.number == 2
     lines = [Text.from_ansi(line).plain for step in steps[1:] for line in step['lines']]
     assert 'Session [1]: Writing task code + host validation + first live VM test; close on success, hand off on failure (gpt-6.1-sol high)' in lines
     assert 'Session [2]: Investigate/fix previous failure + host validation + live VM test 2; close on success, hand off on failure (gpt-6.1-sol high)' in lines

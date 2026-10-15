@@ -118,7 +118,11 @@ session allowance stops with a retained handoff rather than skipping the task.
 
 All launchers use the same terminal layout: tasks overview at top left, plan
 totals at top right, execution details and optional input at bottom left, current
-task summary and status/issues at bottom right. Plan/E2E sessions offer conversation input; repair offers input
+task summary and status/issues at bottom right. Completed task entries in the
+top-left overview start with a green `✓` checkmark and use green text.
+The title is followed by one space and the task's elapsed duration in parentheses,
+using the shared minute/hour format: `✓ Task title (12m)` or `✓ Task title (1h 12m)`.
+Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
 The top-left `Tasks: x/y` counts completed tasks in this run plus one against
 the run's task limit. For zero or negative `--tasks`, y is the number completed

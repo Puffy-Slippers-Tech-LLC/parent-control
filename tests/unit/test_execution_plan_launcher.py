@@ -278,10 +278,18 @@ def test_task_limit_stops_before_next_task(rig):
     assert 'task limit reached' in (rig.run / 'handoff.txt').read_text()
 
 
-def test_followup_sessions_do_not_consume_completed_task_budget(rig, monkeypatch):
+@pytest.mark.parametrize('elapsed, duration', [(720, '12m'), (3600, '1h 0m'), (4320, '1h 12m')])
+def test_followup_sessions_do_not_consume_completed_task_budget(rig, monkeypatch, elapsed, duration):
+    from launcher_progress import read_progress
+    from rich.console import Console
+    from rich.text import Text
+    clock = [1000.0]
+    monkeypatch.setattr(workflow, 'time', SimpleNamespace(time=lambda: clock[0]))
+
     def execute(root, spec, run, owner):
         state = json.loads((run / 'checkpoint.json').read_text())
         rig.calls.append((state['task_id'], state['task_sessions'], spec.effort))
+        clock[0] += elapsed / 3
         if state['task_sessions'] < 3:
             return response(state, 'continue')
         complete(rig.plan, state['task_id'])
@@ -290,6 +298,10 @@ def test_followup_sessions_do_not_consume_completed_task_budget(rig, monkeypatch
     assert rig.worker() == 0
     assert rig.calls == [('001', 1, 'xhigh'), ('001', 2, 'xhigh'), ('001', 3, 'xhigh')]
     assert TaskBudget(rig.run).read()['completed'] == 1
+    summary = Text.from_ansi(read_progress(rig.run)[-1]['lines'][0])
+    assert summary.plain == f'✓ Task 001: Task 001 ({duration})'
+    assert all(summary.get_style_at_offset(Console(), offset).color.number == 2
+               for offset in range(len(summary.plain)))
 
 
 def test_session_cap_retains_fixed_effort_and_unfinished_task(rig, monkeypatch):

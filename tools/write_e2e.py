@@ -950,12 +950,20 @@ def show_completion(task, task_sessions, duration):
     sys.stdout.flush()
 
 
-def publish_completion(run, key, heading, sessions, duration, keys):
+def publish_completion(run, key, heading, duration, keys):
     """Replace finished task or optimization sessions with the same green recap."""
     from launcher_progress import publish_progress
+    from launcher_display import clock_duration
+    from launcher_render import AgentRenderer
+    from rich.text import Text
+    recap = Text('✓ ') + Text.from_ansi(heading)
+    recap.append(f' ({clock_duration(duration)})')
+    recap.stylize('green')
+    console = AgentRenderer(sys.stdout).console
+    with console.capture() as capture:
+        console.print(recap, end='', soft_wrap=True)
     publish_progress(run, 'complete-' + key,
-                     [f'\033[32m{heading} '
-                      f'(sessions={sessions}, duration={format_duration(duration, short=True)})\033[0m'],
+                     [capture.get()],
                      replaces=keys)
 
 
@@ -1032,7 +1040,7 @@ def worker(root, run, owner, tasks, state_json):
 
     def compact_completions():
         for task_id, task_sessions, duration, keys, heading in completions:
-            publish_completion(run, task_id, heading, task_sessions, duration, keys)
+            publish_completion(run, task_id, heading, duration, keys)
 
     try:
         if state.get('closeout_recovery_run'):
@@ -1147,7 +1155,7 @@ def worker(root, run, owner, tasks, state_json):
             if state['phase'] == 'complete' and optimizing:
                 batch = state['optimization']['last_checkpoint']['tasks']
                 publish_completion(run, f'optimization-{batch[0]}-{batch[-1]}',
-                                   progress_lines[0], state['task_sessions'],
+                                   progress_lines[0],
                                    state['completed_at'] - state['started_at'],
                                    state['progress_keys'])
             elif state['phase'] == 'complete':

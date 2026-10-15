@@ -12,7 +12,7 @@ from rich.cells import get_character_cell_size
 from rich.text import Text
 
 from launcher_chat import ChatEditor, TASK_STATUSES, read_state, send_input, task_info as read_task_info
-from launcher_render import LauncherDisplay, clean
+from launcher_render import LauncherDisplay, clean, retained_tail
 
 
 def clock_duration(seconds):
@@ -48,6 +48,12 @@ class TaskDisplay(LauncherDisplay):
         self.focus = 'chat' if input_mode == 'chat' else 'bottom'
         self.offsets['info'] = 0
         self.offsets['summary'] = 0
+        self.offsets['description'] = 0
+        self.description = {}
+        self.description_top = 0
+        self.description_height = 0
+        self.description_scrollbar = None
+        self.description_grab = None
         self.chat_state = {}
         self.task_info = {}
         self.editor = ChatEditor(self.submit)
@@ -95,6 +101,7 @@ class TaskDisplay(LauncherDisplay):
     def refresh_chat(self):
         self.chat_state = read_state(self.run)
         self.task_info = read_task_info(self.run, self.chat_state.get('task_id'))
+        self.refresh_description()
         if self.totals is not None:
             try:
                 self.task_totals = self.totals()
@@ -102,6 +109,28 @@ class TaskDisplay(LauncherDisplay):
                 # A partially rewritten queue must not detach the observer or
                 # replace the last valid totals with misleading zeroes.
                 pass
+
+    def refresh_description(self):
+        try:
+            value = json.loads((self.run / 'descriptive-output.json').read_text())
+            if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
+                    or not isinstance(value.get('lines'), list)
+                    or any(not isinstance(line, str) for line in value['lines'])):
+                return
+            value['lines'] = list(retained_tail(value['lines']))
+        except FileNotFoundError:
+            value = {}
+        except (OSError, ValueError):
+            return
+        if value.get('session') != self.description.get('session'):
+            self.offsets['description'] = 0
+            self.description_grab = None
+        elif self.offsets['description'] and self.size and value != self.description:
+            width = max(1, self.size.columns - self.divider_column - 1 - int(self.mouse_capture))
+            self.offsets['description'] += max(0,
+                len(self.wrapped(value.get('lines', []), width)) -
+                len(self.wrapped(self.description.get('lines', []), width)))
+        self.description = value
 
     def output_width(self):
         return max(1, self.divider_column - 1 - int(self.mouse_capture))
@@ -151,6 +180,7 @@ class TaskDisplay(LauncherDisplay):
         # for native terminal selection and context menus in every display.
         super().set_mouse_mode()
         self.scrollbar_grab = None
+        self.description_grab = None
         if not self.mouse_capture:
             self.dragging = None
             self.set_pointer('')
@@ -241,9 +271,10 @@ class TaskDisplay(LauncherDisplay):
                     self.mouse_capture = not self.mouse_capture
                     self.set_mouse_mode()
                 else:
-                    self.offsets['bottom'] = max(0, self.offsets['bottom'] +
-                        (max(1, self.output_height) if key == navigation[0] else
-                         -max(1, self.output_height)))
+                    pane = 'description' if self.focus == 'description' else 'bottom'
+                    height = self.description_height if pane == 'description' else self.output_height
+                    self.offsets[pane] = max(0, self.offsets[pane] +
+                        (max(1, height) if key == navigation[0] else -max(1, height)))
                 continue
             if any(key.startswith(self.input_pending) for key in keys):
                 break
@@ -270,6 +301,7 @@ class TaskDisplay(LauncherDisplay):
         if released:
             self.dragging = None
             self.scrollbar_grab = None
+            self.description_grab = None
         shape = ''
         if over or self.dragging:
             shape = 'ew-resize'
@@ -284,11 +316,32 @@ class TaskDisplay(LauncherDisplay):
         if base == 0:
             self.dragging = None
             self.scrollbar_grab = None
+            self.description_grab = None
             if self.bottom_button == (column, row):
                 self.offsets['bottom'] = 0
                 self.focus = 'bottom'
                 self.draw()
                 return
+        if base == 32 and self.description_grab is not None and self.description_scrollbar:
+            first, start, thumb, travel, limit = self.description_scrollbar
+            position = min(travel, max(0, row - first - self.description_grab))
+            if travel:
+                self.offsets['description'] = round(limit * (travel - position) / travel)
+            self.draw()
+            return
+        if (base == 0 and self.description_scrollbar and self.size
+                and column == self.size.columns - 1
+                and self.description_top <= row < self.description_top + self.description_height):
+            first, start, thumb, travel, limit = self.description_scrollbar
+            position = row - first
+            self.focus = 'description'
+            if start <= position < start + thumb:
+                self.description_grab = position - start
+            else:
+                self.offsets['description'] = round(limit *
+                    (thumb + travel - 1 - position) / max(1, thumb + travel - 1))
+            self.draw()
+            return
         if base == 32 and self.scrollbar_grab is not None and self.scrollbar:
             first, start, thumb, travel, limit = self.scrollbar
             position = min(travel, max(0, row - first - self.scrollbar_grab))
@@ -317,6 +370,9 @@ class TaskDisplay(LauncherDisplay):
                 if column < self.top_divider_column:
                     self.focus = 'top'
                 return
+            if column > self.divider_column and row >= self.description_top and self.description_height:
+                self.focus = 'description'
+                return
             self.focus = ('bottom' if self.input_mode != 'chat' or
                           column < self.divider_column and row < self.chat_top else 'chat')
         elif base in (64, 65):
@@ -325,7 +381,9 @@ class TaskDisplay(LauncherDisplay):
             if self.input_mode == 'chat' and column < self.divider_column and row >= self.chat_top:
                 return
             pane = ('top' if row <= self.top_height else 'bottom' if column < self.divider_column else
-                    'summary' if row <= self.summary_bottom else 'info')
+                    'summary' if row <= self.summary_bottom else
+                    'description' if row >= self.description_top and self.description_height
+                    and self.description.get('lines') else 'info')
             delta = 3 if base == 64 else -3
             self.offsets[pane] = max(0, self.offsets[pane] + (-delta if pane in ('summary', 'info') else delta))
             self.draw()
@@ -366,6 +424,7 @@ class TaskDisplay(LauncherDisplay):
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
+                 json.dumps(self.description, sort_keys=True),
                  self.editor.text, self.editor.cursor, self.editor.error,
                  json.dumps(self.task_info, sort_keys=True), json.dumps(self.chat_state, sort_keys=True),
                  (self.question.question['id'], self.question.selected, self.question.text)
@@ -435,7 +494,7 @@ class TaskDisplay(LauncherDisplay):
         colors = dict(zip(TASK_STATUSES, ('blue', 'blue', 'yellow', 'green', 'blue')))
         status_line.append(status, style=colors[status])
         info_lines = [Text('Explanation:', style='bold'), Text(clean(explanation)),
-                      Text('─'), last_error, status_line]
+                      Text('─'), last_error, Text(''), status_line]
         lifecycle = {
             'waiting': 'Interrupted. Waiting for your instructions. Ctrl+C again exits.',
             'interrupting': 'Interrupting the current work…',
@@ -444,13 +503,14 @@ class TaskDisplay(LauncherDisplay):
             'finished': 'Session finished. Preparing the next step.',
         }.get(self.chat_state.get('status'))
         if lifecycle:
-            info_lines += ['', lifecycle]
+            info_lines[2:2] = ['', lifecycle]
         if self.question:
-            info_lines += ['', self.question.question.get('explanation', '')]
+            notices = ['', self.question.question.get('explanation', '')]
             if self.input_mode == 'chat':
-                info_lines += [self.question.question['question'],
+                notices += [self.question.question['question'],
                                *[f'{i + 1}. {option}' for i, option in enumerate(self.question.question['options'])],
                                'Type a number or your own instructions below.']
+            info_lines[2:2] = notices
 
         editor_width = max(1, left_width - 4) if boxed else left_width
         editor_rows, caret_row, caret_column = self.editor_rows(editor_width)
@@ -469,8 +529,33 @@ class TaskDisplay(LauncherDisplay):
         left = self.scroll_rows('bottom', logs, self.output_width(), self.output_height)
         left += [Text('')] * (self.output_height - len(left))
         remaining = max(0, available - summary_height - len(separator))
-        info = self.from_top('info', info_lines, right_width, remaining)
-        info += [Text('')] * (remaining - len(info))
+        description_lines = (self.description.get('lines', [])
+                             if not current or self.description.get('progress_key') in (None, current['key']) else [])
+        reserve = min(4, remaining) if description_lines else min(1, remaining)
+        info_height = min(len(self.wrapped(info_lines, right_width)), max(0, remaining - reserve))
+        info = self.from_top('info', info_lines, right_width, info_height)
+        info += [Text('')] * (info_height - len(info))
+        if remaining > info_height:
+            info.append(Text('─' * right_width, style='dim'))
+        self.description_top = len(top) + 2 + summary_height + len(separator) + len(info)
+        self.description_height = max(0, remaining - len(info))
+        description_width = max(1, right_width - int(self.mouse_capture))
+        description_rows = self.scroll_rows('description', description_lines,
+                                            description_width, self.description_height)
+        description_rows += [Text('')] * (self.description_height - len(description_rows))
+        self.description_scrollbar = None
+        total_description = len(self.row_cache['description'][1])
+        if self.mouse_capture and right_width > 1 and self.description_height > 0 and total_description > self.description_height:
+            thumb = max(1, round(self.description_height * self.description_height / total_description))
+            travel = self.description_height - thumb
+            limit = total_description - self.description_height
+            start = round(travel * (limit - self.offsets['description']) / limit)
+            self.description_scrollbar = (self.description_top, start, thumb, travel, limit)
+            for index, row in enumerate(description_rows):
+                row = row.copy()
+                row.pad_right(max(0, description_width - row.cell_len))
+                description_rows[index] = row + Text('█' if start <= index < start + thumb else '░', style='dim')
+        info += description_rows
         hint = Text('Enter: send · Shift+Enter: newline', style='dim')
         hint.truncate(left_width, overflow='crop')
         if self.editor.error:
@@ -536,6 +621,7 @@ class TaskDisplay(LauncherDisplay):
             rows = [Text('')] * height
             self.bottom_button = None
             self.scrollbar = None
+            self.description_scrollbar = None
         for row in rows:
             row.truncate(width, overflow='crop')
         self.paint(rows, size)

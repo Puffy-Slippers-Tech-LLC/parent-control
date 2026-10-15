@@ -614,7 +614,7 @@ class TranscriptWriter:
 
 class AgentRenderer:
     def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False,
-                 on_usage=None):
+                 on_usage=None, on_description=None):
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
@@ -634,6 +634,7 @@ class AgentRenderer:
         self.hide_task_completion = hide_task_completion
         self.task_completion_message = False
         self.on_usage = on_usage
+        self.on_description = on_description
 
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
@@ -860,6 +861,7 @@ class AgentRenderer:
                     result = json.loads(text)
                 except ValueError:
                     result = None
+                descriptive = result is None
                 if (isinstance(result, dict)
                         and result.get('status') in ('fixed', 'blocked', 'ready_for_vm', 'task_complete', 'stalled')
                         and isinstance(result.get('summary'), str)):
@@ -871,11 +873,21 @@ class AgentRenderer:
                              if 'handoff' in result else 'Repair ' + result['status'])
                     style = 'yellow' if result['status'] in ('blocked', 'stalled') else 'green'
                     text = result['summary']
+                    descriptive = True
                     if isinstance(result.get('handoff'), str):
                         text += '\n\nNext session prompt:\n\n' + result['handoff']
                 else:
                     title, style = 'Agent', 'default'
-                self.message(text, title, style)
+                if self.on_description is None or not descriptive:
+                    self.message(text, title, style)
+                else:
+                    # Copy only actual agent messages, using the identical
+                    # rendered text in the complete and descriptive transcripts.
+                    with self.console.capture() as capture:
+                        self.message(text, title, style)
+                    rendered = capture.get()
+                    self.console.file.write(rendered)
+                    self.on_description(rendered)
         elif category == 'command_execution':
             identity = item['id']
             if identity not in self.started:

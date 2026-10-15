@@ -93,6 +93,56 @@ def test_reasoning_stall_renders_summary_and_handoff_without_raw_progress():
     assert result['handoff'] in rendered and 'repair_outcome' not in rendered
 
 
+def test_descriptive_output_copies_agent_messages_without_activity_or_user_input(tmp_path):
+    import detached_launcher as launcher
+    from rich.text import Text
+    publish_progress(tmp_path, 'session-1', ['Task 001', 'Session [1]'])
+    stream = io.StringIO()
+    renderer = AgentRenderer(stream, on_description=launcher.descriptive_output(tmp_path))
+    prose = 'The countdown now keeps running while the child switches applications.'
+    renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': prose}})
+    first = json.loads((tmp_path / 'descriptive-output.json').read_text())
+    assert '\n'.join(first['lines']) + '\n' == stream.getvalue()
+    assert first['progress_key'] == 'session-1'
+    renderer.message('Please keep my changes.', 'You')
+    renderer.event({'type': 'item.completed', 'item': {'id': 'command',
+        'type': 'command_execution', 'command': 'cat example.txt', 'exit_code': 0,
+        'aggregated_output': 'This looks like natural-language output from a command.'}})
+    renderer.event({'type': 'item.completed', 'item': {'type': 'file_change',
+        'changes': [{'path': 'example.txt', 'kind': 'update'}]}})
+    renderer.event({'type': 'item.completed', 'item': {'type': 'todo_list',
+        'items': [{'text': 'Check the countdown.', 'completed': False}]}})
+    renderer.event({'type': 'item.completed', 'item': {'type': 'mcp_tool_call',
+        'server': 'example', 'tool': 'read', 'result': 'Tool prose.'}})
+    renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message',
+        'text': json.dumps({'internal': 'Structured workflow output.'})}})
+    assert json.loads((tmp_path / 'descriptive-output.json').read_text()) == first
+    # Do not discard real prose merely because it starts with an activity verb.
+    renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message',
+        'text': 'Wrote the correction; the countdown now survives application switches.'}})
+    record = json.loads((tmp_path / 'descriptive-output.json').read_text())
+    description = Text.from_ansi('\n'.join(record['lines'])).plain
+    assert prose in description and 'Wrote the correction;' in description
+    assert 'Explored' in Text.from_ansi(stream.getvalue()).plain
+    # A new session resets only the duplicate presentation, not the full log.
+    launcher.descriptive_output(tmp_path)
+    fresh = json.loads((tmp_path / 'descriptive-output.json').read_text())
+    assert fresh['session'] != record['session'] and fresh['lines'] == []
+    assert prose in Text.from_ansi(stream.getvalue()).plain
+
+
+def test_descriptive_output_retention_is_bounded(tmp_path):
+    import detached_launcher as launcher
+    from launcher_render import SCROLLBACK_CHARACTERS, SCROLLBACK_LINES
+    append = launcher.descriptive_output(tmp_path)
+    append('older\n' * (SCROLLBACK_LINES + 20))
+    append('x' * (SCROLLBACK_CHARACTERS + 20) + '\nnewest\n')
+    lines = json.loads((tmp_path / 'descriptive-output.json').read_text())['lines']
+    assert len(lines) <= SCROLLBACK_LINES
+    assert sum(map(len, lines)) <= SCROLLBACK_CHARACTERS
+    assert lines[-1] == 'newest' and 'older' not in lines
+
+
 @pytest.mark.parametrize('width', [50, 80])
 def test_observer_reflow_keeps_message_continuations_under_first_word(terminal, width):
     terminal.resize(width, 24)

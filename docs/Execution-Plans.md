@@ -143,8 +143,9 @@ Single-task E2E runs publish the same completed recap as multi-task runs.
 
 Below the current task summary's separator, a bold `Explanation:` header precedes
 the short plain-language purpose. Another separator precedes bold `Last Error:`
-and `Status:` labels. The last error summary is red, followed by its elapsed age
-in parentheses, for example `(12m ago)`; with no reported error, show a normal
+and `Status:` labels, with a blank line between the two fields. The last error
+summary is red, followed by its elapsed age in parentheses, for example `(12m ago)`;
+with no reported error, show a normal
 `-` and no age. Errors belong only to the current task and retain their original
 timestamp across retries, suspension, observer reconnections and backend restarts.
 The age refreshes every minute without requiring new output. The status value is
@@ -164,6 +165,18 @@ error timestamp; repeated old failures must not reset it. Testing statuses requi
 evidence about the previous error point, not merely starting an unrelated test.
 These fields are presentation only and never acceptance evidence. Conversation
 lifecycle notices and developer questions appear separately from the status value.
+Below `Status:`, a horizontal separator introduces the latest agent session's
+descriptive output. This duplicates the agent's natural-language messages from
+the full bottom-left transcript, excluding command activity such as `Ran …`,
+`Explored …` and `Wrote …`, tool results, file changes, plans and developer input.
+The descriptive pane follows new messages and has independent wheel scrolling
+and a draggable scrollbar when its retained output exceeds the available space.
+Click the pane to direct Page Up/Page Down to it. Scrolling it leaves the task
+summary, explanation, error/status fields and full transcript in place. New
+messages preserve a scrolled reading position; reaching the bottom resumes
+following. Reconnection restores the bounded descriptive history, and each new
+agent session starts an empty history. Sessions predating this feature leave
+the pane empty; never infer prose by filtering rendered command output.
 Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
 The top-left `Tasks: x/y` counts completed tasks in this run plus one against

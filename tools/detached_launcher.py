@@ -155,6 +155,25 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
     return [*command, '-']
 
 
+def descriptive_output(run):
+    """Publish a bounded copy of this session's prose in its owned allocation."""
+    from launcher_progress import read_progress
+    from launcher_render import retained_tail
+    steps = read_progress(run)
+    current = next((step for step in reversed(steps)
+                    if not step.get('pinned') and not step.get('replaces')), None)
+    record = {'session': uuid.uuid4().hex, 'progress_key': current['key'] if current else None,
+              'lines': []}
+    path = run / 'descriptive-output.json'
+    atomic(path, record)
+
+    def append(value):
+        record['lines'] = list(retained_tail([*record['lines'], *value.splitlines()]))
+        atomic(path, record)
+
+    return append
+
+
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
               on_usage=None, interactive=False):
     """Own one child until it is reaped; EOF means the loop worker died.
@@ -184,7 +203,8 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     if kind == 'agent':
         from launcher_render import AgentRenderer
         renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log',
-                                 hide_task_completion=hide_task_completion, on_usage=on_usage)
+                                 hide_task_completion=hide_task_completion, on_usage=on_usage,
+                                 on_description=descriptive_output(run))
     conversation = None
     if interactive:
         from launcher_chat import AppSession, app_command

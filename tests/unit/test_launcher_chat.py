@@ -478,7 +478,8 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     assert rows[header + 1] == 'Checks the child countdown.'
     assert set(rows[header - 1]) == set(rows[header + 2]) == {'─'}
     assert rows[header + 3] == 'Last Error: The countdown stopped. (2m ago)'
-    assert rows[header + 4] == 'Status: ' + status
+    assert rows[header + 4] == ''
+    assert rows[header + 5] == 'Status: ' + status
     for prefix in ('Explanation:', 'Last Error:', 'Status:'):
         row = line(prefix)
         assert all(row.get_style_at_offset(display.console, offset).bold for offset in range(len(prefix)))
@@ -1146,6 +1147,77 @@ def test_output_scrolling_returns_to_latest_without_losing_draft(tmp_path):
     assert 'output 99' in terminal.visible()
     assert display.editor.text == 'keep this draft'
     assert terminal.visible().splitlines()[chat_top - 1:] == composer
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+def test_descriptive_pane_scrolls_independently_and_reconnects(tmp_path, input_mode):
+    display, terminal = display_fixture(tmp_path, width=240, input_mode=input_mode)
+    launcher.atomic(tmp_path / 'controller.json', display.steps)
+    launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
+    launcher.atomic(tmp_path / 'task-info.json', display.task_info)
+    append = launcher.descriptive_output(tmp_path)
+    renderer = AgentRenderer(io.StringIO(), on_description=append)
+    for index in range(80):
+        renderer.event({'type': 'item.completed', 'item': {'type': 'agent_message',
+            'text': f'The child countdown remains responsive. Update {index}.'}})
+    display.write('Full output includes commands and agent messages.\n')
+    display.refresh_chat()
+    display.draw()
+    assert 'Update 79.' in terminal.visible()
+    status = next(i for i, row in enumerate(display.previous)
+                  if row.plain[display.divider_column:].startswith('Status:'))
+    assert set(display.previous[status + 1].plain[display.divider_column:]) == {'─'}
+    before = terminal.visible().splitlines()
+    first, start, thumb, travel, limit = display.description_scrollbar
+    column = terminal.size.columns - 1
+    assert before[first + start - 1][column - 1] == '█'
+    display.mouse(64, column - 2, first, False)
+    assert display.offsets['description'] == 3 and display.offsets['bottom'] == 0
+    assert [row[:display.divider_column] for row in terminal.visible().splitlines()] == [
+        row[:display.divider_column] for row in before]
+    assert terminal.visible().splitlines()[:first - 1] == before[:first - 1]
+    # New prose preserves a reader's position while the left transcript follows.
+    scrolled = [row[display.divider_column:-1] for row in terminal.visible().splitlines()[first - 1:]]
+    append('\n• Another natural-language update.\n')
+    display.refresh_chat()
+    display.draw()
+    assert [row[display.divider_column:-1] for row in terminal.visible().splitlines()[first - 1:]] == scrolled
+    first, start, thumb, travel, limit = display.description_scrollbar
+    display.mouse(0, column, first + start, False)
+    assert display.description_grab == 0
+    display.mouse(32, 2, 1, False)
+    assert display.offsets['description'] == limit
+    assert 'Update 0.' in terminal.visible()
+    display.mouse(0, 2, 1, True)
+    display.mouse(0, column, first + display.description_height - 1, False)
+    assert display.offsets['description'] == 0
+    display.mouse(0, column - 2, first, False)
+    display.handle_input(b'\x1b[5~')
+    assert display.offsets['description'] > 0 and display.offsets['bottom'] == 0
+    display.handle_input(b'\x1b[6~')
+    assert display.offsets['description'] == 0
+    display.handle_input(b'\x1bOQ')
+    assert display.description_scrollbar is None and display.description_grab is None
+    display.handle_input(b'\x1bOQ')
+    assert display.description_scrollbar
+    terminal.resize(100, 24)
+    display.draw()
+    assert display.description_scrollbar and '─' in terminal.visible()
+    reconnected, other = display_fixture(tmp_path, width=240, input_mode=input_mode)
+    reconnected.refresh_chat()
+    reconnected.draw()
+    assert 'Another natural-language update.' in other.visible()
+    # Progress for another task must not display the previous session's prose.
+    reconnected.update([{'key': 'next', 'lines': ['Task 002: Next']}], [])
+    assert 'Update 79.' not in other.visible()
+    assert 'Another natural-language update.' not in other.visible()
+    display.offsets['description'] = 4
+    launcher.descriptive_output(tmp_path)
+    display.refresh_chat()
+    display.draw()
+    assert display.offsets['description'] == 0 and not display.description_scrollbar
+    assert 'Update 79.' not in terminal.visible()
+    assert not terminal.scrollback
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])

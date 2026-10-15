@@ -6,7 +6,7 @@
 - **Parent App**: Smoother app loading experience; Neat app list loading overlay with percentage progress.
 - **What's New**: Added metadata-driven What's new infra for parent and child app. Parent version offers everything (no mercy to to parents, Grr!); child version only offers carefully crafted content relevant and appropriate to them (we're responsible parents, aren't we all?)
 - **Request Time Form**: You can customize the preset times in preferences!
-- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son, he even asked for seconds and days, without realizing the only response from his stonehearted Dad was kicking him out of Dad's home office)
+- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son. Upon a glad nodding, he asked, daddy, it'd be cool to add seconds and days, only to be yelled of "out, before I kick you cute little butt, again!" by an annoyed Dad)
 
 ### Bug Fixes
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.

@@ -135,7 +135,40 @@ def test_broad_recovery_partitions_unique_executions_into_baseline_history():
         assert len(focused.executions) == 8
 
 
+def test_ownership_family_is_seven_baseline_attempts_and_replays_unfinished_histories():
+    family = 'test_ownership_refusal_retry'
+    selection = system.resolve_selection('removal', family, inventories=RECOVERY_INVENTORIES)
+    exact = [system.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
+             for case in system.REMOVAL_FAMILIES[family]]
+    planned = snapshots.attempts(selection)
+    assert len(planned) == 7
+    for (part, installed), focused in zip(planned, exact):
+        assert not installed
+        assert part.phases == focused.phases
+        assert part.executions == focused.executions
+        assert len(part.executions) == 8
+        assert part.test == family
+    assert tuple(item for part, _ in planned for item in part.executions) == selection.executions
+    for count in range(len(selection.executions) + 1):
+        completed = {item.phase + '::' + item.case_id for item in selection.executions[:count]}
+        resumed = system.resume_selection(selection, completed)
+        # An unfinished history replays its six prerequisites and both phases;
+        # completely passed earlier histories remain omitted. An end-of-suite
+        # audit failure still retries the final complete history.
+        remaining = exact[min(count // 8, len(exact) - 1):]
+        assert resumed.executions == tuple(item for part in remaining for item in part.executions)
+        assert len(snapshots.attempts(resumed)) == len(remaining)
+    for focused in exact:
+        for pending_phase in focused.phases:
+            completed = {item.phase + '::' + item.case_id for item in selection.executions
+                         if item.phase != pending_phase}
+            resumed = system.resume_selection(selection, completed)
+            assert resumed.executions == focused.executions
+            assert snapshots.attempts(resumed) == [(resumed, False)]
+
+
 @pytest.mark.parametrize('area,case', [(None, None), ('removal', None),
+                                     ('removal', 'test_ownership_refusal_retry'),
                                      *(('removal', history.case_id)
                                        for history in system.REMOVAL_HISTORIES[1:])])
 def test_recovery_refuses_previous_package_selection(area, case):

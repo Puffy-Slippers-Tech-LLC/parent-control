@@ -286,6 +286,17 @@ Across reboots, home identity uses the filesystem UUID, Btrfs subvolume when
 applicable, inode, owner and mode. Same-boot fault cleanup still requires the
 exact device, inode, pinned descriptor, mount namespace and mount inventory.
 Only native owned retry may restore original PAM after account deletion.
+`removal::test_ownership_refusal_retry` selects all seven finite ownership
+histories in one retention session; a full bracketed selector selects one.
+The variants are `systemd-user-edit`, `gdm-password-link`, `systemd-user-link`,
+`gdm-hook-link`, `confinement-record-owner`, `confinement-record-link` and
+`confinement-record-uid`. Each retains its own baseline installation/reboot
+prerequisites and continuous conflict/refusal/resolution/reboot/removal attempt.
+Native refusal must preserve the exact conflict inode, metadata, bytes or link
+text and referent, recovery records, enforcement and ordinary-user access.
+Fixture cleanup restores only that recorded conflict; full owned integration
+verification precedes reboot and successful native finalization. Family resume
+replays each unfinished history from its baseline without splicing phases.
 Fedora's account-finalization history uses normal reinstall, reboot and removal;
 the separate failed post-erase/repeated packaged-purge history remains additional
 coverage. These engineering faults do not replace customer UI acceptance.

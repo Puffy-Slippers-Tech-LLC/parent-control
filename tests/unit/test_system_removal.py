@@ -1835,3 +1835,167 @@ def test_deb_finalization_rearm_uses_actual_native_configuration_state(interrupt
     configurations = [item for item in machine.run.call_args_list
                       if item.args[0][:2] == ['dpkg', '--configure']]
     assert len(configurations) == (1 if status == 'install ok half-configured' else 0)
+
+
+@pytest.mark.parametrize('entry', ['ownership_refusal_retry', 'ownership_retry_rebooted'])
+def test_ownership_entry_guard_precedes_setup(monkeypatch, entry):
+    monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=removal.guest.GuestError('identity')))
+    start, commands = Mock(), Mock()
+    monkeypatch.setattr(removal, 'focused_recovery_start', start)
+    monkeypatch.setattr(removal.guest, 'commands', commands)
+    with pytest.raises(removal.guest.GuestError, match='identity'):
+        getattr(removal, entry)(Mock(), 'systemd-user-edit')
+    start.assert_not_called()
+    commands.run.assert_not_called()
+
+
+@pytest.fixture
+def ownership_machine(finalization_machine, monkeypatch):
+    import system_kiosk_admission as admission
+    import system_removal_ownership as ownership
+    machine = finalization_machine
+    machine.state['hook'] = '/etc/gdm3/PreSession/Default'
+    machine.state['ownership_retry'] = machine.recovery
+    machine.write('/var/lib/oh-no-parent-control/kiosk-confinement.json', json.dumps(machine.saved))
+    before = {'recovery': (0o600, 0, 0, 'original')}
+    start = Mock(return_value=(machine.state, machine.recovery, machine.saved, before, {}))
+    monkeypatch.setattr(removal, 'focused_recovery_start', start)
+    monkeypatch.setattr(removal, 'admission_removal_state', Mock(return_value=dict(before)))
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda _: False)
+    for owner, name in [(removal, 'verify_surviving_identity'), (removal, 'verify_loaded_confinement'),
+                        (removal, 'wait_kiosk_inactive'), (removal.guest, 'verify_package_payload'),
+                        (removal.guest, 'verify_package_files'), (admission, 'verify_gates')]:
+        monkeypatch.setattr(owner, name, Mock())
+    monkeypatch.setattr(removal, 'package_absent', lambda: False)
+    monkeypatch.setattr(removal, 'removal_command', lambda: ['native-remove'])
+    monkeypatch.setattr(removal, 'boot', lambda: 'old')
+    machine.commands.last_returncode = 1
+    machine.commands.run.return_value = (b'reason=modified-pam-confinement '
+        b'reason=unsafe-confinement-path reason=changed-kiosk-identity '
+        b'system integration was modified; preserving it and refusing removal')
+    machine.run.return_value = 'install ok half-configured'
+    machine.run.side_effect = None
+    conflict = Mock()
+    events = []
+    @contextmanager
+    def fixture(variant, target, foreign_uid, record):
+        events.append(('start', variant, str(target), foreign_uid))
+        try:
+            yield conflict
+        finally:
+            events.append(('resolved', variant))
+    monkeypatch.setattr(ownership, 'ownership_conflict', fixture)
+    save = Mock()
+    monkeypatch.setattr(removal, 'save_state', save)
+    machine.start, machine.conflict, machine.events, machine.save = start, conflict, events, save
+    return machine
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('variant', ['systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
+    'gdm-hook-link', 'confinement-record-owner', 'confinement-record-link', 'confinement-record-uid'])
+def test_ownership_refusal_preserves_proofs_before_owned_resolution(ownership_machine, monkeypatch,
+                                                                 package_format, variant):
+    machine = ownership_machine
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
+    machine.recovery['variant'] = variant
+    record = Mock()
+    removal.ownership_refusal_retry(record, variant)
+    machine.commands.run.assert_called_once_with(['native-remove'], check=False, timeout=1800,
+                                                 merge_stderr=True)
+    assert machine.events[0][1] == variant
+    assert machine.events[0][3] == machine.state['accounts']['other']
+    assert machine.events[1] == ('resolved', variant)
+    assert machine.conflict.verify.call_count == 2
+    removal.guest.verify_package_payload.assert_called_once_with()
+    removal.guest.verify_package_files.assert_called_once_with()
+    assert machine.save.call_args.args[0]['ownership_retry']['boot'] == 'old'
+    names = [item.args[0] for item in record.call_args_list]
+    assert names == ['onpc.ownership.native-status', 'onpc.ownership.refused', 'onpc.ownership.resolved']
+    configurations = [item for item in machine.run.call_args_list
+                      if item.args[0][:2] == ['dpkg', '--configure']]
+    assert len(configurations) == (package_format == 'deb')
+
+
+@pytest.mark.parametrize('fault', ['status', 'reason', 'payload', 'conflict', 'identity',
+                                  'records', 'policy', 'MAC', 'ordinary'])
+def test_ownership_failed_proof_never_rearms_or_claims_resolution(ownership_machine, monkeypatch, fault):
+    machine = ownership_machine
+    error = removal.guest.GuestError('fixture:' + fault)
+    if fault == 'status':
+        machine.commands.last_returncode = 0
+    elif fault == 'reason':
+        machine.commands.run.return_value = b'unrelated failure'
+    elif fault == 'payload':
+        removal.guest.verify_package_payload.side_effect = error
+    elif fault == 'conflict':
+        machine.conflict.verify.side_effect = error
+    elif fault == 'identity':
+        removal.verify_surviving_identity.side_effect = error
+    elif fault == 'records':
+        removal.admission_removal_state.return_value = {'recovery': 'changed'}
+    elif fault == 'policy':
+        machine.recovery['policy'] = 'changed'
+    elif fault == 'MAC':
+        removal.verify_loaded_confinement.side_effect = error
+    else:
+        machine.probe.side_effect = [None, None, error]
+    record = Mock()
+    with pytest.raises(removal.guest.GuestError):
+        removal.ownership_refusal_retry(record, 'systemd-user-edit')
+    removal.guest.verify_package_files.assert_not_called()
+    machine.save.assert_not_called()
+    assert all(item.args[0] != 'onpc.ownership.resolved' for item in record.call_args_list)
+
+
+def test_admission_snapshot_excludes_only_conflict_under_separate_identity_guard(admission_records):
+    path, _, _ = admission_records
+    target = path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
+    target.symlink_to('foreign')
+    result = removal.admission_removal_state(exclude=(str(target),))
+    assert str(target) not in result
+    assert str(path('/var/lib/oh-no-parent-control/package-created-kiosk-uid')) in result
+    with pytest.raises(removal.guest.GuestError, match='unsafe-admission-record'):
+        removal.admission_removal_state()
+
+
+@pytest.mark.parametrize('fault', [None, 'variant', 'boot', 'request', 'identity',
+                                  'preflight', 'native-removal', 'removed-check'])
+def test_ownership_reboot_requires_continuous_proof_before_finalization(finalization_reboot,
+                                                                     monkeypatch, fault):
+    machine = finalization_reboot
+    machine.recovery['variant'] = 'systemd-user-edit'
+    machine.state['ownership_retry'] = machine.recovery
+    machine.state_file.write_text(json.dumps(machine.state))
+    monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: fault != 'request')
+    identity = Mock()
+    monkeypatch.setattr(removal, 'verify_surviving_identity', identity)
+    if fault == 'variant':
+        machine.recovery['variant'] = 'gdm-hook-link'
+        machine.state_file.write_text(json.dumps(machine.state))
+    elif fault == 'boot':
+        monkeypatch.setattr(removal, 'boot', lambda: 'old')
+    elif fault == 'identity':
+        identity.side_effect = removal.guest.GuestError('identity')
+    elif fault == 'preflight':
+        machine.run.side_effect = removal.guest.CommandError('preflight')
+    elif fault == 'native-removal':
+        machine.commands.run.side_effect = removal.guest.CommandError('native-removal')
+    elif fault == 'removed-check':
+        machine.verify.side_effect = removal.guest.GuestError('removed-check')
+    record = Mock()
+    if fault:
+        with pytest.raises((removal.guest.GuestError, removal.guest.CommandError)):
+            removal.ownership_retry_rebooted(record, 'systemd-user-edit')
+        assert all(item.args[0] != 'onpc.ownership.retry-finalized'
+                   for item in record.call_args_list)
+        if fault not in ('native-removal', 'removed-check'):
+            machine.commands.run.assert_not_called()
+        if fault != 'removed-check':
+            machine.verify.assert_not_called()
+    else:
+        removal.ownership_retry_rebooted(record, 'systemd-user-edit')
+        machine.commands.run.assert_called_once_with(['native-remove'], timeout=1800,
+                                                     merge_stderr=True)
+        machine.verify.assert_called_once_with(machine.state, record=record)
+        assert record.call_args.args[0] == 'onpc.ownership.retry-finalized'

@@ -28,7 +28,8 @@ from tests.support.vm_runner import RECOVERY_INVENTORIES
 
 def test_interrupted_finalization_registration_has_three_distinct_baseline_histories():
     variants = ('denial-publication', 'mac-unload', 'account-finalization')
-    histories = runner.REMOVAL_HISTORIES[2:]
+    histories = tuple(history for history in runner.REMOVAL_HISTORIES
+                      if history.case_id.startswith('test_interrupted_finalization_retry['))
     assert tuple(history.case_id for history in histories) == tuple(
         f'test_interrupted_finalization_retry[{variant}]' for variant in variants)
     for history, variant in zip(histories, variants):
@@ -36,6 +37,77 @@ def test_interrupted_finalization_registration_has_three_distinct_baseline_histo
         assert history.prerequisites == (variant + '-installed', variant + '-rebooted')
         assert history.phases == (variant, variant + '-retry-rebooted')
     assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
+
+
+def test_ownership_registration_has_seven_distinct_baseline_histories():
+    variants = ('systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
+                'gdm-hook-link', 'confinement-record-owner',
+                'confinement-record-link', 'confinement-record-uid')
+    histories = tuple(history for history in runner.REMOVAL_HISTORIES
+                      if history.case_id.startswith('test_ownership_refusal_retry['))
+    assert tuple(history.case_id for history in histories) == tuple(
+        f'test_ownership_refusal_retry[{variant}]' for variant in variants)
+    for history, variant in zip(histories, variants):
+        assert history.start == 'baseline'
+        assert history.prerequisites == (variant + '-installed', variant + '-rebooted')
+        assert history.phases == (variant, variant + '-retry-rebooted')
+    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
+
+
+def test_ownership_family_listing_and_results_keep_all_exact_execution_identities(tmp_path, capsys):
+    family = 'test_ownership_refusal_retry'
+    selection = runner.resolve_selection('removal', family, inventories=RECOVERY_INVENTORIES)
+    exact = [runner.resolve_selection('removal', case, inventories=RECOVERY_INVENTORIES)
+             for case in runner.REMOVAL_FAMILIES[family]]
+    assert selection.test == family
+    assert len(selection.executions) == 56
+    assert sum(item.prerequisite for item in selection.executions) == 42
+    assert selection.executions == tuple(item for part in exact for item in part.executions)
+    assert selection.phases == tuple(phase for part in exact for phase in part.phases)
+    staged = tmp_path / 'input'
+    digest = runner.stage_selected_inputs(selection, staged)
+    identity = json.loads((staged / 'selected-inputs.json').read_text())
+    assert digest == runner.baseline.digest(staged / 'selected-inputs.json')
+    assert identity['selection']['test'] == family
+    assert len(identity['selection']['executions']) == 56
+    assert {item['case_id'] for item in identity['selection']['executions']
+            if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
+    runner.print_selection(selection)
+    output = capsys.readouterr().out
+    assert 'expected-executions: 56' in output
+    assert 'test: ' + family in output
+    for part in exact:
+        for item in part.executions:
+            assert item.phase + '::' + item.case_id in output
+        for phase in part.phases[-2:]:
+            assert runner.pytest_command(RUN, phase, selection)[-1] == (
+                runner.PAYLOAD + '/test_removal.py::' + part.test)
+    write_junit_results(tmp_path, selection)
+    for phase in selection.phases:
+        runner.reconcile_junit(tmp_path, phase, selection)
+    evidence = runner.selection_evidence(tmp_path, selection)
+    assert len(evidence['expected_executions']) == len(evidence['executed_cases']) == 56
+    assert {item['case_id'] for item in evidence['executed_cases']
+            if item['area'] == 'removal'} == set(runner.REMOVAL_FAMILIES[family])
+
+
+@pytest.mark.parametrize('fault', ['missing', 'extra', 'empty'])
+def test_ownership_family_refuses_incomplete_or_changed_registry(fault):
+    family = 'test_ownership_refusal_retry'
+    cases = runner.REMOVAL_FAMILIES[family]
+    cases = {'missing': cases[:-1], 'extra': (*cases, family + '[unknown]'), 'empty': ()}[fault]
+    inventories = {**RECOVERY_INVENTORIES,
+                   'removal': ('test_remove_reboot_reinstall', *cases)}
+    with pytest.raises(runner.Error, match='selection:invalid-family-registry'):
+        runner.resolve_selection('removal', family, inventories=inventories)
+
+
+@pytest.mark.parametrize('area,test', [('removal', 'test_ownership_refusal'),
+                                     ('removal', 'test_ownership_refusal_retry[unknown]'),
+                                     ('authorization', 'test_ownership_refusal_retry')])
+def test_ownership_family_does_not_enable_partial_unknown_or_other_area_selectors(area, test):
+    with pytest.raises(runner.Error, match='selection:unknown-test'):
+        runner.resolve_selection(area, test, inventories=RECOVERY_INVENTORIES)
 
 
 @pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
@@ -46,7 +118,8 @@ def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
         'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
         'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
         'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
-        'finalization_retry_rebooted')})
+        'finalization_retry_rebooted', 'ownership_refusal_retry',
+        'ownership_retry_rebooted')})
     monkeypatch.setitem(sys.modules, 'system_removal', helpers)
     case = load_module('private_finalization_dispatch',
                        runner.ROOT / 'tests/system/test_removal.py')
@@ -63,6 +136,42 @@ def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
         case.test_interrupted_finalization_retry(record, variant)
     expected = {'interruption': 'interrupted_finalization_retry',
                 'rebooted': 'finalization_retry_rebooted'}.get(phase_kind)
+    for name, helper in vars(helpers).items():
+        if name == expected:
+            helper.assert_called_once_with(record, variant)
+        else:
+            helper.assert_not_called()
+
+
+@pytest.mark.parametrize('variant', ['systemd-user-edit', 'gdm-password-link',
+                                    'systemd-user-link', 'gdm-hook-link',
+                                    'confinement-record-owner', 'confinement-record-link',
+                                    'confinement-record-uid'])
+@pytest.mark.parametrize('phase_kind', ['refusal', 'rebooted', 'foreign'])
+def test_ownership_guest_dispatch_keeps_exact_variant(monkeypatch, variant, phase_kind):
+    helpers = SimpleNamespace(**{name: Mock() for name in (
+        'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
+        'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
+        'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
+        'finalization_retry_rebooted', 'ownership_refusal_retry',
+        'ownership_retry_rebooted')})
+    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
+    case = load_module('private_ownership_dispatch', runner.ROOT / 'tests/system/test_removal.py')
+    registration = case.test_ownership_refusal_retry.pytestmark[0]
+    assert registration.args == ('variant', [
+        'systemd-user-edit', 'gdm-password-link', 'systemd-user-link', 'gdm-hook-link',
+        'confinement-record-owner', 'confinement-record-link', 'confinement-record-uid'])
+    phase = {'refusal': variant, 'rebooted': variant + '-retry-rebooted',
+             'foreign': 'rollback'}[phase_kind]
+    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
+    record = Mock()
+    if phase_kind == 'foreign':
+        with pytest.raises(KeyError):
+            case.test_ownership_refusal_retry(record, variant)
+    else:
+        case.test_ownership_refusal_retry(record, variant)
+    expected = {'refusal': 'ownership_refusal_retry',
+                'rebooted': 'ownership_retry_rebooted'}.get(phase_kind)
     for name, helper in vars(helpers).items():
         if name == expected:
             helper.assert_called_once_with(record, variant)
@@ -113,8 +222,8 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
     assert identity['selection']['executions'][-1] == {
         'phase': history.phases[-1], 'area': 'removal', 'case_id': history.case_id,
         'prerequisite': False}
-    for name in ('test_removal.py', 'system_removal.py', 'system_guest.py',
-                 'test_install_smoke.py', 'system_kiosk_accounts.py'):
+    for name in ('test_removal.py', 'system_removal.py', 'system_removal_ownership.py',
+                 'system_guest.py', 'test_install_smoke.py', 'system_kiosk_accounts.py'):
         record = identity['files'][name]
         assert (tmp_path / name).read_bytes() == (runner.ROOT / record['source']).read_bytes()
         assert record['sha256'] == runner.baseline.digest(tmp_path / name)

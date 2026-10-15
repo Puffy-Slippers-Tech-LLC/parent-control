@@ -62,7 +62,18 @@ REMOVAL_HISTORIES = (
               (variant, variant + '-retry-rebooted'),
               (variant + '-installed', variant + '-rebooted'))
       for variant in ('denial-publication', 'mac-unload', 'account-finalization')),
+    *(History(f'test_ownership_refusal_retry[{variant}]',
+              (variant, variant + '-retry-rebooted'),
+              (variant + '-installed', variant + '-rebooted'))
+      for variant in ('systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
+                      'gdm-hook-link', 'confinement-record-owner',
+                      'confinement-record-link', 'confinement-record-uid')),
 )
+REMOVAL_FAMILIES = {
+    'test_ownership_refusal_retry': tuple(
+        history.case_id for history in REMOVAL_HISTORIES
+        if history.case_id.startswith('test_ownership_refusal_retry[')),
+}
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
                    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
@@ -327,7 +338,7 @@ def case_phases(area, case_id):
 
 def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False,
                       fresh_install=False):
-    """Resolve an exact selection and all test-phase prerequisites on the host."""
+    """Resolve an exact case or registered family and its phase prerequisites."""
     require(area is None or area != '', 'selection:empty-area')
     require(test is None or test != '', 'selection:empty-test')
     require(area is None or area in AREA_SOURCES, 'selection:unknown-area')
@@ -342,7 +353,11 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     for name, cases in inventories.items():
         require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{name}')
 
-    if test is not None and test not in inventories[area]:
+    family = REMOVAL_FAMILIES.get(test) if area == 'removal' else None
+    if family is not None:
+        registered = tuple(case for case in inventories[area] if case.startswith(test + '['))
+        require(family and set(registered) == set(family), 'selection:invalid-family-registry')
+    elif test is not None and test not in inventories[area]:
         incompatible = any(test in cases for name, cases in inventories.items() if name != area)
         require(not incompatible, 'selection:incompatible-test')
         raise Error('selection:unknown-test')
@@ -350,7 +365,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     chosen_areas = tuple(AREA_SOURCES) if area is None else (area,)
     chosen = {name: inventories[name] for name in chosen_areas}
     if test is not None:
-        chosen[area] = (test,)
+        chosen[area] = family if family is not None else (test,)
     require(not fresh_install or not any(history.case_id in chosen.get('removal', ())
             for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
 

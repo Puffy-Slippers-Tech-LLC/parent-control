@@ -923,13 +923,11 @@ def verify_durable_interval(state, recovery, saved, record):
            'owned-account-and-recovery-records-retained; native-account-and-session-denied; ordinary-users-allowed; product-MAC-unloaded')
 
 
-def interrupted_finalization_retry(record, variant):
-    """One native interruption, protected interval and owned recovery per history."""
+def focused_recovery_start(record, variant, state_key):
+    """Shared fresh controls and independent removal oracle for focused histories."""
     guest.guard()
-    guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
     guest.enable_diagnostics()
-    from system_kiosk_admission import durable_probe, probe, verify_gates
-    from system_removal_faults import interruption_fault
+    from system_kiosk_admission import durable_probe, verify_gates
     accounts = provision_native()
     parent, child = accounts['parent'], accounts['child']
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
@@ -978,8 +976,22 @@ def interrupted_finalization_retry(record, variant):
             'extensions': extension_lists(accounts[role]),
             'identity': [account.pw_name, account.pw_uid, account.pw_gid,
                          account.pw_dir, account.pw_shell]}
-    state['finalization_retry'] = recovery
+    state[state_key] = recovery
     save_state(state)
+    return state, recovery, saved, before, generated
+
+
+def interrupted_finalization_retry(record, variant):
+    """One native interruption, protected interval and owned recovery per history."""
+    guest.guard()
+    guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
+    from system_kiosk_admission import probe, verify_gates
+    from system_removal_faults import interruption_fault
+    state, recovery, saved, before, generated = focused_recovery_start(
+        record, variant, 'finalization_retry')
+    child = state['accounts']['child']
+    policy, extensions = recovery['policy'], recovery['extensions']
+    fedora = guest.package_path().suffix == '.rpm'
     expected = dict(zip(('limit_type', 'daily_limit', 'active_extension', 'app_filter'),
                         account_state(child)[1:]))
     expected.update(uid=child, extension_enabled=True)
@@ -1086,6 +1098,122 @@ def finalization_retry_rebooted(record, variant):
            'new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
 
 
+def ownership_refusal_retry(record, variant):
+    """Preserve one foreign conflict through native refusal, then rearm its owner."""
+    guest.guard()
+    from system_kiosk_admission import probe, verify_gates
+    from system_removal_ownership import OWNERSHIP_VARIANTS, ownership_conflict
+    guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
+    state, recovery, saved, before, generated = focused_recovery_start(
+        record, variant, 'ownership_retry')
+    child = state['accounts']['child']
+    integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    guest.run([integration, 'check-remove'], timeout=30)
+    targets = {
+        'systemd-user-edit': Path('/etc/pam.d/systemd-user'),
+        'gdm-password-link': Path('/etc/pam.d/gdm-password'),
+        'systemd-user-link': Path('/etc/pam.d/systemd-user'),
+        'gdm-hook-link': Path(state['hook']),
+    }
+    target = targets.get(variant, Path('/var/lib/oh-no-parent-control/kiosk-confinement.json'))
+    reasons = {'systemd-user-edit': b'reason=modified-pam-confinement',
+               'gdm-hook-link': b'system integration was modified; preserving it and refusing removal',
+               'confinement-record-uid': b'reason=changed-kiosk-identity'}
+    reason = reasons.get(variant, b'reason=unsafe-confinement-path')
+    guards = ('/var/lib/oh-no-parent-control/kiosk-confinement-removing',
+              '/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+              '/var/lib/oh-no-parent-control/uninstall-broker-mask',
+              '/run/systemd/system/oh-no-parent-control-broker.service')
+    guest.require(all(not os.path.lexists(name) for name in guards), 'ownership:nonfresh-guards')
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'ownership.before.' + role, record)
+    with ownership_conflict(variant, target, state['accounts']['other'], record) as conflict:
+        # This is the real package callback, before reversible cleanup. A
+        # diagnostic preflight alone cannot establish safe native refusal.
+        output = guest.commands.run(removal_command(), check=False, timeout=1800,
+                                    merge_stderr=True)
+        status = guest.commands.last_returncode
+        record('onpc.ownership.native-status', str(status))
+        guest.require(status != 0 and not package_absent() and reason in output,
+                      'ownership:native-conflict-not-refused')
+        conflict.verify()
+        guest.verify_package_payload()
+        verify_surviving_identity(state, recovery, record)
+        guest.require(account_digest(child) == recovery['policy'] and
+                      extension_lists(child) == recovery['extensions'] and
+                      all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                          for name, value in generated.items()), 'ownership:enforcement-changed')
+        current = admission_removal_state(exclude=(str(target),))
+        expected = {name: value for name, value in before.items() if name != str(target)}
+        guest.require(current.keys() == expected.keys() and all(
+            rollback_record_matches(name, value, current[name])
+            for name, value in expected.items()), 'ownership:recovery-records-changed')
+        guest.require(all(not os.path.lexists(name) for name in guards),
+                      'ownership:preflight-published-removal-guards')
+        if not variant.startswith('confinement-record-'):
+            guest.require(json.loads(Path('/var/lib/oh-no-parent-control/kiosk-confinement.json').read_text()) == saved,
+                          'ownership:confinement-record-changed')
+        verify_loaded_confinement()
+        observe_launch(child, False)
+        for role in ('ordinary', 'other'):
+            probe('login', role, 0, 'ownership.refused.' + role, record)
+        probe('login', 'kiosk', 6, 'ownership.refused.kiosk', record)
+        conflict.verify()
+        record('onpc.ownership.refused',
+               variant + '; exact-conflict-and-recovery-records-preserved; payload-retained; child-denied; ordinary-users-allowed; MAC-enforcing; no-removal-guards-published')
+    if guest.package_path().suffix == '.deb':
+        status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
+        guest.require(status in ('install ok installed', 'install ok half-configured'),
+                      'ownership:unexpected-recovery-package-status')
+        if status == 'install ok half-configured':
+            guest.run(['dpkg', '--configure', PRODUCT], timeout=1800)
+    guest.verify_package_files()
+    verify_surviving_identity(state, recovery, record)
+    guest.require(account_digest(child) == recovery['policy'] and
+                  extension_lists(child) == recovery['extensions'] and
+                  all(not os.path.lexists(name) for name in guards),
+                  'ownership:resolution-changed-protection')
+    verify_loaded_confinement()
+    verify_gates(record)
+    recovery['boot'] = boot()
+    save_state(state)
+    record('onpc.ownership.resolved', variant + '; only-recorded-conflict-resolved; full-owned-integration-verified; reboot-and-native-retry-pending')
+
+
+def ownership_retry_rebooted(record, variant):
+    """Finalize only this resolved conflict after a real reboot in the same attempt."""
+    guest.guard()
+    from system_kiosk_admission import probe, verify_gates
+    from system_removal_ownership import OWNERSHIP_VARIANTS
+    guest.require(variant in OWNERSHIP_VARIANTS, 'ownership:variant')
+    guest.enable_diagnostics()
+    state = json.loads(state_path().read_text())
+    recovery = state['ownership_retry']
+    guest.require(recovery['variant'] == variant and boot() != recovery['boot'] and
+                  guest.reboot_cleared(), 'ownership:retry-identity-or-boot')
+    guest.installed()
+    verify_surviving_identity(state, recovery, record)
+    child = state['accounts']['child']
+    guest.require(account_digest(child) == recovery['policy'] and
+                  extension_lists(child) == recovery['extensions'],
+                  'ownership:reboot-changed-enforcement')
+    verify_loaded_confinement()
+    verify_gates(record)
+    observe_launch(child, False)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'ownership.rebooted.' + role, record)
+    wait_kiosk_inactive(pwd.getpwnam(PRODUCT))
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    guest.commands.run(removal_command(), timeout=1800, merge_stderr=True)
+    verify_removed(state, record=record)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'ownership.removed.' + role, record)
+    observe_launch(state['accounts']['parent'], True)
+    record('onpc.ownership.retry-finalized', variant +
+           '; new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
+
+
 def remove(record):
     guest.guard()
     guest.enable_diagnostics()
@@ -1140,7 +1268,7 @@ def wait_kiosk_inactive(account):
          active_category='removal:kiosk-manager-already-active')
 
 
-def admission_removal_state():
+def admission_removal_state(*, exclude=()):
     """Compare owned integration/recovery bytes, including deliberately absent records.
 
     Native Debian abort-remove may republish identical owned files atomically.
@@ -1167,6 +1295,8 @@ def admission_removal_state():
     result = {}
     while paths:
         path = paths.pop()
+        if str(path) in exclude:
+            continue
         if not os.path.lexists(path):
             result[str(path)] = None
             continue

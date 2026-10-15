@@ -1,0 +1,241 @@
+"""Finite guest ownership conflicts with identity-bound, serial restoration."""
+
+from contextlib import contextmanager
+import ctypes
+from dataclasses import dataclass
+import json
+import os
+from pathlib import Path
+import stat
+import uuid
+
+import system_guest as guest
+from system_removal_faults import metadata, parents
+
+
+OWNER_UID = 0
+OWNERSHIP_VARIANTS = (
+    'systemd-user-edit', 'gdm-password-link', 'systemd-user-link',
+    'gdm-hook-link', 'confinement-record-owner', 'confinement-record-link',
+    'confinement-record-uid',
+)
+COMMENT = b'\n# onpc removal ownership conflict\n'
+
+
+def require(condition, reason):
+    guest.require(condition, 'removal-ownership:' + reason)
+
+
+def rename_exclusive(source, destination):
+    """Linux's atomic no-replace rename never overwrites an occupied name."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    rename = libc.renameat2
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                       ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+@dataclass(frozen=True)
+class Witness:
+    metadata: tuple
+    mtime_ns: int
+    xattrs: tuple
+    contents: object
+
+
+def witness(path):
+    """Read only regular files or link text, never a substituted referent."""
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode), 'unsafe-type')
+    if stat.S_ISLNK(info.st_mode):
+        contents = os.readlink(path)
+    else:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            require(metadata(os.fstat(fd)) == metadata(info), 'read-identity-changed')
+            contents = os.pread(fd, info.st_size + 1, 0)
+            require(metadata(os.fstat(fd)) == metadata(info), 'read-identity-changed')
+        finally:
+            os.close(fd)
+    attrs = tuple((name, os.getxattr(path, name, follow_symlinks=False))
+                  for name in sorted(os.listxattr(path, follow_symlinks=False)))
+    require(metadata(path.lstat()) == metadata(info), 'read-path-changed')
+    return Witness(metadata(info), info.st_mtime_ns, attrs, contents)
+
+
+def pinned(fd):
+    info = os.fstat(fd)
+    attrs = tuple((name, os.getxattr(fd, name)) for name in sorted(os.listxattr(fd)))
+    return Witness(metadata(info), info.st_mtime_ns, attrs,
+                   os.pread(fd, info.st_size + 1, 0))
+
+
+class Conflict:
+    def __init__(self, variant, path, fd, original, original_times, namespace,
+                 mounts, ancestors):
+        self.variant, self.path, self.fd = variant, path, fd
+        self.original, self.original_times = original, original_times
+        self.namespace, self.mounts, self.ancestors = namespace, mounts, ancestors
+        self.backup = None
+        self.expected = self.referent = None
+        self.setup_bytes = original.contents
+        self.setup_owner = original.metadata[2]
+        self.setup_link = None
+
+    def verify_setup(self):
+        """Accept only the exact attributable prefix of our incomplete setup."""
+        self.boundary()
+        if self.backup is not None:
+            require(witness(self.backup) == self.original and
+                    pinned(self.fd) == self.original, 'partial-referent-changed')
+            if self.setup_link is None:
+                require(not os.path.lexists(self.path), 'partial-path-occupied')
+            else:
+                require(metadata(self.path.lstat()) == self.setup_link and
+                        os.readlink(self.path) == self.backup.name,
+                        'partial-link-changed')
+            return
+        value = pinned(self.fd)
+        expected_metadata = list(self.original.metadata)
+        expected_metadata[2] = self.setup_owner
+        require(value.metadata == tuple(expected_metadata) and
+                value.contents == self.setup_bytes and
+                value.xattrs == self.original.xattrs and
+                metadata(self.path.lstat()) == value.metadata,
+                'partial-original-changed')
+
+    def boundary(self):
+        from system_removal import mount_inventory
+        parents(self.path)
+        require(tuple((p, metadata(p.lstat())) for p, _ in self.ancestors) ==
+                self.ancestors, 'parent-identity-changed')
+        namespace, mounts = mount_inventory()
+        require(namespace == self.namespace and mounts == self.mounts,
+                'mount-identity-changed')
+
+    def verify(self):
+        """Prove conflict and pinned referent metadata, inode and exact bytes."""
+        self.boundary()
+        require(witness(self.path) == self.expected, 'conflict-identity-changed')
+        if self.backup is not None:
+            require(witness(self.backup) == self.referent and
+                    pinned(self.fd) == self.referent, 'referent-identity-changed')
+        else:
+            require(pinned(self.fd) == self.expected, 'pinned-identity-changed')
+
+    def restore(self):
+        if self.expected is None:
+            self.verify_setup()
+        else:
+            self.verify()
+        if self.backup is not None:
+            if self.setup_link is not None:
+                self.path.unlink()
+            # Parents are guarded root directories; no wildcard or foreign
+            # destination is adopted. Refuse rather than replace any new entry.
+            require(not os.path.lexists(self.path), 'restore-path-occupied')
+            rename_exclusive(self.backup, self.path)
+        else:
+            os.fchown(self.fd, self.original.metadata[2], self.original.metadata[3])
+            os.fchmod(self.fd, stat.S_IMODE(self.original.metadata[4]))
+            os.lseek(self.fd, 0, os.SEEK_SET)
+            data = self.original.contents
+            offset = 0
+            while offset < len(data):
+                written = os.write(self.fd, data[offset:])
+                require(written > 0, 'restore-short-write')
+                offset += written
+            os.ftruncate(self.fd, len(data))
+            for name, value in self.original.xattrs:
+                os.setxattr(self.fd, name, value)
+        os.utime(self.fd, ns=self.original_times)
+        os.fsync(self.fd)
+        self.boundary()
+        require(witness(self.path) == self.original and pinned(self.fd) == self.original,
+                'restoration-not-verified')
+
+
+@contextmanager
+def ownership_conflict(variant, target: Path, foreign_uid: int, record):
+    """Mutate one guarded guest file and restore only its exact owned conflict."""
+    guest.guard()
+    require(variant in OWNERSHIP_VARIANTS, 'unknown-variant')
+    require(isinstance(target, Path) and target.is_absolute() and
+            '..' not in target.parts, 'unsafe-path')
+    require(type(foreign_uid) is int and 0 < foreign_uid < 2 ** 32 - 1 and
+            foreign_uid != OWNER_UID, 'unsafe-foreign-uid')
+    parents(target)
+    original = witness(target)
+    info = target.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == OWNER_UID and
+            info.st_nlink == 1 and not info.st_mode & 0o022, 'unsafe-original')
+    if variant.startswith('confinement-record-'):
+        require(stat.S_IMODE(info.st_mode) == 0o600, 'unsafe-record-mode')
+        document = json.loads(original.contents)
+        require(isinstance(document, dict) and type(document.get('kiosk_uid')) is int and
+                document['kiosk_uid'] > 0 and document['kiosk_uid'] != foreign_uid,
+                'unsafe-record-uid')
+    from system_removal import mount_inventory
+    namespace, mounts = mount_inventory()
+    require(not any(row[0][4] == str(target) for row in mounts.values()), 'mounted-target')
+    ancestors = tuple((p, metadata(p.lstat())) for p in target.parents)
+    fd = os.open(target, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    conflict = Conflict(variant, target, fd, original,
+                        (info.st_atime_ns, info.st_mtime_ns), namespace, mounts, ancestors)
+    try:
+        require(pinned(fd) == original, 'original-identity-changed')
+        conflict.boundary()
+        try:
+            if variant.endswith('-link'):
+                # Atomic same-filesystem move retains the original SELinux
+                # label and real PAM controls; occupied names are never replaced.
+                backup = target.parent / ('.onpc-removal-owned-' + uuid.uuid4().hex)
+                require(witness(target) == original, 'original-identity-changed')
+                rename_exclusive(target, backup)
+                conflict.backup = backup
+                conflict.referent = witness(backup)
+                require(conflict.referent == original, 'backup-identity-changed')
+                target.symlink_to(backup.name)
+                conflict.setup_link = metadata(target.lstat())
+            elif variant == 'confinement-record-owner':
+                os.fchown(fd, foreign_uid, original.metadata[3])
+                conflict.setup_owner = foreign_uid
+                os.fchmod(fd, 0o600)
+            else:
+                data = original.contents + COMMENT
+                if variant == 'confinement-record-uid':
+                    document['kiosk_uid'] = foreign_uid
+                    data = (json.dumps(document, sort_keys=True) + '\n').encode()
+                os.lseek(fd, 0, os.SEEK_SET)
+                offset = 0
+                while offset < len(data):
+                    written = os.write(fd, data[offset:])
+                    require(written > 0, 'conflict-short-write')
+                    offset += written
+                    conflict.setup_bytes = data[:offset] + original.contents[offset:]
+                os.ftruncate(fd, len(data))
+                conflict.setup_bytes = data
+            conflict.verify_setup()
+            expected = witness(target)
+            if conflict.backup is not None:
+                require(expected.metadata == conflict.setup_link and
+                        expected.contents == conflict.backup.name,
+                        'published-link-changed')
+            else:
+                require(expected == pinned(fd) and expected.contents == conflict.setup_bytes,
+                        'published-original-changed')
+            conflict.expected = expected
+            conflict.verify()
+            record('onpc.ownership.conflict', json.dumps({
+                'variant': variant, 'device': conflict.expected.metadata[0],
+                'inode': conflict.expected.metadata[1],
+                'referent_device': original.metadata[0],
+                'referent_inode': original.metadata[1]}, sort_keys=True))
+            yield conflict
+        finally:
+            conflict.restore()
+    finally:
+        os.close(fd)

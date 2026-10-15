@@ -1888,6 +1888,68 @@ Changed Markdown links and whitespace checks passed. Only 4-5c was checked, its
 temporary brief removed and the master pointer advanced to 4-5d. Remaining ownership,
 Fedora repeated-purge and final qualification obligations stay open in their owners.
 
+### Phase 4 step 5d — PAM and confinement-record ownership refusal — 2026-10-14
+
+Both targets passed all seven `removal::test_ownership_refusal_retry` variants:
+`systemd-user-edit`, `gdm-password-link`, `systemd-user-link`, `gdm-hook-link`,
+`confinement-record-owner`, `confinement-record-link` and `confinement-record-uid`.
+The bare family selector keeps all seven separate baseline attempts in one
+retention session per target. Each exact bracketed selector retains six fresh
+installation/reboot prerequisites and two continuous recovery phases. All
+**112/112 executions** and **56 complete JUnits** passed, without errors or skips.
+
+| Target | Report under `output/test-runs/host/reports/` | Raw allocation under `output/test-runs/privileged/allocations/` |
+| --- | --- | --- |
+| `onpc-Ubuntu26.04` | `20261015T034922Z-6128ae5c/report.md` | `onpc-system-hulhzl4t` |
+| `onpc-Fedora44` | `20261015T034922Z-3764ccaa/report.md` | `onpc-system-k5fn408k` |
+
+Every `evidence/guest/<variant>.xml` records real native package refusal,
+preserved foreign inode/metadata/bytes or link text and referent, recovery
+records, loaded enforcing confinement, child execution denial and ordinary-user
+access. These preflight conflicts leave removal guards absent and protection
+intact. The fixture resolves only its recorded conflict, verifies owned
+integration again, then keeps a real reboot and successful native removal in
+the same attempt. Each `<variant>-retry-rebooted.xml` verifies owned account/home
+deletion, exact original PAM bytes/modes/local-versus-vendor disposition and
+ordinary-user access; Fedora also restores authselect with SELinux enforcing.
+The UID variant changes only the record's `kiosk_uid`, preserving the real account.
+
+Each retained `evidence/result.json` has exactly the 56 expected/executed
+identities, 28 collected JUnits, all four outcome domains passed,
+`cleanup_phase=complete` and two successful baseline checks. Both VMs were
+independently confirmed off. All subagents finished before installed acceptance.
+The final audit reread every result, input manifest and JUnit after the queue run.
+The queue summary is `output/test-runs/host/allocations/onpc-vm-queue-axnv83b7/results.json`.
+
+Both selected-input manifests have 30 guest and 19 host bindings, covering 47
+distinct checkout files, rehashed without mismatch. Their equal SHA-256 is
+`04370bd700bcd3fdada7e6eb719b8d6991b9629adf455ef2db5de063dff53c27`.
+Package source is revision `8150f34484711049be9edad68107a410a13b2883`, 348 files,
+digest `80972bc053b325b9fc7839265afe428a774802afce120a90645c2c3f8e278fac`.
+DEB SHA-256 is `0cacd9cc5f37761ec415f9911e17fbea63e57d19b2ae6b65777f2e41b1eb8465`;
+RPM SHA-256 is `b949151c319a7cac0ab1df36a08f944ae67845ddf32ecb4c29b2ca1879a1cef2`.
+Fixture digest remains `8e053863e1b5326dbd535450b761cf47384045639d8e8bde822fa5f7b3a8c1c5`;
+baseline digests remain `5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93`
+(Ubuntu) and `fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c` (Fedora).
+
+Affected controller, snapshot, input, dispatch, JUnit, resume, fixture cleanup and
+inventory checks passed **1,318/1,318**, report `20261015T034901Z-0d3b148e/report.md`.
+Coverage/plan checks passed **123/123** again after close-out, report
+`20261015T050338Z-3dcf96a3/report.md`.
+Coverage was regenerated. Resource review covers private files and process-local
+doubles; the new unit module has an explicit compatible classification. This
+task changes tests, their scheduling and documentation, outside package/build
+dependencies; no additional `make build` is required. Package inputs were verified
+through the maintained builder, with their bytes independently hashed.
+
+The existing ownership guards required no product change for these variants.
+A source-only review flagged absent confinement state (`state()` returns `None`
+and `remove()` returns) for the existing 4-7/4-8 reviews. These seven present-record
+histories make no missing-record safety claim. Changed selected helpers and the
+expired 4-5c MAC-unload raw allocations retain the complete 4-5c repeat in 4-10.
+Only 4-5d is checked; its brief is removed and the master pointer advances to 4-5e.
+Other queue rows and the Phase 4 exit gate retain their scope and status.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -1903,7 +1965,8 @@ than copying hashes or creating another task queue.
 | --- | --- | --- |
 | 4-5b | Implement and qualify focused native rollback/retry histories on both targets, including the controller contract below. | Reuse applicable successful lifecycle evidence; do not make the five-phase removal regression or unrelated public kiosk cases the automatic wrapper for each new fault. |
 | 4-5c | Three focused interruption histories qualified on both targets in [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14). | Reuse only verified matching retained complete histories; this does not close ownership or repeated-purge coverage. |
-| 4-5d–4-5e | Extend the focused route for each finite ownership variant; pass its complete protection/resolution/retry history on both targets. | Reuse shared mechanics and applicable independent results, never a different variant's refusal or successful endpoint. |
+| 4-5d | Seven focused PAM/link/confinement-record ownership histories qualified on both targets in [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14). | Reuse only verified matching complete histories; final applicability remains with 4-9 and affected repeats with 4-10. |
+| 4-5e | Extend the focused route for each finite identity/filesystem ownership variant; pass its complete protection/resolution/retry history on both targets. | Reuse shared mechanics and applicable independent results, never a different variant's refusal or successful endpoint. |
 | 4-6 | Complete the distinct Fedora native failed-post-erase/reinstall/conflict/reboot/repeated-purge chain. | Retain applicable 4-5 proof without replaying those independent variants; all barriers and ordinary-user controls required inside this chain still run. |
 | 4-7–4-8 | Independent reviews and affected host/installed validation for demonstrated fixes. | Review-only changes need no automatic installed/E2E batch. Validate fixes before accepting the review; record other invalidated histories for 4-10. |
 | 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | Reuse unchanged valid task-local host results where their exact scope and inputs cover the final candidate; run missing/affected checks. No blanket schema or VM/E2E run. |
@@ -1940,8 +2003,13 @@ Task 4-5c registers `test_interrupted_finalization_retry` with the exact variant
 baseline package phases and two recovery phases, with a real reboot before its
 owned retry endpoint. All three are qualified on both targets in
 [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14).
-Ownership variants in 4-5d–4-5e
-remain **planned** until their owning tasks register and qualify them. Extend `case_phases`,
+Task 4-5d registers `test_ownership_refusal_retry` and its seven exact bracketed
+variants, qualified on both targets in
+[4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14).
+The bare family selects 56 exact executions in seven separate baseline attempts
+within one retention session. Resume replays each unfinished complete history.
+Identity/filesystem variants in 4-5e remain **planned** until registered and
+qualified. Extend `case_phases`,
 prerequisite closure, snapshot grouping, dispatch and `resume_selection` together,
 using shared mechanics rather than another runner or an enforcement-area shortcut.
 
@@ -1976,17 +2044,19 @@ row alone never establishes current applicability. Keep per-target decisions exp
 
 | Assertion scope | Target | Recorded evidence | Current reuse decision / follow-up owner |
 | --- | --- | --- | --- |
-| Fresh activation/reboot, account classification, native boundary and GDM readiness | Ubuntu | [4-5c prerequisites](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14), covering the corresponding earlier activation assertions | Reuse verified for the 4-5c candidate: exact matching bindings and retained complete prerequisites in all three histories, both baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | [4-5c prerequisites](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14), covering the corresponding earlier activation assertions | Reuse verified for the 4-5c candidate: exact matching bindings, enforcing SELinux and retained complete prerequisites in all three histories, both baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Ubuntu | [4-5d prerequisites](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14), covering the corresponding earlier activation assertions | Reuse verified for the 4-5d candidate: exact matching bindings and retained complete prerequisites in all seven histories, both baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | [4-5d prerequisites](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14), covering the corresponding earlier activation assertions | Reuse verified for the 4-5d candidate: exact matching bindings, enforcing SELinux and retained complete prerequisites in all seven histories, both baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
 | Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Applicable [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Verification pending per target and assertion; 4-9 maps final applicability, 4-10 keeps its required final matrix/census gate and repeats other invalidated scope. |
 | Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Ubuntu | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Fedora | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
-| Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Ubuntu | [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Reuse verified: all three complete eight-execution histories, 12 JUnits and exact current inputs retained; cleanup complete. 4-9 checks final applicability and 4-10 repeats affected scope. |
-| Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Fedora | [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Reuse verified: all three complete eight-execution histories, 12 JUnits and exact current inputs retained with enforcing SELinux; cleanup complete. 4-9 checks final applicability and 4-10 repeats affected scope. |
-| Remaining ownership and failed RPM post-erase histories | Both targets for 4-5d–4-5e; Fedora for 4-6 | No acceptance claimed; populate from each owning task's installed results | Execution pending in each owning task; final applicability in 4-9 and affected reruns in 4-10. |
+| Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Ubuntu | Historical [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and the MAC-unload raw allocation expired. Preserve all three complete histories and their assertions; 4-9 retains this follow-up. |
+| Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Fedora | Historical [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and the MAC-unload raw allocation expired. Preserve all three complete histories and their enforcing-SELinux assertions; 4-9 retains this follow-up. |
+| PAM/link/confinement-record ownership refusal, preservation and resolved reboot/retry/finalization | Ubuntu | [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14) | Reuse verified: seven complete histories, 28 JUnits and exact current inputs retained; cleanup complete. 4-9 checks final applicability and 4-10 repeats affected scope. |
+| PAM/link/confinement-record ownership refusal, preservation and resolved reboot/retry/finalization | Fedora | [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14) | Reuse verified: seven complete histories, 28 JUnits and exact current inputs retained with enforcing SELinux; cleanup complete. 4-9 checks final applicability and 4-10 repeats affected scope. |
+| Remaining identity/filesystem ownership and failed RPM post-erase histories | Both targets for 4-5e; Fedora for 4-6 | No acceptance claimed; populate from each owning task's installed results | Execution pending in each owning task; final applicability in 4-9 and affected reruns in 4-10. |
 
 Changes outside a result's required inputs do not automatically invalidate it.
 Conversely, equal package bytes do not excuse changed selected helpers, fixtures,

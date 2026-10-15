@@ -7,7 +7,8 @@ import pytest
 from system_removal import (remove, removed_rebooted, reinstalled_rebooted,
                             purged_rebooted, purge_reinstalled_rebooted,
                             aborted_cleanup_rollback_retry, rollback_rearmed_rebooted,
-                            interrupted_finalization_retry, finalization_retry_rebooted)
+                            interrupted_finalization_retry, finalization_retry_rebooted,
+                            ownership_refusal_retry, ownership_retry_rebooted)
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -29,4 +30,14 @@ def test_aborted_cleanup_rollback_retry(record_testsuite_property):
 def test_interrupted_finalization_retry(record_testsuite_property, variant):
     {variant: interrupted_finalization_retry,
      variant + '-retry-rebooted': finalization_retry_rebooted}[
+         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)
+
+
+@pytest.mark.parametrize('variant', ['systemd-user-edit', 'gdm-password-link',
+                                    'systemd-user-link', 'gdm-hook-link',
+                                    'confinement-record-owner', 'confinement-record-link',
+                                    'confinement-record-uid'])
+def test_ownership_refusal_retry(record_testsuite_property, variant):
+    {variant: ownership_refusal_retry,
+     variant + '-retry-rebooted': ownership_retry_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property, variant)

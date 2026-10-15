@@ -26,6 +26,70 @@ from tests.support.modules import load_module
 from tests.support.vm_runner import RECOVERY_INVENTORIES
 
 
+def test_rpm_posterase_registration_is_one_fedora_baseline_history():
+    history = next(history for history in runner.REMOVAL_HISTORIES
+                   if history.case_id == 'test_rpm_posterase_recovery')
+    assert history.start == 'baseline'
+    assert history.package_format == 'rpm'
+    assert history.prerequisites == ('rpm-posterase-installed', 'rpm-posterase-rebooted')
+    assert history.phases == ('rpm-posterase', 'rpm-posterase-reinstalled-rebooted')
+    assert len(runner.PHASE_ORDER) == len(set(runner.PHASE_ORDER))
+
+
+@pytest.mark.parametrize('area', [None, 'removal'])
+@pytest.mark.parametrize('target_format', [None, 'deb', 'rpm'])
+def test_rpm_posterase_broad_selection_uses_explicit_target_format(area, target_format):
+    selection = runner.resolve_selection(area, inventories=RECOVERY_INVENTORIES,
+                                         target_package_format=target_format)
+    cases = {item.case_id for item in selection.executions}
+    assert ('test_rpm_posterase_recovery' in cases) == (target_format != 'deb')
+    assert ('test_rpm_posterase_recovery' in selection.available['removal']) == (target_format != 'deb')
+    # Filtering the Fedora-only history never shortens the full removal history.
+    assert set(runner.REMOVAL_PHASES) <= set(selection.phases)
+    full = [item for item in selection.executions if item.case_id == 'test_remove_reboot_reinstall']
+    assert tuple(item.phase for item in full) == runner.REMOVAL_PHASES
+
+
+def test_rpm_posterase_explicit_wrong_target_refuses():
+    with pytest.raises(runner.Error, match='selection:history-package-format-mismatch'):
+        runner.resolve_selection('removal', 'test_rpm_posterase_recovery',
+                                 inventories=RECOVERY_INVENTORIES, target_package_format='deb')
+
+
+@pytest.mark.parametrize('target_format', [None, 'rpm'])
+def test_rpm_posterase_list_mode_preserves_exact_history_without_vm_access(
+        monkeypatch, capsys, target_format):
+    configured = (SimpleNamespace(require_package_format=lambda: target_format)
+                  if target_format else None)
+    monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'extract',
+                        lambda argv, **_: (argv, configured))
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: RECOVERY_INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
+    monkeypatch.setattr(runner, 'artifact_source', Mock(side_effect=AssertionError('artifact probe ran')))
+    monkeypatch.setattr(runner.baseline, 'LibvirtSource',
+                        Mock(side_effect=AssertionError('VM probe ran')))
+    assert runner.main(['--list', '--area', 'removal', '--test', 'test_rpm_posterase_recovery']) == 0
+    output = capsys.readouterr().out
+    assert 'expected-executions: 8' in output
+    assert 'required-package-format: test_rpm_posterase_recovery=rpm' in output
+    assert 'phases: rpm-posterase-installed,rpm-posterase-rebooted,rpm-posterase,' in output
+
+
+def test_rpm_posterase_wrong_target_stops_before_tool_artifact_or_vm_checks(monkeypatch, capsys):
+    configured = SimpleNamespace(require_package_format=lambda: 'deb')
+    monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'extract',
+                        lambda argv, **_: (argv, configured))
+    monkeypatch.setattr(runner.baseline.guest_contract.vm_config, 'selected', Mock())
+    monkeypatch.setattr(runner.baseline.guest_contract, 'CHECKOUT', runner.ROOT)
+    monkeypatch.setattr(runner.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(runner.os, 'getegid', lambda: 0)
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: RECOVERY_INVENTORIES[name])
+    monkeypatch.setattr(runner.shutil, 'which', Mock(side_effect=AssertionError('tool probe ran')))
+    monkeypatch.setattr(runner, 'artifact_source', Mock(side_effect=AssertionError('artifact probe ran')))
+    assert runner.main(['--area', 'removal', '--test', 'test_rpm_posterase_recovery']) == 1
+    assert 'selection:history-package-format-mismatch' in capsys.readouterr().err
+
+
 def test_interrupted_finalization_registration_has_three_distinct_baseline_histories():
     variants = ('denial-publication', 'mac-unload', 'account-finalization')
     histories = tuple(history for history in runner.REMOVAL_HISTORIES
@@ -123,17 +187,45 @@ def test_ownership_family_does_not_enable_partial_unknown_or_other_area_selector
         runner.resolve_selection(area, test, inventories=RECOVERY_INVENTORIES)
 
 
-@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
-@pytest.mark.parametrize('phase_kind', ['interruption', 'rebooted', 'foreign'])
-def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
-        monkeypatch, variant, phase_kind):
-    helpers = SimpleNamespace(**{name: Mock() for name in (
+def removal_dispatch_helpers():
+    return SimpleNamespace(**{name: Mock() for name in (
         'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
         'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
         'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
         'finalization_retry_rebooted', 'ownership_refusal_retry',
         'ownership_retry_rebooted', 'identity_filesystem_refusal_retry',
-        'identity_filesystem_retry_rebooted')})
+        'identity_filesystem_retry_rebooted', 'rpm_posterase_recovery',
+        'rpm_posterase_reinstalled_rebooted')})
+
+
+@pytest.mark.parametrize('phase,expected', [
+    ('rpm-posterase', 'rpm_posterase_recovery'),
+    ('rpm-posterase-reinstalled-rebooted', 'rpm_posterase_reinstalled_rebooted'),
+    ('rollback', None), ('removal', None), ('rpm-posterase-rebooted', None),
+])
+def test_rpm_posterase_guest_dispatch_requires_exact_continuous_phase(monkeypatch, phase, expected):
+    helpers = removal_dispatch_helpers()
+    monkeypatch.setitem(sys.modules, 'system_removal', helpers)
+    case = load_module('private_rpm_posterase_dispatch', runner.ROOT / 'tests/system/test_removal.py')
+    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
+    record = Mock()
+    if expected is None:
+        with pytest.raises(KeyError):
+            case.test_rpm_posterase_recovery(record)
+    else:
+        case.test_rpm_posterase_recovery(record)
+    for name, helper in vars(helpers).items():
+        if name == expected:
+            helper.assert_called_once_with(record)
+        else:
+            helper.assert_not_called()
+
+
+@pytest.mark.parametrize('variant', ['denial-publication', 'mac-unload', 'account-finalization'])
+@pytest.mark.parametrize('phase_kind', ['interruption', 'rebooted', 'foreign'])
+def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
+        monkeypatch, variant, phase_kind):
+    helpers = removal_dispatch_helpers()
     monkeypatch.setitem(sys.modules, 'system_removal', helpers)
     case = load_module('private_finalization_dispatch',
                        runner.ROOT / 'tests/system/test_removal.py')
@@ -161,13 +253,7 @@ def test_interrupted_finalization_guest_dispatch_keeps_exact_variant(
                          for family, variants in OWNERSHIP_FAMILIES for variant in variants])
 @pytest.mark.parametrize('phase_kind', ['refusal', 'rebooted', 'foreign', 'other-variant', 'other-family'])
 def test_ownership_guest_dispatch_keeps_exact_variant(monkeypatch, family, variant, phase_kind):
-    helpers = SimpleNamespace(**{name: Mock() for name in (
-        'remove', 'removed_rebooted', 'reinstalled_rebooted', 'purged_rebooted',
-        'purge_reinstalled_rebooted', 'aborted_cleanup_rollback_retry',
-        'rollback_rearmed_rebooted', 'interrupted_finalization_retry',
-        'finalization_retry_rebooted', 'ownership_refusal_retry',
-        'ownership_retry_rebooted', 'identity_filesystem_refusal_retry',
-        'identity_filesystem_retry_rebooted')})
+    helpers = removal_dispatch_helpers()
     monkeypatch.setitem(sys.modules, 'system_removal', helpers)
     case = load_module('private_ownership_dispatch', runner.ROOT / 'tests/system/test_removal.py')
     dispatch = getattr(case, family)
@@ -241,12 +327,17 @@ def test_focused_recovery_inputs_freeze_full_import_closure(tmp_path, history):
         'prerequisite': False}
     sources = ('test_removal.py', 'system_removal.py', 'system_removal_ownership.py',
                'system_guest.py', 'test_install_smoke.py', 'system_kiosk_accounts.py')
-    if history.case_id.startswith('test_identity_filesystem_refusal_retry['):
+    if (history.case_id.startswith('test_identity_filesystem_refusal_retry[') or
+            history.case_id == 'test_rpm_posterase_recovery'):
         sources += ('system_removal_identity.py',)
+    if history.case_id == 'test_rpm_posterase_recovery':
+        sources += ('guest_install_recipe.py',)
     for name in sources:
         record = identity['files'][name]
         assert (tmp_path / name).read_bytes() == (runner.ROOT / record['source']).read_bytes()
         assert record['sha256'] == runner.baseline.digest(tmp_path / name)
+    for source in ('tests/integration/system_runner.py', 'tests/integration/system_snapshots.py'):
+        assert identity['host_files'][source] == runner.baseline.digest(runner.ROOT / source)
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'extra', 'duplicate', 'identity', 'failure', 'skipped'])

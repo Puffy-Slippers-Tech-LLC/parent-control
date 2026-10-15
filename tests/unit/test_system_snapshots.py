@@ -73,6 +73,7 @@ def test_attempts_restore_before_each_area_and_stop_after_failure(tmp_path, monk
     suite.verified = None
     suite.lease = Mock(state={'run': RUN})
     lease = suite.lease
+    lease.capture.state = {'guest': {'os_id': 'fedora', 'version': '44'}}
     lease.__enter__ = Mock(return_value=lease)
     lease.__exit__ = Mock(return_value=False)
     monkeypatch.setattr(system, 'bootstrap', Mock(return_value='host-key'))
@@ -133,6 +134,95 @@ def test_broad_recovery_partitions_unique_executions_into_baseline_history():
         assert focused.phases == (*history.prerequisites, *history.phases)
         assert not installed
         assert len(focused.executions) == 8
+
+
+@pytest.mark.parametrize('release,accepted', [
+    ({'os_id': 'fedora', 'version': '44'}, True),
+    ({'ubuntu_version': '26.04'}, False),
+    ({'os_id': 'fedora', 'version': '45'}, False),
+])
+def test_rpm_posterase_attempt_checks_accepted_guest_before_preparation(
+        tmp_path, monkeypatch, release, accepted):
+    import guest_inputs
+    import vm_transport
+    selection = system.resolve_selection('removal', 'test_rpm_posterase_recovery',
+                                         inventories=RECOVERY_INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    suite = Mock(verified=None)
+    lease = suite.lease
+    lease.state = {'run': RUN}
+    lease.capture.state = {'guest': release}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    bootstrap = Mock(side_effect=system.Error('bootstrap-reached'))
+    monkeypatch.setattr(system, 'bootstrap', bootstrap)
+    execute = Mock()
+    monkeypatch.setattr(system, 'installed_run', execute)
+    transport = Mock()
+    monkeypatch.setattr(vm_transport, 'Transport', transport)
+    category = ('bootstrap-reached' if accepted else
+                'history-package-format-mismatch' if release.get('ubuntu_version') else
+                'guest:unsupported-package-platform')
+    with pytest.raises(system.Error, match=category):
+        snapshots.run_attempts(suite, tmp_path, selection, {}, 'selected', system.RunLedger())
+    assert lease.prepare.call_count == int(accepted)
+    assert bootstrap.call_count == int(accepted)
+    execute.assert_not_called()
+    transport.assert_not_called()
+    lease.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize('failure', [None, 'first-phase', 'second-phase'])
+def test_rpm_posterase_attempt_releases_owned_lease_and_preserves_exact_junits(
+        tmp_path, monkeypatch, failure):
+    import guest_inputs
+    import vm_transport
+    selection = system.resolve_selection('removal', 'test_rpm_posterase_recovery',
+                                         inventories=RECOVERY_INVENTORIES)
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'input/frozen').write_bytes(b'frozen')
+    monkeypatch.setattr(guest_inputs.Bundle, 'from_staged', Mock())
+    suite = Mock(verified=None)
+    lease = suite.lease
+    lease.state = {'run': RUN}
+    lease.capture.state = {'guest': {'os_id': 'fedora', 'version': '44'}}
+    lease.__enter__ = Mock(return_value=lease)
+    lease.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(system, 'bootstrap', Mock(return_value='host-key'))
+    monkeypatch.setattr(system, 'address', lambda _: 'guest')
+    monkeypatch.setattr(vm_transport, 'Transport', Mock())
+
+    def execute(vm, lease, directory, selected, ledger, *, already_installed):
+        assert selected == selection
+        assert not already_installed
+        assert (directory / 'input/frozen').read_bytes() == b'frozen'
+        write_junit_results(directory, selected)
+        if failure == 'first-phase':
+            (directory / ('guest-results/' + selected.phases[-1] + '.xml')).unlink()
+        if failure:
+            raise system.CommandError('history-failed')
+        (directory / 'guest-results/result.json').write_text(json.dumps({
+            'outcome': 'passed', 'package_sha256': 'package',
+            'selected_inputs_sha256': 'selected'}))
+
+    monkeypatch.setattr(system, 'installed_run', execute)
+    arguments = (suite, tmp_path, selection, {'artifacts': {'package': {'sha256': 'package'}}},
+                 'selected', system.RunLedger())
+    if failure:
+        with pytest.raises(system.CommandError, match='history-failed'):
+            snapshots.run_attempts(*arguments)
+    else:
+        snapshots.run_attempts(*arguments)
+    lease.prepare.assert_called_once_with()
+    lease.__enter__.assert_called_once_with()
+    lease.__exit__.assert_called_once()
+    suite.prepare_case.assert_not_called()
+    result = tmp_path / 'guest-results'
+    for phase in selection.phases:
+        expected = failure != 'first-phase' or phase != selection.phases[-1]
+        assert (result / (phase + '.xml')).is_file() == expected
+        assert (result / ('attempt-' + selection.phases[0]) / (phase + '.xml')).is_file() == expected
 
 
 @pytest.mark.parametrize('family', ['test_ownership_refusal_retry',

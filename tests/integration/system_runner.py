@@ -52,6 +52,7 @@ class History:
     phases: tuple[str, ...]
     prerequisites: tuple[str, ...]
     start: str = 'baseline'
+    package_format: str | None = None
 
 
 REMOVAL_HISTORIES = (
@@ -73,6 +74,9 @@ REMOVAL_HISTORIES = (
               (variant + '-installed', variant + '-rebooted'))
       for variant in ('kiosk-marker-uid', 'home-owner', 'home-link', 'home-mount',
                       'state-owner', 'state-link', 'state-mount')),
+    History('test_rpm_posterase_recovery',
+            ('rpm-posterase', 'rpm-posterase-reinstalled-rebooted'),
+            ('rpm-posterase-installed', 'rpm-posterase-rebooted'), package_format='rpm'),
 )
 REMOVAL_FAMILIES = {
     'test_ownership_refusal_retry': tuple(
@@ -345,7 +349,7 @@ def case_phases(area, case_id):
 
 
 def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False,
-                      fresh_install=False):
+                      fresh_install=False, target_package_format=None):
     """Resolve an exact case or registered family and its phase prerequisites."""
     require(area is None or area != '', 'selection:empty-area')
     require(test is None or test != '', 'selection:empty-test')
@@ -360,6 +364,14 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     require(set(inventories) == set(AREA_SOURCES), 'selection:incomplete-registry')
     for name, cases in inventories.items():
         require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{name}')
+
+    require(target_package_format in (None, 'deb', 'rpm'), 'selection:invalid-package-format')
+    incompatible_histories = {history.case_id for history in REMOVAL_HISTORIES
+                             if target_package_format is not None and history.package_format
+                             and history.package_format != target_package_format}
+    require(test not in incompatible_histories, 'selection:history-package-format-mismatch')
+    inventories['removal'] = tuple(case for case in inventories['removal']
+                                  if case not in incompatible_histories)
 
     family = REMOVAL_FAMILIES.get(test) if area == 'removal' else None
     if family is not None:
@@ -384,6 +396,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         dependencies.update(('installed', 'rebooted'))
     phases = tuple(phase for phase in PHASE_ORDER if phase in terminal_phases or
                    phase in dependencies)
+    require(phases, 'selection:no-compatible-tests')
 
     executions = []
     for phase in phases:
@@ -430,6 +443,10 @@ def print_selection(selection, stream=None):
     print('  vm-required-for-execution: yes', file=stream)
     print('  phases: ' + ','.join(selection.phases), file=stream)
     print('  prerequisites: ' + ','.join(selection.prerequisites), file=stream)
+    for history in REMOVAL_HISTORIES:
+        if history.package_format and any(item.case_id == history.case_id
+                                          for item in selection.executions):
+            print(f'  required-package-format: {history.case_id}={history.package_format}', file=stream)
     print(f'  expected-executions: {len(selection.executions)}', file=stream)
     for execution in selection.executions:
         kind = 'prerequisite' if execution.prerequisite else 'selected'
@@ -470,6 +487,15 @@ def announce_selection(selection):
     from tools.regression_events import emit
     emit('collection', total=len(selection.executions), nodeids=[
         item.phase + '::' + item.case_id for item in selection.executions])
+
+
+def verify_history_target(selection, capture):
+    """Check restricted histories against accepted guest provenance, not VM names."""
+    for history in REMOVAL_HISTORIES:
+        if history.package_format and any(item.case_id == history.case_id
+                                          for item in selection.executions):
+            require(package_format(capture.state['guest']) == history.package_format,
+                    'selection:history-package-format-mismatch')
 
 
 def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
@@ -1912,7 +1938,7 @@ def evidence(directory, manifest, lease, passed, category, selection,
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    argv, _ = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
+    argv, configured = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
@@ -1945,7 +1971,9 @@ def main(argv=None):
         if args.list:
             selection = resolve_selection(args.area, args.test,
                                           qualification_failure=args.qualification_failure,
-                                          fresh_install=args.previous_artifacts is not None)
+                                          fresh_install=args.previous_artifacts is not None,
+                                          target_package_format=(configured.require_package_format()
+                                                                 if configured is not None else None))
             print_selection(selection)
             return 0
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
@@ -1954,7 +1982,8 @@ def main(argv=None):
                     'guard:root; run from a root shell on the VM host')
         selection = resolve_selection(args.area, args.test,
                                       qualification_failure=args.qualification_failure,
-                                      fresh_install=args.previous_artifacts is not None)
+                                      fresh_install=args.previous_artifacts is not None,
+                                      target_package_format=configured.require_package_format())
         if args.completed_cases is not None:
             from tools.test_checkpoint import completed_cases
             selection = resume_selection(selection, completed_cases(args.completed_cases),

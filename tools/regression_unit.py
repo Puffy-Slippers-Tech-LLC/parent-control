@@ -676,6 +676,9 @@ from regression_ui import Bucket
 # Bind-mount ownership and transaction-watcher tests use synthetic mount rows
 # and joined local threads with command doubles, never host mounts or packages;
 # system_removal, system_runner and system_snapshots stay compatible.
+# RPM post-erase/reinstall/purge coverage adds private files and synchronous
+# command/thread doubles, including observer joins and interrupted reads. Target
+# selection/cleanup uses mocked VM leases; these same classifications still apply.
 # Interrupted-finalization cases and durable PAM workers use private files and
 # process-local account/PAM/VM doubles. system_removal_faults also owns finite,
 # waited harmless shell children; no host mount, policy, package, bus, socket,

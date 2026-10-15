@@ -10,7 +10,8 @@ from system_removal import (remove, removed_rebooted, reinstalled_rebooted,
                             interrupted_finalization_retry, finalization_retry_rebooted,
                             ownership_refusal_retry, ownership_retry_rebooted,
                             identity_filesystem_refusal_retry,
-                            identity_filesystem_retry_rebooted)
+                            identity_filesystem_retry_rebooted,
+                            rpm_posterase_recovery, rpm_posterase_reinstalled_rebooted)
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -25,6 +26,12 @@ def test_remove_reboot_reinstall(record_testsuite_property):
 def test_aborted_cleanup_rollback_retry(record_testsuite_property):
     {'rollback': aborted_cleanup_rollback_retry,
      'rollback-rearmed-rebooted': rollback_rearmed_rebooted}[
+         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
+
+
+def test_rpm_posterase_recovery(record_testsuite_property):
+    {'rpm-posterase': rpm_posterase_recovery,
+     'rpm-posterase-reinstalled-rebooted': rpm_posterase_reinstalled_rebooted}[
          os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
 
 

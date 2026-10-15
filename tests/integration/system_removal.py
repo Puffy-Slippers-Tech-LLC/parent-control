@@ -1128,6 +1128,183 @@ def private_recovery_record(path):
     return value
 
 
+def observe_rpm_reinstall(state, recovery, generated, record):
+    """Witness restored enforcement while durable admission still excludes kiosk."""
+    from guest_install_recipe import install
+    guest.guard()
+    guest.enable_diagnostics()
+    transaction = guest.Commands()
+    transaction.directory = Path(tempfile.mkdtemp(
+        prefix='rpm-reinstall-', dir=guest.commands.directory.parent))
+    result = {}
+
+    def execute():
+        try:
+            def run(arguments, timeout=120):
+                return transaction.run(arguments, timeout=timeout,
+                                       merge_stderr=True).decode().strip()
+            install(run, guest.guard, guest.package_path())
+        except BaseException as error:
+            result['error'] = error
+
+    worker = threading.Thread(target=execute, name='onpc-rpm-reinstall')
+    snapshot = Path('/var/lib/oh-no-parent-control/uninstall-enforcement.json')
+    marker = Path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
+    observed = False
+    worker.start()
+    try:
+        while worker.is_alive():
+            try:
+                guarded = marker.read_bytes() == b'removing\n'
+            except FileNotFoundError:
+                guarded = False
+            if not os.path.lexists(snapshot) and guarded:
+                restored = (account_digest(state['accounts']['child']) == recovery['policy'] and
+                            extension_lists(state['accounts']['child']) == recovery['extensions'] and
+                            all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
+                                for name, value in generated.items()))
+                if restored:
+                    observe_launch(state['accounts']['child'], False)
+                # Bracket the complete native read: an endpoint after the
+                # barrier was released cannot supply this transition receipt.
+                try:
+                    guarded = marker.read_bytes() == b'removing\n'
+                except FileNotFoundError:
+                    guarded = False
+                if restored and guarded:
+                    observed = True
+                    break
+            time.sleep(0.01)
+    finally:
+        # The recipe owns only make install and its Commands timeout/pidfd.
+        # Always join it, including failed observations and cancellation.
+        worker.join()
+    if 'error' in result:
+        raise result['error']
+    guest.require(observed, 'rpm-posterase:restoration-before-release-not-observed')
+    record('onpc.rpm-posterase.restored-before-release',
+           'snapshot-consumed; exact-native-policy-extension-and-rules-restored; native-child-execution-denied; durable-admission-marker-retained')
+
+
+def rpm_posterase_recovery(record):
+    """Real failed packaged RPM purge, retained conflict and normal reinstall."""
+    guest.guard()
+    guest.require(guest.package_path().suffix == '.rpm', 'rpm-posterase:fedora-required')
+    from system_kiosk_admission import probe, verify_gates
+    from system_removal_identity import identity_filesystem_conflict
+    state, recovery, saved, before, generated = focused_recovery_start(
+        record, 'rpm-posterase', 'rpm_posterase')
+    child = state['accounts']['child']
+    recovery['ordinary_native'] = {
+        role: account_digest(value['uid'], include_preferences=False)
+        for role, value in recovery['ordinary'].items()}
+    snapshot_account = dict(zip(('limit_type', 'daily_limit', 'active_extension', 'app_filter'),
+                                account_state(child)[1:]))
+    snapshot_account.update(uid=child, extension_enabled=True)
+    authselect = json.loads(private_recovery_record(Path(
+        '/var/lib/oh-no-parent-control/fedora-authselect.json')).contents)
+    provenance = private_recovery_record(Path(
+        '/var/lib/oh-no-parent-control/fedora-execution-policy.json'))
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    with identity_filesystem_conflict('home-mount', state['accounts']['other'], record) as conflict:
+        output = guest.commands.run(['/usr/bin/oh-no-parent-control-purge', '--yes'],
+                                    check=False, timeout=1800, merge_stderr=True)
+        record('onpc.rpm-posterase.failed-purge-status', str(guest.commands.last_returncode))
+        guest.require(guest.commands.last_returncode != 0 and package_absent() and
+                      b'postun' in output and conflict.reason in output and
+                      b'saved-state purge outcome=accepted' not in output,
+                      'rpm-posterase:native-postun-failure-not-observed')
+        verify_durable_interval(state, recovery, saved, record, conflict=conflict)
+        snapshot = private_recovery_record(Path(
+            '/var/lib/oh-no-parent-control/uninstall-enforcement.json'))
+        guest.require(json.loads(snapshot.contents) == {'version': 1, 'accounts': [snapshot_account]},
+                      'rpm-posterase:rollback-snapshot-not-retained')
+        mask = Path('/run/systemd/system/oh-no-parent-control-broker.service')
+        guest.require(fault_file_identity(Path(
+            '/var/lib/oh-no-parent-control/uninstall-broker-mask'))[-1] == b'' and
+                      stat.S_ISLNK(mask.lstat().st_mode) and mask.lstat().st_uid == 0 and
+                      os.readlink(mask) == '/dev/null', 'rpm-posterase:removal-mask-not-retained')
+        guest.require(json.loads(private_recovery_record(Path(
+            '/var/lib/oh-no-parent-control/fedora-authselect.json')).contents) ==
+                      dict(authselect, phase='restored') and private_recovery_record(Path(
+            '/var/lib/oh-no-parent-control/fedora-execution-policy.json')) == provenance,
+                      'rpm-posterase:recovery-provenance-changed')
+        guest.require(Path('/var/log/oh-no-parent-control').is_dir() and
+                      not os.path.lexists('/run/oh-no-parent-control-purge-intent.json'),
+                      'rpm-posterase:logs-or-intent-not-retained-safely')
+        record('onpc.rpm-posterase.retained',
+               'RPM-absent; real-postun-refused; payload-erased; foreign-home-and-sentinel-preserved; exact-rollback-authselect-and-execution-records-retained')
+        observe_rpm_reinstall(state, recovery, generated, record)
+        guest.verify_package_files()
+        conflict.verify()
+        verify_surviving_identity(state, recovery, record)
+        guest.require(account_digest(child) == recovery['policy'] and
+                      extension_lists(child) == recovery['extensions'],
+                      'rpm-posterase:reinstall-changed-enforcement')
+        verify_loaded_confinement()
+        verify_gates(record)
+        observe_launch(child, False)
+        for role in ('ordinary', 'other'):
+            probe('login', role, 0, 'rpm-posterase.reinstalled.' + role, record)
+        guest.require(all(not os.path.lexists('/var/lib/oh-no-parent-control/' + name)
+                          for name in ('kiosk-confinement-removing', 'uninstall-enforcement.json',
+                                       'uninstall-broker-mask', 'migration-in-progress')),
+                      'rpm-posterase:reinstall-guards-retained')
+        conflict.verify()
+        record('onpc.rpm-posterase.reinstalled',
+               'normal-make-install; exact-enforcement-restored; MAC-enforcing; native-gates-rearmed; foreign-conflict-preserved')
+    verify_surviving_identity(state, recovery, record)
+    recovery['boot'] = boot()
+    save_state(state)
+    record('onpc.rpm-posterase.resolved',
+           'only-recorded-mount-and-fixture-resolved; reboot-and-repeated-packaged-purge-pending')
+
+
+def rpm_posterase_reinstalled_rebooted(record):
+    """Finish the same RPM recovery with a real reboot and repeated public purge."""
+    guest.guard()
+    guest.require(guest.package_path().suffix == '.rpm', 'rpm-posterase:fedora-required')
+    guest.enable_diagnostics()
+    from system_kiosk_admission import probe, verify_gates
+    state = json.loads(state_path().read_text())
+    recovery = state['rpm_posterase']
+    guest.require(recovery['variant'] == 'rpm-posterase' and boot() != recovery['boot'] and
+                  guest.reboot_cleared(), 'rpm-posterase:retry-identity-or-boot')
+    guest.installed()
+    verify_surviving_identity(state, recovery, record)
+    guest.require(account_digest(state['accounts']['child']) == recovery['policy'] and
+                  extension_lists(state['accounts']['child']) == recovery['extensions'],
+                  'rpm-posterase:reboot-changed-enforcement')
+    verify_loaded_confinement()
+    verify_gates(record)
+    observe_launch(state['accounts']['child'], False)
+    wait_kiosk_inactive(pwd.getpwnam(PRODUCT))
+    guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
+               'check-remove'], timeout=30)
+    output = guest.commands.run(['/usr/bin/oh-no-parent-control-purge', '--yes'],
+                                timeout=1800, merge_stderr=True)
+    verify_removed(state, purged=True, record=record)
+    guest.require(b'saved-state purge outcome=accepted' in output and
+                  REMOVAL_NOTICE.encode() in output and guest.reboot_requested() and
+                  not os.path.lexists('/run/oh-no-parent-control-purge-intent.json'),
+                  'rpm-posterase:purge-not-confirmed')
+    for role, before in recovery['ordinary'].items():
+        account = pwd.getpwuid(before['uid'])
+        guest.require([account.pw_name, account.pw_uid, account.pw_gid,
+                       account.pw_dir, account.pw_shell] == before['identity'] and
+                      account_digest(before['uid'], include_preferences=False) ==
+                      recovery['ordinary_native'][role] and
+                      extension_lists(before['uid']) == before['extensions'],
+                      'rpm-posterase:purge-changed-ordinary-account')
+        observe_launch(before['uid'], True)
+    for role in ('ordinary', 'other'):
+        probe('login', role, 0, 'rpm-posterase.purged.' + role, record)
+    password_login_health(state['accounts']['child'])
+    record('onpc.rpm-posterase.completed',
+           'new-boot; repeated-packaged-purge-accepted; owned-account-and-home-deleted; exact-original-PAM-and-authselect-restored; ordinary-users-allowed; SELinux-enforcing')
+
+
 def identity_filesystem_refusal_retry(record, variant):
     """Keep each foreign root/identity, native refusal and owned retry together."""
     guest.guard()
@@ -1750,13 +1927,15 @@ def purge_reinstalled_rebooted(record):
 
 def main(argv=None):
     arguments = sys.argv[1:] if argv is None else argv
-    guest.require(arguments == ['exercise-live-refusals'] or
+    guest.require(arguments in (['exercise-live-refusals'], ['exercise-live-rpm-posterase']) or
                   (len(arguments) == 2 and arguments[0] == 'exercise-live-finalization' and
                    arguments[1] in FINALIZATION_VARIANTS), 'removal:diagnostic-arguments')
     def record(name, value):
         print(json.dumps({'property': name, 'value': value}, sort_keys=True), flush=True)
     if arguments == ['exercise-live-refusals']:
         exercise_live_refusals(record)
+    elif arguments == ['exercise-live-rpm-posterase']:
+        rpm_posterase_recovery(record)
     else:
         interrupted_finalization_retry(record, arguments[1])
     return 0

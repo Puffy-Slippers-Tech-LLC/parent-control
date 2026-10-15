@@ -435,6 +435,24 @@ def test_system_recovery_resume_replays_whole_unfinished_history_only(pending_ph
         assert system_runner.resume_selection(focused, completed) == focused
 
 
+@pytest.mark.parametrize('pending_phase', [
+    'rpm-posterase-installed', 'rpm-posterase-rebooted',
+    'rpm-posterase', 'rpm-posterase-reinstalled-rebooted'])
+def test_system_rpm_posterase_resume_replays_all_predecessors(pending_phase):
+    import system_runner
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    selection = system_runner.resolve_selection(inventories=RECOVERY_INVENTORIES,
+                                                target_package_format='rpm')
+    focused = system_runner.resolve_selection('removal', 'test_rpm_posterase_recovery',
+                                              inventories=RECOVERY_INVENTORIES,
+                                              target_package_format='rpm')
+    completed = {item.phase + '::' + item.case_id for item in selection.executions
+                 if item.phase != pending_phase}
+    resumed = system_runner.resume_selection(selection, completed)
+    assert resumed.phases == focused.phases
+    assert resumed.executions == focused.executions
+
+
 def test_vm_queue_preserves_resume_and_first_failure_policy():
     from vm_test_queue import split
     host, guests = split(ROOT, ['--resume', '--stop-on-error', 'host', 'vm'])

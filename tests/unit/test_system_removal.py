@@ -17,6 +17,7 @@ import system_removal as removal
                                  'purged_rebooted', 'purge_reinstalled_rebooted',
                                  'exercise_live_refusals',
                                  'aborted_cleanup_rollback_retry', 'rollback_rearmed_rebooted',
+                                 'rpm_posterase_recovery', 'rpm_posterase_reinstalled_rebooted',
                                  'mounted_pam_fault',
                                  'verify_removed', 'password_login_health',
                                  'verify_active_kiosk_refusal', 'verify_inflight_admission_refusal'])
@@ -42,7 +43,8 @@ def test_guard_refusal_precedes_removal_actions(monkeypatch, entry):
 @pytest.mark.parametrize('arguments', [[], ['remove'], ['exercise-live-refusals', 'extra'],
                                      ['exercise-live-finalization'],
                                      ['exercise-live-finalization', 'unknown'],
-                                     ['exercise-live-finalization', 'mac-unload', 'extra']])
+                                     ['exercise-live-finalization', 'mac-unload', 'extra'],
+                                     ['exercise-live-rpm-posterase', 'extra']])
 def test_diagnostic_rejects_arguments_before_guest_actions(monkeypatch, arguments):
     exercise = Mock()
     monkeypatch.setattr(removal, 'exercise_live_refusals', exercise)
@@ -62,6 +64,18 @@ def test_live_finalization_dispatches_only_selected_shared_history(monkeypatch, 
     assert removal.main(['exercise-live-finalization', variant]) == 0
     assert json.loads(capsys.readouterr().out) == {
         'property': 'selected-history', 'value': variant}
+    unrelated.assert_not_called()
+
+
+def test_live_rpm_posterase_dispatches_the_same_first_history_phase(monkeypatch, capsys):
+    def exercise(record):
+        record('selected-history', 'rpm-posterase')
+    monkeypatch.setattr(removal, 'rpm_posterase_recovery', exercise)
+    unrelated = Mock()
+    monkeypatch.setattr(removal, 'exercise_live_refusals', unrelated)
+    assert removal.main(['exercise-live-rpm-posterase']) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        'property': 'selected-history', 'value': 'rpm-posterase'}
     unrelated.assert_not_called()
 
 
@@ -1984,8 +1998,11 @@ def identity_filesystem_machine(ownership_machine, monkeypatch):
     durable, removed = Mock(), Mock()
     monkeypatch.setattr(removal, 'verify_durable_interval', durable)
     monkeypatch.setattr(removal, 'verify_removed', removed)
-    monkeypatch.setattr(removal, 'private_recovery_record', lambda target:
-                        SimpleNamespace(contents=target.read_bytes()))
+    def private_record(target):
+        removal.guest.require(stat.S_IMODE(target.lstat().st_mode) == 0o600,
+                              'fixture:unsafe-private-record')
+        return SimpleNamespace(contents=target.read_bytes())
+    monkeypatch.setattr(removal, 'private_recovery_record', private_record)
     monkeypatch.setattr(removal.guest, 'install_package', Mock())
     monkeypatch.setattr(removal, 'account_state', lambda _: (
         b'preferences', 1, 3600, [0, 0], [False, []]))
@@ -2008,8 +2025,8 @@ def identity_filesystem_machine(ownership_machine, monkeypatch):
         return info
     monkeypatch.setattr(Path, 'lstat', root_mask_info)
     machine.write('/var/lib/oh-no-parent-control/fedora-authselect.json',
-                  json.dumps({'version': 1, 'phase': 'installed', 'original': ['sssd']}))
-    machine.write('/var/lib/oh-no-parent-control/fedora-execution-policy.json', 'execution-provenance')
+                  json.dumps({'version': 1, 'phase': 'installed', 'original': ['sssd']})).chmod(0o600)
+    machine.write('/var/lib/oh-no-parent-control/fedora-execution-policy.json', 'execution-provenance').chmod(0o600)
     @contextmanager
     def fixture(variant, foreign_uid, record):
         conflict.variant = variant
@@ -2204,3 +2221,267 @@ def test_ownership_reboot_requires_continuous_proof_before_finalization(finaliza
                                                      merge_stderr=True)
         machine.verify.assert_called_once_with(machine.state, record=record)
         assert record.call_args.args[0] == 'onpc.ownership.retry-finalized'
+
+
+@pytest.fixture
+def rpm_posterase_machine(identity_filesystem_machine, monkeypatch):
+    machine = identity_filesystem_machine
+    machine.recovery['variant'] = 'rpm-posterase'
+    machine.state['rpm_posterase'] = machine.recovery
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.rpm'))
+    monkeypatch.setattr(removal, 'package_absent', Mock(return_value=True))
+    # DNF can itself fail after erasure; the CLI then never reaches its later
+    # saved-data check. Exact callback diagnostics and actual state own proof.
+    machine.commands.run.return_value = b'postun exact-ownership-refusal native-transaction-failed'
+    machine.path('/var/log/oh-no-parent-control').mkdir(parents=True)
+    def reinstall(*args):
+        assert machine.events == [('start', 'home-mount')]
+        machine.events.append(('restored', 'before-conflict-release'))
+    machine.reinstall = Mock(side_effect=reinstall)
+    monkeypatch.setattr(removal, 'observe_rpm_reinstall', machine.reinstall)
+    return machine
+
+
+def test_rpm_posterase_keeps_retained_proofs_and_rearms_before_conflict_release(rpm_posterase_machine):
+    machine = rpm_posterase_machine
+    record = Mock()
+    removal.rpm_posterase_recovery(record)
+    machine.start.assert_called_once_with(record, 'rpm-posterase', 'rpm_posterase')
+    machine.commands.run.assert_called_once_with(
+        ['/usr/bin/oh-no-parent-control-purge', '--yes'], check=False, timeout=1800,
+        merge_stderr=True)
+    machine.durable_interval.assert_called_once_with(
+        machine.state, machine.recovery, machine.saved, record, conflict=machine.conflict)
+    assert machine.conflict.verify.call_count == 2
+    assert machine.events == [('start', 'home-mount'), ('restored', 'before-conflict-release'),
+                              ('resolved', 'home-mount')]
+    assert machine.save.call_args.args[0]['rpm_posterase']['boot'] == 'old'
+    assert machine.recovery['ordinary_native'] == {
+        'parent': 'policy-41002', 'other': 'policy-41003'}
+    assert [item.args[0] for item in record.call_args_list] == [
+        'onpc.rpm-posterase.failed-purge-status', 'onpc.rpm-posterase.retained',
+        'onpc.rpm-posterase.reinstalled', 'onpc.rpm-posterase.resolved']
+
+
+@pytest.mark.parametrize('fault', ['platform', 'status', 'present', 'postun', 'reason',
+    'accepted', 'durable', 'snapshot', 'mask', 'authselect', 'provenance',
+    'logs', 'intent', 'reinstall', 'payload', 'conflict', 'identity', 'policy',
+    'extensions', 'MAC', 'gates', 'guards'])
+def test_rpm_posterase_failed_proof_never_claims_resolution(rpm_posterase_machine, monkeypatch, fault):
+    import system_kiosk_admission as admission
+    machine = rpm_posterase_machine
+    error = removal.guest.GuestError('fixture:' + fault)
+    if fault == 'platform':
+        monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.deb'))
+    elif fault == 'status':
+        machine.commands.last_returncode = 0
+    elif fault == 'present':
+        removal.package_absent.return_value = False
+    elif fault in ('postun', 'reason', 'accepted'):
+        output = machine.commands.run.return_value
+        token = {'postun': b'postun', 'reason': machine.conflict.reason}.get(fault)
+        machine.commands.run.return_value = (output.replace(token, b'') if token else
+            output + b' saved-state purge outcome=accepted')
+    elif fault == 'snapshot':
+        machine.write('/var/lib/oh-no-parent-control/uninstall-enforcement.json',
+                      json.dumps({'version': 1, 'accounts': []}))
+    elif fault == 'mask':
+        machine.path('/run/systemd/system/oh-no-parent-control-broker.service').unlink()
+        machine.path('/run/systemd/system/oh-no-parent-control-broker.service').symlink_to('/foreign')
+    elif fault in ('authselect', 'provenance'):
+        original = removal.private_recovery_record
+        reads = {}
+        def altered(path):
+            value = original(path)
+            reads[path.name] = reads.get(path.name, 0) + 1
+            target = 'fedora-authselect.json' if fault == 'authselect' else 'fedora-execution-policy.json'
+            if path.name == target and reads[path.name] > 1:
+                return SimpleNamespace(contents=b'{}')
+            return value
+        monkeypatch.setattr(removal, 'private_recovery_record', altered)
+    elif fault == 'logs':
+        machine.path('/var/log/oh-no-parent-control').rmdir()
+    elif fault in ('intent', 'guards'):
+        suffix = ('/run/oh-no-parent-control-purge-intent.json' if fault == 'intent'
+                  else '/var/lib/oh-no-parent-control/migration-in-progress')
+        monkeypatch.setattr(removal.os.path, 'lexists', lambda value: str(value).endswith(suffix))
+    elif fault in ('policy', 'extensions'):
+        machine.reinstall.side_effect = lambda *args: machine.recovery.update(
+            {fault: 'changed'})
+    else:
+        target = {'durable': machine.durable_interval, 'reinstall': machine.reinstall,
+            'payload': removal.guest.verify_package_files, 'conflict': machine.conflict.verify,
+            'identity': removal.verify_surviving_identity, 'MAC': removal.verify_loaded_confinement,
+            'gates': admission.verify_gates}[fault]
+        target.side_effect = error
+    record = Mock()
+    with pytest.raises(removal.guest.GuestError):
+        removal.rpm_posterase_recovery(record)
+    machine.save.assert_not_called()
+    assert not {'onpc.rpm-posterase.reinstalled', 'onpc.rpm-posterase.resolved'} & {
+        item.args[0] for item in record.call_args_list}
+    if fault in ('platform', 'status', 'present', 'postun', 'reason', 'accepted',
+                 'durable', 'snapshot', 'mask', 'authselect', 'provenance', 'logs', 'intent'):
+        machine.reinstall.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'platform', 'variant', 'boot', 'request', 'identity',
+    'policy', 'extensions', 'MAC', 'gates', 'preflight', 'purge', 'removed', 'accepted',
+    'notice', 'reboot', 'intent', 'ordinary-identity', 'ordinary-native',
+    'ordinary-extensions', 'login', 'password'])
+def test_rpm_posterase_reboot_requires_complete_history_before_completion(
+    finalization_reboot, monkeypatch, fault,
+):
+    import system_kiosk_admission as admission
+    machine = finalization_reboot
+    machine.recovery.update(variant='rpm-posterase', ordinary_native={
+        role: value['policy'] for role, value in machine.recovery['ordinary'].items()})
+    machine.state['rpm_posterase'] = machine.recovery
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path(
+        'package.deb' if fault == 'platform' else 'package.rpm'))
+    monkeypatch.setattr(removal.guest, 'reboot_cleared', lambda: fault != 'request')
+    monkeypatch.setattr(removal.guest, 'reboot_requested', lambda: fault != 'reboot')
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda value: fault == 'intent')
+    identity, password = Mock(), Mock()
+    monkeypatch.setattr(removal, 'verify_surviving_identity', identity)
+    monkeypatch.setattr(removal, 'password_login_health', password)
+    output = b'saved-state purge outcome=accepted ' + removal.REMOVAL_NOTICE.encode()
+    machine.commands.run.return_value = output
+    error = removal.guest.GuestError('fixture:' + str(fault))
+    if fault == 'variant':
+        machine.recovery['variant'] = 'other-phase'
+    elif fault == 'boot':
+        monkeypatch.setattr(removal, 'boot', lambda: 'old')
+    elif fault in ('policy', 'extensions'):
+        machine.recovery[fault] = 'changed'
+    elif fault in ('accepted', 'notice'):
+        machine.commands.run.return_value = (removal.REMOVAL_NOTICE.encode() if fault == 'accepted'
+                                            else b'saved-state purge outcome=accepted')
+    elif fault == 'ordinary-identity':
+        machine.ordinary[41002].pw_shell = '/bin/false'
+    elif fault == 'ordinary-native':
+        machine.recovery['ordinary_native']['parent'] = 'changed'
+    elif fault == 'ordinary-extensions':
+        machine.recovery['ordinary']['parent']['extensions'] = []
+    elif fault in ('identity', 'MAC', 'gates', 'preflight', 'purge', 'removed', 'login', 'password'):
+        target = {'identity': identity, 'MAC': removal.verify_loaded_confinement,
+            'gates': admission.verify_gates, 'preflight': machine.run,
+            'purge': machine.commands.run, 'removed': machine.verify,
+            'login': machine.probe, 'password': password}[fault]
+        target.side_effect = error
+    machine.state_file.write_text(json.dumps(machine.state))
+    record = Mock()
+    if fault:
+        with pytest.raises(removal.guest.GuestError):
+            removal.rpm_posterase_reinstalled_rebooted(record)
+        assert all(item.args[0] != 'onpc.rpm-posterase.completed'
+                   for item in record.call_args_list)
+    else:
+        removal.rpm_posterase_reinstalled_rebooted(record)
+        machine.verify.assert_called_once_with(machine.state, purged=True, record=record)
+        password.assert_called_once_with(machine.state['accounts']['child'])
+        assert record.call_args.args[0] == 'onpc.rpm-posterase.completed'
+    if fault in ('platform', 'variant', 'boot', 'request', 'identity', 'policy', 'extensions',
+                 'MAC', 'gates', 'preflight'):
+        machine.commands.run.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'guard', 'command', 'cancel', 'watcher', 'snapshot',
+                                 'marker', 'marker-bytes', 'policy', 'extensions', 'rules',
+                                 'execution', 'release-during-execution',
+                                 'release-during-read', 'finished-before-observation'])
+def test_rpm_reinstall_observer_requires_bracketed_restoration_and_joins_worker(
+    tmp_path, monkeypatch, fault,
+):
+    import guest_install_recipe
+    def path(value):
+        if str(value).startswith(str(tmp_path)):
+            return Path(value)
+        return tmp_path / str(value).lstrip('/')
+    marker = path('/var/lib/oh-no-parent-control/kiosk-confinement-removing')
+    marker.parent.mkdir(parents=True)
+    if fault != 'marker':
+        marker.write_bytes(b'foreign' if fault == 'marker-bytes' else b'removing\n')
+    snapshot = marker.with_name('uninstall-enforcement.json')
+    if fault == 'snapshot':
+        snapshot.write_bytes(b'retained')
+    rules = path('/etc/fapolicyd/rules.d/owned.rules')
+    rules.parent.mkdir(parents=True)
+    rules.write_bytes(b'changed' if fault == 'rules' else b'restored')
+    events = []
+    transaction = SimpleNamespace(directory=None)
+    failure = (KeyboardInterrupt() if fault == 'cancel' else
+               removal.guest.CommandError('native-install-failed'))
+    def run(arguments, **kwargs):
+        events.append('install')
+        assert arguments == ['make', 'install']
+        assert kwargs == {'timeout': 1800, 'merge_stderr': True}
+        if fault in ('command', 'cancel'):
+            raise failure
+        return b' installed\n'
+    transaction.run = run
+    def install(run, guard, package):
+        guard()
+        assert package == Path('package.rpm')
+        assert run(['make', 'install'], timeout=1800) == 'installed'
+    monkeypatch.setattr(guest_install_recipe, 'install', install)
+    monkeypatch.setattr(removal, 'Path', path)
+    native_lexists = os.path.lexists
+    monkeypatch.setattr(removal.os.path, 'lexists', lambda value: native_lexists(path(value)))
+    monkeypatch.setattr(removal.guest, 'Commands', lambda: transaction)
+    monkeypatch.setattr(removal.guest, 'commands', SimpleNamespace(directory=tmp_path / 'commands'))
+    monkeypatch.setattr(removal.guest, 'guard', Mock(side_effect=(
+        removal.guest.GuestError('identity') if fault == 'guard' else None)))
+    monkeypatch.setattr(removal.guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.rpm'))
+    class Worker:
+        def __init__(self, *, target, name):
+            assert name == 'onpc-rpm-reinstall'
+            self.target = target
+            self.alive = iter([fault != 'finished-before-observation', False])
+        def start(self):
+            self.target()
+        def is_alive(self):
+            return next(self.alive)
+        def join(self):
+            events.append('joined')
+    monkeypatch.setattr(removal.threading, 'Thread', Worker)
+    monkeypatch.setattr(removal.time, 'sleep', lambda _: None)
+    def digest(uid):
+        assert uid == 41001
+        if fault == 'watcher':
+            raise RuntimeError('read-failed')
+        return 'changed' if fault == 'policy' else 'policy'
+    monkeypatch.setattr(removal, 'account_digest', digest)
+    def launch(uid, allowed):
+        assert uid == 41001 and allowed is False
+        if fault != 'release-during-read':
+            assert marker.read_bytes() == b'removing\n'
+        if fault == 'execution':
+            raise removal.guest.GuestError('fixture:execution-not-denied')
+        if fault == 'release-during-execution':
+            marker.unlink()
+    monkeypatch.setattr(removal, 'observe_launch', launch)
+    def extensions(uid):
+        if fault == 'release-during-read':
+            marker.unlink()
+        return [] if fault == 'extensions' else ['extension']
+    monkeypatch.setattr(removal, 'extension_lists', extensions)
+    record = Mock()
+    def observe():
+        removal.observe_rpm_reinstall({'accounts': {'child': 41001}},
+            {'policy': 'policy', 'extensions': ['extension']},
+            {'/etc/fapolicyd/rules.d/owned.rules': b'restored'}, record)
+    if fault:
+        with pytest.raises((removal.guest.GuestError, RuntimeError, KeyboardInterrupt)) as caught:
+            observe()
+        if fault in ('command', 'cancel'):
+            assert caught.value is failure
+        record.assert_not_called()
+    else:
+        observe()
+        assert record.call_args.args[0] == 'onpc.rpm-posterase.restored-before-release'
+    assert events == ([] if fault == 'guard' else ['install', 'joined'])
+    if fault != 'guard':
+        assert transaction.directory.parent == tmp_path
+        assert transaction.directory.name.startswith('rpm-reinstall-')

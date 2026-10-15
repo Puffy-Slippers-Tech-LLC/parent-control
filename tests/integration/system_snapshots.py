@@ -64,6 +64,7 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
         try:
             with lease:
                 with ledger.measure('preparation'):
+                    system.verify_history_target(selected, lease.capture)
                     if installed:
                         # prepare_case calls the shared preparation with overwrite=False
                         # and keeps the completed version snapshot across invocations.

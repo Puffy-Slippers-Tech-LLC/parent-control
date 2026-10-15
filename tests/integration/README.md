@@ -298,11 +298,29 @@ Fixture cleanup restores only that recorded conflict; full owned integration
 verification precedes reboot and successful native finalization. Family resume
 replays each unfinished history from its baseline without splicing phases.
 Fedora's account-finalization history uses normal reinstall, reboot and removal;
-the separate failed post-erase/repeated packaged-purge history remains additional
-coverage. These engineering faults do not replace customer UI acceptance.
+the separate failed post-erase/repeated packaged-purge history below retains its
+additional native transaction. These engineering faults do not replace customer UI acceptance.
 The finite `system_removal.py exercise-live-finalization VARIANT` diagnostic
 dispatch calls the same first recovery function in owned maintenance. It supplies
 no acceptance; finish maintenance cleanup before a fresh installed history.
+
+`removal::test_rpm_posterase_recovery` is Fedora-only. Its six fresh package
+prerequisites and two phases, `rpm-posterase` and
+`rpm-posterase-reinstalled-rebooted`, form one continuous baseline attempt.
+The packaged purge action must fail in real RPM post-erase cleanup with the
+payload erased, durable account/session denials and exact recovery records
+retained. A pinned self-bind on the kiosk home and a foreign-owned sentinel
+remain through normal `make install` recovery. A joined observer independently
+requires restored native enforcement and a denied child launch while the durable
+admission marker remains.
+Only then does the fixture resolve its exact conflict. A real reboot precedes
+the repeated packaged purge, owned account/home deletion, exact original PAM
+and authselect restoration, and ordinary-user checks under enforcing SELinux.
+An explicit selection on another package format refuses before VM work; broad
+selections omit this Fedora-only case there. Frozen inputs, failure stopping,
+whole-history replay and owned cleanup use the same focused controller contract.
+The finite `system_removal.py exercise-live-rpm-posterase` maintenance diagnostic
+calls the same first phase and supplies no acceptance credit.
 
 The five-phase selector's assertions cover cleared live restrictions/grants,
 removed payload

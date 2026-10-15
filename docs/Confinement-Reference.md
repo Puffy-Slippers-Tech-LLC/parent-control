@@ -2087,6 +2087,162 @@ and build-tool dependencies, so no additional `make build` is required.
 Only 4-6 is checked and its temporary brief removed; the master advances to 4-7.
 The remaining rows and Phase 4 exit gate retain their scope and status.
 
+### Phase 4 step 7 — independent native-boundary review — 2026-10-15
+
+Accepted on both declared targets after the proof repair, affected host checks,
+complete installed execution matrices and owned cleanup passed. No additional
+product escape was demonstrated. All three scoped reviewers finished and were
+joined before installed acceptance; the coordinator owns these conclusions.
+
+The coordinator and two independent read-only Sol High reviewers covered the
+original partial fix `3e0f2af6f9c49e9da0df816f08f39b5c2a2b56fc` against
+`697a4c3032ff208feccc04eac4ad0ba363864961`, then all subsequent native changes
+through `85fea6f188b27bdaeb2a9161274127192bed12e3`, plus this task's final repair.
+The unrelated launcher commit `2c5a9a728a4622afdea8a5c50c4d568fb4dc8419`
+adds no native/package-source changes in the reviewed scope. The starting checkout was
+clean, with no untracked inputs. Complete PAM/preparation/policy/fixed-launcher
+functions, their callers and shared state, packaging/PAM integration and the
+installed qualifiers were reviewed. The starting 348 package-source inputs
+matched the candidate recorded in
+[4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14)
+and [4-6](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15).
+
+Owned online maintenance recovered exact distro package/source identities,
+rather than treating older version banners or missing platform exports as proof:
+
+| Target | Native input | Exact source reviewed |
+| --- | --- | --- |
+| Ubuntu | GDM `50.1-0ubuntu0.1` | [Applied source `e2f419b82f9aeb9d89bffc7cbb41a70df0f01cb5`](https://git.launchpad.net/ubuntu/+source/gdm3/tree/?id=e2f419b82f9aeb9d89bffc7cbb41a70df0f01cb5) |
+| Ubuntu | systemd `259.5-0ubuntu3.4` | [Release source `95caf9c879bc37547b3da875cf332b18d684499f`](https://git.launchpad.net/~ubuntu-core-dev/ubuntu/+source/systemd/tree/?id=95caf9c879bc37547b3da875cf332b18d684499f), including the quilt patch inventory |
+| Ubuntu | PAM `1.7.0-5ubuntu3.2` | [Applied source `506b197bc10a9982dd2f0b6227af05c30aa28ff3`](https://git.launchpad.net/ubuntu/+source/pam/tree/?id=506b197bc10a9982dd2f0b6227af05c30aa28ff3) |
+| Fedora | GDM `1:50.3-1.fc44` | [Package source `90a5d2a2acdcbe53a40fbb69924effaa1de3f3f2`](https://src.fedoraproject.org/rpms/gdm/tree/90a5d2a2acdcbe53a40fbb69924effaa1de3f3f2), upstream `bb0f6ad980419def9fc6fb817d32ee22a65b0820` |
+| Fedora | systemd `259.9-1.fc44` | [Package source `29f902fb5a9fc3d5a5c1de5cfc1075dac7f309ec`](https://src.fedoraproject.org/rpms/systemd/tree/29f902fb5a9fc3d5a5c1de5cfc1075dac7f309ec), upstream `63c0371fa71ae32ba02f05f90658bc40aaa19168` |
+| Fedora | PAM `1.7.2-2.fc44` | [Package source `7ba14030d139755c964218afd37b92674fa20df6`](https://src.fedoraproject.org/rpms/pam/tree/7ba14030d139755c964218afd37b92674fa20df6), upstream `fe03a10115c082a8486ccbab7462139d7e4bb067` |
+
+The actual final GDM fork/exec inherits the gate; preference saving remains
+best-effort. Exact systemd sources retain parent account/establish/open callbacks,
+then the `sd-pam` fork and close/delete/end callbacks. Target lookup follows the
+private mount gate; reviewed vendor user-manager units specify no later MAC
+override. Ubuntu's PAM include/multiarch and cached-jump differences preserve
+the namespace/keyring guards and ordinary-user callbacks. Admission leases,
+root handoff, teardown, recursive read-only descriptor-pinned mounts, independent
+dentries, library replacement/reexec, fixed role transitions and native-helper
+inode/credential checks revealed no additional demonstrated product defect.
+
+Polkit `127` uses upstream `9e4894c969eecf26a3ba762f4f7a268aa0fb3e51`.
+Fedora `127-2.fc44.2` matches
+[package source `fccf087ae9d5a7d28474494689a8112225982cfc`](https://src.fedoraproject.org/rpms/polkit/tree/fccf087ae9d5a7d28474494689a8112225982cfc).
+Ubuntu `127-2ubuntu1.1`'s exact Debian archive was checked against SHA-256
+`2f8f11ca818b9726dd8ed9f8979e0a0211edb7b9ee1949b6fb5df697333da73d`;
+its complete two-patch series bounds cookie input and rejects an initial NUL.
+Neither changes PAM ordering, confinement or cancellation. The helper invokes
+authenticate/account/end, without session/namespace/setcred callbacks. The
+strict Fedora census still requires its exact mixed credentials, pinned native
+inode, private generation/namespace and live confined parent.
+
+Finite downstream review also covered Ubuntu/Fedora bubblewrap
+`0.11.1-1ubuntu0.3` / `0.12.0-1.fc44`, WirePlumber
+`0.5.13-1ubuntu1` / `0.5.18-1.fc44`, Glycin
+`2.1.5+ds-0ubuntu0.2` / `2.1.5-1.fc44`, WebKit
+`2.52.6-0ubuntu0.26.04.1` / `2.54.1-1.fc44` and native GStreamer scanner
+`1.28.2-1` / `1.28.8-1.fc44`. Ubuntu's extra vendored Glycin Snap patch can
+select a direct loader when `SNAP` is nonempty; fixed launchers clear it and
+the app/agent/service roles have no direct loader transition. WirePlumber's
+trusted custom Lua searcher is not a security sandbox; native module loading
+remains subject to the executable-mapping boundary. This review covers the
+finite native interfaces, not every optional codec/plugin.
+
+The corresponding immutable downstream package trees are:
+
+| Source | Ubuntu commit | Fedora commit |
+| --- | --- | --- |
+| bubblewrap | [4442b57f802c6a6199b1c3224295e44c6bb8afa5](https://git.launchpad.net/ubuntu/+source/bubblewrap/tree/?id=4442b57f802c6a6199b1c3224295e44c6bb8afa5) | [31490fc4d0b95d0bc47cac43ae923ea3e0989573](https://src.fedoraproject.org/rpms/bubblewrap/tree/31490fc4d0b95d0bc47cac43ae923ea3e0989573) |
+| WirePlumber | [42d6441cdf9f84263bccb29cf2d77747fc556c5a](https://git.launchpad.net/ubuntu/+source/wireplumber/tree/?id=42d6441cdf9f84263bccb29cf2d77747fc556c5a) | [b70cecc5256d6ad2f68569ab8942dd55408f4a71](https://src.fedoraproject.org/rpms/wireplumber/tree/b70cecc5256d6ad2f68569ab8942dd55408f4a71) |
+| Glycin | [a2ab4a19993adbe98d5fee70b1602456f9d20b8a](https://git.launchpad.net/ubuntu/+source/glycin/tree/?id=a2ab4a19993adbe98d5fee70b1602456f9d20b8a) | [9076db4478deaf7063d6ad61f85cc024a6b8b9d6](https://src.fedoraproject.org/rpms/glycin/tree/9076db4478deaf7063d6ad61f85cc024a6b8b9d6) |
+| WebKit | [37ad2589f9b06939ff0972990057ee80488d8d29](https://git.launchpad.net/ubuntu/+source/webkit2gtk/tree/?id=37ad2589f9b06939ff0972990057ee80488d8d29) | [5faa89c769398768d5e474a0188116e3d5161481](https://src.fedoraproject.org/rpms/webkitgtk/tree/5faa89c769398768d5e474a0188116e3d5161481) |
+| GStreamer core | [12662b7e6d0c2af6d4da61543274ea7fc3d6a881](https://git.launchpad.net/ubuntu/+source/gstreamer1.0/tree/?id=12662b7e6d0c2af6d4da61543274ea7fc3d6a881), unpatched import | [a06f0c5e348e73c362290935d731e5066c3b898f](https://src.fedoraproject.org/rpms/gstreamer1/tree/a06f0c5e348e73c362290935d731e5066c3b898f) |
+| GStreamer base | [00c396a916bea1dd1a8ca3cefd9869ebe4efa569](https://git.launchpad.net/ubuntu/+source/gst-plugins-base1.0/tree/?id=00c396a916bea1dd1a8ca3cefd9869ebe4efa569) | [c39d522b5c1f3b7856a670ec60432120cb17b60c](https://src.fedoraproject.org/rpms/gstreamer1-plugins-base/tree/c39d522b5c1f3b7856a670ec60432120cb17b60c) |
+
+One demonstrated **harness proof defect**, rather than a demonstrated product
+escape, required repair: the six bubblewrap substitution negatives accepted
+any nonzero status without the canary token. Native startup/setup failures could
+therefore satisfy a negative. The repair preserves all six attacks and controls,
+captures the explicit native child identity and bounded native diagnostics, and
+requires independently observed enforcement for each attack. Source review
+confirmed both exact bubblewrap versions support `--info-fd` and `--as-pid-1`.
+Ubuntu now requires exact child/profile/path mount denials for bind/data and
+audited `mknod`/create denials for tmpfs-file. Fedora combines the exact native
+final-exec error/path with its fresh child-specific enforcing execute AVC and
+mode-specific object identity; a missing PATH record is not replaced by a broad
+label exception. Both complete six-attack maintenance preflights passed; their
+managers stopped, and Ubuntu's temporary audit instrumentation was restored.
+Those probes supply no acceptance credit. The complete installed execution
+matrices below passed against the final candidate.
+
+The final affected host selection passed **532/532**, report
+`output/test-runs/host/reports/20261015T155512Z-d48c111b/report.md`, with a verified
+identical retained export at
+`output/test-runs/host/exports/onpc-artifact-export-2cr_cbmy/report.md`.
+The new regressions use private fixtures, bounded pipes and process-local mocks;
+the existing compatible resource classifications remain applicable. The repair
+adds auditing to the two existing AppArmor protected-code write denials,
+preserving their denied permissions. `make build` passed after that final policy
+edit, producing both package formats. Coverage was regenerated with the 78
+additional parameterized checks.
+
+Final execution-plan/coverage metadata checks passed **125/125**, report
+`output/test-runs/host/reports/20261015T155346Z-4ba04db9/report.md`.
+All 102 links in the four changed Markdown documents resolve, and
+`git diff --check` passed. Unrelated launcher edits remain outside this task.
+
+The maintained `enforcement::test_kiosk_execution_confinement` selection passed
+on both targets in one dual-target invocation. Each retained JUnit contains the
+one expected case with no failures, errors or skips. Both raw results report
+product, infrastructure, collection and cleanup passed, two successful baseline
+checks, no qualification failure and `cleanup_phase=complete`:
+
+| Target | Retained report | Complete raw allocation | Verified package SHA-256 |
+| --- | --- | --- | --- |
+| `onpc-Ubuntu26.04` | `output/test-runs/host/reports/20261015T154132Z-fc4368ee/report.md` | `output/test-runs/privileged/allocations/onpc-system-h1cymw8j` | `a48ac2797a5ad44915de0611f0a168f4e4e351f6d59d093375bf0a13f987ec09` |
+| `onpc-Fedora44` | `output/test-runs/host/reports/20261015T154132Z-8897d45a/report.md` | `output/test-runs/privileged/allocations/onpc-system-qbf_mmdr` | `9008b021eab03778e71eae6140bda33cc795590d9959703b61ce97053c6a56d8` |
+
+Each allocation retains `evidence/result.json`, `evidence/guest/enforcement.xml`
+and `input/selected-inputs.json`. The queue result is
+`output/test-runs/host/allocations/onpc-vm-queue-l2py9ljo/results.json`.
+Prepared inputs are retained at host allocations `onpc-test-artifacts-x2_2a9cc`
+(Ubuntu) and `onpc-test-artifacts-ewz5nvmd` (Fedora). Both packages bind the same
+348-file source digest
+`d295c7258e1060afc0d0996510e1637c37167652edc54be1c411490795f758ef`
+(package-source revision `8150f34484711049be9edad68107a410a13b2883`, with the
+final audit-policy bytes included), fixture
+`7559a7c6ebee0078c29f9dcb2f15c684ad41f52c1df226c82bbdb996ad8c119b`
+and selected-input digest
+`f6031f5ffd6c1e816e239d44d786a6968defaa0958b53e3540b07c864c41c720`.
+All 27 guest bindings (25 distinct checkout files) and both package hashes were
+independently compared with the current inputs. Target baseline provenance is
+Ubuntu `5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93`
+and Fedora `fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c`.
+
+The retained native inventories contain 29 package/47 file identities on Ubuntu
+and 30 package/49 file identities on Fedora, including the versioned systemd
+libraries. They match the reviewed distro sources above. All six substitution
+negatives per target retain their separate untruncated native diagnostics and
+fresh matching child-specific enforcement events. Allowed native and canary
+controls passed first. The matrices also passed all nine final-exec denials,
+native credential establish/close/delete/end and post-parent-exit denials,
+private executable/library/plugin replacement and reexec, stale-manager refusal,
+vendor drift and missing/stale/unenforced-policy refusal/recovery. Fedora AVCs
+remain enforcing; Ubuntu's effective unit override assertions passed.
+
+Manual maintenance sessions completed serial baseline restoration before the
+formal runs. Formal cleanup completed on both targets, and independent final
+status reads confirmed both powered off. Raw results, manifests and JUnits were
+rechecked through the maintained artifact reader after acceptance. Only 4-7 is
+checked and its temporary brief removed; the master advances to 4-8. The ledger
+below preserves the other affected complete histories for 4-9/4-10; this native
+matrix does not replace platform/shared-namespace, real-session census or public
+kiosk journey acceptance.
+
 ## Validation allocation and evidence ledger
 
 This section allocates remaining confinement validation. The
@@ -2190,11 +2346,13 @@ row alone never establishes current applicability. Keep per-target decisions exp
 
 | Assertion scope | Target | Recorded evidence | Current reuse decision / follow-up owner |
 | --- | --- | --- | --- |
-| Fresh activation/reboot, account classification, native boundary and GDM readiness | Ubuntu | [4-5e prerequisites](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14), covering the corresponding earlier activation assertions | Reuse verified for the 4-5e candidate: exact matching bindings and retained complete prerequisites in all seven histories, both baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | [4-6 prerequisites](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), covering the corresponding earlier activation assertions | Reuse verified for the 4-6 candidate: matching current bindings, enforcing SELinux, six complete prerequisites, both GDM observations, baseline checks and cleanup passed. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Ubuntu | Historical [4-5e prerequisites](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14), covering the corresponding earlier activation assertions | Repeat required in 4-10: 4-7 changed package policy and the selected native helper; 4-6 also changed selected controller/fixture inputs. The retained 4-5e prerequisites passed for their historical candidate. 4-9 maps complete matching activation/GDM prerequisite coverage; the 4-7 standalone matrix supplies no fresh-install/reboot history. |
+| Fresh activation/reboot, account classification, native boundary and GDM readiness | Fedora | Historical [4-6 prerequisites](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), covering the corresponding earlier activation assertions | Repeat required in 4-10: 4-7 changed package policy and the selected native helper. The retained six prerequisites, GDM observations and cleanup passed with enforcing SELinux for the 4-6 candidate. 4-9 maps complete matching activation/GDM prerequisite coverage; the 4-7 standalone matrix supplies no fresh-install/reboot history. |
 | Complete successful removal/reinstall/purge, exact PAM restoration and held-admission refusal | Ubuntu | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-3](#phase-4-step-3--ubuntu-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Historical [4-5a](#phase-4-step-5a--in-flight-admission-refusal--2026-10-14), superseding [4-4](#phase-4-step-4--fedora-removal-history--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and 4-5a raw allocation expired. No full-history reuse or replacement by focused rollback evidence. 4-9 retains this follow-up. |
-| Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Applicable [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Verification pending per target and assertion; 4-9 maps final applicability, 4-10 keeps its required final matrix/census gate and repeats other invalidated scope. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Reuse verified for the exact 4-7 package, helper, fixture and baseline identities: complete expected JUnit, native inventory, six direct enforcement witnesses and all outcome/cleanup checks passed. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Reuse verified for the exact 4-7 package, helper, fixture and baseline identities: complete expected JUnit, native inventory, six direct enforcing AVC witnesses and all outcome/cleanup checks passed. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | Historical [Phase 3 qualifications](#qualification-and-reusable-evidence), including the complete [shared-integration/namespace result](#step-8c-qualification--2026-10-13) | Repeat required for missing/invalidated scope in 4-10: the six Phase 3 execution/platform/shared raw allocations and both platform exports are absent. The incomplete Ubuntu shared JUnit export lacked complete input/native provenance and also expired under bounded export rotation. The current 4-7 matrix covers only its named native assertions; 4-9 maps uncovered admission/platform/shared/ordinary controls and 4-10 retains its final matrix/census gate. |
 | Approved/denied/cancelled kiosk journeys and About/Preferences/error-report/service restrictions | Ubuntu and Fedora, separately | [6a](#step-6a-qualification--2026-10-13), [6b](#step-6b-qualification--2026-10-13), [6c](#step-6c-qualification--2026-10-13), [7a](#step-7a-qualification--2026-10-13), [7b](#step-7b-qualification--2026-10-13), [7c](#step-7c-qualification--2026-10-13) | Verification pending per target/journey; only affected, invalidated or missing proof runs again at its required owner, including 4-10. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Ubuntu | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
 | Native aborted cleanup, guarded enforcement restoration and owned reboot/retry/finalization | Fedora | Historical [4-5b](#phase-4-step-5b--aborted-cleanup-and-rollback--2026-10-14) | Repeat required in 4-10: package configure and selected helper inputs changed, and the 4-5b raw allocation expired. No complete 4-5b reuse is claimed from another fault variant. 4-9 retains this follow-up. |
@@ -2202,9 +2360,9 @@ row alone never establishes current applicability. Keep per-target decisions exp
 | Interrupted publication/MAC unload/account finalization, payload-erased account/session denials and owned reboot/retry | Fedora | Historical [4-5c](#phase-4-step-5c--interrupted-finalization-and-durable-admission-barriers--2026-10-14) | Repeat required in 4-10: selected helper/controller inputs changed and the MAC-unload raw allocation expired. Preserve all three complete histories and their enforcing-SELinux assertions; 4-9 retains this follow-up. |
 | PAM/link/confinement-record ownership refusal, preservation and resolved reboot/retry/finalization | Ubuntu | Historical [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14) | Repeat required in 4-10: selected shared helper/controller inputs changed in 4-5e. Preserve all seven complete histories; no identity/root variant replaces their refusal proof. 4-9 retains this follow-up. |
 | PAM/link/confinement-record ownership refusal, preservation and resolved reboot/retry/finalization | Fedora | Historical [4-5d](#phase-4-step-5d--pam-and-confinement-record-ownership-refusal--2026-10-14) | Repeat required in 4-10: selected shared helper/controller inputs changed in 4-5e. Preserve all seven complete histories and enforcing SELinux; no identity/root variant replaces their refusal proof. 4-9 retains this follow-up. |
-| Kiosk identity/home/state-root ownership refusal, preservation and resolved reboot/retry/finalization | Ubuntu | Historical [4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14) | Current-input verification pending in 4-9: 4-6 changed shared module/controller bytes and its prepared fixture binding differs. Preserve all seven complete histories and their assertions; 4-10 retains affected complete repeats. No replacement by the distinct 4-6 history. |
-| Kiosk identity/home/state-root ownership refusal, preservation and resolved reboot/retry/finalization | Fedora | Historical [4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14) | Current-input verification pending in 4-9: 4-6 changed shared module/controller bytes and its prepared fixture binding differs. Preserve all seven complete histories, their assertions and enforcing SELinux; 4-10 retains affected complete repeats. No replacement by the distinct 4-6 history. |
-| Failed native RPM post-erase/reinstall/conflict/reboot/repeated-purge history | Fedora | [4-6](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15) | Reuse verified: eight exact executions, four complete JUnits, current input bindings and cleanup passed with enforcing SELinux. Final applicability remains with 4-9 and affected repeats with 4-10. |
+| Kiosk identity/home/state-root ownership refusal, preservation and resolved reboot/retry/finalization | Ubuntu | Historical [4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14), retained raw `onpc-system-6y3ps1zs` | Repeat required in 4-10: 4-6 changed four selected module/controller files and the fixture; 4-7 changed the package policy and selected native helper. The retained historical result passed all 56 executions and cleanup, but no longer matches. Preserve all seven complete histories; 4-9 retains this follow-up. |
+| Kiosk identity/home/state-root ownership refusal, preservation and resolved reboot/retry/finalization | Fedora | Historical [4-5e](#phase-4-step-5e--kiosk-identity-and-filesystem-ownership-refusal--2026-10-14) | Repeat required in 4-10: selected module/controller, fixture, package policy and native-helper inputs changed, and raw `onpc-system-pu77ev1u` is absent. Preserve all seven complete histories and enforcing SELinux; 4-9 retains this follow-up. No replacement by the distinct 4-6 history. |
+| Failed native RPM post-erase/reinstall/conflict/reboot/repeated-purge history | Fedora | Historical [4-6](#phase-4-step-6--fedora-post-erase-recovery--2026-10-15), retained raw `onpc-system-axjt6axc` | Repeat required in 4-10: 4-7 changed package policy and the selected native helper. The historical eight exact executions, four complete JUnits and cleanup remain readable and passed with enforcing SELinux, but do not match the final candidate. 4-9 retains this complete-history follow-up. |
 
 Changes outside a result's required inputs do not automatically invalidate it.
 Conversely, equal package bytes do not excuse changed selected helpers, fixtures,

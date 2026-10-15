@@ -512,8 +512,8 @@ def apparmor(entries):
             # permitted; this is never an executable-path placeholder.
             lines += ['  mount options=(rw, rbind) /bindfile?????? -> /newroot/.flatpak-info,',
                       '  mount options in (ro, silent, remount, bind, nosuid, nodev, noexec, relatime, noatime, nodiratime) -> /newroot/**,',
-                      '  deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,',
-                      '  deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,']
+                      '  audit deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,',
+                      '  audit deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,']
         lines += ['}', '']
     return '\n'.join(lines)
 

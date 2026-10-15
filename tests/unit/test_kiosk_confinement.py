@@ -1944,7 +1944,7 @@ def test_scanner_binds_only_the_started_manager(census_model, monkeypatch, state
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
 @pytest.mark.parametrize('fault', [None, 'label', 'credentials', 'namespace', 'generation',
-                                  'profile-entry', 'proof-write'])
+                                  'profile-entry', 'proof-write', 'initial-exec'])
 def test_bwrap_probe_requires_real_app_boundary_before_arming_or_execution(
         census_model, monkeypatch, backend, fault):
     helper = census_model
@@ -1971,7 +1971,11 @@ def test_bwrap_probe_requires_real_app_boundary_before_arming_or_execution(
     inherited = []
     monkeypatch.setattr(helper.os, 'set_inheritable', lambda fd, value: inherited.append((fd, value)))
     proofs = []
+    diagnostics = []
     def write(fd, data):
+        if fd == 2:
+            diagnostics.append(json.loads(data))
+            return len(data)
         assert fd == 53
         proofs.append(json.loads(data))
         return len(data) - int(fault == 'proof-write')
@@ -1979,21 +1983,199 @@ def test_bwrap_probe_requires_real_app_boundary_before_arming_or_execution(
     executed = []
     def execute(path, arguments, environment):
         executed.append((path, arguments, environment))
+        if fault == 'initial-exec':
+            raise PermissionError(13, 'private denied fixture')
         raise RuntimeError('exec captured')
     monkeypatch.setattr(helper.os, 'execve', execute)
-    failed = fault is not None and not (fault == 'profile-entry' and backend == 'selinux')
+    monkeypatch.setattr(helper.os, '_exit', Mock(side_effect=RuntimeError('exit captured')))
+    failed = fault not in (None, 'initial-exec') and not (fault == 'profile-entry' and backend == 'selinux')
     if failed:
         with pytest.raises(helper.guest.GuestError, match='kiosk-bwrap:'):
             helper.bwrap_probe_child(request)
         assert not executed
     else:
-        with pytest.raises(RuntimeError, match='exec captured'):
+        with pytest.raises(RuntimeError, match='exit captured' if fault == 'initial-exec' else 'exec captured'):
             helper.bwrap_probe_child(request)
         assert credentials == [('groups', []), ('gid', 1002), ('uid', 1002)]
         assert proofs == [dict(uid=1002, namespace=42, generation=generation, role=expected)]
         assert inherited == [(53, False)]
         assert executed == [('/usr/bin/bwrap', request['arguments'], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})]
+        assert diagnostics == ([{'bwrap_setup': 'initial-exec', 'errno': 13}]
+                               if fault == 'initial-exec' else [])
     assert change.call_count == int(backend == 'apparmor')
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('fault', [None, 'pid', 'role', 'operation', 'target', 'permissive',
+                                  'old', 'old-time', 'missing', 'setup', 'setup-stderr',
+                                  'unsupported-flags', 'success', 'token'])
+def test_bwrap_attack_requires_fresh_exact_enforcing_kernel_denial(
+        census_model, monkeypatch, backend, fault):
+    helper = census_model
+    target = '/usr/bin/xdg-dbus-proxy'
+    if backend == 'apparmor':
+        line = ('audit(1792000000.123:42): apparmor="DENIED" operation="mount" '
+                'profile="onpc-kiosk-bwrap" name="/newroot' + target + '" pid=4200 error=-13')
+    else:
+        line = ('audit(1792000000.123:42): avc:  denied  { execute } for pid=4200 '
+                'name="bwrap-canary" dev="tmpfs" ino=43 scontext=system_u:system_r:onpc_kiosk_bwrap_t:s0 '
+                'tcontext=unconfined_u:object_r:user_tmp_t:s0 tclass=file permissive=0')
+    changes = {'pid': ('pid=4200', 'pid=42001'),
+               'role': ('onpc-kiosk-bwrap', 'onpc-kiosk-app') if backend == 'apparmor' else
+                       ('onpc_kiosk_bwrap_t', 'onpc_kiosk_app_t'),
+               'operation': ('operation="mount"', 'operation="open"') if backend == 'apparmor' else
+                            ('{ execute }', '{ read }'),
+               'target': (target, '/usr/bin/foreign') if backend == 'apparmor' else
+                         ('name="bwrap-canary"', 'name="foreign"'),
+               'permissive': ('apparmor="DENIED"', 'apparmor="ALLOWED"') if backend == 'apparmor' else
+                             ('permissive=0', 'permissive=1')}
+    if fault in changes:
+        line = line.replace(*changes[fault])
+    if fault == 'old-time':
+        line = line.replace('1792000000.123', '1791999999.999')
+    before = {line} if fault == 'old' else set()
+    audit = Mock(return_value='' if fault == 'missing' else line)
+    def wait(predicate, category):
+        helper.guest.require(predicate(), category)
+    monkeypatch.setitem(sys.modules, 'system_kiosk_platform',
+                        SimpleNamespace(kernel_audit=audit, wait_for=wait))
+    output = (b'{"bwrap_setup":"initial-exec","errno":13}' if fault == 'setup' else
+              b'bwrap: Unknown option --as-pid-1' if fault == 'unsupported-flags' else
+              b'canary' if fault == 'token' else b'bwrap: permission denied')
+    info = b'' if fault == 'unsupported-flags' else b'{"child-pid":4200,"pid-namespace":1234}'
+    records = []
+    def exercise():
+        stderr = (b'{"bwrap_setup":"initial-exec","errno":13}' if fault == 'setup-stderr' else
+                  ('bwrap: execvp ' + target + ': Permission denied\n').encode() if backend == 'selinux' else b'')
+        helper.require_bwrap_denial(0 if fault == 'success' else 1, output, info,
+            b'canary', backend, target, before, 1792000000.0, lambda *item: records.append(item),
+            stderr=stderr, source_inode=43)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bwrap:'):
+            exercise()
+        assert not records
+    else:
+        exercise()
+        assert records == [('onpc.kiosk.bwrap.kernel-denial', line)]
+
+
+@pytest.mark.parametrize('mode,name,context', [
+    ('bind', 'bwrap-canary', 'unconfined_u:object_r:user_tmp_t:s0'),
+    ('data', None, 'system_u:object_r:tmpfs_t:s0'),
+    ('tmpfs-file', 'gst-plugin-scanner', 'system_u:object_r:tmpfs_t:s0'),
+])
+@pytest.mark.parametrize('fault', [None, 'name', 'context', 'device', 'inode', 'native-target', 'native-stage'])
+def test_bwrap_selinux_correlates_native_target_with_each_observed_object_style(
+        census_model, monkeypatch, mode, name, context, fault):
+    helper = census_model
+    target = '/usr/libexec/gstreamer-1.0/gst-plugin-scanner'
+    # Only bind preserves the caller's measured inode. The other modes create
+    # independent inodes: no equality to the source is claimed or required.
+    inode = 43 if mode == 'bind' else 987
+    object_name = '' if name is None else 'name="' + name + '" '
+    line = ('audit(1792000000.123:42): avc:  denied  { execute } for pid=4200 ' + object_name +
+            'dev="tmpfs" ino=' + str(inode) + ' scontext=system_u:system_r:onpc_kiosk_bwrap_t:s0 '
+            'tcontext=' + context + ' tclass=file permissive=0')
+    if fault == 'name':
+        line = line.replace(object_name, 'name="foreign" ', 1) if object_name else line + ' name="foreign"'
+    elif fault == 'context':
+        line = line.replace('tcontext=' + context, 'tcontext=system_u:object_r:bin_t:s0')
+    elif fault == 'device':
+        line = line.replace('dev="tmpfs"', 'dev="vda1"')
+    elif fault == 'inode':
+        line = line.replace('ino=' + str(inode), 'ino=44' if mode == 'bind' else 'ino=0')
+    stderr = ('bwrap: execvp ' + target + ': Permission denied\n').encode()
+    if fault == 'native-target':
+        stderr = stderr.replace(target.encode(), b'/usr/bin/foreign')
+    elif fault == 'native-stage':
+        stderr = b'bwrap: Failed to mount: Permission denied\n'
+    monkeypatch.setitem(sys.modules, 'system_kiosk_platform', SimpleNamespace(
+        kernel_audit=lambda backend: line,
+        wait_for=lambda predicate, category: helper.guest.require(predicate(), category)))
+    records = []
+    def exercise():
+        helper.require_bwrap_denial(1, b'', b'{"child-pid":4200}', b'canary', 'selinux',
+            target, set(), 1792000000.0, lambda *item: records.append(item),
+            stderr=stderr, mode=mode, source_inode=43)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bwrap:'):
+            exercise()
+        assert not records
+    else:
+        exercise()
+        assert records == [('onpc.kiosk.bwrap.kernel-denial', line)]
+
+
+@pytest.mark.parametrize('fault', [None, 'operation', 'target', 'mask', 'owner', 'native-stage'])
+def test_bwrap_apparmor_tmpfs_file_requires_observed_owned_create_denial(
+        census_model, monkeypatch, fault):
+    helper = census_model
+    target = '/usr/bin/xdg-dbus-proxy'
+    line = ('audit(1792000000.123:42): apparmor="DENIED" operation="mknod" class="file" '
+            'profile="onpc-kiosk-bwrap" name="/newroot' + target + '" pid=4200 '
+            'requested_mask="c" denied_mask="c" fsuid=1002 ouid=1002')
+    changes = {'operation': ('operation="mknod"', 'operation="open"'),
+               'target': (target, '/usr/bin/foreign'),
+               'mask': ('denied_mask="c"', 'denied_mask="w"'),
+               'owner': ('ouid=1002', 'ouid=0')}
+    if fault in changes:
+        line = line.replace(*changes[fault])
+    monkeypatch.setitem(sys.modules, 'system_kiosk_platform', SimpleNamespace(
+        kernel_audit=lambda backend: line,
+        wait_for=lambda predicate, category: helper.guest.require(predicate(), category)))
+    records = []
+    stderr = ("bwrap: Can't create file " + target + ': Permission denied\n').encode()
+    if fault == 'native-stage':
+        stderr = ('bwrap: execvp ' + target + ': Permission denied\n').encode()
+    def exercise():
+        helper.require_bwrap_denial(1, b'', b'{"child-pid":4200}', b'canary', 'apparmor',
+            target, set(), 1792000000.0, lambda *item: records.append(item),
+            stderr=stderr, mode='tmpfs-file', uid=1002)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bwrap:'):
+            exercise()
+        assert not records
+    else:
+        exercise()
+        assert records == [('onpc.kiosk.bwrap.kernel-denial', line)]
+
+
+@pytest.mark.parametrize('data', [b'', b'not-json', b'{}', b'[]', b'{"child-pid":true}',
+                                 b'{"child-pid":1}', b'{"child-pid":"4200"}', b'x' * 4097])
+def test_bwrap_native_info_requires_real_host_child_pid(census_model, data):
+    with pytest.raises(census_model.guest.GuestError, match='kiosk-bwrap:native-child-info'):
+        census_model.bwrap_child_pid(data)
+
+
+def test_bwrap_diagnostics_keep_setup_stderr_and_bound_each_channel(census_model):
+    records = []
+    census_model.record_bwrap_probe(lambda *item: records.append(item), 'proxy-bind', 126,
+        b'x' * 4097, b'{"child-pid":4200}', b'{"bwrap_setup":"initial-exec","errno":13}')
+    assert records[0][0] == 'onpc.kiosk.bwrap.proxy-bind.probe'
+    assert json.loads(records[0][1]) == {
+        'status': 126, 'stdout': 'x' * 4096, 'native_info': '{"child-pid":4200}',
+        'stderr': '{"bwrap_setup":"initial-exec","errno":13}', 'truncated': True}
+
+
+@pytest.mark.parametrize('backend,row,expected', [
+    ('apparmor', 'gdm3\t50.1-0ubuntu0.1\tamd64\tgdm3\t50.1-0ubuntu0.1',
+     {'package': 'gdm3', 'version': '50.1-0ubuntu0.1', 'architecture': 'amd64',
+      'source_package': 'gdm3', 'source_version': '50.1-0ubuntu0.1'}),
+    ('selinux', 'pam\t0:1.7.2-2.fc44\tx86_64\tpam-1.7.2-2.fc44.src.rpm',
+     {'package': 'pam', 'version': '0:1.7.2-2.fc44', 'architecture': 'x86_64',
+      'source_rpm': 'pam-1.7.2-2.fc44.src.rpm'}),
+])
+def test_native_package_inventory_preserves_exact_binary_and_source_builds(
+        census_model, backend, row, expected):
+    assert census_model.native_package_rows(backend, row) == [expected]
+
+
+@pytest.mark.parametrize('rows', ['', 'pam\t1.7\tx86_64', 'pam\t1.7\tx86_64\t',
+                                  'pam\t1.7\tx86_64\tbad source',
+                                  'pam\t1.7\tx86_64\tpam.src.rpm\npam\t1.7\tx86_64\tpam.src.rpm'])
+def test_native_package_inventory_refuses_missing_or_ambiguous_source_identity(census_model, rows):
+    with pytest.raises(census_model.guest.GuestError, match='kiosk-native:package-identity'):
+        census_model.native_package_rows('selinux', rows)
 
 
 def test_preparation_identity_is_stable_across_same_byte_reinstall(tmp_path, monkeypatch):
@@ -2677,8 +2859,9 @@ def test_native_bubblewrap_requires_the_pinned_launcher(distribution):
         assert (f'{policy.PREFIX}bwrap ix,' in profile) == bootstrap
         assert ('mount options=(rw, rbind) /oldroot/usr/bin/ -> /newroot/usr/bin/,' in profile) == bootstrap
         if bootstrap:
-            assert 'deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,' in profile
-            assert 'deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,' in profile
+            assert [line.strip() for line in profile.splitlines() if 'audit deny ' in line] == [
+                'audit deny /{,tmp/}newroot/{usr,lib,lib64,bin,sbin}/**[^/] wkl,',
+                'audit deny /{usr,lib,lib64,bin,sbin}/**[^/] wkl,']
             assert '/newroot/usr/bin/xdg-dbus-proxy w' not in profile
         aliases = [line.strip() for line in profile.splitlines()
                    if 'mount options=(rw, rbind) /oldroot/usr/lib' in line and

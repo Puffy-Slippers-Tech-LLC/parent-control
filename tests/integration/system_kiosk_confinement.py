@@ -925,8 +925,92 @@ def bwrap_probe_child(request):
     guest.require(os.write(request['proof_fd'], data) == len(data), 'kiosk-bwrap:proof-write')
     try:
         os.execve('/usr/bin/bwrap', request['arguments'], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
-    except OSError:
+    except OSError as error:
+        # Failure to enter native bubblewrap is a broken probe, never evidence
+        # about the later mount/execute attack.
+        os.write(2, (json.dumps({'bwrap_setup': 'initial-exec', 'errno': error.errno}) + '\n').encode())
         os._exit(126)
+
+
+def bwrap_child_pid(data):
+    guest.require(len(data) <= 4096, 'kiosk-bwrap:native-child-info-size')
+    try:
+        info = json.loads(data)
+    except (ValueError, UnicodeDecodeError):
+        info = None
+    guest.require(isinstance(info, dict) and type(info.get('child-pid')) is int and
+                  info['child-pid'] > 1, 'kiosk-bwrap:native-child-info-missing')
+    return info['child-pid']
+
+
+def bwrap_audit_denial(line, backend, pid, target, *, mode='bind', source_inode=None, uid=None):
+    """Match the attack stage, exact native child and enforcing sandbox role."""
+    if not re.search(r'\bpid=' + re.escape(str(pid)) + r'\b', line):
+        return False
+    if backend == 'apparmor':
+        fields = dict(re.findall(r'\b(apparmor|operation|profile|name)="([^"]*)"', line))
+        if mode == 'tmpfs-file':
+            owners = dict(re.findall(r'\b(fsuid|ouid)=([0-9]+)\b', line))
+            return (fields == {'apparmor': 'DENIED', 'operation': 'mknod',
+                               'profile': 'onpc-kiosk-bwrap', 'name': '/newroot' + target} and
+                    'class="file"' in line and 'requested_mask="c"' in line and 'denied_mask="c"' in line and
+                    type(uid) is int and owners == {'fsuid': str(uid), 'ouid': str(uid)})
+        return fields == {'apparmor': 'DENIED', 'operation': 'mount',
+                          'profile': 'onpc-kiosk-bwrap', 'name': '/newroot' + target} and bool(
+                              re.search(r'\berror=-13\b', line))
+    if backend != 'selinux' or mode not in ('bind', 'data', 'tmpfs-file'):
+        return False
+    fields = dict(re.findall(r'\b(scontext|tcontext|tclass|permissive|ino)=([^\s]+)', line))
+    objects = dict(re.findall(r'\b(name|dev|path)="([^"]*)"', line))
+    expected_name = ('bwrap-canary' if mode == 'bind' else
+                     Path(target).name if mode == 'tmpfs-file' else None)
+    expected_context = ('unconfined_u:object_r:user_tmp_t:s0' if mode == 'bind'
+                        else 'system_u:object_r:tmpfs_t:s0')
+    inode = fields.pop('ino', '')
+    return ('avc:  denied' in line and re.search(r'\{\s*execute\s*\}', line) is not None and
+            re.fullmatch(r'[1-9][0-9]*', inode) is not None and
+            (mode != 'bind' or type(source_inode) is int and int(inode) == source_inode) and
+            objects.get('name') == expected_name and objects.get('dev') == 'tmpfs' and
+            ('path' not in objects or objects['path'] == target) and
+            fields == {'scontext': 'system_u:system_r:onpc_kiosk_bwrap_t:s0',
+                       'tcontext': expected_context, 'tclass': 'file', 'permissive': '0'})
+
+
+def record_bwrap_probe(record, name, status, output, info, stderr):
+    record('onpc.kiosk.bwrap.' + name + '.probe', json.dumps({
+        'status': status, 'stdout': output[:4096].decode(errors='replace'),
+        'stderr': stderr[:4096].decode(errors='replace'),
+        'native_info': info[:4096].decode(errors='replace'),
+        'truncated': any(len(value) > 4096 for value in (output, info, stderr)),
+    }, sort_keys=True))
+
+
+def require_bwrap_denial(status, output, info, token, backend, target, before, started, record, *,
+                         stderr=b'', mode='bind', source_inode=None, uid=None):
+    from system_kiosk_platform import kernel_audit, wait_for
+    guest.require(b'bwrap_setup' not in output + stderr, 'kiosk-bwrap:probe-setup-failed')
+    pid = bwrap_child_pid(info)
+    guest.require(status != 0 and token not in output, 'kiosk-bwrap:user-bytes-executed')
+    if backend == 'selinux':
+        # bubblewrap has one final exec. Its exact target/stage binds the AVC
+        # object to this request even when auditd reports no PATH record.
+        guest.require(stderr == ('bwrap: execvp ' + target + ': Permission denied\n').encode(),
+                      'kiosk-bwrap:native-exec-denial-missing')
+    elif mode == 'tmpfs-file':
+        guest.require(stderr == ("bwrap: Can't create file " + target + ': Permission denied\n').encode(),
+                      'kiosk-bwrap:native-create-denial-missing')
+
+    def observed():
+        for line in kernel_audit(backend).splitlines():
+            event = re.search(r'\baudit\(([0-9]+(?:\.[0-9]+)?):[0-9]+\)', line)
+            if (line not in before and event and float(event[1]) >= started and
+                    bwrap_audit_denial(line, backend, pid, target, mode=mode,
+                                       source_inode=source_inode, uid=uid)):
+                record('onpc.kiosk.bwrap.kernel-denial', line)
+                return True
+        return False
+
+    wait_for(observed, 'kiosk-bwrap:kernel-denial-not-observed')
 
 
 def verify_bwrap_inputs(account, directory, record):
@@ -963,26 +1047,45 @@ def verify_bwrap_inputs(account, directory, record):
             caller.chmod(0o700)
             guest.run(['/usr/bin/chcon', '-t', 'onpc_kiosk_python_exec_t', str(caller)])
 
-        def probe(arguments, *, input_fd=None, control=False):
+        def probe(arguments, name, *, input_fd=None, control=False):
             output_read, output_write = os.pipe2(os.O_CLOEXEC)
             try:
-                proof_read, proof_write = os.pipe2(os.O_CLOEXEC)
+                info_read, info_write = os.pipe2(os.O_CLOEXEC)
             except BaseException:
                 os.close(output_read)
                 os.close(output_write)
                 raise
             try:
+                proof_read, proof_write = os.pipe2(os.O_CLOEXEC)
+            except BaseException:
+                os.close(output_read)
+                os.close(output_write)
+                os.close(info_read)
+                os.close(info_write)
+                raise
+            try:
+                error_read, error_write = os.pipe2(os.O_CLOEXEC)
+            except BaseException:
+                for fd in (output_read, output_write, proof_read, proof_write, info_read, info_write):
+                    os.close(fd)
+                raise
+            try:
                 child = os.fork()
             except BaseException:
-                for fd in (output_read, output_write, proof_read, proof_write):
+                for fd in (output_read, output_write, proof_read, proof_write, info_read, info_write,
+                           error_read, error_write):
                     os.close(fd)
                 raise
             if child == 0:
                 os.close(output_read)
                 os.close(proof_read)
+                os.close(info_read)
+                os.close(error_read)
                 try:
                     os.dup2(output_write, 1)
+                    os.dup2(error_write, 2)
                     os.close(output_write)
+                    os.close(error_write)
                     os.setns(namespace, os.CLONE_NEWNS)
                     os.fchdir(root)
                     os.chroot('.')
@@ -994,6 +1097,8 @@ def verify_bwrap_inputs(account, directory, record):
                         os.setgid(account.pw_gid)
                         os.setuid(account.pw_uid)
                         os.execve(str(copied), arguments, {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
+                    arguments = [arguments[0], '--info-fd', str(info_write), *arguments[1:]]
+                    os.set_inheritable(info_write, True)
                     request = dict(backend=backend, uid=account.pw_uid, gid=account.pw_gid,
                         namespace=namespace_inode, generation=generation, arguments=arguments,
                         proof_fd=proof_write)
@@ -1018,25 +1123,34 @@ def verify_bwrap_inputs(account, directory, record):
                         os._exit(124)
             os.close(output_write)
             os.close(proof_write)
+            os.close(info_write)
+            os.close(error_write)
             try:
                 status, output = wait_first_exec(child, output_read, armed=False)
                 proof = os.read(proof_read, 4097)
+                info = os.read(info_read, 4097)
+                stderr = os.read(error_read, 4097)
+                record_bwrap_probe(record, name, status, output, info, stderr)
+                guest.require(b'bwrap_setup' not in output + stderr, 'kiosk-bwrap:probe-setup-failed')
                 if not control:
                     expected = dict(uid=account.pw_uid, namespace=namespace_inode, generation=generation,
                         role='onpc-kiosk-app (enforce)' if backend == 'apparmor'
                              else 'system_u:system_r:onpc_kiosk_app_t:s0')
                     guest.require(len(proof) <= 4096 and proof and json.loads(proof) == expected,
                                   'kiosk-bwrap:app-proof-missing')
-                return status, output
+                    bwrap_child_pid(info)
+                return status, output, info, stderr
             finally:
                 os.close(proof_read)
+                os.close(info_read)
+                os.close(error_read)
 
-        base = ['/usr/bin/bwrap', '--die-with-parent', '--unshare-pid',
+        base = ['/usr/bin/bwrap', '--die-with-parent', '--unshare-pid', '--as-pid-1',
                 '--ro-bind', '/usr', '/usr', '--ro-bind', '/etc', '/etc',
                 '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
                 '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
                 '--ro-bind', str(directory), str(directory)]
-        status, output = probe([*base, '--', '/usr/bin/xdg-dbus-proxy', '--version'])
+        status, output, _, _ = probe([*base, '--', '/usr/bin/xdg-dbus-proxy', '--version'], 'native-positive')
         guest.require(status == 0 and output.startswith(b'xdg-dbus-proxy '),
                       'kiosk-bwrap:native-sandbox-positive')
         token = output
@@ -1044,16 +1158,24 @@ def verify_bwrap_inputs(account, directory, record):
         scanner = next(entry['paths'][0] for entry in config['executables'] if entry['role'] == 'scanner')
         for role, target in (('proxy', '/usr/bin/xdg-dbus-proxy'), ('scanner', scanner)):
             arguments = [target, '--version']
-            status, output = probe(arguments, control=True)
+            status, output, _, _ = probe(arguments, role + '-canary', control=True)
             guest.require(status == 0 and output == token, 'kiosk-bwrap:canary-positive')
             for mode in ('bind', 'data', 'tmpfs-file'):
+                from system_kiosk_platform import kernel_audit, settle_kernel_audit
+                settle_kernel_audit(backend)
+                before = set(kernel_audit(backend).splitlines())
+                started = time.time()
                 with copied.open('rb') as stream:
                     fd = stream.fileno()
+                    source_inode = os.fstat(fd).st_ino
                     mutation = (['--ro-bind', str(copied), target] if mode == 'bind' else
                         ['--perms', '0755', '--ro-bind-data', str(fd), target] if mode == 'data' else
                         ['--tmpfs', str(Path(target).parent), '--perms', '0755', '--file', str(fd), target])
-                    status, output = probe([*base, *mutation, '--', *arguments], input_fd=fd)
-                guest.require(status != 0 and token not in output, 'kiosk-bwrap:user-bytes-executed')
+                    status, output, info, stderr = probe([*base, *mutation, '--', *arguments],
+                                                        role + '-' + mode, input_fd=fd)
+                require_bwrap_denial(status, output, info, token, backend, target, before,
+                                    started, record, stderr=stderr, mode=mode,
+                                    source_inode=source_inode, uid=account.pw_uid)
                 record('onpc.kiosk.bwrap.' + role + '.' + mode + '-denied', status)
         guest.require(not exited(manager_fd) and process_identity(manager) == identity and
                       (manager / 'root' / marker).read_text() == generation,
@@ -1355,9 +1477,84 @@ def verify_namespace_guard(record):
             configuration.unlink()
 
 
+def native_package_rows(backend, rows):
+    """Keep distro binary and source build identities in a finite schema."""
+    guest.require(backend in ('apparmor', 'selinux'), 'kiosk-native:backend')
+    names = ('package', 'version', 'architecture', 'source_package', 'source_version') if backend == 'apparmor' else (
+             'package', 'version', 'architecture', 'source_rpm')
+    result = []
+    for line in rows.splitlines():
+        fields = line.split('\t')
+        guest.require(len(fields) == len(names) and all(
+            re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.+:~_-]*', value) for value in fields),
+            'kiosk-native:package-identity-format')
+        result.append(dict(zip(names, fields)))
+    guest.require(result and len({item['package'] for item in result}) == len(result),
+                  'kiosk-native:package-identity-set')
+    return result
+
+
+def record_native_packages(config, record):
+    """Capture installed distro inputs before the matrix changes any bytes."""
+    backend = config['backend']
+    guest.require(backend in ('apparmor', 'selinux'), 'kiosk-native:backend')
+    library = Path('/usr/lib/x86_64-linux-gnu' if backend == 'apparmor' else '/usr/lib64')
+    # The installed preparer owns finite alternatives, substitutions and the
+    # versioned systemd library-directory inventory. Reuse its actual records.
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    measured = {Path(entry.get('source', entry['path'])): entry['sha256']
+                for entry in preparation['inventory'](config)
+                if not entry.get('source', entry['path']).startswith('/usr/libexec/oh-no-parent-control-')}
+    paths = set(measured)
+    paths.update(Path(entry['path']) for entry in config.get('preserved_executables', []))
+    required = [('/usr/libexec/gdm-session-worker', '/usr/lib/gdm3/gdm-session-worker'),
+                ('/usr/lib/systemd/systemd-executor',),
+                (str(library / 'libpam.so.0'),),
+                (str(library / 'security/pam_namespace.so'),),
+                (str(library / 'security/pam_selinux.so'),),
+                (str(library / 'libselinux.so.1'),)]
+    if backend == 'apparmor':
+        required.append((str(library / 'libapparmor.so.1'),))
+    for alternatives in required:
+        present = {Path(path).resolve(strict=True) for path in alternatives if Path(path).exists()}
+        guest.require(len(present) == 1, 'kiosk-native:required-input-missing-or-ambiguous')
+        paths.update(present)
+    canonical = sorted({path.resolve(strict=True) for path in paths})
+    files = []
+    for path in canonical:
+        guest.require(path.is_relative_to('/usr') and path.is_file(), 'kiosk-native:file-location')
+        for item in (path, *path.parents):
+            info = item.stat()
+            guest.require(info.st_uid == 0 and not info.st_mode & 0o022, 'kiosk-native:file-ownership')
+        digest = guest.sha(path)
+        guest.require(path not in measured or measured[path] == digest, 'kiosk-native:inventory-changed')
+        files.append({'path': str(path), 'sha256': digest})
+    operands = [item['path'] for item in files]
+    if backend == 'apparmor':
+        ownership = guest.run(['dpkg-query', '-S', *operands])
+        packages = sorted({line.rsplit(': ', 1)[0] for line in ownership.splitlines()})
+        guest.require(packages and all(re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?', value)
+                                      for value in packages), 'kiosk-native:package-owner-format')
+        rows = guest.run(['dpkg-query', '-W', '-f=${binary:Package}\t${Version}\t${Architecture}\t'
+                          '${source:Package}\t${source:Version}\n', *packages])
+    else:
+        packages = sorted(set(guest.run(['rpm', '-qf', '--qf', '%{NAME}\n', *operands]).splitlines()))
+        guest.require(packages and all(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+._-]*', value)
+                                      for value in packages), 'kiosk-native:package-owner-format')
+        rows = guest.run(['rpm', '-q', '--qf', '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t'
+                          '%{ARCH}\t%{SOURCERPM}\n', *packages])
+    identities = native_package_rows(backend, rows)
+    guest.require({item['package'] for item in identities} == set(packages),
+                  'kiosk-native:package-query-incomplete')
+    record('onpc.kiosk.native.packages', json.dumps(identities, sort_keys=True))
+    record('onpc.kiosk.native.files', json.dumps(files, sort_keys=True))
+
+
 def verify(record):
     guest.guard()
     guest.enable_diagnostics()
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    record_native_packages(config, record)
     account = pwd.getpwnam('oh-no-parent-control')
     unit = f'user@{account.pw_uid}.service'
     guest.require(account.pw_shell == '/usr/sbin/nologin' and guest.run([

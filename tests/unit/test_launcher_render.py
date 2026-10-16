@@ -743,7 +743,7 @@ def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path
     assert 'earliest output\n' in restored
     assert restored.count('old output\n') == 2100
     assert 'controller header' in restored and 'session status' in restored
-    assert restored.endswith('agent transcript\nunfinished output\n')
+    assert restored.endswith('agent transcript\nunfinished output\n\ncontroller header\n')
     assert '\033[2J' not in restored and '\033[H' not in restored
     assert '[Running] test details' not in restored
     assert '─' not in restored
@@ -805,6 +805,65 @@ def test_pipe_does_not_replay_saved_log(tmp_path):
     with LauncherDisplay(stream, log_path=log) as display:
         display.write('new output\n')
     assert stream.getvalue() == 'new output\n'
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+@pytest.mark.parametrize('interactive', [True, False])
+def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, input_mode, interactive):
+    from launcher_display import TaskDisplay
+    from launcher_render import clean
+
+    log = tmp_path / 'output'
+    log.write_text('saved transcript\nfinal agent reply without newline')
+    stream = Terminal(200, 12) if interactive else io.StringIO()
+    display = TaskDisplay(stream, run=tmp_path, input_mode=input_mode, log_path=log,
+                          terminal_size=(lambda: stream.size) if interactive else None)
+    steps = [{'key': 'counter', 'pinned': True, 'lines': ['Tasks: 8/8']}]
+    steps += [{'key': f'complete-{index}', 'replaces': [f'session-{index}'],
+               'lines': [f'Task {index}: Finished work {index} (sessions=2, duration=12m)']}
+              for index in range(1, 9)]
+    # Older backends can have completed rows without duration metadata.
+    steps[-1]['lines'] = ['Task 8: Finished work 8 — complete']
+    display.update(steps, ['nested test details'])
+    display.write('final agent reply without newline')
+    display.offsets['top'] = 3
+    display.draw()
+    if interactive:
+        assert 'Finished work 1' not in stream.visible()
+    display.close()
+    output = stream.getvalue()
+    restored = output.split('\033[?1049l', 1)[1] if interactive else output
+    expected = 'Tasks: 8/8\n' + ''.join(
+        f'✓ Task {index}: Finished work {index} '
+        f'({"12m" if index < 8 else "duration unavailable"})\n'
+        for index in range(1, 9))
+    plain = clean(restored)
+    assert plain.endswith('\n' + expected)
+    assert plain.index('final agent reply without newline') < plain.rindex('Tasks: 8/8')
+    if interactive:
+        assert 'saved transcript' in restored
+        assert '\033[1m' in restored[restored.rindex('Tasks:') - 10:]
+        assert '\033[32' in restored
+    else:
+        assert 'saved transcript' not in restored
+        assert '\033' not in restored
+    display.close()
+    assert stream.getvalue() == output
+
+
+def test_chat_exit_recap_excludes_current_session_and_lower_panes(tmp_path):
+    from launcher_display import TaskDisplay
+
+    stream = io.StringIO()
+    with TaskDisplay(stream, run=tmp_path) as display:
+        display.update([
+            {'key': 'counter', 'pinned': True, 'lines': ['Tasks: 2/3']},
+            {'key': 'suspended', 'lines': ['Task 1: Suspended work']},
+            {'key': 'active', 'lines': ['Task 2: Current work', 'Session 3: Testing']},
+        ], ['nested details'])
+        display.write('last agent message\n')
+    recap = stream.getvalue().split('last agent message\n', 1)[1]
+    assert recap == '\nTasks: 2/3\nTask 1: Suspended work\n'
 
 
 def test_blocker_menu_defaults_to_recommendation_and_preserves_editing_across_redraws(terminal):

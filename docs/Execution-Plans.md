@@ -241,7 +241,12 @@ question. Page Up/Page Down remain available for keyboard pane scrolling in eith
 The live panes keep bounded history; the retained run log remains the complete
 output source. On exit, the launcher restores the shell and input/cursor modes,
 then appends the saved run log to native terminal scrollback for later copying
-and browsing. Pipes receive plain output and retain the same owner/result semantics.
+and browsing. Its last output is the full top-left tasks overview: the pinned
+counter and task summaries in their displayed order, including entries hidden by
+pane scrolling or terminal size. This recap follows the log replay and retains
+the overview's completion checkmarks, durations, colors and bold task labels.
+Pipes receive the same final recap as plain text and retain the same owner/result
+semantics.
 
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. Generic `execute-plan` leaves changes for review.

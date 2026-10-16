@@ -122,6 +122,7 @@ class TaskDisplay(LauncherDisplay):
         self.selection = None
         self.selection_panels = []
         self.visible_rows = []
+        self.recap_printed = False
 
     def __enter__(self):
         super().__enter__()
@@ -213,6 +214,42 @@ class TaskDisplay(LauncherDisplay):
         with self.console.capture() as capture:
             self.console.print(text, end='', soft_wrap=True)
         return [capture.get()]
+
+    def overview(self):
+        """Full top-left content, independent of viewport size and scrolling."""
+        pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
+        current = next((s for s in reversed(self.steps)
+                        if not s.get('pinned') and not s.get('replaces')), None)
+        history = [line for s in self.steps if not s.get('pinned') and
+                   (s.get('replaces') or (s is not current and len(s['lines']) == 1))
+                   for line in self.overview_lines(s)]
+        if self.input_mode != 'chat':
+            history = [self.overview_lines(s)[0] for s in self.steps
+                       if not s.get('pinned') and s['lines']]
+        return pinned, history
+
+    def close(self):
+        super().close()
+        if self.recap_printed:
+            return
+        self.recap_printed = True
+        pinned, history = self.overview()
+        lines = pinned + history
+        if not lines:
+            return
+        # The saved transcript is replayed first. Leave the complete overview
+        # last in shell scrollback, even when its live pane was scrolled/clipped.
+        self.stream.write('\n')
+        for line in lines:
+            if self.tty:
+                text = Text.from_ansi(line)
+                label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
+                if label:
+                    text.stylize('bold', *label.span(1))
+                self.console.print(text, soft_wrap=True)
+            else:
+                self.stream.write(clean(line) + '\n')
+        self.stream.flush()
 
     def update_question(self, question, send):
         if self.input_mode != 'chat':
@@ -527,13 +564,7 @@ class TaskDisplay(LauncherDisplay):
         totals.append(str(total))
         totals.append('\nTotal Duration: ' + total_duration)
         total_rows = totals.wrap(self.console, right_width, overflow='fold')[:max(0, height - 4)]
-        pinned = [line for s in self.steps if s.get('pinned') for line in s['lines']]
-        # Only completed/suspended history stays above the lower split.
-        history = [line for s in self.steps if not s.get('pinned') and
-                   (s.get('replaces') or (s is not current and len(s['lines']) == 1))
-                   for line in self.overview_lines(s)]
-        if self.input_mode != 'chat':
-            history = [self.overview_lines(s)[0] for s in self.steps if not s.get('pinned') and s['lines']]
+        pinned, history = self.overview()
         top = self.wrapped(pinned, left_width, task_labels=True)[:max(0, height - 3)]
         room = min(max(0, height // 4 - len(top)), max(0, height - len(top) - 4))
         top += self.scroll_rows('top', history, left_width, room)

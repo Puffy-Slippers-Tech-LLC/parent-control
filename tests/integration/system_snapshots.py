@@ -46,6 +46,18 @@ def installed_case(installed):
 
 def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
                  *, fresh_install=False):
+    from system_progress import watching
+    planned = attempts(selection, fresh_install=fresh_install)
+    # Lifecycle histories can run in a different order from the phase registry.
+    # Count every selected/prerequisite execution in its actual attempt order.
+    executions = tuple(item for selected, _ in planned for item in selected.executions)
+    with watching(executions, suite.lease) as progress:
+        return _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
+                             ledger, planned=planned, progress=progress)
+
+
+def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
+                  *, planned, progress):
     from vm_transport import Transport
     from guest_inputs import Bundle
 
@@ -53,10 +65,10 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
     # Snapshot setup uses the same recipe/helpers frozen before VM acquisition,
     # even if the checkout changes during preceding package lifecycle tests.
     suite._input_bundle = Bundle.from_staged(system.ROOT, directory / 'input')
-    planned = attempts(selection, fresh_install=fresh_install)
     results = directory / 'guest-results'
     results.mkdir(mode=0o700)
     for index, (selected, installed) in enumerate(planned):
+        progress.prepare_execution(selected.executions[0])
         attempt = directory / ('attempt-' + selected.phases[0])
         attempt.mkdir(mode=0o700)
         shutil.copytree(directory / 'input', attempt / 'input')

@@ -271,6 +271,12 @@ The title is `[current/total] [ID]: Title`, using the selected invocation's case
 count (including the case in progress), numeric coverage ID and inventory title.
 The top reserves three lines for the current inventory step description; the
 bottom reserves one line for the operation about to run. Long text is ellipsized.
+System tests use the same progress feed: the title shows the permanent system
+case ID and selected execution count, and the top describes the current check
+and lifecycle phase. Prerequisites and repeated lifecycle phases each count as
+an execution. Descriptions come from the host registry, never raw guest output;
+completion or transport interruption replaces the running description with
+result collection/cleanup status.
 Recorder phase changes clear the previous operation, and disconnected feeds
 clear the previous case. Progress is optional display metadata, never acceptance
 evidence. Case/step messages are also logged by the recorder, and fixed worker

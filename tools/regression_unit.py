@@ -681,7 +681,9 @@ from regression_ui import Bucket
 # Focused rollback histories retain private files and mocked VM/native commands.
 # Bind-mount ownership and transaction-watcher tests use synthetic mount rows
 # and joined local threads with command doubles, never host mounts or packages;
-# system_removal, system_runner and system_snapshots stay compatible.
+# system_removal, system_runner and system_snapshots stay compatible. System
+# watch progress regressions use in-memory packets and a mocked publication;
+# they add no shared socket, display, VM or heartbeat process ownership.
 # RPM post-erase/reinstall/purge coverage adds private files and synchronous
 # command/thread doubles, including observer joins and interrupted reads. Target
 # selection/cleanup uses mocked VM leases; these same classifications still apply.

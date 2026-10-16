@@ -1732,7 +1732,7 @@ def run_pytest(vm, run, phase, selection):
     """Forward only registered test events; raw SSH output stays private."""
     from system_progress import Progress
     previous = getattr(vm.commands, 'progress', None)
-    vm.commands.progress = Progress(phase, phase_executions(selection, phase))
+    vm.commands.progress = Progress(phase, phase_executions(selection, phase), watch=watch_progress)
     try:
         return vm.call(pytest_command(run, phase, selection),
                        timeout=2400 if phase in FIRST_CONFIGURE_PHASES or any(phase in history.phases

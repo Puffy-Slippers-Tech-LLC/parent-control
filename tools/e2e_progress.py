@@ -18,8 +18,9 @@ def operation_labels(root):
 
 
 class Progress:
-    def __init__(self, cases):
+    def __init__(self, cases, *, suite='e2e'):
         self.cases = cases
+        self.suite = suite
         self.lock = threading.Lock()
         self.value = {}
         self.worker = None
@@ -37,13 +38,14 @@ class Progress:
     def suite_preparation(self, label):
         """Coarse controller milestones take precedence over detailed VM logs."""
         with self.lock:
-            operation = 'Preparing e2e suite: ' + label
+            operation = f'Preparing {self.suite} suite: ' + label
             if self.suite_value is None or self.suite_value['operation'] != operation:
                 case = self.cases[0]
-                self.suite_value = dict(current=1, total=len(self.cases),
+                initial = dict(current=1, total=len(self.cases),
                     case_id=str(case['coverage_id']), title=case['title'], step='',
-                    operation=operation, started_ns=self.started_ns,
-                    case_started_ns=self.started_ns, operation_started_ns=time.monotonic_ns())
+                    started_ns=self.started_ns, case_started_ns=self.started_ns)
+                self.suite_value = dict(self.value or initial, operation=operation,
+                                        operation_started_ns=time.monotonic_ns())
         # Publish before entering a blocking snapshot operation; the heartbeat
         # thread may not get scheduled between this milestone and the next one.
         if self.publish_progress is not None:
@@ -106,7 +108,7 @@ class Progress:
             self.next_value = None
             self.preparing = True
             self.worker = None
-        print(f"e2e:case=[{index + 1}/{len(self.cases)}] [{case['coverage_id']}]: {case['title']}",
+        print(f"{self.suite}:case=[{index + 1}/{len(self.cases)}] [{case['coverage_id']}]: {case['title']}",
               file=sys.stderr, flush=True)
         if self.publish_progress is not None:
             self.publish_progress()
@@ -118,7 +120,7 @@ class Progress:
             self._time_operation(self.value)
             # Never carry the previous step's worker action into a new step.
             self.after = self.worker_sequence()
-        print('e2e:step=' + description, file=sys.stderr, flush=True)
+        print(self.suite + ':step=' + description, file=sys.stderr, flush=True)
         if self.publish_progress is not None:
             self.publish_progress()
 
@@ -134,7 +136,7 @@ class Progress:
             self.value['operation'] = label
             self._time_operation(self.value)
             self.after = self.worker_sequence()
-        print('e2e:operation=' + label, file=sys.stderr, flush=True)
+        print(self.suite + ':operation=' + label, file=sys.stderr, flush=True)
         if self.publish_progress is not None:
             self.publish_progress()
 

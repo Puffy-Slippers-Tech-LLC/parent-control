@@ -10,6 +10,14 @@ import system_snapshots as snapshots
 from tests.support.vm_runner import INVENTORIES, RECOVERY_INVENTORIES, RUN, write_junit_results
 
 
+@pytest.fixture(autouse=True)
+def private_watch_publication(monkeypatch):
+    # Exercise real progress state without a desktop registry or heartbeat,
+    # including when the unit launcher inherits a privileged caller's env.
+    import e2e_watch
+    monkeypatch.setattr(e2e_watch, 'ProgressPublication', Mock())
+
+
 @pytest.fixture
 def first_configure_inventories():
     return {**RECOVERY_INVENTORIES,

@@ -2,22 +2,80 @@
 
 import json
 import sys
+from contextlib import contextmanager
 
+from tools.e2e_progress import Progress as WatchProgress
 from tools.regression_events import PREFIX, write_event
 from system_case_ids import identity_for_event
 
 
+class SystemWatchProgress(WatchProgress):
+    """Reuse the E2E display protocol with exact system execution identities."""
+
+    def __init__(self, executions):
+        cases = []
+        for item in executions:
+            nodeid = item.phase + '::' + item.case_id
+            identity = identity_for_event(nodeid)
+            cases.append(dict(case_id=nodeid, coverage_id=identity.numeric_id,
+                              title=identity.title))
+        super().__init__(cases, suite='system')
+
+    def prepare_execution(self, item):
+        self.prepare(item.phase + '::' + item.case_id)
+        self.step('Preparing system check: ' + self.cases[self.value['current'] - 1]['title']
+                  + '. System phase: ' + item.phase + '.')
+        with self.lock:
+            self.preparing = True
+
+    def started(self, nodeid):
+        self.case(nodeid)
+        identity = identity_for_event(nodeid)
+        self.step(identity.title + '. System phase: ' + nodeid.partition('::')[0] + '.')
+
+    def finished(self):
+        self.step('Collecting results and preparing the next system check or VM cleanup.')
+
+
+@contextmanager
+def watching(executions, lease):
+    """Publish through the shared heartbeat and lease-owned display collector."""
+    if not executions:
+        yield None
+        return
+    import system_runner as system
+    from e2e_watch import ProgressPublication
+    progress = SystemWatchProgress(executions)
+    previous = system.watch_progress
+    previous_lease = getattr(lease, 'watch_progress', None)
+    progress.prepare_execution(executions[0])
+    publication = ProgressPublication(progress)
+    system.watch_progress = lease.watch_progress = progress
+    try:
+        yield progress
+    finally:
+        system.watch_progress = previous
+        lease.watch_progress = previous_lease
+        publication.close()
+
+
 class Progress:
-    def __init__(self, phase, executions):
+    def __init__(self, phase, executions, *, watch=None):
         self.phase = phase
         self.expected = {item.case_id for item in executions}
         self.pending = b''
         self.operation = None
+        self.watch = watch
+        self.active = False
 
     def close(self):
         if self.operation is not None:
             self.operation.__exit__(None, None, None)
             self.operation = None
+        if self.active:
+            self.active = False
+            if self.watch is not None:
+                self.watch.finished()
 
     def __call__(self, data):
         self.pending += data
@@ -38,6 +96,9 @@ class Progress:
                     if kind == 'started':
                         from watch_activity import operation
                         self.close()
+                        if self.watch is not None:
+                            self.watch.started(result['nodeid'])
+                        self.active = True
                         self.operation = operation(f'System case [{identity.numeric_id}]: {identity.title}')
                         self.operation.__enter__()
                     elif kind == 'finished':

@@ -158,6 +158,84 @@ def test_system_progress_keeps_phase_nodeid_and_adds_trusted_numeric_metadata(ki
     assert 'unregistered' not in output
 
 
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_system_watch_publishes_trusted_case_description_and_restores_owners(
+        monkeypatch, interrupted):
+    from system_progress import Progress, watching
+    from tools.regression_events import PREFIX
+    from e2e_watch_protocol import progress_packet
+    from e2e_watch_viewer import progress_text
+    from system_snapshots import attempts
+    import e2e_watch
+
+    selection = runner.resolve_selection('removal', 'test_remove_reboot_reinstall',
+                                         inventories=INVENTORIES)
+    executions = tuple(item for selected, _ in attempts(selection)
+                       for item in selected.executions)
+    previous = object()
+    lease = SimpleNamespace(watch_progress=previous)
+    monkeypatch.setattr(runner, 'watch_progress', previous)
+    publication = Mock()
+    monkeypatch.setattr(e2e_watch, 'ProgressPublication', Mock(return_value=publication))
+
+    with watching(executions, lease) as watch:
+        assert runner.watch_progress is lease.watch_progress is watch
+        e2e_watch.ProgressPublication.assert_called_once_with(watch)
+        # One permanent case ID spans multiple executions, each with its own
+        # description and position in the actual selected lifecycle order.
+        selected = [(index, item) for index, item in enumerate(executions, 1)
+                    if item.case_id == 'test_remove_reboot_reinstall']
+        for index, item in selected:
+            watch.prepare_execution(item)
+            watch.suite_preparation('Checking retained app snapshot')
+            prepared = watch.snapshot(display=True)
+            assert prepared['current'] == index
+            assert prepared['case_id'] == '6'
+            assert prepared['step'].startswith('Preparing system check: Remove reboot reinstall')
+            assert prepared['operation'] == 'Preparing system suite: Checking retained app snapshot'
+            watch.suite_prepared()
+            parser = Progress(item.phase, [item], watch=watch)
+            record = (PREFIX + json.dumps(dict(kind='started',
+                nodeid='test_removal.py::' + item.case_id,
+                title='private title', detail='private detail')) + '\n').encode()
+            parser(record[:19])
+            parser(record[19:])
+            shown = json.loads(progress_packet(watch.snapshot(display=True)))
+            title, step, _ = progress_text({'progress': shown})
+            assert title.startswith(f'[{index}/{len(executions)}] [6]: Remove reboot reinstall')
+            assert step == f'Remove reboot reinstall. System phase: {item.phase}.'
+            assert 'private' not in json.dumps(shown)
+            before = watch.snapshot()
+            parser((PREFIX + json.dumps(dict(kind='started', nodeid='test.py::unknown'))
+                    + '\n').encode())
+            assert watch.snapshot() == before
+            if interrupted:
+                parser.close()  # Transport failure without a guest finished event.
+            else:
+                parser((PREFIX + json.dumps(dict(kind='finished',
+                    nodeid='test_removal.py::' + item.case_id)) + '\n').encode())
+            assert watch.snapshot()['step'].startswith('Collecting results')
+            assert watch.snapshot()['operation'] == ''
+    assert runner.watch_progress is previous and lease.watch_progress is previous
+    publication.close.assert_called_once_with()
+
+
+def test_system_watch_restores_publication_after_attempt_failure(monkeypatch):
+    from system_progress import watching
+    import e2e_watch
+    previous = object()
+    lease = SimpleNamespace(watch_progress=previous)
+    monkeypatch.setattr(runner, 'watch_progress', previous)
+    publication = Mock()
+    monkeypatch.setattr(e2e_watch, 'ProgressPublication', Mock(return_value=publication))
+    execution = runner.CaseExecution('installed', 'package', 'test_installed_package', False)
+    with pytest.raises(RuntimeError, match='attempt failed'):
+        with watching((execution,), lease):
+            raise RuntimeError('attempt failed')
+    assert runner.watch_progress is lease.watch_progress is previous
+    publication.close.assert_called_once_with()
+
+
 @pytest.fixture
 def first_configure_inventories():
     return {**INVENTORIES,
@@ -227,9 +305,13 @@ def test_first_configuration_junit_requires_exact_unskipped_package_identity(
 
 @pytest.mark.parametrize('fails', [False, True])
 def test_first_configuration_has_bounded_install_timeout_and_restores_progress(
-        first_configure_inventories, fails):
+        first_configure_inventories, fails, monkeypatch):
+    from system_progress import SystemWatchProgress
+    from tools.regression_events import PREFIX
     selection = runner.resolve_selection('package', runner.FIRST_CONFIGURE_CASE,
                                          inventories=first_configure_inventories)
+    watch = SystemWatchProgress(selection.executions)
+    monkeypatch.setattr(runner, 'watch_progress', watch)
     vm = Mock()
     previous = vm.commands.progress
     phase = selection.phases[0]
@@ -238,6 +320,10 @@ def test_first_configuration_has_bounded_install_timeout_and_restores_progress(
         assert timeout == 2400
         assert command == runner.pytest_command(RUN, phase, selection)
         assert vm.commands.progress.phase == phase
+        vm.commands.progress((PREFIX + json.dumps(dict(kind='started',
+            nodeid='test_install_smoke.py::' + runner.FIRST_CONFIGURE_CASE)) + '\n').encode())
+        assert watch.snapshot()['step'] == (
+            'First configuration interruption retry. System phase: first-configure.')
         if fails:
             raise runner.CommandError('first-configure-failed')
         return b'passed'
@@ -249,6 +335,7 @@ def test_first_configuration_has_bounded_install_timeout_and_restores_progress(
     else:
         assert runner.run_pytest(vm, RUN, phase, selection) == b'passed'
     assert vm.commands.progress is previous
+    assert watch.snapshot()['step'].startswith('Collecting results')
 
 
 def test_rpm_posterase_registration_is_one_fedora_baseline_history():

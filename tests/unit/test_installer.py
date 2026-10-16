@@ -35,7 +35,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
             "#!/bin/sh\n"
             'printf "%s\\n" "$*" >> "$APT_ARGUMENTS"\n'
             'if [ "$1" = update ] && [ "$APT_FAILURE" = apt-update ]; then echo "apt update diagnostic" >&2; exit 100; fi\n'
-            'if [ "$1" = install ]; then cp "$3" "$APT_STAGED_COPY"; stat -c %a "$3" > "$APT_STAGED_MODE"; fi\n'
+            'if [ "$1" = install ]; then for staged do :; done; cp "$staged" "$APT_STAGED_COPY"; stat -c %a "$staged" > "$APT_STAGED_MODE"; fi\n'
             'if [ "$1" = install ] && [ "$APT_FAILURE" = apt ]; then echo "apt diagnostic" >&2; exit 100; fi\n'
             "echo 'APT transaction'\n"
             "echo 'Processing triggers for desktop-file-utils ...'\n"
@@ -73,11 +73,12 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
              "APT_STAGED_COPY": str(staged_copy), "APT_STAGED_MODE": str(staged_mode)},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
     )
+    update_arguments = "update -o APT::Update::Error-Mode=any -o Acquire::Retries=5"
     if failure is None:
         assert result.returncode == 0, result.stdout
         assert result.stdout.count("APT transaction") == 2
         assert "Processing triggers for libc-bin" in result.stdout
-        assert arguments.read_text().splitlines()[0] == "update -o APT::Update::Error-Mode=any"
+        assert arguments.read_text().splitlines()[0] == update_arguments
         assert result.stdout.rstrip().endswith("Processing triggers for libc-bin ...")
         assert "REBOOT REQUIRED" not in result.stdout
         assert "PASS:" not in result.stdout
@@ -92,16 +93,19 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         if failure in {"dpkg-parsechangelog", "dpkg-architecture"}:
             assert f"{failure} diagnostic" in result.stdout
         if failure == "apt-update":
-            assert arguments.read_text().splitlines() == ["update -o APT::Update::Error-Mode=any"]
+            assert arguments.read_text().splitlines() == [update_arguments]
         if failure == "apt":
-            assert arguments.read_text().splitlines()[0] == "update -o APT::Update::Error-Mode=any"
+            assert arguments.read_text().splitlines()[0] == update_arguments
         if failure in {"dpkg-parsechangelog", "dpkg-architecture", "package"}:
             assert "Installing " not in result.stdout
             assert "APT transaction" not in result.stdout
     if failure is None or failure == "apt":
+        # Download retries belong to APT; never replay the package transaction.
+        assert len(arguments.read_text().splitlines()) == 2
         install_arguments = arguments.read_text().splitlines()[1]
-        assert install_arguments.startswith("install --reinstall /tmp/onpc-installdeb.")
-        staged_path = Path(install_arguments.removeprefix("install --reinstall "))
+        install_prefix = "install --reinstall -o Acquire::Retries=5 "
+        assert install_arguments.startswith(install_prefix + "/tmp/onpc-installdeb.")
+        staged_path = Path(install_arguments.removeprefix(install_prefix))
         assert staged_path.suffix == ".deb"
         assert staged_copy.read_bytes() == package.read_bytes()
         assert staged_mode.read_text().strip() == "644"
@@ -275,9 +279,10 @@ class PackageDeploymentTests(unittest.TestCase):
     def test_make_package_targets_delegate_all_product_behavior_to_apt(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         recipe = makefile.split("define installdeb\n", 1)[1].split("\nendef", 1)[0]
-        self.assertTrue(recipe.rstrip().endswith('$(APT) install --reinstall "$$staged_deb"'))
+        self.assertTrue(recipe.rstrip().endswith(
+            '$(APT) install --reinstall -o Acquire::Retries=5 "$$staged_deb"'))
         self.assertLess(recipe.index("$(APT) update -o APT::Update::Error-Mode=any"),
-                        recipe.index('$(APT) install --reinstall "$$staged_deb"'))
+                        recipe.index('$(APT) install --reinstall -o Acquire::Retries=5 "$$staged_deb"'))
         removal = makefile.split("uninstalldeb:\n", 1)[1].split("\n\n", 1)[0]
         self.assertEqual(removal.strip(), '$(APT) remove oh-no-parent-control')
         self.assertIn("set -e", recipe)

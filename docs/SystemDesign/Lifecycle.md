@@ -9,6 +9,14 @@ Implementation: [service.py](../../broker/oh_no_parent_control/service.py), [Mak
 
 ## Startup, login, and update lifecycle
 
+Checkout installation through `make install` gives APT five retries per failed
+transient download, covering both package indexes and dependency archives. APT
+owns the backoff and transient-error classification, including HTTP 503. An
+exhausted index refresh still stops before package installation through
+`APT::Update::Error-Mode=any`; package configuration failures are never retried
+by the Make recipe. These options apply only to this invocation and do not
+change the computer's APT configuration.
+
 The `.deb` pre-installation script requires Ubuntu (`ID=ubuntu`) version 26.04
 or newer for installs, reinstalls, and upgrades. It reads `/etc/os-release`,
 falling back to `/usr/lib/os-release` only when the former is absent. Other

@@ -307,13 +307,13 @@ define installdeb
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
 	step='refreshing APT package indexes'; \
-	$(APT) update -o APT::Update::Error-Mode=any; \
+	$(APT) update -o APT::Update::Error-Mode=any -o Acquire::Retries=5; \
 	step='staging package for APT'; \
 	staged_deb="$$(mktemp '/tmp/onpc-installdeb.XXXXXXXXXX.deb')"; \
 	cp -- "$$deb_file" "$$staged_deb"; \
 	chmod 644 "$$staged_deb"; \
 	step='installing package with APT'; \
-	$(APT) install --reinstall "$$staged_deb"
+	$(APT) install --reinstall -o Acquire::Retries=5 "$$staged_deb"
 endef
 
 # Latest means the most recently modified binary product RPM, not the SRPM

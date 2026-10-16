@@ -6,20 +6,21 @@ Start each new session with:
 
 The reserved kiosk account may run only the product's kiosk session and explicitly
 required services. It must never gain arbitrary execution or a normal desktop,
-including through another graphical session, terminal or SSH login. Confinement
-remains unfinished; completion establishes its tested boundary, not full product
-release acceptance.
+including through another graphical session, terminal or SSH login. Confinement's
+scoped exit gate is complete on both targets; this establishes its tested boundary,
+not full product release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-12 — [Reconcile and close](Confinement-Tasks/4-12.md)**.
+Next task: none.
 
-Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
-activation/reboot and removal/reinstall/purge/retry must preserve execution and
-admission barriers and account ownership on both targets; final security review,
-affected regressions and every required acceptance gap must pass before closure.
-The queue preserves completed task identities and evidence. Remaining shared
-goals cover Ubuntu and Fedora together; distro-specific recovery stays explicit.
+Phase 3's isolation exit gate and Phase 4's confinement exit gate are complete.
+The [final reconciliation](Confinement-Reference.md#phase-4-step-12--reconciliation-and-closure--2026-10-16)
+closes all five scoped groups, both independent reviews, affected regressions,
+retained installed acceptance and owned cleanup on Ubuntu and Fedora. The explicit
+accepted Ubuntu retention limit remains part of that result.
+The queue preserves completed task identities and evidence. Shared goals covered
+Ubuntu and Fedora together; distro-specific recovery remains explicit.
 
 ## Task 4-10 resume checkpoint
 

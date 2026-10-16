@@ -3339,9 +3339,115 @@ validation passed for all four changed documents (129 links, zero missing),
 and `git diff --check` passed. These checks supply documentation validation,
 not new installed acceptance or a reason to repeat the successful VM tests.
 
+## Phase 4 step 12 — reconciliation and closure — 2026-10-16
+
+**Accepted: reconciliation, onpc-Ubuntu26.04 and onpc-Fedora44.** Phase 4's
+confinement exit gate passes. This consumes the complete
+[4-10 campaign](#phase-4-step-10--final-ubuntu-and-fedora-qualification--2026-10-16),
+including its explicit [accepted Ubuntu retention limit](#accepted-ubuntu-retention-limit).
+No installed history was repeated, no missing proof was reconstructed and no
+older DEB was substituted. Broader product/release/E2E acceptance remains with
+its existing owners and queue.
+
+### Final applicability and retained proof
+
+The checkout was clean at entry. `make package-source-files` still declares
+348 inputs; comparison with the final inputs' source revision
+`512e1fd0fbdfc9a9a69916f635054bbf0ea9d330` found no changed package input.
+Thus the [final U/F identities](#final-executable-inputs-and-snapshots), source
+digest, fixtures and package build acceptance remain applicable. The current
+Fedora completion manifest's 52 selected guest/host bindings (50 distinct
+checkout files) independently match current SHA-256 values. Earlier successful
+observations retain their original bindings, including Ubuntu's earlier census
+helper; the reviewed census repair and both-target observations remain those
+accepted in [4-10](#retained-raw-results-and-repairs).
+
+The maintained artifact reader reverified every member, provenance record,
+receipt and checksum in both final bundles after all preceding exports and
+journals. Counts, archive hashes and selection hashes exactly match
+[4-10's preservation record](#preservation-and-cleanup): Fedora retains 58,543
+files and the complete common seed; Ubuntu retains 33,508 files outside its
+accepted loss. No export or evidence rotation was performed during reconciliation.
+
+The final raw system results, both public invocation terminal reports and all
+eight Preferences/feedback/ordinary-desktop results were reread from those
+bundles. Package, fixture, source, target baseline and snapshot recipe bindings
+agree with their recorded final inputs. Public cases 50/51/52/192 remain ready
+for both distributions under the same inventory digest; their complete
+invocations passed all four cases and suite cleanup. Integration results retain
+their engineering scope; their top-level product outcome of `not-run` is not
+relabeled as customer-scenario acceptance. Their actual public observations,
+strict role census, independent real-scanner proof and worker shutdown records
+establish the separately declared confinement/collateral assertions.
+
+Fedora's interrupted broad allocations are not counted as passing invocations.
+`onpc-system-ppn361uo` retains the first 27 completed executions: one continuous
+normal five-phase lifecycle, rollback/retry and denial-publication history.
+Its later host-input refusal supplies no additional credit. The complete
+MAC/account histories are in `onpc-system-horvzohf`; the seven complete ownership
+histories in `onpc-system-7p2kq2sk` contribute 56 executions, excluding its
+incomplete identity case. Complete replacements in `onpc-system-8v8943kh` (8)
+and `onpc-system-f6iakky4` (56, including RPM recovery) close the remaining
+histories. Together these retain all 163 removal executions without splicing
+an interrupted history. Ubuntu retains 128 of its 155 removal executions; only
+the already accepted first 27, four matrices and two first-configuration phases
+carry the specific retention exception. Fedora's exact-F first-configuration
+result `onpc-system-wc0i7djg` remains complete and applicable.
+
+### Five-group exit gate
+
+| Scoped group | Reconciled dual-target result |
+| --- | --- |
+| 1 — Kiosk-only admission and account routing/ownership | Final admission/shared-integration matrices, native lifecycle controls and real GDM observations pass. Alternate session, terminal and SSH refusals retain preceding allowed controls; ordinary account metadata survives restart/reboot. |
+| 2 — Actual execution and required roles/APIs | Final execution/platform/shared-integration matrices and strict real-session census pass. Fedora's raw execution/platform JUnits retain zero failures/errors/skips, nine plus two owned service-proof resets and enforcing kernel witnesses. Original inputs and native final-exec/credential/teardown observations remain bound to their own histories. |
+| 3 — Essential flows, surfaces and services | Both complete approved/denied/cancelled kiosk and About invocations pass. Both Preferences and feedback histories retain restricted nested surfaces, usable in-app reporting, strict required-role census and independently pinned real scanner execution; ordinary exits remain covered by their owning histories. |
+| 4 — Safe latest-version lifecycle and retry | Both complete activation/removal/reinstall/purge and every required rollback/interruption/ownership/identity recovery history pass, with exact restoration and ordinary controls. Fedora additionally retains its complete native post-erase chain and enforcing SELinux. First-configuration protection passes on final inputs under the stated Ubuntu exception. |
+| 5 — Independent review and shared-integration collateral | Both review slices and L1/H1 repairs are accepted. Final shared-PAM/namespace/policy controls and separate fresh administrator/standard-user graphical desktops pass on both targets. No required review or installed follow-up remains open. |
+
+### Independent-review handoff and cleanup
+
+The [native review](#phase-4-step-7--independent-native-boundary-review--2026-10-15)
+covers original partial fix `3e0f2af6f9c49e9da0df816f08f39b5c2a2b56fc`
+against `697a4c30`, subsequent native changes through `85fea6f1` and its final
+proof repair. The [lifecycle/security review](#phase-4-step-8--independent-lifecyclesecurity-review--2026-10-15)
+extends through `f250b7da`; [resumed review](#phase-4-step-8--resumed-review-acceptance--2026-10-15)
+adds the complete `c0cc19ff` and `6a05f04d` repairs. Their independent Sol High
+slices cover both distributions' GDM/PAM/MAC/namespace lifetime, lifecycle and
+ownership, executable/service APIs, exposed UI/services, ordinary-account
+collateral and proof/harness quality. L1's first-configuration interval and H1's
+eleven insufficient negative proofs are resolved, with installed qualification.
+Later census and recorder repairs retain their scoped independent High reviews
+and affected validation in 4-10. No demonstrated confinement defect or required
+review gap remains recorded. This is the handoff for the complete preceding
+partial fix and subsequent confinement work, not a latest-commit-only review.
+
+One read-only coverage worker independently reconciled those review slices and
+finished before acceptance; it created no resources. Recorded campaign VM/host/
+publication cleanup remains complete. Fresh maintained pinned status checks
+reported both VMs powered off (`state: 5`, `id: -1`). This task started no guest,
+maintenance instance or publication and created no export. Only documentation
+changes are required, so no package build or installed rerun is due. The final
+host consistency report and Markdown/diff checks validate close-out; they supply
+no additional installed acceptance. Git close-out belongs to the controller.
+
+The maintained grouped selection of `test_execution_plan_launcher.py`,
+`test_e2e_plan.py`, `test_e2e_inventory.py`, `test_coverage_generation.py` and
+`test_e2e_case_composition.py` passed **426/426**, session
+`e2edcec7a21b47879110de93f5effacf`. Its retained report is
+`output/test-runs/host/reports/20261016T071054Z-7736bb3e/report.md`, SHA-256
+`8cc6e3d90371614f60600d01eae8f47ad2cbd1e61f932d0a88a4dbeff6c35df5`.
+Both host branches joined and finished; both final archives were independently
+reverified afterward with unchanged counts, bytes and hashes. Changed Markdown
+validation passed (117 links, zero missing), as did `git diff --check`.
+Only 4-12 is newly checked, its temporary brief is removed, and the sole master
+pointer is `Next task: none.` Every other queue row's status, order, scope and
+dependencies remain unchanged; the E2E plan and queue were not edited. No staging,
+commit, push or additional workflow launcher was performed.
+
 ## Validation allocation and evidence ledger
 
-This section allocates remaining confinement validation. The
+This section records confinement validation allocation and its final reconciliation.
+No required in-scope follow-up remains after [4-12](#phase-4-step-12--reconciliation-and-closure--2026-10-16). The
 [test-maintenance contract](../tests/README.md#all-established-regressions)
 owns launcher selection, and [retention](../tests/README.md#aggregate-output-retention)
 owns evidence lifetime. Keep detailed results and identities in their existing
@@ -3363,7 +3469,7 @@ than copying hashes or creating another task queue.
 | 4-9a | Bounded cumulative preservation qualified on both targets; six raw histories, input/JUnit/native/cleanup records and applicable host reports retained. | [Accepted host evidence and finite budget](#phase-4-step-9a--complete-qualification-evidence--2026-10-15); final 3,753-file bundle verified after the last export and cleanup, with unchanged three-run/4-GiB limits. No installed credit; 4-9 resumes. |
 | 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | [Accepted on both targets](#phase-4-step-9--final-candidate-and-host-acceptance--2026-10-15): current U/F inputs and matching snapshots verified, retained host scope plus final 140 checks pass, cumulative raw evidence/budget and cleanup verified. The finite 4-10 selection retains every invalidated complete history, including the new U archive's first-configuration repeat. |
 | 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | [Passed on both targets](#phase-4-step-10--final-ubuntu-and-fedora-qualification--2026-10-16), with the explicit accepted Ubuntu retention limit. Shared-integration includes the complete namespace qualifier; no duplicate standalone run. |
-| 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | Consume 4-10's passes and [accepted Ubuntu retention limit](#accepted-ubuntu-retention-limit). That same file loss is not a blocker or a reason to repeat tests. Other newly missing/invalid required evidence retains the normal affected-history rule. |
+| 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | [Accepted on both targets](#phase-4-step-12--reconciliation-and-closure--2026-10-16): exact inputs, complete retained bundles and cleanup verified; 4-10's passes and accepted Ubuntu retention limit carried forward. Confinement exit gate closed; no remaining follow-up. |
 
 For each selected task, identify changed product/helper/fixture/baseline inputs
 and the assertions they affect before launching tests. Group exact affected host
@@ -3451,8 +3557,8 @@ alone never establishes current applicability. Keep per-target decisions explici
 | Complete successful removal/reinstall/purge, exact PAM/authselect restoration and held-admission refusal | Fedora | Complete current-F history, `onpc-system-ppn361uo`, in the [Fedora bundle](#preservation-and-cleanup) | Reuse verified: complete five-phase history, native controls, restoration, enforcing SELinux and cleanup passed. |
 | First-configuration protection before account usability, interruption and owned retry/reboot | Ubuntu | Complete current-U two-phase history, `onpc-system-8xmuzogd`; [accepted retention limit](#accepted-ubuntu-retention-limit) | Passed and accepted by explicit developer decision despite lost raw proof. Both continuous phases completed on final U; no repeat for this loss. |
 | First-configuration protection before account usability, interruption and owned retry/reboot | Fedora | Complete [resumed 4-8 repeat](#phase-4-step-8--resumed-review-acceptance--2026-10-15), `onpc-system-wc0i7djg`, in the Fedora-held common seed | Reuse verified for exact unchanged final F: both JUnits, enforcing native observations, ordinary controls, continuity and cleanup. Preserved through 4-10 for 4-12. |
-| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-h1cymw8j` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcement witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
-| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), raw `onpc-system-qbf_mmdr` | Historical exact inputs, complete expected JUnit, native inventory, six direct enforcing AVC witnesses and outcome/cleanup checks were reverified in 4-8. Those inputs became stale in 4-8a. The complete current execution/platform selectors and all eleven H1 proofs passed enforcing in 4-8b below; 4-8 reviews that repair. 4-9 checks final applicability; 4-10 retains its final gate. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Ubuntu | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), historical raw `onpc-system-h1cymw8j`; [final reconciliation](#independent-review-handoff-and-cleanup) | Both review slices and the complete H1 repair are accepted. Final current-U matrices passed under the explicit accepted retention limit; original review evidence keeps its historical bindings. No remaining final-gate or review follow-up. |
+| Independent native review, execution/credential/bootstrap substitution matrix and drift refusal/recovery | Fedora | [4-7](#phase-4-step-7--independent-native-boundary-review--2026-10-15), historical raw `onpc-system-qbf_mmdr`; [final reconciliation](#independent-review-handoff-and-cleanup) | Both review slices and the complete H1 repair are accepted. Complete current-F matrices, enforcing witnesses and cleanup remain retained and verified; original review evidence keeps its historical bindings. No remaining final-gate or review follow-up. |
 | Complete execution/platform matrices, including all eleven manager/service API denial proofs | Ubuntu | Current-U execution/platform matrices within the [four final matrices](#accepted-ubuntu-retention-limit) | Passed and accepted despite lost raw proof. The 4-8b supporting results retain their original archive bindings; no older DEB substitutes for final U. |
 | Complete execution/platform matrices, including all eleven manager/service API denial proofs | Fedora | Current-F final matrices in `onpc-system-2pvmoelj`, `onpc-system-7wwfn_lt`, `onpc-system-gju0fkjk`, `onpc-system-lho0e133` | Reuse verified: complete final matrices, successful native controls, enforcing denial witnesses and cleanup; 4-8b remains separately bound supporting proof. |
 | Execution/admission/platform, namespace/shared-PAM scope and ordinary metadata/desktop controls | Ubuntu and Fedora, separately | [4-10 per-target matrices, strict GDM census and fresh desktops](#final-scope-and-input-applicability); exact raw locations in its table | Both passed on final U/F. Ubuntu's four matrices have the explicit accepted retention limit; other current raw results remain retained. Shared-integration covers namespace; no duplicate run or retained-evidence blocker for that accepted loss. |

@@ -7,30 +7,30 @@ delivered task dependencies; Baseline denotes the earlier completed work omitted
 from the original plan. Checked rows preserve historical completion only.
 Current applicability and evidence retention must still be verified.
 
-Phase 3 is complete. Phase 4 remains open until task 4-12 establishes its exit
-gate. Scope and complete closure assertions remain in the
+Phase 3 and Phase 4's confinement exit gate are complete on both targets, as
+recorded in the [final reconciliation](Confinement-Reference.md#phase-4-step-12--reconciliation-and-closure--2026-10-16).
+Scope and complete closure assertions remain in the
 [reference](Confinement-Reference.md#scope-and-review-baseline).
 Estimates include acceptance and close-out, never permission to cut assertions
 or stop a required continuous history.
 
-The remaining shared scope of original tasks 4-5 and 4-6 is grouped by recovery
+The shared scope of original tasks 4-5 and 4-6 was grouped by recovery
 goal in 4-5a–4-5e, each covering both targets. Task 4-6 retains the additional
 Fedora-only post-erase recovery chain. Original 4-11 is absorbed into dual-target
 4-10. These are scheduling changes without completion credit; every original
 assertion remains required. Completed rows through 4-4 retain their history.
 
-Remaining validation follows the
+Validation follows the
 [allocation and evidence ledger](Confinement-Reference.md#validation-allocation-and-evidence-ledger).
 Task 4-5b established focused recovery execution for the later recovery briefs;
 the existing complete removal regression remains intact. Task order, dependencies,
 target acceptance and every continuous history remain unchanged. The reference
 records each implemented selector and its separate installed qualification.
 
-Task 4-9 resumes without acceptance credit after the accepted
-[evidence-preservation prerequisite](Confinement-Reference.md#phase-4-step-9a--complete-qualification-evidence--2026-10-15). Its
-[retained checkpoint](Confinement-Reference.md#phase-4-step-9--candidate-checkpoint-and-retention-prerequisite--2026-10-15)
-records passing host work, verified package inputs and the finite remaining
-qualification/evidence set. Recheck applicability and executable inputs in 4-9.
+Task 4-9's accepted candidate and preservation work enabled the completed 4-10
+qualification. Task 4-12 reconciles its exact inputs, retained proof, both reviews
+and cleanup, including the explicitly accepted Ubuntu retention limit. No active
+confinement task remains; broader product acceptance keeps its existing owners.
 
 ## Ordered task queue
 
@@ -67,7 +67,7 @@ qualification/evidence set. Recheck applicability and executable inputs in 4-9.
 | [x] | 4-9a | [Preserve complete qualification evidence](Confinement-Reference.md#phase-4-step-9a--complete-qualification-evidence--2026-10-15) | 4-8 | Maintain and qualify bounded multi-file evidence preservation for both targets before required raw histories rotate; preserve identity, ownership, source and retention guards. | Both targets: 3,753-file cumulative bundle verified; 636 scoped checks and final 312 affected checks pass; unchanged three-run/4-GiB limits, cleanup complete. |
 | [x] | 4-9 | [Final candidate and host validation](Confinement-Reference.md#phase-4-step-9--final-candidate-and-host-acceptance--2026-10-15) | 4-8, 4-9a | Affected host/build checks; exact final DEB/RPM input preparation, evidence applicability and required follow-up inventory. | Both targets: retained affected suites plus 140 final checks, DEB/RPM build/input/snapshot verification; 4,329-file bundle and cleanup pass. |
 | [x] | 4-10 | [Final Ubuntu and Fedora qualification](Confinement-Reference.md#phase-4-step-10--final-ubuntu-and-fedora-qualification--2026-10-16) | 4-9 | Both targets: final DEB/RPM confinement matrices, strict real-session census, affected public kiosk qualification and every invalidated in-scope complete history; Fedora SELinux remains enforcing. | Both passed; Ubuntu's lost raw proof explicitly accepted by developer for 4-10 and 4-12, no repeats. Retained bundles verified; owned cleanup complete, both VMs off. |
-| [ ] | 4-12 | [Reconcile and close](Confinement-Tasks/4-12.md) | 4-10 | Reconcile five groups, both reviews, retained raw evidence and owned cleanup; close only the confinement exit gate. | 15–30 min; split substantial independent work |
+| [x] | 4-12 | [Reconcile and close](Confinement-Reference.md#phase-4-step-12--reconciliation-and-closure--2026-10-16) | 4-10 | Reconcile five groups, both reviews, retained raw evidence and owned cleanup; close only the confinement exit gate. | Both targets reconciled; five groups and both reviews pass, both bundles verified, Ubuntu retention limit carried forward, cleanup complete. |
 
 ## Deferred future work
 

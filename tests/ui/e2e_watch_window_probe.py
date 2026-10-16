@@ -72,6 +72,9 @@ def inspect():
     try:
         if app.window is None:
             return True
+        if advance_requested('close'):
+            app.window.close()
+            return False
         elapsed = time.monotonic() - started
         if live:
             if app.vm.screen.texture is not None:

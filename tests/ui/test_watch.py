@@ -140,7 +140,7 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
     ui.activate('watch-checkout-tab-' + keys['worktree'])
     wait(lambda: ui.showing('watch-checkout-page-' + keys['worktree']), 'finished tab remains selectable')
     assert 'worktree OUTPUT' in ui.content('watch-checkout-' + keys['worktree'] + '-watch-output', maximum=10000)
-    ui.activate('watch-close')
+    control.write_text('close')
     wait(lambda: process.poll() is not None, 'viewer closes without controlling tests')
     assert process.returncode == 0, log.read_text()
 
@@ -280,6 +280,6 @@ def test_combined_tabs_output_dividers_and_hidden_viewers(
         raise
     assert evidence()['top_tabs'] == ['All', *sorted(evidence()['vm_names'],
                                                    key=lambda name: int(evidence()['vm_ids'][name]))]
-    ui.activate('watch-close')
+    control.write_text('close')
     wait(lambda: process.poll() is not None, 'closing viewer releases only its own resources')
     assert process.returncode == 0, log.read_text()

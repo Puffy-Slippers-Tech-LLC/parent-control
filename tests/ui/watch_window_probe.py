@@ -114,6 +114,9 @@ def tick():
             return True
         app.vm = app.vms[app.vm_keys[vm_names[0]]]
         requested = control.read_text() if control.exists() else ''
+        if requested == 'close':
+            app.window.close()
+            return False
         if requested != stage:
             stage = requested
             if stage == 'rename-vm':

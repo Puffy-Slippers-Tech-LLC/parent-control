@@ -39,7 +39,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
     assert ui.text('e2e-watch-status') == (
         'Waiting for VM activity. You can leave this window open.')
     for identity in ('e2e-watch-progress', 'e2e-watch-display',
-                     'e2e-watch-output', 'watch-close'):
+                     'e2e-watch-output', 'watch-window-controls'):
         assert ui.target(identity).get_accessible_id() == identity
     wait(lambda: audit_owned_controls(ui, 'watch-window'),
          'complete spectator ID inventory')
@@ -112,7 +112,7 @@ def run_probe(launch_ui, tmp_path, ui, wait, *, live=False, cycle=False):
              'viewer disconnects after lease publication ends')
         assert evidence(output)['lease_feed_survives_display_restart']
 
-    ui.activate('watch-close')
+    control.write_text('close')
     deadline = time.monotonic() + 10
     while process.poll() is None and time.monotonic() < deadline:
         time.sleep(.05)

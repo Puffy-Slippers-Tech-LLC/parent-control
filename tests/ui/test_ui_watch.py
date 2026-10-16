@@ -64,7 +64,7 @@ def test_four_branch_tabs_grid_resize_stop_and_reconnect(
     wait(lambda: ui.showing(f'ui-watch-grid-{run}-test') and
          ui.text(f'ui-watch-grid-{run}-test') == 'subsequent-case',
          'same viewer discovers a subsequent worker')
-    ui.activate('watch-close')
+    control.write_text('close')
     wait(lambda: process.poll() is not None, 'viewer exits independently')
     assert process.returncode == 0, log.read_text()
 

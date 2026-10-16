@@ -285,11 +285,6 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             header = Gtk.HeaderBar()
             add_identified_window_controls(header, 'watch-window-controls')
             header.pack_start(Gtk.Image(icon_name=APPLICATION_ID, pixel_size=32))
-            close = Gtk.Button(icon_name='window-close-symbolic', tooltip_text='Close viewer')
-            close.update_property([Gtk.AccessibleProperty.LABEL], ['Close viewer'])
-            set_automation_id(close, 'watch-close')
-            close.connect('clicked', lambda *_: self.window.close())
-            header.pack_end(close)
             self.window.set_titlebar(header)
             body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             self.checkout_pages = Gtk.Stack(hexpand=True, vexpand=True,

@@ -115,6 +115,9 @@ def run(root):
             if app.window is None:
                 return True
             requested = control.read_text() if control.exists() else ''
+            if requested == 'close':
+                app.window.close()
+                return False
             if requested != stage:
                 stage = requested
                 if stage.startswith('count-'):

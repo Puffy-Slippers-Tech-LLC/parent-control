@@ -27,6 +27,9 @@ def tick():
         requested = ''
     if requested != stage:
         stage = requested
+        if stage == 'close':
+            app.window.close()
+            return False
         if stage == 'start':
             for index in range(4):
                 source = Publication(directory)

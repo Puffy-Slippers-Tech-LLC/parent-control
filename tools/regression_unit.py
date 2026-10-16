@@ -203,6 +203,14 @@ machine and its bounded, waited subprocess. The real state pass uses only that
 machine's tiny records, lock and atomic writes under the fixture UID; no host
 service, account, shared path or new cleanup lifetime is added. The existing
 package_configuration compatible classification remains appropriate.
+Core compatibility composition extends that machine with a relocated production
+confinement helper and bounded waited Python/native-tool-double children. PAM,
+policy, migration records and failure files stay under tmp_path; identity and
+kernel policy tools are explicit doubles. No host PAM, MAC policy, service, bus,
+VM or shared cache is touched. package_configuration remains compatible and
+enters neither the cleanup nor UI inventory. prepare_vm's optional-PAM checks
+use private files; system_first_configure's new witnesses use process-local
+package/profile doubles. Their existing compatible classifications also apply.
 Dependency-collection cases in diagnostics and service_contract mock all service
 and journal commands and use the existing private event/report/rule files.
 Pipe-limit cases launch one isolated Python child each, retain its Popen identity,

@@ -105,6 +105,58 @@ def test_later_standalone_purge_accepts_already_removed_state_directory(integrat
     helper.finish_remove()
 
 
+def test_install_reports_nested_unknown_module_without_mutating_policy_or_pam(
+        integration, monkeypatch, capsys):
+    helper, commands = integration
+    target = helper.PAM_LOCAL / 'gdm-password'
+    target.write_text('@include common-session\n')
+    (helper.PAM_LOCAL / 'common-session').write_text(
+        'session required pam_unix.so\n'
+        'session optional pam_unreviewed.so private-argument\n')
+    before = target.read_bytes()
+    monkeypatch.setattr(helper.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(helper.sys, 'argv', ['integration', 'install'])
+    assert helper.main() == 1
+    diagnostic = capsys.readouterr().err
+    assert 'reason=unsupported-pam-session-module module=other' in diagnostic
+    assert 'source=kiosk-confinement line=' in diagnostic
+    assert 'preserving ownership records' in diagnostic
+    assert 'pam_unreviewed' not in diagnostic
+    assert 'private-argument' not in diagnostic
+    assert target.read_bytes() == before
+    assert not helper.STATE.exists()
+    assert not any(command[:2] == ['/usr/sbin/semodule', '-i'] for command in commands)
+
+
+@pytest.mark.parametrize('error, expected', [
+    (ValueError('unsafe-confinement-path'), 'reason=unsafe-confinement-path'),
+    (ValueError('unsupported-pam-session-module:pam_exec.so'),
+     'reason=unsupported-pam-session-module module=pam-exec'),
+    (ValueError('unsupported-pam-session-module:/home/private/module.so'),
+     'reason=unsupported-pam-session-module module=other'),
+    (ValueError('private exception text'), 'reason=invalid-data'),
+    (FileNotFoundError(2, 'private exception text', '/home/private/file'), 'reason=os-error errno=2'),
+    (PermissionError(13, 'private exception text', '/home/private/file'), 'reason=os-error errno=13'),
+    (subprocess.CalledProcessError(7, ['/usr/sbin/apparmor_parser', '/home/private/file'],
+                                  stderr='private exception text'),
+     'reason=command-failed status=7 command=apparmor-parser'),
+    (subprocess.TimeoutExpired(['/usr/sbin/semodule', '-i', '/home/private/file'], 60,
+                               stderr='private exception text'),
+     'reason=command-timeout command=semodule'),
+    (subprocess.CalledProcessError(-9, ['/home/private/program']),
+     'reason=command-failed status=-9 command=other'),
+    (RuntimeError('private exception text'), 'reason=unexpected-error'),
+])
+def test_failure_diagnostics_classify_errors_without_private_values(error, expected, capsys):
+    helper = module(ROOT / 'packaging/kiosk_confinement.py')
+    helper.report_failure(error)
+    diagnostic = capsys.readouterr().err
+    assert expected in diagnostic
+    assert 'private' not in diagnostic
+    assert 'Traceback' not in diagnostic
+    assert 'preserving ownership records' in diagnostic
+
+
 def test_removal_preflight_restores_recreated_lock_label_without_manufacturing_legacy_inodes(integration):
     helper, commands = integration
     helper.install()
@@ -870,6 +922,59 @@ def test_normal_pam_jump_may_land_on_gate_and_substack_is_scoped(integration):
     helper, _ = integration
     helper.validate_stack('session [default=1] pam_permit.so\nsession requisite pam_deny.so\n')
     helper.validate_stack('session substack system-auth\n')
+
+
+@pytest.mark.parametrize('directive', ['@include ', 'session include ', 'session substack '])
+def test_lxc_cgroup_sessions_install_reload_and_restore_without_changing_vendor_rules(
+        integration, directive):
+    helper, commands = integration
+    rule = 'session optional pam_cgfs.so -c freezer,memory,name=systemd\n'
+    shared = ('session [default=1] pam_permit.so\n'
+              'session requisite pam_deny.so\n'
+              'session required pam_unix.so\n' + rule)
+    sources = {
+        helper.PAM_LOCAL / 'common-session': shared,
+        helper.PAM_LOCAL / 'common-session-noninteractive': shared,
+        helper.PAM_LOCAL / 'gdm-password': (
+            directive + 'common-session\n'
+            'session optional pam_gnome_keyring.so auto_start\n'),
+        helper.PAM_VENDOR / 'systemd-user': directive + 'common-session-noninteractive\n',
+    }
+    for path, source in sources.items():
+        path.write_text(source)
+    helper.install()
+    first = helper.STATE.read_bytes()
+    helper.load()
+    helper.install()
+    assert helper.STATE.read_bytes() == first
+    helper.verify_pam(helper.state())
+    for name in ('gdm-password', 'systemd-user'):
+        rendered = (helper.PAM_LOCAL / name).read_text()
+        assert rendered.endswith(helper.BLOCK)
+        assert directive + ('common-session\n' if name == 'gdm-password'
+                            else 'common-session-noninteractive\n') in rendered
+    for path in (helper.PAM_LOCAL / 'common-session',
+                 helper.PAM_LOCAL / 'common-session-noninteractive',
+                 helper.PAM_VENDOR / 'systemd-user'):
+        assert path.read_text() == sources[path]
+    assert any(command[:2] == ['/usr/sbin/semodule', '-i'] for command in commands)
+    helper.remove()
+    helper.finish_remove()
+    for path, source in sources.items():
+        assert path.read_text() == source
+    assert not (helper.PAM_LOCAL / 'systemd-user').exists()
+    assert not helper.STATE.exists()
+
+
+@pytest.mark.parametrize('control', ['sufficient', '[success=done default=ignore]'])
+def test_lxc_module_cannot_short_circuit_final_confinement_gate(integration, control):
+    helper, commands = integration
+    (helper.PAM_LOCAL / 'common-session').write_text(f'session {control} pam_cgfs.so\n')
+    (helper.PAM_LOCAL / 'gdm-password').write_text('@include common-session\n')
+    with pytest.raises(ValueError, match='pam-can-skip-confinement'):
+        helper.install()
+    assert not helper.STATE.exists()
+    assert not any(command[:2] == ['/usr/sbin/semodule', '-i'] for command in commands)
 
 
 def test_nested_include_change_cannot_introduce_short_circuit(integration):

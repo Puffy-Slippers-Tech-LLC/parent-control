@@ -18,7 +18,9 @@ BROKER = "oh-no-parent-control-broker.service"
 REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***"
 
 
-from tests.support.package_scripts import package_machine, rpm_script_source, use_real_state_migration
+from tests.support.package_scripts import (
+    package_machine, rpm_script_source, use_real_kiosk_confinement, use_real_state_migration,
+)
 from tests.support.shell import relocate_system_paths
 
 
@@ -163,6 +165,149 @@ esac
     commands = (root / 'commands').read_text()
     assert 'setpriv --reuid 1006 --regid 1006 --init-groups -- ' in commands
     assert not any(line.startswith('runuser ') for line in commands.splitlines())
+
+
+@pytest.mark.parametrize('package_machine,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')],
+                         indirect=['package_machine'])
+@pytest.mark.parametrize('profile', ['minimal', 'lxc-sssd', 'continued-include', 'vendor-symlink',
+                                   'local-manager'])
+def test_configuration_composes_real_confinement_with_supported_machine_profiles(
+        package_machine, backend, profile):
+    from oh_no_parent_control.preferences import default_preferences
+
+    root, state, run = package_machine
+    payload, pam, vendor = use_real_kiosk_confinement(root, backend)
+    use_real_state_migration(root)
+    (payload.parent / 'app.json').write_text('{"version": "1.4"}\n')
+    preferences = default_preferences()
+    preferences.update(parent_control_enabled=True, daily_time_limit_minutes=75)
+    preferences['personal']['language'] = 'fr'
+    preferences['apps'] = {'game.desktop': {'state': 'conditional', 'targets': ['/opt/game'],
+                                          'patterns': [], 'user_saved_match_rule': True}}
+    directory = state / 'preferences'
+    directory.mkdir(mode=0o700)
+    record = directory / '1001.json'
+    record.write_text(json.dumps(preferences))
+    record.chmod(0o600)
+    retained = record.read_bytes()
+    # Preserve real shared-stack inputs through the package's native-PAM audit;
+    # only pam-auth-update itself remains an explicit distribution-tool double.
+    sources = {
+        'common-auth': 'auth required pam_oh_no_parent_control.so\n',
+        'common-account': 'account required pam_oh_no_parent_control.so kiosk\n',
+        'common-session': 'session required pam_oh_no_parent_control.so kiosk\n',
+        'common-session-noninteractive': 'session required pam_unix.so\n',
+    }
+    directive = '@include\\\n\t' if profile == 'continued-include' else '@include '
+    if profile != 'minimal':
+        rule = 'session optional pam_cgfs.so -c freezer,memory,name=systemd\n'
+        sources['common-session'] += 'session optional pam_sss.so\n' + rule
+        sources['common-session-noninteractive'] += rule
+    for name, contents in sources.items():
+        (pam / name).write_text(contents)
+        (pam / name).chmod(0o644)
+    (pam / 'gdm-password').write_text(directive + 'common-session\n')
+    (vendor / 'systemd-user').write_text('@include common-account\n' +
+                                       directive + 'common-session-noninteractive\n')
+    if profile == 'vendor-symlink':
+        target = vendor / 'common-session'
+        target.write_text(sources['common-session'])
+        target.chmod(0o644)
+        (pam / 'common-session').unlink()
+        (pam / 'common-session').symlink_to(target)
+    if profile == 'local-manager':
+        (pam / 'systemd-user').write_bytes((vendor / 'systemd-user').read_bytes())
+        (pam / 'systemd-user').chmod(0o644)
+    original = {name: (pam / name).read_bytes() for name in sources}
+    for _ in range(2):
+        result = run(PAM_LOCAL_CHANGES='1')
+        assert result.returncode == 0, result.stderr
+        saved = json.loads((state / 'kiosk-confinement.json').read_text())
+        assert saved['loaded_config_sha256'] == hashlib.sha256(
+            (payload / 'config.json').read_bytes()).hexdigest()
+        assert saved['loaded_policy_sha256'] == hashlib.sha256(
+            (payload / ('onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil'))
+            .read_bytes()).hexdigest()
+        for name in ('gdm-password', 'systemd-user'):
+            assert (pam / name).read_text() == saved['pam'][name]['after']
+            assert (pam / name).read_text().endswith(
+                'session required pam_oh_no_parent_control.so kiosk-confinement\n'
+                '# END Oh No Parent Control execution confinement\n')
+        assert {name: (pam / name).read_bytes() for name in sources} == original
+        assert record.read_bytes() == retained
+        assert not (state / 'migration-in-progress').exists()
+        assert not (state / 'package-activation-pending').exists()
+        assert 'PASS: Oh No! Parent Control package configuration completed successfully.' in result.stdout
+    commands = (root / 'commands').read_text().splitlines()
+    loaded = next(index for index, line in enumerate(commands)
+                  if line.startswith('policy-tool -r ' if backend == 'apparmor' else 'policy-tool -i '))
+    released = next(index for index, line in enumerate(commands)
+                    if line.startswith('oh-no-parent-control-provision ') and '--release-account' in line)
+    activated = commands.index(f'systemctl --system restart {BROKER}')
+    assert loaded < released < activated
+
+
+@pytest.mark.parametrize('package_machine,backend', [('ubuntu', 'apparmor'), ('fedora', 'selinux')],
+                         indirect=['package_machine'])
+@pytest.mark.parametrize('failure,reason', [
+    ('unknown-module', 'unsupported-pam-session-module'),
+    ('short-circuit', 'pam-can-skip-confinement'),
+    ('pending-vendor', 'pending-distribution-pam-update'),
+    ('compiler', 'command-failed'), ('missing-tool', 'os-error'),
+])
+def test_real_confinement_failure_preserves_exclusion_and_configuration_recovers(
+        package_machine, backend, failure, reason):
+    root, state, run = package_machine
+    payload, pam, _vendor = use_real_kiosk_confinement(root, backend)
+    use_real_state_migration(root)
+    (payload.parent / 'app.json').write_text('{"version": "1.4"}\n')
+    recovery = None
+    if failure in ('unknown-module', 'short-circuit'):
+        original = (pam / 'gdm-password').read_text()
+        (pam / 'gdm-password').write_text(
+            'session optional pam_exec.so /private/program\n' if failure == 'unknown-module'
+            else 'session sufficient pam_cgfs.so\n')
+        recovery = lambda: (pam / 'gdm-password').write_text(original)
+    elif failure == 'pending-vendor':
+        pending = pam / 'gdm-password.dpkg-dist'
+        pending.write_text('session required pam_limits.so\n')
+        pending.chmod(0o644)
+        recovery = pending.unlink
+    elif failure == 'compiler':
+        status = root / 'policy-load-status'
+        status.write_text('7\n')
+        recovery = status.unlink
+    elif failure == 'missing-tool':
+        tool = root / 'usr/sbin' / ('apparmor_parser' if backend == 'apparmor' else 'semodule')
+        before = tool.read_bytes()
+        tool.unlink()
+
+        def restore():
+            tool.write_bytes(before)
+            tool.chmod(0o755)
+        recovery = restore
+    pam_before = {name: (pam / name).read_bytes() if (pam / name).exists() else None
+                  for name in ('gdm-password', 'systemd-user')}
+    result = run()
+    assert result.returncode != 0
+    assert 'reason=' + reason in result.stderr
+    assert '/private/program' not in result.stderr
+    assert (state / 'migration-in-progress').exists()
+    assert (state / 'package-activation-pending').exists()
+    assert not (root / 'run/oh-no-parent-control-package-configuration-complete').exists()
+    assert {name: (pam / name).read_bytes() if (pam / name).exists() else None
+            for name in pam_before} == pam_before
+    commands = (root / 'commands').read_text()
+    assert '--release-account' not in commands
+    assert f'systemctl --system restart {BROKER}' not in commands
+    assert f'systemctl --system start {BROKER}' not in commands
+    recovery()
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert not (state / 'migration-in-progress').exists()
+    assert not (state / 'package-activation-pending').exists()
+    assert 'PASS: Oh No! Parent Control package configuration completed successfully.' in result.stdout
+    assert f'systemctl --system restart {BROKER}' in (root / 'commands').read_text()
 
 
 @pytest.mark.parametrize('package_machine,entrypoint', [

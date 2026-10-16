@@ -19,6 +19,9 @@ PACKAGES = (
     'python3-gi=0', 'gir1.2-gtk-4.0=0',
     # The SPICE channel needs the guest daemon and desktop session agent.
     'spice-vdagent=0',
+    # Exercise a real optional PAM session module during fresh install/retry
+    # and confined manager teardown, rather than only on a plain desktop stack.
+    'libpam-cgfs=1:6.0.6-1ubuntu1',
     *REMOTE_PACKAGES,
     *CHINESE_PACKAGES,
 )
@@ -37,6 +40,27 @@ FEDORA_DORMANT_PATHS = ('/etc/sssd/sssd.conf',
                        '/var/lib/ldap/onpc-system-fixture',
                        '/etc/systemd/system/slapd.service.d/onpc-system-fixture.conf',
                        '/etc/authselect/custom/onpc-remote-fixture')
+
+
+def verify_pam_compatibility(root):
+    """Require the declared Ubuntu LXC session profile; never repair in a test.
+
+    Package presence alone cannot prove that its optional PAM callbacks are
+    active. Inspect both shared stacks before claiming installed coverage.
+    """
+    stacks = ('common-session', 'common-session-noninteractive')
+    expected = ['session', 'optional', 'pam_cgfs.so', '-c', 'freezer,memory,name=systemd']
+    for name in stacks:
+        try:
+            source = (root / 'etc/pam.d' / name).read_text()
+        except OSError as error:
+            raise ValueError('guest-tools:pam-compatibility-missing; refresh the baseline with cgfs enabled') from error
+        rules = [line.split('#', 1)[0].split() for line in source.splitlines()]
+        matches = [rule for rule in rules if len(rule) >= 3 and rule[0] == 'session'
+                   and rule[2] == 'pam_cgfs.so']
+        if matches != [expected]:
+            raise ValueError('guest-tools:pam-compatibility-missing; refresh the baseline with cgfs enabled')
+    return {'profile': 'lxc-cgroups', 'stacks': list(stacks), 'module': 'pam_cgfs.so'}
 
 
 def dormant_paths(os_id):

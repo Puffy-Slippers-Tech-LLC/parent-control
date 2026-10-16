@@ -47,6 +47,15 @@ def state_path():
     return guest.PAYLOAD / 'results/first-configure-state.json'
 
 
+def verify_compatibility_profile(record, stage):
+    """Bind optional PAM compatibility to the actual installed history."""
+    if guest.package_path().suffix != '.deb':
+        return
+    from guest_test_dependencies import verify_pam_compatibility
+    result = verify_pam_compatibility(Path('/'))
+    record('onpc.first-configure.pam-compatibility.' + stage, json.dumps(result, sort_keys=True))
+
+
 def wrapper_source(original, witness, arguments, *, after=False):
     """Fail exactly one invocation, optionally after its real publication."""
     require(bool(arguments), 'empty-native-invocation')
@@ -353,6 +362,7 @@ def exercise(record):
     guest.guard()
     (guest.PAYLOAD / 'results').mkdir(mode=0o700, exist_ok=True)
     guest.enable_diagnostics()
+    verify_compatibility_profile(record, 'before-install')
     guest.before_install()
     ordinary = ordinary_state()
     ordinary_controls(record, 'baseline')
@@ -388,6 +398,7 @@ def exercise(record):
         verify_quarantine(record, 'before-final-confinement')
         verify_ordinary(ordinary)
     retry_configuration()
+    verify_compatibility_profile(record, 'after-retry')
     verify_account_identity(saved, 'after-retry', record)
     require(passwordless(), 'final-password-not-empty')
     verify_visibility()
@@ -405,6 +416,7 @@ def exercise(record):
 def verify_reboot(record):
     guest.guard()
     guest.enable_diagnostics()
+    verify_compatibility_profile(record, 'after-reboot')
     saved = json.loads(state_path().read_text())
     require(saved.get('schema') == 1 and saved['boot'] != boot(), 'normal-reboot-not-observed')
     verify_account_identity(saved['identity'], 'after-reboot', record)

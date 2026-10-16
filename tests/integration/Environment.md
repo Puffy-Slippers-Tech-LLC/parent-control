@@ -228,6 +228,15 @@ The shared [guest tool inventory](guest_test_dependencies.py) is installed by
 the host's `tools/prepare-vm` during its controlled guest boot.
 Dependencies are OpenSSH server, pytest, `spice-vdagent`, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
+Ubuntu additionally declares `libpam-cgfs` so native LXC session callbacks are
+present during installation and confined manager teardown. The package's default
+`cgfs` profile must remain enabled in both shared session stacks. The
+[first-configuration history](README.md) verifies the effective rules before
+installation, after successful retry and after reboot; package presence alone
+does not establish this coverage. Missing or altered rules refuse that history
+with baseline-refresh guidance. Tests never enable the profile to repair their
+own prerequisites. The new input and history require installed qualification;
+see the [core installation handoff](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md).
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
 minimum qualified versions, accepts newer security/maintenance versions,
 generates missing SSH host keys, enables SSH and checks public-key

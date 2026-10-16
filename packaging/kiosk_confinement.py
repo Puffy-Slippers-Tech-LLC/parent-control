@@ -47,10 +47,15 @@ KEYRING_GUARD = ('session [success=1 auth_err=ignore default=die] '
 # configuration, init script, temporary-directory cleanup or pending SELinux
 # context reset is consumed for the kiosk; ordinary users keep vendor behavior.
 NAMESPACE_GUARD = KEYRING_GUARD
+# LXC 6.0.6 pam_cgfs open/close callbacks perform native cgroup bookkeeping,
+# not fork/exec, namespace setup or interpreter/configuration-script execution.
+# Keep vendor cgroup delegation and cleanup, including in shared session stacks;
+# the final MAC gate still constrains every subsequent executable and teardown.
 SESSION_MODULES = frozenset(('pam_selinux.so', 'pam_loginuid.so', 'pam_keyinit.so',
     'pam_limits.so', 'pam_env.so', 'pam_unix.so', 'pam_sss.so', 'pam_systemd.so',
     'pam_systemd_home.so', 'pam_umask.so', 'pam_succeed_if.so',
-    'pam_lastlog2.so', 'pam_permit.so', 'pam_deny.so', 'pam_oh_no_parent_control.so'))
+    'pam_lastlog2.so', 'pam_permit.so', 'pam_deny.so', 'pam_oh_no_parent_control.so',
+    'pam_cgfs.so'))
 
 
 @contextmanager
@@ -695,7 +700,53 @@ def finish_remove():
         unlink_synced(STATE)
 
 
-if __name__ == '__main__':
+def report_failure(error):
+    """Keep local install failures actionable without arbitrary exception text."""
+    reason = 'unexpected-error'
+    details = []
+    if isinstance(error, ValueError):
+        reason = 'invalid-data'
+        value = str(error.args[0]) if error.args else ''
+        if re.fullmatch(r'[a-z-]{1,80}', value):
+            reason = value
+        elif value.startswith('unsupported-pam-session-module:'):
+            reason = 'unsupported-pam-session-module'
+            # Only reviewed module categories enter diagnostics. Unknown names,
+            # paths and module arguments can contain administrator/user data.
+            module = value.split(':', 1)[1]
+            category = {'pam_cgfs.so': 'pam-cgfs', 'pam_exec.so': 'pam-exec'}.get(module, 'other')
+            details.append('module=' + category)
+    elif isinstance(error, subprocess.CalledProcessError):
+        reason = 'command-failed'
+        details.append(f'status={error.returncode}')
+    elif isinstance(error, subprocess.TimeoutExpired):
+        reason = 'command-timeout'
+    elif isinstance(error, OSError):
+        reason = 'os-error'
+        if isinstance(error.errno, int):
+            details.append(f'errno={error.errno}')
+    if isinstance(error, (subprocess.CalledProcessError, subprocess.TimeoutExpired)):
+        command = error.cmd
+        executable = command[0] if isinstance(command, (list, tuple)) and command else None
+        category = {'/usr/sbin/semodule': 'semodule',
+                    '/usr/sbin/apparmor_parser': 'apparmor-parser',
+                    '/usr/sbin/restorecon': 'restorecon'}.get(executable, 'other')
+        details.append('command=' + category)
+    # The last frame in this shipped helper identifies the failing check. Never
+    # print traceback contents, arbitrary filenames, locals or exception text.
+    frame = error.__traceback__
+    line = None
+    while frame is not None:
+        if frame.tb_frame.f_code.co_filename == __file__:
+            line = frame.tb_lineno
+        frame = frame.tb_next
+    if line is not None:
+        details.append(f'source=kiosk-confinement line={line}')
+    suffix = ' ' + ' '.join(details) if details else ''
+    print(f'oh-no-parent-control: kiosk confinement configuration failed reason={reason}{suffix}; preserving ownership records', file=sys.stderr)
+
+
+def main():
     try:
         if os.geteuid() != 0 or len(sys.argv) != 2:
             raise ValueError('invalid-caller')
@@ -718,8 +769,10 @@ if __name__ == '__main__':
         else:
             raise ValueError('invalid-operation')
     except Exception as error:
-        reason = 'unavailable'
-        if isinstance(error, ValueError) and error.args and re.fullmatch(r'[a-z-]{1,80}', str(error.args[0])):
-            reason = str(error.args[0])
-        print(f'oh-no-parent-control: kiosk confinement configuration failed reason={reason}; preserving ownership records', file=sys.stderr)
-        sys.exit(1)
+        report_failure(error)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

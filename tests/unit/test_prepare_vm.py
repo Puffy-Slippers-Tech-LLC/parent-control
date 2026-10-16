@@ -509,6 +509,38 @@ def package_status():
                        for name, version in prepare.guest_tools.VERSIONS.items())
 
 
+@pytest.mark.parametrize('failure', [None, 'missing', 'commented', 'noninteractive-missing',
+                                   'duplicate', 'wrong-control', 'wrong-options'])
+def test_optional_pam_coverage_requires_both_active_native_session_rules(tmp_path, failure):
+    pam = tmp_path / 'etc/pam.d'
+    pam.mkdir(parents=True)
+    rule = 'session optional pam_cgfs.so -c freezer,memory,name=systemd\n'
+    paths = [pam / name for name in ('common-session', 'common-session-noninteractive')]
+    for path in paths:
+        path.write_text('# unrelated stack content\nsession required pam_unix.so\n' + rule)
+    if failure == 'missing':
+        paths[0].unlink()
+    elif failure == 'commented':
+        paths[0].write_text('# ' + rule)
+    elif failure == 'noninteractive-missing':
+        paths[1].write_text('session required pam_unix.so\n')
+    elif failure == 'duplicate':
+        paths[0].write_text(rule * 2)
+    elif failure == 'wrong-control':
+        paths[0].write_text(rule.replace('optional', 'sufficient'))
+    elif failure == 'wrong-options':
+        paths[0].write_text(rule.replace('freezer,memory,name=systemd', 'all'))
+    before = {path: path.read_bytes() for path in paths if path.exists()}
+    if failure:
+        with pytest.raises(ValueError, match='pam-compatibility-missing'):
+            prepare.guest_tools.verify_pam_compatibility(tmp_path)
+    else:
+        assert prepare.guest_tools.verify_pam_compatibility(tmp_path) == {
+            'profile': 'lxc-cgroups', 'stacks': ['common-session', 'common-session-noninteractive'],
+            'module': 'pam_cgfs.so'}
+    assert {path: path.read_bytes() for path in before} == before
+
+
 @pytest.mark.parametrize('failure', [None, 'update', 'install', 'verify', 'active'])
 def test_dependencies_install_once_retry_without_network_and_stop_on_failure(tmp_path, failure, monkeypatch):
     import chinese_language_assets

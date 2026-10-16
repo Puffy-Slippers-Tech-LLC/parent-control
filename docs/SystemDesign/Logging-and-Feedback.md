@@ -90,7 +90,13 @@ Preparation emits `onpc.kiosk confinement preparation` with a denied outcome
 and `verification`, `stale-manager-reboot-required`, or
 `generation-limit-reboot-required`. The last two require reboot rather than
 automatic process termination. Configuration/removal reports a bounded fixed
-reason token and retains ownership records on failure; policy compiler errors
+reason token and retains ownership records on failure. It also identifies the
+last failing source line in the shipped confinement integration, numeric OS
+errno or command exit status, and closed policy-command/module categories.
+Unreviewed PAM session modules report `unsupported-pam-session-module`; the
+reviewed diagnostic categories distinguish `pam-cgfs`, `pam-exec` and `other`.
+These categories do not change the supported module inventory. Arbitrary module names, paths,
+arguments and exception text remain excluded. Policy compiler errors
 may appear in local package-manager output. These are local engineering
 diagnostics, not feedback attachment fields.
 

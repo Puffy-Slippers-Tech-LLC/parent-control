@@ -313,6 +313,14 @@ which would otherwise start a daemon before confinement. Both includes and
 substacks are audited against the supported session-module inventory; unknown
 modules, nested keyring callbacks and jumps crossing an inserted guard require
 explicit policy reconciliation. Other accounts retain the vendor callback.
+The supported inventory includes LXC's `pam_cgfs.so` in direct or included
+session rules. Its reviewed [LXC 6.0.6 implementation](https://github.com/lxc/lxc/blob/v6.0.6/src/lxc/pam/pam_cgfs.c)
+uses native cgroup creation, delegation, migration and empty-group cleanup;
+neither session callback launches a process or changes namespaces. Original
+controls, options and shared stack bytes are preserved. The final MAC gate and
+its teardown restrictions remain in force; compatibility adds no MAC permission
+or executable route. Unknown modules and control flow that could skip the gate
+are still refused.
 All PAM audits share one logical-line parser, including tab-separated includes
 and backslash continuations. Unsupported spelling, malformed directives and
 dangling local include overrides fail closed; original vendor bytes are retained.

@@ -1630,13 +1630,23 @@ def test_native_confinement_requires_natural_inactivity_before_start(monkeypatch
     run = Mock(side_effect=['b false', 'active', settled, guest.GuestError('owned-start')]
                if settled else ['b false', 'active'])
     monkeypatch.setattr(confinement.guest, 'run', run)
+    admission = Mock()
+    monkeypatch.setattr(confinement, 'verify_loader_admission_refusal', admission)
+    sequence, record = Mock(), Mock()
+    sequence.attach_mock(run, 'run')
+    sequence.attach_mock(admission, 'admission')
     with pytest.raises(guest.GuestError, match=(
             'owned-start' if settled else 'kiosk-confinement:manager-already-active')):
-        getattr(confinement, entrypoint)(Mock())
+        getattr(confinement, entrypoint)(record)
     assert [call.args[0] for call in run.call_args_list] == (
         [classification, query, query, start] if settled else [classification, query])
     if settled:
         assert run.call_args.kwargs == {'timeout': 75}
+        admission.assert_called_once_with({'backend': 'apparmor'}, record)
+        assert [call[0] for call in sequence.mock_calls] == [
+            'run', 'run', 'run', 'admission', 'run']
+    else:
+        admission.assert_not_called()
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])

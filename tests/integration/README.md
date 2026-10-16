@@ -189,6 +189,12 @@ then reboots normally and runs `first-configure-rebooted` against the same
 identity, routing and enforcing execution boundary. Both phases retain exact
 JUnit identities and raw diagnostics. An app snapshot or previous-version input
 cannot supply this initial state; resume replays the whole unfinished history.
+On Ubuntu the history now requires the baseline's real LXC `cgfs` session profile
+in both shared session stacks before installation, after retry and after reboot.
+Its fixed compatibility receipts prove that the optional module was active;
+absence, comments, duplicate entries or changed controls/options cannot become
+a compatibility pass. This extension has host coverage; its installed acceptance
+is pending under the [core installation handoff](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md).
 Faults belong to this engineering qualification and use an owned read-only
 integration directory plus an exact native policy-loader refusal. Mount identity,
 native empty-token authentication/account results and retained expiry are

@@ -27,7 +27,7 @@ def test_reboot_history_keeps_native_execution_enforcing_without_policy_loss_fau
     monkeypatch.setattr(configure, 'boot', lambda: 'new-boot')
     for name in ('verify_account_identity', 'verify_ordinary', 'verify_visibility',
                  'ordinary_controls', 'verify_gates', 'empty_authentication_probe',
-                 'verify_loaded_confinement'):
+                 'verify_loaded_confinement', 'verify_compatibility_profile'):
         monkeypatch.setattr(configure, name, Mock())
     for name in ('guard', 'enable_diagnostics', 'installed'):
         monkeypatch.setattr(configure.guest, name, Mock())
@@ -44,6 +44,32 @@ def test_reboot_history_keeps_native_execution_enforcing_without_policy_loss_fau
     full_matrix.assert_not_called()
     assert configure.verify_loaded_confinement.call_count == 2
     assert configure.guest.guard.call_count == 2
+    configure.verify_compatibility_profile.assert_called_once_with(record, 'after-reboot')
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_installed_compatibility_witness_requires_active_profile_and_preserves_refusal(
+        monkeypatch, package_format):
+    import guest_test_dependencies
+    monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.' + package_format))
+    receipt = {'profile': 'lxc-cgroups', 'stacks': ['common-session', 'common-session-noninteractive'],
+               'module': 'pam_cgfs.so'}
+    verify = Mock(return_value=receipt)
+    monkeypatch.setattr(guest_test_dependencies, 'verify_pam_compatibility', verify)
+    record = Mock()
+    configure.verify_compatibility_profile(record, 'before-install')
+    if package_format == 'rpm':
+        verify.assert_not_called()
+        record.assert_not_called()
+        return
+    verify.assert_called_once_with(Path('/'))
+    assert record.call_args.args[0] == 'onpc.first-configure.pam-compatibility.before-install'
+    assert json.loads(record.call_args.args[1]) == receipt
+    verify.side_effect = ValueError('guest-tools:pam-compatibility-missing')
+    record.reset_mock()
+    with pytest.raises(ValueError, match='pam-compatibility-missing'):
+        configure.verify_compatibility_profile(record, 'after-retry')
+    record.assert_not_called()
 
 
 @pytest.mark.parametrize('package_format,group,group_id', [('deb', 'sudo', 27), ('rpm', 'wheel', 10)])

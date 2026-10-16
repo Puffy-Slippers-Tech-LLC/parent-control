@@ -62,6 +62,69 @@ except MigrationError as error:
     helper.chmod(0o755)
 
 
+def use_real_kiosk_confinement(root, backend):
+    """Run production PAM/state logic in the maintainer machine's private tree.
+
+    Substitute the fixture UID, account and native policy tools only. Keep path,
+    ownership, locking, PAM control-flow, attestation and atomic-write checks.
+    This is host composition coverage, not installed MAC qualification.
+    """
+    if backend not in ('apparmor', 'selinux'):
+        raise ValueError('unsupported fixture backend')
+    root.chmod(0o700)
+    payload = root / 'usr/share/oh-no-parent-control/confinement'
+    payload.mkdir(parents=True, exist_ok=True)
+    (payload / 'config.json').write_text('{"backend": "' + backend + '"}\n')
+    policy = payload / ('onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil')
+    policy.write_text('# private native-policy input\n')
+    pam = root / 'etc/pam.d'
+    pam.mkdir(parents=True, exist_ok=True)
+    (pam / 'gdm-password').write_text('session required pam_unix.so\n')
+    vendor = root / 'usr/lib/pam.d'
+    vendor.mkdir(parents=True, exist_ok=True)
+    (vendor / 'systemd-user').write_text('session required pam_systemd.so\n')
+    for name, contents in (
+            ('sys/kernel/security/apparmor/profiles', ''),
+            ('proc/sys/kernel/random/boot_id', '11111111-1111-1111-1111-111111111111\n')):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents)
+    helper = root / 'usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    helper.unlink()
+    source = (ROOT / 'packaging/kiosk_confinement.py').read_text()
+    source = relocate_system_paths(source, root, prefixes=(
+        '/etc/', '/var/', '/run/', '/home/', '/usr/', '/sys/', '/proc/'))
+    source = source.replace("_CONFINEMENT_FILESYSTEM_ROOT = Path('/')",
+                            '_CONFINEMENT_FILESYSTEM_ROOT = Path(' + repr(str(root)) + ')')
+    source = source.replace('_CONFINEMENT_OWNER_UID = 0',
+                            '_CONFINEMENT_OWNER_UID = ' + str(os.getuid()))
+    source = source.replace('os.geteuid() != 0', 'os.geteuid() != _CONFINEMENT_OWNER_UID')
+    source = source.replace("pwd.getpwnam('oh-no-parent-control')",
+                            'SimpleNamespace(pw_uid=1006)')
+    helper.write_text(f'#!{sys.executable} -IB\nfrom types import SimpleNamespace\n' +
+                      source.split('\n', 1)[1])
+    helper.chmod(0o755)
+    # Production deliberately passes a fixed environment to these tools. Use a
+    # private failure file rather than relaxing that security boundary for tests.
+    tool_source = ('#!/bin/sh\nset -eu\n'
+                   f'printf "policy-tool %s\\n" "$*" >> {shlex.quote(str(root / "commands"))}\n'
+                   'if [ "${1:-}" = -l ]; then exit 0; fi\n'
+                   f'if [ -f {shlex.quote(str(root / "policy-load-status"))} ]; then\n'
+                   f'    read -r status < {shlex.quote(str(root / "policy-load-status"))}\n'
+                   '    exit "$status"\nfi\n')
+    for name in ('apparmor_parser', 'semodule', 'restorecon'):
+        tool = root / 'usr/sbin' / name
+        tool.write_text(tool_source)
+        tool.chmod(0o755)
+    # The lightweight shell machine permits the developer's group-writable
+    # umask. Its private system inputs must have real system modes before the
+    # production ancestor audit is used; deliberate unsafe cases are added later.
+    for path in root.rglob('*'):
+        if not path.is_symlink():
+            path.chmod(path.stat().st_mode & ~0o022)
+    return payload, pam, vendor
+
+
 class Machine:
     def __init__(self, root, distribution='ubuntu'):
         self.root = root

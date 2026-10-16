@@ -2213,6 +2213,28 @@ layers actually measured and include the separate child-language results.
 
 ## Maintaining regression coverage
 
+### Core installation and runtime compatibility
+
+Changes to package admission, PAM, native executable inventories, trust backends,
+provisioning or broker startup must review environment dimensions as well as test
+counts. Identify the exact existing installed assertion for each affected result;
+missing input variants remain uncovered even when many cases share one baseline.
+Unknown or unsafe configurations still require an explicit supported/refused
+decision; adding tests does not authorize widening product permissions.
+
+| Dimension | Required distinction and existing owner |
+| --- | --- |
+| PAM environment | Plain supported stacks and reviewed optional native callbacks, includes/substacks, trusted distro aliases, original local overrides and vendor updates. Host parsing/composition belongs to `test_kiosk_confinement.py` and `test_package_configuration.py`; installed callbacks belong to the first-configuration and confinement histories. Verify the effective optional rule, not only its package. |
+| Lifecycle composition | Run production migration and confinement together through the real package script with private filesystem inputs. A success stub for every helper cannot establish their composition. Use `tests.support.package_scripts`; native kernel/service tools may remain explicit doubles at host scope. |
+| Failure and recovery | Missing/failing policy tools, unsupported control flow and vendor drift must retain broker exclusion, preserve state and avoid success output. A repaired input must permit a normal retry through activation. Existing first-configuration/removal histories own installed interruption and recovery. |
+| Upgrade and live dependencies | Fresh installation, unchanged reinstall and actual earlier-package upgrade are separate histories. Record native dependency versions and qualify changed inputs; startup against freshly updated dependencies does not establish replacement while a session is retained. Use the existing upgrade interfaces and confinement replacement/reexec checks. |
+| Core customer results | Installation/service readiness is not proof of daily/grant arithmetic, hard/soft enforcement, lock/unlock, multi-session isolation or persistence. Keep their complete installed obligations in the existing E2E inventory/queue; pending journeys remain pending despite component/system passes. |
+
+The [core installation handoff](../docs/TestAutomation/Core-Installation-Coverage-Handoff.md)
+records the 2026-10-16 audit, implemented host checks and unfinished installed
+qualification. Follow its finite queue for that work; do not duplicate existing
+customer E2E tasks or treat this review as their completion.
+
 ### Handling test failures
 
 On resume, reconcile the current working tree, the active runner's actual

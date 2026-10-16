@@ -791,6 +791,12 @@ from regression_ui import Bucket
 # Preserved password-helper metadata/census checks use private ELF/proc trees
 # and xattr/pidfd doubles. One additional bounded native identity fixture uses
 # private compilation/output; it changes no mounts, labels, PAM or host policy.
+# Staging-detach checks compile one small private native binding fixture and
+# synchronously wait for its bounded children. Mount/namespace calls are doubles;
+# manifests and outputs stay in pytest-private trees. Existing compatible unit
+# admission still applies; there is no cleanup/UI inventory or shared resource.
+# Payload-refusal format checks reuse the existing private files and process-local
+# command doubles, with no additional subprocess or resource ownership.
 # Lua cwd-canary checks use the installed native Lua library in two bounded,
 # waited Python children with a private cwd and module. The control permits its
 # private module; the captured kiosk environment must reject it. No PipeWire,

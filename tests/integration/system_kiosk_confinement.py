@@ -1690,7 +1690,8 @@ def verify_payload_attestation_faults(account, directory, policy, record):
             record('onpc.kiosk.' + name + '-drift-loader-result', json.dumps({
                 'status': status, 'output': output.decode(errors='replace')}, sort_keys=True))
             guest.require(type(status) is int and status != 0 and
-                          b'reason=policy-load-incomplete-reconfigure-required;' in output,
+                          re.findall(rb'(?:^|\s)reason=([^;\s]+)', output) ==
+                          [b'policy-load-incomplete-reconfigure-required'],
                           'kiosk-confinement:payload-drift-boot-reattested')
             guest.require(admission_removal_state() == ownership and
                           private_recovery_record(state) == attestation,

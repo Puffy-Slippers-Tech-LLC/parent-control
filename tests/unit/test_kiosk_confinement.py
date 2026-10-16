@@ -3096,6 +3096,129 @@ def test_native_preserved_identity_refuses_malformed_assertions(native_preserved
     assert result.returncode == 1
 
 
+@pytest.fixture(scope='module')
+def native_mount_binding(tmp_path_factory):
+    directory = tmp_path_factory.mktemp('kiosk-mount-binding')
+    header = (ROOT / 'tools/kiosk_confinement.h').read_text()
+    functions = 'static int\npreserved_kiosk_identity' + header.split(
+        'static int\npreserved_kiosk_identity', 1)[1].split('\nstatic int\napply_kiosk_mac', 1)[0]
+    source = directory / 'binding.c'
+    source.write_text(r'''
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <sched.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static const char *manifest, *fault;
+static char paths[32][PATH_MAX];
+static unsigned descriptors;
+static int cloned, readonly;
+static int fixture_open(const char *path, int flags) {
+    if (!(flags & O_PATH)) return open(path, flags);
+    if (descriptors >= 32) exit(2);
+    snprintf(paths[descriptors], PATH_MAX, "%s", path);
+    return 100 + descriptors++;
+}
+static int fixture_fstat(int fd, struct stat *info) {
+    if (fd < 100) {
+        if (fstat(fd, info) != 0) return -1;
+        info->st_uid = 0;
+        return 0;
+    }
+    const char *path = paths[fd - 100];
+    memset(info, 0, sizeof(*info));
+    size_t length = strlen(path);
+    int directory = strcmp(path, "/usr") == 0 || strstr(path, "assets") != NULL ||
+                    (length >= 5 && strcmp(path + length - 5, "/tree") == 0);
+    info->st_mode = directory ? S_IFDIR | 0755 : S_IFREG | 0644;
+    info->st_nlink = 1;
+    return 0;
+}
+static int fixture_close(int fd) { return fd < 100 ? close(fd) : 0; }
+static int fixture_unshare(int flags) { return flags == CLONE_NEWNS ? 0 : -1; }
+static int fixture_mount(const char *from, const char *to, const char *type,
+                         unsigned long flags, const void *data) {
+    (void) type; (void) data;
+    if (from == NULL) return flags == (MS_REC | MS_PRIVATE) ? 0 : -1;
+    int fd;
+    if (flags != (MS_BIND | MS_REC) || sscanf(to, "/proc/self/fd/%d", &fd) != 1) exit(2);
+    const char *path = paths[fd - 100];
+    printf("bind:%s\n", path);
+    if (strcmp(path, "/usr") == 0) {
+        if (strcmp(fault, "attach") == 0) return -1;
+        cloned = 1;
+    }
+    return 0;
+}
+static int fixture_readonly(int fd, const char *path, unsigned flags,
+                            struct mount_attr *attributes, size_t size) {
+    if (fd != AT_FDCWD || flags != AT_RECURSIVE || size != sizeof(*attributes) ||
+        attributes->attr_set != MOUNT_ATTR_RDONLY) exit(2);
+    printf("readonly:%s\n", path);
+    if (strcmp(path, "/usr") == 0) {
+        if (strcmp(fault, "readonly") == 0) return -1;
+        readonly = 1;
+    }
+    return 0;
+}
+static int fixture_detach(const char *path, int flags) {
+    if (!cloned || !readonly || flags != MNT_DETACH || strcmp(path, "/usr") == 0) exit(2);
+    printf("detach:%s\n", path);
+    return strcmp(fault, "detach") == 0 ? -1 : 0;
+}
+#define KIOSK_CONFINEMENT_BINDINGS manifest
+#define open fixture_open
+#define fstat fixture_fstat
+#define close fixture_close
+#define unshare fixture_unshare
+#define mount fixture_mount
+#define mount_setattr fixture_readonly
+#define umount2 fixture_detach
+''' + functions + r'''
+int main(int argc, char **argv) {
+    char backend[32];
+    if (argc != 3) return 2;
+    manifest = argv[1]; fault = argv[2];
+    return bind_kiosk_executables(backend, sizeof(backend)) == 0 ? 0 : 1;
+}
+''')
+    executable = directory / 'binding'
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
+                    str(executable), str(source)], check=True, capture_output=True, text=True, timeout=30)
+    return executable
+
+
+@pytest.mark.parametrize('fault', ['none', 'attach', 'readonly', 'detach', 'input'])
+def test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone(
+        native_mount_binding, tmp_path, fault):
+    root = '/run/oh-no-parent-control-confinement/generation/tree'
+    targets = [root + '/bin/program', root + '/share/assets']
+    manifest = tmp_path / 'bindings'
+    manifest.write_text('apparmor\n' +
+        ('/tmp/untrusted' if fault == 'input' else '/usr/bin/program') + '\t' + targets[0] + '\n' +
+        '/usr/share/assets\t' + targets[1] + '\n' + root + '\t/usr\n')
+    manifest.chmod(0o600)
+    result = subprocess.run([str(native_mount_binding), str(manifest), fault],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == (0 if fault == 'none' else 1), result.stderr
+    operations = result.stdout.splitlines()
+    detached = [value.removeprefix('detach:') for value in operations if value.startswith('detach:')]
+    if fault == 'none':
+        assert detached == targets
+        assert operations.index('readonly:/usr') < operations.index('detach:' + targets[0])
+    elif fault == 'detach':
+        assert detached == targets[:1]
+    else:
+        assert detached == []
+    assert '/usr' not in detached
+
+
 def test_directory_skeleton_preserves_links_without_following_them(tmp_path, monkeypatch):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
     tree = tmp_path / 'tree'
@@ -4057,10 +4180,13 @@ def test_manager_reexec_observation_requires_each_live_thread_boundary(
 
 @pytest.mark.parametrize('stage', ['configuration', 'policy'])
 @pytest.mark.parametrize('fault', [None, 'native-admitted', 'load-accepted', 'wrong-load-refusal',
+                                   'extended-load-refusal',
                                    'ownership-changed', 'attestation-changed',
                                    'policy-unenforced', 'recovery-failed', 'manager-active'])
+@pytest.mark.parametrize('diagnostic_suffix', [b'', b' source=kiosk-confinement line=547'],
+                         ids=['reason-only', 'source-location'])
 def test_payload_drift_requires_native_and_boot_refusal_before_exact_recovery(
-        census_model, tmp_path, monkeypatch, stage, fault):
+        census_model, tmp_path, monkeypatch, stage, fault, diagnostic_suffix):
     helper = census_model
     config, policy = tmp_path / 'config.json', tmp_path / 'onpc-kiosk.apparmor'
     originals = {config: b'{"backend":"apparmor"}\n', policy: b'original policy\n'}
@@ -4116,12 +4242,16 @@ def test_payload_drift_requires_native_and_boot_refusal_before_exact_recovery(
         events.append(('load', selected))
         current['loaded'] = selected
         helper.guest.commands.last_returncode = 0 if fault == 'load-accepted' and selected == stage else 1
-        return (b'reason=other;' if fault == 'wrong-load-refusal' and selected == stage else
-                b'reason=policy-load-incomplete-reconfigure-required;')
+        reason = (b'other' if fault == 'wrong-load-refusal' and selected == stage else
+                  b'policy-load-incomplete-reconfigure-required-extra'
+                  if fault == 'extended-load-refusal' and selected == stage else
+                  b'policy-load-incomplete-reconfigure-required')
+        return b'reason=' + reason + diagnostic_suffix + b';'
     monkeypatch.setattr(helper.guest, 'commands', SimpleNamespace(run=load, last_returncode=None))
     if fault:
         category = ('generation-admitted' if fault == 'native-admitted' else
-                    'payload-drift-boot-reattested' if fault in ('load-accepted', 'wrong-load-refusal') else
+                    'payload-drift-boot-reattested' if fault in (
+                        'load-accepted', 'wrong-load-refusal', 'extended-load-refusal') else
                     'payload-drift-ownership-changed' if fault in ('ownership-changed', 'attestation-changed') else
                     'policy-unenforced' if fault == 'policy-unenforced' else
                     'payload-drift-manager-active' if fault == 'manager-active' else

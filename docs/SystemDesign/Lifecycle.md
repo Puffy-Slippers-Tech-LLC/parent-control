@@ -423,6 +423,10 @@ reserved plugin directory. Original sibling entries are pinned with read-only
 binds; copied executables occupy independent private entries. The completed
 tree is attached recursively over `/usr` in the caller's private mount namespace.
 Ordinary package unlink/replacement cannot detach these private file mounts.
+After the read-only `/usr` attachment succeeds, the caller detaches only the
+staging mounts recorded during that admission. The `/usr` clones retain the same
+inode pins; failed staging cleanup denies admission before MAC is applied.
+This avoids exposing a duplicate mount tree to the user manager and dialog sandboxes.
 Both targets independently pin the vendor password helper at
 `/usr/lib/polkit-1/polkit-agent-helper-1`. Its native bytes, exact root ownership,
 mode and Fedora SELinux label contribute to the generation; file capabilities

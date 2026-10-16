@@ -143,6 +143,8 @@ bind_kiosk_executables(char *backend, size_t size)
     char line[PATH_MAX * 2 + 4], fd_path[64], target_fd_path[64];
     const char *runtime = "/run/oh-no-parent-control-confinement/";
     FILE *stream = NULL;
+    char **staged = NULL;
+    unsigned staged_count = 0;
     int fd = -1, source = -1, target = -1, result = -1, attached = 0;
     unsigned count = 0;
     fd = open(KIOSK_CONFINEMENT_BINDINGS, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
@@ -156,6 +158,9 @@ bind_kiosk_executables(char *backend, size_t size)
     if (strcmp(backend, "apparmor\n") != 0 && strcmp(backend, "selinux\n") != 0)
         goto done;
     backend[strcspn(backend, "\n")] = '\0';
+    staged = calloc(32768, sizeof(*staged));
+    if (staged == NULL)
+        goto done;
     if (unshare(CLONE_NEWNS) != 0 || mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0)
         goto done;
     while (fgets(line, sizeof(line), stream) != NULL) {
@@ -199,15 +204,32 @@ bind_kiosk_executables(char *backend, size_t size)
             if (strncmp(line, runtime, strlen(runtime)) != 0 || !S_ISDIR(info.st_mode))
                 goto done;
             attached = 1;
+        } else {
+            if (staged_count >= 32768 ||
+                (staged[staged_count] = strdup(destination)) == NULL)
+                goto done;
+            staged_count++;
         }
         close(source);
         close(target);
         source = -1;
         target = -1;
     }
-    if (!ferror(stream) && count > 1 && attached)
+    if (!ferror(stream) && count > 1 && attached) {
+        /* MS_REC cloned the complete pinned view onto /usr. Its original
+         * staging mounts are now redundant, and would otherwise make the
+         * user manager synthesize thousands of extra mount units. Detach only
+         * destinations recorded by this invocation, before entering MAC.
+         * The /usr clones retain their independent read-only inode pins. */
+        for (unsigned i = 0; i < staged_count; i++)
+            if (umount2(staged[i], MNT_DETACH) != 0)
+                goto done;
         result = 0;
+    }
 done:
+    for (unsigned i = 0; i < staged_count; i++)
+        free(staged[i]);
+    free(staged);
     if (source >= 0)
         close(source);
     if (target >= 0)

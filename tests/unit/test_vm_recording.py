@@ -152,12 +152,46 @@ def test_session_pins_runner_queue_before_starting_renderer(monkeypatch, tmp_pat
     assert session.configured == {'Owned': registry['Owned']}
 
 
+def test_keyframe_boundaries_use_sorted_packet_presentation_times(monkeypatch, tmp_path):
+    probe = Mock(return_value=SimpleNamespace(stdout=json.dumps({'packets': [
+        dict(pts_time='3.0', dts_time='0.0', flags='K_'),
+        dict(pts_time='1.0', dts_time='1.0', flags='__'),
+        dict(pts_time='0.0', dts_time='2.0', flags='K_'),
+        dict(pts_time='2.0', dts_time='3.0', flags='K_')]})))
+    monkeypatch.setattr(recording.subprocess, 'run', probe)
+    path = tmp_path / 'master.webm'
+    assert recording.keyframes(path) == [0., 2., 3.]
+    command = probe.call_args.args[0]
+    assert command == ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                       '-show_entries', 'packet=pts_time,flags', '-of', 'json', str(path)]
+    assert probe.call_args.kwargs['timeout'] == 120
+    assert probe.call_args.kwargs['check'] is True
+
+
+@pytest.mark.parametrize('timestamp', [{}, {'pts_time': None}, {'pts_time': 'bad'},
+    {'pts_time': 'NaN'}, {'pts_time': 'inf'}, {'pts_time': '-0.2'}])
+def test_invalid_keyframe_timestamp_refuses(monkeypatch, tmp_path, timestamp):
+    monkeypatch.setattr(recording.subprocess, 'run', Mock(return_value=SimpleNamespace(
+        stdout=json.dumps({'packets': [dict(timestamp, flags='K_')]}))))
+    with pytest.raises(RuntimeError, match='invalid keyframe timestamp'):
+        recording.keyframes(tmp_path / 'master.webm')
+
+
+@pytest.mark.parametrize('packets', [[], [dict(pts_time='0.0', flags='__')]])
+def test_capture_without_keyframe_packets_refuses(monkeypatch, tmp_path, packets):
+    monkeypatch.setattr(recording.subprocess, 'run', Mock(return_value=SimpleNamespace(
+        stdout=json.dumps({'packets': packets}))))
+    with pytest.raises(RuntimeError, match='no keyframe packets'):
+        recording.keyframes(tmp_path / 'master.webm')
+
+
 def test_late_decode_failure_cannot_replace_previous_recording(tmp_path):
     from tools.recording_storage import Store
     valid = tmp_path / 'valid.webm'
     subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
         'color=c=red:s=32x24:r=5', '-frames:v', '3', '-c:v', 'libvpx-vp9',
         '-threads', '1', '-g', '1', str(valid)], check=True, timeout=15)
+    assert recording.keyframes(valid) == [0., .2, .4]
     assert recording.playable(valid)
     packets = json.loads(subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
         '-show_packets', '-show_data', '-show_entries', 'packet=pos,size,data', '-of', 'json', str(valid)],

@@ -8,6 +8,7 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 import json
 import bisect
+import math
 import os
 from pathlib import Path
 import secrets
@@ -219,15 +220,26 @@ def playable(path):
 
 
 def keyframes(path):
+    # Packet flags identify stream-copy boundaries without decoding the whole
+    # session. Complete candidate decoding remains the publication guard.
     result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-        '-skip_frame', 'nokey', '-show_entries', 'frame=best_effort_timestamp_time',
+        '-show_entries', 'packet=pts_time,flags',
         '-of', 'json', str(path)], stdin=subprocess.DEVNULL, capture_output=True,
         timeout=120, check=True)
-    values = sorted(float(frame['best_effort_timestamp_time'])
-                    for frame in json.loads(result.stdout)['frames'])
+    values = []
+    for packet in json.loads(result.stdout)['packets']:
+        if 'K' not in packet.get('flags', ''):
+            continue
+        try:
+            value = float(packet['pts_time'])
+        except (KeyError, TypeError, ValueError) as error:
+            raise RuntimeError('recording: invalid keyframe timestamp') from error
+        if not math.isfinite(value) or value < 0:
+            raise RuntimeError('recording: invalid keyframe timestamp')
+        values.append(value)
     if not values:
-        raise RuntimeError('recording: no decodable keyframes')
-    return values
+        raise RuntimeError('recording: no keyframe packets')
+    return sorted(values)
 
 
 class Session:

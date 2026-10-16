@@ -12,7 +12,7 @@ release acceptance.
 
 Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
-Next task: **4-10 — [Final Ubuntu and Fedora qualification](Confinement-Tasks/4-10.md)**.
+Next task: **4-12 — [Reconcile and close](Confinement-Tasks/4-12.md)**.
 
 Phase 3's isolation exit gate is complete. Phase 4 remains open: latest-version
 activation/reboot and removal/reinstall/purge/retry must preserve execution and
@@ -20,6 +20,18 @@ admission barriers and account ownership on both targets; final security review,
 affected regressions and every required acceptance gap must pass before closure.
 The queue preserves completed task identities and evidence. Remaining shared
 goals cover Ubuntu and Fedora together; distro-specific recovery stays explicit.
+
+## Task 4-10 resume checkpoint
+
+The [final dual-target results](Confinement-Reference.md#phase-4-step-10--final-ubuntu-and-fedora-qualification--2026-10-16)
+record both targets as passed. The developer explicitly accepted the lost Ubuntu
+raw files and directed that Ubuntu remain passed. That [accepted retention
+limit](Confinement-Reference.md#accepted-ubuntu-retention-limit) carries into 4-12:
+do not reopen the same loss as a blocker, request permission again or repeat
+tests for it. Keep original input bindings; do not reconstruct missing proof or
+substitute older packages. All other retained evidence remains applicable under
+its recorded identities. VM, host and publication cleanup passed; both VMs are
+off. Leave Git close-out to the controller.
 
 ## Requirements
 - Drive subagents (stick to 6.1-sol of variant efforts) as needed to divide and conquer especially with lower-tier agent on routine monitoring and coverage refreshes

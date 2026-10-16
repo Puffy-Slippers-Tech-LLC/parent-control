@@ -60,6 +60,14 @@ def process_identity(process):
     return (fields[19], int(status['PPid']), tuple(status['Uid'].split()))
 
 
+def census_thread_identity(thread):
+    """A task can exit while its parent and process pidfd remain live."""
+    try:
+        return process_identity(thread)
+    except (FileNotFoundError, ProcessLookupError) as error:
+        raise guest.GuestError('kiosk-census:process-lifecycle-changed') from error
+
+
 def confined_thread_roles(thread, config, backend, generation, host_namespace):
     guest.require(os.readlink(thread / 'ns/mnt') != host_namespace,
                   'kiosk-census:unconfined-namespace')
@@ -149,7 +157,8 @@ def census_processes(account, config, backend, manager, manager_fd, unit, *,
         try:
             pidfd = os.pidfd_open(int(process.name))
             identity = process_identity(process)
-            threads = {thread: process_identity(thread) for thread in (process / 'task').iterdir()}
+            threads = {thread: census_thread_identity(thread)
+                       for thread in (process / 'task').iterdir()}
             # Linux credentials belong to individual threads. A root leader
             # must not hide a sibling which adopted any kiosk credential.
             relevant = any(str(account.pw_uid) in value[2] for value in threads.values())
@@ -164,7 +173,8 @@ def census_processes(account, config, backend, manager, manager_fd, unit, *,
                 for role in confined_thread_roles(thread, config, backend, generation, host_namespace):
                     counts[role] = counts.get(role, 0) + 1
             guest.require(set((process / 'task').iterdir()) == set(threads) and
-                          all(process_identity(thread) == value for thread, value in threads.items()) and
+                          all(census_thread_identity(thread) == value
+                              for thread, value in threads.items()) and
                           process_identity(process) == identity and not exited(pidfd),
                           'kiosk-census:process-lifecycle-changed')
         except (FileNotFoundError, ProcessLookupError):

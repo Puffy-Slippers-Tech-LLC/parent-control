@@ -1590,8 +1590,9 @@ def native_census(monkeypatch):
     monkeypatch.setattr(confinement.runpy, 'run_path', Mock(
         return_value={'enforcing': (enforcing := Mock())}))
     monkeypatch.setattr(confinement, 'manager_pid', manager := Mock(return_value=42))
-    monkeypatch.setattr(confinement.os, 'pidfd_open', opened := Mock(return_value=142))
-    monkeypatch.setattr(confinement.os, 'close', closed := Mock())
+    opened, closed = Mock(return_value=142), Mock()
+    monkeypatch.setattr(confinement, 'os', SimpleNamespace(
+        pidfd_open=opened, close=closed, readlink=confinement.os.readlink))
     monkeypatch.setattr(confinement, 'exited', exited := Mock(return_value=False))
     monkeypatch.setattr(confinement.time, 'sleep', sleep := Mock())
     monkeypatch.setattr(confinement.time, 'monotonic', Mock(return_value=0))
@@ -1620,7 +1621,8 @@ def test_census_retries_complete_observation_with_one_pinned_manager(native_cens
     model.sleep.assert_called_once_with(0.05)
 
 
-def test_census_transient_task_race_discards_partial_role_counts(native_census, tmp_path, monkeypatch):
+@pytest.fixture
+def native_census_processes(native_census, tmp_path, monkeypatch):
     model = native_census
     helper = model.helper
     # Exercise the real observation, with two private proc-shaped processes.
@@ -1657,6 +1659,20 @@ def test_census_transient_task_race_discards_partial_role_counts(native_census, 
     monkeypatch.setattr(helper.Path, 'read_text', lambda path, *args, **kwargs: (
         json.dumps(model.config) if str(path) == '/usr/share/oh-no-parent-control/confinement/config.json'
         else model.read_text(path, *args, **kwargs)))
+    model.processes = processes
+    model.opened.side_effect = [100, 101, 102, 103, 104]
+    return model
+
+
+@pytest.mark.parametrize('race,error', [
+    ('process-reused', None),
+    ('thread-initial', FileNotFoundError), ('thread-final', FileNotFoundError),
+    ('thread-initial', ProcessLookupError), ('thread-final', ProcessLookupError),
+], ids=['process-reused', 'initial-enoent', 'final-enoent', 'initial-esrch', 'final-esrch'])
+def test_census_transient_task_race_discards_partial_role_counts(
+        native_census_processes, monkeypatch, race, error):
+    model = native_census_processes
+    helper, processes = model.helper, model.processes
     identity = helper.process_identity
     reads = 0
 
@@ -1665,18 +1681,126 @@ def test_census_transient_task_race_discards_partial_role_counts(native_census, 
         value = identity(path)
         if path == processes[1]:
             reads += 1
-            if reads == 2:
+            if reads == 2 and race == 'process-reused':
                 return ('transient-change', *value[1:])
         return value
 
     monkeypatch.setattr(helper, 'process_identity', changing_identity)
-    model.opened.side_effect = [100, 101, 102, 103, 104]
+    thread_stat = processes[1] / 'task/43/stat'
+    read_text = helper.Path.read_text
+    thread_reads = 0
+
+    def disappearing_thread(path, *args, **kwargs):
+        nonlocal thread_reads
+        if path == thread_stat:
+            thread_reads += 1
+            if race != 'process-reused' and thread_reads == (1 if race == 'thread-initial' else 2):
+                thread_stat.unlink()
+                if error is ProcessLookupError:
+                    raise ProcessLookupError('fixture task exited while parent remains live')
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(helper.Path, 'read_text', disappearing_thread)
+    model.sleep.side_effect = lambda _delay: (
+        thread_stat.symlink_to(processes[1] / 'stat') if not thread_stat.exists() else None)
     result = helper.census(required_roles=('manager', 'app'))
     assert result == {'backend': 'apparmor', 'confined_thread_roles': {
         'onpc-kiosk-manager': 1, 'onpc-kiosk-app': 1}}
-    assert reads == 4
+    assert reads == (4 if race == 'process-reused' else 3)
     assert model.guard.call_count == model.enforcing.call_count == 2
+    assert [call.args for call in model.manager.call_args_list] == [('user@1007.service',)] * 3
+    assert model.exited.return_value is False  # The parent never exits to excuse the task race.
+    model.sleep.assert_called_once_with(0.05)
+    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43, 42, 43]
     assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 103, 104, 100]
+
+
+@pytest.mark.parametrize('point', ['initial', 'final'])
+def test_census_disappearing_thread_churn_reaches_original_deadline(
+        native_census_processes, monkeypatch, point):
+    model = native_census_processes
+    helper = model.helper
+    thread_stat = model.processes[1] / 'task/43/stat'
+    read_text = helper.Path.read_text
+    reads = 0
+
+    def disappearing_thread(path, *args, **kwargs):
+        nonlocal reads
+        if path == thread_stat:
+            reads += 1
+            if point == 'initial' or reads % 2 == 0:
+                thread_stat.unlink()
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(helper.Path, 'read_text', disappearing_thread)
+    model.sleep.side_effect = lambda _delay: thread_stat.symlink_to(model.processes[1] / 'stat')
+    monkeypatch.setattr(helper.time, 'monotonic', Mock(side_effect=[0, 1, 2, 5]))
+    with pytest.raises(guest.GuestError, match='^kiosk-census:process-lifecycle-changed$'):
+        helper.census(required_roles=('manager', 'app'))
+    assert reads == (2 if point == 'initial' else 4)
+    assert model.guard.call_count == model.enforcing.call_count == 2
+    model.sleep.assert_called_once_with(0.05)
+    assert model.exited.return_value is False
+    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43, 42, 43]
+    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 103, 104, 100]
+
+
+@pytest.mark.parametrize('fault,category', [
+    ('label', 'kiosk-census:unconfined-thread'),
+    ('generation', 'kiosk-census:unconfined-generation'),
+    ('namespace', 'kiosk-census:unconfined-namespace'),
+    ('credentials', 'kiosk-census:required-service-missing:app'),
+    ('missing-label', 'kiosk-census:live-process-unreadable'),
+    ('missing-generation', 'kiosk-census:live-process-unreadable'),
+    ('missing-namespace', 'kiosk-census:live-process-unreadable'),
+    ('unreadable-initial-identity', None),
+    ('unreadable-final-identity', None),
+])
+def test_census_live_thread_security_failure_is_terminal(
+        native_census_processes, monkeypatch, fault, category):
+    model = native_census_processes
+    helper = model.helper
+    process = model.processes[1]
+    if fault in ('label', 'missing-label'):
+        target = process / 'attr/apparmor/current'
+        if fault == 'missing-label':
+            target.unlink()
+        else:
+            target.write_text('unconfined (enforce)')
+    elif fault in ('generation', 'missing-generation'):
+        target = process / 'root/usr/share/oh-no-parent-control/confinement/generation'
+        if fault == 'missing-generation':
+            target.unlink()
+        else:
+            target.write_text('different-generation')
+    elif fault in ('namespace', 'missing-namespace'):
+        target = process / 'ns/mnt'
+        target.unlink()
+        if fault == 'namespace':
+            target.symlink_to('mnt:[host]')
+    elif fault == 'credentials':
+        (process / 'status').write_text('PPid:\t1\nUid:\t0\t0\t0\t0\n')
+    else:
+        read_text = helper.Path.read_text
+        reads = 0
+
+        def unreadable_identity(path, *args, **kwargs):
+            nonlocal reads
+            if path == process / 'task/43/stat':
+                reads += 1
+                if reads == (1 if fault == 'unreadable-initial-identity' else 2):
+                    raise PermissionError('fixture live task identity access denied')
+            return read_text(path, *args, **kwargs)
+
+        monkeypatch.setattr(helper.Path, 'read_text', unreadable_identity)
+    with pytest.raises(guest.GuestError if category else PermissionError,
+                       match='^' + category + '$' if category else 'identity access denied'):
+        helper.census(required_roles=('manager', 'app'))
+    model.sleep.assert_not_called()
+    assert model.guard.call_count == model.enforcing.call_count == 1
+    assert model.exited.return_value is False
+    assert [call.args[0] for call in model.opened.call_args_list] == [42, 42, 43]
+    assert [call.args[0] for call in model.closed.call_args_list] == [101, 102, 100]
 
 
 @pytest.mark.parametrize('expires', ['before-retry', 'after-guard', 'persistent'])

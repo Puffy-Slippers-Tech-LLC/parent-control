@@ -1,6 +1,8 @@
-"""Focused smoke evidence/sequence regressions; no processes or VM use."""
+"""Focused smoke evidence/sequence regressions; no VM use."""
 
 import json
+import subprocess
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,6 +12,14 @@ import check_graphical_smoke as smoke
 
 from tests.support.screens import png
 from tests.support.e2e_evidence import worker_evidence
+
+
+def test_standalone_qualification_imports_without_inherited_checkout_path(tmp_path):
+    program = ('import sys; sys.path.insert(0, ' + repr(str(smoke.ROOT / 'tests/integration')) +
+               '); import check_graphical_smoke')
+    result = subprocess.run([sys.executable, '-I', '-B', '-c', program],
+                            cwd=tmp_path, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize('fault', [None, 'seal', 'result', 'interrupt'])

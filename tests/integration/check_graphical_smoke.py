@@ -18,8 +18,8 @@ import tempfile
 import threading
 import time
 import uuid
-from tools.vm_recording import protect_capture
 from qualification_storage import allocate, session as storage_session
+from tools.vm_recording import protect_capture
 
 import graphical_backend
 from owned_commands import Commands, require

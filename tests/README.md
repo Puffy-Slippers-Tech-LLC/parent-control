@@ -1426,10 +1426,14 @@ queue. Capture includes only that queue's feeds from this checkout: another
 controller's secret seals cannot authorize recording its display. A visible watch
 window can be opened, closed or absent independently.
 The recording is human review material; test assertions and result reports
-remain authoritative. Secret-input intervals are opaque, with nonsecret labels
-identifying the current VM panels; retained command text follows the shared
-watch filtering contract. On release, opacity remains until visible VM textures
-have refreshed after the safe result and GTK has had another paint interval.
+remain authoritative. Qualified masked graphical authentication in GDM, lock
+screens and MATE/Shell Polkit prompts remains visible, including rejection and
+failure results. Fresh recipient checks and private credential delivery remain
+mandatory. Serial, VT6 and installation authentication retain opaque secret-input
+intervals, with nonsecret labels identifying the current VM panels; retained
+command text follows the shared watch filtering contract. On release, opacity
+remains until visible VM textures have refreshed after the safe result and GTK
+has had another paint interval.
 
 Final WebMs live directly in the shared managed
 `output/test-runs/recordings/` directory, already gitignored by `output/`.

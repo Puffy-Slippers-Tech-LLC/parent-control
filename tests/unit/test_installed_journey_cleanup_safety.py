@@ -5,7 +5,7 @@ import copy
 import hashlib
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -42,136 +42,84 @@ import kiosk_rejection
 import approval_flow
 
 
-@pytest.mark.parametrize('fault', [None, 'seal', 'after-seal', 'cancel', 'result', 'durability'])
-def test_recording_seal_precedes_secret_reply_and_waits_for_safe_result(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('recipient', [
+    'gdm-parent-recipient-rechecked', 'gdm-standard-recipient-rechecked',
+    'gdm-child-recipient-rechecked', 'parent-lock-recipient-rechecked',
+    'child-lock-recipient-rechecked', 'kiosk-mate-rechecked',
+    'kiosk-mate-rejection-rechecked', 'chinese-mate-rechecked',
+    'overlay-shell-rechecked', 'overlay-shell-rejection-rechecked',
+])
+@pytest.mark.parametrize('fault', [None, 'recipient', 'recipient-durability',
+                                  'ownership', 'cancel', 'result', 'durability'])
+def test_masked_graphical_authentication_keeps_recording_visible_and_reply_guards(
+        tmp_path, monkeypatch, recipient, fault):
     # Existing private callback files and process-local doubles only.
+    from tools import vm_recording
     events = []
-
-    class Protection:
-        def __enter__(self):
-            assert not (tmp_path / 'recipient-rechecked.reply.json').exists()
-            events.append('sealed')
-            if fault == 'seal':
-                raise RuntimeError('opaque frame unavailable')
-
-        def __exit__(self, kind, value, traceback):
-            events.append('unsealed' if kind is None else 'retained')
-
-    monkeypatch.setattr(journeys, 'protect_capture', lambda **_: Protection())
+    recording_control = Mock(side_effect=AssertionError('graphical recording must stay visible'))
+    monkeypatch.setattr(vm_recording, 'protected_endpoint', recording_control)
     monkeypatch.setattr(journeys.session_control, 'observe', Mock(return_value={}))
+
     def progress(stage, observed):
+        assert not (tmp_path / (stage + '.reply.json')).exists()
         events.append(stage + '-durable')
-        if stage == 'desktop' and fault == 'durability':
+        if (stage == 'desktop' and fault == 'durability'
+                or stage == 'recipient-rechecked' and fault == 'recipient-durability'):
             raise OSError('checkpoint failed')
+
+    plan = journeys.JourneyPlan(
+        prefix='recording', worker_mode='parent_about',
+        screen_tags={'recipient-rechecked': 'ui:' + recipient, 'desktop': 'ui:desktop'},
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                'recipient-rechecked': 'step-1', 'desktop': 'step-1'})
     journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), progress,
-                                         parent_about.PLAN)
+                                         plan)
     stage = 'recipient-rechecked'
     journey.steps = [{'stage': entry} for entry in
                      journey.plan.stages[:journey.plan.stages.index(stage)]]
+
+    def observe(operation):
+        events.append(operation)
+        if fault == 'recipient' and operation == recipient:
+            raise RuntimeError('recipient not qualified')
+        if fault == 'result' and operation == 'desktop':
+            raise RuntimeError('authentication not observed')
+        return {'operation': operation, 'outcome': 'passed',
+                'lock': {'challenge_id': 'test-challenge'}}
+
     journey.ui = SimpleNamespace(boot_proof='b' * 64,
-        observe=Mock(side_effect=lambda operation: {'operation': operation, 'outcome': 'passed'}))
+                                 observe=Mock(side_effect=observe))
     (tmp_path / (stage + '.request.json')).write_text(json.dumps({'stage': stage, 'screenshot': None}))
+
     def guard():
-        if fault in ('after-seal', 'cancel') and 'sealed' in events:
+        if fault in ('ownership', 'cancel') and 'recipient-rechecked-durable' in events:
             if fault == 'cancel':
                 raise KeyboardInterrupt()
             raise RuntimeError('owner lost')
-    if fault in ('seal', 'after-seal', 'cancel'):
-        with pytest.raises(KeyboardInterrupt if fault == 'cancel' else RuntimeError):
+
+    if fault in ('recipient', 'recipient-durability', 'ownership', 'cancel'):
+        with pytest.raises((KeyboardInterrupt, RuntimeError, OSError)):
             journey.step(guard)
         assert not (tmp_path / (stage + '.reply.json')).exists()
     else:
         journey.step(guard)
-        assert events[-1] == 'sealed'
+        assert events == [recipient, 'recipient-rechecked-durable']
         assert (tmp_path / (stage + '.reply.json')).exists()
         (tmp_path / 'desktop.request.json').write_text(json.dumps(
             {'stage': 'desktop', 'screenshot': None}))
-        def observe(operation):
-            events.append('safe-result')
-            if fault == 'result':
-                raise RuntimeError('authentication not observed')
-            return {'operation': operation, 'outcome': 'passed'}
-        journey.ui.observe.side_effect = observe
         if fault:
             with pytest.raises((RuntimeError, OSError)):
                 journey.step(guard)
             assert not (tmp_path / 'desktop.reply.json').exists()
         else:
             journey.step(guard)
-            assert events[-3:] == ['safe-result', 'desktop-durable', 'unsealed']
+            assert events[-2:] == ['desktop', 'desktop-durable']
             assert (tmp_path / 'desktop.reply.json').exists()
+    recording_control.assert_not_called()
     if fault:
-        assert 'unsealed' not in events
         assert journey.failed
-        if fault != 'seal':
-            assert events[-1] == 'retained'
-
-
-@pytest.mark.parametrize('recipient,result,binding', [
-    ('kiosk-mate-rechecked', 'kiosk-mate-submit-success', 'mate'),
-    ('kiosk-mate-rejection-rechecked', 'kiosk-mate-submit-success', 'mate'),
-    ('chinese-mate-rechecked', 'chinese-mate-submit-success', 'mate'),
-    ('overlay-shell-rechecked', 'overlay-approval-success', 'shell'),
-    ('overlay-shell-rejection-rechecked', 'overlay-approval-immediate', 'shell'),
-])
-def test_recording_opacity_requires_exact_public_approval_result(
-        tmp_path, monkeypatch, recipient, result, binding):
-    protection = MagicMock()
-    monkeypatch.setattr(journeys, 'protect_capture', Mock(return_value=protection))
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_about.PLAN)
-    journey._capture_boundary(recipient, {})
-    protection.__enter__.assert_called_once_with()
-    assert journey._capture_protections[-1][1] == (binding, None)
-    journey._capture_boundary(result, {'ui': {'approval': {'approved': True}}})
-    journey._capture_boundary(result, {'ui': {'approval': {'approved': 1, 'form_success': 1}}})
-    journey._capture_boundary('caller-label-approval-success', {'ui': {'approval': {
-        'approved': True, 'form_success': True}}})
-    protection.__exit__.assert_not_called()
-    value = {'approved': True, 'form_success': True}
-    if result == 'overlay-approval-immediate':
-        value['immediate_exit'] = True
-    journey._capture_boundary(result, {'ui': {'approval': value}})
-    protection.__exit__.assert_called_once_with(None, None, None)
-
-
-def test_recording_expected_denial_stays_opaque_until_later_intended_safe_desktop(
-        tmp_path, monkeypatch):
-    first, second = MagicMock(), MagicMock()
-    factory = Mock(side_effect=[first, second])
-    monkeypatch.setattr(journeys, 'protect_capture', factory)
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_about.PLAN)
-    journey._capture_boundary('caller-recipient-rechecked', {})
-    factory.assert_not_called()
-    journey._capture_boundary('gdm-child-recipient-rechecked', {})
-    journey._capture_boundary('gdm-child-time-denied', {})
-    first.__exit__.assert_not_called()
-    journey._capture_boundary('gdm-parent-recipient-rechecked', {})
-    journey._capture_boundary('fresh-child-desktop', {})
-    first.__exit__.assert_not_called()
-    second.__exit__.assert_not_called()
-    journey._capture_boundary('desktop', {})
-    first.__exit__.assert_called_once_with(None, None, None)
-    second.__exit__.assert_called_once_with(None, None, None)
-
-
-@pytest.mark.parametrize('recipient,result,extra', [
-    ('gdm-child-recipient-rechecked', 'gdm-child-denied-returned', {}),
-    ('parent-lock-recipient-rechecked', 'gdm-returned', {}),
-    ('overlay-shell-rejection-rechecked', 'overlay-shell-dismissed', {}),
-    ('kiosk-mate-rejection-rechecked', 'kiosk-mate-submit-rejection', {
-        'approval': {'rejected': True, 'cancelled': True, 'no_error': True}}),
-])
-def test_recording_fresh_safe_cancel_or_greeter_releases_only_owned_seal(
-        tmp_path, monkeypatch, recipient, result, extra):
-    protection = MagicMock()
-    monkeypatch.setattr(journeys, 'protect_capture', Mock(return_value=protection))
-    journey = journeys.InstalledJourney(SimpleNamespace(directory=tmp_path), Mock(), parent_about.PLAN)
-    journey._capture_boundary(recipient, {})
-    journey._capture_boundary('untrusted-' + result, {'ui': extra})
-    protection.__exit__.assert_not_called()
-    journey._capture_boundary(result, {'ui': {
-        'operation': result, 'outcome': 'passed', **extra}})
-    protection.__exit__.assert_called_once_with(None, None, None)
+        with pytest.raises(EvidenceError, match='previous-failure'):
+            journey.step(guard)
 
 
 @pytest.mark.parametrize('cancelled', [False, True])

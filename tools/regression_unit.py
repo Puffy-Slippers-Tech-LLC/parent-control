@@ -6,6 +6,11 @@ It imports controller code without VM, display, bus, network or shared mutations
 the existing compatible unit classification remains appropriate. No cleanup or
 UI inventory gains a module.
 
+Masked graphical recording checks in installed_journey_cleanup_safety use only
+pytest-private reply files and process-local UI/recording-control doubles. No
+encoder, VM, display, bus, shared cache or new cleanup owner is acquired; its
+existing compatible unit/cleanup partition remains appropriate.
+
 execution_plan_launcher uses tiny pytest-private Markdown/checkpoint/lock trees,
 process-local Git/agent/cleanup doubles, recorded private nested-directory
 identities with synchronous ownership doubles, in-memory VT panes and four finite

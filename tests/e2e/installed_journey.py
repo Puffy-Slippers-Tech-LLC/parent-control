@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import time
-from tools.vm_recording import protect_capture
 
 import accessible_ui
 from check_graphical_smoke import module_result, screenshot
@@ -25,36 +24,6 @@ from ui_observations import (
     AppActivityObservation, RequestObservation, SettingsObservation, UiObservations,
     compare_app_activity, compare_settings,
 )
-
-
-# Fixed public operation contracts, independent of caller-chosen stage names.
-_CAPTURE_RECIPIENTS = {
-    'gdm-parent-recipient-rechecked': ('desktop', 'parent'),
-    'gdm-standard-recipient-rechecked': ('desktop', 'other-child'),
-    'gdm-child-recipient-rechecked': ('desktop', 'child'),
-    'parent-lock-recipient-rechecked': ('desktop', 'parent'),
-    'child-lock-recipient-rechecked': ('desktop', 'child'),
-    'kiosk-mate-rechecked': ('mate', None),
-    'kiosk-mate-rejection-rechecked': ('mate', None),
-    'chinese-mate-rechecked': ('mate', None),
-    'overlay-shell-rechecked': ('shell', None),
-    'overlay-shell-rejection-rechecked': ('shell', None),
-}
-_CAPTURE_DESKTOP_RESULTS = {
-    'parent': frozenset(('desktop', 'fresh-parent-desktop')),
-    'other-child': frozenset(('standard-desktop', 'fresh-standard-desktop',
-                              'chinese-standard-desktop')),
-    'child': frozenset(('fresh-child-desktop',)),
-}
-_CAPTURE_APPROVAL_RESULTS = {
-    'mate': frozenset(('kiosk-mate-submit-success', 'kiosk-mate-submit-immediate',
-                       'chinese-mate-submit-success')),
-    'shell': frozenset(('overlay-approval-success', 'overlay-approval-immediate')),
-}
-_CAPTURE_SAFE_GREETERS = frozenset((
-    'gdm-child-denied-returned', 'gdm-returned', 'gdm-product-free-returned',
-    'gdm-dismissed', 'gdm-navigation-returned', 'gdm-station-returned',
-))
 
 
 def kiosk_journal_command(uid):
@@ -381,7 +350,6 @@ class InstalledJourney:
         self.settings_observations = {}
         self.request_observations = {}
         self.activity_observations = {}
-        self._capture_protections = []
         for stage, expected in plan.settings_checks.items():
             require(stage in plan.screen_tags and
                     (type(expected) is SettingsObservation or
@@ -472,7 +440,6 @@ class InstalledJourney:
             self._step(guard)
         except BaseException:
             self.failed = True
-            self._fail_capture(sys.exc_info())
             # Collect while this attempt still owns its live guest. Normal
             # failures need the service/MAC evidence before outer restoration;
             # cancellation must proceed directly to owned cleanup.
@@ -482,64 +449,6 @@ class InstalledJourney:
                 except Exception:
                     pass  # Preserve the original workflow failure.
             raise
-
-    def _fail_capture(self, failure):
-        """End held contexts with the original failure, retaining every seal."""
-        protections = getattr(self, '_capture_protections', [])
-        while protections:
-            manager, _binding = protections.pop()
-            try:
-                manager.__exit__(*failure)
-            except BaseException:
-                pass  # Preserve the workflow failure; never clean-exit a seal.
-
-    def _capture_boundary(self, operation, observed):
-        """Seal before credential ACK; reopen only after a fresh safe result.
-
-        A denial itself grants no capture authority. A fresh cancelled prompt,
-        usable greeter or successful intended destination may settle it.
-        """
-        if self.review:
-            return
-        protections = self._capture_protections
-        binding = _CAPTURE_RECIPIENTS.get(operation)
-        if binding is not None:
-            manager = protect_capture(root=system.ROOT)
-            manager.__enter__()  # Synchronous opaque-frame ACK precedes reply.
-            protections.append((manager, binding))
-            return
-        if not protections:
-            return
-        kind, role = protections[-1][1]
-        safe = kind == 'desktop' and operation in _CAPTURE_DESKTOP_RESULTS[role]
-        ui = observed.get('ui', {})
-        if (operation in _CAPTURE_SAFE_GREETERS
-                or kind == 'shell' and operation == 'overlay-shell-dismissed'):
-            safe = ui.get('operation') == operation and ui.get('outcome') == 'passed'
-        if kind == 'mate' and operation == 'kiosk-mate-submit-rejection':
-            approval = ui.get('approval')
-            safe = (approval == {'rejected': True, 'cancelled': True, 'no_error': True}
-                    and type(approval) is dict
-                    and all(type(value) is bool for value in approval.values()))
-        if kind in _CAPTURE_APPROVAL_RESULTS and operation in _CAPTURE_APPROVAL_RESULTS[kind]:
-            expected = {'approved': True, 'form_success': True}
-            if operation in ('kiosk-mate-submit-immediate', 'overlay-approval-immediate'):
-                expected['immediate_exit'] = True
-            approval = observed.get('ui', {}).get('approval')
-            safe = (approval == expected and type(approval) is dict
-                    and all(type(value) is bool for value in approval.values()))
-        if safe:
-            # The latest intended destination proves earlier rejected prompts
-            # on this same VM are gone as well. Other controllers own their seals.
-            self._release_capture()
-
-    def _release_capture(self):
-        """Release this callback's seals after a proven safe scene or shutdown."""
-        protections = getattr(self, '_capture_protections', [])
-        while protections:
-            manager, _binding = protections[-1]
-            manager.__exit__(None, None, None)
-            protections.pop()
 
     def retain_trace_sample(self, token, index, sample):
         """Exclusive immutable evidence in the attempt's owned allocation."""
@@ -835,16 +744,12 @@ class InstalledJourney:
         self.progress(stage, observed)
         print(plan.prefix + ':stage-observed=' + stage, file=sys.stderr, flush=True)
         guard()
-        capture_operation = (plan.screen_tags[stage][3:] if stage in plan.screen_tags
-                             and plan.screen_tags[stage].startswith('ui:') else None)
-        if capture_operation in _CAPTURE_RECIPIENTS:
-            self._capture_boundary(capture_operation, observed)
-        guard()
+        # Qualified graphical recipients already require a masked password
+        # field. Keep their watch recording visible, including failed results;
+        # credential delivery and durable recipient acknowledgements stay gated.
         with pending.open('x') as stream:
             json.dump(reply, stream)
         pending.rename(destination)
-        if capture_operation is not None and capture_operation not in _CAPTURE_RECIPIENTS:
-            self._capture_boundary(capture_operation, observed)
 
     def validate(self):
         require(not self.failed, self.plan.prefix + ':previous-failure')
@@ -909,9 +814,6 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
         worker = context.run_worker(observe=lambda: None, guarded_observe=journey.step,
                                     validate=journey.validate, authenticate=True, timeout=timeout)
         require(worker['shutdown_verified'] is True, plan.prefix + ':shutdown-unverified')
-        # A negative history may finish without a new desktop. This proof is
-        # the owned guest's actual off state, never an ordinary case boundary.
-        journey._release_capture()
         ref = artifact('matched-screens', 'screen', journey.validate())
         if not plan.assertions_after:
             recorder.assertion('visible-result', artifact_ids=[ref])

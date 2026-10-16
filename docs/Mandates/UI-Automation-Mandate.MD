@@ -359,4 +359,8 @@ the geometry prohibition or authorize skipping unrelated active blockers.
   Previously qualified automation has no exemption from this mandate.
   Installed secret delivery follows the shared
   [credential contract](../../tests/e2e/README.md#credential-staging-and-password-capture-boundary),
-  including fresh same-challenge recipient proofs and sealed capture.
+  including fresh same-challenge recipient proofs and private credential
+  handling. Qualified masked graphical authentication remains visible in VM
+  watch recordings; serial, VT6 and installation authentication retain recording
+  seals under the [recording contract](../../tests/README.md#vm-watch-recordings).
+  Explicit worker authentication captures remain sealed.

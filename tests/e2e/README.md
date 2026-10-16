@@ -1668,9 +1668,14 @@ separate operations. Ordinary graphical roles/routes require their own live
 qualification in the [provider catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#external-provider-qualification).
 
 `capture_before_authentication()` also refuses. Automatic/raw worker captures
-remain private and unapproved for export; secret phases remain sealed and every
-cross-boundary error uses fixed codes. This is a trusted-helper contract, not a
-sandbox against arbitrary testapi calls.
+remain private and unapproved for export; explicit worker authentication captures
+remain sealed and every cross-boundary error uses fixed codes. VM watch recordings
+keep qualified masked GDM, lock and MATE/Shell Polkit authentication visible,
+including rejected or failed results, under the
+[recording contract](../README.md#vm-watch-recordings). Serial, VT6 and installation
+authentication retain their recording seals. This distinction does not relax
+recipient checks, single-use delivery, private staging or log filtering. This is
+a trusted-helper contract, not a sandbox against arbitrary testapi calls.
 
 `FixtureCredentials` reads the literal `TEST_ACCOUNT_PASSWORD` from the host
 checkout's private mode-0600 `.envrc`. All four canonical fixture roles share

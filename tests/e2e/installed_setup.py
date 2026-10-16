@@ -11,6 +11,9 @@ from guest_inputs import Bundle
 
 def inputs(root):
     return Bundle(root, [('Makefile', 'install-source/Makefile'),
+        # Guest enforcement helpers use these maintained flat fixture aliases.
+        ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
+        ('tests/fixtures/native_assets.py', 'native_assets.py'),
         *[(relative, Path(relative).name) for relative in (
         'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py',
         'tests/integration/system_kiosk_confinement.py',

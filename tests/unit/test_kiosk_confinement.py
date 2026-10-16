@@ -116,6 +116,107 @@ def test_removal_preflight_restores_recreated_lock_label_without_manufacturing_l
     assert not helper.PREPARATION_LOCK.exists()
 
 
+@pytest.mark.parametrize('exclusive', [False, True])
+def test_policy_load_refuses_admission_or_lifecycle_writer_before_read_or_mutation(integration, monkeypatch, exclusive):
+    helper, commands = integration
+    helper.install()
+    before = helper.STATE.read_bytes()
+    commands.clear()
+    with helper.admission_barrier(exclusive=exclusive):
+        monkeypatch.setattr(helper, 'state', lambda: pytest.fail('state read crossed a lifecycle lease'))
+        with pytest.raises(ValueError, match='kiosk-admissions-active'):
+            helper.load()
+    assert helper.STATE.read_bytes() == before
+    assert commands == []
+
+
+def test_policy_load_keeps_configuration_and_removal_excluded_through_attestation(integration, monkeypatch):
+    helper, commands = integration
+    helper.install()
+    commands.clear()
+    original = helper.atomic
+
+    def write(path, contents, mode):
+        if path == helper.STATE:
+            for operation in (helper.install, helper.remove, helper.finish_remove, helper.load):
+                with pytest.raises(ValueError, match='kiosk-admissions-active'):
+                    operation()
+        original(path, contents, mode)
+
+    monkeypatch.setattr(helper, 'atomic', write)
+    helper.ADMISSION_LOCK.unlink()
+    helper.load()
+    assert commands == [['/usr/sbin/semodule', '-i', str(helper.PAYLOAD / 'onpc-kiosk.cil')],
+                        ['/usr/sbin/restorecon', str(helper.ADMISSION_LOCK)]]
+    assert 'removing' not in helper.state()
+    assert not helper.LEGACY_LOGIN_LOCK.exists()
+    assert not helper.PREPARATION_LOCK.exists()
+
+
+@pytest.mark.parametrize('prepared', [False, True])
+def test_install_refuses_native_preparation_before_policy_or_record_mutation(integration, prepared):
+    helper, commands = integration
+    helper.install()
+    before = helper.STATE.read_bytes()
+    commands.clear()
+    with helper.admission_barrier(exclusive=False):
+        if prepared:
+            helper.PREPARATION_LOCK.touch(mode=0o600)
+            with helper.PREPARATION_LOCK.open('rb') as native:
+                fcntl.flock(native, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with pytest.raises(ValueError, match='kiosk-admissions-active'):
+                    helper.install()
+        else:
+            with pytest.raises(ValueError, match='kiosk-admissions-active'):
+                helper.install()
+            assert not helper.PREPARATION_LOCK.exists()
+    assert helper.STATE.read_bytes() == before
+    assert commands == []
+
+
+def test_install_preserves_existing_admission_and_excludes_preparation_through_attestation(integration, monkeypatch):
+    helper, _ = integration
+    helper.install()
+    helper.PREPARATION_LOCK.touch(mode=0o600)
+    original = helper.atomic
+    observed = []
+
+    def write(path, contents, mode):
+        if path == helper.STATE:
+            with helper.PREPARATION_LOCK.open('rb') as native:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(native, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            observed.append(path)
+        original(path, contents, mode)
+
+    monkeypatch.setattr(helper, 'atomic', write)
+    with helper.admission_barrier(exclusive=False):
+        helper.install()
+    assert observed
+    helper.verify_policy(helper.state())
+
+
+def test_install_refuses_disappearing_preparation_inode_without_recreating_it(integration, monkeypatch):
+    helper, commands = integration
+    helper.install()
+    helper.PREPARATION_LOCK.touch(mode=0o600)
+    before = helper.STATE.read_bytes()
+    commands.clear()
+    original = helper.admission_barrier
+
+    def interrupted(**kwargs):
+        assert kwargs == dict(exclusive=False, preparation=True)
+        helper.PREPARATION_LOCK.unlink()
+        return original(**kwargs)
+
+    monkeypatch.setattr(helper, 'admission_barrier', interrupted)
+    with pytest.raises(ValueError, match='missing-preparation-lock'):
+        helper.install()
+    assert not helper.PREPARATION_LOCK.exists()
+    assert helper.STATE.read_bytes() == before
+    assert commands == []
+
+
 @pytest.mark.parametrize('check', [False, True])
 @pytest.mark.parametrize('lock_name', ['ADMISSION_LOCK', 'LEGACY_LOGIN_LOCK', 'PREPARATION_LOCK'])
 def test_remove_refuses_inflight_root_pam_lease_before_uid_scan_or_mutation(integration, monkeypatch, check, lock_name):
@@ -557,6 +658,96 @@ def test_failed_policy_update_cannot_attest_to_new_rules_with_old_domain_names(i
     monkeypatch.setattr(helper, 'run', run)
     helper.install()
     helper.verify_policy(helper.state())
+
+
+@pytest.mark.parametrize('changed', ['config.json', 'onpc-kiosk.cil', 'legacy-record'])
+def test_boot_load_refuses_unconfigured_payload_pair_without_reattesting(integration, changed):
+    helper, commands = integration
+    helper.install()
+    if changed == 'legacy-record':
+        saved = helper.state()
+        saved.pop('loaded_config_sha256')
+        helper.atomic(helper.STATE, json.dumps(saved), 0o600)
+    else:
+        path = helper.PAYLOAD / changed
+        path.write_bytes(path.read_bytes() + b'\n')
+    before = helper.STATE.read_bytes()
+    commands.clear()
+    with pytest.raises(ValueError, match='policy-load-incomplete'):
+        helper.verify_policy(helper.state())
+    with pytest.raises(ValueError, match='policy-load-incomplete'):
+        helper.load()
+    assert helper.STATE.read_bytes() == before
+    assert commands == []
+    helper.install()
+    helper.load()
+    assert helper.verify_policy(helper.state()) == helper.policy_payload(helper.state())[1]
+
+
+@pytest.mark.parametrize('changed', ['config.json', 'onpc-kiosk.cil'])
+def test_payload_pair_mutation_during_load_preserves_previous_attestation(integration, monkeypatch, changed):
+    helper, _ = integration
+    helper.install()
+    before = helper.STATE.read_bytes()
+    run = helper.run
+
+    def mutate(arguments):
+        result = run(arguments)
+        if arguments[:2] == ['/usr/sbin/semodule', '-i']:
+            path = helper.PAYLOAD / changed
+            path.write_bytes(path.read_bytes() + b'\n')
+        return result
+
+    monkeypatch.setattr(helper, 'run', mutate)
+    with pytest.raises(ValueError, match='policy-changed-during-load'):
+        helper.load()
+    assert helper.STATE.read_bytes() == before
+    with pytest.raises(ValueError, match='policy-load-incomplete'):
+        helper.verify_policy(helper.state())
+
+
+def test_payload_pair_attestation_survives_identical_byte_replacement(integration):
+    helper, _ = integration
+    helper.install()
+    expected = helper.verify_policy(helper.state())
+    for name in ('config.json', 'onpc-kiosk.cil'):
+        target = helper.PAYLOAD / name
+        replacement = helper.PAYLOAD / (name + '.replacement')
+        replacement.write_bytes(target.read_bytes())
+        replacement.replace(target)
+    helper.load()
+    assert helper.verify_policy(helper.state()) == expected
+
+
+@pytest.mark.parametrize('changed', ['config.json', 'onpc-kiosk.cil', 'identical-bytes'])
+def test_boot_load_binds_initial_reload_pair_to_the_verified_snapshot(integration, monkeypatch, changed):
+    helper, commands = integration
+    helper.install()
+    before = helper.STATE.read_bytes()
+    commands.clear()
+    verify = helper.verify_policy
+
+    def replace_after_verification(saved):
+        digests = verify(saved)
+        for name in ('config.json', 'onpc-kiosk.cil') if changed == 'identical-bytes' else (changed,):
+            path = helper.PAYLOAD / name
+            replacement = helper.PAYLOAD / (name + '.replacement')
+            contents = path.read_bytes()
+            replacement.write_bytes(contents if changed == 'identical-bytes' else contents + b'\n')
+            replacement.replace(path)
+        return digests
+
+    monkeypatch.setattr(helper, 'verify_policy', replace_after_verification)
+    if changed == 'identical-bytes':
+        helper.load()
+        assert commands == [['/usr/sbin/semodule', '-i', str(helper.PAYLOAD / 'onpc-kiosk.cil')],
+                            ['/usr/sbin/restorecon', str(helper.ADMISSION_LOCK)]]
+        verify(helper.state())
+    else:
+        with pytest.raises(ValueError, match='policy-load-incomplete'):
+            helper.load()
+        assert commands == []
+    assert helper.STATE.read_bytes() == before
 
 
 @pytest.mark.parametrize('suffix', ['.dpkg-dist', '.rpmnew'])
@@ -2178,6 +2369,73 @@ def test_native_package_inventory_refuses_missing_or_ambiguous_source_identity(c
         census_model.native_package_rows('selinux', rows)
 
 
+@pytest.mark.parametrize('fault', [None, 'alias-owner', 'original-ancestor',
+                                  'target-ancestor', 'target-owner', 'parent-traversal'])
+def test_native_inventory_validates_lexical_alias_and_every_target_path(tmp_path, monkeypatch, fault):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    for name in ('safe', 'aliases', 'links', 'unsafe'):
+        (tmp_path / name).mkdir(mode=0o755)
+    source = tmp_path / 'safe/program'
+    source.write_bytes(b'\x7fELFprivate fixture')
+    source.chmod(0o755)
+    forward = tmp_path / 'links/forward'
+    forward.symlink_to('../safe/program')
+    alias = tmp_path / 'aliases/command'
+    alias.symlink_to(forward if fault == 'target-owner' else '../links/forward')
+    if fault == 'original-ancestor':
+        alias.parent.chmod(0o777)
+    elif fault == 'target-ancestor':
+        forward.parent.chmod(0o777)
+    elif fault == 'parent-traversal':
+        alias.unlink()
+        alias.symlink_to('../unsafe/../safe/program')
+        (tmp_path / 'unsafe').chmod(0o777)
+    original = Path.lstat
+
+    def metadata(path):
+        info = list(original(path))
+        # Substitute privileged ownership only; private native files, aliases,
+        # real target traversal and their deliberate unsafe modes stay intact.
+        info[4] = (1000 if (fault == 'alias-owner' and path == alias or
+                           fault == 'target-owner' and path == forward) else 0)
+        if path == tmp_path or path in tmp_path.parents:
+            info[0] &= ~0o022  # Isolate the fixture from its host /tmp ancestry.
+        return os.stat_result(info)
+
+    monkeypatch.setattr(helper.Path, 'lstat', metadata)
+    if fault is not None:
+        with pytest.raises(ValueError, match='untrusted-path'):
+            helper.source_record('service', alias)
+    else:
+        expected = {
+            'role': 'service', 'path': str(source),
+            'sha256': helper.hashlib.sha256(source.read_bytes()).hexdigest()}
+        assert helper.source_record('service', alias) == expected
+        directory_alias = tmp_path / 'bin'
+        directory_alias.symlink_to('aliases', target_is_directory=True)
+        assert helper.source_record('service', directory_alias / alias.name) == expected
+        with pytest.raises(ValueError, match='substituted-path'):
+            helper.trusted(alias)
+
+
+def test_native_inventory_refuses_relative_symlink_cycles(tmp_path, monkeypatch):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    source = tmp_path / 'program'
+    source.symlink_to('../' + tmp_path.name + '/program')
+    original = Path.lstat
+
+    def metadata(path):
+        info = list(original(path))
+        info[4] = 0
+        if path == tmp_path or path in tmp_path.parents:
+            info[0] &= ~0o022
+        return os.stat_result(info)
+
+    monkeypatch.setattr(helper.Path, 'lstat', metadata)
+    with pytest.raises((OSError, RuntimeError)):
+        helper.source_record('service', source)
+
+
 def test_preparation_identity_is_stable_across_same_byte_reinstall(tmp_path, monkeypatch):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
     # Inventory identity and digest operate on real private ELF-shaped files;
@@ -2469,7 +2727,10 @@ def preserved_password_preparation(tmp_path, monkeypatch):
                         else Path(source))
     def verify(arguments, **kwargs):
         assert arguments == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify']
-        return SimpleNamespace(returncode=0)
+        contents = ((payload / 'config.json').read_bytes(),
+                    (payload / 'onpc-kiosk.apparmor').read_bytes())
+        return SimpleNamespace(returncode=0, stdout=' '.join(helper.hashlib.sha256(data).hexdigest()
+                                                           for data in contents) + '\n')
     monkeypatch.setattr(helper.subprocess, 'run', verify)
     monkeypatch.setattr(helper, 'enforcing', lambda value: None)
     monkeypatch.setattr(helper, 'inventory', lambda value: [])
@@ -2482,6 +2743,34 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     monkeypatch.setattr(helper, 'reclaim_interrupted', lambda: reclaims.append(True))
     return SimpleNamespace(helper=helper, runtime=runtime, layout=layout, path=path, record=record,
         identities=identities, manager_checks=manager_checks, reclaims=reclaims)
+
+
+@pytest.mark.parametrize('fault', ['config', 'policy', 'empty', 'extra', 'missing-newline', 'malformed'])
+def test_preparation_refuses_snapshot_changed_after_verification_before_inventory(
+        preserved_password_preparation, monkeypatch, fault):
+    scene = preserved_password_preparation
+    helper = scene.helper
+    verify = helper.subprocess.run
+    before = (scene.runtime / 'bindings').read_bytes()
+
+    def interrupted(*args, **kwargs):
+        result = verify(*args, **kwargs)
+        if fault in ('config', 'policy'):
+            path = helper.PAYLOAD / ('config.json' if fault == 'config' else 'onpc-kiosk.apparmor')
+            path.write_bytes(path.read_bytes() + b'\n')
+        else:
+            result.stdout = {'empty': '', 'extra': result.stdout + 'unexpected\n',
+                             'missing-newline': result.stdout.rstrip('\n'),
+                             'malformed': 'not an attestation\n'}[fault]
+        return result
+
+    monkeypatch.setattr(helper.subprocess, 'run', interrupted)
+    monkeypatch.setattr(helper, 'inventory', lambda config: pytest.fail('unattested snapshot reached inventory'))
+    with pytest.raises(ValueError, match='policy-snapshot-not-attested'):
+        helper.prepare('manager')
+    assert (scene.runtime / 'bindings').read_bytes() == before
+    assert scene.manager_checks == scene.reclaims == []
+    assert sorted(item.name for item in scene.runtime.iterdir()) == ['bindings']
 
 
 def test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree(
@@ -3602,3 +3891,291 @@ def test_service_denial_composes_fresh_proofs_and_guards_owned_reset(
     else:
         assert launch[:5] == ['/usr/bin/systemd-run', '--user', '--wait', '--pipe', '--unit=' + evidence.unit]
         assert launch[5:] == (['--property=' + setting] if strict else []) + evidence.command
+
+
+@pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
+@pytest.mark.parametrize('fault', [None, 'sibling-label', 'sibling-uid', 'sibling-namespace',
+                                   'sibling-generation', 'host-namespace', 'invalid-generation',
+                                   'manager-replaced', 'exited', 'thread-replaced'])
+def test_manager_reexec_observation_requires_each_live_thread_boundary(
+        census_model, tmp_path, monkeypatch, backend, fault):
+    helper = census_model
+    monkeypatch.setattr(helper, 'PROC', tmp_path)
+    manager = tmp_path / '42'
+    namespace = 'mnt:[host]' if fault == 'host-namespace' else 'mnt:[private]'
+    generation = 'unconfined\n' if fault == 'invalid-generation' else 'a' * 64 + '\n'
+    attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
+    expected = 'onpc-kiosk-manager (enforce)' if backend == 'apparmor' else helper.MANAGER_SID
+    marker = 'root/usr/share/oh-no-parent-control/confinement/generation'
+    for target in (manager, manager / 'task/42', manager / 'task/43'):
+        target.mkdir(parents=True, exist_ok=True)
+        (target / 'stat').write_text('42 (fixture) S 1 ' + '0 ' * 17 + '100')
+        (target / 'status').write_text('PPid:\t1\nUid:\t1002\t1002\t1002\t1002\n')
+        (target / 'ns').mkdir()
+        (target / 'ns/mnt').symlink_to('mnt:[other]' if target.name == '43' and
+                                     fault == 'sibling-namespace' else namespace)
+        (target / marker).parent.mkdir(parents=True)
+        (target / marker).write_text('b' * 64 + '\n' if target.name == '43' and
+                                   fault == 'sibling-generation' else generation)
+        (target / attribute).parent.mkdir(parents=True)
+        (target / attribute).write_text('unconfined' if target.name == '43' and
+                                       fault == 'sibling-label' else expected)
+    if fault == 'sibling-uid':
+        (manager / 'task/43/status').write_text('PPid:\t1\nUid:\t1002\t0\t0\t0\n')
+    (tmp_path / '1/ns').mkdir(parents=True)
+    (tmp_path / '1/ns/mnt').symlink_to('mnt:[host]')
+    calls, closed = [], []
+    monkeypatch.setattr(helper.os, 'pidfd_open', lambda pid: 900)
+    monkeypatch.setattr(helper.os, 'close', closed.append)
+    monkeypatch.setattr(helper, 'exited', lambda fd: fault == 'exited')
+    def manager_pid(unit):
+        calls.append(unit)
+        return 99 if fault == 'manager-replaced' and len(calls) > 1 else 42
+    monkeypatch.setattr(helper, 'manager_pid', manager_pid)
+    original = helper.census_thread_identity
+    seen = {}
+    def thread_identity(thread):
+        value = original(thread)
+        seen[thread] = seen.get(thread, 0) + 1
+        return ('replacement', *value[1:]) if (fault == 'thread-replaced' and
+                thread.name == '43' and seen[thread] > 1) else value
+    monkeypatch.setattr(helper, 'census_thread_identity', thread_identity)
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-confinement:manager-'):
+            helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend)
+    else:
+        result = helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend)
+        assert result == {'pid': 42, 'identity': ('100', 1, ('1002',) * 4),
+                          'label': expected, 'namespace': namespace, 'generation': generation}
+    assert closed == [900]
+
+
+@pytest.mark.parametrize('stage', ['configuration', 'policy'])
+@pytest.mark.parametrize('fault', [None, 'native-admitted', 'load-accepted', 'wrong-load-refusal',
+                                   'ownership-changed', 'attestation-changed',
+                                   'policy-unenforced', 'recovery-failed', 'manager-active'])
+def test_payload_drift_requires_native_and_boot_refusal_before_exact_recovery(
+        census_model, tmp_path, monkeypatch, stage, fault):
+    helper = census_model
+    config, policy = tmp_path / 'config.json', tmp_path / 'onpc-kiosk.apparmor'
+    originals = {config: b'{"backend":"apparmor"}\n', policy: b'original policy\n'}
+    for path, data in originals.items():
+        path.write_bytes(data)
+    identities = {path: (path.stat().st_dev, path.stat().st_ino, path.stat().st_mtime_ns)
+                  for path in originals}
+    current = {'drift': None, 'loaded': None}
+    events, records = [], {}
+    def drift():
+        changed = [name for name, path in (('configuration', config), ('policy', policy))
+                   if path.read_bytes() != originals[path]]
+        assert len(changed) <= 1
+        return changed[0] if changed else None
+    def first_exec(account, directory, command, *, service, armed=True):
+        selected = drift()
+        assert command == ['/usr/lib/systemd/systemd', '--version'] and service == 'systemd-user'
+        events.append(('native', selected, armed))
+        if not armed:
+            assert selected is not None
+            current['drift'] = selected
+            return (0, b'') if fault == 'native-admitted' and selected == stage else (125, b'{"pam":14}')
+        assert selected is None
+        for path, identity in identities.items():
+            actual = path.stat()
+            assert (actual.st_dev, actual.st_ino, actual.st_mtime_ns) == identity
+        return (125, b'{"pam":14}') if (fault == 'recovery-failed' and
+                current['loaded'] == stage) else (0, b'')
+    monkeypatch.setattr(helper, 'first_exec', first_exec)
+    def manager_pid(unit):
+        assert unit == 'user@1002.service'
+        return 42 if fault == 'manager-active' and (stage == 'configuration' or
+                current['loaded'] == 'configuration') else 0
+    monkeypatch.setattr(helper, 'manager_pid', manager_pid)
+    def ownership():
+        return 'changed' if fault == 'ownership-changed' and current['loaded'] == stage else 'original'
+    def attestation(path):
+        assert str(path) == '/var/lib/oh-no-parent-control/kiosk-confinement.json'
+        return 'changed' if fault == 'attestation-changed' and current['loaded'] == stage else 'original'
+    monkeypatch.setitem(sys.modules, 'system_removal', SimpleNamespace(
+        admission_removal_state=ownership, private_recovery_record=attestation))
+    def enforcing(value):
+        assert value == {'backend': 'apparmor'}
+        events.append(('enforcing', drift()))
+        if fault == 'policy-unenforced' and current['loaded'] == stage:
+            raise ValueError('policy-unenforced')
+    monkeypatch.setattr(helper.runpy, 'run_path', lambda path: {'enforcing': enforcing})
+    def load(command, **options):
+        assert command == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'load']
+        assert options == {'timeout': 90, 'check': False, 'merge_stderr': True}
+        selected = drift()
+        assert selected == current['drift']
+        events.append(('load', selected))
+        current['loaded'] = selected
+        helper.guest.commands.last_returncode = 0 if fault == 'load-accepted' and selected == stage else 1
+        return (b'reason=other;' if fault == 'wrong-load-refusal' and selected == stage else
+                b'reason=policy-load-incomplete-reconfigure-required;')
+    monkeypatch.setattr(helper.guest, 'commands', SimpleNamespace(run=load, last_returncode=None))
+    if fault:
+        category = ('generation-admitted' if fault == 'native-admitted' else
+                    'payload-drift-boot-reattested' if fault in ('load-accepted', 'wrong-load-refusal') else
+                    'payload-drift-ownership-changed' if fault in ('ownership-changed', 'attestation-changed') else
+                    'policy-unenforced' if fault == 'policy-unenforced' else
+                    'payload-drift-manager-active' if fault == 'manager-active' else
+                    'payload-attestation-recovery')
+        with pytest.raises((helper.guest.GuestError, ValueError), match=category):
+            helper.verify_payload_attestation_faults(SimpleNamespace(pw_uid=1002), tmp_path,
+                                                     policy, records.__setitem__)
+        assert 'onpc.kiosk.' + stage + '-attestation-recovered' not in records
+    else:
+        helper.verify_payload_attestation_faults(SimpleNamespace(pw_uid=1002), tmp_path,
+                                                 policy, records.__setitem__)
+        assert events == [('native', None, True), ('enforcing', None),
+                          ('native', 'configuration', False), ('load', 'configuration'),
+                          ('enforcing', 'configuration'), ('native', None, True), ('enforcing', None),
+                          ('native', 'policy', False), ('load', 'policy'),
+                          ('enforcing', 'policy'), ('native', None, True), ('enforcing', None)]
+        assert records['onpc.kiosk.unloaded-configuration-generation-denied'] is True
+        assert records['onpc.kiosk.unloaded-policy-generation-denied'] is True
+        for name in ('configuration', 'policy'):
+            assert records['onpc.kiosk.' + name + '-drift-loader-refused'] is True
+            assert records['onpc.kiosk.' + name + '-attestation-recovered'] is True
+    for path, identity in identities.items():
+        actual = path.stat()
+        assert (actual.st_dev, actual.st_ino, actual.st_mtime_ns) == identity
+        assert path.read_bytes() == originals[path]
+
+
+@pytest.mark.parametrize('fault', [None, 'accepted-load', 'wrong-refusal', 'holder-changed',
+                                   'record-changed', 'pam-changed', 'policy-unenforced',
+                                   'drained-load-failed'])
+def test_installed_loader_refusal_preserves_real_admission_and_policy(
+        census_model, monkeypatch, fault):
+    from contextlib import contextmanager
+    helper = census_model
+    events, records = [], {}
+    native_identity = ('start', 1, ('0',) * 4)
+    current = {'held': False, 'attempted': False, 'loads': 0}
+    @contextmanager
+    def held_account(record):
+        events.append('hold')
+        current['held'] = True
+        try:
+            yield 42
+        finally:
+            current['held'] = False
+            events.append('pam-end')
+    def owned_bytes(path, *, private):
+        assert private and str(path) == '/var/lib/oh-no-parent-control/kiosk-confinement.json'
+        return b'changed' if fault == 'record-changed' and current['attempted'] else b'original'
+    monkeypatch.setitem(sys.modules, 'system_kiosk_admission', SimpleNamespace(held_account=held_account))
+    monkeypatch.setitem(sys.modules, 'system_kiosk_accounts', SimpleNamespace(owned_bytes=owned_bytes))
+    def enforcing(config):
+        events.append('enforcing')
+        if fault == 'policy-unenforced' and current['attempted']:
+            raise ValueError('policy-unenforced')
+    monkeypatch.setattr(helper.runpy, 'run_path', lambda path: {'enforcing': enforcing})
+    def run(command, *, timeout):
+        assert command[-1] == 'load' and not current['held'] and timeout == 90
+        events.append('load')
+        current['loads'] += 1
+        if fault == 'drained-load-failed' and current['loads'] == 2:
+            raise helper.guest.GuestError('drained-load-failed')
+    monkeypatch.setattr(helper.guest, 'run', run)
+    def refused(command, **options):
+        assert current['held'] and command[-1] == 'load'
+        assert options == {'timeout': 90, 'check': False, 'merge_stderr': True}
+        events.append('refused-load')
+        current['attempted'] = True
+        helper.guest.commands.last_returncode = 0 if fault == 'accepted-load' else 1
+        return b'other error' if fault == 'wrong-refusal' else b'kiosk-admissions-active'
+    monkeypatch.setattr(helper.guest, 'commands', SimpleNamespace(run=refused, last_returncode=None))
+    monkeypatch.setattr(helper.guest, 'pam_service_state', lambda:
+        'changed' if fault == 'pam-changed' and current['attempted'] else 'original')
+    monkeypatch.setattr(helper, 'process_identity', lambda process:
+        ('replacement', *native_identity[1:]) if fault == 'holder-changed' and current['attempted']
+        else native_identity)
+    if fault:
+        category = ('policy-unenforced' if fault == 'policy-unenforced' else
+                    'drained-load-failed' if fault == 'drained-load-failed' else
+                    'held-admission-not-refused' if fault in ('accepted-load', 'wrong-refusal') else
+                    'refusal-changed-admission-state')
+        with pytest.raises((helper.guest.GuestError, ValueError), match=category):
+            helper.verify_loader_admission_refusal({'backend': 'apparmor'}, records.__setitem__)
+        assert 'onpc.kiosk.loader.allowed-after-admission' not in records
+    else:
+        helper.verify_loader_admission_refusal({'backend': 'apparmor'}, records.__setitem__)
+        assert events == ['load', 'enforcing', 'hold', 'refused-load', 'enforcing',
+                          'pam-end', 'load', 'enforcing']
+        assert records['onpc.kiosk.loader.allowed-before-admission'] is True
+        assert records['onpc.kiosk.loader.allowed-after-admission'] is True
+    assert not current['held']
+
+
+@pytest.mark.parametrize('fault', [None, 'body-error', 'chown-error', 'inode', 'target',
+                                   'mode', 'gid', 'mtime', 'foreign-owner'])
+def test_native_alias_fault_restores_only_its_unchanged_owned_symlink(
+        census_model, monkeypatch, fault):
+    helper = census_model
+    monkeypatch.setattr(helper, 'os', SimpleNamespace(**vars(os)))
+    alias = Path('/usr/bin/python3')
+    current = dict(st_dev=7, st_ino=42, st_mode=stat.S_IFLNK | 0o777,
+                   st_uid=0, st_gid=0, st_nlink=1, st_atime_ns=90, st_mtime_ns=100)
+    link = {'target': 'python3.14'}
+    closed, owners, times = [], [], []
+    monkeypatch.setattr(helper.guest, 'guard', lambda: None)
+    monkeypatch.setattr(helper.os, 'open', lambda path, flags: 900)
+    monkeypatch.setattr(helper.os, 'fstat', lambda fd:
+                        SimpleNamespace(st_uid=0, st_mode=stat.S_IFDIR | 0o755))
+    def metadata(name, *, dir_fd, follow_symlinks):
+        assert (name, dir_fd, follow_symlinks) == ('python3', 900, False)
+        return SimpleNamespace(**current)
+    monkeypatch.setattr(helper.os, 'stat', metadata)
+    def readlink(name, *, dir_fd):
+        assert (name, dir_fd) == ('python3', 900)
+        current['st_atime_ns'] = 999
+        return link['target']
+    monkeypatch.setattr(helper.os, 'readlink', readlink)
+    def chown(name, uid, gid, *, dir_fd, follow_symlinks):
+        assert (name, gid, dir_fd, follow_symlinks) == ('python3', 0, 900, False)
+        owners.append(uid)
+        if fault == 'chown-error' and uid == 1002:
+            raise OSError('chown-error')
+        current['st_uid'], current['st_gid'] = uid, gid
+    monkeypatch.setattr(helper.os, 'chown', chown)
+    def utime(name, *, ns, dir_fd, follow_symlinks):
+        assert (name, dir_fd, follow_symlinks) == ('python3', 900, False)
+        times.append(ns)
+        current['st_atime_ns'], current['st_mtime_ns'] = ns
+    monkeypatch.setattr(helper.os, 'utime', utime)
+    monkeypatch.setattr(helper.os, 'close', closed.append)
+    def exercise():
+        with helper.untrusted_alias_owner(alias, 1002):
+            assert current['st_uid'] == 1002
+            if fault == 'body-error':
+                raise RuntimeError('body-error')
+            if fault == 'inode':
+                current['st_ino'] += 1
+            elif fault == 'target':
+                link['target'] = 'foreign'
+            elif fault == 'mode':
+                current['st_mode'] = stat.S_IFREG | 0o755
+            elif fault == 'gid':
+                current['st_gid'] = 1003
+            elif fault == 'mtime':
+                current['st_mtime_ns'] += 1
+            elif fault == 'foreign-owner':
+                current['st_uid'] = 1003
+    if fault in ('body-error', 'chown-error'):
+        with pytest.raises((OSError, RuntimeError), match=fault):
+            exercise()
+    elif fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-alias:fixture-replaced'):
+            exercise()
+    else:
+        exercise()
+    if fault in (None, 'body-error', 'chown-error'):
+        assert owners == [1002, 0] and current['st_uid'] == current['st_gid'] == 0
+        assert times == [(90, 100)]
+        assert current['st_atime_ns'] == 90 and current['st_mtime_ns'] == 100
+    else:
+        assert owners == [1002] and times == []
+    assert closed == [900]

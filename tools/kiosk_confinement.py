@@ -25,17 +25,36 @@ ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
 
 
 def trusted(path, *, directory=False, symlinks=False):
-    """Follow distribution symlinks only after validating every resolved ancestor."""
-    path = Path(path)
+    """Validate distribution aliases, every indirection and resolved storage."""
+    path = Path(path).absolute()
     if not symlinks and any(item.is_symlink() for item in (path, *path.parents)):
         raise ValueError('substituted-path')
-    path = path.resolve(strict=True)
-    for ancestor in (path, *path.parents):
-        info = ancestor.lstat()
-        if info.st_uid != 0 or info.st_mode & 0o022:
-            raise ValueError('untrusted-path')
-        if ancestor != path and not stat.S_ISDIR(info.st_mode):
-            raise ValueError('untrusted-ancestor')
+    # Reject cycles before inspecting lexical target paths: a relative cycle
+    # containing ../ can otherwise produce endlessly different spellings.
+    resolved = path.resolve(strict=True)
+    pending, inspected = [path, resolved], set()
+    while pending:
+        current = pending.pop()
+        for ancestor in (current, *current.parents):
+            if ancestor in inspected:
+                continue
+            inspected.add(ancestor)
+            info = ancestor.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                if not symlinks:
+                    raise ValueError('substituted-path')
+                # Symlink mode bits do not govern replacement. Its owner and
+                # every directory along the original and target paths do.
+                if info.st_uid != 0:
+                    raise ValueError('untrusted-path')
+                target = Path(os.readlink(ancestor))
+                pending.append(target if target.is_absolute() else ancestor.parent / target)
+            else:
+                if info.st_uid != 0 or info.st_mode & 0o022:
+                    raise ValueError('untrusted-path')
+                if ancestor != current and not stat.S_ISDIR(info.st_mode):
+                    raise ValueError('untrusted-ancestor')
+    path = resolved
     info = path.stat()
     if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
         raise ValueError('unexpected-file-type')
@@ -338,13 +357,20 @@ def prepare(role):
     if (account.pw_uid == 0 or stat.S_IMODE(marker.stat().st_mode) != 0o600 or
             marker.stat().st_nlink != 1 or marker.read_text().strip() != str(account.pw_uid)):
         raise ValueError('unowned-account')
-    subprocess.run(
+    attestation = subprocess.run(
         ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
-        env=ENV, check=True, capture_output=True, timeout=5)
+        env=ENV, check=True, capture_output=True, text=True, timeout=5)
     config_path = trusted(PAYLOAD / 'config.json')
     config_bytes = config_path.read_bytes()
     config = json.loads(config_bytes)
     policy = trusted(PAYLOAD / ('onpc-kiosk.cil' if config['backend'] == 'selinux' else 'onpc-kiosk.apparmor')).read_bytes()
+    # Bind these exact bytes to the verified loaded generation. Package unpack
+    # does not hold the native preparation lock and can replace payload files
+    # after verification. Changed bytes or an old/incomplete helper deny before
+    # inventory or private-generation writes; identical-byte reinstall is safe.
+    if attestation.stdout != ' '.join(hashlib.sha256(data).hexdigest()
+                                     for data in (config_bytes, policy)) + '\n':
+        raise ValueError('policy-snapshot-not-attested')
     enforcing(config)
     records = inventory(config)
     preserved, identities = preserved_inventory(config)

@@ -357,8 +357,25 @@ for an original local PAM file require explicit distribution-policy reconciliati
 the package preserves them and refuses to replay an obsolete source silently.
 Interrupted configuration retains the last
 owned published bytes and can resume without adopting local edits. Admission
-also requires the installed policy payload to match the last successful policy
-load; an interrupted load cannot silently retain an older policy generation.
+also requires both the installed configuration and policy bytes to match the
+last successful policy load. Native preparation compares its exact snapshot
+with the two verified content digests before measuring executable inputs or
+publishing a private generation. Payload replacement during package unpack
+therefore denies that attempt rather than mixing an unattested configuration
+with loaded policy; identical-byte reinstall remains compatible.
+Configuration takes shared admission followed by exclusive preparation through
+all policy/PAM/attestation writes, allowing existing sessions while excluding an
+in-flight native preparation. If the preparation inode is absent it instead
+takes exclusive admission, without creating a wrongly labelled runtime inode;
+an inode disappearing after selection refuses configuration.
+The startup policy loader takes the exclusive admission/routing/preparation
+barrier before reading or writing that record. It therefore cannot race
+configuration or removal and resurrect a retired attestation or policy. A load
+requested while an admission or lifecycle writer is active refuses without
+changing state. Boot loading verifies the saved content-digest pair before
+reloading, so reboot cannot accept an unpacked but unconfigured generation;
+configuration must finish first. On Fedora it also restores the admission lock's
+SELinux label after loading policy, before releasing the barrier.
 
 The native module applies the boundary in the PAM caller itself, including the
 parent executor which starts the kiosk's systemd user manager. It clears ambient
@@ -366,7 +383,10 @@ capabilities granted by earlier PAM modules before entering the profile. A bound
 [preparation helper](../../tools/kiosk_confinement.py) verifies enforcing policy,
 the package-created account identity and a finite native executable inventory.
 It makes independent root-owned copies, never hardlinks or relabels shared OS
-executables. Fedora grants the GDM caller read access to the vendor-labelled
+executables. Distribution aliases, their original ancestors and every symlink
+target chain must also be root-owned and stored outside writable directories;
+trusted resolved bytes alone cannot establish an executable's role.
+Fedora grants the GDM caller read access to the vendor-labelled
 `systemd-tmpfiles` inventory member without granting execution of that original.
 It also permits file/directory metadata inspection for the private tree's sibling
 entries, whose labels depend on the installed distro packages; that grant permits

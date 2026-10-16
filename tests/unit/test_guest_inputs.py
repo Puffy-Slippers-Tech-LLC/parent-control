@@ -96,13 +96,16 @@ def test_real_setup_closure_imports_without_checkout_or_host_observer(tmp_path):
     import installed_setup
     frozen = installed_setup.inputs(ROOT)
     assert {'system_guest.py', 'e2e_dynamic_account.py', 'owned_commands.py',
-            'guest_install_recipe.py', 'guest/redact.py'} <= frozen.files.keys()
+            'guest_install_recipe.py', 'guest/redact.py', 'system_kiosk_confinement.py',
+            'system_removal.py', 'baseline_assets.py', 'native_assets.py'} <= frozen.files.keys()
     assert 'watch_activity.py' not in frozen.files
     frozen.stage(tmp_path)
     result = subprocess.run([sys.executable, '-I', '-B', '-c',
         'import sys; sys.path.insert(0, sys.argv[1]); '
-        'import system_guest, e2e_dynamic_account, guest_install_recipe', str(tmp_path)],
-        capture_output=True)
+        'import system_guest, e2e_dynamic_account, guest_install_recipe, '
+        'system_kiosk_confinement, system_removal; '
+        'from system_enforcement import catalog_entries; assert catalog_entries()', str(tmp_path)],
+        capture_output=True, timeout=10)
     assert result.returncode == 0, result.stderr
 
 

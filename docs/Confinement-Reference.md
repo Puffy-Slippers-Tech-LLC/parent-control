@@ -3444,10 +3444,169 @@ pointer is `Next task: none.` Every other queue row's status, order, scope and
 dependencies remain unchanged; the E2E plan and queue were not edited. No staging,
 commit, push or additional workflow launcher was performed.
 
+## Post-closure full-change review — 2026-10-16
+
+The developer requested review of all confinement product and test-automation
+changes against the project requirements and coding standards. Review starts
+at `697a4c30`, includes the original `3e0f2af6` partial fix and subsequent
+confinement changes, and preserves the accepted Ubuntu retention exception.
+Three GPT-6.1 Sol High review assignments cover lifecycle/account/PAM,
+role policies/native launchers, and installed/public automation; the controller
+also reviews native preparation, mount and admission lifetimes. The launcher,
+evidence, publication, retention and recording paths receive a separate review.
+
+The review has corrected these gaps:
+
+- Startup policy loading must hold the exclusive lifecycle/admission barrier
+  through its record read, policy load and durable attestation write.
+- Executable trust must include lexical alias ownership and every original and
+  symlink-target ancestor, retaining trusted distribution alias chains.
+- Preparation must consume the same configuration/policy bytes that verification
+  attested. Configuration must exclude native preparation while reloading policy;
+  interrupted unpack must not become a new attestation through boot loading.
+- Replacement/reexec qualification must re-observe every manager thread's
+  enforcing boundary and require a fresh native/kernel execution denial.
+- The E2E installed-input consumer must declare the maintained flat fixture
+  aliases required by the newly discovered transitive engineering helpers.
+  Automatic import discovery and missing/ambiguous-source refusal remain intact.
+
+The installed matrix also adds allowed/refused/recovered controls for a real
+held PAM admission during loading and a real user-owned distribution alias.
+Configuration-only and policy-only drift independently deny fresh native manager
+admission and boot loading, preserve ownership/attestation, and recover after
+exact fixture restoration. These are engineering assertions, separate from
+public kiosk acceptance.
+
+### Review validation and input bindings
+
+The final combined host selection passed **1,175/1,175** checks, report
+`output/test-runs/host/reports/20261016T165313Z-9d15959e/report.md`.
+It covers confinement, login, package configuration/removal, unit scheduling,
+guest-input discovery and the affected E2E setup/cleanup consumers. An isolated
+staged-payload regression imports the transitive helpers and exercises the
+fixture aliases without checkout access. An earlier 1,065-check report expired
+after another host session; the complete combined selection replaces it.
+`make build` passed for DEB and RPM after the final product edit. The subsequent
+alias repair changes test inputs only, outside package/build dependencies.
+
+On **both** targets, system `6,267` passed all **12/12** executions: six fresh
+installation/reboot prerequisites, the uninterrupted five-phase normal
+remove/reboot/reinstall/purge/reinstall history, and the strengthened native
+execution matrix. System `4` also passed **2/2** on each target: two exact
+first-configuration interruptions, native quarantine and owned passwordless
+retry, followed by a real reboot and enforcing execution. Raw JUnits and final
+results confirm ordinary-account controls, each new denial/recovery witness and
+completed collection/restoration/cleanup; these are not dashboard-only results.
+
+| Input | SHA-256 |
+| --- | --- |
+| Package source, 348 files, revision `512e1fd0fbdfc9a9a69916f635054bbf0ea9d330` | `992e570f8ea299014a5fb8a91156f3bb020eec3b6dc57682f8262a306970d3c2` |
+| Ubuntu DEB | `9abe9da9c5df0aeae86e07af75a0ac2a5bdc7eeaf362a14e1ad15be54ee2eadb` |
+| Fedora RPM | `ba44158f0c9f690313aef6fecba23d404bafec4469df76fbb65e6ef4f6885aeb` |
+| Shared fixtures | `a1ece683486e0725e426e61b243ee1b6c84692c9b111fe3cb77476c4cd549380` |
+| Ubuntu baseline provenance | `5a3aeb6e7c4867e930d534da85060915b634a863137fbe724689dd7e80aafd93` |
+| Fedora baseline provenance | `fd7774dfe68092ea8e09b8cf00046d32ad6393c06ea9b5cd3edc36f9b6c4db3c` |
+
+The system `6,267` selected-input manifest is
+`03f4b38cab8c7d7b875833691978f787a81b34f6ef98f372a0d93d2ca3b19f3e`;
+system `4` is
+`a15aa143f84a4e9f6331d1b8ff1e5cefb0660a568d1ea32257d7a4875a10aad2`.
+Both targets match within each selection. Frozen input directories retain the
+34 selected guest files, package/fixture manifests, installation source and
+transfer digests.
+
+| Selection | Ubuntu privileged allocation | Fedora privileged allocation |
+| --- | --- | --- |
+| System `6,267` | `onpc-system-5ofb_ilp` | `onpc-system-4i0kpr2p` |
+| System `4` | `onpc-system-gjivb44j` | `onpc-system-jezzorw6` |
+
+These names are beneath `output/test-runs/privileged/allocations/`.
+Corresponding host report directories are `20261016T160717Z-191a3cd8` and
+`20261016T160717Z-0fd1080c` for `6,267`, and
+`20261016T163432Z-f10fe4fb` and `20261016T163432Z-b9592e14` for `4`.
+Original paths are preserved as archive inventory keys even after source-journal
+rotation; inspect them through the maintained bundle reader.
+
+### Review preservation and public acceptance
+
+The [review supplement](../output/test-runs/host/exports/onpc-evidence-bundle-dz7f3_ix/evidence.zip)
+contains **9,813 files**, **590,830,215 ZIP bytes**, SHA-256
+`6dae5e23ba1d9fbfb26bfa9e9104374be0a465c965c969d5d54d35979ffb0833`;
+selection digest
+`b7cbc8083d5ca3c8a5c7e5f8f010a83da55341c1d5fa1c5ac7c320135543a2c1`.
+It preserves the complete system evidence/input directories, corresponding host
+reports/queues, final host checks and the pre-VM E2E input-failure diagnostics.
+The complete selection was measured before publication under the unchanged
+60,000-file/1-GiB bundle and three-run/4-GiB journal limits. Deferred publication
+cleanup finished, retiring only the redundant oldest Ubuntu export. The original
+Fedora and Ubuntu bundles in [preservation and cleanup](#preservation-and-cleanup)
+and this supplement were fully reverified afterward with unchanged counts,
+bytes and hashes.
+
+The first public invocation stopped before VM acquisition: required
+`baseline_assets`/`native_assets` flat aliases were absent from the installed
+input consumer. Product was not run and suite cleanup passed. The consumer and
+isolated host regression are repaired. Corrected public cases `50,51,52,192`
+passed **4/4 on each target**: approved, denied and cancelled station requests,
+and kiosk About with preserved unfinished choices and restrictions. All eight
+acceptance candidates have product, infrastructure, collection and cleanup
+passed, complete leases and no first failure. Both suite cleanups and final
+baseline verification passed.
+
+| Public case | Ubuntu evidence / raw allocation | Fedora evidence / raw allocation |
+| --- | --- | --- |
+| `50` approved | `onpc-e2e-evidence-yje0c1fl` / `onpc-graphical-smoke-yanrgh5w` | `onpc-e2e-evidence-l95gld8p` / `onpc-graphical-smoke-0xspswaf` |
+| `51` denied | `onpc-e2e-evidence-oj2y04c9` / `onpc-graphical-smoke-k7m91s4k` | `onpc-e2e-evidence-jbvrxwv3` / `onpc-graphical-smoke-hoe0or0i` |
+| `52` cancelled | `onpc-e2e-evidence-2oqdw4xn` / `onpc-graphical-smoke-uhr_bypo` | `onpc-e2e-evidence-aj5nnmk2` / `onpc-graphical-smoke-ucu4pxun` |
+| `192` About | `onpc-e2e-evidence-7l2ypuu_` / `onpc-graphical-smoke-opy8ny99` | `onpc-e2e-evidence-ryl9eklu` / `onpc-graphical-smoke-_gsu63yy` |
+
+These are retained original allocations under the same privileged prefix above.
+Suite summaries `onpc-e2e-evidence-puw1wf2u` (Ubuntu) and
+`onpc-e2e-evidence-m29zics7` (Fedora) retain
+`invocation-terminal-candidate.json` and the four ordered attempt records.
+Final host reports are `20261016T165903Z-ae8ed4cf/report.md` and
+`20261016T165903Z-7a7939a5/report.md`; the queue is
+`output/test-runs/host/allocations/onpc-vm-queue-25zw2u6e`.
+
+All eight workers bind the frozen distribution to
+`325364e837fa9b0d22b1cf93e1a8149ded04fb9fe38891c2f359fb1b9ebaa82f`.
+The 28-file installed guest selection includes both fixture aliases and the
+confinement helper
+`c17229fae62d5e457a33db645d8eba38e488029e7d3e5b7ef79cc2280906407b`.
+Package-source, package, fixture and baseline bindings match the table above;
+inventory is
+`756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`.
+Each attempt retains its exact source/assets/environment bindings. The
+`source_sha256` field captures the whole checkout and varies across some
+attempts; the executed frozen distribution and installed payload bindings
+remain matched. Do not substitute one attempt's diagnostic source hash for another.
+
+This final public session remains in its original finished source journals;
+the supplement was deliberately published before retry could rotate required
+system proof. All raw acceptance, inputs and cleanup records were checked after
+final coverage generation and validation. Preserve these originals before any
+future journal rotation. Plan preservation of all three archive evidence sets
+before another publication: an unplanned fourth export retires the original
+Fedora archive. No additional preparation, VM run or export followed final E2E.
+
+The independent reviews retain unchanged role-policy/API/plugin/namespace and
+removal-ownership/recovery proofs only under their original bindings. The
+current native matrix covers changed preparation/admission/reexec behavior;
+the complete normal and first-configuration histories cover the changed
+configuration/load/attestation boundary. No earlier completed queue task is
+reopened solely for accepted Ubuntu evidence loss. Coverage generation and the
+read-only confinement plan check passed. Runner-owned recording finalization
+completed; both VMs were independently verified off (`state=5`, `id=-1`).
+Product and harness repairs, affected acceptance and owned cleanup are complete;
+no demonstrated in-scope review gap remains. Queue status, `Next task: none.`
+and the separate E2E plan/queue are unchanged.
+
 ## Validation allocation and evidence ledger
 
 This section records confinement validation allocation and its final reconciliation.
-No required in-scope follow-up remains after [4-12](#phase-4-step-12--reconciliation-and-closure--2026-10-16). The
+The original exit gate closed at [4-12](#phase-4-step-12--reconciliation-and-closure--2026-10-16);
+the later [full-change review](#post-closure-full-change-review--2026-10-16)
+owns its newly discovered gaps and changed-input qualification. The
 [test-maintenance contract](../tests/README.md#all-established-regressions)
 owns launcher selection, and [retention](../tests/README.md#aggregate-output-retention)
 owns evidence lifetime. Keep detailed results and identities in their existing
@@ -3470,6 +3629,7 @@ than copying hashes or creating another task queue.
 | 4-9 | Final affected host/build checks, exact input preparation and evidence applicability/retention reconciliation. | [Accepted on both targets](#phase-4-step-9--final-candidate-and-host-acceptance--2026-10-15): current U/F inputs and matching snapshots verified, retained host scope plus final 140 checks pass, cumulative raw evidence/budget and cleanup verified. The finite 4-10 selection retains every invalidated complete history, including the new U archive's first-configuration repeat. |
 | 4-10 | Final execution/admission/namespace/platform qualification, strict waiting-session census, affected public kiosk histories and every invalidated in-scope complete history on both targets. | [Passed on both targets](#phase-4-step-10--final-ubuntu-and-fedora-qualification--2026-10-16), with the explicit accepted Ubuntu retention limit. Shared-integration includes the complete namespace qualifier; no duplicate standalone run. |
 | 4-12 | Reconcile all five groups, both reviews, raw evidence and completed cleanup. | [Accepted on both targets](#phase-4-step-12--reconciliation-and-closure--2026-10-16): exact inputs, complete retained bundles and cleanup verified; 4-10's passes and accepted Ubuntu retention limit carried forward. Confinement exit gate closed; no remaining follow-up. |
+| Full-change review | Correct newly demonstrated product/test-automation gaps and requalify their affected boundaries on both targets. | [Accepted on both targets](#post-closure-full-change-review--2026-10-16): final host/build, complete normal and first-configuration histories, strengthened native matrix, all four public cases and owned cleanup passed. Historical unchanged proofs retain their original bindings and accepted retention limit. |
 
 For each selected task, identify changed product/helper/fixture/baseline inputs
 and the assertions they affect before launching tests. Group exact affected host

@@ -14,6 +14,12 @@ Task queue: [Ordered task queue](Confinement-Task-Queue.md).
 
 Next task: none.
 
+The subsequent developer-requested [full-change review](Confinement-Reference.md#post-closure-full-change-review--2026-10-16)
+corrected additional product and test-automation gaps and passed affected
+qualification on both targets. The review records its exact inputs, retained
+evidence and completed cleanup; the original evidence keeps its historical
+source bindings and accepted Ubuntu retention limit.
+
 Phase 3's isolation exit gate and Phase 4's confinement exit gate are complete.
 The [final reconciliation](Confinement-Reference.md#phase-4-step-12--reconciliation-and-closure--2026-10-16)
 closes all five scoped groups, both independent reviews, affected regressions,

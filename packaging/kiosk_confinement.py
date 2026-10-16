@@ -54,7 +54,7 @@ SESSION_MODULES = frozenset(('pam_selinux.so', 'pam_loginuid.so', 'pam_keyinit.s
 
 
 @contextmanager
-def admission_barrier(*, exclusive=True):
+def admission_barrier(*, exclusive=True, preparation=False):
     """Refuse in-flight PAM handles before any scan or policy/PAM mutation.
 
     A UID scan cannot see a root GDM/systemd executor waiting to setuid/exec.
@@ -63,16 +63,19 @@ def admission_barrier(*, exclusive=True):
     """
     descriptors = []
     try:
-        paths = (ADMISSION_LOCK, LEGACY_LOGIN_LOCK, PREPARATION_LOCK) if exclusive else (ADMISSION_LOCK,)
+        paths = ((ADMISSION_LOCK, LEGACY_LOGIN_LOCK, PREPARATION_LOCK) if exclusive else
+                 (ADMISSION_LOCK, PREPARATION_LOCK) if preparation else (ADMISSION_LOCK,))
         for path in paths:
             # Legacy callers create these in their native SELinux domains.
             # A current caller cannot start while our admission lock is held;
             # pre-lease generations require a completed reboot below. Do not
             # manufacture missing legacy inodes with a different runtime type.
             if path != ADMISSION_LOCK and not os.path.lexists(path):
+                if preparation and path == PREPARATION_LOCK:
+                    raise ValueError('missing-preparation-lock')
                 continue
             safe(path, absent=True)
-            fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW |
+            fd = os.open(path, os.O_RDWR | (os.O_CREAT if path == ADMISSION_LOCK else 0) | os.O_NOFOLLOW |
                          os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
             descriptors.append(fd)
             info = os.fstat(fd)
@@ -80,7 +83,8 @@ def admission_barrier(*, exclusive=True):
                     stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
                 raise ValueError('unsafe-admission-lock')
             try:
-                fcntl.flock(fd, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
+                fcntl.flock(fd, (fcntl.LOCK_EX if exclusive or path != ADMISSION_LOCK else fcntl.LOCK_SH) |
+                            fcntl.LOCK_NB)
             except BlockingIOError:
                 raise ValueError('kiosk-admissions-active') from None
             path_info = path.stat(follow_symlinks=False)
@@ -377,9 +381,12 @@ def install():
     # Configuration also serializes with removals, and recovery keeps the
     # durable admission denial until policy plus both PAM stacks are restored.
     saved = state()
-    # Ordinary upgrades may replace policy while existing confined sessions
-    # run. Recovery of a removal must exclude every admission until rearmed.
-    with admission_barrier(exclusive=bool(saved and saved.get('removing'))):
+    # Keep live sessions, but exclude native preparation through the complete
+    # policy/PAM/attestation transaction. If no preparation inode exists, EX
+    # admission prevents a native caller creating it while we configure; never
+    # manufacture that inode outside its Fedora named runtime transition.
+    exclusive = bool(saved and saved.get('removing')) or not os.path.lexists(PREPARATION_LOCK)
+    with admission_barrier(exclusive=exclusive, preparation=not exclusive):
         install_locked()
 
 
@@ -483,32 +490,57 @@ def install_locked():
 
 
 def load():
-    saved = state()
-    if saved is None:
-        raise ValueError('missing-confinement-record')
-    verify_pam(saved)
-    load_policy(saved)
-    atomic(STATE, json.dumps(saved, sort_keys=True) + '\n', 0o600)
+    # Boot/startup loading writes the same attestation as configuration. Take
+    # the existing exclusive barrier before reading it: otherwise removal can
+    # publish its durable denial while this writer restores an older record
+    # or reloads the policy which removal just unloaded. Ordinary install holds
+    # SH admission, so this also excludes an interrupted-generation refresh.
+    with admission_barrier():
+        saved = state()
+        if saved is None:
+            raise ValueError('missing-confinement-record')
+        verify_pam(saved)
+        # Boot renews only an already configured payload. Interrupted unpack
+        # must not become a new accepted generation merely by rebooting.
+        digests = verify_policy(saved)
+        load_policy(saved, expected=digests)
+        if saved['backend'] == 'selinux':
+            # /run expires at reboot. The startup loader may now create this
+            # inode before a native PAM caller can apply its named transition.
+            run(['/usr/sbin/restorecon', str(ADMISSION_LOCK)])
+        atomic(STATE, json.dumps(saved, sort_keys=True) + '\n', 0o600)
 
 
-def load_policy(saved):
+def policy_payload(saved):
+    config = PAYLOAD / 'config.json'
+    safe(config)
+    config_bytes = config.read_bytes()
+    if json.loads(config_bytes).get('backend') != saved['backend']:
+        raise ValueError('changed-confinement-backend')
     policy = PAYLOAD / ('onpc-kiosk.cil' if saved['backend'] == 'selinux' else 'onpc-kiosk.apparmor')
     safe(policy)
-    digest = hashlib.sha256(policy.read_bytes()).hexdigest()
+    return policy, (hashlib.sha256(config_bytes).hexdigest(),
+                    hashlib.sha256(policy.read_bytes()).hexdigest())
+
+
+def load_policy(saved, *, expected=None):
+    policy, digests = policy_payload(saved)
+    if expected is not None and digests != expected:
+        raise ValueError('policy-load-incomplete-reconfigure-required')
     if saved['backend'] == 'selinux':
         run(['/usr/sbin/semodule', '-i', str(policy)])
     else:
         run(['/usr/sbin/apparmor_parser', '-r', str(policy)])
-    if hashlib.sha256(policy.read_bytes()).hexdigest() != digest:
+    if policy_payload(saved) != (policy, digests):
         raise ValueError('policy-changed-during-load')
-    saved['loaded_policy_sha256'] = digest
+    saved['loaded_config_sha256'], saved['loaded_policy_sha256'] = digests
 
 
 def verify_policy(saved):
-    policy = PAYLOAD / ('onpc-kiosk.cil' if saved['backend'] == 'selinux' else 'onpc-kiosk.apparmor')
-    safe(policy)
-    if saved.get('loaded_policy_sha256') != hashlib.sha256(policy.read_bytes()).hexdigest():
+    _, digests = policy_payload(saved)
+    if (saved.get('loaded_config_sha256'), saved.get('loaded_policy_sha256')) != digests:
         raise ValueError('policy-load-incomplete-reconfigure-required')
+    return digests
 
 
 def check_remove(saved):
@@ -676,7 +708,7 @@ if __name__ == '__main__':
             if saved is None:
                 raise ValueError('missing-confinement-record')
             verify_pam(saved)
-            verify_policy(saved)
+            print(' '.join(verify_policy(saved)))
         elif sys.argv[1] == 'check-remove':
             remove(check=True)
         elif sys.argv[1] == 'remove':

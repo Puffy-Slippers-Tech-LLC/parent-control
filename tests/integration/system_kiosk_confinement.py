@@ -1472,6 +1472,41 @@ def verify_user_inputs(account, backend, record):
             path.rmdir()
 
 
+def manager_boundary(account, unit, backend):
+    """Pin the actual manager and every thread across a single observation."""
+    process = PROC / str(manager_pid(unit))
+    pidfd = os.pidfd_open(int(process.name))
+    try:
+        identity = process_identity(process)
+        expected = ('onpc-kiosk-manager (enforce)' if backend == 'apparmor' else MANAGER_SID)
+        attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
+        namespace = os.readlink(process / 'ns/mnt')
+        marker = 'root/usr/share/oh-no-parent-control/confinement/generation'
+        generation = (process / marker).read_text()
+        guest.require(identity[2] == (str(account.pw_uid),) * 4 and
+                      namespace != os.readlink(PROC / '1/ns/mnt') and
+                      re.fullmatch(r'[a-f0-9]{64}\n', generation) is not None,
+                      'kiosk-confinement:manager-boundary')
+        threads = {thread: census_thread_identity(thread)
+                   for thread in (process / 'task').iterdir()}
+        guest.require(bool(threads), 'kiosk-confinement:manager-threads-missing')
+        for target in (process, *threads):
+            guest.require(process_identity(target)[2] == identity[2] and
+                          (target / attribute).read_text().strip().rstrip('\0') == expected and
+                          os.readlink(target / 'ns/mnt') == namespace and
+                          (target / marker).read_text() == generation,
+                          'kiosk-confinement:manager-thread-boundary')
+        guest.require(not exited(pidfd) and process_identity(process) == identity and
+                      manager_pid(unit) == int(process.name) and
+                      set((process / 'task').iterdir()) == set(threads) and
+                      all(census_thread_identity(thread) == value for thread, value in threads.items()),
+                      'kiosk-confinement:manager-lifecycle-changed')
+        return {'pid': int(process.name), 'identity': identity,
+                'label': expected, 'namespace': namespace, 'generation': generation}
+    finally:
+        os.close(pidfd)
+
+
 def verify_updates(account, unit, backend, record):
     """Model the unlink/replacement operations performed by distro packages.
 
@@ -1496,6 +1531,7 @@ def verify_updates(account, unit, backend, record):
                     program.unlink()
                 backup.rename(program)
 
+    boundary = manager_boundary(account, unit, backend)
     library_directory = Path('/usr/lib64/systemd' if backend == 'selinux'
                              else '/usr/lib/x86_64-linux-gnu/systemd')
     libraries = sorted(library_directory.glob('libsystemd-*.so'))
@@ -1518,9 +1554,20 @@ def verify_updates(account, unit, backend, record):
                       'kiosk-confinement:unsupported-manager-reexec-protocol')
         guest.run(['systemctl', 'reload', unit], timeout=75)
         pinned_bytes()
+        guest.require(manager_boundary(account, unit, backend) == boundary,
+                      'kiosk-confinement:reexec-changed-manager-boundary')
         guest.require(b'systemd ' in user_command(account, ['/usr/bin/systemd-run', '--user', '--wait',
             '--collect', '--pipe', '--unit=onpc-confinement-after-reexec', '/usr/bin/systemctl', '--version']),
             'kiosk-confinement:service-after-reexec')
+        # A successful allowed service cannot show that reexec retained the
+        # execution barrier. Require a fresh executor error and kernel denial
+        # from this same manager while the replacement files are still present.
+        user_command(account, ['/bin/sh', '-c', 'exit 0'])
+        require_service_denial(account, backend, 'onpc-confinement-after-reexec-denied.service',
+                               ['/bin/sh', '-c', 'exit 0'], record)
+        guest.require(manager_boundary(account, unit, backend) == boundary,
+                      'kiosk-confinement:reexec-changed-manager-boundary')
+        record('onpc.kiosk.manager-boundary-after-reexec', json.dumps(boundary, sort_keys=True))
         record('onpc.kiosk.executable-library-replacement-and-reexec', True)
     plugin_directory = Path('/usr/lib64/gstreamer-1.0' if backend == 'selinux'
                             else '/usr/lib/x86_64-linux-gnu/gstreamer-1.0')
@@ -1542,6 +1589,8 @@ def verify_updates(account, unit, backend, record):
             (plugin_directory / 'libgstpython.so').unlink()
             plugin_directory.rmdir()
             backup.rename(plugin_directory)
+    guest.require(manager_boundary(account, unit, backend) == boundary,
+                  'kiosk-confinement:updates-changed-manager-boundary')
 
 
 @contextmanager
@@ -1562,10 +1611,117 @@ def appended_probe(path, suffix):
             os.utime(stream.fileno(), ns=(before.st_atime_ns, before.st_mtime_ns))
 
 
+@contextmanager
+def untrusted_alias_owner(path, uid):
+    """Change only one real distro alias owner; refuse any substituted entry."""
+    guest.guard()
+    guest.require(type(uid) is int and uid > 0, 'kiosk-alias:fixture-uid')
+    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        directory = os.fstat(parent)
+        guest.require(directory.st_uid == 0 and not directory.st_mode & 0o022,
+                      'kiosk-alias:unsafe-parent')
+        original = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        guest.require(stat.S_ISLNK(original.st_mode) and original.st_uid == original.st_gid == 0 and
+                      original.st_nlink == 1, 'kiosk-alias:unsafe-original')
+        target = os.readlink(path.name, dir_fd=parent)
+
+        def unchanged(*owners):
+            actual = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            guest.require(all(getattr(actual, field) == getattr(original, field) for field in
+                          ('st_dev', 'st_ino', 'st_mode', 'st_gid', 'st_nlink', 'st_mtime_ns')) and
+                          actual.st_uid in owners and os.readlink(path.name, dir_fd=parent) == target,
+                          'kiosk-alias:fixture-replaced')
+
+        unchanged(original.st_uid)
+        try:
+            os.chown(path.name, uid, original.st_gid, dir_fd=parent, follow_symlinks=False)
+            unchanged(uid)
+            yield
+        finally:
+            # A failed chown may leave the original owner. Accept only our two
+            # attributable states before restoring the same pinned parent entry.
+            unchanged(original.st_uid, uid)
+            os.chown(path.name, original.st_uid, original.st_gid,
+                     dir_fd=parent, follow_symlinks=False)
+            unchanged(original.st_uid)
+            os.utime(path.name, ns=(original.st_atime_ns, original.st_mtime_ns),
+                     dir_fd=parent, follow_symlinks=False)
+            # Reading the link after utime can advance its atime again.
+            restored = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            guest.require(all(getattr(restored, field) == getattr(original, field) for field in
+                          ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                           'st_atime_ns', 'st_mtime_ns')), 'kiosk-alias:restoration-changed')
+    finally:
+        os.close(parent)
+
+
+def verify_payload_attestation_faults(account, directory, policy, record):
+    """Neither a fresh manager nor boot loading may attest changed payload bytes."""
+    from system_removal import admission_removal_state, private_recovery_record
+    integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    state = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
+    config = json.loads((policy.parent / 'config.json').read_bytes())
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    command = ['/usr/lib/systemd/systemd', '--version']
+    status, data = first_exec(account, directory, command, service='systemd-user')
+    guest.require(status == 0 and not data, 'kiosk-confinement:payload-attestation-positive')
+    preparation['enforcing'](config)
+    for name, path, category, key in (
+        ('configuration', policy.parent / 'config.json', 'unloaded-configuration-generation-admitted',
+         'onpc.kiosk.unloaded-configuration-generation-denied'),
+        ('policy', policy, 'unloaded-policy-generation-admitted',
+         'onpc.kiosk.unloaded-policy-generation-denied'),
+    ):
+        guest.require(manager_pid(f'user@{account.pw_uid}.service') == 0,
+                      'kiosk-confinement:payload-drift-manager-active')
+        ownership = admission_removal_state()
+        attestation = private_recovery_record(state)
+        with appended_probe(path, b'\n'):
+            # No user manager exists: systemd-user must independently reject
+            # config-only drift rather than relying on another manager's view.
+            status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
+            guest.require(status == 125 and json.loads(data)['pam'] != 0,
+                          'kiosk-confinement:' + category)
+            record(key, True)
+            output = guest.commands.run([integration, 'load'], timeout=90,
+                                        check=False, merge_stderr=True)
+            status = guest.commands.last_returncode
+            record('onpc.kiosk.' + name + '-drift-loader-result', json.dumps({
+                'status': status, 'output': output.decode(errors='replace')}, sort_keys=True))
+            guest.require(type(status) is int and status != 0 and
+                          b'reason=policy-load-incomplete-reconfigure-required;' in output,
+                          'kiosk-confinement:payload-drift-boot-reattested')
+            guest.require(admission_removal_state() == ownership and
+                          private_recovery_record(state) == attestation,
+                          'kiosk-confinement:payload-drift-ownership-changed')
+            preparation['enforcing'](config)
+            record('onpc.kiosk.' + name + '-drift-loader-refused', True)
+        status, data = first_exec(account, directory, command, service='systemd-user')
+        guest.require(status == 0 and not data,
+                      'kiosk-confinement:payload-attestation-recovery')
+        guest.require(admission_removal_state() == ownership and
+                      private_recovery_record(state) == attestation,
+                      'kiosk-confinement:payload-drift-recovery-changed-ownership')
+        preparation['enforcing'](config)
+        record('onpc.kiosk.' + name + '-attestation-recovered', True)
+
+
 def verify_admission_faults(account, directory, backend, record):
     command = ['/usr/lib/systemd/systemd', '--version']
     status, data = first_exec(account, directory, command, service='systemd-user')
     guest.require(status == 0 and not data, 'kiosk-confinement:manager-first-exec-positive')
+    # Root-owned ELF bytes do not make a user-owned distribution alias trusted.
+    # Preserve its real target and test the installed PAM preparation path,
+    # rather than substituting the preparer's filesystem checks in the worker.
+    with untrusted_alias_owner(Path('/usr/bin/python3'), account.pw_uid):
+        status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
+        guest.require(status == 125 and json.loads(data)['pam'] != 0,
+                      'kiosk-confinement:untrusted-executable-alias-admitted')
+        record('onpc.kiosk.user-owned-executable-alias-denied', True)
+    status, data = first_exec(account, directory, command, service='systemd-user')
+    guest.require(status == 0 and not data, 'kiosk-confinement:executable-alias-recovery')
+    record('onpc.kiosk.restored-executable-alias-admitted', True)
     for name in ('/etc/pam.d/gdm-password', '/usr/lib/pam.d/systemd-user'):
         with appended_probe(Path(name), b'\n# owned integration-drift probe\n'):
             status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
@@ -1574,11 +1730,7 @@ def verify_admission_faults(account, directory, backend, record):
     record('onpc.kiosk.pam-vendor-drift-denied', True)
     policy = Path('/usr/share/oh-no-parent-control/confinement') / (
         'onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil')
-    with appended_probe(policy, b'\n'):
-        status, data = first_exec(account, directory, command, service='systemd-user', armed=False)
-        guest.require(status == 125 and json.loads(data)['pam'] != 0,
-                      'kiosk-confinement:unloaded-policy-generation-admitted')
-    record('onpc.kiosk.unloaded-policy-generation-denied', True)
+    verify_payload_attestation_faults(account, directory, policy, record)
     if backend == 'apparmor':
         restore = ['/usr/sbin/apparmor_parser', '-r', str(policy)]
         mutations = [(['/usr/sbin/apparmor_parser', '-C', '-r', str(policy)], restore),
@@ -1793,6 +1945,42 @@ def record_native_packages(config, record):
     record('onpc.kiosk.native.files', json.dumps(files, sort_keys=True))
 
 
+def verify_loader_admission_refusal(config, record):
+    """A native held admission excludes the real policy/attestation writer."""
+    from system_kiosk_accounts import owned_bytes
+    from system_kiosk_admission import held_account
+    integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    state = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    guest.run([integration, 'load'], timeout=90)
+    preparation['enforcing'](config)
+    before = owned_bytes(state, private=True)
+    pam = guest.pam_service_state()
+    record('onpc.kiosk.loader.allowed-before-admission', True)
+    with held_account(record) as pid:
+        holder = PROC / str(pid)
+        identity = process_identity(holder)
+        guest.require(identity[2] == ('0',) * 4, 'kiosk-loader:holder-not-root')
+        output = guest.commands.run([integration, 'load'], timeout=90,
+                                    check=False, merge_stderr=True)
+        status = guest.commands.last_returncode
+        record('onpc.kiosk.loader.held-admission-result', json.dumps({
+            'status': status, 'output': output.decode(errors='replace')}, sort_keys=True))
+        guest.require(type(status) is int and status != 0 and b'kiosk-admissions-active' in output,
+                      'kiosk-loader:held-admission-not-refused')
+        guest.require(process_identity(holder) == identity and
+                      owned_bytes(state, private=True) == before and
+                      guest.pam_service_state() == pam,
+                      'kiosk-loader:refusal-changed-admission-state')
+        preparation['enforcing'](config)
+        record('onpc.kiosk.loader.held-admission-preserved', hashlib.sha256(before).hexdigest())
+    guest.run([integration, 'load'], timeout=90)
+    guest.require(owned_bytes(state, private=True) == before and guest.pam_service_state() == pam,
+                  'kiosk-loader:drained-load-changed-admission-state')
+    preparation['enforcing'](config)
+    record('onpc.kiosk.loader.allowed-after-admission', True)
+
+
 def verify_execution_boundary(record):
     """Verify native execution while the installed MAC boundary stays enforcing."""
     guest.guard()
@@ -1807,6 +1995,7 @@ def verify_execution_boundary(record):
         'SystemAccount']) == 'b false', 'kiosk-confinement:greeter-classification')
     record('onpc.kiosk.nologin-account-visible-after-reboot', True)
     wait_kiosk_inactive(account)
+    verify_loader_admission_refusal(config, record)
     guest.run(['systemctl', 'start', unit], timeout=75)
     invocation = guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit])
     try:

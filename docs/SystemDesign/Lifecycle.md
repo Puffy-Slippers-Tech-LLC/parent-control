@@ -264,8 +264,8 @@ fresh accounts receive the product artwork. Already-correct routing and disabled
 time limits avoid setter calls, so a successful visibility migration is not
 followed by an unrelated save that canonicalizes retained metadata. Necessary
 routing/time-limit corrections retain their public setters and normal daemon
-serialization semantics. The current engineering qualification belongs to the
-[confinement execution record](../Confinement-Reference.md#qualification-and-reusable-evidence).
+serialization semantics. Engineering qualification and its limits are described
+in [Kiosk confinement](Kiosk-Confinement.md#verification-scope-and-evidence-limits).
 The upstream [manager implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/daemon.c),
 [user-state implementation](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/src/user.c)
 and [public user interface](https://gitlab.freedesktop.org/accountsservice/accountsservice/-/blob/main/data/org.freedesktop.Accounts.User.xml)
@@ -338,9 +338,8 @@ private manager/executor entrypoints can transition to the manager role.
 The engineering census requires every kiosk thread to have a confined current
 domain; it has no `init_t` waiting-helper exception. Current-package installed
 startup, credential/teardown and active namespace engineering qualification
-passes on both targets; the
-[confinement evidence](../Confinement-Reference.md#qualification-and-reusable-evidence)
-retains exact inputs and separate remaining functional/lifecycle gates.
+passed on both targets; [Kiosk confinement](Kiosk-Confinement.md#verification-scope-and-evidence-limits)
+records the candidate scope and evidence limits separately from public acceptance.
 The intermediate domain can write the inherited `kernel_t` datagram socket used
 by systemd's pre-exec handoff timestamp; that object label was measured on Fedora
 with dontaudit temporarily disabled. It also has `noatsecure` only for transition
@@ -433,8 +432,8 @@ The engineering census accepts Fedora's vendor helper label only after proving
 every thread's exact mixed UID tuple, native executable/inode/metadata, enforcing
 domain, read-only file bind, private generation/namespace, live confined Polkit
 parent and stable PIDFD/starttime/task snapshots. Unknown labels and `init_t`
-remain rejected. Required final installed acceptance remains recorded in
-[confinement evidence](../Confinement-Reference.md).
+remain rejected. Installed acceptance scope is described in
+[Kiosk confinement](Kiosk-Confinement.md#verification-scope-and-evidence-limits).
 Ubuntu uses an immediate AppArmor profile change. Fedora's systemd caller uses
 the immediate PAM domain above; GDM uses a verified pending SELinux execution
 context whose entrypoint check applies to the actual next executable. Missing policy, permissive profiles or

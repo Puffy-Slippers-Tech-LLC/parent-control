@@ -1085,9 +1085,8 @@ Tab to switch panes (initially the lower pane), and End to return to the newest
 rows in either mode.
 The [common execution-plan contract](../docs/Execution-Plans.md) defines Markdown
 plans, delegation, shared `--tasks` semantics and extension boundaries. The
-[confinement launcher](../tools/confinement) is an ordinary plan adapter with a
-fixed GPT-6.1 Sol xHigh coordinator and no escalation; E2E and repair retain
-their specialized state machines and existing model ladders. Repair's optional
+[generic launcher](../tools/execute-plan) runs ordinary plans; E2E and repair
+retain their specialized state machines and existing model ladders. Repair's optional
 `--tasks` bounds completed category passes (an unfiltered verification `all`
 pass counts as one composite task); omission retains the full selected loop.
 

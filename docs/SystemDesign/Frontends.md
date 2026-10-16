@@ -991,3 +991,4 @@ change; saved values and translations need no migration.
 - For changing saved request fields, read [State](State.md).
 - For feedback, attachments, and diagnostics, read [feedback and diagnostic export](Logging-and-Feedback.md#feedback-and-diagnostic-export).
 - For kiosk startup and login ordering, read [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle).
+- For the restricted station's account, execution boundary and escape defenses, read [Kiosk confinement](Kiosk-Confinement.md).

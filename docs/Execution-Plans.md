@@ -75,7 +75,6 @@ close-out; join and close workers before handoff or releasing resources. A
 subagent's report is evidence to assess, not automatic acceptance.
 
 Each derived launcher owns its coordinator default and escalation policy.
-`confinement` always uses **GPT-6.1 Sol xHigh**, without escalation.
 `write-e2e` and `fix-tests` retain their existing
 [model ladders and specialized execution contracts](../tests/README.md#scripted-repair-loop).
 Their existing consultation/repair boundaries still apply; reusable infrastructure
@@ -91,11 +90,10 @@ historical results and schedule invalidated histories explicitly.
 ## Common launcher interface
 
 ```sh
-tools/confinement --check
-tools/confinement --tasks 1
-tools/confinement --tasks 0
-tools/confinement --stop
+tools/execute-plan --plan 'docs/Example.md' --check
 tools/execute-plan --plan 'docs/Example.md' --tasks 2
+tools/execute-plan --plan 'docs/Example.md' --tasks 0
+tools/execute-plan --plan 'docs/Example.md' --stop
 ```
 
 `--tasks N` limits completed tasks in this run. Zero and negative values mean
@@ -252,7 +250,6 @@ semantics.
 
 `--check` validates a plan and every unfinished brief without model sessions, VM
 operations or Git changes. Generic `execute-plan` leaves changes for review.
-Confinement retains its existing commit-and-push-after-each-accepted-task policy;
 E2E retains its own Git and optimization workflow. Existing staged or unrelated
 work is excluded; conflicting ownership stops close-out with a retained checkpoint.
 
@@ -277,11 +274,11 @@ The current adapters use these components according to their workflow:
 | `write-e2e` | Task options/budgets, detached supervision, display, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
-| `confinement` | Ordinary plan driver, task options/budgets, detached supervision, display and Git | Confinement master, ordered queue and briefs through `PlanWorkflow`, with fixed Sol xHigh and per-task commit/push |
+| `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; leaves changes for review |
 
 Run E2E plans through `write-e2e`; their task-specific acceptance metadata and
 close-out rules remain with the E2E contracts. `execute-plan --check` validates
-ordinary plans such as confinement, not the specialized E2E brief format.
+ordinary plans, not the specialized E2E brief format.
 The maintained E2E [host consistency checks](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
 validate its master, queue, briefs and scenario bindings.
 

@@ -62,8 +62,6 @@ prefix_rule(
         "./tools/cleanup-e2e",
         "tools/cleanup-screenshots",
         "./tools/cleanup-screenshots",
-        "tools/confinement",
-        "./tools/confinement",
         "tools/diagnose",
         "./tools/diagnose",
         "tools/execute-plan",

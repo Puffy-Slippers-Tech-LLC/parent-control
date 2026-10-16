@@ -14,7 +14,6 @@ from types import SimpleNamespace
 import pytest
 
 from execution_plan import Plan, local_file
-from confinement_workflow import WORKFLOW as CONFINEMENT
 from launcher_display import TaskDisplay
 from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaining
 from launcher_view import WorkflowView, plan_totals, view_for
@@ -795,9 +794,10 @@ def test_e2e_view_reads_canonical_plan_totals(monkeypatch):
     assert calls == [(Path(launcher_view.__file__).resolve().parent.parent, write_e2e.PLAN)]
 
 
-def test_confinement_model_and_bounded_sol_roles(tmp_path, monkeypatch):
+def test_configured_plan_model_and_bounded_sol_roles(tmp_path, monkeypatch):
     monkeypatch.setattr(workflow.launcher.shutil, 'which', lambda _: '/private/codex')
-    command = workflow.session_command(tmp_path, CONFINEMENT, tmp_path)
+    spec = workflow.PlanWorkflow('fixture-plan', effort='xhigh')
+    command = workflow.session_command(tmp_path, spec, tmp_path)
     config = tomllib.loads('\n'.join(command[i + 1] for i, arg in enumerate(command) if arg == '-c'))
     assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
     assert config['model_reasoning_effort'] == 'xhigh'

@@ -1,5 +1,6 @@
 """Shared recording boundaries use private metadata and process-local doubles."""
 import json
+import io
 import subprocess
 from collections import defaultdict
 from types import SimpleNamespace
@@ -150,6 +151,51 @@ def test_session_pins_runner_queue_before_starting_renderer(monkeypatch, tmp_pat
     with pytest.raises(RuntimeError, match='startup boundary'):
         session.start()
     assert session.configured == {'Owned': registry['Owned']}
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_publication_refreshes_one_counter_after_each_completed_clip(monkeypatch, tmp_path, failed):
+    from contextlib import nullcontext
+    from tools.regression_session import SessionOutput
+    from tools.launcher_progress import read_progress
+
+    session = recording.Session(tmp_path)
+    session.configured = {'Ubuntu': SimpleNamespace(id=1), 'Fedora': SimpleNamespace(id=2)}
+    session.started_ns = 0
+    session.master = tmp_path / 'master.webm'
+    session.log = io.BytesIO()
+    for vm in session.configured:
+        session.timeline.event(vm, 'system', 1, 'started', 1)
+        session.timeline.event(vm, 'system', 2, 'started', 2)
+    clip = SimpleNamespace(path=tmp_path / 'clip.webm', descriptors=lambda: (),
+                           state={'current': {'sha256': 'test'}}, publish=Mock())
+    clip.publish.side_effect = [tmp_path / 'first.webm',
+        RuntimeError('publication failed') if failed else tmp_path / 'second.webm']
+    session.store = SimpleNamespace(begin=lambda *_: nullcontext(clip))
+    monkeypatch.setattr(recording, 'keyframes', lambda _: [0.])
+    monkeypatch.setattr(recording.subprocess, 'run', Mock())
+    output = SessionOutput(tmp_path, io.StringIO())
+    updates = []
+    controller = output.controller
+
+    def observe(key, lines):
+        controller(key, lines)
+        updates.append(read_progress(tmp_path))
+
+    output.controller = observe
+    monkeypatch.setattr(recording.sys, 'stdout', output)
+    summary = dict(duration_seconds=1, vm_spans=[
+        dict(vm=vm, start_ns=0, end_ns=10**20) for vm in session.configured])
+    if failed:
+        with pytest.raises(RuntimeError, match='publication failed'):
+            session.publish(summary)
+    else:
+        session.publish(summary)
+    completed = 1 if failed else 2
+    assert updates == [[{'key': 'recording', 'lines': [f'Recording: {index}/2']}]
+                       for index in range(completed + 1)]
+    assert len(session.records) == completed
+    assert output.stream.getvalue() == ''
 
 
 def test_keyframe_boundaries_use_sorted_packet_presentation_times(monkeypatch, tmp_path):

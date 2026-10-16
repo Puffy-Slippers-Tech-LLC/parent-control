@@ -403,8 +403,18 @@ class Session:
         from test_storage import scratch_descriptors
         configured = self.configured
         ordered = sorted(configured, key=lambda name: int(configured[name].id))
-        frames = keyframes(self.master)
         self.timeline.close(time.monotonic_ns())
+        total = len(self.timeline.windows)
+
+        def progress(completed):
+            line = f'Recording: {completed}/{total}'
+            if hasattr(sys.stdout, 'controller'):
+                sys.stdout.controller('recording', [line])
+            else:
+                print('\r' + line, end='\n' if completed == total else '', flush=True)
+
+        progress(0)
+        frames = keyframes(self.master)
         for key, window in sorted(self.timeline.windows.items()):
             requested_start = max(0., (window.start_ns - self.started_ns) / 1e9)
             # Stream-copy starts on a real keyframe. Include every VM visible
@@ -433,7 +443,7 @@ class Session:
                     title=window.title, path=str(path), sha256=recording.state['current']['sha256'],
                     failed=window.failed, interrupted=window.interrupted,
                     start_seconds=start, end_seconds=end))
-                print('Recording: ' + str(path), flush=True)
+                progress(len(self.records))
 
     def close(self, *, publish=True):
         if self.previous is None:

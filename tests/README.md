@@ -1460,6 +1460,9 @@ previous file and reports an infrastructure error. Every candidate is decoded
 in full before publication. Temporary full-session media
 uses shared scratch; final recordings have no automatic age or size rotation.
 This explicit latest-only policy is separate from ordinary report retention.
+Publication displays one refreshing `Recording: x/y` progress line in the runner
+and watch terminal, counting completed clips out of the session's total.
+Individual recording paths remain in the session's `recordings.json` index.
 
 The private renderer requires the existing GTK/Mutter/VTE development stack and
 FFmpeg, installed only through `./setup.sh`. It records at 5 fps with one fast VP9

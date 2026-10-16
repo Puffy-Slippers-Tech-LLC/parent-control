@@ -1,12 +1,13 @@
 ## v1.4 -
 ### New Features
 - **Language Dialog**: You can search for a language by its English name as well as its localized name
-- **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized in child preferences.
+- **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized, or completely removed, in child preferences.
 - **Parent App**: Revoke dialog shows list of running soft blocked apps that will be terminated.
-- **Parent App**: Smoother app loading experience; Neat app list loading overlay with percentage progress.
+- **Parent App**: Face lifting:) Smoother app loading experience; Neat app list loading overlay with percentage progress.
 - **What's New**: Added metadata-driven What's new infra for parent and child app. Parent version offers everything (no mercy to to parents, Grr!); child version only offers carefully crafted content relevant and appropriate to them (we're responsible parents, aren't we all?)
 - **Request Time Form**: You can customize the preset times in preferences!
-- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son. Upon a glad nodding, he asked, daddy, it'd be cool to add seconds and days, only to be yelled of "out, before I kick you cute little butt, again!" by an annoyed Dad)
+- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son. Upon a glad nodding, he asked, daddy, it'd be cool to add seconds and days, only to be yelled at "out, before I kick you cute little butt, again!" by an annoyed Dad)
+- **Portal**: Well, stricly speaking, not a product feature, but can you blame me for showing off after putting tremendous efforts in enhancing and demonstrating the security of our product? Check out the ["Security" tab](https://tech.puffyslippers.com/oh-no-parent-control/security/).
 
 ### Bug Fixes
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.
@@ -17,8 +18,11 @@
 - **Parent App**: Fixed the disabled Revoke button at zero remaining time when soft-blocked apps are still running, allowing parents to close those apps after the child’s session locks.
 - **Child App**: In Kiosk session, hitting enter in after typing custom value does not trigger auth dialog
 
+### Non Product Changes
+- Increased e2e coverage to 46
+
 ### Fedora Workstation 44 Readiness
-- **Test Automation:** One big step closer - all automated tests are passing on Fedora
+- **Test Automation:** One big step closer - Fedora automation just got a promotion to 1st class citizen, its coverage is on par with Ubuntu. Fedora release is on the horizon!!!
 
 
 ## v1.3 - 2026-10-03

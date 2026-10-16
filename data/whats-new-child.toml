@@ -8,6 +8,7 @@ version = 1
 ProductVersion = "1.4"
 Content = '''
 ## New features
-- **Remaining time reminders:** Reminders now appear by default. Reminders can appear over full-screen apps and can be customized in preferences.
+- **Remaining time reminders:** Reminders now appear by default. Reminders can appear over full-screen apps and can be customized and even completely removed in preferences.
 - **Request Time Form**: You can customize the preset times in preferences!
+- **Request Time Form**: You can request hours of screen time. Don't abuse your power :)
 '''

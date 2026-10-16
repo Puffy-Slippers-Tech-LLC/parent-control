@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 import uuid
+from tools.vm_recording import protect_capture
 from qualification_storage import allocate, session as storage_session
 
 import graphical_backend
@@ -176,6 +177,7 @@ class Smoke:
         self._failed = False
         self._reboot_boot = None
         self._reboot_password_verified = False
+        self._capture_protection = None
         self.stages = (FUNCTIONAL_SERIAL_STAGES if functional else
                        VT6_AUTH_STAGES if vt6_auth else VT6_PROMPT_STAGES if vt6_prompt else
                        INSTALL_REFUSAL_STAGES if installation is not None and installation.refusal else
@@ -188,6 +190,17 @@ class Smoke:
             self._step(serial_console)
         except BaseException:
             self._failed = True
+            failure = sys.exc_info()
+            manager, self._capture_protection = self._capture_protection, None
+            if manager is not None:
+                try:
+                    manager.__exit__(*failure)
+                except BaseException:
+                    pass
+            if self.installation is not None:
+                self.installation.fail_capture(failure)
+            if self._vt6_authentication is not None:
+                self._vt6_authentication.fail_capture(failure)
             raise
 
     def guarded_step(self, guard):
@@ -380,6 +393,10 @@ class Smoke:
             # A durable checkpoint failure above prevents input. Recheck the
             # owned worker after persistence, immediately before publication.
             self._worker_guard()
+        if stage in ('serial-password', 'reboot-password'):
+            manager = protect_capture(root=ROOT)
+            manager.__enter__()
+            self._capture_protection = manager
         fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'w') as stream:
             stream.write(json.dumps(reply))
@@ -387,6 +404,9 @@ class Smoke:
             os.fsync(stream.fileno())
         pending.rename(self.directory / f'{stage}.reply.json')
         runner.log('graphical:' + stage + '-observed')
+        if stage in ('serial-authenticated', 'reboot-observed') and self._capture_protection is not None:
+            self._capture_protection.__exit__(None, None, None)
+            self._capture_protection = None
 
 
 def run_backend(directory, lease, commands, host_key, ledger, expected_inputs,

@@ -1,6 +1,7 @@
 """Harmless aggregate double for real detached-process lifecycle tests."""
 
 from pathlib import Path
+from contextlib import nullcontext
 import sys
 import time
 
@@ -12,12 +13,16 @@ import regression_process
 from regression_process import Control
 import test_commands
 import test_recovery
+import vm_recording
 
 # This process exercises session ownership against a temporary checkout. Its
 # host recovery may be enabled explicitly; never dispatch tests or VM work here.
 if not (Path(sys.argv[1]) / 'recover-host').exists():
     test_recovery.before_run = lambda root, argv, **kwargs: 0
 test_commands.selections = lambda root, argv: [(argv[0], argv[1:])]
+# This harmless process tests detached ownership only. The separate recording
+# UI tests exercise the real private compositor, encoder and publication.
+vm_recording.recording = lambda *args, **kwargs: nullcontext(None)
 
 dispatch = test_commands._main
 

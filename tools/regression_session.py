@@ -232,6 +232,14 @@ def worker(root, argv, run, owner):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     import regression_process
     regression_process.session_stop = threading.Event()
+    # Keep cancellation cooperative through recorder startup, publication and
+    # final result storage, after the inner category controllers have exited.
+    with regression_process.Control().installed():
+        return owned_worker(root, argv, run, owner)
+
+
+def owned_worker(root, argv, run, owner):
+    import regression_process
     finished = threading.Event()
 
     def cancellation():
@@ -243,6 +251,7 @@ def worker(root, argv, run, owner):
     watcher = threading.Thread(target=cancellation, daemon=True)
     watcher.start()
     status = 1
+    media = None
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
     try:
@@ -263,10 +272,31 @@ def worker(root, argv, run, owner):
                         raise ValueError('case retry requires one category')
                     checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
                 before_run(root, argv, categories=categories)
-            status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}))
+            from vm_recording import recording
+            with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories])) as media:
+                status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}))
+    except Exception as error:
+        print(f'Test runner infrastructure failed: {type(error).__name__}: {error}',
+              file=sys.stderr, flush=True)
+        status = 1
     finally:
         finished.set()
         watcher.join()
+        if status == 0 and regression_process.session_stop.is_set():
+            status = 130
+        if media is not None:
+            try:
+                with (run / 'recordings.json').open('x', encoding='utf-8') as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    json.dump(dict(run_id=run.name, complete=media.finalized, status=status,
+                        policy='Latest files can be superseded; compare SHA-256 with this run.',
+                        capture=media.summary, recordings=media.records), stream, indent=2)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            except OSError:
+                status = 1
+                print('Recording index could not be saved; owned capture cleanup finished.',
+                      file=sys.stderr, flush=True)
         sys.stdout.flush()
         sys.stderr.flush()
         sys.stdout = original

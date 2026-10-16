@@ -453,6 +453,193 @@ def test_system_rpm_posterase_resume_replays_all_predecessors(pending_phase):
     assert resumed.executions == focused.executions
 
 
+@pytest.mark.parametrize('resume', [False, True])
+@pytest.mark.parametrize('scope', ['independent', 'focused', 'history'])
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_grouped_system_passes_and_counts_stay_with_their_selection(
+        tmp_path, monkeypatch, resume, scope, package_format):
+    import system_runner
+    from tests.support.vm_registry import vm_name
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    from vm_selection import VARIABLE, vm_config
+
+    monkeypatch.setenv(VARIABLE, vm_name())
+    monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: package_format)
+    inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b', 'test_c')}
+    monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    monkeypatch.setattr(regression_selection, 'source_identity', lambda _: 'fixed-inputs')
+    monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *_: None)
+    history = scope == 'history'
+    second = {'history': ('removal', 'test_aborted_cleanup_rollback_retry'),
+              'independent': ('enforcement', None),
+              'focused': ('authorization', 'test_b')}[scope]
+    selectors = [('authorization', 'test_a'), second]
+    inventories['enforcement'] = ('test_b', 'test_c')
+    selections = [('system', ['--area', area, *(['--test=' + case] if case else [])])
+                  for area, case in selectors]
+    plans = [system_runner.resolve_selection(area, case, inventories=inventories,
+                target_package_format=vm_config.load(vm_name()).require_package_format())
+             for area, case in selectors]
+    ids = [tuple(item.phase + '::' + item.case_id for item in plan.executions) for plan in plans]
+    checkpoint = Checkpoint(tmp_path, selections)
+    if resume:
+        retained = [ids[0][0], *(ids[1][:-1] if history else ids[1][:1])]
+        for node in retained:
+            checkpoint.event('system', dict(kind='finished', nodeid=node), set())
+        checkpoint.save()
+        checkpoint = Checkpoint(tmp_path, selections, resume=True)
+    commands = []
+    replayed = []
+
+    def execute(command, *, output, **kwargs):
+        index = len(commands)
+        commands.append(command)
+        completed = next((json.loads(arg.split('=', 1)[1]) for arg in command
+                          if arg.startswith('--completed-cases=')), [])
+        assert set(completed) <= set(ids[index])
+        expected = (set(ids[index][:-1] if history and index else ids[index][:1])
+                    if resume else set())
+        assert set(completed) == expected
+        selected = system_runner.resume_selection(plans[index], set(completed)) if completed else plans[index]
+        nodes = [item.phase + '::' + item.case_id for item in selected.executions]
+        replayed.append(nodes)
+        output((regression.PREFIX + json.dumps(dict(
+            kind='collection', total=len(nodes), nodeids=nodes)) + '\n').encode())
+        for node in nodes:
+            output((regression.PREFIX + json.dumps(dict(kind='finished', nodeid=node)) + '\n').encode())
+        return 0
+
+    with closing(regression.Report(tmp_path)) as report:
+        run = regression_selection.SelectedRun(ROOT, report, regression.Control(), selections)
+        run.checkpoint = checkpoint
+        run.dashboard.stream = io.StringIO()
+        monkeypatch.setattr(run.control, 'run', execute)
+        run.run()
+        assert run.result_status() == 0 and len(commands) == 2
+        assert [(item.progress_done, item.progress_total) for item in run.categories] == [
+            (len(nodes), len(nodes)) for nodes in ids]
+        assert replayed[1] == (list(ids[1][1:]) if scope == 'independent' and resume else list(ids[1]))
+        assert run.categories[1].resumed_nodeids == (ids[1][:1] if scope == 'independent' and resume else ())
+        report.snapshot(run.categories)
+        progress = json.loads((report.directory / 'progress.json').read_text())
+        assert [(item['done'], item['total']) for item in progress] == [
+            (len(nodes), len(nodes)) for nodes in ids]
+        frame = regression.Dashboard.ANSI.sub('', '\n'.join(run.dashboard.render(run.dashboard.started)))
+        total = sum(map(len, ids))
+        assert f'Overall - 100% ({total}/{total})' in frame
+        checkpoint.finish(run.categories)
+        completed = regression_selection.SelectedRun(ROOT, report, regression.Control(), selections)
+        completed.checkpoint = Checkpoint(tmp_path, selections, resume=True)
+        completed.dashboard.stream = io.StringIO()
+        controller = Mock(side_effect=AssertionError('completed categories must not execute'))
+        monkeypatch.setattr(completed.control, 'run', controller)
+        completed.run()
+        assert completed.result_status() == 0
+        assert [(item.done, item.total) for item in completed.categories] == [
+            (len(nodes), len(nodes)) for nodes in ids]
+        controller.assert_not_called()
+
+
+@pytest.mark.parametrize('unknown', ['authorization::unknown',
+                                   'rpm-posterase::test_rpm_posterase_recovery'])
+def test_grouped_system_filter_keeps_unknown_and_incompatible_ids_for_controller_refusal(
+        tmp_path, monkeypatch, unknown):
+    import system_runner
+    from tests.support.vm_registry import vm_name
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    from vm_selection import VARIABLE, vm_config
+
+    monkeypatch.setenv(VARIABLE, vm_name())
+    # The synthetic target deliberately excludes RPM-only histories.
+    monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: 'deb')
+    monkeypatch.setattr(system_runner, 'collect_area_cases', RECOVERY_INVENTORIES.__getitem__)
+    selections = [('system', ['--area', 'authorization']), ('system', [])]
+    checkpoint = Checkpoint(tmp_path, selections)
+    checkpoint.event('system', dict(kind='finished', nodeid=unknown), set())
+    runner = SimpleNamespace(root=ROOT, checkpoint=checkpoint)
+    item = regression.Category('System', retry_category='system')
+    command = [str(ROOT / 'tools/run-tests'), 'system', '--unattended', '--area=authorization']
+    command = regression.Run.resume_command(runner, item, command)
+    assert command[-1] == '--completed-cases=' + json.dumps([unknown])
+    assert item.resumed_nodeids == ()
+    selection = system_runner.resolve_selection('authorization', inventories=RECOVERY_INVENTORIES)
+    with pytest.raises(system_runner.Error, match='resume-inventory-changed'):
+        system_runner.resume_selection(selection, {unknown})
+    checkpoint.entry('system')['complete'] = True
+    item.selection_args = ('--area=authorization',)
+    with closing(regression.Report(tmp_path)) as report:
+        run = regression.Run(ROOT, report, regression.Control(), host_only=True)
+        run.checkpoint = checkpoint
+        with pytest.raises(ValueError, match='resume-inventory-changed'):
+            run.resume_category(item)
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_grouped_system_upgrade_resume_preserves_installation_predecessors(
+        tmp_path, monkeypatch, package_format):
+    import system_runner
+    from tests.support.vm_registry import vm_name
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    from vm_selection import VARIABLE, vm_config
+
+    monkeypatch.setenv(VARIABLE, vm_name())
+    monkeypatch.setattr(vm_config.VMConfig, 'require_package_format', lambda _: package_format)
+    inventories = {**RECOVERY_INVENTORIES, 'authorization': ('test_a', 'test_b')}
+    monkeypatch.setattr(system_runner, 'collect_area_cases', inventories.__getitem__)
+    options = ['--area=authorization', '--test', 'test_b',
+               '--previous-artifacts=/tmp/onpc-prior', '--artifacts', '/tmp/onpc-current']
+    selections = [('system', ['--area', 'authorization', '--test=test_a']), ('system', options)]
+    checkpoint = Checkpoint(tmp_path, selections)
+    selection = system_runner.resolve_selection('authorization', 'test_b', inventories=inventories,
+        fresh_install=True, target_package_format=package_format)
+    predecessors = {item.phase + '::' + item.case_id for item in selection.executions
+                    if item.phase in ('installed', 'rebooted')}
+    for node in predecessors | {'authorization::test_a'}:
+        checkpoint.event('system', dict(kind='finished', nodeid=node), set())
+    item = regression.Category('Upgrade', retry_category='system')
+    command = [str(ROOT / 'tools/run-tests'), 'system', '--unattended', *options,
+               '--vm', vm_name(), '--skip-backing-verification']
+    resumed = regression.Run.resume_command(SimpleNamespace(root=ROOT, checkpoint=checkpoint), item, command)
+    assert resumed[:-1] == command
+    assert json.loads(resumed[-1].split('=', 1)[1]) == sorted(predecessors)
+    assert set(item.resumed_nodeids) == predecessors
+    assert system_runner.resume_selection(selection, predecessors, fresh_install=True) == selection
+
+
+def test_grouped_system_sibling_target_refusal_preserves_current_binding(tmp_path, monkeypatch):
+    import system_runner
+    from tests.support.vm_registry import vm_name
+    from tests.support.vm_runner import RECOVERY_INVENTORIES
+    from vm_selection import VARIABLE, vm_config
+
+    current, other = vm_name(), vm_name(1)
+    monkeypatch.setenv(VARIABLE, current)
+    monkeypatch.setattr(system_runner, 'collect_area_cases', RECOVERY_INVENTORIES.__getitem__)
+    selections = [('system', ['--area=authorization']),
+                  ('system', ['--area=enforcement', '--vm', other])]
+    checkpoint = Checkpoint(tmp_path, selections)
+    runner = SimpleNamespace(root=ROOT, checkpoint=checkpoint)
+    with pytest.raises(ValueError, match='resume target differs'):
+        regression.Run.system_resume_cases(runner, ['--area=authorization', '--vm', current])
+    assert vm_config.selected().name == current
+
+
+def test_single_system_resume_keeps_existing_route_without_sibling_resolution(tmp_path):
+    options = ['--area=authorization']
+    checkpoint = Checkpoint(tmp_path, [('system', options)])
+    checkpoint.event('system', dict(kind='finished', nodeid='authorization::test_a'), set())
+    runner = SimpleNamespace(root=tmp_path, checkpoint=checkpoint, report=Mock())
+    item = regression.Category('System', retry_category='system', selection_args=tuple(options))
+    command = [str(tmp_path / 'tools/run-tests'), 'system', '--unattended', *options]
+    assert regression.Run.resume_command(runner, item, command) == [
+        *command, '--completed-cases=' + json.dumps(['authorization::test_a'])]
+    assert item.resumed_nodeids == ('authorization::test_a',)
+    checkpoint.entry('system')['complete'] = True
+    item = regression.Category('System', retry_category='system', selection_args=tuple(options))
+    assert regression.Run.resume_category(runner, item)
+    assert item.state == 'Passed' and item.progress_done == item.progress_total == 1
+
+
 def test_vm_queue_preserves_resume_and_first_failure_policy():
     from vm_test_queue import split
     host, guests = split(ROOT, ['--resume', '--stop-on-error', 'host', 'vm'])
@@ -507,6 +694,8 @@ def test_resumed_dashboard_and_saved_progress_keep_original_counts(tmp_path, kin
         if kind == 'system':
             run.checkpoint = Checkpoint(tmp_path, [(kind, [])])
             run.checkpoint.entry(kind)['passed'] = list(retained)
+            # resume_command scopes retained system IDs before collection.
+            item.resumed_nodeids = retained
         elif kind == 'e2e':
             item.resumed_nodeids = retained
         execution = regression.Execution(run, item, events=True)

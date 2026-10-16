@@ -36,6 +36,7 @@ if __name__ == '__main__':
     sys.dont_write_bytecode = True
 
 import prepare_baseline as baseline
+from system_case_ids import identity_for_case, parse_recording_ids, validate_inventory
 
 ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD = '/var/tmp/onpc-system-input'
@@ -116,7 +117,8 @@ KIOSK_ACTIVATION_CASE = 'test_kiosk_account_classification_survives_reboot'
 # Host entry/transport and the public observer's embedded source closure. Keep
 # these identities separate from guest imports; no host module runs in the VM.
 KIOSK_ACTIVATION_HOST_INPUTS = (
-    'tests/integration/system_runner.py', 'tests/integration/system_snapshots.py',
+    'tests/integration/system_runner.py', 'tests/integration/system_case_ids.py',
+    'tests/integration/system_snapshots.py',
     'tests/integration/vm_transport.py', 'tests/integration/watch_activity.py',
     'tests/e2e/kiosk_entry.py', 'tests/e2e/ui_observations.py',
     'tests/e2e/private_artifacts.py',
@@ -335,6 +337,10 @@ def collect_area_cases(area, *, invoke=None):
     cases = tuple(line.removeprefix(prefix) for line in output.decode().splitlines()
                   if line.startswith(prefix))
     require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{area}')
+    try:
+        validate_inventory({area: cases})
+    except ValueError as error:
+        raise Error('selection:unregistered-numeric-case-id') from error
     return cases
 
 
@@ -357,13 +363,20 @@ def case_phases(area, case_id):
 
 
 def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False,
-                      fresh_install=False, target_package_format=None):
+                      fresh_install=False, target_package_format=None, recording_ids=None):
     """Resolve an exact case or registered family and its phase prerequisites."""
+    require(recording_ids is None or area is test is None, 'selection:numeric-id-selector-conflict')
     require(area is None or area != '', 'selection:empty-area')
     require(test is None or test != '', 'selection:empty-test')
     require(area is None or area in AREA_SOURCES, 'selection:unknown-area')
     require(test is None or area is not None, 'selection:test-requires-area')
-    require(not qualification_failure or (area == 'authorization' and test == QUALIFICATION_CASE),
+    try:
+        identities = parse_recording_ids(recording_ids) if recording_ids is not None else ()
+    except ValueError as error:
+        raise Error(str(error)) from error
+    require(not qualification_failure or (area == 'authorization' and test == QUALIFICATION_CASE)
+            or (len(identities) == 1 and identities[0].area == 'authorization'
+                and identities[0].case_id == QUALIFICATION_CASE),
             'qualification:requires-allowlisted-case')
     if inventories is None:
         inventories = {name: collect_area_cases(name) for name in AREA_SOURCES}
@@ -372,12 +385,16 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     require(set(inventories) == set(AREA_SOURCES), 'selection:incomplete-registry')
     for name, cases in inventories.items():
         require(cases and len(cases) == len(set(cases)), f'selection:invalid-registry:{name}')
+    require(all(identity.case_id in inventories.get(identity.area, ()) for identity in identities),
+            'selection:numeric-id-not-runnable')
 
     require(target_package_format in (None, 'deb', 'rpm'), 'selection:invalid-package-format')
     incompatible_histories = {history.case_id for history in REMOVAL_HISTORIES
                              if target_package_format is not None and history.package_format
                              and history.package_format != target_package_format}
     require(test not in incompatible_histories, 'selection:history-package-format-mismatch')
+    require(not any(identity.case_id in incompatible_histories for identity in identities),
+            'selection:history-package-format-mismatch')
     inventories['removal'] = tuple(case for case in inventories['removal']
                                   if case not in incompatible_histories)
 
@@ -394,6 +411,11 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     chosen = {name: inventories[name] for name in chosen_areas}
     if test is not None:
         chosen[area] = family if family is not None else (test,)
+    if identities:
+        selected = {(identity.area, identity.case_id) for identity in identities}
+        chosen = {name: tuple(case for case in cases if (name, case) in selected)
+                  for name, cases in chosen.items()}
+        chosen = {name: cases for name, cases in chosen.items() if cases}
     require(not fresh_install or not any(history.case_id in chosen.get('removal', ())
             for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
     require(not fresh_install or FIRST_CONFIGURE_CASE not in chosen.get('package', ()),
@@ -425,17 +447,18 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         for item in PHASE_PREREQUISITES[phase]:
             if item not in prerequisites and not (fresh_install and item == 'retained-app-snapshot'):
                 prerequisites.append(item)
-    if test and (test in ('test_authenticated_request_rejects_deleted_target',
+    if (test or identities) and any(case in ('test_authenticated_request_rejects_deleted_target',
                          'test_requester_disconnect_during_approval',
                          'test_administrator_eligibility_predicates') or
-                 test.startswith('test_authenticated_request_revalidates_live_state[') or
-                 test.startswith('test_request_rejects_locked_approver_during_authentication[') or
-                 test.startswith('test_real_selected_parent_authentication[')):
+                 case.startswith('test_authenticated_request_revalidates_live_state[') or
+                 case.startswith('test_request_rejects_locked_approver_during_authentication[') or
+                 case.startswith('test_real_selected_parent_authentication[')
+           for cases in chosen.values() for case in cases):
         prerequisites.append('fixture-passwords')
     available = {name: inventories[name] for name in chosen_areas}
     if any(item.case_id == 'test_remote_accounts_are_excluded' for item in executions):
         prerequisites.append('remote-ldap-nss-fixtures')
-    return Selection(area, test, 'full' if area is None else 'partial', phases,
+    return Selection(area, test, 'full' if area is None and recording_ids is None else 'partial', phases,
                      tuple(prerequisites), tuple(executions), available, qualification_failure)
 
 
@@ -460,12 +483,16 @@ def print_selection(selection, stream=None):
     print(f'  expected-executions: {len(selection.executions)}', file=stream)
     for execution in selection.executions:
         kind = 'prerequisite' if execution.prerequisite else 'selected'
-        print(f'    {execution.phase}::{execution.case_id} [{kind}]', file=stream)
+        identity = identity_for_case(execution.area, execution.case_id)
+        suffix = f' [system-{identity.numeric_id}]' if identity else ''
+        print(f'    {execution.phase}::{execution.case_id} [{kind}]{suffix}', file=stream)
     print('  available-selectors:', file=stream)
     for name, cases in selection.available.items():
         print(f'    {name}:', file=stream)
         for case in cases:
-            print(f'      {case}', file=stream)
+            identity = identity_for_case(name, case)
+            suffix = f' [system-{identity.numeric_id}]' if identity else ''
+            print(f'      {case}{suffix}', file=stream)
 
 
 def resume_selection(selection, completed, *, fresh_install=False):
@@ -813,6 +840,12 @@ class Lease:
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
+        self._recording_safe_after_shutdown()
+
+    def _recording_safe_after_shutdown(self):
+        """Caller has just proved this owned guest off; release its seals only."""
+        from tools.vm_recording import capture_safe_after_shutdown
+        capture_safe_after_shutdown(root=ROOT)
 
     def refresh_domain(self):
         # Revert changes the runtime instance without updating virDomain.ID().
@@ -868,6 +901,7 @@ class Lease:
                 self.guard()
                 self.source.domain.destroyFlags(0)
         self.guard(off=True)
+        self._recording_safe_after_shutdown()
 
     @observed('Stopping the VM by restoring its baseline')
     def stop_by_restore(self):
@@ -890,6 +924,7 @@ class Lease:
         self.view.run = None
         self.view.domain_id = None
         self.guard(off=True)
+        self._recording_safe_after_shutdown()
         self.restored_by_callback = True
 
     def close_watch(self):
@@ -1703,6 +1738,7 @@ def run_pytest(vm, run, phase, selection):
                        timeout=2400 if phase in FIRST_CONFIGURE_PHASES or any(phase in history.phases
                                            for history in REMOVAL_HISTORIES) else 900)
     finally:
+        vm.commands.progress.close()
         vm.commands.progress = previous
 
 
@@ -1963,6 +1999,7 @@ def main(argv=None):
                         help='verified prior package to install and reboot before upgrading')
     parser.add_argument('--area')
     parser.add_argument('--test')
+    parser.add_argument('--id', help='comma-separated persistent numeric system case IDs')
     parser.add_argument('--completed-cases')
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--skip-backing-verification', action='store_true',
@@ -1985,22 +2022,26 @@ def main(argv=None):
     selected_inputs_sha256 = None
     ledger = RunLedger()
     try:
+        require(sum(argument == '--id' or argument.startswith('--id=')
+                    for argument in argv) <= 1, 'selection:repeated-numeric-id-option')
         if args.list:
             selection = resolve_selection(args.area, args.test,
+                                          recording_ids=args.id,
                                           qualification_failure=args.qualification_failure,
                                           fresh_install=args.previous_artifacts is not None,
                                           target_package_format=(configured.require_package_format()
                                                                  if configured is not None else None))
             print_selection(selection)
             return 0
+        selection = resolve_selection(args.area, args.test,
+                                      recording_ids=args.id,
+                                      qualification_failure=args.qualification_failure,
+                                      fresh_install=args.previous_artifacts is not None,
+                                      target_package_format=configured.require_package_format())
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
         if not args.check_tools:
             require(os.geteuid() == os.getegid() == 0,
                     'guard:root; run from a root shell on the VM host')
-        selection = resolve_selection(args.area, args.test,
-                                      qualification_failure=args.qualification_failure,
-                                      fresh_install=args.previous_artifacts is not None,
-                                      target_package_format=configured.require_package_format())
         if args.completed_cases is not None:
             from tools.test_checkpoint import completed_cases
             selection = resume_selection(selection, completed_cases(args.completed_cases),

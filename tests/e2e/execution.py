@@ -405,6 +405,7 @@ def main(plan):
                 for index, case in enumerate(plan['cases']):
                     suite.next_case = (plan['cases'][index + 1]
                         if index + 1 < len(plan['cases']) else None)
+                    emit_progress('started', nodeid=case['case_id'])
                     result = attempt(plan, case, expected_inputs=expected_inputs, progress=progress,
                                      **({'suite': suite} if suite is not None else {}))
                     report['attempts'].append(result)

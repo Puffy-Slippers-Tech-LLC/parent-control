@@ -45,11 +45,12 @@ def worktrees(root):
 class Discovery:
     """Git waits stay outside GTK. Registered roots survive idle periods."""
 
-    def __init__(self, root=ROOT):
+    def __init__(self, root=ROOT, *, include_worktrees=True):
         self.roots = queue.Queue()
         self.updates = queue.Queue(maxsize=1)
         self.vm_updates = queue.Queue(maxsize=1)
         self.stop = threading.Event()
+        self.include_worktrees = include_worktrees
         self.add(root)
         self.thread = threading.Thread(target=self.run, name='watch-checkouts', daemon=True)
         self.thread.start()
@@ -67,7 +68,7 @@ class Discovery:
                     break
                 seeds.add(root)
                 known.setdefault(root, root.name)
-            for root in sorted(seeds):
+            for root in sorted(seeds) if self.include_worktrees else ():
                 if self.stop.is_set():
                     break
                 try:

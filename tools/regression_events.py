@@ -123,6 +123,12 @@ def pytest_collection_finish(session):
              **inventory)
 
 
+def pytest_runtest_logstart(nodeid, location):
+    if (os.environ.get('ONPC_REGRESSION_EVENTS') == '1'
+            and os.environ.get('ONPC_REGRESSION_PRIVATE')):
+        emit('started', nodeid=nodeid)
+
+
 def pytest_runtest_logreport(report):
     if os.environ.get('ONPC_REGRESSION_EVENTS') != '1':
         return

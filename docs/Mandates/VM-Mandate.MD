@@ -123,6 +123,9 @@ execution until recovered; evidence is never discarded to enable parallelism.
   or alternate intention channels. A missing integration must be fixed in this
   shared infrastructure before adding its consumer. Preserve private-input
   filtering and the existing VM ownership/identity checks.
+- Runner-owned recordings reuse the same watch renderer and shared feeds under
+  the [recording contract](../../tests/README.md#vm-watch-recordings). They have
+  no input channel or VM lifecycle authority and work without a visible viewer.
 - `tools/watch` observes all registered VMs without a VM parameter.
   Its VM panels must remain read-only, live and interruption-free.
   The left runner terminal may request its displayed command's cooperative

@@ -67,6 +67,7 @@ class Category:
     retry_category: str | None = None
     count_overall: bool = True
     resumed_nodeids: tuple[str, ...] = ()
+    selection_args: tuple[str, ...] | None = None
 
     @property
     def progress_done(self):
@@ -530,6 +531,9 @@ class Execution:
         if self.events and line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
             item = self.item
+            if not self.collect and item.retry_category in ('system', 'e2e'):
+                from vm_recording import report_event
+                report_event(self.run.root, item.retry_category, event)
             if event['kind'] == 'collection':
                 if self.inventory_seen:
                     raise ValueError('duplicate test inventory event')
@@ -549,7 +553,7 @@ class Execution:
                         # Lifecycle prerequisites may replay retained passes;
                         # count only cases absent from this execution inventory.
                         item.resumed_nodeids = tuple(sorted(
-                            self.run.checkpoint.passed('system') - set(ids)))
+                            set(item.resumed_nodeids) - set(ids)))
                 elif item.nodeids is not None:
                     raise ValueError('missing test inventory IDs')
                 if 'resumed_nodeids' in event:
@@ -710,6 +714,14 @@ class Run:
         if self.checkpoint is None or kind == 'artifacts' or not self.checkpoint.complete(kind):
             return False
         item.retry_category = kind
+        groups = self.checkpoint.entry(kind)['args'] if kind == 'system' else []
+        if (kind == 'system' and item.selection_args is not None
+                and groups and isinstance(groups[0], list)):
+            selected, passed = self.system_resume_cases(item.selection_args)
+            if passed - selected:
+                raise ValueError('selection:resume-inventory-changed')
+            item.nodeids = tuple(sorted(selected))
+            item.total = len(selected)
         if item.total is None:
             item.total = max(1, len(self.checkpoint.passed(kind)))
         item.done, item.state = item.total, 'Passed'
@@ -725,12 +737,65 @@ class Run:
             environment[EXCLUDE] = self.checkpoint.environment(kind)
         return environment
 
+    def system_resume_cases(self, options):
+        import runpy
+        from vm_selection import vm_config
+        options, target = vm_config.extract(list(options), required=False)
+        target = target or vm_config.selected()
+        sys.path.insert(0, str(self.root / 'tests/integration'))
+        try:
+            import system_runner
+        finally:
+            sys.path.pop(0)
+        dispatcher = runpy.run_path(str(self.root / 'tools/onpc-test-runner'))
+        inventories = {area: system_runner.collect_area_cases(area)
+                       for area in system_runner.AREA_SOURCES}
+
+        def identities(options):
+            # Reuse the dispatcher's public parser, then read only its
+            # normalized selectors; do not implement another CLI parser.
+            options, selector = vm_config.extract_selector(list(options))
+            configured = vm_config.load(selector) if selector is not None else None
+            if configured is not None and configured.name != target.name:
+                raise ValueError('vm-config: resume target differs from selection')
+            normalized = dispatcher['selection'](self.root,
+                ['system', *(arg for arg in options if arg != '--unattended'),
+                 '--vm', target.name],
+                allow_missing_artifacts=True)
+            normalized, configured = vm_config.extract(normalized, required=True)
+            selectors = dict(arg.split('=', 1) for arg in normalized
+                             if arg.startswith(('--area=', '--test=', '--id=')))
+            selection = system_runner.resolve_selection(
+                selectors.get('--area'), selectors.get('--test'), inventories=inventories,
+                **({'recording_ids': selectors['--id']} if '--id' in selectors else {}),
+                qualification_failure='--qualification-failure' in normalized,
+                fresh_install='--previous-artifacts' in normalized,
+                target_package_format=configured.require_package_format())
+            return {execution.phase + '::' + execution.case_id
+                    for execution in selection.executions}
+
+        selected = identities(options)
+        groups = self.checkpoint.entry('system')['args']
+        groups = groups if groups and isinstance(groups[0], list) else [groups]
+        siblings = set().union(*(identities(options) for options in groups))
+        # A checkpoint pools repeated categories. Remove only known sibling
+        # passes; unknown IDs still reach the controller's inventory guard.
+        passed = self.checkpoint.passed('system') - (siblings - selected)
+        return selected, passed
+
     def resume_command(self, item, command):
         kind = item.retry_category
         passed = self.checkpoint.passed(kind) if self.checkpoint is not None else set()
         if not passed or kind not in ('system', 'e2e'):
             return command
         if kind == 'system':
+            groups = self.checkpoint.entry(kind)['args']
+            selected = passed
+            if groups and isinstance(groups[0], list):
+                selected, passed = Run.system_resume_cases(self, command[2:])
+            item.resumed_nodeids = tuple(sorted(passed & selected))
+            if not passed:
+                return command
             return [*command, '--completed-cases=' + json.dumps(sorted(passed))]
         import runpy
         options = [arg for arg in command[2:] if arg != '--unattended']
@@ -1272,6 +1337,9 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                         print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
     if report is not None:
         print(f'Report: {report.directory / "report.md"}', flush=True)
+    if run is not None and run.includes_vm:
+        from vm_recording import report_finished
+        report_finished()
     if report is not None and (status == 1 or (run is not None and any(
             item.failures or item.state == 'Failed' for item in run.categories))):
         from vm_selection import PREPARATION_INSTRUCTIONS

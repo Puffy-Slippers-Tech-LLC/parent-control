@@ -24,6 +24,138 @@ import system_guest as guest
 from guest_test_dependencies import ubuntu_archive_sources
 from tests.support.modules import load_module
 from tests.support.vm_runner import RECOVERY_INVENTORIES
+import system_case_ids
+
+
+def test_numeric_system_registry_covers_current_parameter_variants_without_vm_operations():
+    inventories = {area: runner.collect_area_cases(area) for area in runner.AREA_SOURCES}
+    system_case_ids.validate_inventory(inventories)
+    identities = [system_case_ids.identity_for_case(area, case)
+                  for area, cases in inventories.items() for case in cases]
+    assert set(identities) <= set(system_case_ids.CASES)
+    assert len({identity.numeric_id for identity in identities}) == len(identities)
+    assert all(identity.title and identity.numeric_id > 0 for identity in identities)
+    # Saved assignments protect representative IDs independently of collection order.
+    assignments = {
+        ('package', 'test_installed_package'): 1,
+        ('removal', 'test_remove_reboot_reinstall'): 6,
+        ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'): 26,
+        ('authorization', 'test_method_role_matrix[ListManagedUsers-child2]'): 27,
+        ('enforcement', 'test_kiosk_execution_confinement'): 267,
+        ('session', 'test_kiosk_expiry_graphical_runtime'): 282,
+    }
+    for selector, numeric_id in assignments.items():
+        assert system_case_ids.identity_for_case(*selector).numeric_id == numeric_id
+    reversed_inventory = {area: tuple(reversed(cases))
+                          for area, cases in reversed(tuple(inventories.items()))}
+    system_case_ids.validate_inventory(reversed_inventory)
+    assert {system_case_ids.identity_for_case(area, case).numeric_id
+            for area, cases in reversed_inventory.items() for case in cases} == {
+                identity.numeric_id for identity in identities}
+
+
+def test_system_lifecycle_events_share_numeric_identity_and_keep_original_selectors(capsys):
+    selection = runner.resolve_selection('removal', 'test_remove_reboot_reinstall',
+                                         inventories=INVENTORIES)
+    selected = [item for item in selection.executions if not item.prerequisite]
+    identities = [system_case_ids.identity_for_event(item.phase + '::' + item.case_id)
+                  for item in selected]
+    assert {identity.numeric_id for identity in identities} == {6}
+    runner.print_selection(selection)
+    output = capsys.readouterr().out
+    for item in selected:
+        assert f'{item.phase}::{item.case_id} [selected] [system-6]' in output
+    assert 'test_remove_reboot_reinstall [system-6]' in output
+    # Numeric metadata never replaces the pytest selection or checkpoint identity.
+    assert runner.pytest_command(RUN, 'removal', selection)[-1].endswith(
+        'test_removal.py::test_remove_reboot_reinstall')
+    resumed = runner.resume_selection(selection, {'removal::test_remove_reboot_reinstall'})
+    assert any(item.phase == 'removal' for item in resumed.executions)
+
+
+def test_unknown_system_cases_need_an_explicit_numeric_assignment():
+    assert system_case_ids.identity_for_case('package', 'test_new_case') is None
+    assert system_case_ids.identity_for_event('installed::test_new_case') is None
+    assert system_case_ids.identity_for_event('test_installed_package') is None
+    assert system_case_ids.identity_for_event(None) is None
+    with pytest.raises(ValueError, match='system-case-ids:unregistered-case'):
+        system_case_ids.validate_inventory({'package': ('test_new_case',)})
+    with pytest.raises(runner.Error, match='selection:unregistered-numeric-case-id'):
+        runner.collect_area_cases('package', invoke=Mock(return_value=(
+            b'test_install_smoke.py::test_new_case\n1 test collected\n')))
+
+
+@pytest.mark.parametrize('value,reason', [
+    ('', 'invalid'), ('0', 'invalid'), ('01', 'invalid'), ('1,', 'invalid'),
+    ('1, 6', 'invalid'), ('1,,6', 'invalid'), ('-1', 'invalid'), ('１', 'invalid'),
+    ('1,1', 'duplicate'), ('999999', 'unknown'),
+])
+def test_numeric_system_selection_rejects_before_collection(value, reason, monkeypatch):
+    collect = Mock(side_effect=AssertionError('invalid IDs collected tests'))
+    monkeypatch.setattr(runner, 'collect_area_cases', collect)
+    with pytest.raises(runner.Error, match='selection:.*' + reason):
+        runner.resolve_selection(recording_ids=value)
+    collect.assert_not_called()
+
+
+def test_numeric_system_ids_keep_phase_closure_and_collection_order():
+    selection = runner.resolve_selection(recording_ids='26,6', inventories=INVENTORIES)
+    chosen = {(item.area, item.case_id) for item in selection.executions if not item.prerequisite}
+    assert chosen == {('removal', 'test_remove_reboot_reinstall'),
+                      ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]')}
+    assert selection.scope == 'partial'
+    assert selection.phases == tuple(phase for phase in runner.PHASE_ORDER
+                                    if phase in ('installed', 'rebooted', 'authorization',
+                                                 *runner.REMOVAL_PHASES))
+    assert all(item.area == 'package' for item in selection.executions if item.prerequisite)
+    reversed_selection = runner.resolve_selection(recording_ids='6,26', inventories=INVENTORIES)
+    assert selection.executions == reversed_selection.executions
+    assert selection.prerequisites == reversed_selection.prerequisites
+
+
+@pytest.mark.parametrize('area,test', [('authorization', None), (None, 'test_installed_package')])
+def test_numeric_system_ids_refuse_named_selector_combinations(area, test):
+    with pytest.raises(runner.Error, match='numeric-id-selector-conflict'):
+        runner.resolve_selection(area, test, recording_ids='1', inventories=INVENTORIES)
+
+
+def test_numeric_system_ids_refuse_reserved_but_absent_cases():
+    identity = system_case_ids.BY_ID[26]
+    inventories = dict(INVENTORIES, authorization=tuple(
+        case for case in INVENTORIES['authorization'] if case != identity.case_id))
+    with pytest.raises(runner.Error, match='numeric-id-not-runnable'):
+        runner.resolve_selection(recording_ids='26', inventories=inventories)
+
+
+def test_numeric_password_selection_keeps_credential_prerequisite():
+    case = 'test_real_selected_parent_authentication[child1]'
+    identifier = system_case_ids.identity_for_case('authorization', case).numeric_id
+    selection = runner.resolve_selection(recording_ids=str(identifier), inventories=INVENTORIES)
+    assert 'fixture-passwords' in selection.prerequisites
+
+
+@pytest.mark.parametrize('kind', ['started', 'finished', 'failure'])
+def test_system_progress_keeps_phase_nodeid_and_adds_trusted_numeric_metadata(kind, capsys):
+    from system_progress import Progress
+    from tools.regression_events import PREFIX
+    case = 'test_method_role_matrix[ListManagedUsers-child1]'
+    parser = Progress('authorization', [SimpleNamespace(case_id=case)])
+    data = (PREFIX + json.dumps(dict(kind=kind, nodeid='test_authorization.py::' + case,
+                                    case_id=999, title='private guest title',
+                                    detail='private guest detail')) + '\n').encode()
+    parser(data[:17])
+    parser(data[17:])
+    parser((PREFIX + json.dumps(dict(kind='started', nodeid='test.py::unregistered'))
+            + '\n').encode())
+    output = capsys.readouterr().out
+    event, = [json.loads(line[len(PREFIX):]) for line in output.splitlines()
+              if line.startswith(PREFIX)]
+    assert event['kind'] == kind
+    assert event['nodeid'] == 'authorization::' + case
+    assert event['case_id'] == 26
+    assert event['title'] == 'Method role matrix [ListManagedUsers-child1]'
+    assert 'private guest title' not in output and 'private guest detail' not in output
+    assert 'unregistered' not in output
 
 
 @pytest.fixture
@@ -2144,6 +2276,34 @@ def test_restore_refuses_changed_snapshot(local_preparation_source):
     with pytest.raises(runner.Error, match='snapshot-metadata-changed'):
         lease.restore()
     lease.source.domain.revertToSnapshot.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'restore', 'off-guard'])
+def test_recording_seals_reset_only_after_owned_restore_and_final_off_guard(
+        local_preparation_source, monkeypatch, fault):
+    from tools import vm_recording
+    release = Mock()
+    monkeypatch.setattr(vm_recording, 'capture_safe_after_shutdown', release)
+    lease = runner.Lease(Mock(), Mock(), Mock())
+    lease.capture.state = {'proof': {'name': 'onpc_baseline'}}
+    lease.snapshot_xml = 'snapshot'
+    lease.source.uuid = UUID
+    lease.state = {'domain_uuid': UUID}
+    lease.source.domain.snapshotLookupByName.return_value.getXMLDesc.return_value = 'snapshot'
+    lease.source.connection.lookupByUUIDString.return_value = Mock(UUIDString=Mock(return_value=UUID))
+    lease.guard = Mock(side_effect=[None, RuntimeError('off proof failed')]
+                       if fault == 'off-guard' else None)
+    if fault == 'restore':
+        lease.source.domain.revertToSnapshot.side_effect = RuntimeError('restore failed')
+    if fault:
+        with pytest.raises(RuntimeError):
+            lease.restore()
+        release.assert_not_called()
+    else:
+        lease.restore()
+        release.assert_called_once_with(root=runner.ROOT)
+        assert lease.guard.call_count == 2
+        assert lease.guard.call_args.kwargs == {'off': True}
 
 
 def test_libvirt_shutting_down_is_active_not_offline():

@@ -57,6 +57,7 @@ add-apt-repository -y universe
     squashfs-tools \
     snapd \
     fonts-dejavu-core \
+    ffmpeg \
     xkb-data \
     git \
     gnome-ponytail-daemon \

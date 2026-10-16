@@ -583,7 +583,7 @@ def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, 
         plans.append((root, selected_category, argv))
         return [['selected']], True
 
-    if category == 'e2e':
+    if category in ('system', 'e2e'):
         # Model the VM-aware artifact preparer in the confined checkout without running it
         # or allocating an untracked directory outside this test's fixture.
         preparer = tmp_path / 'tools/vm_artifacts.py'
@@ -600,7 +600,7 @@ def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, 
     assert regression_process.category_run(tmp_path, category, ['verify']) == 0
     expected = [['selected']]
     expected_plans = [(tmp_path, category, ['verify'])]
-    if category == 'e2e':
+    if category in ('system', 'e2e'):
         expected.insert(0, ['/usr/bin/python3', '-B', str(preparer), '--output', str(artifacts),
                             '--vm', vm_name()])
         expected_plans.append((tmp_path, category, ['verify', '--artifacts=' + str(artifacts)]))

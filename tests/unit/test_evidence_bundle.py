@@ -6,12 +6,43 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+from contextlib import nullcontext
 from types import SimpleNamespace
 import zipfile
 
 import pytest
 
 import evidence_bundle as bundle
+
+
+@pytest.mark.parametrize('targets', [[], ['guest-one'], ['guest-two', 'guest-one']])
+def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
+        tmp_path, monkeypatch, targets):
+    import vm_config
+
+    state = tmp_path / 'state'
+    state.mkdir()
+    for name in ('retention-host', 'retention-batch', 'retention', 'standalone-reports',
+                 'retention-guest-one', 'retention-guest-two', 'retention-unregistered'):
+        (state / name).mkdir()
+    uid, gid = os.geteuid(), os.getegid()
+    # Exercise the privileged catalogue without changing this test process's
+    # identity or accessing any real journals, VM, or registry entries.
+    monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
+    monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
+    monkeypatch.setattr(bundle.storage, 'directory', lambda kind, **_: tmp_path / kind)
+    monkeypatch.setattr(vm_config, 'registry', lambda: {'guest-one': None, 'guest-two': None})
+    selection = bundle.Selection(tmp_path, uid, gid, targets, [], [])
+    journals = selection.catalogue()
+    fixed = {'retention-host', 'retention-batch', 'retention', 'standalone-reports'}
+    assert {(path.name, owner, group) for path, owner, group in journals} == {
+        *((name, uid, gid) for name in fixed),
+        *((f'retention-{target}', uid, gid) for target in targets),
+        *((f'retention-{uid}-{target}', 0, 0) for target in targets),
+    }
+    assert len(journals) == len(fixed) + 2 * len(targets)
+    with pytest.raises(ValueError, match='registered canonical targets'):
+        bundle.Selection(tmp_path, uid, gid, ['unregistered'], [], []).catalogue()
 
 
 @pytest.fixture

@@ -12,6 +12,56 @@ from tests.support.screens import png
 from tests.support.e2e_evidence import worker_evidence
 
 
+@pytest.mark.parametrize('fault', [None, 'seal', 'result', 'interrupt'])
+def test_functional_serial_password_ack_waits_for_recording_seal(tmp_path, monkeypatch, fault):
+    events = []
+    class Protection:
+        def __enter__(self):
+            assert not (tmp_path / 'serial-password.reply.json').exists()
+            events.append('sealed')
+            if fault == 'seal':
+                raise RuntimeError('encoder unavailable')
+
+        def __exit__(self, kind, value, traceback):
+            events.append('unsealed' if kind is None else 'retained')
+    monkeypatch.setattr(smoke, 'protect_capture', lambda **_: Protection())
+    controller = smoke.Smoke(tmp_path, Mock(), Mock(), 'host-key', serial=True,
+                             authenticate=True, functional=True, progress=Mock())
+    controller.steps = [{'stage': stage} for stage in smoke.FUNCTIONAL_SERIAL_STAGES[
+        :smoke.FUNCTIONAL_SERIAL_STAGES.index('serial-password')]]
+    controller.vm = Mock(read=Mock(return_value={'terminal_echo_disabled': True}))
+    port = Mock(pending_in=b'')
+    (tmp_path / 'serial-password.request.json').write_text(json.dumps(
+        {'stage': 'serial-password', 'screenshot': None}))
+    if fault == 'seal':
+        with pytest.raises(RuntimeError):
+            controller.step(port)
+        assert not (tmp_path / 'serial-password.reply.json').exists()
+    else:
+        controller.step(port)
+        assert (tmp_path / 'serial-password.reply.json').exists()
+        assert events == ['sealed']
+        (tmp_path / 'serial-authenticated.request.json').write_text(json.dumps(
+            {'stage': 'serial-authenticated', 'screenshot': None}))
+        if fault == 'result':
+            controller.vm.read.side_effect = RuntimeError('session absent')
+        elif fault == 'interrupt':
+            controller.lease.guard.side_effect = KeyboardInterrupt()
+        else:
+            controller.vm.read.return_value = {'active_local_serial_session': True}
+        if fault:
+            with pytest.raises(KeyboardInterrupt if fault == 'interrupt' else RuntimeError):
+                controller.step(port)
+            assert not (tmp_path / 'serial-authenticated.reply.json').exists()
+            assert events == ['sealed', 'retained']
+        else:
+            controller.step(port)
+            assert (tmp_path / 'serial-authenticated.reply.json').exists()
+            assert events == ['sealed', 'unsealed']
+    if fault:
+        assert 'unsealed' not in events and controller._failed
+
+
 @pytest.mark.parametrize('name', ['../private', '/tmp/image.png', 'vars.json', 'smoke-a.png'])
 def test_collector_refuses_unexpected_paths(tmp_path, name):
     with pytest.raises(RuntimeError, match='invalid-screenshot-name'):

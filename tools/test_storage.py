@@ -33,19 +33,48 @@ def disk_backed(fd):
 
 
 def directory(kind='allocations', *, root=None, create=True):
-    base = (Path(root) if root is not None else ROOT) / 'output/test-runs'
     if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans',
-                    'reports', 'state', 'exports', 'cache', 'sbuild'):
+                    'reports', 'state', 'exports', 'cache', 'sbuild', 'recordings'):
         raise ValueError('invalid test storage kind')
-    # Shared ancestors are traversable; payload roots stay owner-private.
+    if kind == 'recordings':
+        return recordings_directory(root=root, create=create)
     owner = 'privileged' if os.geteuid() == 0 else 'host'
-    path = base / owner / kind
+    return _directory(kind, root=root, create=create, owner=owner, uid=os.geteuid())
+
+
+def recordings_directory(*, root=None, caller_uid=None, create=True):
+    """Recording owner root, or root's read-only authenticated caller lookup.
+
+    The privileged dispatcher must authenticate caller_uid before passing it.
+    This lookup never creates, adopts, or modifies the caller's directory.
+    Recordings are owner-private directly below output/test-runs; root may
+    inspect an authenticated caller's directory, but cannot create its own.
+    """
+    if caller_uid is None:
+        if os.geteuid() == 0:
+            raise ValueError('recordings require an unprivileged owner')
+        if create:
+            if __package__:
+                from .recording_control import relocate_legacy
+            else:
+                from recording_control import relocate_legacy
+            relocate_legacy(root)
+        return _directory('recordings', root=root, create=create, owner=None, uid=os.geteuid())
+    if os.geteuid() != 0 or type(caller_uid) is not int or caller_uid <= 0 or create:
+        raise ValueError('recordings caller lookup requires root, a positive UID and create=False')
+    return _directory('recordings', root=root, create=False, owner=None, uid=caller_uid)
+
+
+def _directory(kind, *, root, create, owner, uid):
+    # Shared ancestors are traversable; payload roots stay owner-private.
+    base = (Path(root) if root is not None else ROOT) / 'output/test-runs'
+    path = base / owner / kind if owner is not None else base / kind
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
     try:
         candidate = Path('/')
         for part in path.parts[1:]:
             candidate = candidate / part
-            mode = (0o755 if candidate in (base.parent, base, base / owner)
+            mode = (0o755 if candidate in (base.parent, base, *((base / owner,) if owner is not None else ()))
                     else 0o711 if candidate == path and kind == 'sbuild' else 0o700)
             if create:
                 try:
@@ -56,7 +85,7 @@ def directory(kind='allocations', *, root=None, create=True):
             os.close(fd)
             fd = child
         info = os.fstat(fd)
-        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != (0o711 if kind == 'sbuild' else 0o700):
+        if info.st_uid != uid or stat.S_IMODE(info.st_mode) != (0o711 if kind == 'sbuild' else 0o700):
             raise ValueError('unsafe test storage ownership or mode')
         disk_backed(fd)
     finally:

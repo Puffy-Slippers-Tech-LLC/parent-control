@@ -100,6 +100,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     system.add_argument('--previous-artifacts', type=Path)
     system.add_argument('--area')
     system.add_argument('--test')
+    system.add_argument('--id', help='comma-separated persistent numeric system case IDs')
     system.add_argument('--completed-cases', help='JSON case IDs from the runner resume checkpoint')
     system.add_argument('--list', action='store_true')
     system.add_argument('--qualification-failure', action='store_true')
@@ -148,6 +149,9 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     vm.add_argument('keys', nargs='*', type=int)
     vm.add_argument('--new-name')
     args = parser.parse_args(argv)
+    if args.category == 'system' and sum(
+            argument == '--id' or argument.startswith('--id=') for argument in argv) > 1:
+        raise ValueError('selection:repeated-numeric-id-option')
     if args.category == 'appsnapshot':
         if identity is None:
             raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
@@ -222,6 +226,15 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         return ['/usr/bin/python3', '-B', str(target), *options]
     else:
         target = confined_file(root, 'tests/integration/system_runner.py')
+    if args.id is not None:
+        if args.area is not None or args.test is not None:
+            raise ValueError('selection:numeric-id-selector-conflict')
+        sys.path.insert(0, str(root / 'tests/integration'))
+        try:
+            from system_case_ids import parse_recording_ids
+            parse_recording_ids(args.id)
+        finally:
+            sys.path.pop(0)
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
     if not args.list and args.artifacts is None and not allow_missing_artifacts:
         parser.error('system requires --artifacts unless --list is supplied')
@@ -240,7 +253,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 any(p.is_symlink() for p in (artifact, *artifact.parents))):
             raise ValueError('test-runner:invalid-artifact-directory')
         command += ['--' + option.replace('_', '-'), str(artifact)]
-    for option in ('area', 'test'):
+    for option in ('area', 'test', 'id'):
         value = getattr(args, option)
         if value is not None:
             if not value or len(value) > 512 or any(ord(c) < 32 for c in value):

@@ -13,6 +13,17 @@ journals, rotation and safe deletion. The operational contract is
 
 ## Required shared allocation routes
 
+Human-readable VM watch recordings use the shared library's owner-private
+`output/test-runs/recordings/` directory and identity-owned publication through
+`tools/recording_storage.py`, under the
+[latest-only recording contract](../../tests/README.md#vm-watch-recordings).
+They retain one playable file per category/numeric case ID across VM combinations,
+without age or size rotation. This explicit recording policy is an exception to
+ordinary bounded run retention and host/privileged directory split; it does not
+change any other artifact's lifetime. Only the unprivileged recorder creates
+this directory; privileged controllers use authenticated read-only discovery.
+Session media and encoder scratch still use the ordinary shared scratch route.
+
 | Need | Required route |
 | --- | --- |
 | Disposable pytest files | `tmp_path` or `tmp_path_factory` through the maintained test launchers, which configure disk scratch. |

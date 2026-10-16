@@ -203,6 +203,7 @@ class SuiteLease(system.Lease):
         self.view.run = self.state['run']
         self.state['domain_id'] = None
         self.guard(off=True)
+        self._recording_safe_after_shutdown()
         self.save('isolated')
         self._restored = True
         self._restored_name = name

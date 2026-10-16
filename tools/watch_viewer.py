@@ -38,14 +38,19 @@ def viewer_entries(entries, *, scope='all', vm_ids=None, current_vms=None):
     return result
 
 
-def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix=''):
+def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='',
+          vm_names=None):
     from vm_selection import registry
     from e2e_watch_viewer import AsyncFeed, Feed
     asynchronous = vm_feeds is None and feed is None
     configured = registry(root / 'config/test-vm.json') if asynchronous else {}
+    if vm_names is not None:
+        configured = {name: vm for name, vm in configured.items() if name in vm_names}
     if vm_feeds is None:
         vm_feeds = ({feed.vm_name: feed} if feed is not None else
                     {name: Feed(name, root=root) for name in configured})
+    if vm_names is not None:
+        vm_feeds = {name: source for name, source in vm_feeds.items() if name in vm_names}
     application_id = APPLICATION_ID
     import gi
     gi.require_version('Gtk', '4.0')
@@ -135,6 +140,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
                 self.vm = next(iter(self.vms.values()))
 
         def refresh_vms(self, configured):
+            if vm_names is not None:
+                configured = {name: vm for name, vm in configured.items() if name in vm_names}
             if not self.dynamic_vms or configured == self.configured_vms:
                 return
             for name in tuple(self.vm_keys):
@@ -227,7 +234,8 @@ def panel(root, *, feeds=None, feed=None, output=None, vm_feeds=None, prefix='')
 
 
 def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=None,
-                discovery=None, sources=None):
+                discovery=None, sources=None, application_id=APPLICATION_ID,
+                tick_interval=33, window_size=(1400, 900)):
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
@@ -240,7 +248,9 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
 
     class Application(Gtk.Application):
         def __init__(self):
-            super().__init__(application_id=APPLICATION_ID, flags=Gio.ApplicationFlags.HANDLES_OPEN)
+            flags = (Gio.ApplicationFlags.HANDLES_OPEN if application_id == APPLICATION_ID
+                     else Gio.ApplicationFlags.NON_UNIQUE)
+            super().__init__(application_id=application_id, flags=flags)
             self.window = None
             self.selected_checkout = 'all'
             self.checkouts = {}
@@ -271,7 +281,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.window = Gtk.ApplicationWindow(application=self, title=TITLE)
             set_automation_id(self.window, 'watch-window')
             self.window.set_icon_name(APPLICATION_ID)
-            self.window.set_default_size(1400, 900)
+            self.window.set_default_size(*window_size)
             header = Gtk.HeaderBar()
             add_identified_window_controls(header, 'watch-window-controls')
             header.pack_start(Gtk.Image(icon_name=APPLICATION_ID, pixel_size=32))
@@ -323,7 +333,7 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
                 # Existing single-panel probes exercise the exact same component.
                 self.checkout_buttons[str(next(iter(initial)))].set_active(True)
             self.window.present()
-            self.timer = GLib.timeout_add(33, self.tick)
+            self.timer = GLib.timeout_add(tick_interval, self.tick)
 
         def initial_columns(self, widget, _clock):
             if widget.get_width() <= 1:

@@ -131,6 +131,9 @@ def environment(root, *, scratch=True):
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
+    from vm_recording import VARIABLE as RECORDING_CONTROL
+    if RECORDING_CONTROL in os.environ:
+        result[RECORDING_CONTROL] = os.environ[RECORDING_CONTROL]
     from vm_selection import VARIABLE, BATCH
     for variable in (VARIABLE, BATCH):
         if variable in os.environ:
@@ -145,6 +148,8 @@ def environment(root, *, scratch=True):
 
 def test_environment(root):
     result = environment(root)
+    from vm_recording import VARIABLE as RECORDING_CONTROL
+    result.pop(RECORDING_CONTROL, None)
     result.pop(test_activity.VARIABLE, None)
     result.pop(test_activity.HOST_VARIABLE, None)
     # Unit doubles deliberately replace/remove paths. They must not register

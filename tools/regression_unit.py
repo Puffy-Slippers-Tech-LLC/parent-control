@@ -858,7 +858,16 @@ from regression_ui import Bucket
 # No live package manager, mount, account, VM, bus, display, service or shared
 # cache is touched; system_first_configure is compatible unit work. Existing
 # system_kiosk_admission classification remains applicable with no new owner.
+# Recording units use pytest-private identity journals and short owned AF_UNIX
+# sockets, in-process timeline/control doubles, and one bounded single-thread
+# encoder child. Complete-playback checks run tiny fixture clips through serial
+# bounded FFmpeg/FFprobe children with null decoded output. They own no VM,
+# desktop, shared cache or external service.
+# The recording storage safety module is reviewed in the cleanup inventory too.
 REVIEWED = frozenset("""
+vm_recording
+watch_recording
+recording_storage_cleanup_safety
 system_first_configure
 e2e_natural_expiry
 e2e_natural_expiry_cleanup_safety
@@ -1268,5 +1277,7 @@ def buckets(nodeids):
 # ZIP files, descriptors and synchronous metadata/failure doubles. They start no
 # subprocess, VM, network, display or service and mutate no shared cache/path;
 # evidence_bundle and test_retention remain compatible with reviewed unit work.
+# Target-journal catalogue checks use private paths and process-local identity/
+# registry doubles; they neither switch credentials nor inspect real journals.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.

@@ -204,7 +204,11 @@ GROUPS = (
     ('Screen fidelity', ('test_screen_preview.py',), 12),
     ('Nested Shell', ('test_child_shell_lifecycle.py',), 30),
     ('Accessible adapter', ('test_e2e_accessible_adapter.py',), 12),
-    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py', 'test_watch.py'), 6),
+    # Recording reuses that spectator in a private bus/Mutter/runtime, with one
+    # bounded encoder and synthetic private feeds. No live VM or shared display;
+    # The two 10-second benchmark runs stay serial in its existing admission.
+    ('Test spectators', ('test_e2e_watch.py', 'test_ui_watch.py', 'test_watch.py',
+                         'test_watch_recording.py'), 8),
     ('Automation identity', ('test_automation_identity.py', 'test_translation_widget_contracts.py'), 12),
     ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )

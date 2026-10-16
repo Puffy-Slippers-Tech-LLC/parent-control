@@ -46,7 +46,7 @@ CATEGORIES = {
     'fixtures': CategorySpec('build, verify PATH; generated build output', leaf=False),
     'artifacts': CategorySpec('two fresh package/fixture builds and reproducibility; build, prepare (verified reuse), verify PATH, compare FIRST SECOND'),
     'integration': CategorySpec('installed dispatcher for check_* basenames; no script arguments', leaf=False, scope='vm'),
-    'system': CategorySpec('sequential tests per VM; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --area, --test, --list', scope='vm'),
+    'system': CategorySpec('sequential tests per VM; stable numeric --id N[,N...] or --area/--test selectors; optional --artifacts (otherwise prepare each VM\'s declared package format); --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
@@ -238,6 +238,11 @@ Complete categories (combine in any order; execute host, then system, then e2e)
   tools/run-tests host system e2e --vm NAME    (same as all)
 
   Each VM retains its report; configured queues retain a combined result summary.
+  VM execution automatically records the shared watch layout, including all
+  active VMs in this runner's queue and their SSH output, with or without tools/watch open.
+  Latest category-ID-VMs.webm files live in output/test-runs/recordings/.
+  VM names follow numeric config IDs; no timestamp, age or size rotation.
+  system --id N[,N...] selects persistent IDs shown by system --list.
   Narrowed combined categories share one report and reuse host's package artifacts.
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when

@@ -105,6 +105,12 @@ coordinates host results and VM artifacts for the same source content.
 
 ## Running the current installed suite
 
+Cases have permanent numeric IDs shown by `tools/run-tests system --list`.
+Use `system --id N[,N...]` or the existing area/name selectors; combining the two
+selector forms refuses. IDs cover parameter variants and remain the same across
+lifecycle phases. VM watch recordings use these IDs under the
+[shared recording contract](../README.md#vm-watch-recordings).
+
 For implementation, use the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md).
 The current controller executes the registered installed/reboot/removal/authorization/
 enforcement/session scope when unselected. F1 can list the registered `package`, `removal`, `authorization`, `enforcement`, and `session`

@@ -46,6 +46,7 @@ class SelectedRun(Run):
                             count_overall=not (kind == 'artifacts' and args == ['prepare']),
                             host=kind not in ('system', 'e2e', 'integration'),
                             phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
+            item.selection_args = tuple(args)
             if kind == 'e2e' and events:
                 item.nodeids = e2e_case_ids(root, args)
                 item.total = len(item.nodeids)

@@ -463,6 +463,11 @@ shared qualification for foreground VM commands. No product update is required.
 
 ## Run E2E scenarios
 
+Runs automatically retain human-readable WebM clips of the shared multi-VM
+watch layout under the [recording contract](../README.md#vm-watch-recordings).
+The visible watcher is optional; recordings do not replace scenario assertions
+or private evidence validation.
+
 `tools/run-tests e2e --vm NAME` prepares verified package/fixture inputs automatically,
 using the [startup cache](#reusable-startup-preparation). Fixed qualifications
 such as `check_e2e_toggle` similarly prepare their managed named input when

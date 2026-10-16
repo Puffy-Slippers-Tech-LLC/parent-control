@@ -8,10 +8,15 @@ import hashlib
 import os
 import re
 import stat
+import sys
+from pathlib import Path
+from tools.vm_recording import protect_capture
 
 from private_artifacts import EvidenceError, require
 from provenance import identity as file_identity
 from vt6_prompt_pixels import verify_prompt_pixels
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 STAGES = ('vt6-login-ready', 'vt6-password-ready', 'vt6-password-screen',
@@ -51,6 +56,7 @@ class Authentication:
         # Pin the reference for this authentication attempt. Later checkout
         # edits must neither reject the run nor change its recipient check.
         self.reference = None
+        self._capture_protection = None
 
     def observe(self, stage, shot, guard):
         require(not self.failed, 'vt6-auth:previous-failure')
@@ -134,9 +140,17 @@ class Authentication:
                         'recipient': {}, 'recheck_ms': dict(self.verified.recheck_milliseconds)})
             boundary = 'worker-after'
             guard()
+            if stage == 'vt6-password-screen':
+                manager = protect_capture(root=ROOT)
+                manager.__enter__()
+                self._capture_protection = manager
+            elif stage == 'vt6-shell' and self._capture_protection is not None:
+                self._capture_protection.__exit__(None, None, None)
+                self._capture_protection = None
             return {**reply, 'stage': stage, 'boot_sha256': self.boot}
         except BaseException as error:
             self.failed = True
+            self.fail_capture(sys.exc_info())
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise KeyboardInterrupt('vt6-auth:interrupted') from None
             # Keep only exact controller-owned predicate codes. No exception
@@ -146,6 +160,15 @@ class Authentication:
                 'vt6-auth:' + item for item in CAPTURE_PREDICATES}
                 else 'vt6-auth:' + boundary + '-refused')
             raise EvidenceError(self.refusal) from None
+
+    def fail_capture(self, failure):
+        """Retain opacity when an owner fails after receiving a secret ACK."""
+        manager, self._capture_protection = self._capture_protection, None
+        if manager is not None:
+            try:
+                manager.__exit__(*failure)
+            except BaseException:
+                pass
 
     def _session(self):
         result = self.observer.read('vt6-session')

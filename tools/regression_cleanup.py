@@ -272,7 +272,11 @@ from regression_resources import HOST_WORKERS
 # and cleanup, with no new protected operation or cleanup lifetime.
 # VM-control's natural-expiry reproduction binding uses its existing process-local
 # argument/lease doubles only; the compatible unit/cleanup ownership is unchanged.
+# Recording storage/control safety owns only pytest-private journals, leases,
+# and unique shared-library socket runtimes; no live VM, server or child process.
+# Its unit classification is compatible as well.
 REVIEWED = frozenset('''
+recording_storage
 e2e_natural_expiry
 kiosk_reminder_journey
 kiosk_reminder_registration

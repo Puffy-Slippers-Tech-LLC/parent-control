@@ -1417,6 +1417,53 @@ Direct terminal use has no Codex approval layer. The equivalent already-approved
 `tools/run-tests all --vm NAME` route remains available in an existing Codex session.
 This is development/test tooling only; package update activation is **none**.
 
+### VM watch recordings
+
+`tools/run-tests` automatically records system and E2E execution through the
+same GTK layout, read-only VM feeds and filtered SSH terminals as `tools/watch`.
+One private renderer/encoder belongs to the runner, including its concurrent VM
+queue. Capture includes only that queue's feeds from this checkout: another
+controller's secret seals cannot authorize recording its display. A visible watch
+window can be opened, closed or absent independently.
+The recording is human review material; test assertions and result reports
+remain authoritative. Secret-input intervals are opaque, with nonsecret labels
+identifying the current VM panels; retained command text follows the shared
+watch filtering contract. On release, opacity remains until visible VM textures
+have refreshed after the safe result and GTK has had another paint interval.
+
+Final WebMs live directly in the shared managed
+`output/test-runs/recordings/` directory, already gitignored by `output/`.
+It stays private to the unprivileged recording owner. An old `host/recordings/`
+directory moves intact on the next recording start, after its controller and
+case leases are idle; conflicting destinations are preserved and refused.
+Names are `category-ID-VMnames.webm`, for example
+`e2e-150-Ubuntu26.04-Fedora44.webm`. Names include the VMs actually visible in
+the clip, ordered by numeric IDs in `config/test-vm.json`, with the common
+`onpc-` prefix omitted. VM workers share one capture; concurrent executions of
+the same case merge into one clip. Different cases can overlap in time.
+
+`system --list` displays persistent numeric IDs; `system --id N[,N...]` selects
+them without changing existing `--area`/`--test` or checkpoint identities.
+System lifecycle phases share one case ID; parameter variants have separate
+IDs. Existing assignments must never be renumbered or reused.
+
+Each category/ID retains only its latest playable recording, including a failed
+test's recording. Publication is atomic and replaces the earlier owned clip
+even when its VM-name suffix changes. Encoder/validation failure preserves the
+previous file and reports an infrastructure error. Every candidate is decoded
+in full before publication. Temporary full-session media
+uses shared scratch; final recordings have no automatic age or size rotation.
+This explicit latest-only policy is separate from ordinary report retention.
+
+The private renderer requires the existing GTK/Mutter/VTE development stack and
+FFmpeg, installed only through `./setup.sh`. It records at 5 fps with one fast VP9
+encoder and bounded frame handoff. No audio is recorded. Keyframe-aligned clips
+can include a short prelude, whose visible VMs also appear in the filename.
+Transient GTK paint gaps retain the last safe frame and are counted separately
+from encoder overload; a sustained rendering stall fails capture.
+Synthetic render/encode benchmarks verify playback and report overhead; they do
+not establish a negligible impact on live VM test duration.
+
 ### Aggregate output retention
 
 The [test storage mandate](../docs/Mandates/Test-Storage-Mandate.md) specifies the
@@ -1521,8 +1568,10 @@ rotation validate the latest recorded identity, ownership and mount boundaries;
 an unregistered replacement still refuses. The recreated output expires with
 its latest owner.
 
-Host-only runs use `output/test-runs/host/state/retention-host/`; VM-containing runs and
-snapshot preparation keep `output/test-runs/host/state/retention/`. Each journal retains
+Host-only runs use `output/test-runs/host/state/retention-host/`; VM workers and
+snapshot preparation use `output/test-runs/host/state/retention-<canonical-target>/`.
+The queue summary uses `retention-batch/`; older single-target records remain in
+`retention/`. Each journal retains
 its own last three runs, so active host evidence cannot block VM preparation
 or be rotated by it. Existing records stay in their original journal.
 Privileged system/E2E
@@ -1807,7 +1856,8 @@ Use repeated `--source` arguments for result/JUnit/native/cleanup records,
 input manifests and the corresponding host reports. Directories are inventoried
 recursively with finite depth/file/byte limits; no glob or arbitrary archive
 command is accepted. `--target` accepts registered canonical names and selects
-only their retention journals; it performs no VM operation.
+their privileged evidence and host-report journals alongside the fixed shared
+host journals; it performs no VM operation and selects no other target's journal.
 
 ```sh
 pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-plan --target 'onpc-Ubuntu26.04' --target 'onpc-Fedora44' --source '<recorded-allocation>/evidence' --source '<recorded-allocation>/guest-results' --source '<recorded-host-report>' --bundle '<previous-export>/evidence.zip' --summary

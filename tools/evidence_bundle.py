@@ -171,7 +171,9 @@ class Selection:
                        for target in sorted(self.targets)]
         with identity(self.uid, self.gid):
             parent = storage.directory('state', root=self.checkout, create=False)
-            for name in ('retention-host', 'retention-batch', 'retention', 'standalone-reports'):
+            names = ('retention-host', 'retention-batch', 'retention', 'standalone-reports',
+                     *(f'retention-{target}' for target in sorted(self.targets)))
+            for name in names:
                 if (parent / name).exists():
                     result.append((parent / name, self.uid, self.gid))
             exports = storage.directory('exports', root=self.checkout, create=False)

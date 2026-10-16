@@ -7,8 +7,12 @@ nor changes the guest; it is not a complete E2E-002 callback.
 
 import re
 import sys
+from pathlib import Path
+from tools.vm_recording import protect_capture
 
 from private_artifacts import EvidenceError, require
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class InstallationBoundary:
@@ -24,6 +28,7 @@ class InstallationBoundary:
         self._failed = False
         self._boot = None
         self._layout_observed = False
+        self._capture_protection = None
         self._package = verified.inputs['package_sha256']
         require(isinstance(self._package, str) and re.fullmatch(r'[0-9a-f]{64}', self._package),
                 'install:package-required')
@@ -67,10 +72,18 @@ class InstallationBoundary:
             self.verified.recheck()
             self._boot = boot
             self._phase += 1
+            if stage == 'install-password':
+                manager = protect_capture(root=ROOT)
+                manager.__enter__()
+                self._capture_protection = manager
+            elif stage == 'install-complete' and self._capture_protection is not None:
+                self._capture_protection.__exit__(None, None, None)
+                self._capture_protection = None
             print('e2e:' + stage + '-verified', file=sys.stderr, flush=True)
             return {**result, 'boot_sha256': boot}
         except BaseException as error:
             self._failed = True
+            self.fail_capture(sys.exc_info())
             print('e2e:install-boundary-rejected', file=sys.stderr, flush=True)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise KeyboardInterrupt('install:interrupted') from None
@@ -80,6 +93,15 @@ class InstallationBoundary:
             }:
                 raise
             raise EvidenceError('install:observation-failed') from None
+
+    def fail_capture(self, failure):
+        """A caller's persistence/input failure must never reopen capture."""
+        manager, self._capture_protection = self._capture_protection, None
+        if manager is not None:
+            try:
+                manager.__exit__(*failure)
+            except BaseException:
+                pass
 
     def observe_installed_layout(self):
         """Bind the post-reboot installed layout to the transferred inventory."""

@@ -240,6 +240,35 @@ def test_invalid_focused_system_selection_refuses_before_package_preparation(mon
     execute.assert_not_called()
 
 
+@pytest.mark.parametrize('args', [
+    ['--id='], ['--id=0'], ['--id=01'], ['--id=1,1'], ['--id=999999'],
+    ['--id=1,'], ['--id=1, 6'], ['--id=1', '--area=package'],
+    ['--id=1', '--test=test_installed_package'], ['--id=1', '--id=6'],
+])
+def test_invalid_numeric_system_ids_refuse_before_inputs_or_privilege(monkeypatch, args):
+    import regression_process
+    import dev_privileges
+    import test_retention
+    execute = Mock(side_effect=AssertionError('invalid IDs launched a child'))
+    allocate = Mock(side_effect=AssertionError('invalid IDs allocated artifacts'))
+    authorize = Mock(side_effect=AssertionError('invalid IDs checked privilege'))
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    monkeypatch.setattr(test_retention, 'allocate', allocate)
+    monkeypatch.setattr(dev_privileges, 'check', authorize)
+    with pytest.raises(ValueError):
+        regression_process.category_run(ROOT, 'system', args, pipe=False)
+    execute.assert_not_called()
+    allocate.assert_not_called()
+    authorize.assert_not_called()
+
+
+@pytest.mark.parametrize('args', [['--id', '26,6'], ['--id=26,6']])
+def test_numeric_system_dispatch_preserves_explicit_ids_for_runner_resolution(args):
+    planned, _ = commands.plan(ROOT, 'system', [*args, '--list'])
+    assert '--id=26,6' in planned[0] and '--list' in planned[0]
+    assert not any(arg.startswith(('--area', '--test=')) for arg in planned[0])
+
+
 def test_named_vm_preparation_registers_before_platform_builder(monkeypatch):
     import regression_process
     output = str(ROOT / 'output/test-runs/host/allocations/onpc-native-diagnosis-input')

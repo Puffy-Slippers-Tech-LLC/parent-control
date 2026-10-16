@@ -687,6 +687,11 @@ class TaskDisplay(LauncherDisplay):
                 bordered.append(Text('│ ', style='dim') + row + Text(' │', style='dim'))
             editor_rows = bordered
             bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
+        if self.input_mode == 'chat':
+            # Shade the full composer, including padding, without carrying its
+            # background into the adjacent status pane or the shortcut hint.
+            for row in [border, *editor_rows, *bottom]:
+                row.stylize('#333333 on #f4f4f4')
         left += ([border] + editor_rows + bottom + ([hint] if show_hint else [])
                  if self.input_mode == 'chat' else editor_rows)
         left = left[:available]

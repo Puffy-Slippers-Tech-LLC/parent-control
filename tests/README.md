@@ -1859,8 +1859,10 @@ authorization requirements; a missing grant is not permission to retry authentic
 #### Complete qualification evidence bundles
 
 Use the same installed artifact helper for a finite set of files from recorded,
-finished allocations. Select exact files or directories containing only evidence;
-never select an attempt directory containing SSH keys or online snapshot state.
+finished allocations, including the caller's shared and selected-target
+recovery-diagnostic journals used by maintenance probes. Select exact files or
+directories containing only evidence; never select an attempt directory containing
+SSH keys or online snapshot state.
 Use repeated `--source` arguments for result/JUnit/native/cleanup records,
 input manifests and the corresponding host reports. Directories are inventoried
 recursively with finite depth/file/byte limits; no glob or arbitrary archive

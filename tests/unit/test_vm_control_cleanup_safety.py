@@ -382,12 +382,25 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
             select(root, ['vm', action, '1', *VM_ARGS])
 
     for action in ('probe-kiosk-latency', 'probe-kiosk-prompt-latency'):
-        for counts in ([], ['1'], ['10']):
+        for counts in ([], ['1'], ['10'], ['10', '0'], ['10', '1']):
             command = select(root, ['vm', action, *counts, *VM_ARGS])
             assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action, *counts]
         for counts in (['0'], ['11'], ['1', '2']):
             with pytest.raises(ValueError):
                 select(root, ['vm', action, *counts, *VM_ARGS])
+
+
+def test_latency_events_keep_only_existing_finite_timing_records(tmp_path):
+    import vm_probe
+    expected = {'event': 'mate-prompt-latency', 'request_to_observed_prompt_ms': 123.5}
+    (tmp_path / 'command-0001-stderr.txt').write_text(
+        'native warning\n' + json.dumps({'event': 'unrelated'}) + '\n' + json.dumps(expected) + '\n')
+    commands = SimpleNamespace(directory=tmp_path, sequence=2)
+    assert vm_probe.latency_events(commands, 0) == [expected]
+    assert vm_probe.latency_events(commands, 1) == []
+    commands.sequence = 129
+    with pytest.raises(runner.Error, match='kiosk-latency:command-bound'):
+        vm_probe.latency_events(commands, 0)
 
 
 def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monkeypatch):
@@ -404,8 +417,9 @@ def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monk
 
 @pytest.mark.parametrize('failure', [None, 'station-default-entry', 'kiosk-request-form',
                                    'kiosk-request-cancel', 'gdm-station-returned'])
+@pytest.mark.parametrize('cold', [False, True])
 def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
-        tmp_path, monkeypatch, failure):
+        tmp_path, monkeypatch, failure, cold):
     from contextlib import nullcontext
     import kiosk_entry
     import qualification_storage
@@ -425,7 +439,8 @@ def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
 
     observer = SimpleNamespace(observe=observe, boot_proof='a' * 64)
     monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
-    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    transport = Mock()
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
     enter = Mock(return_value=0)
     monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
     monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
@@ -433,12 +448,13 @@ def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     if failure:
         with pytest.raises(runner.Error, match='synthetic-refusal'):
-            vm_probe.probe_kiosk_latency(lease, samples=3)
+            vm_probe.probe_kiosk_latency(lease, samples=3, cold=cold)
     else:
-        vm_probe.probe_kiosk_latency(lease, samples=3)
+        vm_probe.probe_kiosk_latency(lease, samples=3, cold=cold)
     assert calls == (operations + operations[:operations.index(failure) + 1]
                      if failure else operations * 3)
     assert enter.call_count == (2 if failure else 3)
+    assert transport.reboot.call_count == (enter.call_count if cold else 0)
     results = json.loads((tmp_path / 'timings.json').read_text())
     assert len(results) == (1 if failure else 3)
     assert [item['sample'] for item in results] == list(range(1, len(results) + 1))
@@ -447,8 +463,9 @@ def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
     assert lease.commands.directory == tmp_path / 'private'
 
 
-@pytest.mark.parametrize('failure', [None, 'prepare', 'second-prompt'])
-def test_prompt_latency_reuses_guarded_cancel_and_stops_on_refusal(tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize('failure', [None, 'prepare', 'second-prompt', 'journal'])
+@pytest.mark.parametrize('cold', [False, True])
+def test_prompt_latency_reuses_guarded_cancel_and_stops_on_refusal(tmp_path, monkeypatch, failure, cold):
     from contextlib import nullcontext
     import kiosk_entry
     import qualification_storage
@@ -470,32 +487,133 @@ def test_prompt_latency_reuses_guarded_cancel_and_stops_on_refusal(tmp_path, mon
         return {'outcome': 'passed'}
 
     observe = Mock(side_effect=observation)
-    enter = Mock(return_value=0)
+    def enter_once(_lease, _observer, _observe, *, on_input):
+        on_input(0, 1)
+        return 0
+    enter = Mock(side_effect=enter_once)
     monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
-    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe)))
-    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=SimpleNamespace(
+        observe=observe, boot_proof='a' * 64)))
+    transport = Mock()
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
+    monkeypatch.setattr(vm_probe, 'clock_calibration', Mock(return_value=(0, 1)))
+    monkeypatch.setattr(vm_probe, 'startup_latency', Mock(return_value={'witness': 'presented'}))
+    monkeypatch.setattr(vm_probe, 'logout_identity', Mock(return_value={
+        'app': 'b' * 32, 'compositor': 'c' * 32}))
+    if failure == 'journal':
+        monkeypatch.setattr(vm_probe, 'logout_latency', Mock(
+            side_effect=runner.Error('synthetic-refusal')))
     monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
     monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
     lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
     if failure:
         with pytest.raises(runner.Error, match='synthetic-refusal'):
-            vm_probe.probe_kiosk_prompt_latency(lease, 3)
+            vm_probe.probe_kiosk_prompt_latency(lease, 3, cold=cold)
     else:
-        vm_probe.probe_kiosk_prompt_latency(lease, 3)
+        vm_probe.probe_kiosk_prompt_latency(lease, 3, cold=cold)
     reproduce.assert_called_once_with(lease, RequestFlowJourney, PLAN,
                                      'open-mate', 'kiosk-prompt-latency')
-    assert prompt_count == {'prepare': 0, 'second-prompt': 2, None: 3}[failure]
-    assert enter.call_count == {'prepare': 0, 'second-prompt': 1, None: 2}[failure]
+    assert prompt_count == {'prepare': 0, 'second-prompt': 2, 'journal': 1, None: 3}[failure]
+    assert enter.call_count == {'prepare': 0, 'second-prompt': 2, 'journal': 1, None: 3}[failure]
+    assert transport.reboot.call_count == (enter.call_count if cold else 0)
     cycle = ['kiosk-mate-cancel', 'kiosk-request-cancel', 'gdm-station-returned']
-    entry = ['station-default-entry', 'kiosk-valid-fraction-soft-read']
-    expected = ([] if failure == 'prepare' else cycle + entry + cycle[:1]
-                if failure else cycle + (entry + cycle) * 2)
+    entry = ['gdm-station-list', 'station-default-entry', 'kiosk-valid-fraction-soft-read']
+    prelude = [] if cold else cycle[1:]
+    expected = ([] if failure == 'prepare' else prelude + entry + cycle if failure == 'journal'
+                else prelude + entry + cycle + entry + cycle[:1]
+                if failure else prelude + (entry + cycle) * 3)
     assert [call.args[0] for call in observe.call_args_list] == expected
     if failure == 'prepare':
         assert not (tmp_path / 'observed.json').exists()
     else:
         values = json.loads((tmp_path / 'observed.json').read_text())
         assert [item['sample'] for item in values] == ([1] if failure else [1, 2, 3])
+
+
+def test_latency_clock_calibration_retains_narrowest_valid_bound(monkeypatch):
+    import time
+    import vm_probe
+    ticks = iter([0, 40, 50, 60, 70, 100, 110, 150, 160, 200])
+    monkeypatch.setattr(time, 'monotonic_ns', lambda: next(ticks))
+    transport = Mock()
+    transport.call.side_effect = [json.dumps({'monotonic_ns': value, 'boot_sha256': 'a' * 64})
+                                  for value in (1020, 1055, 1085, 1130, 1180)]
+    assert vm_probe.clock_calibration(transport, 'a' * 64) == (995, 1005)
+
+
+def test_logout_latency_never_invents_missing_input_and_keeps_journal_phases_separate():
+    import vm_probe
+    transport = Mock()
+    assert vm_probe.logout_latency(transport, 'a' * 64, [], {}) == {
+        'app_stopped_ms': None, 'compositor_stopped_ms': None}
+    transport.call.assert_not_called()
+    transport.call.return_value = json.dumps({'app_stopped_ms': 50, 'compositor_stopped_ms': None})
+    assert vm_probe.logout_latency(transport, 'a' * 64,
+        [{'started_monotonic_ms': 100, 'input_ms': [25]}], {'app': 'b' * 32}) == {
+            'app_stopped_ms': 50, 'compositor_stopped_ms': None}
+    assert transport.call.call_args.args[0][-2] == '125'
+
+
+@pytest.mark.parametrize('boot', ['a' * 64, 'b' * 64])
+def test_logout_identity_requires_current_boot_and_both_real_invocations(boot):
+    import vm_probe
+    transport = Mock()
+    invocations = {'app': 'b' * 32, 'compositor': 'c' * 32}
+    transport.call.return_value = json.dumps({'boot_sha256': boot, 'invocations': invocations})
+    if boot != 'a' * 64:
+        with pytest.raises(runner.Error, match='logout-identity'):
+            vm_probe.logout_identity(transport, 'a' * 64)
+    else:
+        assert vm_probe.logout_identity(transport, boot) == invocations
+
+
+def test_latency_guest_programs_compile_without_host_execution():
+    import vm_probe
+    for source in (vm_probe.CLOCK_PROBE, vm_probe.STARTUP_PROBE,
+                   vm_probe.LOGOUT_IDENTITY_PROBE, vm_probe.LOGOUT_PROBE):
+        compile(source, '<fixed-guest-diagnostic>', 'exec')
+
+
+@pytest.mark.parametrize('presented', [0, 1_910_000_000])
+def test_startup_latency_keeps_input_and_clock_uncertainty(monkeypatch, presented):
+    import vm_probe
+    transport = Mock()
+    transport.call.return_value = json.dumps({'boot_sha256': 'a' * 64,
+                                              'timings': [1_500_000_000, 1_900_000_000, presented]})
+    monkeypatch.setattr(vm_probe, 'clock_calibration', lambda *_: (790_000_000, 810_000_000))
+    result = vm_probe.startup_latency(transport, 'a' * 64, 1_000_000_000,
+                                      1_020_000_000, (795_000_000, 805_000_000))
+    assert result['witness'] == ('presented' if presented else 'painted')
+    assert result['entry_uncertainty_seconds'] == pytest.approx(.02)
+    assert result['entry_midpoint_seconds'] == pytest.approx(.10 if presented else .09)
+
+
+def test_startup_latency_retains_raw_negative_uncertainty_without_failing_fast_entry(monkeypatch):
+    import vm_probe
+    transport = Mock()
+    transport.call.return_value = json.dumps({'boot_sha256': 'a' * 64,
+                                              'timings': [1_500_000_000, 1_900_000_000, 0]})
+    monkeypatch.setattr(vm_probe, 'clock_calibration', lambda *_: (880_000_000, 920_000_000))
+    result = vm_probe.startup_latency(transport, 'a' * 64, 1_000_000_000,
+                                      1_020_000_000, (890_000_000, 910_000_000))
+    assert result['entry_raw_lower_seconds'] == pytest.approx(-.04)
+    assert result['entry_lower_seconds'] == 0
+    assert result['entry_upper_seconds'] == pytest.approx(.02)
+    assert result['bound_clipped_to_zero'] is True
+
+
+@pytest.mark.parametrize('value', [
+    {'boot_sha256': 'b' * 64, 'timings': [1, 2, 3]},
+    {'boot_sha256': 'a' * 64, 'timings': [1, 0, 0]},
+    {'boot_sha256': 'a' * 64, 'timings': [1, True, 2]},
+    {'boot_sha256': 'a' * 64, 'timings': [1, 2]},
+])
+def test_startup_latency_rejects_wrong_boot_missing_or_malformed_witness(value):
+    import vm_probe
+    transport = Mock()
+    transport.call.return_value = json.dumps(value)
+    with pytest.raises(runner.Error, match='startup-proof'):
+        vm_probe.startup_latency(transport, 'a' * 64, 1, 2, (0, 0))
 
 
 def test_kiosk_preferences_reproduction_keeps_public_preparation_and_one_diagnostic(monkeypatch):

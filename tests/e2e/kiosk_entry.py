@@ -35,8 +35,9 @@ def confinement_census(transport, lease):
     return json.loads(result)
 
 
-def enter_station(lease, ui, observe):
+def enter_station(lease, ui, observe, *, on_input=None):
     """Enter once from a fresh, boot-bound public account/focus observation."""
+    require(on_input is None or callable(on_input), 'kiosk-activation:timing-callback')
     observe('gdm-station-list')
     boot = ui.boot_proof
     require(type(boot) is str and re.fullmatch(r'[0-9a-f]{64}', boot),
@@ -55,9 +56,12 @@ def enter_station(lease, ui, observe):
         try:
             lease.source.domain.sendKey(
                 lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [28], 1, 0)
+            submitted = time.monotonic_ns()
         finally:
             # An uncertain Enter is never replayed, including guard failure.
             lease.guard()
+    if on_input is not None:
+        on_input(started, submitted)
     return started
 
 

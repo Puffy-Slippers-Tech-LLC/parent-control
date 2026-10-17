@@ -398,8 +398,9 @@ def main(argv=None):
                        ((args.action == 'send-key' and 1 <= len(args.keys) <= 16 and
                          all(1 <= key <= 255 for key in args.keys)) or
                         (args.action == 'recover-online' and len(args.keys) == 1 and args.keys[0] > 0) or
-                        (args.action in ('probe-kiosk-latency', 'probe-kiosk-prompt-latency') and len(args.keys) <= 1
-                         and all(1 <= value <= 10 for value in args.keys)) or
+                        (args.action in ('probe-kiosk-latency', 'probe-kiosk-prompt-latency') and len(args.keys) <= 2
+                         and (not args.keys or 1 <= args.keys[0] <= 10)
+                         and (len(args.keys) < 2 or args.keys[1] in (0, 1))) or
                         (args.action not in ('send-key', 'recover-online', 'probe-kiosk-latency', 'probe-kiosk-prompt-latency')
                          and not args.keys)), 'vm-control:arguments')
         runner.require((args.action == 'rename') == (args.new_name is not None), 'vm-control:arguments')
@@ -499,11 +500,13 @@ def main(argv=None):
         elif args.action == 'probe-kiosk-latency':
             from vm_probe import probe_kiosk_latency
             resume(lease)
-            probe_kiosk_latency(lease, args.keys[0] if args.keys else 10)
+            probe_kiosk_latency(lease, args.keys[0] if args.keys else 10,
+                                bool(args.keys[1]) if len(args.keys) == 2 else False)
         elif args.action == 'probe-kiosk-prompt-latency':
             from vm_probe import probe_kiosk_prompt_latency
             resume(lease)
-            probe_kiosk_prompt_latency(lease, args.keys[0] if args.keys else 10)
+            probe_kiosk_prompt_latency(lease, args.keys[0] if args.keys else 10,
+                                       bool(args.keys[1]) if len(args.keys) == 2 else False)
         elif args.action == 'probe-retained-app-launch':
             from vm_probe import probe_retained_app_launch
             resume(lease)

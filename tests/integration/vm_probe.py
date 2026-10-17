@@ -19,6 +19,189 @@ import system_runner as system
 from watch_activity import operation
 
 
+CLOCK_PROBE = '''import hashlib,json,pathlib,time
+print(json.dumps({'monotonic_ns':time.monotonic_ns(),
+    'boot_sha256':hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()}))
+'''
+
+STARTUP_PROBE = '''import hashlib,json,os,pathlib,pwd,stat,subprocess,sys,time
+account=pwd.getpwnam('oh-no-parent-control')
+runtime=pathlib.Path('/run/user')/str(account.pw_uid)
+for path,directory in ((runtime,True),(runtime/'bus',False)):
+    info=path.lstat()
+    assert info.st_uid==account.pw_uid
+    assert stat.S_ISDIR(info.st_mode) if directory else stat.S_ISSOCK(info.st_mode)
+boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+assert boot()==sys.argv[1]
+os.initgroups(account.pw_name,account.pw_gid)
+os.setgid(account.pw_gid)
+os.setuid(account.pw_uid)
+os.environ.clear()
+os.environ.update(HOME=account.pw_dir,XDG_RUNTIME_DIR=str(runtime),
+    DBUS_SESSION_BUS_ADDRESS='unix:path='+str(runtime/'bus'),LANG='C.UTF-8')
+import gi
+from gi.repository import Gio,GLib
+connection=Gio.bus_get_sync(Gio.BusType.SESSION,None)
+def call(destination,path,interface,method,parameters,signature):
+    return connection.call_sync(destination,path,interface,method,parameters,
+        GLib.VariantType.new(signature),Gio.DBusCallFlags.NO_AUTO_START,5000,None).unpack()
+def bus(method,value,signature):
+    return call('org.freedesktop.DBus','/org/freedesktop/DBus',
+        'org.freedesktop.DBus',method,GLib.Variant('(s)',(value,)),signature)[0]
+name='com.puffyslippers.OhNoParentControl'
+owner=bus('GetNameOwner',name,'(s)')
+pid=bus('GetConnectionUnixProcessID',owner,'(u)')
+def identity():
+    active=subprocess.check_output(['/usr/bin/systemctl','--user','show',
+        'oh-no-parent-control-app.service','--property=MainPID','--value'],text=True,timeout=5).strip()
+    assert active==str(pid) and pathlib.Path('/proc',str(pid)).stat().st_uid==account.pw_uid
+    assert bus('GetNameOwner',name,'(s)')==owner
+    assert bus('GetConnectionUnixProcessID',owner,'(u)')==pid
+    assert boot()==sys.argv[1]
+    return pathlib.Path('/proc',str(pid),'stat').read_text().rpartition(') ')[2].split()[19]
+before=identity()
+deadline=time.monotonic()+30
+while True:
+    assert identity()==before
+    times=call(owner,'/com/puffyslippers/OhNoParentControl/Timing',
+        'com.puffyslippers.OhNoParentControl.KioskTiming1','GetStartupTimings',None,'(ttt)')
+    assert identity()==before
+    if times[1] and (times[2] or time.monotonic_ns()-times[1]>=2_100_000_000):
+        break
+    assert time.monotonic()<deadline
+    time.sleep(.05)
+assert 0<times[0]<=times[1]<=time.monotonic_ns()
+assert not times[2] or times[0]<=times[2]<=time.monotonic_ns()
+print(json.dumps({'boot_sha256':sys.argv[1],'timings':times}))
+'''
+
+
+def clock_calibration(transport, boot):
+    """Bound the guest-minus-host clock offset using the narrowest round trip."""
+    import time
+    bounds = []
+    for _ in range(5):
+        started = time.monotonic_ns()
+        raw = transport.call(['/usr/bin/python3', '-I', '-c', CLOCK_PROBE])
+        finished = time.monotonic_ns()
+        value = json.loads(raw)
+        system.require(type(value) is dict and set(value) == {'monotonic_ns', 'boot_sha256'}
+            and value['boot_sha256'] == boot and type(value['monotonic_ns']) is int
+            and value['monotonic_ns'] > 0, 'kiosk-latency:clock-proof')
+        bounds.append((value['monotonic_ns'] - finished, value['monotonic_ns'] - started))
+    return min(bounds, key=lambda pair: pair[1] - pair[0])
+
+
+def startup_latency(transport, boot, started, submitted, before):
+    """Correlate a pinned first-frame witness with the bounded host Enter call."""
+    raw = transport.call(['/usr/bin/python3', '-I', '-c', STARTUP_PROBE, boot])
+    value = json.loads(raw)
+    system.require(type(value) is dict and set(value) == {'boot_sha256', 'timings'}
+        and value['boot_sha256'] == boot and type(value['timings']) is list
+        and len(value['timings']) == 3 and all(type(t) is int and t >= 0
+            for t in value['timings']), 'kiosk-latency:startup-proof')
+    python, painted, presented = value['timings']
+    system.require(python > 0 and painted >= python and (not presented or presented >= python),
+                   'kiosk-latency:startup-proof')
+    after = clock_calibration(transport, boot)
+    # Retain the union, including observed clock drift, rather than assume
+    # host and guest monotonic clocks share an origin or subtract their values.
+    # This assumes no unobserved clock excursion outside that envelope.
+    low, high = min(before[0], after[0]), max(before[1], after[1])
+    endpoint = presented or painted
+    lower, upper = (endpoint - submitted - high) / 1e9, (endpoint - started - low) / 1e9
+    system.require(lower <= upper < 120 and upper >= 0, 'kiosk-latency:entry-interval')
+    raw_lower = lower
+    lower = max(0, lower)
+    return {'witness': 'presented' if presented else 'painted',
+            'entry_lower_seconds': lower, 'entry_upper_seconds': upper,
+            'entry_raw_lower_seconds': raw_lower,
+            'bound_clipped_to_zero': raw_lower < 0,
+            'entry_midpoint_seconds': (lower + upper) / 2,
+            'entry_uncertainty_seconds': (upper - lower) / 2,
+            'clock_before_ns': list(before), 'clock_after_ns': list(after),
+            'input_interval_ns': [started, submitted], 'frame_timings_ns': value['timings'],
+            'python_to_frame_seconds': (endpoint - python) / 1e9}
+
+
+LOGOUT_IDENTITY_PROBE = '''import hashlib,json,os,pathlib,pwd,re,subprocess,sys
+boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+assert boot()==sys.argv[1]
+account=pwd.getpwnam('oh-no-parent-control')
+os.initgroups(account.pw_name,account.pw_gid)
+os.setgid(account.pw_gid)
+os.setuid(account.pw_uid)
+os.environ.clear()
+os.environ.update(HOME=account.pw_dir,XDG_RUNTIME_DIR='/run/user/'+str(account.pw_uid),
+    DBUS_SESSION_BUS_ADDRESS='unix:path=/run/user/'+str(account.pw_uid)+'/bus',LANG='C.UTF-8')
+units={'app':'oh-no-parent-control-app.service','compositor':'org.gnome.Kiosk@wayland.service'}
+def identity(unit):
+    raw=subprocess.check_output(['systemctl','--user','show',unit,
+        '--property=MainPID','--property=InvocationID'],text=True,timeout=5)
+    props=dict(line.split('=',1) for line in raw.splitlines())
+    assert re.fullmatch('[0-9a-f]{32}',props['InvocationID']) and props['InvocationID']!='0'*32
+    pid=int(props['MainPID']); assert pid>1
+    path=pathlib.Path('/proc',str(pid)); assert path.stat().st_uid==account.pw_uid
+    return props['InvocationID'],pid,(path/'stat').read_text().rpartition(') ')[2].split()[19]
+before={name:identity(unit) for name,unit in units.items()}
+assert before=={name:identity(unit) for name,unit in units.items()} and boot()==sys.argv[1]
+print(json.dumps({'boot_sha256':sys.argv[1],'invocations':{name:value[0] for name,value in before.items()}}))
+'''
+
+
+def logout_identity(transport, boot):
+    value = json.loads(transport.call([
+        '/usr/bin/python3', '-I', '-c', LOGOUT_IDENTITY_PROBE, boot]))
+    system.require(type(value) is dict and set(value) == {'boot_sha256', 'invocations'}
+        and value['boot_sha256'] == boot and type(value['invocations']) is dict
+        and set(value['invocations']) == {'app', 'compositor'}
+        and all(type(item) is str and re.fullmatch(r'[0-9a-f]{32}', item)
+                and item != '0' * 32 for item in value['invocations'].values()),
+        'kiosk-latency:logout-identity')
+    return value['invocations']
+
+
+LOGOUT_PROBE = '''import hashlib,json,pathlib,pwd,subprocess,sys
+boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+assert boot()==sys.argv[1]
+uid=str(pwd.getpwnam('oh-no-parent-control').pw_uid)
+units={'oh-no-parent-control-app.service':'app','org.gnome.Kiosk@wayland.service':'compositor'}
+raw=subprocess.check_output(['journalctl','--boot','--no-pager','--output=json','--lines=2000',
+    'USER_UNIT=oh-no-parent-control-app.service','+','USER_UNIT=org.gnome.Kiosk@wayland.service'],timeout=15)
+assert len(raw)<=4*1024*1024
+started=float(sys.argv[2])
+invocations=json.loads(sys.argv[3])
+stops={name:[] for name in units.values()}
+for line in raw.splitlines():
+    record=json.loads(line)
+    name=units.get(record.get('USER_UNIT'))
+    if (name and record.get('_UID')==uid and record.get('_COMM')=='systemd'
+            and record.get('USER_INVOCATION_ID')==invocations[name]
+            and record.get('MESSAGE_ID')=='9d1aaa27d60140bd96365438aad20286'
+            and record.get('JOB_TYPE')=='stop' and record.get('JOB_RESULT')=='done'):
+        stamp=int(record['__MONOTONIC_TIMESTAMP'])/1000
+        if stamp>=started: stops[name].append(stamp-started)
+assert boot()==sys.argv[1]
+print(json.dumps({name+'_stopped_ms':values[0] if len(values)==1 else None
+                  for name,values in stops.items()}))
+'''
+
+
+def logout_latency(transport, boot, actions, invocations):
+    """Keep journalled app/compositor exit separate from greeter readiness."""
+    if len(actions) != 1 or len(actions[0].get('input_ms', ())) != 1:
+        return {'app_stopped_ms': None, 'compositor_stopped_ms': None}
+    action = actions[0]
+    started = action['started_monotonic_ms'] + action['input_ms'][0]
+    raw = transport.call(['/usr/bin/python3', '-I', '-c', LOGOUT_PROBE, boot,
+                          str(started), json.dumps(invocations)])
+    value = json.loads(raw)
+    system.require(type(value) is dict and set(value) == {'app_stopped_ms', 'compositor_stopped_ms'}
+        and all(item is None or type(item) in (int, float) and 0 <= item < 120000
+                for item in value.values()), 'kiosk-latency:logout-proof')
+    return value
+
+
 def reproduce_gdm_denial(lease):
     """Run the real shared denial journey, retaining the scene after Escape.
 
@@ -38,12 +221,34 @@ def reproduce_kiosk_entry(lease):
     return reproduce_denial(lease, InstalledJourney, PLAN, 'request-form', 'kiosk-entry')
 
 
-def probe_kiosk_latency(lease, samples=10):
+def latency_events(commands, after_sequence):
+    """Read only this probe's finite, already retained command timing records."""
+    events = []
+    last = getattr(commands, 'sequence', after_sequence)
+    system.require(0 <= last - after_sequence <= 128, 'kiosk-latency:command-bound')
+    for sequence in range(after_sequence + 1, last + 1):
+        path = commands.directory / f'command-{sequence:04d}-stderr.txt'
+        if not path.exists():
+            continue
+        system.require(path.stat().st_size <= 256 * 1024, 'kiosk-latency:diagnostic-bound')
+        for line in path.read_text().splitlines():
+            try:
+                value = json.loads(line)
+            except ValueError:
+                continue
+            if type(value) is dict and value.get('event') in (
+                    'ui-operation-timing', 'mate-prompt-latency'):
+                events.append(value)
+    return events
+
+
+def probe_kiosk_latency(lease, samples=10, cold=False):
     """Measure bounded public entry/Cancel cycles in the present owned guest.
 
     Timings include guarded transport and observation overhead. They are useful
     for paired comparisons, not exact display-frame latency or acceptance.
-    The caller owns reboot/cold state; this probe never resets the guest.
+    Cold mode reboots the owned guest before every sample; warm mode preserves
+    the current boot. Neither mode restores snapshots between samples.
     """
     import time
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -51,6 +256,7 @@ def probe_kiosk_latency(lease, samples=10):
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
     system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-latency:samples')
+    system.require(type(cold) is bool, 'kiosk-latency:cold')
     with operation('Measuring request-station entry and Cancel cycles'), recovery_session():
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-latency-'))
         private = directory / 'private'
@@ -67,6 +273,11 @@ def probe_kiosk_latency(lease, samples=10):
             return ui.observe(name)
 
         for index in range(samples):
+            if cold:
+                transport.reboot()
+                ui = UiObservations(transport)
+                ui.boot_guard = ''
+            sequence = getattr(lease.commands, 'sequence', 0)
             started = enter_station(lease, ui, observe)
             observe('station-default-entry')
             observe('kiosk-request-form')
@@ -74,12 +285,22 @@ def probe_kiosk_latency(lease, samples=10):
             started = time.monotonic_ns()
             observe('kiosk-request-cancel')
             observe('gdm-station-returned')
-            result = {'sample': index + 1, 'boot_sha256': ui.boot_proof,
+            result = {'sample': index + 1, 'boot_sha256': ui.boot_proof, 'cold': cold,
                       'entry_seconds': entry_seconds,
                       'cancel_seconds': (time.monotonic_ns() - started) / 1e9}
+            events = latency_events(lease.commands, sequence)
+            result['guest_events'] = events
+            actions = [event for event in events if event.get('operation') == 'kiosk-request-cancel']
+            greeters = [event for event in events if event.get('operation') == 'gdm-station-returned']
+            if len(actions) == len(greeters) == 1 and len(actions[0].get('input_ms', ())) == 1:
+                action, greeter = actions[0], greeters[0]
+                result['cancel_dispatch_to_observed_greeter_seconds'] = (
+                    greeter['started_monotonic_ms'] + greeter['elapsed_ms']
+                    - action['started_monotonic_ms'] - action['input_ms'][0]) / 1000
             results.append(result)
             (directory / 'timings.json').write_text(json.dumps(results, indent=2) + '\n')
-            print('kiosk-latency: ' + json.dumps(result, sort_keys=True), flush=True)
+            print('kiosk-latency: ' + json.dumps({key: value for key, value in result.items()
+                  if key != 'guest_events'}, sort_keys=True), flush=True)
         lease.guard()
 
 
@@ -102,14 +323,15 @@ def reproduce_kiosk_approval(lease):
                             'approval-qualified', 'kiosk-approval', native_log=True)
 
 
-def probe_kiosk_prompt_latency(lease, samples=10):
-    """Observe the first native prompt in bounded fresh station sessions.
+def probe_kiosk_prompt_latency(lease, samples=10, cold=False):
+    """Measure entry, first native prompt and exit in fresh station sessions.
 
     The shared operation records its request-to-prompt interval in private
-    stderr. It includes prompt observation overhead, but excludes form setup,
-    transport and the independent Cancel/result checks. Measured approval prompts
+    stderr. The prompt interval includes observation overhead, but excludes form
+    setup, transport and the independent Cancel/result checks. Measured approval prompts
     receive no password; shared preparation authenticates the fixture Parent.
     """
+    import time
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from request_flow import RequestFlowJourney
     from mate_prompt import PLAN
@@ -117,6 +339,7 @@ def probe_kiosk_prompt_latency(lease, samples=10):
     from ui_observations import UiObservations
     from qualification_storage import recovery_session, allocate
     system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-prompt-latency:samples')
+    system.require(type(cold) is bool, 'kiosk-prompt-latency:cold')
     reproduce_denial(lease, RequestFlowJourney, PLAN, 'open-mate', 'kiosk-prompt-latency')
     with operation('Measuring Request to native approval prompt'), recovery_session():
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-prompt-latency-'))
@@ -124,7 +347,8 @@ def probe_kiosk_prompt_latency(lease, samples=10):
         private.mkdir(mode=0o700)
         lease.commands.directory = private
         print('kiosk-prompt-latency: evidence=' + str(directory), flush=True)
-        observer = UiObservations(connect(lease))
+        transport = connect(lease)
+        observer = UiObservations(transport)
         observer.boot_guard = ''
         results = []
 
@@ -132,17 +356,66 @@ def probe_kiosk_prompt_latency(lease, samples=10):
             lease.guard()
             return observer.observe(name)
 
-        for index in range(samples):
-            if index:
-                enter_station(lease, observer, observe)
-                observe('station-default-entry')
-                observe('kiosk-valid-fraction-soft-read')
-            observed = observe('kiosk-mate-cancel')
-            results.append({'sample': index + 1, 'observed': observed})
-            (directory / 'observed.json').write_text(json.dumps(results, indent=2) + '\n')
-            print('kiosk-prompt-latency: completed sample=' + str(index + 1), flush=True)
+        if not cold:
+            # Setup has already warmed this boot. Start every measured sample
+            # at the greeter, including sample one, using the same public exit.
             observe('kiosk-request-cancel')
             observe('gdm-station-returned')
+        for index in range(samples):
+            if cold:
+                transport.reboot()
+                observer = UiObservations(transport)
+                observer.boot_guard = ''
+            sequence = getattr(lease.commands, 'sequence', 0)
+            observe('gdm-station-list')
+            observer.boot_guard = observer.boot_proof
+            clock_before = clock_calibration(transport, observer.boot_proof)
+            entry_input = []
+            entry_started = enter_station(lease, observer, observe,
+                on_input=lambda first, last: entry_input.extend((first, last)))
+            system.require(len(entry_input) == 2 and entry_input[0] == entry_started,
+                           'kiosk-latency:input-bracket')
+            observe('station-default-entry')
+            observe('kiosk-valid-fraction-soft-read')
+            entry_seconds = (time.monotonic_ns() - entry_started) / 1e9
+            startup = startup_latency(transport, observer.boot_proof,
+                                      entry_started, entry_input[1], clock_before)
+            observed = observe('kiosk-mate-cancel')
+            invocations = logout_identity(transport, observer.boot_proof)
+            cancel_started = time.monotonic_ns()
+            observe('kiosk-request-cancel')
+            observe('gdm-station-returned')
+            cancel_seconds = (time.monotonic_ns() - cancel_started) / 1e9
+            events = latency_events(lease.commands, sequence)
+            result = {'sample': index + 1, 'cold': cold, 'entry_seconds': entry_seconds,
+                      'cancel_seconds': cancel_seconds,
+                      'boot_sha256': observer.boot_proof, 'observed': observed,
+                      'guest_events': events, 'startup': startup,
+                      'logout_invocations': invocations,
+                      'logout': {'app_stopped_ms': None, 'compositor_stopped_ms': None}}
+            actions = [event for event in events if event.get('operation') == 'kiosk-request-cancel']
+            greeters = [event for event in events if event.get('operation') == 'gdm-station-returned']
+            if len(actions) == len(greeters) == 1 and len(actions[0].get('input_ms', ())) == 1:
+                action, greeter = actions[0], greeters[0]
+                result['cancel_dispatch_to_observed_greeter_seconds'] = (
+                    greeter['started_monotonic_ms'] + greeter['elapsed_ms']
+                    - action['started_monotonic_ms'] - action['input_ms'][0]) / 1000
+            results.append(result)
+            (directory / 'observed.json').write_text(json.dumps(results, indent=2) + '\n')
+            # Optional journal diagnostics must not erase the completed public
+            # entry/prompt/Cancel observations if their own guarded read fails.
+            result['logout'] = logout_latency(transport, observer.boot_proof, actions, invocations)
+            (directory / 'observed.json').write_text(json.dumps(results, indent=2) + '\n')
+            prompt = [event['request_to_observed_prompt_ms'] for event in results[-1]['guest_events']
+                      if event.get('event') == 'mate-prompt-latency']
+            print('kiosk-prompt-latency: ' + json.dumps({
+                'sample': index + 1, 'cold': cold, 'request_to_observed_prompt_ms': prompt,
+                'entry_seconds': entry_seconds, 'cancel_seconds': result['cancel_seconds'],
+                'startup': startup,
+                'logout': result['logout'],
+                'cancel_dispatch_to_observed_greeter_seconds': result.get(
+                    'cancel_dispatch_to_observed_greeter_seconds'),
+            }, sort_keys=True), flush=True)
         lease.guard()
 
 

@@ -16,8 +16,9 @@ import evidence_bundle as bundle
 
 
 @pytest.mark.parametrize('targets', [[], ['guest-one'], ['guest-two', 'guest-one']])
+@pytest.mark.parametrize('first_export', [False, True])
 def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
-        tmp_path, monkeypatch, targets):
+        tmp_path, monkeypatch, targets, first_export):
     import vm_config
 
     state = tmp_path / 'state'
@@ -26,11 +27,20 @@ def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
                  'retention-guest-one', 'retention-guest-two', 'retention-unregistered'):
         (state / name).mkdir()
     uid, gid = os.geteuid(), os.getegid()
+    (state / f'recovery-diagnostics-{uid}').mkdir()
+    (state / f'recovery-diagnostics-{uid + 1}').mkdir()
+    for target in ('guest-one', 'guest-two', 'unregistered'):
+        (state / f'recovery-diagnostics-{uid}-{target}').mkdir()
     # Exercise the privileged catalogue without changing this test process's
     # identity or accessing any real journals, VM, or registry entries.
     monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
     monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
-    monkeypatch.setattr(bundle.storage, 'directory', lambda kind, **_: tmp_path / kind)
+    def directory(kind, **_):
+        if first_export and kind == 'exports':
+            raise FileNotFoundError('no exports yet')
+        return tmp_path / kind
+
+    monkeypatch.setattr(bundle.storage, 'directory', directory)
     monkeypatch.setattr(vm_config, 'registry', lambda: {'guest-one': None, 'guest-two': None})
     selection = bundle.Selection(tmp_path, uid, gid, targets, [], [])
     journals = selection.catalogue()
@@ -39,10 +49,39 @@ def test_catalogue_includes_only_selected_targets_host_and_guest_journals(
         *((name, uid, gid) for name in fixed),
         *((f'retention-{target}', uid, gid) for target in targets),
         *((f'retention-{uid}-{target}', 0, 0) for target in targets),
+        *((f'recovery-diagnostics-{uid}-{target}', 0, 0) for target in targets),
+        (f'recovery-diagnostics-{uid}', 0, 0),
     }
-    assert len(journals) == len(fixed) + 2 * len(targets)
+    assert len(journals) == len(fixed) + 3 * len(targets) + 1
     with pytest.raises(ValueError, match='registered canonical targets'):
         bundle.Selection(tmp_path, uid, gid, ['unregistered'], [], []).catalogue()
+
+
+@pytest.mark.parametrize('missing_error', [FileNotFoundError, PermissionError])
+def test_host_only_catalogue_without_privileged_storage(tmp_path, monkeypatch, missing_error):
+    state = tmp_path / 'state'
+    state.mkdir()
+    (state / 'retention-host').mkdir()
+    uid, gid = os.geteuid(), os.getegid()
+    monkeypatch.setattr(bundle, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 0})))
+    monkeypatch.setattr(bundle, 'identity', lambda *_: nullcontext())
+    reads = []
+
+    def directory(kind, **_):
+        reads.append(kind)
+        if len(reads) == 1:
+            raise missing_error('privileged state unavailable')
+        if kind == 'exports':
+            raise FileNotFoundError('no exports yet')
+        return state
+
+    monkeypatch.setattr(bundle.storage, 'directory', directory)
+    selection = bundle.Selection(tmp_path, uid, gid, [], [], [])
+    if missing_error is PermissionError:
+        with pytest.raises(PermissionError):
+            selection.catalogue()
+    else:
+        assert selection.catalogue() == [(state / 'retention-host', uid, gid)]
 
 
 @pytest.fixture
@@ -144,6 +183,21 @@ def test_cumulative_bundle_survives_source_and_export_rotation(evidence):
         assert len(state['history']) == 2
     assert bundle.retention.RUNS_TO_KEEP == 3
     assert bundle.retention.MAX_RETAINED_BYTES == 4 * 1024 ** 3
+
+
+@pytest.mark.parametrize('suffix', ['', '-guest-one'])
+def test_recovery_diagnostic_samples_survive_rotation(evidence, suffix):
+    evidence.sources.path = evidence.sources.path.with_name(
+        f'recovery-diagnostics-{os.geteuid()}{suffix}')
+    previous, expected = [], {}
+    for index in range(4):
+        data = f'[{index}]\n'.encode()
+        root = evidence.allocate({'observed.json': data})
+        expected[str(root / 'observed.json')] = data
+        result = evidence.publish([root / 'observed.json'], previous)
+        previous = [Path(result['path'])]
+    for path, data in expected.items():
+        assert evidence.inspect(previous[0], member=path) == data
 
 
 def test_failed_publication_preserves_all_exports_and_allows_retry(evidence, monkeypatch):

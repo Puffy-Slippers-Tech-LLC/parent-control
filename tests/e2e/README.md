@@ -1744,10 +1744,14 @@ unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
 ### Kiosk transition timing
 
-`tools/test-vm --vm NAME probe-kiosk-latency [SAMPLES]` measures ten consecutive
+`tools/test-vm --vm NAME probe-kiosk-latency [SAMPLES [COLD]]` measures ten consecutive
 entry/Cancel cycles in the owned online app-snapshot maintenance guest, starting
 at the usable greeter. An optional count from one to ten allows a separate
-first-entry-after-boot measurement. It reuses `kiosk_entry.enter_station` and the shared
+first-entry-after-boot measurement. `COLD` is `0` (default, preserve the current
+boot) or `1` (reboot through the shared guarded transport before every sample).
+Cold mode verifies a changed boot before entry; it never restores a snapshot
+between trials. Same-boot repetitions warm OS caches but do not guarantee that
+logind retained the kiosk user manager. It reuses `kiosk_entry.enter_station` and the shared
 Application UI form/Cancel and external greeter observers. Each Enter has a fresh
 boot-bound focus proof; any uncertain input or observation refusal stops the
 probe. Completed measurements remain in its recovery allocation's `timings.json`.
@@ -1755,17 +1759,17 @@ Use `tools/test-vm --vm NAME stop` when diagnosis ends.
 
 Entry runs from the guarded Enter dispatch to the independently observed form;
 Cancel runs from its public operation dispatch to the independently observed
-usable greeter. Both include transport and observer overhead, so they are upper
-bounds rather than exact frame timestamps. Compare repeated before/after samples
-on the same VM and host-load conditions. The probe neither reboots nor clears
-caches: callers must establish and report cold/warm history separately. First-run
+usable greeter. Both include transport and observer overhead; report these
+semantic-observation intervals separately from final-frame timestamps. Compare repeated before/after samples
+on the same VM and host-load conditions. The probe clears no caches beyond the
+explicitly selected cold reboot; report cold/warm history separately. First-run
 language setup can also affect the first sample. No timing establishes customer
 acceptance or a laptop performance guarantee.
 
-`tools/test-vm --vm NAME probe-kiosk-prompt-latency [SAMPLES]` prepares the shared
+`tools/test-vm --vm NAME probe-kiosk-prompt-latency [SAMPLES [COLD]]` prepares the shared
 request-flow history up to `open-mate`, then repeats the existing guarded
 `kiosk-mate-cancel` operation in one to ten fresh station sessions (default ten).
-Each cycle opens
+Each cycle measures entry to the prepared form, opens
 one prompt, verifies its service ownership, cancels it and independently checks
 prompt absence and unchanged form choices. The measured approval prompts receive
 no password; preparation authenticates the fixture Parent account. Private
@@ -1775,8 +1779,59 @@ preparation and transport. Public station Cancel and guarded re-entry separate
 the samples, so an agent prepared by an earlier request cannot mask startup cost.
 Form and ownership checks give speculative agent warmup time before Request;
 these prepared-form samples do not establish immediate-click latency while
-warmup is still pending.
-Completed cycles remain in `observed.json`; refusal stops without replay.
+warmup is still pending. It also retains station Cancel-to-greeter timings for
+the same samples, so all three transitions can be compared in one history.
+Warm mode exits the setup form before sample one; every measured entry begins
+at the independently observed usable greeter.
+Each batch requires the shared setup history's initial state in a freshly
+restored matching online app snapshot. Between batches, stop owned maintenance
+with `tools/test-vm --vm NAME stop`, then restore through
+`tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false`.
+Restoration is outside the measured window. The setup's enable operation expects
+a previously disabled switch; reusing a modified batch scene can refuse before
+any trial. Warm setup leaves the fixture Parent desktop session running;
+cold reboots end it. Compare baseline and candidate within each history.
+Cold mode reboots before sample one and every later sample, after the setup
+history, so each measured prompt is the first in that boot. Warm mode retains
+the setup history's warmed state. Completed cycles remain in `observed.json`;
+refusal stops without replay.
+
+The combined probe also reads the installed app's read-only first-frame witness,
+pinning its unique bus owner to the app service's current process, start identity
+and boot. Five guarded guest-clock reads before and after entry retain the
+narrowest round-trip offset bounds on each side. Their union retains observed
+clock drift. Together with the host Enter-call interval, these produce lower,
+upper, midpoint and uncertainty values without assuming equal clock origins.
+The offset envelope assumes no unobserved intermediate clock excursion; both
+calibrations remain in private evidence. An interval spanning zero retains its
+raw bound and is marked as clipped to the nonnegative latency domain, rather
+than failing a fast startup. Assess precision using interval widths and overlap;
+a nonnegative lower bound alone does not establish a resolved improvement.
+`presented` uses GDK presentation feedback; `painted` is an explicitly weaker
+fallback. This engineering witness adds no UI action or acceptance assertion.
+Use the identical instrumentation in baseline and candidate packages; original
+uninstrumented observations cannot serve as a precise frame baseline.
+
+Both probes retain guest `ui-operation-timing` records with their finite result
+files. Product activation timestamps are taken after the existing input guards,
+immediately before public API activation. When available, the Cancel report also
+records that dispatch to the complete usable-greeter observation using only
+the guest's monotonic clock. This excludes pre-input transport/target-discovery
+work, but retains destination-observer startup and read overhead. Request reports
+retain `mate-prompt-latency` separately. Neither interval is an exact frame
+measurement. For ten-trial comparisons, remove the single fastest and slowest
+sample for each metric and take the mean of the remaining eight; retain all raw
+samples and failed attempts.
+The combined probe additionally correlates the current boot's systemd journal
+with that same Cancel input timestamp, retaining app and compositor stop
+durations separately. Capture both live unit invocation identities before Cancel
+and require matching journal invocation IDs and successful native stop-job records.
+Missing/ambiguous records remain unavailable; optional journal failure preserves
+the completed public measurements. These
+engineering phases do not establish that GDM's account list has rendered.
+The complete account-list observer proves usable sign-in controls, without a
+GDM final-frame or opacity-animation completion witness. Existing watch-feed
+timestamps may republish old pixels and cannot supply that missing endpoint.
 
 The probe adds no VM or cleanup owner. Its existing recovery session owns private
 command logs and finite result files; host regressions use only pytest-private

@@ -2533,6 +2533,9 @@ class AccessibleUI:
                     and not self.has_state(node, self.api.StateType.DEFUNCT),
                     'ui:unusable-target')
             self.input_uncertain = True
+            if self._timing is not None and len(self._timing['input_ms']) < 64:
+                self._timing['input_ms'].append(round(
+                    (time.monotonic() - self._timing['started']) * 1000, 3))
             node.activate()
             self.input_uncertain = False
             return node

@@ -151,6 +151,29 @@ def test_real_activation_uncertain_enter_is_guarded_and_never_replayed(monkeypat
     transport.call.assert_not_called()
 
 
+@pytest.mark.parametrize('uncertain', [False, True])
+def test_entry_timing_brackets_input_before_post_guard_and_never_replays(monkeypatch, uncertain):
+    from unittest.mock import Mock
+    helper, _transport, lease, ui, _factory, events = activation_harness(
+        monkeypatch, enter_error=RuntimeError('uncertain input') if uncertain else None)
+    clock = iter((100, 200))
+    monkeypatch.setattr(helper.time, 'monotonic_ns', lambda: next(clock))
+    received = Mock()
+    with helper.watch_activity.operation('Measuring guarded entry'):
+        ui.boot_guard = ''
+        if uncertain:
+            with pytest.raises(RuntimeError, match='uncertain input'):
+                helper.enter_station(lease, ui, ui.observe, on_input=received)
+        else:
+            assert helper.enter_station(lease, ui, ui.observe, on_input=received) == 100
+    lease.source.domain.sendKey.assert_called_once()
+    assert events[-1] == ('guard',)
+    if uncertain:
+        received.assert_not_called()
+    else:
+        received.assert_called_once_with(100, 200)
+
+
 def station_greeter(*rows, recipient=None, field=None, list_showing=True):
     children = list(rows) if list_showing else []
     if recipient is not None:

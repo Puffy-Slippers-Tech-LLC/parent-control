@@ -1,5 +1,14 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+kiosk_rendering's lava-cache checks decode one bounded read-only shipped image
+through GDK and compare bounded in-memory RGBA buffers. Native decoding uses
+the launcher's private scratch/cache and process group; no window or display
+is created. Generated caches use tmp_path and the scan takes a few seconds,
+with tens of MiB of memory. It remains compatible unit work, with no cleanup
+or UI inventory entry. VM latency cold-mode tests use only transport/reboot
+doubles and private result files, retaining vm_control_cleanup_safety's
+compatible unit and cleanup classifications.
+
 graphical_smoke's standalone-import regression owns one bounded, waited isolated
 Python child with bytecode disabled and a pytest-private working directory.
 It imports controller code without VM, display, bus, network or shared mutations;
@@ -1306,5 +1315,7 @@ def buckets(nodeids):
 # evidence_bundle and test_retention remain compatible with reviewed unit work.
 # Target-journal catalogue checks use private paths and process-local identity/
 # registry doubles; they neither switch credentials nor inspect real journals.
+# Recovery-diagnostic export/rotation checks reuse those private journals and
+# bounded ZIP fixtures, with no new shared resources or subprocesses.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.

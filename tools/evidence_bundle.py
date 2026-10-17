@@ -169,6 +169,18 @@ class Selection:
             parent = storage.directory('state', root=self.checkout, create=False)
             result += [(parent / f'retention-{self.uid}-{target}', 0, 0)
                        for target in sorted(self.targets)]
+            result += [(parent / f'recovery-diagnostics-{self.uid}-{target}', 0, 0)
+                       for target in sorted(self.targets)
+                       if (parent / f'recovery-diagnostics-{self.uid}-{target}').exists()]
+        if os.geteuid() == 0:
+            try:
+                parent = storage.directory('state', root=self.checkout, create=False)
+            except FileNotFoundError:
+                pass  # Host-only checkouts may have no privileged storage yet.
+            else:
+                diagnostics = parent / f'recovery-diagnostics-{self.uid}'
+                if diagnostics.exists():
+                    result.append((diagnostics, 0, 0))
         with identity(self.uid, self.gid):
             parent = storage.directory('state', root=self.checkout, create=False)
             names = ('retention-host', 'retention-batch', 'retention', 'standalone-reports',
@@ -176,7 +188,10 @@ class Selection:
             for name in names:
                 if (parent / name).exists():
                     result.append((parent / name, self.uid, self.gid))
-            exports = storage.directory('exports', root=self.checkout, create=False)
+            try:
+                exports = storage.directory('exports', root=self.checkout, create=False)
+            except FileNotFoundError:
+                return result  # The first bundle has no existing export journal.
             if (exports / 'retention').exists():
                 result.append((exports / 'retention', self.uid, self.gid))
         return result
@@ -489,7 +504,9 @@ def verify_stream(stream):
                     or allocation.parent.parent.name not in ('host', 'privileged')
                     or journal.parent not in (allocation.parent.parent / 'state',
                                               allocation.parent.parent / 'exports')
-                    or not (journal.name.startswith('retention') or journal.name == 'standalone-reports')
+                    or not (journal.name.startswith('retention') or journal.name == 'standalone-reports'
+                            or re.fullmatch(r'recovery-diagnostics-[0-9]+(?:-[A-Za-z0-9._-]+)?',
+                                            journal.name))
                     or path == allocation):
                 raise ValueError('bundle: inconsistent storage provenance')
             paths.add(str(path))

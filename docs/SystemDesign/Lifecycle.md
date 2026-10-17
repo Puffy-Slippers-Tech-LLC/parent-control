@@ -422,6 +422,10 @@ each protected file, including matching systemd private libraries and the
 reserved plugin directory. Original sibling entries are pinned with read-only
 binds; copied executables occupy independent private entries. The completed
 tree is attached recursively over `/usr` in the caller's private mount namespace.
+One recursive read-only operation then protects the entire attached tree; the
+root-only staging mounts are never exposed to untrusted execution. Preparation
+checks shared ancestors once per directory and every immediate entry separately;
+private-tree verification checks its complete inventory without following symlinks.
 Ordinary package unlink/replacement cannot detach these private file mounts.
 After the read-only `/usr` attachment succeeds, the caller detaches only the
 staging mounts recorded during that admission. The `/usr` clones retain the same

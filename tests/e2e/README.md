@@ -1742,6 +1742,46 @@ the real serial-command contract remains separate. Test-tool
 activation is `none` (next invocation); product data and accepted baseline are
 unchanged. `setup.sh` installs the pinned OpenSSL dependency on clean hosts.
 
+### Kiosk transition timing
+
+`tools/test-vm --vm NAME probe-kiosk-latency [SAMPLES]` measures ten consecutive
+entry/Cancel cycles in the owned online app-snapshot maintenance guest, starting
+at the usable greeter. An optional count from one to ten allows a separate
+first-entry-after-boot measurement. It reuses `kiosk_entry.enter_station` and the shared
+Application UI form/Cancel and external greeter observers. Each Enter has a fresh
+boot-bound focus proof; any uncertain input or observation refusal stops the
+probe. Completed measurements remain in its recovery allocation's `timings.json`.
+Use `tools/test-vm --vm NAME stop` when diagnosis ends.
+
+Entry runs from the guarded Enter dispatch to the independently observed form;
+Cancel runs from its public operation dispatch to the independently observed
+usable greeter. Both include transport and observer overhead, so they are upper
+bounds rather than exact frame timestamps. Compare repeated before/after samples
+on the same VM and host-load conditions. The probe neither reboots nor clears
+caches: callers must establish and report cold/warm history separately. First-run
+language setup can also affect the first sample. No timing establishes customer
+acceptance or a laptop performance guarantee.
+
+`tools/test-vm --vm NAME probe-kiosk-prompt-latency [SAMPLES]` prepares the shared
+request-flow history up to `open-mate`, then repeats the existing guarded
+`kiosk-mate-cancel` operation in one to ten fresh station sessions (default ten).
+Each cycle opens
+one prompt, verifies its service ownership, cancels it and independently checks
+prompt absence and unchanged form choices. The measured approval prompts receive
+no password; preparation authenticates the fixture Parent account. Private
+command stderr retains `mate-prompt-latency` from public Request invocation to
+the qualified native prompt, including observer overhead but excluding form
+preparation and transport. Public station Cancel and guarded re-entry separate
+the samples, so an agent prepared by an earlier request cannot mask startup cost.
+Form and ownership checks give speculative agent warmup time before Request;
+these prepared-form samples do not establish immediate-click latency while
+warmup is still pending.
+Completed cycles remain in `observed.json`; refusal stops without replay.
+
+The probe adds no VM or cleanup owner. Its existing recovery session owns private
+command logs and finite result files; host regressions use only pytest-private
+files and in-memory observers under the existing unit/cleanup classifications.
+
 ### Public serial console qualification
 
 Run `tools/run-tests integration --vm NAME check_graphical_serial` through the existing

@@ -11,6 +11,7 @@ from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.request_content import RequestContent
 from tests.support.objects import bind_methods
 from oh_no_parent_control_kiosk.agent_locale import KioskAgentLocale, agent_environment, UNIT
+from oh_no_parent_control_kiosk.session_logout import KioskLogout
 
 
 @pytest.fixture(autouse=True)
@@ -302,6 +303,136 @@ def test_kiosk_request_waits_for_agent_locale_and_stops_on_failure():
     window._request_failed.assert_called_once()
     callback(None)
     assert window._bus_call.call_args.args[0] == 'RequestAccess'
+
+
+@pytest.mark.parametrize('finish', ['done', 'failed', 'close'])
+def test_request_during_agent_warmup_waits_reuses_or_retries(tmp_path, finish):
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        agent.warm('en', '')
+        agent.prepare('en', '', done)
+        done.assert_not_called()
+        assert bus.call.call_count == 1
+        if finish == 'close':
+            late = bus.call.call_args.args[-1]
+            agent.close()
+            late(bus, object())
+            done.assert_not_called()
+            assert not agent._queue
+        else:
+            agent._completed(finish)
+            if finish == 'failed':
+                done.assert_not_called()
+                assert bus.call.call_count == 2
+                agent._completed('done')
+            else:
+                assert bus.call.call_count == 1
+            done.assert_called_once_with(None)
+        agent.close()
+
+
+def test_agent_warmup_keeps_latest_language_and_required_request_order(tmp_path):
+    agent = KioskAgentLocale()
+    agent._locales = ('en_US.utf8',)
+    bus, done = Mock(), Mock()
+    with (patch('oh_no_parent_control_kiosk.agent_locale.GLib.get_user_runtime_dir', return_value=str(tmp_path)),
+          patch('oh_no_parent_control_kiosk.agent_locale.Gio.bus_get_sync', return_value=bus),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.timeout_add_seconds', return_value=42),
+          patch('oh_no_parent_control_kiosk.agent_locale.GLib.source_remove')):
+        agent.warm('en', '')
+        agent.warm('de', '')
+        agent.warm('zh-Hans', '')
+        agent.prepare('zh-Hans', '', done)
+        agent._completed('done')
+        done.assert_not_called()
+        assert bus.call.call_count == 2
+        assert 'LANGUAGE=zh_CN\n' in (tmp_path / 'oh-no-parent-control/polkit-agent.env').read_text()
+        agent._completed('done')
+        done.assert_called_once_with(None)
+        assert bus.call.call_count == 2
+        assert not agent._queue
+        agent.close()
+
+
+@pytest.mark.parametrize('blocked', [None, '_preview', '_child_overlay', '_estimate_closed', 'in_flight'])
+def test_agent_warmup_is_only_for_idle_installed_station(blocked):
+    window = SimpleNamespace(_preview=False, _child_overlay=False, _estimate_closed=False,
+        _state=SimpleNamespace(in_flight=False), _agent_locale=Mock(),
+        _applied_language='de', _desktop_language='de_DE.UTF-8')
+    if blocked == 'in_flight':
+        window._state.in_flight = True
+    elif blocked:
+        setattr(window, blocked, True)
+    RequestWindow._warm_authentication(window)
+    if blocked:
+        window._agent_locale.warm.assert_not_called()
+    else:
+        window._agent_locale.warm.assert_called_once_with('de', 'de_DE.UTF-8')
+
+
+def test_kiosk_logout_acknowledges_session_protocol_before_exiting():
+    from gi.repository import GLib
+    app, connection = Mock(), Mock()
+    app.get_dbus_connection.return_value = connection
+    app.get_application_id.return_value = 'com.example.Station'
+    logout = KioskLogout(app)
+    with (patch('oh_no_parent_control_kiosk.session_logout.GLib.timeout_add', return_value=42),
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.source_remove')):
+        logout.begin()
+        logout.begin()
+        assert connection.call.call_count == 1
+        assert connection.call.call_args.args[3] == 'RegisterClient'
+        connection.call_finish.return_value = GLib.Variant('(o)', ('/client/station',))
+        connection.call.call_args.args[-1](connection, object())
+        assert connection.call.call_args.args[3:5] == ('Logout', GLib.Variant('(u)', (2,)))
+        app.quit.assert_not_called()
+        for signal in ('QueryEndSession', 'EndSession'):
+            logout._signal(connection, None, None, None, signal, None)
+            args = connection.call.call_args.args
+            assert args[1:4] == ('/client/station', 'org.gnome.SessionManager.ClientPrivate',
+                                 'EndSessionResponse')
+            assert args[4].unpack() == (True, '')
+            app.quit.assert_not_called()
+        logout._signal(connection, None, None, None, 'Stop', None)
+        logout._signal(connection, None, None, None, 'Stop', None)
+        app.quit.assert_called_once()
+        connection.signal_unsubscribe.assert_called_once()
+
+
+@pytest.mark.parametrize('failure', ['missing-bus', 'register', 'logout', 'timeout', 'closed'])
+def test_kiosk_logout_falls_back_once_and_ignores_late_replies(failure):
+    from gi.repository import GLib
+    app, connection = Mock(), Mock()
+    app.get_dbus_connection.return_value = None if failure == 'missing-bus' else connection
+    app.get_application_id.return_value = 'com.example.Station'
+    logout = KioskLogout(app)
+    with (patch('oh_no_parent_control_kiosk.session_logout.GLib.timeout_add', return_value=42),
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.source_remove')):
+        logout.begin()
+        if failure != 'missing-bus':
+            registered = connection.call.call_args.args[-1]
+            if failure == 'closed':
+                logout.close()
+            elif failure == 'timeout':
+                logout._expired()
+            elif failure == 'register':
+                connection.call_finish.side_effect = RuntimeError('unavailable')
+                registered(connection, object())
+            else:
+                connection.call_finish.return_value = GLib.Variant('(o)', ('/client/station',))
+                registered(connection, object())
+                connection.call_finish.side_effect = RuntimeError('unavailable')
+                connection.call.call_args.args[-1](connection, object())
+            connection.call_finish.reset_mock()
+            registered(connection, object())
+            connection.call_finish.assert_not_called()
+        assert app.quit.call_count == (0 if failure == 'closed' else 1)
+        logout.close()
 
 
 def reply(window, seconds=1200, error=None):

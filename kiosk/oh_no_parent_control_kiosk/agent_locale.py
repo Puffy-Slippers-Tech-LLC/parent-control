@@ -64,22 +64,48 @@ class KioskAgentLocale:
         self._results = {}
         self._revision = 0
         self._locales = None
+        self._queue = []
 
     def prepare(self, language, desktop_language, done):
         """Complete the agent restart before dispatching an approval request."""
-        if self._done is not None:
-            done(RuntimeError('kiosk authentication agent restart is already pending'))
-            return
         try:
-            if self._locales is None:
-                self._locales = installed_locales()
-            environment = agent_environment(language, desktop_language, self._locales)
+            environment = self._environment(language, desktop_language)
         except Exception as error:
             done(error)
             return
-        if environment == self._applied:
-            done(None)
+        self._queue.append((environment, done))
+        self._advance()
+
+    def warm(self, language, desktop_language):
+        """Prepare while the form is idle; a request still checks completion.
+
+        Only the latest speculative language matters. Required preparations
+        retain their order and callback, including a click during warm-up.
+        Failures are retried and reported by prepare(), never hidden from it.
+        """
+        try:
+            environment = self._environment(language, desktop_language)
+        except Exception:
             return
+        self._queue = [(value, done) for value, done in self._queue if done is not None]
+        self._queue.append((environment, None))
+        self._advance()
+
+    def _environment(self, language, desktop_language):
+        if self._locales is None:
+            self._locales = installed_locales()
+        return agent_environment(language, desktop_language, self._locales)
+
+    def _advance(self):
+        while self._done is None and self._queue:
+            environment, done = self._queue.pop(0)
+            if environment == self._applied:
+                if done is not None:
+                    done(None)
+            else:
+                self._start(environment, done or (lambda _error: None))
+
+    def _start(self, environment, done):
         # A failed or timed-out restart can still replace the running agent.
         # Never reuse the preceding locale after attempting a different one.
         self._applied = None
@@ -140,12 +166,17 @@ class KioskAgentLocale:
 
     def _finish(self, error):
         done, self._done = self._done, None
-        self.close()
+        self._clear_sources()
         if done is not None:
             done(error)
+        self._advance()
 
     def close(self):
         self._done = None
+        self._queue.clear()
+        self._clear_sources()
+
+    def _clear_sources(self):
         self._revision += 1
         if self._subscription:
             self._connection.signal_unsubscribe(self._subscription)

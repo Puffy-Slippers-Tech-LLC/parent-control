@@ -466,7 +466,7 @@ for PolicyKit's single-pass property expansion. An unset kiosk preference also
 uses the child's desktop language for this message.
 
 The standard MATE authentication agent owns its labels, buttons and errors.
-Before a dedicated kiosk request, [agent_locale.py](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py)
+When the dedicated kiosk form's language is ready, [agent_locale.py](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py)
 atomically writes a private environment file under the kiosk's XDG runtime
 directory. Its systemd user unit consumes this through `EnvironmentFile`.
 `LANG` supplies the agent's PolicyKit registration locale; `LANGUAGE` selects
@@ -479,8 +479,13 @@ These settings apply only to that service's process; the product process,
 user manager environment, child desktop and OS settings are unchanged.
 The kiosk calls the user manager's public `RestartUnit` method and waits for
 the matching successful `JobRemoved` result before requesting approval.
-Identical successfully applied settings reuse the agent; failures or the
-30-second deadline stop submission and use the ordinary error path.
+This preparation starts while the form is idle. A click during preparation
+waits for the same language; queued language changes run serially, with only
+the latest speculative choice retained. Every request still verifies successful
+preparation before submission. Identical successfully applied settings reuse
+the agent. Failed speculative preparation is retried on request; a required
+preparation failure or the 30-second deadline stops submission and uses the
+ordinary error path. Closing the form discards queued callbacks.
 Attempting a different locale invalidates the prior successful cache, including
 when the restart fails or completes after the deadline.
 Service startup does not establish PolicyKit registration readiness. The broker

@@ -50,7 +50,6 @@ from .floating_islands import (
 )
 from .lava import LavaBands
 from .lightning import LightningDischarge
-from .thunder import LightningAudio
 from .chrome import (
     ABOUT, BOARD_CHAIN_ANCHOR_END_INSET, BOARD_CHAIN_ANCHOR_SIDE_INSET, HELP,
     MENU, GEAR, SPEAKER, SPEAKER_MUTED, ArmoredButton, ArmoredMenuButton, HudIconFrame,
@@ -957,6 +956,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._whats_new = WhatsNewPresenter(self)
         self._preview_languages = {}
         self._agent_locale = None if child_overlay else KioskAgentLocale()
+        self._session_logout = None
         self._state = RequestState()
         self._estimate_revision = 0
         self._estimate_in_flight = False
@@ -971,8 +971,13 @@ class RequestWindow(Adw.ApplicationWindow):
             (None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None))
         )
         self._build()
-        self._thunder = LightningAudio()
-        self._background.set_lightning_audio(self._thunder.play)
+        self._thunder = None
+        if REQUEST_MEDIA_ENABLED:
+            # Disabled media must not load GStreamer, synthesize the sound
+            # bank or construct an audio pipeline before presenting the form.
+            from .thunder import LightningAudio
+            self._thunder = LightningAudio()
+            self._background.set_lightning_audio(self._thunder.play)
         # Start muted before playback so neither production nor either preview
         # surface can emit audio while preferences are loading.
         self._apply_mute(True)
@@ -995,6 +1000,8 @@ class RequestWindow(Adw.ApplicationWindow):
         self._whats_new.close()
         if self._agent_locale is not None:
             self._agent_locale.close()
+        if self._session_logout is not None:
+            self._session_logout.close()
         for source_id in (self._estimate_debounce_id, self._estimate_refresh_id):
             if source_id:
                 GLib.source_remove(source_id)
@@ -1443,6 +1450,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._stack.set_sensitive(True)
         set_automation_id(self._language_readiness, "kiosk-language-ready")
         self._language_ready = True
+        GLib.idle_add(self._warm_authentication)
         GLib.idle_add(self._whats_new.try_auto)
 
     def _save_language(self, language, success, failure):
@@ -1494,7 +1502,14 @@ class RequestWindow(Adw.ApplicationWindow):
         self._stack.set_sensitive(True)
         set_automation_id(self._language_readiness, "kiosk-language-ready")
         self._language_ready = True
+        GLib.idle_add(self._warm_authentication)
         GLib.idle_add(self._whats_new.try_auto)
+
+    def _warm_authentication(self):
+        if (not self._preview and not self._child_overlay and not self._estimate_closed
+                and not self._state.in_flight):
+            self._agent_locale.warm(self._applied_language, self._desktop_language)
+        return GLib.SOURCE_REMOVE
 
     def _apply_language(self, language):
         if not self._child_overlay:
@@ -1547,7 +1562,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _apply_mute(self, muted):
         muted = muted or not REQUEST_MEDIA_ENABLED
         self._muted = muted
-        self._thunder.set_muted(muted)
+        if self._thunder is not None:
+            self._thunder.set_muted(muted)
         self._background.set_lightning_enabled(not muted)
         self._mute_icon.set_pixels(SPEAKER_MUTED if muted else SPEAKER)
         set_text(self._mute_button, 'tooltip-text', m.UNMUTE_SOUND_AND_LIGHTNING if muted else m.MUTE_SOUND_AND_LIGHTNING
@@ -1586,10 +1602,12 @@ class RequestWindow(Adw.ApplicationWindow):
                 self._thunder.cancel_fade()
             self._stack.set_visible_child_name("request")
             return
-        # OnSuccess=gnome-session-shutdown.target on the application unit turns
-        # this clean exit into a supported kiosk-session logout back to GDM.
         LOG.info("kiosk.009")
-        self.get_application().quit()
+        self._stack.set_sensitive(False)
+        if self._session_logout is None:
+            from .session_logout import KioskLogout
+            self._session_logout = KioskLogout(self.get_application())
+        self._session_logout.begin()
 
     def _close_overlay(self, *_args):
         self._cancel_success_dismiss()

@@ -38,6 +38,51 @@ def reproduce_kiosk_entry(lease):
     return reproduce_denial(lease, InstalledJourney, PLAN, 'request-form', 'kiosk-entry')
 
 
+def probe_kiosk_latency(lease, samples=10):
+    """Measure bounded public entry/Cancel cycles in the present owned guest.
+
+    Timings include guarded transport and observation overhead. They are useful
+    for paired comparisons, not exact display-frame latency or acceptance.
+    The caller owns reboot/cold state; this probe never resets the guest.
+    """
+    import time
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from kiosk_entry import enter_station
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-latency:samples')
+    with operation('Measuring request-station entry and Cancel cycles'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-latency-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('kiosk-latency: evidence=' + str(directory), flush=True)
+        transport = connect(lease)
+        ui = UiObservations(transport)
+        ui.boot_guard = ''
+        results = []
+
+        def observe(name):
+            lease.guard()
+            return ui.observe(name)
+
+        for index in range(samples):
+            started = enter_station(lease, ui, observe)
+            observe('station-default-entry')
+            observe('kiosk-request-form')
+            entry_seconds = (time.monotonic_ns() - started) / 1e9
+            started = time.monotonic_ns()
+            observe('kiosk-request-cancel')
+            observe('gdm-station-returned')
+            result = {'sample': index + 1, 'boot_sha256': ui.boot_proof,
+                      'entry_seconds': entry_seconds,
+                      'cancel_seconds': (time.monotonic_ns() - started) / 1e9}
+            results.append(result)
+            (directory / 'timings.json').write_text(json.dumps(results, indent=2) + '\n')
+            print('kiosk-latency: ' + json.dumps(result, sort_keys=True), flush=True)
+        lease.guard()
+
+
 def reproduce_kiosk_preferences(lease):
     """Diagnose one Preferences operation and retain its scene, never acceptance."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -55,6 +100,50 @@ def reproduce_kiosk_approval(lease):
     from kiosk_approved_flow import PLAN
     return reproduce_denial(lease, RequestFlowJourney, PLAN,
                             'approval-qualified', 'kiosk-approval', native_log=True)
+
+
+def probe_kiosk_prompt_latency(lease, samples=10):
+    """Observe the first native prompt in bounded fresh station sessions.
+
+    The shared operation records its request-to-prompt interval in private
+    stderr. It includes prompt observation overhead, but excludes form setup,
+    transport and the independent Cancel/result checks. Measured approval prompts
+    receive no password; shared preparation authenticates the fixture Parent.
+    """
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from request_flow import RequestFlowJourney
+    from mate_prompt import PLAN
+    from kiosk_entry import enter_station
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    system.require(type(samples) is int and 1 <= samples <= 10, 'kiosk-prompt-latency:samples')
+    reproduce_denial(lease, RequestFlowJourney, PLAN, 'open-mate', 'kiosk-prompt-latency')
+    with operation('Measuring Request to native approval prompt'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-prompt-latency-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('kiosk-prompt-latency: evidence=' + str(directory), flush=True)
+        observer = UiObservations(connect(lease))
+        observer.boot_guard = ''
+        results = []
+
+        def observe(name):
+            lease.guard()
+            return observer.observe(name)
+
+        for index in range(samples):
+            if index:
+                enter_station(lease, observer, observe)
+                observe('station-default-entry')
+                observe('kiosk-valid-fraction-soft-read')
+            observed = observe('kiosk-mate-cancel')
+            results.append({'sample': index + 1, 'observed': observed})
+            (directory / 'observed.json').write_text(json.dumps(results, indent=2) + '\n')
+            print('kiosk-prompt-latency: completed sample=' + str(index + 1), flush=True)
+            observe('kiosk-request-cancel')
+            observe('gdm-station-returned')
+        lease.guard()
 
 
 def probe_kiosk_approval(lease):

@@ -50,7 +50,10 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
    to the kiosk user's session; ordinary desktops retain crash reporting.
    It remains request-only. Cancel or
    Escape returns to the sign-in screen, and approval does so after a brief
-   confirmation.
+   confirmation. The app registers a temporary client with GNOME's public
+   session manager and acknowledges its logout protocol before exiting, avoiding
+   the clientless query timeout. A 750 ms deadline bounds this handoff; app-unit
+   `OnSuccess` shutdown remains the fallback if registration or logout fails.
 
 The child overlay and kiosk deliberately use the same GTK request form and
 validation. They differ in child selection, remembered selector ownership,
@@ -914,7 +917,9 @@ with short live PCM buffers to keep attacks near the animation.
 Sound and lightning are temporarily disabled on both request surfaces, and the
 mute/unmute button is hidden and insensitive. `REQUEST_MEDIA_ENABLED` retains a
 single restoration switch; saved per-child mute values and handlers remain in
-place, but cannot unmute the current UI. Muting flushes voices and playback;
+place, but cannot unmute the current UI. While disabled, the window skips the
+audio module import, sound-bank synthesis and pipeline construction entirely.
+When enabled, muting flushes voices and playback;
 unmuting waits for a fresh visible flash. Successful dismissal fades remaining
 effects, and window destruction releases the pipeline. Missing audio output
 disables sound without preventing requests. Logs report state and error codes,

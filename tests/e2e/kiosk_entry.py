@@ -35,6 +35,32 @@ def confinement_census(transport, lease):
     return json.loads(result)
 
 
+def enter_station(lease, ui, observe):
+    """Enter once from a fresh, boot-bound public account/focus observation."""
+    observe('gdm-station-list')
+    boot = ui.boot_proof
+    require(type(boot) is str and re.fullmatch(r'[0-9a-f]{64}', boot),
+            'kiosk-activation:boot-proof')
+    ui.boot_guard = boot
+    checked = time.monotonic()
+    recipient = observe('gdm-station-focused')
+    require(recipient == {'operation': 'gdm-station-focused',
+            'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'},
+            'kiosk-activation:recipient')
+    with watch_activity.operation('Entering the freshly focused request station'):
+        lease.guard()
+        require(0 <= time.monotonic() - checked < 30,
+                'kiosk-activation:stale-recipient')
+        started = time.monotonic_ns()
+        try:
+            lease.source.domain.sendKey(
+                lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [28], 1, 0)
+        finally:
+            # An uncertain Enter is never replayed, including guard failure.
+            lease.guard()
+    return started
+
+
 def observe_activation(transport, lease, phase):
     """Observe real GDM entry in the caller's uninterrupted install history.
 
@@ -53,28 +79,8 @@ def observe_activation(transport, lease, phase):
             observations.append(value)
             return value
 
-        observe('gdm-station-list')
+        enter_station(lease, ui, observe)
         boot = ui.boot_proof
-        require(type(boot) is str and re.fullmatch(r'[0-9a-f]{64}', boot),
-                'kiosk-activation:boot-proof')
-        ui.boot_guard = boot
-        # Start before the independent read: a slow read cannot grant a longer
-        # input window. No intervening observation may reuse this recipient.
-        checked = time.monotonic()
-        recipient = observe('gdm-station-focused')
-        require(recipient == {'operation': 'gdm-station-focused',
-                'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'},
-                'kiosk-activation:recipient')
-        with watch_activity.operation('Entering the freshly focused request station'):
-            lease.guard()
-            require(0 <= time.monotonic() - checked < 30,
-                    'kiosk-activation:stale-recipient')
-            try:
-                lease.source.domain.sendKey(
-                    lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [28], 1, 0)
-            finally:
-                # An uncertain Enter is never replayed, including guard failure.
-                lease.guard()
 
         if phase == 'installed':
             observe('station-initial-entry')

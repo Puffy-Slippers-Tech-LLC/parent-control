@@ -74,6 +74,7 @@ class KioskRenderingTests(unittest.TestCase):
                                                set_sensitive=lambda *_: None),
                         _language_readiness=object(),
                         _whats_new=SimpleNamespace(try_auto=lambda: None),
+                        _warm_authentication=lambda: None,
                         _apply_language=lambda language: applied.append(language) or True,
                         _open_language_dialog=lambda: dialogs.append(True),
                         _bus_call=lambda *args: callbacks.append(args[-1]),

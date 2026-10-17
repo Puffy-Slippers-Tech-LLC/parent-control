@@ -174,7 +174,13 @@ def directory_layout(config, records):
             if stat.S_ISLNK(info.st_mode):
                 entries.append({'path': str(child), 'kind': 'link', 'link': os.readlink(child)})
             else:
-                trusted(child, directory=stat.S_ISDIR(info.st_mode))
+                # The containing directory and all its ancestors were checked
+                # above. lstat identifies this immediate non-link child; do
+                # not resolve and recheck the same ancestry for every sibling.
+                if info.st_mode & 0o022:
+                    raise ValueError('untrusted-path')
+                if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                    raise ValueError('unexpected-file-type')
                 entries.append({'path': str(child), 'kind': 'tree' if child in covered else
                                 'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
             if len(entries) > 32768:
@@ -209,7 +215,14 @@ def verify_tree(root, layout):
             if not stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or os.readlink(path) != entry['link']:
                 raise ValueError('directory-generation-changed')
         else:
-            trusted(path, directory=entry['kind'] in ('tree', 'directory'))
+            # rglob does not descend through directory symlinks. The complete
+            # inventory checks every private ancestor as its own entry, while
+            # trusted(root) checks the ancestors outside the tree once.
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise ValueError('untrusted-path')
+            directory = entry['kind'] in ('tree', 'directory')
+            if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
+                raise ValueError('unexpected-file-type')
             if entry['kind'] == 'file' and (info.st_nlink != 1 or info.st_size != 0):
                 raise ValueError('directory-generation-changed')
 

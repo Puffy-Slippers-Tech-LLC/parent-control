@@ -381,6 +381,14 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
         with pytest.raises(ValueError):
             select(root, ['vm', action, '1', *VM_ARGS])
 
+    for action in ('probe-kiosk-latency', 'probe-kiosk-prompt-latency'):
+        for counts in ([], ['1'], ['10']):
+            command = select(root, ['vm', action, *counts, *VM_ARGS])
+            assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, action, *counts]
+        for counts in (['0'], ['11'], ['1', '2']):
+            with pytest.raises(ValueError):
+                select(root, ['vm', action, *counts, *VM_ARGS])
+
 
 def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monkeypatch):
     import vm_probe
@@ -392,6 +400,102 @@ def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monk
     vm_probe.reproduce_kiosk_entry(lease)
     reproduce.assert_called_once_with(lease, InstalledJourney, PLAN,
                                      'request-form', 'kiosk-entry')
+
+
+@pytest.mark.parametrize('failure', [None, 'station-default-entry', 'kiosk-request-form',
+                                   'kiosk-request-cancel', 'gdm-station-returned'])
+def test_kiosk_latency_retains_completed_cycles_and_never_replays_refused_input(
+        tmp_path, monkeypatch, failure):
+    from contextlib import nullcontext
+    import kiosk_entry
+    import qualification_storage
+    import ui_observations
+    import vm_probe
+
+    operations = ['station-default-entry', 'kiosk-request-form',
+                  'kiosk-request-cancel', 'gdm-station-returned']
+    calls = []
+
+    def observe(name):
+        calls.append(name)
+        # Keep the first completed measurement even if the next cycle refuses.
+        if len(calls) > 4 and name == failure:
+            raise runner.Error('synthetic-refusal')
+        return {'operation': name, 'outcome': 'passed'}
+
+    observer = SimpleNamespace(observe=observe, boot_proof='a' * 64)
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=observer))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    enter = Mock(return_value=0)
+    monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if failure:
+        with pytest.raises(runner.Error, match='synthetic-refusal'):
+            vm_probe.probe_kiosk_latency(lease, samples=3)
+    else:
+        vm_probe.probe_kiosk_latency(lease, samples=3)
+    assert calls == (operations + operations[:operations.index(failure) + 1]
+                     if failure else operations * 3)
+    assert enter.call_count == (2 if failure else 3)
+    results = json.loads((tmp_path / 'timings.json').read_text())
+    assert len(results) == (1 if failure else 3)
+    assert [item['sample'] for item in results] == list(range(1, len(results) + 1))
+    assert all(item['boot_sha256'] == 'a' * 64 and item['entry_seconds'] >= 0
+               and item['cancel_seconds'] >= 0 for item in results)
+    assert lease.commands.directory == tmp_path / 'private'
+
+
+@pytest.mark.parametrize('failure', [None, 'prepare', 'second-prompt'])
+def test_prompt_latency_reuses_guarded_cancel_and_stops_on_refusal(tmp_path, monkeypatch, failure):
+    from contextlib import nullcontext
+    import kiosk_entry
+    import qualification_storage
+    import ui_observations
+    import vm_probe
+    from mate_prompt import PLAN
+    from request_flow import RequestFlowJourney
+
+    reproduce = Mock(side_effect=runner.Error('synthetic-refusal') if failure == 'prepare' else None)
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    prompt_count = 0
+
+    def observation(name):
+        nonlocal prompt_count
+        if name == 'kiosk-mate-cancel':
+            prompt_count += 1
+            if failure == 'second-prompt' and prompt_count == 2:
+                raise runner.Error('synthetic-refusal')
+        return {'outcome': 'passed'}
+
+    observe = Mock(side_effect=observation)
+    enter = Mock(return_value=0)
+    monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
+    monkeypatch.setattr(ui_observations, 'UiObservations', Mock(return_value=SimpleNamespace(observe=observe)))
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if failure:
+        with pytest.raises(runner.Error, match='synthetic-refusal'):
+            vm_probe.probe_kiosk_prompt_latency(lease, 3)
+    else:
+        vm_probe.probe_kiosk_prompt_latency(lease, 3)
+    reproduce.assert_called_once_with(lease, RequestFlowJourney, PLAN,
+                                     'open-mate', 'kiosk-prompt-latency')
+    assert prompt_count == {'prepare': 0, 'second-prompt': 2, None: 3}[failure]
+    assert enter.call_count == {'prepare': 0, 'second-prompt': 1, None: 2}[failure]
+    cycle = ['kiosk-mate-cancel', 'kiosk-request-cancel', 'gdm-station-returned']
+    entry = ['station-default-entry', 'kiosk-valid-fraction-soft-read']
+    expected = ([] if failure == 'prepare' else cycle + entry + cycle[:1]
+                if failure else cycle + (entry + cycle) * 2)
+    assert [call.args[0] for call in observe.call_args_list] == expected
+    if failure == 'prepare':
+        assert not (tmp_path / 'observed.json').exists()
+    else:
+        values = json.loads((tmp_path / 'observed.json').read_text())
+        assert [item['sample'] for item in values] == ([1] if failure else [1, 2, 3])
 
 
 def test_kiosk_preferences_reproduction_keeps_public_preparation_and_one_diagnostic(monkeypatch):

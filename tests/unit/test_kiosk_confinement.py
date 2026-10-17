@@ -2830,6 +2830,17 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     monkeypatch.setattr(helper, 'trusted', lambda source, **kwargs:
                         marker if str(source) == '/var/lib/oh-no-parent-control/package-created-kiosk-uid'
                         else Path(source))
+    original_lstat = Path.lstat
+
+    def metadata(source):
+        info = original_lstat(source)
+        if source == runtime or runtime in source.parents:
+            values = list(info)
+            values[4] = 0  # Model root-created generation files without host privileges.
+            return os.stat_result(values)
+        return info
+
+    monkeypatch.setattr(helper.Path, 'lstat', metadata)
     def verify(arguments, **kwargs):
         assert arguments == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify']
         contents = ((payload / 'config.json').read_bytes(),
@@ -2968,6 +2979,8 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
     payload = private_root / 'usr/share/oh-no-parent-control/confinement'
     payload.mkdir(parents=True)
     (payload / 'generation').touch()
+    for path in private_root.rglob('*'):
+        path.chmod(0o755 if path.is_dir() else 0o644)
     original_iterdir, original_lstat = Path.iterdir, Path.lstat
     visited = []
 
@@ -3211,6 +3224,7 @@ def test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone(
     detached = [value.removeprefix('detach:') for value in operations if value.startswith('detach:')]
     if fault == 'none':
         assert detached == targets
+        assert [value for value in operations if value.startswith('readonly:')] == ['readonly:/usr']
         assert operations.index('readonly:/usr') < operations.index('detach:' + targets[0])
     elif fault == 'detach':
         assert detached == targets[:1]
@@ -3248,6 +3262,51 @@ def test_directory_skeleton_preserves_links_without_following_them(tmp_path, mon
     (tree / 'bin/alias').unlink()
     (tree / 'bin/alias').symlink_to(tmp_path)
     with pytest.raises(ValueError, match='directory-generation-changed'):
+        helper.verify_tree(tree, layout)
+
+
+@pytest.mark.parametrize('fault', ['directory-write', 'file-write', 'unowned-directory',
+    'unowned-file', 'directory-link', 'file-link', 'file-type', 'hardlink', 'content',
+    'unexpected', 'missing'])
+def test_private_tree_validation_rejects_changed_entries_and_ancestors(tmp_path, monkeypatch, fault):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    tree = tmp_path / 'tree'
+    layout = [{'path': '/usr/bin', 'kind': 'tree'},
+              {'path': '/usr/bin/program', 'kind': 'file'}]
+    helper.make_tree(tree, layout)
+    directory, program = tree / 'bin', tree / 'bin/program'
+    original = Path.lstat
+
+    def metadata(path):
+        info = list(original(path))
+        info[4] = 1001 if ((fault == 'unowned-directory' and path == directory) or
+                          (fault == 'unowned-file' and path == program)) else 0
+        return os.stat_result(info)
+
+    monkeypatch.setattr(helper.Path, 'lstat', metadata)
+    monkeypatch.setattr(helper, 'trusted', lambda path, **_kw: path)
+    if fault == 'directory-write':
+        directory.chmod(0o777)
+    elif fault == 'file-write':
+        program.chmod(0o666)
+    elif fault == 'directory-link':
+        directory.rename(tmp_path / 'outside')
+        directory.symlink_to(tmp_path / 'outside')
+    elif fault == 'file-link':
+        program.unlink()
+        program.symlink_to(tmp_path / 'absent')
+    elif fault == 'file-type':
+        program.unlink()
+        program.mkdir()
+    elif fault == 'hardlink':
+        os.link(program, tmp_path / 'linked')
+    elif fault == 'content':
+        program.write_bytes(b'changed')
+    elif fault == 'unexpected':
+        (directory / 'extra').touch()
+    elif fault == 'missing':
+        program.unlink()
+    with pytest.raises(ValueError):
         helper.verify_tree(tree, layout)
 
 

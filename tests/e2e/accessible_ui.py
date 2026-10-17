@@ -10806,9 +10806,15 @@ class AccessibleUI:
         require(prompt() is None, 'ui:mate-already-open')
         challenge_id = os.urandom(32).hex()
         try:
-            self._invoke_target(self.kiosk_valid_target('kiosk-request-submit', child=child, approver=approver))
+            target = self.kiosk_valid_target('kiosk-request-submit', child=child, approver=approver)
+            started = time.monotonic()
+            self._invoke_target(target)
             self.invalidate_observation()
             pid, challenge = self.wait_mate_prompt(binding=binding)
+            print(json.dumps({'event': 'mate-prompt-latency',
+                              'request_to_observed_prompt_ms': round(
+                                  (time.monotonic() - started) * 1000, 3)}, sort_keys=True),
+                  file=sys.stderr, flush=True)
             provider = self.mate_provider_metadata(pid)
             rejected = self.mate_prompt_refusals(pid, challenge) if refusals else []
             require(self.mate_agent_pid() == pid, 'ui:mate-owner')

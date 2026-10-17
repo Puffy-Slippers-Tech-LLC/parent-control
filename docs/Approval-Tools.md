@@ -38,6 +38,13 @@ metadata require execution outside the sandbox, use the existing scoped helper
 grant. Do not add duplicate rules, broad shell/interpreter grants or permission
 prompts to work around restrictive policy.
 
+The general host Python rule explicitly prompts, even when an older or narrower
+allow rule also matches: the most restrictive decision wins. Do not use ad hoc
+host interpreter commands to assemble routine reports or edit text. Use the
+existing launcher/artifact routes and native `apply_patch` for authorized text
+edits. A repeat prompt on those interpreter commands is expected policy, not a
+missing allow rule to repair.
+
 Human authorization is exceptional: initial administrator bootstrap, repair of
 a denied installation from an administrator-authorized root session, an operation
 outside the user's authorized scope, or a capability blocked by applicable policy.
@@ -507,6 +514,8 @@ replacement by name alone.
 | `tools/test-vm --vm NAME exec [--timeout SECONDS] -- COMMAND [ARG ...]` | Execute as guest root in the current owned online app-snapshot maintenance instance; reuse saved private credentials, strict SSH host-key and guest identity checks, shared observation and the exclusive lease; preserve guest state and return its command status |
 | `tools/test-vm --vm NAME reproduce-gdm-denial` | Diagnostic-only replay of the shared fresh-child zero-time journey through its bounded Cancel sequence; close the graphical worker and retain the owned online guest before final account-list observation, for `exec` probes followed by `stop`. No acceptance credit. |
 | `tools/test-vm --vm NAME reproduce-kiosk-preferences` | Replay the shared prepared kiosk request up to the Preferences restriction stage, run its public operation once as a private diagnostic, then close the graphical worker and retain the owned online guest for `exec` probes followed by `stop`. Keep success or refusal separate from acceptance; no restriction stage advances and no acceptance credit is supplied. |
+| `tools/test-vm --vm NAME probe-kiosk-latency [SAMPLES]` | Measure ten public station-entry/Cancel cycles by default (optional count 1–10) from the greeter in an owned online app-snapshot guest. Reuse the guarded entry, form and greeter observations; retain timings through recovery storage. No reset, installation, secret input or acceptance claim; finish with `stop`. See [timing limits](../tests/e2e/README.md#kiosk-transition-timing). |
+| `tools/test-vm --vm NAME probe-kiosk-prompt-latency [SAMPLES]` | Prepare the shared public request flow up to its first native prompt, including fixture Parent sign-in, then measure ten Request/prompt/Cancel cycles (optional count 1–10), keeping complete prompt ownership and unchanged-form checks. The measured approval prompts receive no password. No reset or acceptance claim; retain private timing evidence and finish with `stop`. See [timing limits](../tests/e2e/README.md#kiosk-transition-timing). |
 | `tools/test-vm --vm NAME reproduce-kiosk-approval` | Replay the shared kiosk approval history through the real password prompt, then close the graphical worker before challenge qualification or password input. Retain the owned online guest for identity/mount probes followed by `stop`; no acceptance credit. |
 | `tools/test-vm --vm NAME probe-kiosk-approval` | In the exact retained owned `Request denied` form, independently check the prepared child, approver, 75-second duration and soft-app choice, refresh the public custom entry from `1.25` to equivalent `1.250` and back with guarded readbacks, then invoke the shared public Request action once and retain the native prompt before password input. Retain bounded agent/Glycin journal evidence in the same owned probe allocation, with capture status separate from the observer result. No setup, backend mutation, secret provisioning or acceptance credit; finish with `stop`. |
 | `tools/test-vm --vm NAME reproduce-lock-denial` / `reproduce-retained-entry` | Replay the shared child denial or retained two-child history in the same owned maintenance envelope, stopping before the native restriction read or restricted curtain read respectively. Close the worker and retain the guest for diagnosis followed by `stop`; no acceptance credit. |
@@ -567,6 +576,12 @@ argument and decode it inside the guest rather than embedding multiline source
 or shell quote concatenations. Encoding changes transport only; guest identity,
 ownership, observation and authorization checks still apply. A rules refresh
 does not change that parser boundary or reload the current Codex process.
+For example, a Python probe uses `tools/test-vm --vm NAME exec -- python3 -I -c
+'import base64,sys; exec(base64.b64decode(sys.argv[1]))' 'ENCODED_SOURCE'`
+as one literal command, with the complete reviewed source encoded in the final
+argument. If a complex inline invocation reports an unsafe helper while simple
+commands through the same launcher work, correct the transport shape first.
+Do not reinstall the helper or request a new approval to repair shell parsing.
 For binary artifacts, use `tools/test-vm --vm NAME exec --input-file 'PATH' -- COMMAND`.
 The unprivileged launcher opens a regular, non-symlink file of at most 64 MiB and
 passes its descriptor as stdin. Privileged code never opens the supplied host

@@ -194,14 +194,20 @@ bind_kiosk_executables(char *backend, size_t size)
             goto done;
         snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", source);
         snprintf(target_fd_path, sizeof(target_fd_path), "/proc/self/fd/%d", target);
-        if (mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0 ||
-            mount_setattr(AT_FDCWD, destination, AT_RECURSIVE, &readonly, sizeof(readonly)) != 0)
+        if (mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0)
             goto done;
         if (assertion != NULL && (fstat(source, &info) != 0 ||
                 preserved_kiosk_identity(&info, assertion) != 0))
             goto done;
         if (strcmp(destination, "/usr") == 0) {
             if (strncmp(line, runtime, strlen(runtime)) != 0 || !S_ISDIR(info.st_mode))
+                goto done;
+            /* One recursive change protects every subordinate bind. Staging
+             * is root-only in this private namespace; no untrusted execution
+             * occurs before this succeeds and the staging mounts are detached.
+             * Per-sibling changes repeat thousands of mount operations. */
+            if (mount_setattr(AT_FDCWD, destination, AT_RECURSIVE,
+                              &readonly, sizeof(readonly)) != 0)
                 goto done;
             attached = 1;
         } else {

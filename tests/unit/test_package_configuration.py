@@ -731,6 +731,90 @@ def test_ubuntu_does_not_start_fedora_readiness_unit(package_machine):
     assert 'fapolicyd-cli --reload-rules' not in (root / 'commands').read_text()
 
 
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('manager_state', ['inactive', 'active', 'failed'])
+def test_configuration_retires_only_the_owned_failed_kiosk_manager(package_machine, manager_state):
+    root, _, run = package_machine
+    failure = root / 'kiosk-manager-failed'
+    failed = manager_state == 'failed'
+    if failed:
+        failure.touch()
+    result = run(IMPACTS='reboot', KIOSK_MANAGER_STATE=manager_state)
+    assert result.returncode == 0, result.stderr
+    commands = (root / 'commands').read_text().splitlines()
+    reset = 'systemctl reset-failed user@1006.service'
+    assert commands.count(reset) == int(failed)
+    assert not failure.exists()
+    assert not any(command.startswith(('systemctl start user@', 'systemctl stop user@',
+                                       'systemctl restart user@')) for command in commands)
+    assert not any('reset-failed' in command and command != reset for command in commands)
+    if failed:
+        assert commands.index('oh-no-parent-control-kiosk-confinement-integration install') < commands.index(reset)
+        assert commands.index('systemctl --system start ' + BROKER) < commands.index(reset)
+    assert REBOOT_NOTICE in result.stderr
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('failure', ['confinement', 'broker', 'query', 'reset'])
+def test_kiosk_failed_state_recovery_preserves_configuration_retry(package_machine, failure):
+    root, state, run = package_machine
+    failed = root / 'kiosk-manager-failed'
+    failed.touch()
+    first_install = state / 'first-install-in-progress'
+    first_install.touch()
+    previous = state / 'previous-package-activation.json'
+    previous.write_text('original activation comparison\n')
+    result = run(**{
+        'confinement': {'CONFINEMENT_STATUS': '7'},
+        'broker': {'BROKER_STATUS': '8'},
+        'query': {'KIOSK_QUERY_STATUS': '10'},
+        'reset': {'KIOSK_RESET_STATUS': '9'},
+    }[failure])
+    assert result.returncode == {'confinement': 7, 'broker': 1, 'query': 10, 'reset': 9}[failure]
+    assert failed.exists()
+    assert (state / 'package-activation-pending').exists()
+    assert previous.read_text() == 'original activation comparison\n'
+    assert first_install.exists()
+    commands = (root / 'commands').read_text().splitlines()
+    reset = 'systemctl reset-failed user@1006.service'
+    assert (reset in commands) == (failure == 'reset')
+    retry = run()
+    assert retry.returncode == 0, retry.stderr
+    assert not failed.exists()
+    assert not (state / 'package-activation-pending').exists()
+    assert not previous.exists()
+    assert not first_install.exists()
+
+
+@pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)
+@pytest.mark.parametrize('ownership', ['missing', 'changed-uid', 'symlink', 'unsafe-mode', 'foreign-owner'])
+def test_failed_manager_recovery_refuses_unowned_kiosk(package_machine, ownership):
+    root, state, run = package_machine
+    failed = root / 'kiosk-manager-failed'
+    failed.touch()
+    marker = state / 'package-created-kiosk-uid'
+    env = {}
+    if ownership == 'missing':
+        marker.unlink()
+    elif ownership == 'changed-uid':
+        marker.write_text('1007\n')
+    elif ownership == 'symlink':
+        foreign = root / 'foreign-uid'
+        foreign.write_bytes(marker.read_bytes())
+        marker.unlink()
+        marker.symlink_to(foreign)
+    else:
+        env['KIOSK_MARKER_METADATA'] = '0:644' if ownership == 'unsafe-mode' else '1000:600'
+    result = run(**env)
+    assert result.returncode != 0
+    assert 'refusing to modify an unowned or changed kiosk account' in result.stderr
+    assert failed.exists()
+    assert (state / 'package-activation-pending').exists()
+    assert not any('user@' in line for line in (root / 'commands').read_text().splitlines())
+    if ownership == 'symlink':
+        assert marker.is_symlink() and foreign.read_text() == '1006\n'
+
+
 @pytest.mark.parametrize("impacts", ["", "process-restart", "session-renewal", None],
                          ids=["reinstall", "broker-update", "session-update", "reconfigure"])
 def test_reboot_marker_repeats_package_notice_until_reboot(package_machine, impacts):

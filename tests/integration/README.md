@@ -185,6 +185,9 @@ owns fresh installation, failures after visibility publication and before final
 confinement integration, the already-passwordless owned retry, and successful
 configuration. Native account admission must remain denied while configuration
 is incomplete; ordinary-account controls precede the denials. The controller
+also verifies that successful retry clears the kiosk's failed user manager,
+excludes it from native package-trigger enumeration and permits a kiosk-scoped
+wildcard reload without starting a user manager or requiring its bus. The controller
 then reboots normally and runs `first-configure-rebooted` against the same
 identity, routing and enforcing execution boundary. Both phases retain exact
 JUnit identities and raw diagnostics. An app snapshot or previous-version input

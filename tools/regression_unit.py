@@ -1175,6 +1175,10 @@ write_e2e write_e2e_cleanup_safety whats_new sync_whatsnew
 # Fedora/Ubuntu payload fixtures. Unit parsing and activation comparisons add
 # only private files; no real systemd, SELinux policy, VM or extra build fixture.
 # The packaging modules retain their compatible unit classifications.
+# Failed kiosk-manager recovery uses the same private package-machine files,
+# bounded shell children and explicit systemctl doubles on both distributions.
+# No live manager, user bus or journal is changed; package_configuration keeps
+# its compatible classification and existing fixture ownership.
 # Configuration exclusion and dual policy-file regressions use only private
 # fixture trees and bounded command/launcher doubles. No live bus, service,
 # daemon or VM; configuration and execution_policy remain compatible units.

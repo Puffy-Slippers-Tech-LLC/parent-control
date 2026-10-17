@@ -10,6 +10,7 @@
 - **Portal**: Well, stricly speaking, not a product feature, but these under the hood security things, even though less eye-catching than fancy UI features, are notortiously hard and expensive, and, totally worth it. Check out the ["Security" tab](https://tech.puffyslippers.com/oh-no-parent-control/security/).
 
 ### Bug Fixes
+- **Installation**: Fixed package-trigger errors after a denied kiosk login on Ubuntu and Fedora.
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.
 - **Kiosk**: Fixed startup failures when unrelated installed applications have writable data directories.
 - **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.

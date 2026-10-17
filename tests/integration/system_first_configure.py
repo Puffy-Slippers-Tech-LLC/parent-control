@@ -397,7 +397,24 @@ def exercise(record):
         require(passwordless(), 'owned-passwordless-retry-changed-password')
         verify_quarantine(record, 'before-final-confinement')
         verify_ordinary(ordinary)
+    manager = f'user@{pwd.getpwnam(PRODUCT).pw_uid}.service'
+    require(guest.run(['systemctl', 'show', '--property=ActiveState', '--value', manager]) ==
+            'failed', 'denied-manager-failure-not-retained')
+    require(manager in guest.run(['systemctl', 'list-units', '--plain', '--no-legend',
+                                 'user@*.service']).split(),
+            'denied-manager-not-in-trigger-enumeration')
     retry_configuration()
+    require(guest.run(['systemctl', 'show', '--property=ActiveState', '--value', manager]) ==
+            'inactive', 'configured-manager-failure-not-cleared')
+    require(manager not in guest.run(['systemctl', 'list-units', '--plain', '--no-legend',
+                                     'user@*.service']).split(),
+            'configured-manager-still-in-trigger-enumeration')
+    # Exercise the native trigger's glob expansion/reload path, restricted to
+    # the kiosk unit. An exact literal would load the inactive unit again;
+    # this glob matches the same name while excluding inactive units.
+    guest.run(['systemctl', 'reload', manager.removesuffix('e') + '[e]'])
+    record('onpc.first-configure.manager-recovery',
+           'owned-failed-unit-reset; trigger-enumeration-excludes; wildcard-reload-succeeded')
     verify_compatibility_profile(record, 'after-retry')
     verify_account_identity(saved, 'after-retry', record)
     require(passwordless(), 'final-password-not-empty')

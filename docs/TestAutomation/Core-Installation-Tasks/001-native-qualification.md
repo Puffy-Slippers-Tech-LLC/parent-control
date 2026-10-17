@@ -47,6 +47,9 @@ native installation/retry and survive normal reboot and manager teardown while
 confinement remains enforcing. Both targets must preserve quarantine and ordinary
 user behavior, publish valid installed state, activate the broker and pass the
 native execution/refusal matrix. Retain actual native package/version receipts.
+Successful configuration must also satisfy the shared
+[failed-manager recovery check](../../../tests/integration/README.md#running-the-current-installed-suite):
+the kiosk leaves native trigger enumeration and its scoped wildcard reload succeeds.
 Do not accept a test that silently drops the optional module.
 
 Use the existing runner's collection and owned cleanup; both VMs finish in the

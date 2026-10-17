@@ -125,6 +125,16 @@ directly with DNF or from COPR must perform the same setup without a checkout or
 any Make-side repair. Local same-version rebuilds explicitly use DNF reinstall;
 normal COPR upgrades use increasing RPM releases.
 
+Local builds are unsigned. With DNF's default
+[local-package signature policy](https://dnf5.readthedocs.io/en/latest/dnf5.conf.5.html#localpkg-gpgcheck),
+installing one reports `Warning: skipped OpenPGP checks` for `@commandline`;
+that warning alone does not indicate a transaction failure. No separate signing
+key is required for local development installation. Keep repository signature
+checks enabled. Future COPR builds use COPR's automatic package signing and
+repository public key; publishing an unsigned standalone RPM would not provide
+that verification. See Fedora's
+[signature-checking design](https://fedoraproject.org/wiki/Changes/Enforcing_signature_checking_by_default).
+
 ## Fedora lifecycle
 
 Fedora uses `wheel` for the Parent launcher and broker group, `/etc/gdm` for the

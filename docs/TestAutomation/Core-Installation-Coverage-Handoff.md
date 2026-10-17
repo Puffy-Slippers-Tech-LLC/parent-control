@@ -89,6 +89,13 @@ installation; authentication was not retried. The target's successful repair
 and post-reboot Child App result still need an administrator's normal installation
 and public product verification.
 
+The subsequent failed-kiosk-manager recovery extension remains unqualified on
+both guests. On the current development host, both dispatcher UUID pins are
+absent, and automatic preparation refuses the missing/invalid private
+`TEST_ACCOUNT_PASSWORD` prerequisite. Restore that credential through the
+[environment contract](../../tests/integration/Environment.md#shared-vm-configuration),
+then use the maintained preparation and qualification routes; no guest ran.
+
 ## Coverage audit and remaining work
 
 | Boundary | Existing protection | Remaining installed qualification |

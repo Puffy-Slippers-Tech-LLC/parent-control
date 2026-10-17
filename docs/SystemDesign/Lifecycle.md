@@ -585,6 +585,17 @@ session renewal is needed for a running Shell or dedicated kiosk session to
 consume the corresponding updated payload. Configuration does not forcibly
 log users out to achieve that renewal.
 
+After successful configuration, a failed user-manager unit belonging to the
+verified package-created kiosk UID has its failed state reset. Earlier denied
+admissions can leave that unit loaded without a manager or user bus; native
+package triggers would otherwise attempt to reload or contact it. This recovery
+uses the system manager, preserves journal diagnostics and leaves running kiosk
+managers alone. A state-query or reset error fails configuration and retains
+activation records for retry; earlier configuration failures leave the failed
+unit untouched. Both Ubuntu and Fedora use this shared completion step. The
+installed interruption/retry check also verifies exclusion from native trigger
+enumeration and a kiosk-scoped wildcard reload; live qualification is pending.
+
 Successful configuration prints a green completion line. If this package has
 requested a reboot, the helper then prints
 `*** REBOOT REQUIRED: reboot before using the kiosk session. ***` as the last

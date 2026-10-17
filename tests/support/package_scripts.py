@@ -427,7 +427,7 @@ case "$name" in
     getent)
         printf 'oh-no-parent-control:x:1006:1006::%s/home/oh-no-parent-control:/bin/bash\n' "$AUDIT_ROOT"
         ;;
-    stat) printf '0:600\n' ;;
+    stat) printf '%s\n' "${KIOSK_MARKER_METADATA:-0:600}" ;;
     debconf-communicate) printf '%s\n' "${PAM_PROFILES:-0 unix, malcontent}" ;;
     pam-auth-update)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
@@ -504,6 +504,15 @@ case "$name" in
             'is-active --quiet fapolicyd.service')
                 if [ -f "$AUDIT_ROOT/fapolicyd-active" ]; then exit 0; fi
                 exit "${FAPOLICYD_ACTIVE_STATUS:-0}" ;;
+            'show --property=ActiveState --value user@1006.service')
+                test "${KIOSK_QUERY_STATUS:-0}" = 0 || exit "$KIOSK_QUERY_STATUS"
+                if [ -f "$AUDIT_ROOT/kiosk-manager-failed" ]; then printf '%s\n' failed
+                else printf '%s\n' "${KIOSK_MANAGER_STATE:-inactive}"; fi
+                ;;
+            'reset-failed user@1006.service')
+                test "${KIOSK_RESET_STATUS:-0}" = 0 || exit "$KIOSK_RESET_STATUS"
+                rm "$AUDIT_ROOT/kiosk-manager-failed"
+                ;;
             'start oh-no-parent-control-execution-policy-ready.service')
                 test -f "$AUDIT_ROOT/canary-loaded" || exit 92
                 exit "${READINESS_STATUS:-0}"

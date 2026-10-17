@@ -277,6 +277,20 @@ if [ "$1" = configure ]; then
     if [ "$trust_deferred" -eq 0 ]; then
         activate_broker "$broker_action"
     fi
+    # An earlier denied kiosk login can leave its user manager failed. The
+    # distribution's package triggers enumerate failed user@ units too, then
+    # try to reload the absent manager and connect to its nonexistent bus.
+    # Once configuration succeeds, clear only this verified package account's
+    # failed unit. Preserve its journal and never start/stop a live manager.
+    if [ -d /run/systemd/system ]; then
+        kiosk_uid=$(id -u "$kiosk_user")
+        # A predicate's nonzero exit can also mean a bus/query failure. Keep
+        # that failure fatal instead of silently consuming the retry records.
+        kiosk_manager_state=$(systemctl show --property=ActiveState --value "user@$kiosk_uid.service")
+        if [ "$kiosk_manager_state" = failed ]; then
+            systemctl reset-failed "user@$kiosk_uid.service"
+        fi
+    fi
     # Preserve the comparison on failure so a configure retry repeats the
     # required activation and cannot lose a pending reboot requirement.
     if [ -f "$pending" ]; then

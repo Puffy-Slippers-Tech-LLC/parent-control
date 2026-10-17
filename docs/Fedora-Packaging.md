@@ -42,9 +42,11 @@ upload and monitoring stay in the existing [publisher](Publishing.md).
 
 ## Local builds
 
-On Fedora 44, `make build` builds native RPMs. On Ubuntu it starts both binary
-formats concurrently from one frozen source generation, with separate working
-copies. `PACKAGE_FORMAT=deb|rpm|both` overrides the host default for both
+On Fedora 44 and Ubuntu, `make build` starts both binary formats concurrently
+from one frozen source generation, with separate working copies. Fedora builds
+RPMs natively and DEBs in a prepared Ubuntu 26.04 container; Ubuntu builds DEBs
+natively and RPMs in a prepared Fedora 44 container.
+`PACKAGE_FORMAT=deb|rpm|both` overrides the default for both
 `make build` and `make updateversion`. Debian outputs, including debug
 packages, `.changes` and `.buildinfo`, go to `output/deb/`. RPM sources, rendered
 spec, input fingerprint, SRPM and binary RPMs go to `output/rpm/`. A failed
@@ -53,9 +55,10 @@ from the other backend remain.
 
 Full `./setup.sh` and `./setup.sh --dependencies-only` install development and
 local-check prerequisites without requiring VMs. Fedora 44 receives native RPM
-build dependencies from the spec's inventory, plus Debian archive helpers used
-by local regression fixtures. These do not qualify native DEB product builds
-on Fedora. Ubuntu receives DEB prerequisites,
+build dependencies from the spec's inventory, Debian archive helpers used by
+local regression fixtures and rootless Podman, then prepares a caller-owned
+Ubuntu 26.04 build image. DEB product binaries use Ubuntu libraries inside that
+image. Ubuntu receives DEB prerequisites,
 RPM tools and rootless Podman, then prepares a caller-owned Fedora 44 build image.
 An existing development host can prepare just its RPM path with
 `./setup.sh --rpm-build-tools`. Refresh installed setup helpers first with
@@ -69,6 +72,14 @@ either require repeating setup. Podman needs the invoking user's normal
 subordinate UID/GID mappings and permitted rootless container execution.
 Setup reports missing host prerequisites and preserves unrelated configuration.
 
+The [Ubuntu container recipe](../debian/Containerfile) installs build dependencies
+from the source paragraph of [Debian control](../debian/control). Its local tag
+fingerprints the recipe and build requirements; changes require repeating
+`./setup.sh --dependencies-only`. Setup passes only package metadata into the
+image build. DEB builds mount only their private workspace, with a private
+SELinux label on Fedora, and run without networking or image pulls, with dropped
+capabilities. Missing or outdated images fail with setup guidance.
+
 Binary builds use native Fedora 44 `rpmbuild`, a configured noninteractive Mock
 builder for `fedora-44-x86_64`, or the prepared Podman image on Ubuntu. Container
 builds run without networking or image pulls, with dropped capabilities and only
@@ -79,7 +90,7 @@ Host preparation follows [the setup contract](Approval-Tools.md#one-time-setup).
 
 | Scope | Command |
 | --- | --- |
-| Host default (RPM on Fedora; both on Ubuntu) | `make build` |
+| Both binary formats on Fedora and Ubuntu | `make build` |
 | Both binary formats, with both backends prepared | `make build PACKAGE_FORMAT=both` |
 | Debian alone | `make build PACKAGE_FORMAT=deb` |
 | Fedora RPM and SRPM | `make build-rpm` |

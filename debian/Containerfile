@@ -1,0 +1,8 @@
+FROM docker.io/library/ubuntu:26.04
+# Setup supplies only package metadata, never the developer checkout.
+COPY control /build-prerequisites/debian/control
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential dpkg-dev \
+    && DEBIAN_FRONTEND=noninteractive apt-get build-dep -y --no-install-recommends /build-prerequisites \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build/source

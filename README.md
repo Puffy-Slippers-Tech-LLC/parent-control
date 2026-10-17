@@ -109,8 +109,9 @@ make updateversion
 ```
 
 `make updateversion` prepares the latest product version from
-`docs/VersionHistory.md` and builds packages using the host default: Debian and
-Fedora RPM in parallel on Ubuntu, or native RPM on Fedora 44. Outputs are under
+`docs/VersionHistory.md` and builds Debian and Fedora RPM packages in parallel
+on both Ubuntu and Fedora 44. Each host builds its native format directly and
+the other format in a prepared container. Outputs are under
 `output/deb/` and `output/rpm/`. Use `PACKAGE_FORMAT=deb|rpm|both` to select a
 different scope with its prerequisites installed. `make build` rebuilds the
 current version using the same selection.

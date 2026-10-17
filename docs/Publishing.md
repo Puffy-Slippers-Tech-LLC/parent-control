@@ -9,8 +9,9 @@ make updateversion
 
 This needs no version parameter. It reads the newest history version (including an
 undated draft), updates `data/app.json` and the Debian changelog for private
-builds, and builds the host's default formats: Debian and RPM on Ubuntu, native
-RPM on Fedora 44. `PACKAGE_FORMAT=deb|rpm|both` overrides this selection. Both
+builds, and builds both Debian and RPM on Ubuntu and Fedora 44. The host's native
+format builds directly; the other uses a prepared container.
+`PACKAGE_FORMAT=deb|rpm|both` overrides this selection. Both
 formats share one frozen source snapshot when built together. For product 1.3, the private Debian version is
 `1.3+local1~ubuntu26.04.1`; RPM uses Version `1.3` and the configured `RPM_RELEASE`
 (default `0.1.dev`). Outputs are in `output/deb/` and `output/rpm/`.

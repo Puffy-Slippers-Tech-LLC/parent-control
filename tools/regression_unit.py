@@ -15,6 +15,11 @@ os-release/command fixtures, process-local platform/Polkit/package doubles and
 bounded waited shell/Make children. No real package manager, VM, bus, display,
 network or shared cache is added. Their compatible unit classifications remain
 appropriate; cleanup and UI inventories gain no module or ownership mechanic.
+DEB container regressions in build_package and setup_entrypoint and RPM route
+fixtures in rpm_packaging use private metadata/workspaces and process-local
+platform/Podman doubles; no real image store,
+container, network or shared cache is acquired. Compatible unit scheduling and
+the existing cleanup/UI inventory classifications remain unchanged.
 
 graphical_smoke's standalone-import regression owns one bounded, waited isolated
 Python child with bytecode disabled and a pytest-private working directory.

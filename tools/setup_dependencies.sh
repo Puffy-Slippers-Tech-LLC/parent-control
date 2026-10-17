@@ -16,7 +16,7 @@ if [[ $setup_platform == fedora ]]; then
         exit 2
     fi
     # Keep this inventory aligned with rpm/oh-no-parent-control.spec.in.
-    # No container or VM runtime is needed for native Fedora 44 builds.
+    # RPM-only setup stays native; full setup adds the Ubuntu DEB builder.
     rpm_packages=(rpm-build gcc gettext make pam-devel glib2 nodejs python3
                   redhat-rpm-config systemd-rpm-macros tar xz)
     if [[ ${1-} == --rpm-build-tools ]]; then
@@ -41,7 +41,8 @@ if [[ $setup_platform == fedora ]]; then
         python3-dbusmock python3-gobject python3-cairo python3-hypothesis \
         python3-pytest python3-pytest-cov python3-requests python3-rich \
         python3-pip curl ripgrep ShellCheck polkit util-linux iproute ffmpeg-free \
-        debhelper dpkg-dev perl-Feature-Compat-Try
+        debhelper dpkg-dev perl-Feature-Compat-Try podman shadow-utils-subid \
+        passt slirp4netns fuse-overlayfs
     exit 0
 fi
 

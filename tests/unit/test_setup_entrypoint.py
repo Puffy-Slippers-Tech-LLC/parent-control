@@ -35,7 +35,7 @@ if name == 'install_test_runner.py' and os.environ.get('ONPC_SETUP_FAIL') != nam
     pathlib.Path('installed-setup').touch()
 sys.exit(7 if os.environ.get('ONPC_SETUP_FAIL') == name else 0)
 '''
-    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py', 'rpm_builder.py'):
+    for name in ('install_test_runner.py', 'install_graphical_test_policy.py', 'install_codex_rules.py', 'rpm_builder.py', 'deb_builder.py'):
         (root / 'tools' / name).write_text(stub)
     (root / 'tests/integration/prepare_baseline.py').write_text(stub)
     shutil.copy2(ROOT / 'tests/integration/test_account_password.py', root / 'tests/integration/test_account_password.py')
@@ -90,6 +90,7 @@ def run_setup(root, *args, failure='', denied=False):
 RULES = [('install_codex_rules.py', ['--system']), ('install_codex_rules.py', [])]
 TOOLS = [('install_test_runner.py', []), ('install_graphical_test_policy.py', []), *RULES]
 DEPS = [('setup_dependencies.sh.py', []), ('rpm_builder.py', []), ('setup_checkout.sh.py', [])]
+FEDORA_DEPS = [DEPS[0], ('deb_builder.py', []), DEPS[2]]
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -169,7 +170,7 @@ def test_first_install_authenticates_once_then_reuses_the_installed_grant(checko
     (checkout / 'installed-setup').unlink()
     result, events = run_setup(checkout, *mode)
     assert result.returncode == 0, result.stderr
-    deps = DEPS if distribution == 'ubuntu' else [DEPS[0], DEPS[2]]
+    deps = DEPS if distribution == 'ubuntu' else FEDORA_DEPS
     expected = [*deps, *TOOLS] if not mode else RULES
     assert events == [('install_test_runner.py', []), *expected]
     result, _events = run_setup(checkout, *mode)
@@ -228,17 +229,27 @@ def test_gui_fixture_prerequisites_are_in_the_master_dependency_route():
 
 
 @pytest.mark.parametrize('mode,expected', [
-    ([], [DEPS[0], DEPS[2], *TOOLS]),
-    (['--dependencies-only'], [DEPS[0], DEPS[2]]),
+    ([], [*FEDORA_DEPS, *TOOLS]),
+    (['--dependencies-only'], FEDORA_DEPS),
     (['--rpm-build-tools'], [('setup_dependencies.sh.py', ['--rpm-build-tools'])]),
     (['--vm-host-only'], [('setup_dependencies.sh.py', ['--vm-host-only']), *TOOLS]),
     (['--ppa-build-tools'], []),
 ])
-def test_fedora_uses_native_build_tools_without_preparing_a_container(checkout, mode, expected):
+def test_fedora_prepares_deb_container_while_rpm_only_setup_stays_native(checkout, mode, expected):
     (checkout / 'os-release').write_text('ID=fedora\nVERSION_ID=44\n')
     result, events = run_setup(checkout, *mode)
     assert result.returncode == (2 if mode == ['--ppa-build-tools'] else 0), result.stderr
     assert events == expected
+
+
+def test_fedora_deb_builder_failure_stops_checkout_setup_and_can_be_retried(checkout):
+    (checkout / 'os-release').write_text('ID=fedora\nVERSION_ID=44\n')
+    result, events = run_setup(checkout, '--dependencies-only', failure='deb_builder.py')
+    assert result.returncode == 7
+    assert events == FEDORA_DEPS[:2]
+    result, events = run_setup(checkout, '--dependencies-only')
+    assert result.returncode == 0, result.stderr
+    assert events == FEDORA_DEPS
 
 
 @pytest.mark.parametrize('release', ['ID=fedora\nVERSION_ID=43\n',
@@ -288,7 +299,8 @@ def test_package_routes_select_native_tools_and_keep_vm_dependencies_optional(tm
                         for line in (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text().splitlines()
                         if line.startswith('BuildRequires:')}
             assert requires <= tokens
-        assert {'apt-get', 'apparmor', 'podman', 'sbuild', 'gir1.2-gtk-4.0'}.isdisjoint(tokens)
+        assert {'apt-get', 'apparmor', 'sbuild', 'gir1.2-gtk-4.0'}.isdisjoint(tokens)
+        assert ('podman' in tokens) == (not mode)
         if not mode:
             # Fedora splits the daemon and the Python client used by Dogtail.
             assert {'gnome-ponytail-daemon', 'python3-gnome-ponytail-daemon', 'gtk3'} <= tokens

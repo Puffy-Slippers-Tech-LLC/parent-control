@@ -119,8 +119,9 @@ terminal rather than a Flatpak runtime. Ordinary setup does not require VMs.
 `--vm-host-only` adds libvirt/QEMU and installed-test host prerequisites and
 refreshes helpers/policies without preparing or starting a VM. On Ubuntu, full
 setup and `--dependencies-only` also prepare the caller-owned Fedora 44 RPM build
-image. Fedora installs native RPM build prerequisites and does not prepare a
-container. `--rpm-build-tools` selects just that host's RPM route; PPA tools are
+image. Fedora installs native RPM build prerequisites and prepares a caller-owned
+Ubuntu 26.04 DEB build image. Both hosts default to both package formats.
+`--rpm-build-tools` selects just that host's RPM route; PPA tools are
 Ubuntu/Debian-only. Refresh an older installed setup helper with
 `--test-tools-only` before using a new mode. Builds never install prerequisites.
 Explicit baseline preparation is

@@ -61,6 +61,14 @@ prepare_rpm_builder() {
     fi
 }
 
+prepare_package_builders() {
+    if [[ $setup_platform == fedora ]]; then
+        /usr/bin/python3 -B "$script_dir/tools/deb_builder.py"
+    else
+        prepare_rpm_builder
+    fi
+}
+
 run_root() {
     # Routine operations never fall back to generic pkexec authentication.
     if (( EUID == 0 )); then
@@ -151,7 +159,7 @@ case "$mode" in
         fi
         echo 'setup: [stage:dependencies]'
         run_root dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh"
-        prepare_rpm_builder
+        prepare_package_builders
         echo 'setup: [stage:checkout]'
         /bin/bash "$script_dir/tools/setup_checkout.sh"
         if [[ -z "$mode" ]]; then

@@ -208,6 +208,7 @@ def test_missing_rpm_builder_preserves_sources_and_reports_failure(tmp_path, mon
     scratch.mkdir()
     output = tmp_path / 'output/rpm'
     monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None)
     with pytest.raises(ValueError, match='builder is missing'):
         build_rpm.build(ROOT, output)
@@ -223,6 +224,7 @@ def test_rpm_binary_build_uses_fedora_mock_and_retains_failure_evidence(tmp_path
     scratch.mkdir()
     output = tmp_path / 'output/rpm'
     monkeypatch.setattr(build_rpm, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: '/fixture/' + name)
     monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')

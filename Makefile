@@ -11,9 +11,8 @@ MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
 PACKAGE_DISTRIBUTION ?= ubuntu
 OS_RELEASE ?= $(firstword $(wildcard /etc/os-release /usr/lib/os-release))
-# Fedora builds natively; Ubuntu retains its DEB plus container RPM workflow.
-HOST_DISTRIBUTION = $(shell sed -n 's/^ID=//p' "$(OS_RELEASE)")
-PACKAGE_FORMAT ?= $(if $(filter fedora "fedora" 'fedora',$(HOST_DISTRIBUTION)),rpm,both)
+# Both hosts build their native format and the other distribution's container.
+PACKAGE_FORMAT ?= both
 RPM_RELEASE ?= 0.1.dev
 UUID := oh-no-parent-control@tech.puffyslippers.com
 # Resolve packaging paths only when used; preparation does not need a compiler.
@@ -147,7 +146,7 @@ POTFILE ?= po/$(GETTEXT_DOMAIN).pot
 PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	$(POFILES) $(WHATS_NEW_POFILES) tools/whats_new_catalogs.py \
 	$(addprefix packaging/man/,$(MANPAGES)) \
-	$(addprefix debian/,changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.lintian-overrides source/format source/options) \
+	$(addprefix debian/,Containerfile changelog control copyright rules preinst postinst prerm postrm package_activation.py check_package.py oh-no-parent-control.lintian-overrides source/format source/options) \
 	$(addprefix tools/,bump_version.py render_polkit_policy.py package_notice oh-no-parent-control-login-check execution_policy_ready.py execution_policy_probe execution_probe_gate.c execution_probe_witness.c execution_probe_protocol.h session_limit_check.py pam_oh_no_parent_control.c provision.py) \
 	$(addprefix broker/,oh-no-parent-control-broker oh-no-parent-control-migrate-state oh-no-parent-control-uninstall oh-no-parent-control-query-usage) \
 	$(addprefix broker/oh_no_parent_control/,$(BROKER_SOURCES)) \

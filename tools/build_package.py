@@ -9,9 +9,10 @@ import subprocess
 import tempfile
 
 if __package__:
-    from . import package_inputs
+    from . import deb_builder, package_inputs
     from .test_storage import scratch_directory, scratch_descriptors
 else:
+    import deb_builder
     import package_inputs
     from test_storage import scratch_directory, scratch_descriptors
 
@@ -21,9 +22,11 @@ def build(root: Path, architecture: str, *, destination: Path | None = None) -> 
         source = Path(temporary) / 'source'
         source.mkdir()
         package_inputs.copy(root, source)
+        arguments = (['make', '--no-print-directory', '_build-package',
+                      f'DEB_HOST_ARCH={architecture}'] if deb_builder.native_debian()
+                     else deb_builder.command(source, Path(temporary), architecture))
         subprocess.run(
-            ['make', '--no-print-directory', '_build-package',
-             f'DEB_HOST_ARCH={architecture}'], cwd=source, check=True,
+            arguments, cwd=source, check=True,
             pass_fds=scratch_descriptors())
         output = destination or root / 'output/deb'
         output.mkdir(parents=True, exist_ok=True)

@@ -142,6 +142,41 @@ envelopes remain operating-system data and are not approved automatic exports.
 These diagnostics and the confinement guard activate with the changed PAM
 profile at the required reboot; an already running desktop is not terminated.
 
+### Kiosk startup crash diagnostics
+
+Feedback collection additionally projects reviewed kiosk renderer, security and
+session-journal markers through
+[dependency_diagnostics.py](../../broker/oh_no_parent_control/dependency_diagnostics.py).
+This read runs before the report snapshot, including diagnostics-only mode, and
+does not need a surviving kiosk application or user manager. It reads this boot's
+last 24 hours within a shared five-second budget, at most 200 matching entries
+and 20 exported markers per source. Collection reports complete, partial or
+unavailable separately for each source; complete describes the bounded read,
+not complete historical evidence. Configuration failure reports unavailable
+identity without querying another account. There are no service, session,
+renderer or policy changes.
+
+`kiosk.session-journal` retains source UTC times and closed categories for
+SELinux's enforcing kiosk-app GPU device mapping denial, Vulkan memory mapping
+and permission failures, a Mesa segfault, the app's numeric exit/signal result,
+its failure-triggered shutdown and the dedicated session target stopping.
+Renderer and systemd records require the configured kiosk UID and reviewed
+executable/unit provenance. Security records require trusted audit/kernel
+transport and exact reviewed policy contexts; Mesa fault correlation uses only
+transient PIDs from the observed renderer. A GPU map denial followed by Vulkan
+mapping failure, Mesa crash, signal 11 and the app's OnFailure shutdown supports
+a renderer confinement diagnosis. Source times relate these observations;
+unrelated security denials do not establish the cause of a session exit.
+
+Raw journal messages, exception text, host/account/process/session/device
+identities, paths, addresses and stack traces are discarded, never attached.
+The existing PAM routing and preparation diagnostics remain local-only.
+These additive catalogue entries ship with all validators. The broker loads
+the collector after `process-restart`; new frontend processes load its catalogue.
+No saved-data migration or feedback transport change is required. Archive and
+privacy coverage lives in [diagnostics tests](../../tests/unit/test_diagnostics.py)
+and [service contracts](../../tests/unit/test_service_contract.py).
+
 ### Schema and field provenance
 
 [diagnostic_catalog.json](../../common/oh_no_parent_control_ui/diagnostic_catalog.json)

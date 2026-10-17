@@ -219,10 +219,13 @@ def selinux(entries):
     # user manager's public API; dbus-broker also subscribes to that manager.
     # These userspace system/service checks add no executable entrypoint.
     allow(domains['service'], 'xdm_unit_file_t', 'service', 'start status')
-    # GNOME's fixed shutdown helper restarts its own user bus. The compositor
-    # maps its DRM device; ordinary chr_file I/O does not authorize mmap.
+    # GNOME's fixed shutdown helper restarts its own user bus.
     allow(domains['service'], 'dbusd_unit_file_t', 'service', 'stop')
-    allow(domains['service'], 'dri_device_t', 'chr_file', 'map')
+    # The compositor, GTK request app and GTK notification provider map DRM
+    # buffers. Ordinary chr_file I/O does not authorize mmap; keep the grant
+    # specific to these renderer roles and the GPU device type.
+    for renderer in ('service', 'app', 'notifications'):
+        allow(domains[renderer], 'dri_device_t', 'chr_file', 'map')
     # User-bus activation also creates transient services through the manager.
     # Their exec still goes through the same finite manager entrypoint policy.
     allow(domains['service'], domains['manager'], 'system', 'reload status start')

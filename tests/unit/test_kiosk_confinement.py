@@ -3710,6 +3710,20 @@ def test_selinux_scanner_pipe_protocol_is_limited_to_admitted_actual_parents():
     assert '(allow onpc_kiosk_scanner_t onpc_kiosk_service_t (fifo_file ' not in generated
 
 
+def test_selinux_gpu_mapping_is_limited_to_renderer_roles():
+    policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
+    generated = policy.selinux(policy.executables('fedora'))
+    # The compositor and both GTK renderers need mmap in addition to device I/O.
+    # The notification provider paints in its own domain, not the request app's.
+    # Keep character-device mapping out of the shared domain/client attributes,
+    # scanners, launchers and unrelated device types.
+    mappings = [line for line in generated.splitlines()
+                if ' (chr_file (' in line and 'map' in line]
+    assert mappings == [
+        f'(allow onpc_kiosk_{role}_t dri_device_t (chr_file (map)))'
+        for role in ('service', 'app', 'notifications')]
+
+
 def test_selinux_entrypoint_mappings_preserve_fixed_execution_routes():
     policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
     generated = policy.selinux(policy.executables('fedora'))

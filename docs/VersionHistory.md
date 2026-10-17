@@ -13,6 +13,7 @@
 - **Installation**: Fixed package-trigger errors after a denied kiosk login on Ubuntu and Fedora.
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.
 - **Kiosk**: Fixed startup failures when unrelated installed applications have writable data directories.
+- **Kiosk**: Fixed a Fedora startup crash caused by missing GPU rendering permission.
 - **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Broker**: Added automatic recovery when the fapolicyd service exits with an error.
@@ -25,7 +26,7 @@
 
 ### Fedora Workstation 44 Readiness
 - **Test Automation:** One big step closer - Fedora automation just got a promotion to 1st class citizen, its coverage is on par with Ubuntu. Fedora release is on the horizon!!!
-- **Manaul Testing:** Old daddy magically dug out an even older Surface Laptop, and miracally installed Fedora 44 on it. At the end of the day, VMs don't replace the touch and feel on a real computer (remember the v1.1 bug fix?). First bug that never showed up on the VM, kiosk account requires password? Yikes...
+- **Manaul Testing:** Old daddy magically dug out an even older Surface Laptop, and miraculously installed Fedora 44 on it. At the end of the day, VMs don't replace the touch and feel on a real computer (remember the v1.1 bug fix?). First bug that never showed up on the VM, kiosk account requires password? Yikes...
 
 
 ## v1.3 - 2026-10-03

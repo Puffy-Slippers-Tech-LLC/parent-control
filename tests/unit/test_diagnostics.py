@@ -273,6 +273,177 @@ def test_dependency_command_caps_live_pipes_and_reaps_its_process(monkeypatch, m
     assert children[0].stdout.closed and children[0].stderr.closed
 
 
+def _kiosk_journal(message, **overrides):
+    import json
+    item = {"MESSAGE": message, "__REALTIME_TIMESTAMP": "1792266283591440",
+            "_UID": "123456", "_PID": "60579", "_HOSTNAME": "private-host",
+            "_EXE": "/usr/bin/python3.14", "_TRANSPORT": "journal",
+            "_SYSTEMD_USER_UNIT": "oh-no-parent-control-app.service"}
+    item.update(overrides)
+    return json.dumps(item)
+
+
+KIOSK_GPU_DENIAL = (
+    'AVC avc:  denied  { map } for  pid=60579 comm="python3" '
+    'path="/dev/dri/renderD128" dev="private-device" ino=999 '
+    'scontext=system_u:system_r:onpc_kiosk_app_t:s0 '
+    'tcontext=system_u:object_r:dri_device_t:s0 tclass=chr_file permissive=0')
+KIOSK_VULKAN_FAILURE = (
+    'Vulkan: ../src/intel/vulkan/anv_allocator.c:1871: mmap failed: Permission denied '
+    '(VK_ERROR_MEMORY_MAP_FAILED)')
+
+
+def test_kiosk_pre_paint_crash_chain_survives_feedback_without_machine_access(
+        tmp_path, monkeypatch, caplog):
+    import logging
+    import subprocess
+    from types import SimpleNamespace
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from oh_no_parent_control.logs import BrokerFileHandler
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(dependency.config, "load", lambda _path: SimpleNamespace(kiosk_uid=123456))
+    app = dependency.KIOSK_APP_UNIT
+    renderer = [
+        _kiosk_journal(KIOSK_VULKAN_FAILURE),
+        _kiosk_journal('vkCreateDevice(): Mapping of a memory object has failed. '
+                       '(VK_ERROR_MEMORY_MAP_FAILED) (-5)', __REALTIME_TIMESTAMP="1792266283591964"),
+        _kiosk_journal('private@example.test /home/private-child secret-token'),
+        _kiosk_journal(KIOSK_VULKAN_FAILURE, _UID="987654"),
+        _kiosk_journal(KIOSK_VULKAN_FAILURE, _SYSTEMD_USER_UNIT="private.service"),
+        _kiosk_journal(KIOSK_VULKAN_FAILURE, _EXE="/private/program"),
+    ]
+    security = [
+        _kiosk_journal(KIOSK_GPU_DENIAL, _TRANSPORT="audit", _UID=None, _EXE=None),
+        _kiosk_journal('python3[60579]: segfault at 40 ip 012345 sp 6789 error 6 '
+                       'in libgallium-26.2.4.so[12345] likely on CPU 2',
+                       _TRANSPORT="kernel", __REALTIME_TIMESTAMP="1792266283611381"),
+        _kiosk_journal(KIOSK_GPU_DENIAL),  # Text copied by an app is not an audit record.
+        _kiosk_journal(KIOSK_GPU_DENIAL.replace('permissive=0', 'permissive=1'), _TRANSPORT="audit"),
+        _kiosk_journal(KIOSK_GPU_DENIAL.replace('onpc_kiosk_app_t', 'unconfined_t'), _TRANSPORT="audit"),
+        _kiosk_journal('python3[987654]: segfault in libgallium-26.2.4.so[12345]', _TRANSPORT="kernel"),
+    ]
+    session = [
+        _kiosk_journal(message, _COMM="systemd", _EXE="/usr/lib/systemd/systemd",
+                       __REALTIME_TIMESTAMP=str(1792266283619000 + index * 1000))
+        for index, message in enumerate([
+            app + ': Main process exited, code=dumped, status=11/SEGV',
+            app + ": Failed with result 'core-dump'.",
+            app + ': Triggering OnFailure= dependencies.',
+            'Stopped target gnome-session@oh-no-parent-control.target - '
+            'GNOME Session (session: oh-no-parent-control).',
+        ])
+    ]
+    session.extend([
+        _kiosk_journal(app + ': Main process exited, code=dumped, status=11/SEGV',
+                       _COMM="systemd", _EXE="/private/systemd"),
+        _kiosk_journal(app + ': Main process exited, code=dumped, status=11/SEGV',
+                       _COMM="systemd", _EXE="/usr/lib/systemd/systemd", _UID="987654"),
+    ])
+    outputs = iter([renderer, security, session])
+    commands = []
+
+    def run(command, timeout):
+        commands.append(command)
+        assert 0 < timeout <= 3
+        return subprocess.CompletedProcess([], 0, '\n'.join(next(outputs)), '')
+
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    dependency.collect_kiosk_diagnostics('/private/config')
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    markers = [value['fields'] for value in values if value['event'] == 'kiosk.session-journal']
+    assert [value['reason'] for value in markers] == [
+        'vulkan-mmap-permission-denied', 'vulkan-device-map-failed',
+        'selinux-gpu-map-denied', 'mesa-segfault', 'app-exit', 'app-core-dump',
+        'app-failure-shutdown', 'session-stopped']
+    assert markers[4]['exit_kind'] == 'dumped' and markers[4]['exit_status'] == 11
+    assert markers[0]['occurred_at'] == '2026-10-17T19:44:43.591+00:00'
+    assert [value['fields']['count'] for value in values
+            if value['event'] == 'kiosk.session-observation'] == [2, 2, 4]
+    assert len(commands) == 3
+    assert '_UID=123456' in commands[0] and '_UID=123456' in commands[2]
+    assert '_TRANSPORT=audit' in commands[1] and '_TRANSPORT=kernel' in commands[1]
+    assert all(command[0] == '/usr/bin/journalctl' and '--boot=0' in command
+               and '--since=-24hours' in command and '--lines=200' in command
+               and any(part.startswith('--grep=') for part in command) for command in commands)
+
+    writer = DailyLogWriter(tmp_path / 'logs')
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        assert not record.args and not record.exc_info
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        logs, _ = read_report(archive)
+        exported_markers = [row['fields'] for rows in logs.values() for row in rows
+                            if row['event'] == 'kiosk.session-journal']
+        assert exported_markers == markers
+        text = ''.join(archive.read(name).decode() for name in archive.namelist())
+    # A fresh reader can establish the same chain from the archive alone.
+    assert 'selinux-gpu-map-denied' in text and 'vulkan-mmap-permission-denied' in text
+    assert 'mesa-segfault' in text and 'exit_kind=dumped exit_status=11' in text
+    assert 'app-failure-shutdown' in text and 'session-stopped' in text
+    for secret in ('123456', '987654', '60579', 'private-host', 'private-device',
+                   '/dev/dri/renderD128', '/private/', 'private@example.test', '/home/private-child'):
+        assert secret not in text and secret not in caplog.text
+
+
+@pytest.mark.parametrize('fault', ['command', 'timeout', 'oversize', 'malformed', 'timestamp',
+                                  'full-tail', 'marker-limit', 'empty', 'identity', 'budget'])
+def test_kiosk_collection_preserves_failures_and_bounds_history(monkeypatch, caplog, fault):
+    import logging
+    import subprocess
+    from types import SimpleNamespace
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    caplog.set_level(logging.INFO)
+    calls = []
+
+    def load(_path):
+        if fault == 'identity':
+            raise ValueError('private@example.test')
+        return SimpleNamespace(kiosk_uid=123456)
+
+    def run(command, timeout):
+        calls.append(command)
+        assert 0 < timeout <= 3
+        if len(calls) > 1:
+            return subprocess.CompletedProcess([], 1, '', '')
+        if fault == 'command':
+            return subprocess.CompletedProcess([], 1, '', 'private@example.test')
+        if fault == 'timeout':
+            raise subprocess.TimeoutExpired(['private'], 3, stderr='private@example.test')
+        output = {
+            'oversize': 'x' * (dependency.MAX_OUTPUT + 1),
+            'malformed': 'private@example.test',
+            'timestamp': _kiosk_journal(KIOSK_VULKAN_FAILURE, __REALTIME_TIMESTAMP='private@example.test'),
+            'full-tail': '\n'.join(_kiosk_journal('private@example.test') for _ in range(200)),
+            'marker-limit': '\n'.join(_kiosk_journal(KIOSK_VULKAN_FAILURE) for _ in range(21)),
+        }.get(fault, '')
+        return subprocess.CompletedProcess([], 0, output, 'private@example.test')
+
+    monkeypatch.setattr(dependency.config, 'load', load)
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    if fault == 'budget':
+        ticks = iter([0, 6, 6, 6])
+        monkeypatch.setattr(dependency.time, 'monotonic', lambda: next(ticks))
+    dependency.collect_kiosk_diagnostics('/private/config')
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    observations = [value['fields'] for value in values if value['event'] == 'kiosk.session-observation']
+    expected = ('unavailable' if fault in ('command', 'timeout', 'oversize', 'identity', 'budget')
+                else 'complete' if fault == 'empty' else 'partial')
+    assert observations[0] == {
+        'source': 'identity' if fault == 'identity' else 'renderer',
+        'outcome': expected, 'count': 20 if fault == 'marker-limit' else 0}
+    if fault in ('identity', 'budget'):
+        assert not calls
+    else:
+        assert len(calls) == 3
+        assert observations[-1] == {'source': 'session', 'outcome': 'complete', 'count': 0}
+    assert 'private' not in caplog.text
+
+
 def test_pre_enable_import_failure_and_policy_cause_survive_report_privately(tmp_path, monkeypatch):
     import logging
     import subprocess

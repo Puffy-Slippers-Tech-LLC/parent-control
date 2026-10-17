@@ -137,6 +137,14 @@ Lua is not the security boundary: native service/module APIs still encounter
 kernel executable-mapping and role-transition restrictions. Reviewed native
 packages, mapped libraries and shipped scripts define the qualified plugin scope.
 
+Fedora's compositor/service, request-app and notification-provider roles can map
+GPU devices labelled `dri_device_t`, as required by their renderers. The GTK
+notification provider paints banners in its own role and needs the same mapping
+permission as the request app. This character-device mapping permission belongs
+only to those three roles; it adds no executable transition or general device
+mapping permission. Policy updates use the existing reboot activation boundary
+so admission sees the current attested policy and generation.
+
 The [bubblewrap launcher](../../tools/kiosk_bwrap.c) first supplies a read-only
 `/usr/bin` bind, then invokes independently pinned distribution bubblewrap.
 Only finite native WebKit/Glycin bootstrap roles can create the required private

@@ -33,7 +33,7 @@ from .catalog import list_apps
 from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure
 from .extension_manager import ExtensionManager
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
-from .dependency_diagnostics import collect_dependency_diagnostics
+from .dependency_diagnostics import collect_dependency_diagnostics, collect_kiosk_diagnostics
 from .logs import DailyLogWriter, configure_broker_logging
 from .preferences import PreferenceStore, decode_preferences
 
@@ -760,6 +760,11 @@ class Service:
     def _export_logs_worker(self, invocation, caller_uid):
         data = None
         try:
+            try:
+                collect_kiosk_diagnostics(CONFIG_PATH)
+            except Exception:
+                get_logger("kiosk").warning(
+                    "kiosk.session-observation", source="identity", outcome="unavailable", count=0)
             try:
                 collect_dependency_diagnostics()
             except Exception:

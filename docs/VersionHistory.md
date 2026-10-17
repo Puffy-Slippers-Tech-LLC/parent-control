@@ -23,6 +23,7 @@
 
 ### Fedora Workstation 44 Readiness
 - **Test Automation:** One big step closer - Fedora automation just got a promotion to 1st class citizen, its coverage is on par with Ubuntu. Fedora release is on the horizon!!!
+- **Manaul Testing:** Old daddy magically dug out an even older Surface Laptop, and miracally installed Fedora 44 on it. At the end of the day, VMs don't replace the touch and feel on a real computer (remember the v1.1 bug fix?). This thing is working, one step closer to shipping!
 
 
 ## v1.3 - 2026-10-03

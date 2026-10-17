@@ -229,6 +229,13 @@ prints its final reminder after DNF returns and its own verification succeeds.
 The [E2E package reader](../tests/e2e/package_command.py) binds scriptlet output
 to the verified package identity and retains independent exit/version checks.
 
+Systemd's native user-unit triggers reach running managers through a PAM-backed
+user-bus bridge. The shared [screen-time PAM contract](SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement)
+permits only the verified administrative bridge even when a child's time is
+exhausted; normal login restrictions remain enforced. A denied bridge otherwise
+appears in DNF as `Failed to start jobs: Transport endpoint is not connected`,
+even after successful product configuration.
+
 Fedora's package trust filter permits `.js` but excludes `.mjs` under `/usr/share`,
 while fapolicyd classifies the child ES modules as JavaScript and its language
 policy requires trust. The shared [package lifecycle](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle)

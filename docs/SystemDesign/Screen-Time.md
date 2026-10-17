@@ -307,8 +307,65 @@ evaluating inactivity/resume deadlines.
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
 Estimate reads use bounded backoff for `Error.Busy`, which can occur while
 another supported client has the user's timer database open. The extension
-does not modify GNOME Shell's private time-limit state or attach to the native
-lock-screen request flow.
+does not modify GNOME Shell's private time-limit state.
+
+The read-only [session observer](../../child/sessionDiagnostics.js) records native
+lock decisions alongside logind activity, idle and locked hints and Shell's
+locked/greeter mode. It observes only the current session's logind proxy, checks
+the signal sender against its current bus owner, and records each `Unlock`
+request separately from its result one second later. Native state transitions
+between those observations are retained. Grant changes and these observations
+never request an unlock, replay authentication or alter enforcement. See the
+[diagnostic contract](Logging-and-Feedback.md#native-login-and-unlock-observations).
+
+GNOME Shell 50.6 has a separate retained-session admission limitation after
+exhaustion. Its [_updateState implementation](https://github.com/GNOME/gnome-shell/blob/50.6/js/misc/timeLimitsManager.js#L973-L993)
+retains `LIMIT_REACHED` while inactive even when a new estimate has positive
+time. Its [ScreenShield unlock guard](https://github.com/GNOME/gnome-shell/blob/50.6/js/ui/screenShield.js#L515-L520)
+can therefore refuse GDM's authenticated unlock before the activity transition
+clears that state. The desktop remains locked and another credential can succeed.
+Refreshing estimates alone does not correct that state transition. The existing
+resume-estimate workaround does not fix this admission defect.
+
+The [unlock continuation](../../child/sessionUnlock.js) addresses this race in
+the child extension. It arms only for an `Unlock` signal from the current
+session proxy's current logind owner when the native parental-controls state
+is `LIMIT_REACHED` and the child desktop is locked. A grant or positive estimate
+by itself cannot arm it. The original request lasts at most two monotonic
+seconds. Once that same session is active, native state is `ACTIVE`,
+`shouldLockSession` is false and its finite native deadline is still positive,
+one idle callback invokes the public `ScreenShield.deactivate(false)` method.
+This is the same entry point used by GNOME's logind handler; its final native
+guard remains authoritative. The invocation runs in Shell's main loop,
+so there is no extra bus hop before dispatch. No native method is replaced,
+no private state is written and no credential is received or replayed.
+The native positive deadline already incorporates GNOME's aggregate user activity;
+a potentially delayed per-session idle hint is diagnostic, not another admission gate.
+
+Before dispatch, a newer logind Lock, suspend, owner replacement, session departure after
+activation, disabled parental limits, greeter transition, renewed exhaustion
+after the native decision cleared, or extension shutdown cancels the request.
+A newer authorized Unlock replaces it with a separate bounded request. The
+deadline is checked again at dispatch in case the timer is delayed. Each request
+can continue only once. An observed native unlock or native unlock animation
+retires pending authority synchronously, before a direct ScreenSaver/shortcut
+relock can reuse it. These direct lock routes do not emit logind's Lock signal.
+
+The native call can defer completion for authentication messages and animation.
+It exposes no public cancellation handle. Handoff consumes the controller's
+authority permanently; GNOME's existing authentication/lock ordering owns the
+native operation from that point onward. A returned method is not considered
+success until public `locked` becomes false. The controller observes for another
+two seconds; later interruptions and observation expiry are diagnostic, not a
+claim that native callbacks were cancelled. No private callback manipulation or
+unlock/relock cycle attempts to alter that native behavior. Native failure or
+pre-dispatch expiry retains ordinary authentication and enforcement.
+Both the observer and continuation are excluded
+from nested previews, which have no owned logind session. Host adapter tests
+cover the race, authority, cancellations and lifetime; installed single-entry
+return after a grant still requires validation in a renewed child session.
+Remove this compatibility controller when supported Shell versions refresh the
+native admission decision before processing logind's Unlock.
 
 The child estimate client also retries `NoReply`, `NameHasNoOwner`,
 `ServiceUnknown`, and local/remote timeout errors, covering timer-owner loss
@@ -385,6 +442,25 @@ the unprivileged component neither decides whether a grant is current nor
 signals processes itself.
 Session preparation is asynchronous: it is not a compositor admission barrier.
 Failures are reported and preparation is retried while the desktop is usable.
+
+Administrative access to an existing user bus must also work at zero time.
+Systemd's `systemctl --user --machine=UID@` transport starts a transient system
+service running `systemd-stdio-bridge --user --quiet` with `PAMName=login`.
+The shared session-limit helper exempts only that transport from the two product
+time modules. It requires real and effective UID 0, the exact `login` PAM service,
+a verified non-kiosk account, and the system manager's public `GetUnitByPID` and
+service properties binding its still-live parent to the matching `MainPID`,
+target user and exact bridge executable/arguments in a transient unit. The
+executable field may be the native transport's preserved basename
+`systemd-stdio-bridge` or `/usr/bin/systemd-stdio-bridge`; other relative and
+absolute paths are rejected. An unverifiable identity, changed command or failed
+query retains enforcement.
+Other PAM modules and kiosk admission still run; ordinary terminal/SSH logins
+and GDM login/unlock retain their time checks. This avoids Fedora's native
+package triggers failing to reach an exhausted child's manager with
+`Failed to start jobs: Transport endpoint is not connected`. The helper loads
+the change on its next invocation (`none`), on both Ubuntu and Fedora, without
+changing saved limits or restarting user managers.
 
 The [package classifier](../../packaging/package_activation.py) gives PAM profile
 and login-routing changes `reboot` activation. A replacement

@@ -3,6 +3,8 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
 from gi.repository import GLib
 
 from tools import session_limit_check
@@ -14,6 +16,166 @@ class Reply:
 
     def unpack(self):
         return self.value
+
+
+@pytest.fixture
+def bridge(monkeypatch):
+    """Only doubles: no system bus, PAM session, account or process is changed."""
+    monkeypatch.setattr(session_limit_check.os, "getuid", lambda: 0)
+    monkeypatch.setattr(session_limit_check.os, "geteuid", lambda: 0)
+    parent = mock.Mock(return_value=4321)
+    monkeypatch.setattr(session_limit_check.os, "getppid", parent)
+    monkeypatch.setattr(session_limit_check.pwd, "getpwnam", lambda user:
+                        SimpleNamespace(pw_name="child", pw_uid=1002))
+    unit = {"Transient": True}
+    properties = {
+        "MainPID": 4321, "User": "1002", "PAMName": "login",
+        "ExecStart": [("systemd-stdio-bridge",
+                       ["systemd-stdio-bridge", "--user", "--quiet"],
+                       False, 0, 0, 0, 0, 4321, 0, 0)],
+    }
+    path = "/org/freedesktop/systemd1/unit/run_2dbridge_2eservice"
+
+    def call(destination, object_path, interface, method, parameters, reply_type,
+             flags, timeout, cancellable):
+        assert destination == session_limit_check.SYSTEMD_NAME
+        assert timeout == 3000 and cancellable is None
+        if method == "GetUnitByPID":
+            assert object_path == session_limit_check.SYSTEMD_PATH
+            assert interface == destination + ".Manager"
+            assert parameters.unpack() == (4321,)
+            return GLib.Variant("(o)", (path,))
+        assert method == "GetAll" and object_path == path
+        assert interface == session_limit_check.PROPERTIES_INTERFACE
+        if parameters.unpack() == (session_limit_check.SYSTEMD_UNIT_INTERFACE,):
+            return Reply((unit,))
+        assert parameters.unpack() == (session_limit_check.SYSTEMD_SERVICE_INTERFACE,)
+        return Reply((properties,))
+
+    connection = SimpleNamespace(call_sync=mock.Mock(side_effect=call))
+    monkeypatch.setattr(session_limit_check.Gio, "bus_get_sync", lambda *args: connection)
+    return SimpleNamespace(unit=unit, properties=properties, parent=parent,
+                           connection=connection)
+
+
+@pytest.mark.parametrize("user", ["child", "1002"])
+@pytest.mark.parametrize("executable", ["/usr/bin/systemd-stdio-bridge", "systemd-stdio-bridge"])
+@pytest.mark.parametrize("argv0", ["/usr/bin/systemd-stdio-bridge", "systemd-stdio-bridge"])
+def test_exhausted_child_keeps_systemd_administrative_bus_access(
+        bridge, monkeypatch, user, executable, argv0):
+    bridge.properties["User"] = user
+    command = bridge.properties["ExecStart"][0]
+    bridge.properties["ExecStart"] = [
+        (executable, [argv0, "--user", "--quiet"], *command[2:]),
+    ]
+    monkeypatch.setenv("PAM_USER", "child")
+    monkeypatch.setenv("PAM_SERVICE", "login")
+    policy = mock.Mock(return_value=False)  # Child remains restricted with no time.
+    monkeypatch.setattr(session_limit_check, "is_confirmed_unrestricted", policy)
+    assert session_limit_check.main([]) == 0
+    policy.assert_not_called()
+
+
+@pytest.mark.parametrize("executable", ["/usr/bin/systemd-stdio-bridge", "systemd-stdio-bridge"])
+def test_bridge_accepts_systemd_property_wire_types(bridge, executable):
+    command = bridge.properties["ExecStart"][0]
+    bridge.properties["ExecStart"] = [
+        (executable, [executable, "--user", "--quiet"], *command[2:]),
+    ]
+    call = bridge.connection.call_sync.side_effect
+    signatures = {"Transient": "b", "MainPID": "u", "User": "s", "PAMName": "s",
+                  "ExecStart": "a(sasbttttuii)"}
+
+    def wire_reply(*args):
+        reply = call(*args)
+        if args[3] == "GetAll":
+            values = {key: GLib.Variant(signatures[key], value)
+                      for key, value in reply.unpack()[0].items()}
+            return GLib.Variant("(a{sv})", (values,))
+        return reply
+
+    bridge.connection.call_sync.side_effect = wire_reply
+    assert session_limit_check.is_systemd_user_bus_bridge("child", "login")
+
+
+@pytest.mark.parametrize("executable", [
+    "./systemd-stdio-bridge", "subdir/systemd-stdio-bridge",
+    "/usr/local/bin/systemd-stdio-bridge", "systemd-stdio-bridge-extra", "",
+])
+def test_other_executable_paths_do_not_gain_the_basename_exception(bridge, executable):
+    command = bridge.properties["ExecStart"][0]
+    bridge.properties["ExecStart"] = [(executable, *command[1:])]
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
+
+
+@pytest.mark.parametrize("key,value", [
+    ("MainPID", 4322), ("MainPID", 0), ("User", "other-child"),
+    ("PAMName", "sshd"), ("ExecStart", []),
+    ("ExecStart", [("/bin/sh", ["/bin/sh", "-c", "systemd-stdio-bridge --user --quiet"])]),
+    ("ExecStart", [("/tmp/systemd-stdio-bridge", ["systemd-stdio-bridge", "--user", "--quiet"])]),
+    ("ExecStart", [("/usr/bin/systemd-stdio-bridge", ["systemd-stdio-bridge", "--system", "--quiet"])]),
+    ("ExecStart", [("/usr/bin/systemd-stdio-bridge", ["systemd-stdio-bridge", "--user", "--quiet", "extra"])]),
+    ("ExecStart", [()]), ("ExecStart", None),
+])
+def test_other_commands_and_parent_identities_keep_time_enforcement(bridge, monkeypatch, key, value):
+    bridge.properties[key] = value
+    monkeypatch.setenv("PAM_USER", "child")
+    monkeypatch.setenv("PAM_SERVICE", "login")
+    monkeypatch.setattr(session_limit_check, "is_confirmed_unrestricted", lambda user: False)
+    assert session_limit_check.main([]) == 1
+
+
+@pytest.mark.parametrize("key", ["MainPID", "User", "PAMName", "ExecStart"])
+def test_missing_systemd_properties_do_not_exempt_a_session(bridge, key):
+    del bridge.properties[key]
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
+
+
+@pytest.mark.parametrize("transient", [False, None, "true"])
+def test_only_transient_system_services_qualify(bridge, transient):
+    bridge.unit["Transient"] = transient
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
+
+
+@pytest.mark.parametrize("service", ["gdm-password", "sshd", "sudo", "systemd-user", ""])
+def test_other_pam_services_never_receive_the_bridge_exception(bridge, service):
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", service)
+    bridge.connection.call_sync.assert_not_called()
+
+
+@pytest.mark.parametrize("credential", ["getuid", "geteuid"])
+def test_unprivileged_helpers_cannot_request_the_exception(bridge, monkeypatch, credential):
+    monkeypatch.setattr(session_limit_check.os, credential, lambda: 1002)
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
+    bridge.connection.call_sync.assert_not_called()
+
+
+@pytest.mark.parametrize("user", ["", "unknown-child", "oh-no-parent-control"])
+def test_unverified_or_kiosk_identity_is_not_exempted(bridge, user):
+    assert not session_limit_check.is_systemd_user_bus_bridge(user, "login")
+    bridge.connection.call_sync.assert_not_called()
+
+
+@pytest.mark.parametrize("step", [0, 1, 2])
+def test_system_manager_query_failure_keeps_time_enforcement(bridge, step):
+    call = bridge.connection.call_sync.side_effect
+    calls = 0
+
+    def fail(*args):
+        nonlocal calls
+        calls += 1
+        if calls == step + 1:
+            raise GLib.Error("system manager unavailable")
+        return call(*args)
+
+    bridge.connection.call_sync.side_effect = fail
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
+
+
+@pytest.mark.parametrize("parents", [[1], [4321, 1]])
+def test_orphaned_helper_cannot_use_a_previous_parent_unit(bridge, parents):
+    bridge.parent.side_effect = parents
+    assert not session_limit_check.is_systemd_user_bus_bridge("child", "login")
 
 
 class SessionLimitCheckTests(unittest.TestCase):

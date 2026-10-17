@@ -100,6 +100,57 @@ def test_timed_external_change_survives_storage_and_export(tmp_path):
         assert "source=external" in text
 
 
+def test_native_unlock_refusal_and_success_survive_storage_and_export(tmp_path):
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+    from common.oh_no_parent_control_ui.diagnostic_report import read_report
+
+    fields = dict(reason="unlock-request", attempt=1, native_state="limit-reached",
+                  native_should_lock=True, limit_enabled=True, session_available=True,
+                  session_active=False, session_idle=True, session_locked=True,
+                  locked=True, greeter=False, native_remaining=0, elapsed_ms=0)
+    observations = [fields, dict(fields, reason="unlock-settled", native_state="active",
+                                native_should_lock=False, session_active=True,
+                                session_idle=False, native_remaining=289, elapsed_ms=1000),
+                    dict(fields, attempt=2),
+                    dict(fields, reason="unlock-settled", attempt=2, native_state="active",
+                         native_should_lock=False, session_active=True, session_idle=False,
+                         session_locked=False, locked=False, native_remaining=282, elapsed_ms=1000)]
+    writer = DailyLogWriter(tmp_path)
+    for observation in observations:
+        payload = encode(event("child.session-state", observation))
+        assert decode(payload, component="child")["fields"] == observation
+        writer.write("child", "INFO", payload, source_uid=1098765)
+    with ZipFile(BytesIO(writer.snapshot())) as archive:
+        logs, _ = read_report(archive)
+        retained = [row for rows in logs.values() for row in rows]
+        assert [row["fields"] for row in retained] == observations
+        text = "".join(archive.read(name).decode() for name in archive.namelist())
+        assert "1098765" not in text
+        assert "an unlock request is not a successful unlock" in text
+    assert writer.summary()["suppressed"] == 0
+
+
+def test_unlock_continuation_decisions_survive_storage_and_export(tmp_path):
+    from common.oh_no_parent_control_ui.diagnostic_report import read_report
+
+    initial = dict(stage="armed", reason="native-lock", attempt=1, elapsed_ms=0,
+                   native_should_lock=True, locked=True, session_active=False,
+                   native_remaining=0)
+    observations = [initial,
+                    dict(initial, stage="retry", reason="none", elapsed_ms=120,
+                         native_should_lock=False, session_active=True, native_remaining=290),
+                    dict(initial, stage="unlocked", reason="none", elapsed_ms=380,
+                         native_should_lock=False, session_active=True, locked=False,
+                         native_remaining=290)]
+    writer = DailyLogWriter(tmp_path)
+    for observation in observations:
+        writer.write("child", "INFO", encode(event("child.unlock-recovery", observation)))
+    with ZipFile(BytesIO(writer.snapshot())) as archive:
+        logs, _ = read_report(archive)
+        retained = [row for rows in logs.values() for row in rows]
+        assert [row["fields"] for row in retained] == observations
+
+
 @pytest.mark.parametrize("component,level,message", [
     ("unknown", "INFO", payload()), ("child", "NOTICE", payload()),
     ("child", "INFO", ""), ("child", "INFO", "private@example.test"),

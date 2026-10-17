@@ -10,11 +10,12 @@
 - **Portal**: Well, stricly speaking, not a product feature, but these under the hood security things, even though less eye-catching than fancy UI features, are notortiously hard and expensive, and, totally worth it. Check out the ["Security" tab](https://tech.puffyslippers.com/oh-no-parent-control/security/).
 
 ### Bug Fixes
-- **Installation**: Fixed package-trigger errors after a denied kiosk login on Ubuntu and Fedora.
+- **Installation**: Fixed package-trigger errors after a denied kiosk login on Ubuntu and Fedora, and when a child's screen time is exhausted.
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.
 - **Kiosk**: Fixed startup failures when unrelated installed applications have writable data directories.
 - **Kiosk**: Fixed a Fedora startup crash caused by missing GPU rendering permission.
 - **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.
+- **Child App**: Fixed the desktop staying locked after successful authentication when more screen time has been granted.
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Broker**: Added automatic recovery when the fapolicyd service exits with an error.
 - **Parent App**: Parent app app grid column headers on some RTL languages overlap

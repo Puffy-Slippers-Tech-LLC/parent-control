@@ -66,6 +66,10 @@ DEMANDS = {
     # read-only module imports; they add no live seat, bus or cleanup resource.
     # Resume-estimate cases own their fake manager, timer queue and usage store;
     # no real bus, files, processes or additional resource demand are involved.
+    # Session-diagnostic cases own signal/proxy doubles and their timer queue;
+    # they use no live bus/session, subprocess, mutable file or shared cache.
+    # Unlock-recovery cases also own their native shield and event-loop doubles;
+    # admission and cancellation tests neither operate a real lock nor use I/O.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

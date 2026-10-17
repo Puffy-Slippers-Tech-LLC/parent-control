@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Tell PAM whether an account is confirmed to have no session limit."""
+"""Tell PAM whether this account check can skip session-time enforcement."""
 
 from __future__ import annotations
 
@@ -24,6 +24,11 @@ SESSION_LIMITS_INTERFACE = "com.endlessm.ParentalControls.SessionLimits"
 CALL_TIMEOUT_MS = 3_000
 UINT32_MAX = (1 << 32) - 1
 GDM_PASSWORD_SERVICE = "gdm-password"
+SYSTEMD_NAME = "org.freedesktop.systemd1"
+SYSTEMD_PATH = "/org/freedesktop/systemd1"
+SYSTEMD_SERVICE_INTERFACE = "org.freedesktop.systemd1.Service"
+SYSTEMD_UNIT_INTERFACE = "org.freedesktop.systemd1.Unit"
+STDIO_BRIDGE = "/usr/bin/systemd-stdio-bridge"
 
 
 class AuthenticationOutcome(IntEnum):
@@ -33,9 +38,9 @@ class AuthenticationOutcome(IntEnum):
 
 
 def _call(connection, path: str, interface: str, method: str,
-          parameters: GLib.Variant, reply_type: str):
+          parameters: GLib.Variant, reply_type: str, *, destination=ACCOUNTS_NAME):
     return connection.call_sync(
-        ACCOUNTS_NAME,
+        destination,
         path,
         interface,
         method,
@@ -45,6 +50,61 @@ def _call(connection, path: str, interface: str, method: str,
         CALL_TIMEOUT_MS,
         None,
     )
+
+
+def is_systemd_user_bus_bridge(username: str, service: str, connection=None) -> bool:
+    """Recognize systemd's administrative user-bus transport, never a login.
+
+    systemctl --user --machine=UID@ uses a transient system service with
+    PAMName=login. Its account check must work even after the child's time is
+    exhausted. Bind pam_exec's live parent to the system manager's MainPID and
+    exact command; PAM environment, process names and unit names prove nothing.
+    This does not skip the rest of PAM or the independent kiosk admission gate.
+    """
+    if (service != "login" or not username or username == "oh-no-parent-control"
+            or os.getuid() != 0 or os.geteuid() != 0):
+        return False
+    parent = os.getppid()
+    if parent <= 1:
+        return False
+    try:
+        identity = pwd.getpwnam(username)
+        if identity.pw_name != username or not 0 < identity.pw_uid <= UINT32_MAX:
+            return False
+        if connection is None:
+            connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        path = _call(
+            connection, SYSTEMD_PATH, SYSTEMD_NAME + ".Manager", "GetUnitByPID",
+            GLib.Variant("(u)", (parent,)), "(o)", destination=SYSTEMD_NAME,
+        ).unpack()[0]
+        unit = _call(
+            connection, path, PROPERTIES_INTERFACE, "GetAll",
+            GLib.Variant("(s)", (SYSTEMD_UNIT_INTERFACE,)), "(a{sv})",
+            destination=SYSTEMD_NAME,
+        ).unpack()[0]
+        properties = _call(
+            connection, path, PROPERTIES_INTERFACE, "GetAll",
+            GLib.Variant("(s)", (SYSTEMD_SERVICE_INTERFACE,)), "(a{sv})",
+            destination=SYSTEMD_NAME,
+        ).unpack()[0]
+        commands = properties["ExecStart"]
+        return (
+            unit["Transient"] is True
+            and properties["MainPID"] == parent
+            and properties["User"] in (username, str(identity.pw_uid))
+            and properties["PAMName"] == "login"
+            and len(commands) == 1
+            # The native -M.host transport preserves the executable basename
+            # in ExecStart. Accept only that exact name or its fixed path.
+            and commands[0][0] in (STDIO_BRIDGE, "systemd-stdio-bridge")
+            and commands[0][1] in (
+                [STDIO_BRIDGE, "--user", "--quiet"],
+                ["systemd-stdio-bridge", "--user", "--quiet"],
+            )
+            and os.getppid() == parent
+        )
+    except (GLib.Error, OSError, RuntimeError, TypeError, ValueError, KeyError, IndexError):
+        return False
 
 
 def is_confirmed_unrestricted(username: str, connection=None) -> bool:
@@ -159,9 +219,12 @@ def main(arguments=None) -> int:
         return int(outcome)
     if arguments:
         return 1
-    # A successful helper result skips pam_malcontent. Every restricted or
-    # indeterminate result leaves the enforcing module in the account stack.
-    return 0 if is_confirmed_unrestricted(os.environ.get("PAM_USER", "")) else 1
+    # A successful helper result skips only the two product time modules.
+    # All other restricted or indeterminate checks retain pam_malcontent.
+    username = os.environ.get("PAM_USER", "")
+    if is_systemd_user_bus_bridge(username, os.environ.get("PAM_SERVICE", "")):
+        return 0
+    return 0 if is_confirmed_unrestricted(username) else 1
 
 
 if __name__ == "__main__":

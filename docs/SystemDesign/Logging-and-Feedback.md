@@ -69,6 +69,50 @@ Diagnostic failure cannot interrupt a successful refresh, countdown or lock.
 The additive catalogue ships with the child and broker; session renewal and
 broker process restart load the new diagnostics. No saved-data migration is needed.
 
+### Native login and unlock observations
+
+The child [session observer](../../child/sessionDiagnostics.js) emits
+`child.session-state` when the native limit decision, logind activity/idle/locked
+hints or Shell locked/greeter mode changes. It records the native state category,
+`shouldLockSession`, whether parental limits and the session proxy are available,
+and the bounded native remaining duration. Duration ticks alone produce no event.
+These observations distinguish a successful password check from a native unlock
+refusal or a later lock. They do not infer password success from an unlocked mode.
+
+Only `Lock`/`Unlock` signals from the current session proxy's current logind owner
+produce request observations. Each unlock increments a process-local attempt
+counter, retaining identical successive requests despite duplicate suppression.
+A single owned one-second timer records the resulting state and monotonic elapsed
+duration. Another request, a Lock signal, suspend, owner replacement or extension
+shutdown retires the previous observation timer. The observer records no account,
+session, bus-owner or device identifiers, passwords, raw deadlines or error text.
+It never performs a lock/unlock or changes a hint, policy or native state.
+
+`child.session-monitor-failed` explicitly reports unavailable observation.
+Observer failures cannot interrupt native signal dispatch or child enforcement;
+all connections and the timer are retired on failed startup and disable. The
+additive catalogue ships with the child and broker. A child session renewal loads
+the observer; the broker reloads the catalogue on process restart. Existing event
+formats and saved data are unchanged.
+
+The separate [unlock continuation](../../child/sessionUnlock.js) emits
+`child.unlock-recovery` for arming, its single native continuation, observed
+unlock, pending cancellation, expiry or failure. `native-owned` records an
+already observed native unlock animation. After dispatch, `observed-interruption`
+and `observation-expired` explicitly distinguish observation from cancellation:
+GNOME's public API cannot retract its own pending native completion callbacks.
+It records a local request ordinal,
+closed cancellation reason, monotonic elapsed duration, native lock decision,
+actual public shield lock state, session activity and bounded remaining time.
+These distinguish a discarded native Unlock from a completed recovery and an
+uncompleted native call. There is no credential or identity in these events.
+`child.unlock-recovery-unavailable` identifies setup or observation failures;
+diagnostic failures never authorize or prevent a continuation. The
+[admission contract](Screen-Time.md#countdown-and-expiry-enforcement) owns its
+authority and cancellation rules. The new module activates at session renewal.
+
+### Event timestamps
+
 Every new record includes the broker's UTC observation time as an ISO 8601
 timestamp with milliseconds and `Z`, for example `2026-09-12T18:42:03.337Z`.
 Readable exports place it immediately after severity. Source and incident file

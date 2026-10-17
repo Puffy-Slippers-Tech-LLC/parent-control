@@ -74,6 +74,7 @@ test('failed extension startup remains failed with a public exception and a priv
     const context = vm.createContext({
         Extension: class {},
         LockedSessionFocus: class { close() {} },
+        SessionDiagnostics: class { ready = Promise.resolve(null); close() {} },
         global: {stage: {context: {get_backend: () => ({get_default_seat: () => ({})})}}},
         Main: {sessionMode: {}},
         ChildErrorHandler: class { report(error) { reports.push(error); } },
@@ -100,6 +101,7 @@ test('production extension uses live state while the separate preview supplies f
         ReminderPreview: class { close() {} },
         WellbeingSuppression: class { close() {} },
         LockedSessionFocus: class { close() {} },
+        SessionDiagnostics: class { ready = Promise.resolve(null); close() {} },
         global: {stage: {context: {get_backend: () => ({get_default_seat: () => ({})})}}},
         Main: {timeLimitsManager: {}, sessionMode: {}, layoutManager: {connectObject() {}}},
         TranslationContext: class {
@@ -186,6 +188,7 @@ test('suppression startup/reporting and shutdown failures cannot disable the enf
         Extension: class { getSettings() { return {}; } },
         Main: {timeLimitsManager: {}, sessionMode: {}, layoutManager: {connectObject() {}}},
         LockedSessionFocus: class { close() {} },
+        SessionDiagnostics: class { ready = Promise.resolve(null); close() {} },
         global: {stage: {context: {get_backend: () => ({get_default_seat: () => ({})})}}},
         ChildErrorHandler: class { report() { throw Error('report unavailable'); } close() {} },
         WellbeingSuppression: class { constructor() { throw Error('helper unavailable'); } },

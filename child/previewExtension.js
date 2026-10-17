@@ -9,6 +9,10 @@ import {previewGenerationMarker, previewStartsWithRequestOpen} from './previewMo
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
 
 export default class PreviewExtension extends OhNoParentControlExtension {
+    // A nested preview has no owned logind session. Never observe or recover
+    // unlock requests from the development host's real session.
+    _startSessionMonitoring() {}
+
     _refreshLanguage() {
         if (!this._translations || this._translations.closed)
             return;

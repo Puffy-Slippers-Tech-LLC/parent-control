@@ -15,6 +15,8 @@ import {GnomeApplicationUiAdapter} from './gnomeApplicationUiAdapter.js';
 import {ReminderPreview} from './reminderPreview.js';
 import {WellbeingSuppression} from './wellbeingSuppression.js';
 import {LockedSessionFocus} from './lockedSessionFocus.js';
+import {SessionDiagnostics} from './sessionDiagnostics.js';
+import {SessionUnlockRecovery} from './sessionUnlock.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -29,6 +31,10 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             this._enable();
         } catch (error) {
+            this._sessionUnlock?.close();
+            this._sessionUnlock = null;
+            this._sessionDiagnostics?.close();
+            this._sessionDiagnostics = null;
             this._lockedSessionFocus?.close();
             this._lockedSessionFocus = null;
             this._errors.report(error);
@@ -40,6 +46,7 @@ export default class OhNoParentControlExtension extends Extension {
 
     _enable() {
         logInfo('child.enabled');
+        this._startSessionMonitoring();
         this._lockedSessionFocus = new LockedSessionFocus(
             global.stage.context.get_backend().get_default_seat(), global.stage,
             Main.sessionMode, outcome => (outcome === 'failed' ? logWarning : logInfo)(
@@ -81,6 +88,31 @@ export default class OhNoParentControlExtension extends Extension {
         this._refreshLanguage();
     }
 
+    _startSessionMonitoring() {
+        try {
+            const monitor = new SessionDiagnostics(Main.timeLimitsManager,
+                Main.sessionMode, fields => logInfo('child.session-state', fields),
+                () => logWarning('child.session-monitor-failed'));
+            this._sessionDiagnostics = monitor;
+            monitor.ready.then(binding => {
+                if (!binding || this._sessionDiagnostics !== monitor)
+                    return;
+                try {
+                    this._sessionUnlock = new SessionUnlockRecovery(Main.timeLimitsManager,
+                        Main.sessionMode, Main.screenShield, binding.session, binding.login,
+                        fields => (['failed', 'expired', 'observation-expired', 'observed-interruption']
+                            .includes(fields.stage) ? logWarning : logInfo)(
+                            'child.unlock-recovery', fields),
+                        () => logWarning('child.unlock-recovery-unavailable'));
+                } catch (_error) {
+                    logWarning('child.unlock-recovery-unavailable');
+                }
+            });
+        } catch (_error) {
+            logWarning('child.session-monitor-failed');
+        }
+    }
+
     _refreshLanguage() {
         this._translations?.refresh(() => {
             this._indicator?.refreshLanguage();
@@ -119,6 +151,10 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     disable() {
+        this._sessionUnlock?.close();
+        this._sessionUnlock = null;
+        this._sessionDiagnostics?.close();
+        this._sessionDiagnostics = null;
         this._lockedSessionFocus?.close();
         this._lockedSessionFocus = null;
         try { this._wellbeing?.close(); } catch (_error) {

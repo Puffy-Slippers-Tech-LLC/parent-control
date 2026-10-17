@@ -11,6 +11,7 @@
 
 ### Bug Fixes
 - **Kiosk**: Fixed unintended desktop access by restricting the kiosk account to the request app and its required services.
+- **Kiosk**: Fixed startup failures when unrelated installed applications have writable data directories.
 - **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Broker**: Added automatic recovery when the fapolicyd service exits with an error.

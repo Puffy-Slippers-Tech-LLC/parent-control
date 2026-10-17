@@ -101,6 +101,14 @@ is attached recursively over `/usr` in a private mount namespace. Package
 unlink/rename cannot detach these private dentries and expose replacement bytes.
 Versioned systemd libraries remain coherent across manager reexecution.
 
+Unrelated root-owned sibling directories writable by a group or by everyone
+become empty private directories in the kiosk view. Their contents are never
+bound into the kiosk, so installed applications such as VS Code can ship
+mode-0775 data directories without blocking kiosk entry or supplying mutable
+scripts/plugins through the host's writable alias. Group root receives no trust
+exception. Executable files, their trusted ancestors, reserved directories and
+every native bind retain the prohibition on all group and world writes.
+
 The manager must have the expected UID, enforcing label and exact private
 generation before GDM admission. A stale manager requires reboot; configuration
 does not kill or replace it. Completed generations survive until reboot.

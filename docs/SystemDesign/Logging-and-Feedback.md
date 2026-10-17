@@ -107,10 +107,25 @@ attempt into an allowed login.
 
 The final native boundary emits `onpc.pam kiosk execution-boundary` with an
 armed or denied outcome. Integrity failures use the fixed `integration` reason.
-Preparation emits `onpc.kiosk confinement preparation` with a denied outcome
-and `verification`, `stale-manager-reboot-required`, or
-`generation-limit-reboot-required`. The last two require reboot rather than
-automatic process termination. Configuration/removal reports a bounded fixed
+Preparation emits `onpc.kiosk confinement preparation` with a denied outcome,
+a closed manager/gate role and preparation stage, a fixed failure reason and
+the last failing source line in the shipped preparation helper. Stages separate
+account identity, attestation/payload, enforcement, executable/privileged
+inventories, directory layout, manager generation, runtime/recovery, generation
+creation/verification and binding publication. Reviewed reason tokens identify
+trust, missing executable, inventory, generation and policy failures; unknown
+errors remain `verification`. OS failures include bounded numeric errno;
+command failures/timeouts identify their category and bounded exit status,
+without command arguments or captured output. The retained
+`stale-manager-reboot-required` and `generation-limit-reboot-required` reasons
+require reboot rather than automatic process termination. A separate
+`onpc.kiosk confinement directory-view` record reports the aggregate number of
+writable sibling directories hidden behind empty private directories, with
+`outcome=masked reason=writable-sibling-directory`. It contains no directory
+names and does not assert completed admission. Unavailable diagnostic output
+does not change the preparation result.
+
+Configuration/removal reports a bounded fixed
 reason token and retains ownership records on failure. It also identifies the
 last failing source line in the shipped confinement integration, numeric OS
 errno or command exit status, and closed policy-command/module categories.

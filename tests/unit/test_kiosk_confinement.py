@@ -157,6 +157,82 @@ def test_failure_diagnostics_classify_errors_without_private_values(error, expec
     assert 'preserving ownership records' in diagnostic
 
 
+@pytest.mark.parametrize('error, expected', [
+    (ValueError('untrusted-path'), 'reason=untrusted-path'),
+    (ValueError('missing-executable'), 'reason=missing-executable'),
+    (ValueError('manager-generation-stale'), 'reason=stale-manager-reboot-required'),
+    (ValueError('generation-limit-reboot-required'), 'reason=generation-limit-reboot-required'),
+    (ValueError('private exception text'), 'reason=verification'),
+    (ValueError(['private exception text']), 'reason=verification'),
+    (PermissionError(13, 'private exception text', '/home/private/file'), 'reason=os-error errno=13'),
+    (subprocess.CalledProcessError(7, ['/home/private/program'],
+                                  stderr='private exception text'), 'reason=command-failed status=7'),
+    (subprocess.TimeoutExpired(['/home/private/program'], 5,
+                               stderr='private exception text'), 'reason=command-timeout'),
+    (RuntimeError('private exception text'), 'reason=verification'),
+])
+def test_preparation_failure_diagnostics_exclude_private_exception_data(error, expected, capfd):
+    helper = module(ROOT / 'tools/kiosk_confinement.py')
+    helper.report_preparation_failure(error, role='/home/private/role')
+    diagnostic = capfd.readouterr().err
+    assert expected in diagnostic
+    assert 'outcome=denied role=other stage=arguments' in diagnostic
+    assert 'private' not in diagnostic and 'Traceback' not in diagnostic
+
+
+def test_preparation_failure_logs_the_actual_stage_and_shipped_source_line(
+        preserved_password_preparation, monkeypatch, capfd):
+    helper = preserved_password_preparation.helper
+
+    def refuse(config, records):
+        raise ValueError('untrusted-path')
+
+    monkeypatch.setattr(helper, 'directory_layout', refuse)
+    monkeypatch.setattr(helper.sys, 'argv', ['preparation', 'manager'])
+    assert helper.main() == 1
+    diagnostic = capfd.readouterr().err
+    assert 'preparation outcome=denied role=manager stage=directory-layout reason=untrusted-path' in diagnostic
+    assert 'source=kiosk-confinement line=' in diagnostic
+    assert 'Traceback' not in diagnostic
+    assert (preserved_password_preparation.runtime / 'bindings').read_text() == 'previous bindings\n'
+
+
+@pytest.mark.parametrize('denied', [False, True])
+def test_preparation_diagnostic_output_failure_does_not_change_admission(denied):
+    # A real broken stderr pipe also exercises interpreter shutdown: buffered
+    # diagnostics can otherwise turn successful preparation into exit 120.
+    source = '''
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location('preparation', sys.argv[1])
+helper = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(helper)
+denied = sys.argv[2] == 'denied'
+
+def prepare(role):
+    assert role == 'manager'
+    helper.preparation_log('directory-view outcome=masked reason=writable-sibling-directory count=1')
+    if denied:
+        raise ValueError('untrusted-path')
+
+helper.prepare = prepare
+sys.argv = ['preparation', 'manager']
+sys.exit(helper.main())
+'''
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    try:
+        result = subprocess.run(
+            [sys.executable, '-I', '-B', '-c', source,
+             str(ROOT / 'tools/kiosk_confinement.py'), 'denied' if denied else 'allowed'],
+            stdout=subprocess.PIPE, stderr=write_fd, text=True, timeout=5)
+    finally:
+        os.close(write_fd)
+    assert result.returncode == (1 if denied else 0)
+    assert result.stdout == ''
+
+
 def test_removal_preflight_restores_recreated_lock_label_without_manufacturing_legacy_inodes(integration):
     helper, commands = integration
     helper.install()
@@ -2968,7 +3044,19 @@ def test_preserved_password_helper_preparation_publishes_exactly_one_inode_signe
     assert {item.name for item in model.runtime.iterdir()} == {'bindings', generation.name}
 
 
-def test_preserved_password_helper_parent_contributes_real_private_directory_layout(tmp_path, monkeypatch):
+@pytest.mark.parametrize('sibling_kind,mode,gid,uid,scope,expected', [
+    ('directory', 0o755, 0, 0, 'sibling', 'directory'),
+    ('directory', 0o775, 0, 0, 'sibling', 'empty-directory'),
+    ('directory', 0o775, 12345, 0, 'sibling', 'empty-directory'),
+    ('directory', 0o777, 0, 0, 'sibling', 'empty-directory'),
+    ('directory', 0o755, 0, 12345, 'sibling', None),
+    ('directory', 0o775, 0, 0, 'reserved', None),
+    ('directory', 0o775, 0, 0, 'executable-parent', None),
+    ('file', 0o664, 0, 0, 'sibling', None),
+    ('file', 0o644, 12345, 0, 'sibling', 'file'),
+])
+def test_preserved_password_helper_parent_contributes_real_private_directory_layout(
+        tmp_path, monkeypatch, sibling_kind, mode, gid, uid, scope, expected):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
     private_root = tmp_path / 'private-root'
     source = private_root / 'usr/lib/polkit-1/polkit-agent-helper-1'
@@ -2981,6 +3069,10 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
     (payload / 'generation').touch()
     for path in private_root.rglob('*'):
         path.chmod(0o755 if path.is_dir() else 0o644)
+    sibling = source.parent / 'vendor-data' if sibling_kind == 'directory' else source.parent / 'vendor-file'
+    if sibling_kind == 'file':
+        sibling.touch()
+    sibling.chmod(mode)
     original_iterdir, original_lstat = Path.iterdir, Path.lstat
     visited = []
 
@@ -2999,10 +3091,12 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
         if path != Path('/usr') and Path('/usr') not in path.parents:
             return original_lstat(path)
         values = list(original_lstat(physical(path)))
-        values[4] = 0
+        values[4] = uid if physical(path) == sibling else 0
+        values[5] = gid if physical(path) == sibling else 0
         return os.stat_result(values)
 
     def trusted(path, *, directory=False, **kwargs):
+        path = Path(path)
         info = original_lstat(physical(path))
         assert stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)
         return path
@@ -3010,15 +3104,66 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
     monkeypatch.setattr(helper.Path, 'iterdir', entries)
     monkeypatch.setattr(helper.Path, 'lstat', metadata)
     monkeypatch.setattr(helper, 'trusted', trusted)
-    layout = helper.directory_layout({'reserved_directories': []},
-        [{'path': '/usr/lib/polkit-1/polkit-agent-helper-1'}])
+    sibling_path = '/usr/lib/polkit-1/' + sibling.name
+    config = {'reserved_directories': [sibling_path] if scope == 'reserved' else []}
+    records = [{'path': '/usr/lib/polkit-1/polkit-agent-helper-1'}]
+    if scope == 'executable-parent':
+        records.append({'path': sibling_path + '/another-executable'})
+    if expected is None:
+        with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry'):
+            helper.directory_layout(config, records)
+        return
+    layout = helper.directory_layout(config, records)
     kinds = {entry['path']: entry['kind'] for entry in layout}
     assert kinds['/usr/lib'] == kinds['/usr/lib/polkit-1'] == 'tree'
     assert kinds['/usr/lib/polkit-1/polkit-agent-helper-1'] == 'file'
-    assert kinds['/usr/lib/polkit-1/vendor-data'] == 'directory'
+    assert kinds[sibling_path] == expected
     assert '/usr/lib/polkit-1/vendor-data/uncovered' not in kinds
     assert source.parent in visited
     assert source.parent / 'vendor-data' not in visited
+
+
+@pytest.mark.parametrize('name', ['code', 'gnome-shell', 'wireplumber'])
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+def test_writable_sibling_contents_never_enter_private_generation_or_bindings(
+        preserved_password_preparation, tmp_path, name, role, capfd):
+    model = preserved_password_preparation
+    # Model an unrelated application's data tree and consumed script/plugin
+    # roots alike. A read-only alias would still expose their later changes.
+    source = tmp_path / 'global' / name
+    source.mkdir(parents=True)
+    source.chmod(0o775)
+    script = source / 'module.py'
+    script.write_text('original host contents')
+    model.layout += [{'path': '/usr/share', 'kind': 'tree'},
+                     {'path': '/usr/share/' + name, 'kind': 'empty-directory'}]
+    model.helper.prepare(role)
+    diagnostic = capfd.readouterr().err
+    assert diagnostic.strip() == ('onpc.kiosk confinement directory-view outcome=masked '
+                                  'reason=writable-sibling-directory count=1')
+    generation = next(path for path in model.runtime.iterdir() if path.is_dir())
+    private = generation / 'tree/share' / name
+    assert private.is_dir() and list(private.iterdir()) == []
+    assert private.stat().st_ino != source.stat().st_ino
+    assert stat.S_IMODE(private.stat().st_mode) == 0o755
+    bindings = (model.runtime / 'bindings').read_text().splitlines()
+    # The native caller receives only the preserved helper and the final
+    # private /usr root. Neither the global directory nor its private target
+    # is a bind source/destination, even if it holds runtime script inputs.
+    assert len(bindings) == 3
+    assert bindings[-1] == str(generation / 'tree') + '\t/usr'
+    assert all('/usr/share/' + name not in line and str(private) not in line
+               for line in bindings)
+    script.unlink()
+    script.symlink_to(tmp_path / 'replacement-script')
+    (source / 'new-plugin').write_text('later host contents')
+    model.helper.prepare(role)
+    assert list(private.iterdir()) == []
+    assert (model.runtime / 'bindings').read_text().splitlines() == bindings
+    # Generation validation must also reject contamination of the placeholder.
+    (private / 'unexpected-script').write_text('private contamination')
+    with pytest.raises(ValueError, match='directory-generation-changed'):
+        model.helper.prepare(role)
 
 
 @pytest.fixture(scope='module')
@@ -3151,6 +3296,18 @@ static int fixture_fstat(int fd, struct stat *info) {
                     (length >= 5 && strcmp(path + length - 5, "/tree") == 0);
     info->st_mode = directory ? S_IFDIR | 0755 : S_IFREG | 0644;
     info->st_nlink = 1;
+    if (strcmp(path, "/usr/share/assets") == 0) {
+        if (strcmp(fault, "root-group-directory") == 0 ||
+            strcmp(fault, "other-group-directory") == 0)
+            info->st_mode |= 0020;
+        if (strcmp(fault, "other-group-directory") == 0) info->st_gid = 12345;
+        if (strcmp(fault, "world-directory") == 0) info->st_mode |= 0002;
+        if (strcmp(fault, "unowned-directory") == 0) info->st_uid = 12345;
+    }
+    if (strcmp(path, "/usr/bin/program") == 0 && strcmp(fault, "group-file") == 0)
+        info->st_mode |= 0020;
+    if (strstr(path, "/tree/share/assets") != NULL && strcmp(fault, "group-target") == 0)
+        info->st_mode |= 0020;
     return 0;
 }
 static int fixture_close(int fd) { return fd < 100 ? close(fd) : 0; }
@@ -3207,7 +3364,9 @@ int main(int argc, char **argv) {
     return executable
 
 
-@pytest.mark.parametrize('fault', ['none', 'attach', 'readonly', 'detach', 'input'])
+@pytest.mark.parametrize('fault', ['none', 'attach', 'readonly', 'detach', 'input',
+    'root-group-directory', 'other-group-directory', 'world-directory',
+    'unowned-directory', 'group-file', 'group-target'])
 def test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone(
         native_mount_binding, tmp_path, fault):
     root = '/run/oh-no-parent-control-confinement/generation/tree'

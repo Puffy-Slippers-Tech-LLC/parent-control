@@ -816,6 +816,9 @@ from regression_ui import Bucket
 # synchronously wait for its bounded children. Mount/namespace calls are doubles;
 # manifests and outputs stay in pytest-private trees. Existing compatible unit
 # admission still applies; there is no cleanup/UI inventory or shared resource.
+# Preparation diagnostic shutdown checks own private broken pipes and bounded,
+# waited Python children with bytecode writes disabled. Preparation is a local
+# double; no host account, PAM, mount, policy or shared cache is accessed.
 # Payload-refusal format checks reuse the existing private files and process-local
 # command doubles, with no additional subprocess or resource ownership.
 # Lua cwd-canary checks use the installed native Lua library in two bounded,

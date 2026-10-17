@@ -22,6 +22,71 @@ PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
 RUNTIME = Path('/run/oh-no-parent-control-confinement')
 ACCOUNT = 'oh-no-parent-control'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+PREPARATION_STAGES = frozenset((
+    'identity', 'attestation', 'payload', 'enforcement', 'executable-inventory',
+    'privileged-inventory', 'directory-layout', 'manager-generation', 'runtime',
+    'recovery', 'generation-create', 'generation-verify', 'bindings'))
+PREPARATION_REASONS = frozenset((
+    'invalid-caller', 'invalid-arguments', 'unowned-account', 'substituted-path',
+    'untrusted-path', 'untrusted-ancestor', 'unexpected-file-type',
+    'unexpected-executable-mode', 'non-native-executable', 'source-changed',
+    'invalid-executable-substitution', 'missing-executable', 'conflicting-executable-roles',
+    'unexpected-preserved-executable', 'preserved-executable-label',
+    'preserved-executable-changed', 'preserved-executable-layout',
+    'inventory-outside-usr', 'unsafe-directory-entry', 'directory-inventory-too-large',
+    'directory-generation-changed', 'selinux-not-enforcing', 'selinux-query-unavailable',
+    'selinux-domain-not-enforcing', 'apparmor-not-enforcing', 'unknown-backend',
+    'manager-unavailable', 'manager-identity', 'manager-not-confined', 'manager-exited',
+    'mounted-preparation', 'linked-preparation', 'unknown-preparation-file',
+    'unowned-preparation', 'policy-snapshot-not-attested', 'runtime-mode',
+    'executable-inventory-too-large', 'copy-changed', 'generation-changed',
+    'executable-label-changed'))
+
+
+def preparation_log(fields):
+    try:
+        # Never queue diagnostics in Python's stderr buffer: a failed write
+        # retried at interpreter shutdown can change successful exit to 120.
+        os.write(2, ('onpc.kiosk confinement ' + fields + '\n').encode('ascii'))
+    except OSError:
+        pass  # Unavailable diagnostic output must not change admission policy.
+
+
+def report_preparation_failure(error, role='other'):
+    """Keep failure locations and closed reasons, never exception text/paths."""
+    role = role if role in ('manager', 'gate') else 'other'
+    stage, line = 'arguments', None
+    frame = error.__traceback__
+    while frame is not None:
+        if frame.tb_frame.f_code.co_filename == __file__:
+            line = frame.tb_lineno
+            if frame.tb_frame.f_code.co_name == 'prepare':
+                candidate = frame.tb_frame.f_locals.get('stage')
+                stage = (candidate if isinstance(candidate, str) and candidate in PREPARATION_STAGES
+                         else 'other')
+        frame = frame.tb_next
+    reason, details = 'verification', ''
+    if isinstance(error, ValueError) and error.args and isinstance(error.args[0], str):
+        value = error.args[0]
+        if value in PREPARATION_REASONS:
+            reason = value
+        elif value == 'manager-generation-stale':
+            reason = 'stale-manager-reboot-required'
+        elif value == 'generation-limit-reboot-required':
+            reason = value
+    elif isinstance(error, subprocess.TimeoutExpired):
+        reason = 'command-timeout'
+    elif isinstance(error, subprocess.CalledProcessError):
+        reason = 'command-failed'
+        if type(error.returncode) is int and -255 <= error.returncode <= 255:
+            details = f' status={error.returncode}'
+    elif isinstance(error, OSError):
+        reason = 'os-error'
+        if type(error.errno) is int and 0 <= error.errno <= 4095:
+            details = f' errno={error.errno}'
+    if line is not None:
+        details += f' source=kiosk-confinement line={line}'
+    preparation_log(f'preparation outcome=denied role={role} stage={stage} reason={reason}{details}')
 
 
 def trusted(path, *, directory=False, symlinks=False):
@@ -178,11 +243,18 @@ def directory_layout(config, records):
                 # above. lstat identifies this immediate non-link child; do
                 # not resolve and recheck the same ancestry for every sibling.
                 if info.st_mode & 0o022:
-                    raise ValueError('untrusted-path')
-                if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
-                    raise ValueError('unexpected-file-type')
-                entries.append({'path': str(child), 'kind': 'tree' if child in covered else
-                                'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
+                    if not stat.S_ISDIR(info.st_mode) or child in covered:
+                        raise ValueError('untrusted-path')
+                    # An unrelated package may ship a writable data directory.
+                    # Read-only binds would still expose changes through the
+                    # host's writable alias, including group/ACL writers. Give
+                    # it an empty private directory instead; never bind it.
+                    entries.append({'path': str(child), 'kind': 'empty-directory'})
+                else:
+                    if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                        raise ValueError('unexpected-file-type')
+                    entries.append({'path': str(child), 'kind': 'tree' if child in covered else
+                                    'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
             if len(entries) > 32768:
                 raise ValueError('directory-inventory-too-large')
     return entries
@@ -195,7 +267,7 @@ def make_tree(destination, layout):
         path = destination / Path(entry['path']).relative_to('/usr')
         if entry['kind'] == 'link':
             path.symlink_to(entry['link'])
-        elif entry['kind'] in ('tree', 'directory'):
+        elif entry['kind'] in ('tree', 'directory', 'empty-directory'):
             path.mkdir(mode=0o755)
             path.chmod(0o755)
         else:
@@ -220,7 +292,7 @@ def verify_tree(root, layout):
             # trusted(root) checks the ancestors outside the tree once.
             if info.st_uid != 0 or info.st_mode & 0o022:
                 raise ValueError('untrusted-path')
-            directory = entry['kind'] in ('tree', 'directory')
+            directory = entry['kind'] in ('tree', 'directory', 'empty-directory')
             if not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)):
                 raise ValueError('unexpected-file-type')
             if entry['kind'] == 'file' and (info.st_nlink != 1 or info.st_size != 0):
@@ -362,6 +434,7 @@ def reclaim_interrupted():
 
 
 def prepare(role):
+    stage = 'identity'
     if os.geteuid() != 0 or role not in ('manager', 'gate'):
         raise ValueError('invalid-caller')
     os.umask(0o077)
@@ -370,9 +443,11 @@ def prepare(role):
     if (account.pw_uid == 0 or stat.S_IMODE(marker.stat().st_mode) != 0o600 or
             marker.stat().st_nlink != 1 or marker.read_text().strip() != str(account.pw_uid)):
         raise ValueError('unowned-account')
+    stage = 'attestation'
     attestation = subprocess.run(
         ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
         env=ENV, check=True, capture_output=True, text=True, timeout=5)
+    stage = 'payload'
     config_path = trusted(PAYLOAD / 'config.json')
     config_bytes = config_path.read_bytes()
     config = json.loads(config_bytes)
@@ -384,10 +459,18 @@ def prepare(role):
     if attestation.stdout != ' '.join(hashlib.sha256(data).hexdigest()
                                      for data in (config_bytes, policy)) + '\n':
         raise ValueError('policy-snapshot-not-attested')
+    stage = 'enforcement'
     enforcing(config)
+    stage = 'executable-inventory'
     records = inventory(config)
+    stage = 'privileged-inventory'
     preserved, identities = preserved_inventory(config)
+    stage = 'directory-layout'
     layout = directory_layout(config, [*records, *preserved])
+    masked = sum(entry['kind'] == 'empty-directory' for entry in layout)
+    if masked:
+        preparation_log('directory-view outcome=masked reason=writable-sibling-directory '
+                        f'count={masked}')
     # A concurrent vendor update can remove or replace an entry after its
     # measurement. Every preserved executable must reach the signed native
     # binding route; a manifest record alone does not establish that binding.
@@ -397,15 +480,19 @@ def prepare(role):
     manifest = {'records': records, 'preserved': preserved, 'layout': layout}
     digest = hashlib.sha256(config_bytes + policy + json.dumps(manifest, sort_keys=True).encode()).hexdigest()
     if role == 'gate':
+        stage = 'manager-generation'
         manager_generation(account.pw_uid, digest, config['backend'])
     # The locked native PAM caller creates this directory before execing us,
     # preserving its named SELinux transition rather than the interpreter's.
+    stage = 'runtime'
     trusted(RUNTIME, directory=True)
     if stat.S_IMODE(RUNTIME.stat().st_mode) != 0o700:
         raise ValueError('runtime-mode')
+    stage = 'recovery'
     reclaim_interrupted()
     generation = RUNTIME / digest
     if not generation.exists():
+        stage = 'generation-create'
         if sum(bool(re.fullmatch(r'[0-9a-f]{64}', item.name)) for item in RUNTIME.iterdir()) >= 4:
             raise ValueError('generation-limit-reboot-required')
         if sum(Path(record.get('source', record['path'])).stat().st_size for record in records) > 512 * 1024 * 1024:
@@ -431,6 +518,7 @@ def prepare(role):
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
+    stage = 'generation-verify'
     trusted(generation, directory=True)
     if json.loads(trusted(generation / 'records.json').read_text()) != manifest:
         raise ValueError('generation-changed')
@@ -443,9 +531,10 @@ def prepare(role):
         verify_label(target, record['role'], config['backend'])
         replacements[record['path']] = target
     replacements[str(PAYLOAD / 'generation')] = generation / 'generation'
+    stage = 'bindings'
     bindings = []
     for entry in layout:
-        if entry['kind'] in ('tree', 'link'):
+        if entry['kind'] in ('tree', 'link', 'empty-directory'):
             continue
         source = replacements.get(entry['path'], entry['path'])
         target = generation / 'tree' / Path(entry['path']).relative_to('/usr')
@@ -465,15 +554,17 @@ def prepare(role):
         pending.unlink(missing_ok=True)
 
 
-if __name__ == '__main__':
+def main():
+    role = sys.argv[1] if len(sys.argv) == 2 else 'other'
     try:
         if len(sys.argv) != 2:
             raise ValueError('invalid-arguments')
-        prepare(sys.argv[1])
+        prepare(role)
     except Exception as error:
-        # No usernames, attacker-controlled paths or exception text in logs.
-        reasons = {'manager-generation-stale': 'stale-manager-reboot-required',
-                   'generation-limit-reboot-required': 'generation-limit-reboot-required'}
-        reason = reasons.get(error.args[0], 'verification') if isinstance(error, ValueError) and error.args else 'verification'
-        print(f'onpc.kiosk confinement preparation outcome=denied reason={reason}', file=sys.stderr)
-        sys.exit(1)
+        report_preparation_failure(error, role)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

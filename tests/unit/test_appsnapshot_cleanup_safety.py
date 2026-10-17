@@ -32,18 +32,12 @@ def test_snapshot_name_preserves_release_components():
     assert controller.snapshot_name('9.8.7.6+ppa1~ubuntu26.04.1') == 'onpc-v9.8.7.6'
 
 
-@pytest.mark.parametrize('argv, expected', [([], 'false'), (['--mode', 'offline'], 'true'),
+@pytest.mark.parametrize('argv, expected', [([], 'true'),
     (['--overwrite'], 'true'),
     (['--overwrite', 'true'], 'true'), (['--overwrite', 'false'], 'false'),
     (['--overwrite=false'], 'false')])
 def test_overwrite_defaults_and_explicit_values(argv, expected):
     assert launcher.arguments([*argv, *VM_ARGS]).overwrite == expected
-
-
-@pytest.mark.parametrize('argv, mode', [([], 'online'), (['--mode', 'offline'], 'offline'),
-                                      (['--mode', 'online'], 'online')])
-def test_snapshot_mode_defaults_and_explicit_values(argv, mode):
-    assert launcher.arguments([*argv, *VM_ARGS]).mode == mode
 
 
 @pytest.mark.parametrize('mode, memory, state, created, expected', [
@@ -111,7 +105,7 @@ def test_clipboard_refreshes_disabled_snapshot_and_reuses_enabled(mode):
 
 @pytest.mark.parametrize('argv', [['--overwrite', 'yes'], ['--overwrite='],
     ['--overwrite', 'FALSE'], ['--over', 'false'], ['--snapshot', 'onpc-9.8.7'],
-    ['--mode', 'running'], ['--mod', 'online']])
+    ['--mode', 'running'], ['--mode', 'online'], ['--mode', 'offline'], ['--mod', 'online']])
 def test_invalid_options_refused_before_any_work(argv, monkeypatch):
     check = Mock(side_effect=AssertionError('authorization attempted'))
     monkeypatch.setattr(launcher, 'check', check)
@@ -157,7 +151,7 @@ def test_assume_yes_without_vm_uses_enabled_selection(launch, monkeypatch, capsy
     configured, = vm_selection.vm_config.execution()[1]
     assert control.run.call_args.args[0][-2:] == ['--vm', configured.name]
     chooser.assert_not_called()
-    cleanup.assert_not_called()
+    cleanup.assert_called_once()
     allocation.assert_not_called()
 
 
@@ -175,14 +169,13 @@ def test_appsnapshot_queue_uses_shared_selection_and_scheduler(launch, monkeypat
     launch[0].run.assert_not_called()
 
 
-@pytest.mark.parametrize('mode', ['online', 'offline'])
-def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, mode, capsys):
+def test_assume_yes_with_vm_never_prompts(launch, monkeypatch, capsys):
     control, cleanup, allocation = launch
     control.run.return_value = 0
     monkeypatch.setattr(vm_selection, 'choose_vm', Mock(side_effect=AssertionError('VM prompt attempted')))
     monkeypatch.setattr(launcher, 'input', Mock(side_effect=AssertionError('confirmation attempted')),
                         raising=False)
-    assert launcher.main([*VM_ARGS, '--y', '--mode', mode, '--overwrite', 'false']) == 0
+    assert launcher.main([*VM_ARGS, '--y', '--overwrite', 'false']) == 0
     control.run.assert_called_once()
     assert capsys.readouterr().out == ''
 
@@ -254,7 +247,7 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
     assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == status
     assert control.run.call_args.args[0] == [
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online',
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe',
         '--overwrite', 'false', *VM_ARGS]
     control.run.assert_called_once()
     cleanup.assert_not_called()
@@ -264,10 +257,10 @@ def test_reuse_or_probe_failure_never_builds_or_cleans(launch, status):
 def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
     control, cleanup, allocation = launch
     control.run.side_effect = [4, 0]
-    assert launcher.main(['--mode', 'online', *VM_ARGS, '--y']) == 0
+    assert launcher.main(['--overwrite', 'false', *VM_ARGS, '--y']) == 0
     assert control.run.call_args.args[0][-7:] == [
         '/usr/local/libexec/onpc-test-runner',
-        'appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
+        'appsnapshot', '--resume', '--overwrite', 'false', *VM_ARGS]
     cleanup.assert_not_called()
     allocation.assert_not_called()
 
@@ -276,7 +269,7 @@ def test_fresh_online_snapshot_resumes_without_cleanup_or_build(launch):
 def test_unfinished_attempt_recovers_before_reprobe_without_forcing_build(launch, recovered_status):
     control, cleanup, allocation = launch
     control.run.side_effect = [6, recovered_status, 0]
-    assert launcher.main([*VM_ARGS, '--y']) == (1 if recovered_status == 1 else 0)
+    assert launcher.main([*VM_ARGS, '--y', '--overwrite', 'false']) == (1 if recovered_status == 1 else 0)
     cleanup.assert_called_once()
     assert control.run.call_args_list[0].args == control.run.call_args_list[1].args
     allocation.assert_not_called()
@@ -286,7 +279,7 @@ def test_unfinished_attempt_recovery_failure_prevents_reprobe_and_build(launch):
     control, cleanup, allocation = launch
     control.run.return_value = 6
     cleanup.side_effect = ValueError('retention: automatic recovery failed')
-    assert launcher.main([*VM_ARGS, '--y']) == 2
+    assert launcher.main([*VM_ARGS, '--y', '--overwrite', 'false']) == 2
     control.run.assert_called_once()
     allocation.assert_not_called()
 
@@ -584,7 +577,7 @@ def test_probe_routes_unfinished_attempts_to_recovery_and_keeps_healthy_online_r
     raw = json.dumps({'phase': phase, 'run': 'a' * 32}).encode()
     journal.write_bytes(raw)
     (tmp_path / 'vm-control.json').write_text(json.dumps({'run': ('a' if owned else 'b') * 32}))
-    assert controller.probe('pinned') == status
+    assert controller.probe('pinned', overwrite=False) == status
     assert journal.read_bytes() == raw
     source.domain.create.assert_not_called()
     source.domain.revertToSnapshot.assert_not_called()
@@ -679,9 +672,9 @@ def test_needed_preparation_cleans_builds_and_passes_overwrite(launch, argv, res
     assert command[2] == '--keep-cwd'
     assert command[5:8] == ['--unattended', 'appsnapshot', '--overwrite']
     assert command[8] == 'true'
-    assert command[9:] == ['--artifacts', allocation.return_value, '--mode', 'online', *VM_ARGS]
+    assert command[9:] == ['--artifacts', allocation.return_value, *VM_ARGS]
     assert control.run.call_args_list[-2].kwargs['cooperative'] is True
-    assert control.run.call_args.args[0][-6:] == ['appsnapshot', '--resume', '--mode', 'online', *VM_ARGS]
+    assert control.run.call_args.args[0][-6:] == ['appsnapshot', '--resume', '--overwrite', 'true', *VM_ARGS]
 
 
 def test_failed_cleanup_does_not_build_or_install(launch):
@@ -692,7 +685,7 @@ def test_failed_cleanup_does_not_build_or_install(launch):
     control.run.assert_not_called()
 
 
-@pytest.mark.parametrize('argv', [['--mode', 'offline'], ['--overwrite'], ['--overwrite', 'true']])
+@pytest.mark.parametrize('argv', [[], ['--overwrite'], ['--overwrite', 'true']])
 def test_failed_build_does_not_install(launch, argv):
     control, cleanup, allocation = launch
     control.run.side_effect = [3, 17]
@@ -796,13 +789,65 @@ def test_snapshot_dispatch_pins_vm_and_confines_inputs(dispatch, tmp_path):
         dispatch(ROOT, ['appsnapshot', '--probe', *VM_ARGS])
 
 
+@pytest.mark.parametrize('operation', ['--probe', '--resume'])
+@pytest.mark.parametrize('options, overwrite', [([], 'true'), (['--overwrite'], 'true'),
+    (['--overwrite', 'true'], 'true'), (['--overwrite', 'false'], 'false')])
+def test_snapshot_dispatch_forwards_explicit_overwrite(dispatch, operation, options, overwrite):
+    command = dispatch(ROOT, ['appsnapshot', operation, *options, *VM_ARGS])
+    assert command == ['/usr/bin/python3', '-B', str(ROOT / 'tests/e2e/prepare_snapshot.py'),
+                       '--expected-uuid', 'pinned-test-uuid', *VM_ARGS,
+                       operation, '--overwrite', overwrite]
+
+
+@pytest.mark.parametrize('mode', ['online', 'offline'])
+def test_snapshot_internal_entries_reject_removed_mode(dispatch, mode, monkeypatch):
+    with pytest.raises(ValueError, match='test-runner:invalid-arguments'):
+        dispatch(ROOT, ['appsnapshot', '--probe', '--mode', mode, *VM_ARGS])
+    probe = Mock(side_effect=AssertionError('probe attempted'))
+    monkeypatch.setattr(controller, 'probe', probe)
+    with pytest.raises(SystemExit) as error:
+        controller.main(['--expected-uuid', 'pinned', '--probe', '--mode', mode, *VM_ARGS])
+    assert error.value.code == 2
+    probe.assert_not_called()
+
+
+@pytest.mark.parametrize('overwrite', [True, False])
+@pytest.mark.parametrize('failure', [False, True])
+def test_standalone_preparation_always_captures_online_and_cleans(
+        tmp_path, monkeypatch, overwrite, failure):
+    import provenance
+    from tools import test_retention
+    suite = Mock()
+    source = Mock()
+    suite.acquire.return_value = source, Mock(), nullcontext()
+    if failure:
+        suite.prepare_installed.side_effect = RuntimeError('capture failed')
+    monkeypatch.setattr(test_retention, 'allocate', lambda *a, **kw: str(tmp_path))
+    monkeypatch.setattr(controller, 'Suite', lambda _: suite)
+    monkeypatch.setattr(controller.system, 'stage_assets', Mock())
+    monkeypatch.setattr(controller.system, 'artifact_source', Mock())
+    monkeypatch.setattr(provenance, 'preflight_source', lambda _: {'source_sha256': 'a' * 64})
+    monkeypatch.setattr(controller, 'current_version', lambda _: '9.8.7')
+    monkeypatch.setattr(controller.system, 'package_version', lambda *_: '9.8.7')
+    identity = Mock()
+    monkeypatch.setattr(controller, 'check_identity', identity)
+    if failure:
+        with pytest.raises(RuntimeError, match='capture failed'):
+            controller.prepare(tmp_path / 'input', 'pinned', overwrite=overwrite)
+        assert 'capture failed' in (tmp_path / 'private/controller-error.txt').read_text()
+    else:
+        assert controller.prepare(tmp_path / 'input', 'pinned', overwrite=overwrite) == 0
+    identity.assert_called_once_with(source, 'pinned')
+    assert suite.prepare_installed.call_args.kwargs == {
+        'root': ROOT, 'overwrite': overwrite, 'mode': 'online'}
+    suite.close.assert_called_once_with(retain_installed=False)
+
+
 @pytest.mark.parametrize('exists', [False, True])
-@pytest.mark.parametrize('mode, memory, age, status', [
-    ('offline', 'no', 0, 0), ('online', 'internal', 0, 4),
-    ('online', 'internal', 86401, 3), ('online', 'no', 0, 3),
-    ('offline', 'internal', 0, 3)])
+@pytest.mark.parametrize('memory, age, status', [
+    ('internal', 0, 4), ('internal', 86401, 3), ('no', 0, 3)])
 def test_probe_uses_exclusive_vm_lock_and_never_mutates(
-        tmp_path, monkeypatch, exists, mode, memory, age, status):
+        tmp_path, monkeypatch, exists, memory, age, status):
     import online_snapshot
     import fcntl
     import os
@@ -832,7 +877,7 @@ def test_probe_uses_exclusive_vm_lock_and_never_mutates(
         f'<domainsnapshot><memory snapshot="{memory}"/><state>running</state>'
         f'<creationTime>{int(time.time()) - age}</creationTime>{domain}</domainsnapshot>')
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value={'bound': True}))
-    assert controller.probe('pinned', mode=mode) == (status if exists else 3)
+    assert controller.probe('pinned', overwrite=False) == (status if exists else 3)
     source.domain.snapshotListNames.assert_called_once_with(0)
     assert len(source.domain.mock_calls) == (3 if exists else 1)
     source.close.assert_called_once()
@@ -871,7 +916,8 @@ def test_fedora_preparation_selects_rpm_builder_from_probe(launch, overwrite):
 
 
 @pytest.mark.parametrize('format,expected', [('deb', 3), ('rpm', 5)])
-def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkeypatch, format, expected):
+@pytest.mark.parametrize('options', [{}, {'overwrite': True}])
+def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkeypatch, format, expected, options):
     base = controller.system.baseline
     lock = tmp_path / 'baseline.lock'
     lock.touch(mode=0o600)
@@ -884,7 +930,7 @@ def test_forced_probe_selects_backend_without_snapshot_mutation(tmp_path, monkey
     source = Mock()
     monkeypatch.setattr(controller, 'open_source', lambda: (source, Mock()))
     monkeypatch.setattr(controller, 'check_identity', Mock())
-    assert controller.probe('pinned', overwrite=True) == expected
+    assert controller.probe('pinned', **options) == expected
     assert source.domain.mock_calls == []
     source.close.assert_called_once()
 

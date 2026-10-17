@@ -865,7 +865,7 @@ then validate the maintained fix with clean customer acceptance.
 1. Let any test runner finish collection and owned cleanup. Do not suspend its
    process, intercept teardown, borrow its lease or adopt a foreign running VM.
    Start an owned online maintenance instance through
-   `tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false`,
+   `tools/prepare-appsnapshot --vm NAME --y --overwrite false`,
    under the [live preparation contract](../docs/TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
    A matching instance already owned by this workflow can be reused through its
    maintained ownership checks. Use the selected registered target, valid package

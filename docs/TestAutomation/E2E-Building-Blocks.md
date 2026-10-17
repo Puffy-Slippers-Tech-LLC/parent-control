@@ -4457,11 +4457,11 @@ See [suite lease](../../tests/e2e/suite_lease.py) and the shared
 before starting the E2E run.
 
 Standalone preparation uses `tools/prepare-appsnapshot` under
-[Approval tools](../Approval-Tools.md#one-time-setup), which owns mode defaults,
-overwrite behavior, platform selection and maintained recovery. Online is the
-default: matching fresh state is restored without a build and the guest remains
-running under VM-maintenance ownership. Offline preparation leaves it powered
-off. Both retain `onpc-v[version]`; neither a snapshot name nor a prior task's
+[Approval tools](../Approval-Tools.md#one-time-setup), which owns overwrite
+behavior, platform selection and maintained recovery. It always prepares online
+snapshots and defaults to overwriting; unattended callers explicitly choose
+`--overwrite true` or `--overwrite false`. The guest remains running under
+VM-maintenance ownership. Snapshots retain `onpc-v[version]`; neither a snapshot name nor a prior task's
 mutable guest state is freshness or acceptance evidence. Reusable guest inputs
 remain exclusively owned by baseline preparation.
 

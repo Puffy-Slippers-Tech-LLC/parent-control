@@ -1,4 +1,4 @@
-"""Unprivileged build and guarded dispatch for standalone app preparation."""
+"""Build and prepare an online app snapshot through guarded standalone dispatch."""
 import argparse
 import os
 from pathlib import Path
@@ -20,26 +20,19 @@ def arguments(argv=None):
     parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--y', action='store_true',
                         help='proceed without confirmation for authorized automation and agent sessions')
-    parser.add_argument('--mode', choices=('online', 'offline'), default='online',
-                        help='snapshot after reboot with memory (online, default), '
-                             'or after shutdown (offline)')
-    parser.add_argument('--overwrite', nargs='?', const='true', default=None,
+    parser.add_argument('--overwrite', nargs='?', const='true', default='true',
                         choices=('true', 'false'),
                         help='rebuild the current source before installing and replacing '
-                             'a matching version snapshot (default: false online, true offline); false keeps '
+                             'a matching online version snapshot (default: true); false keeps '
                              'an existing version snapshot without building, or creates it if missing')
-    args = parser.parse_args(argv)
-    if args.overwrite is None:
-        args.overwrite = 'false' if args.mode == 'online' else 'true'
-    return args
+    return parser.parse_args(argv)
 
 
 def confirm_preparation(args):
     warning = (f'\033[31mprepare-appsnapshot: prepare the current app snapshot on {args.vm} '
-          f'(mode={args.mode}, overwrite={args.overwrite}). '
+          f'(online, overwrite={args.overwrite}). '
           'Preparation may restore the baseline, install the app and replace the version snapshot. '
-          + ('Online mode leaves an owned running guest.' if args.mode == 'online' else
-             'Offline mode leaves the guest powered off.') + '\033[0m')
+          'Preparation leaves an owned running guest.\033[0m')
     return confirm_queue(args, 'prepare-appsnapshot', warning, prompt=input)
 
 
@@ -79,18 +72,18 @@ def main(argv=None):
                 if control.stopped.is_set():
                     return 130
             status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                helper, 'appsnapshot', '--probe', '--mode', args.mode,
+                helper, 'appsnapshot', '--probe',
                 '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
             if status == 6:
                 cleanup(root)
                 if control.stopped.is_set():
                     return 130
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--probe', '--mode', args.mode,
+                    helper, 'appsnapshot', '--probe',
                     '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
             if status == 4:
                 return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()],
+                    helper, 'appsnapshot', '--resume', '--overwrite', args.overwrite, *vm_arguments()],
                     cwd=root, env=environment)
             # Missing, expired, differently-mode or explicitly overwritten
             # snapshots select their package backend from baseline provenance.
@@ -108,13 +101,12 @@ def main(argv=None):
                     return status
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                     '--retention-run=' + run, '--unattended', 'appsnapshot',
-                    '--overwrite', args.overwrite, '--artifacts', directory,
-                    '--mode', args.mode, *vm_arguments()],
+                    '--overwrite', args.overwrite, '--artifacts', directory, *vm_arguments()],
                     cwd=root, env=environment, cooperative=True)
-            if status or args.mode == 'offline':
+            if status:
                 return status
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-                'appsnapshot', '--resume', '--mode', args.mode, *vm_arguments()], cwd=root, env=environment)
+                'appsnapshot', '--resume', '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
     except (ValueError, OSError) as error:
         print('prepare-appsnapshot: ' + str(error), file=sys.stderr)
         return 2

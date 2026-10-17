@@ -44,7 +44,7 @@ def preparation_format(source, commands):
     return system.package_format(capture.state['guest'])
 
 
-def probe(expected_uuid, *, mode='online', overwrite=False):
+def probe(expected_uuid, *, overwrite=True):
     """Read only, under the shared VM lock; no journal writes or cleanup."""
     commands = Commands()
     name = current_name(commands)
@@ -73,7 +73,7 @@ def probe(expected_uuid, *, mode='online', overwrite=False):
                 # A healthy online maintenance instance is resumed with full
                 # ownership checks. Other unfinished attempts require shared
                 # recovery before either reuse or installation.
-                if not (mode == 'online' and not overwrite and source.domain.ID() >= 0
+                if not (not overwrite and source.domain.ID() >= 0
                         and attempt.get('phase') == 'running' and isinstance(owner, dict)
                         and owner.get('run') == attempt.get('run')):
                     return 6
@@ -82,19 +82,16 @@ def probe(expected_uuid, *, mode='online', overwrite=False):
             return required
         if name in source.domain.snapshotListNames(0):
             xml = source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
-            reason = mode_mismatch(xml, mode)
+            reason = mode_mismatch(xml, 'online')
             if reason is not None:
                 preparation('Refreshing snapshot ' + name + ': ' + reason +
                             '; forcing overwrite=true')
                 return required
-            if mode == 'online':
-                from online_snapshot import load
-                if load(source, name, xml) is None:
-                    preparation('Online snapshot credentials missing; preparation required')
-                    return required
-                return 4
-            preparation('Keeping existing snapshot ' + name + ' (overwrite=false); no changes')
-            return 0
+            from online_snapshot import load
+            if load(source, name, xml) is None:
+                preparation('Online snapshot credentials missing; preparation required')
+                return required
+            return 4
         preparation('No existing snapshot ' + name + '; preparation required')
         return required
     finally:
@@ -105,7 +102,7 @@ def probe(expected_uuid, *, mode='online', overwrite=False):
             os.close(fd)
 
 
-def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
+def prepare(artifacts, expected_uuid, *, overwrite=True):
     from provenance import preflight_source
     from tools.test_retention import allocate
     directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-smoke-', dir='/tmp'))
@@ -113,7 +110,6 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
     private.mkdir(mode=0o700)
     suite = Suite(open_source)
     suite.commands.directory = private
-    complete = False
     try:
         assets = directory / 'assets'
         system.stage_assets(system.artifact_source(artifacts), assets, suite.commands)
@@ -131,8 +127,7 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
             suite.prepare_installed(directory, assets,
                 {'schema_version': 1, 'scope': 'standalone-appsnapshot',
                  'source_sha256': source_inputs['source_sha256']},
-                root=ROOT, overwrite=overwrite, mode=mode)
-        complete = True
+                root=ROOT, overwrite=overwrite, mode='online')
     except Exception:
         # Keep the underlying host/guestfs failure in this existing private
         # allocation; the public output contains fixed categories only.
@@ -141,7 +136,7 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, mode='online'):
     finally:
         # Online snapshots retain their memory image; cleanup restores the
         # outer baseline without reviving an unowned preparation guest.
-        suite.close(retain_installed=complete and mode == 'offline')
+        suite.close(retain_installed=False)
     preparation('Snapshot ready: ' + name)
     return 0
 
@@ -219,7 +214,6 @@ def main(argv=None):
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('--probe', action='store_true')
     parser.add_argument('--resume', action='store_true')
-    parser.add_argument('--mode', choices=('online', 'offline'), default='online')
     parser.add_argument('--artifacts', type=Path)
     parser.add_argument('--overwrite', choices=('true', 'false'), default='true',
                         nargs='?', const='true')
@@ -229,16 +223,15 @@ def main(argv=None):
         os.umask(0o077)
         system.require(not (args.probe and args.resume), 'appsnapshot:invalid-arguments')
         if args.resume:
-            system.require(args.artifacts is None and args.mode == 'online',
-                           'appsnapshot:invalid-arguments')
+            system.require(args.artifacts is None, 'appsnapshot:invalid-arguments')
             return resume(args.expected_uuid)
         if args.probe:
             system.require(args.artifacts is None, 'appsnapshot:invalid-arguments')
-            return probe(args.expected_uuid, mode=args.mode, overwrite=args.overwrite == 'true')
+            return probe(args.expected_uuid, overwrite=args.overwrite == 'true')
         from runner import validate_artifact_path
         validate_artifact_path(args.artifacts)
         return prepare(args.artifacts, args.expected_uuid,
-                       overwrite=args.overwrite == 'true', mode=args.mode)
+                       overwrite=args.overwrite == 'true')
     except (ValueError, RuntimeError, OSError) as error:
         if system.error_category(error) == 'unexpected-failure-or-interruption':
             system.log('exception-type=' + type(error).__name__)

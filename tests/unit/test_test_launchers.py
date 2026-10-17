@@ -108,7 +108,7 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
     authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
     assert control.run.call_args_list[0].args[0] == [
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe', '--mode', 'online',
+        '/usr/local/libexec/onpc-test-runner', 'appsnapshot', '--probe',
         '--overwrite', 'true', *VM_ARGS]
     if package_format is None:
         assert result == (status or 2)

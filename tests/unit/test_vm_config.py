@@ -594,6 +594,9 @@ def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_fai
         assert '--y' in command
         if tool == 'prepare-appsnapshot':
             assert command[-2:] == ['--overwrite', 'false']
+            assert '--mode' not in command
+        else:
+            assert command[-2:] == ['--mode', 'auto']
         with lock:
             calls.append(name)
             active += 1
@@ -613,8 +616,8 @@ def test_shared_preparation_queue_isolated_workers_refill_and_continue_after_fai
                 active -= 1
     monkeypatch.setattr(Control, 'run', lambda self, command, **kw: execute(command, **kw))
     statuses, status = vm_queue.preparation(
-        ROOT, tool, SimpleNamespace(mode='auto' if tool == 'prepare-vm' else 'offline',
-                                    overwrite='false'), 2, vms)
+        ROOT, tool, SimpleNamespace(**({'mode': 'auto'} if tool == 'prepare-vm' else
+                                      {'overwrite': 'false'})), 2, vms)
     assert peak == 2 and sorted(calls) == [vm.name for vm in vms]
     assert statuses == {'guest-0': 0, 'guest-1': 7, 'guest-2': 0} and status == 7
     assert os.environ[vm_selection.VARIABLE] == 'parent-selection'
@@ -628,7 +631,8 @@ def test_preparation_worker_uses_guarded_public_launcher_and_defers_baseline_ref
     entry = Mock(return_value=7)
     loader = Mock(return_value={'main': entry})
     monkeypatch.setattr(runpy, 'run_path', loader)
-    options = ['--vm', 'guest', '--y', '--mode', 'auto' if tool == 'prepare-vm' else 'online']
+    options = ['--vm', 'guest', '--y', *(['--mode', 'auto'] if tool == 'prepare-vm' else
+                                       ['--overwrite', 'true'])]
     assert vm_queue.worker([tool, *options]) == 7
     loader.assert_called_once_with(str(ROOT / 'tools' / tool))
     entry.assert_called_once_with(options, **({'refresh': False} if tool == 'prepare-vm' else {}))
@@ -649,7 +653,7 @@ def test_preparation_cancellation_keeps_completed_status_and_skips_queued_work(m
         return 0  # In-flight work finished safely after cancellation.
     monkeypatch.setattr(regression_process.Control, 'run', lambda self, command, **kw: execute(command, **kw))
     vms = tuple(vm_config.VMConfig(f'guest-{index}', Path(f'/disk-{index}')) for index in range(2))
-    statuses, status = vm_queue.preparation(ROOT, tool, SimpleNamespace(mode='offline', overwrite='false'), 1, vms)
+    statuses, status = vm_queue.preparation(ROOT, tool, SimpleNamespace(mode='auto', overwrite='false'), 1, vms)
     assert statuses == {'guest-0': 0, 'guest-1': 130}
     assert status == 130 and len(calls) == 1
 
@@ -894,12 +898,12 @@ def test_both_agent_launchers_bind_the_enabled_queue_and_request_shared_tests(mo
     assert command[1:] == ['--stop-on-error', 'system', '--vm', ','.join(vm.name for vm in vms)]
     prompt = fix_tests.repair_prompt('Failure evidence')
     assert 'guest-2' in prompt and 'at most 2 simultaneously' in prompt
-    assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt
+    assert 'tools/prepare-appsnapshot --vm NAME --y --overwrite true' in prompt
     monkeypatch.setattr(write_e2e.launcher, 'select', Mock(return_value=(None, False)))
     assert write_e2e.select(ROOT, ['--tasks', '1']) == (None, False)
     arguments = write_e2e.launcher.select.call_args
     assert arguments.kwargs['on_start']
-    assert 'tools/prepare-appsnapshot --vm NAME --y' in write_e2e.session_prompt(
+    assert 'tools/prepare-appsnapshot --vm NAME --y --overwrite true' in write_e2e.session_prompt(
         {'task_id': 'TEST', 'phase': 'implement'})
     atomic(tmp_path / 'vm.json', {'vm': binding})
     # Reattachment checks the entire selection, not only the first guest.

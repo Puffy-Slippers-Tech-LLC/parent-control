@@ -1362,7 +1362,7 @@ def test_combined_preparation_holds_vm_lock_until_final_restore(backup_rig, monk
         yield rig.directory
     def app(artifacts, identity, **options):
         check_lock('app')
-        assert identity == UUID and options == {'overwrite': True, 'mode': 'online'}
+        assert identity == UUID and options == {'overwrite': True}
         return 8 if failed_stage == 'app' else 0
     def restore(layout, xml):
         check_lock('restore')

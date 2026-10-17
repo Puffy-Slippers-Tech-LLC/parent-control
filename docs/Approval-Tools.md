@@ -29,7 +29,7 @@ test defects may be fixed automatically while preserving the intended checks.
 | Logs and system diagnostics | Ordinary readers where accessible; `tools/diagnose` and scoped artifact/export helpers where privileged access is needed |
 | Setup refresh and VM maintenance | `./setup.sh` modes, `tools/prepare-vm` and `tools/test-vm` within their existing grants and authorized scope |
 | VM disaster recovery | `tools/backupvm` and `tools/restorevm` for registered selections and configured `backup_root`; fixed operations through the setup dispatcher, with shared leases and retained recovery evidence |
-| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; add `--discard-completed` only when discarding saved execution results is explicitly authorized, under [retention ownership](../tests/README.md#aggregate-output-retention); `tools/prepare-appsnapshot --vm NAME --y [--mode online\|offline] [--overwrite true\|false]` for the current version snapshot through the pinned dispatcher and shared VM lease |
+| E2E prerequisites | `tools/cleanup-e2e` for recorded leftovers; add `--discard-completed` only when discarding saved execution results is explicitly authorized, under [retention ownership](../tests/README.md#aggregate-output-retention); `tools/prepare-appsnapshot --vm NAME --y --overwrite true\|false` for the current online version snapshot through the pinned dispatcher and shared VM lease |
 | Publication | Direct `tools/publish.py` once publication itself is authorized; see [publishing](#publishing) |
 
 Invoke approved commands directly. Correct quoting and command shape before
@@ -194,18 +194,18 @@ concurrency follow the [VM mandate](Mandates/VM-Mandate.MD#authority-and-operati
 including lists, `all-enabled` and `all`. Omitting `--vm` selects `all`, including
 disabled VMs, for baseline preparation in both modes; app-snapshot preparation
 defaults to enabled VMs. The flag preserves all authorization, lease, ownership and validation checks.
-Online mode is the default and reuses fresh matching snapshots without building.
-`--overwrite` defaults to `false` online and `true` offline; supplying the flag
-without a value means `true`. Use `--mode offline` for shutdown/snapshot
-preparation or `--overwrite true` for an authorized forced rebuild.
+Standalone app snapshots are always online; there is no `--mode` parameter.
+`--overwrite` defaults to `true`; supplying the flag without a value also means
+`true`. Automation and agent sessions must explicitly pass `--overwrite true`
+to rebuild or `--overwrite false` to reuse a fresh matching snapshot without
+building. Manual use may omit it to rebuild by default.
 The verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
 RPM/DNF preparation. Fedora uses the maintained native/Mock/rootless container
 builder and preserves enforcing SELinux during offline SSH bootstrap and installation.
-Online mode leaves the restored running guest in the existing VM-maintenance ownership
+Preparation leaves the restored running guest in the existing VM-maintenance ownership
 journal. Its restore-only dispatch uses maintenance scratch rather than an
 evidence-retention session, whose entry gate requires an idle VM. The shared
-owned recovery and live VM ownership checks still apply. Offline mode
-retains the previous shutdown/snapshot behavior. Mode mismatches and online
+owned recovery and live VM ownership checks still apply. Offline snapshots and online
 snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
 Standalone app preparation holds a named VM checkout activity lock, so different
 VMs may prepare concurrently while the same VM and aggregate owners remain
@@ -214,7 +214,7 @@ recovery before probing again. Healthy online maintenance resumes directly;
 replacement recovers its exact recorded owner through the maintained stop path.
 Failed SSH or clock readiness after a successful restore performs owned cleanup.
 Tooling activation is `none` on the development host. Guest snapshot preparation
-still installs the declared product package and performs the mode's required
+still installs the declared product package and performs the required
 restart; it supplies no customer-acceptance credit.
 Graphical AppArmor policies are refreshed by full `./setup.sh`, `--vm-host-only`
 and `--test-tools-only` when libvirt's AppArmor profiles exist. Hosts without

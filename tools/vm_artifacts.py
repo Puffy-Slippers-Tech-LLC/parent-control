@@ -20,7 +20,7 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
     # selects the required format even when an app snapshot already exists;
     # it does not replace that snapshot or start/restore the guest.
     status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        helper, 'appsnapshot', '--probe', '--mode', 'online', '--overwrite', 'true',
+        helper, 'appsnapshot', '--probe', '--overwrite', 'true',
         *arguments()], cwd=root, env=environment)
     if status not in (3, 5):
         return status or 2

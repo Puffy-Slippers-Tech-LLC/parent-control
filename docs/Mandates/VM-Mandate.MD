@@ -49,6 +49,9 @@ workers start; apply the mode authorization and `--y` rules in
 [baseline preparation](#vm-host-setup-and-baseline).
 For either preparation tool, automation and agent sessions use `--y` only for
 authorized preparation; interactive work omits it to retain confirmation.
+App-snapshot preparation is always online and defaults to overwriting. Every
+unattended invocation explicitly supplies `--overwrite true` or `--overwrite false`;
+see [the preparation contract](../Approval-Tools.md#one-time-setup).
 
 ### Owned maintenance and execution
 

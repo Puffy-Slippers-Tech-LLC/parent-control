@@ -25,7 +25,9 @@ BASELINE_INSTRUCTIONS = (
     'omit it for manual work. All VM, ownership, lease and validation checks still apply.')
 APPSNAPSHOT_INSTRUCTIONS = (
     'For authorized app-snapshot preparation in automation or agent sessions, use '
-    'tools/prepare-appsnapshot --vm NAME --y. --y suppresses confirmation; '
+    'tools/prepare-appsnapshot --vm NAME --y --overwrite true (or --overwrite false '
+    'to reuse a fresh matching snapshot). Always specify --overwrite explicitly '
+    'for unattended usage. Snapshots are always online; --y suppresses confirmation; '
     'manual work omits --y. Omitting --vm selects all enabled VMs. '
     'Both preparation tools accept VM lists, all-enabled and all, using config concurrency.')
 PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS

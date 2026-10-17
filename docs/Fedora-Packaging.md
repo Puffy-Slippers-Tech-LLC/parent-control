@@ -295,7 +295,7 @@ claimed closed by clean-baseline parity. Neither mode edits distribution rule
 files or trust filters. Installed
 enforcement qualification remains required before Fedora acceptance.
 
-Use `tools/prepare-appsnapshot --vm NAME --y` for a configured, pinned Fedora
+Use `tools/prepare-appsnapshot --vm NAME --y --overwrite true` for a configured, pinned Fedora
 Workstation 44 VM with a finalized baseline. The shared preparation path builds
 the actual RPM, installs it with DNF, reboots and verifies the exact package and
 configured services before capturing the app snapshot. SELinux remains enforcing.

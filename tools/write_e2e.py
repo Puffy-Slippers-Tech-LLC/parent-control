@@ -38,7 +38,7 @@ correction repeats the same failure, reproduce in an owned maintenance VM before
 another speculative patch or full acceptance run. Do not wait for a fixed number
 of failed rounds. A directly established mechanical cause needs no mandatory probe.
 Let the failed runner finish its evidence and cleanup first; never pause or adopt
-its lease. Use tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false
+its lease. Use tools/prepare-appsnapshot --vm NAME --y --overwrite false
 for a maintenance reproduction, then tools/test-vm --vm NAME exec -- COMMAND [ARG ...]
 for guarded guest probes. Keep shared watch and input/identity guards active.
 Engineering investigation is separate from E2E acceptance. Use whatever guest-side

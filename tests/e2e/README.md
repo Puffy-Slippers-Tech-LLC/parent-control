@@ -500,11 +500,12 @@ tools/run-tests e2e --vm NAME --id '4'
 tools/run-tests e2e --vm NAME --id '5'
 ```
 
-Standalone `tools/prepare-appsnapshot --vm NAME --y --mode online|offline` defaults to online.
-Automation and agent sessions always include `--vm NAME` and `--y`. Manual
-work omits `--y` to retain confirmation before preparation; without `--vm`,
-the shared baseline VM picker runs first. `--y` without `--vm` fails before
-any work. All VM, lease, ownership and validation checks still apply.
+Standalone `tools/prepare-appsnapshot --vm NAME --y --overwrite true` always
+prepares an online snapshot. Automation and agent sessions include `--y` and
+explicitly choose `--overwrite true` or `--overwrite false`. Manual work omits
+`--y` to retain confirmation. Selection, enabled defaults and queue concurrency
+follow the [VM mandate](../../docs/Mandates/VM-Mandate.MD#target-selection).
+All VM, lease, ownership and validation checks still apply.
 The pinned baseline's verified OS metadata selects Ubuntu 26.04 DEB/APT or
 Fedora Workstation 44 RPM/DNF. Preparation builds only that format from frozen
 package sources through the existing artifact builder. Fedora SSH bootstrap
@@ -579,9 +580,9 @@ prevents QEMU from saving memory. App-snapshot preparation does not patch CPU
 configuration. Restoring a retained snapshot also restores that snapshot's saved
 CPU settings.
 
-Online mode defaults to `--overwrite false`; offline mode retains the previous
-`--overwrite true` default. Explicit `--overwrite true` always rebuilds. Reuse
-checks the current version under the guarded VM lock; a different snapshot mode,
+Standalone preparation defaults to `--overwrite true`, which always rebuilds.
+Unattended callers explicitly select the overwrite value. With `--overwrite false`,
+reuse checks the current version under the guarded VM lock; an offline snapshot,
 or an online snapshot older than 24 hours, forces replacement even with
 `--overwrite false`. Age uses libvirt's host UTC `creationTime`; missing, future
 or invalid online timestamps also require replacement. The standalone reuse
@@ -600,8 +601,8 @@ fingerprint; a changed RPM requires refreshing the snapshot.
 Legacy snapshot metadata is upgraded without installation when its exact archive,
 baseline and recipe hashes match. Otherwise a missing fingerprint cannot prove
 equivalence and requires one refresh. Missing or changed snapshots are installed,
-verified after reboot and captured once. Explicit offline preparation remains
-available for disk-only consumers; its next boot activates the package.
+verified after reboot and captured once. Shared suite internals retain offline
+preparation for disk-only consumers; its next boot activates the package.
 `--overwrite true` still forces replacement. Refresh messages identify the changed
 input. Content comparison reads the host package only and needs no guest boot.
 Test code, helper logging and transferred fixtures do not trigger snapshot refresh;
@@ -1786,7 +1787,7 @@ at the independently observed usable greeter.
 Each batch requires the shared setup history's initial state in a freshly
 restored matching online app snapshot. Between batches, stop owned maintenance
 with `tools/test-vm --vm NAME stop`, then restore through
-`tools/prepare-appsnapshot --vm NAME --y --mode online --overwrite false`.
+`tools/prepare-appsnapshot --vm NAME --y --overwrite false`.
 Restoration is outside the measured window. The setup's enable operation expects
 a previously disabled switch; reusing a modified batch scene can refuse before
 any trial. Warm setup leaves the fixture Parent desktop session running;

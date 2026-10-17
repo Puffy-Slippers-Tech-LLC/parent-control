@@ -123,7 +123,7 @@ def prepare(mode, assume_yes, vm, caller):
                         # This is the implementation used by prepare-appsnapshot.
                         # Its normal online cleanup restores the off baseline.
                         status = prepare_snapshot.prepare(artifacts, source.uuid,
-                                                          overwrite=True, mode='online')
+                                                          overwrite=True)
                         if status:
                             return status
                 idle(vm)

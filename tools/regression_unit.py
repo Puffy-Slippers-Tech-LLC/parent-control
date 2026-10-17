@@ -250,6 +250,8 @@ bounded joined threads, process-local command doubles and the existing owned
 session children. No live VM, setup, privilege or shared output is touched.
 vm_config, prepare_baseline_tool, appsnapshot_cleanup_safety and regression_session
 retain compatible unit scheduling; app-snapshot cleanup coverage stays compatible too.
+Online-only snapshot/default-overwrite checks extend the same private launcher,
+suite and dispatcher doubles; no live VM, privilege, process or shared state is added.
 Revocation diagnostic boundaries and selector reload checks use existing private
 request files and process-local UI/dispatcher doubles. VM-control, accessible UI
 and installed-journey retain their current unit buckets; no real guest, process,

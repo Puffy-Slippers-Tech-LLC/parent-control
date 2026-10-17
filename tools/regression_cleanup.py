@@ -91,6 +91,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # App-snapshot list/default selection and queue dispatch checks add only
 # process-local scheduler/command doubles to that fixture. Unit and cleanup
 # classifications remain compatible; no worker or guest is started.
+# Online-only preparation/default-overwrite checks use the same private suite,
+# launcher and dispatcher doubles, retaining compatible unit/cleanup overlap.
 # Root guest probes reuse those private lease/scratch trees and mocked transport
 # streams; snapshot connection checks mock SSH and the clock. Both existing
 # VM-control and app-snapshot cleanup buckets remain compatible.

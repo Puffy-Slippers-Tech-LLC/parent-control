@@ -120,7 +120,6 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     appsnapshot = categories.add_parser('appsnapshot', allow_abbrev=False)
     appsnapshot.add_argument('--probe', action='store_true')
     appsnapshot.add_argument('--resume', action='store_true')
-    appsnapshot.add_argument('--mode', choices=('online', 'offline'), default='online')
     appsnapshot.add_argument('--artifacts', type=Path)
     appsnapshot.add_argument('--overwrite', choices=('true', 'false'), default='true',
                             nargs='?', const='true')
@@ -157,15 +156,15 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         if identity is None:
             raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
         target = confined_file(root, 'tests/e2e/prepare_snapshot.py')
-        command = ['/usr/bin/python3', '-B', str(target), '--mode', args.mode,
+        command = ['/usr/bin/python3', '-B', str(target),
                    '--expected-uuid', identity, *vm_args]
         if args.probe or args.resume:
             if args.artifacts is not None:
                 raise ValueError('test-runner:probe-does-not-use-artifacts')
-            if args.probe and args.resume or args.resume and args.mode != 'online':
+            if args.probe and args.resume:
                 raise ValueError('test-runner:invalid-snapshot-operation')
             return ([*command, '--probe', '--overwrite', args.overwrite]
-                    if args.probe else [*command, '--resume'])
+                    if args.probe else [*command, '--resume', '--overwrite', args.overwrite])
         runner = runpy.run_path(str(confined_file(root, 'tests/e2e/runner.py')))
         runner['validate_artifact_path'](args.artifacts)
         if not args.artifacts.is_dir():

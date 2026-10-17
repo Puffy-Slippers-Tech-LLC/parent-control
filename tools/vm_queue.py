@@ -37,9 +37,11 @@ def preparation(root, tool, args, concurrency, vms):
     output_lock = threading.Lock()
     with Control().installed() as control:
         def execute(vm):
-            options = ['--vm', vm.name, '--y', '--mode', args.mode]
+            options = ['--vm', vm.name, '--y']
             if tool == 'prepare-appsnapshot':
                 options += ['--overwrite', args.overwrite]
+            else:
+                options += ['--mode', args.mode]
             command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), tool, *options]
             environment = dict(os.environ)
             environment.pop(BATCH, None)

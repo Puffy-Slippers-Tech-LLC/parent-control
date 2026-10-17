@@ -60,6 +60,17 @@ preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
 ownership or create snapshots, overlays or clones outside those routes. Stop
 maintenance before system/E2E tests; reset is not a customer journey step.
 
+Request running-guest shutdown and reboot through the shared, owned SSH
+transport. Never inject a virtual power-button request: an inactive desktop
+can hold its handler and leave the VM running. Independently observe the exact
+owned instance off or its changed boot before claiming success. Preserve
+single-use input and uncertain-reply guards. Baseline maintenance stages
+temporary SSH access through the existing offline bootstrap; initial baseline
+guest preparation owns its local service's poweroff before SSH is available.
+Before that transport exists, preserve the preparation journal on a host error
+instead of injecting a power key. Snapshot restoration remains the existing
+guarded reset/recovery operation, outside customer journeys.
+
 Disaster recovery uses the scoped `tools/backupvm` and `tools/restorevm`
 routes described in [the environment guide](../../tests/integration/Environment.md#vm-disaster-recovery).
 Both retain exclusive per-VM leases and shared observation. Backup restores the

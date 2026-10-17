@@ -81,7 +81,7 @@ def probe(lease, commands, directory, host_key):
         (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
         vm = Transport(dict(directory=str(directory), hostname=hostname,
             run=lease.state['run'], domain_uuid=lease.source.uuid,
-            domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard())
+            domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard(), lease=lease)
         vm.ready()
         require(vm.call(['printf', 'ONPC-WATCH-SSH-STDOUT\\n']) == b'ONPC-WATCH-SSH-STDOUT\n',
                 'watch:ssh-stdout')
@@ -121,7 +121,7 @@ def maintenance_probe(lease, commands, directory, host_key, *, detached=True):
     (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
     vm = Transport(dict(directory=str(directory), hostname=hostname,
         run=lease.state['run'], domain_uuid=lease.source.uuid,
-        domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard())
+        domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard(), lease=lease)
     vm.ready()
     vm.call(['printf', 'ONPC-WATCH-SSH-STDOUT\\n'])
     vm.call(['ls', '--', '/onpc-watch-missing-entry'], check=False)

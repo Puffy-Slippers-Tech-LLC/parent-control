@@ -204,7 +204,8 @@ def resume(lease, *, stopping=False, recovery_instance=None):
         base.identity(path, private=True, mode=0o600)
     owner = base.parse_json(owner_path.read_bytes())
     state = base.parse_json(lease.journal.read_bytes())
-    prestart = ('validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested')
+    prestart = ('validated', 'shutdown-requested', 'restore-requested', 'isolated',
+                'ssh-bootstrap', 'start-requested')
     interrupted_off = (stopping and isinstance(state, dict) and
                        state.get('phase') in (*prestart, 'cleanup-requested') and
                        state.get('domain_id') is None)
@@ -303,6 +304,8 @@ def _operate(lease, action, keys):
         save_owner(lease)
         lease.prepare()
         if action == 'start':
+            from vm_probe import prepare_maintenance_transport
+            prepare_maintenance_transport(lease)
             lease.watch_detached = True
             lease.start()
         else:
@@ -329,10 +332,13 @@ def _operate(lease, action, keys):
                 lease.original_xml, 'vm-control:off-configuration-changed')
             lease.save('complete')
         else:
+            if not lease.view.snapshot()[1]:
+                from vm_probe import connect
+                connect(lease)
             lease.finish()
     elif action == 'reboot':
-        lease.source.domain.reboot(lease.source.api.VIR_DOMAIN_REBOOT_ACPI_POWER_BTN)
-        lease.guard()
+        from vm_probe import connect
+        connect(lease).reboot()
     elif action == 'send-key':
         lease.source.domain.sendKey(lease.source.api.VIR_KEYCODE_SET_LINUX, 100, keys, len(keys), 0)
         lease.guard()

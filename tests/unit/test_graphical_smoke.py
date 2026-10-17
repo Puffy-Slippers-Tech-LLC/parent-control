@@ -354,12 +354,12 @@ def test_installation_drains_input_and_persists_each_proof_before_reply(tmp_path
         assert controller.steps[-1]['verified_package_digest']
     assert controller.stages[len(controller.steps):] == (
         ('serial-logout', 'gdm-return') if refusal else
-        ('reboot-ready', 'reboot-password', 'reboot-observed', 'gdm-return'))
+        ('reboot-ready', 'reboot-requested', 'reboot-observed', 'gdm-return'))
 
 
 @pytest.mark.parametrize('fault', [None, 'package', 'early-boot', 'session',
-    'checkpoint', 'wait', 'second-boot', 'capture', 'reboot-recipient',
-    'reboot-echo', 'reboot-provenance', 'reboot-password-boot', 'reboot-checkpoint',
+    'checkpoint', 'wait', 'second-boot', 'capture', 'reboot-command',
+    'reboot-provenance', 'reboot-requested-boot', 'reboot-checkpoint', 'reboot-ack-checkpoint',
     'enforcement-failed', 'enforcement-boot', 'enforcement-second-boot',
     'broker-failed', 'broker-boot', 'broker-second-boot'])
 def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path, fault):
@@ -371,8 +371,12 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
             return
         if observed:
             events.append('checkpoint:' + stage)
-            if fault == 'checkpoint' or (fault == 'reboot-checkpoint' and stage == 'reboot-password'):
+            if fault == 'reboot-requested-boot' and stage == 'reboot-ready':
+                controller.vm.read.side_effect = RuntimeError('boot-changed')
+            if fault == 'checkpoint' or (fault == 'reboot-checkpoint' and stage == 'reboot-requested'):
                 raise RuntimeError('checkpoint-failed')
+            if fault == 'reboot-ack-checkpoint' and observed.get('reboot_requested'):
+                raise RuntimeError('checkpoint-failed-after-input')
     transfer = Mock()
     boundary = Mock(transfer=transfer, refusal=False)
     boundary.observe_installed_layout.return_value = {
@@ -391,11 +395,6 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
             return {'boot_sha256': current_boot}
         if name == 'serial-session' and fault == 'session':
             raise RuntimeError('session-failed')
-        if name == 'reboot-password':
-            if fault == 'reboot-password-boot':
-                current_boot = 'd' * 64
-            return {'sudo_reboot_process_verified': fault != 'reboot-recipient',
-                    'terminal_echo_disabled': fault != 'reboot-echo'}
         if name == 'startup-enforcement':
             if fault == 'enforcement-failed':
                 raise RuntimeError('enforcement-failed')
@@ -416,7 +415,7 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
         nonlocal current_boot
         assert boot == 'b' * 64
         assert (tmp_path / 'reboot-ready.reply.json').exists()
-        assert (tmp_path / 'reboot-password.reply.json').exists()
+        assert (tmp_path / 'reboot-requested.reply.json').exists()
         assert events[-2:] == ['drain', 'drained-proof']
         events.append('wait')
         if fault == 'wait':
@@ -424,13 +423,21 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
         current_boot = 'd' * 64 if fault == 'second-boot' else 'c' * 64
         return {'boot_changed': True, 'previous_boot_sha256': boot, 'boot_sha256': 'c' * 64}
     controller.vm = Mock(read=Mock(side_effect=read), wait_boot_change=Mock(side_effect=wait))
+    def reboot(boot):
+        assert boot == 'b' * 64
+        assert 'checkpoint:reboot-requested' in events
+        assert not (tmp_path / 'reboot-requested.reply.json').exists()
+        events.append('ssh-reboot')
+        if fault == 'reboot-command':
+            raise RuntimeError('reboot-command-failed')
+    controller.transport = Mock(request_customer_reboot=Mock(side_effect=reboot))
     if fault == 'reboot-provenance':
         boundary.verified.recheck.side_effect = RuntimeError('source-changed')
     port = Mock(pending_in=b'', step=Mock(side_effect=lambda: events.append('drain')))
-    failure_stage = ('reboot-password' if fault and fault.startswith('reboot-') else
+    failure_stage = ('reboot-requested' if fault and fault.startswith('reboot-') else
                      'gdm-return' if fault == 'second-boot' or fault and fault.startswith(('enforcement-', 'broker-')) else
                      'reboot-observed' if fault == 'wait' else 'reboot-ready')
-    for stage in ('reboot-ready', 'reboot-password', 'reboot-observed', 'gdm-return'):
+    for stage in ('reboot-ready', 'reboot-requested', 'reboot-observed', 'gdm-return'):
         (tmp_path / f'{stage}.request.json').write_text(json.dumps({
             'stage': stage, 'screenshot': 'smoke-1.png' if fault == 'capture' else None}))
         if stage.startswith('reboot-'):
@@ -446,6 +453,9 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
             assert not (tmp_path / f'{stage}.reply.json').exists()
             with pytest.raises(RuntimeError, match='previous-failure'):
                 controller.step(port)
+            expected = int(fault in ('reboot-command', 'reboot-ack-checkpoint')
+                           or stage in ('reboot-observed', 'gdm-return'))
+            assert controller.transport.request_customer_reboot.call_count == expected
             return
         controller.step(port)
         assert events[-1] == 'checkpoint:' + stage
@@ -455,6 +465,21 @@ def test_customer_reboot_orders_input_drain_observation_and_durable_ack(tmp_path
     assert controller.steps[-1]['installed_layout']['verified_inventory_digest'] is True
     boundary.observe_installed_layout.assert_called_once_with()
     assert boundary.verified.recheck.call_count == 2
+    controller.transport.request_customer_reboot.assert_called_once_with('b' * 64)
+
+
+def test_reboot_intent_is_durable_without_claiming_submission(tmp_path):
+    result = {'steps': []}
+    qualification = smoke.Qualification(tmp_path, Mock(), Mock(), Mock(), result, {}, install=True)
+    qualification.checkpoint = Mock()
+    qualification.progress('reboot-requested', {'stage': 'reboot-requested',
+        'boot_sha256': 'b' * 64, 'reboot_request_pending': True})
+    qualification.checkpoint.assert_called_once_with('reboot-request-intent')
+    assert result['reboot_request_pending'] and result['steps'] == []
+    qualification.progress('reboot-requested', {'stage': 'reboot-requested',
+        'boot_sha256': 'b' * 64, 'reboot_requested': True})
+    assert not result['reboot_request_pending']
+    assert result['steps'][0]['reboot_requested'] is True
 
 
 @pytest.mark.parametrize('invalid', [False, True])

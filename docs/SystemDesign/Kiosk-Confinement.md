@@ -218,7 +218,7 @@ every version or distribution. The qualification scope follows the table.
 | 9 | After a parent approves more time, stay in the station and use it as an unrestricted account. | Approval updates the selected child's authorization and the restricted-station success route exits to sign-in. It does not remove kiosk MAC policy or grant administration. Proof: [E2E case 50](../../tests/e2e/restricted_station.py#L33), [broker authorization](Broker.md#authorization-and-grant-transactions). |
 | 10 | Open About or Help and look for a website, file browser or management window to launch. | Kiosk About keeps information in-app and excludes external-handler, chooser and management actions; closing it preserves the unfinished request. Proof: [E2E case 192](../../tests/e2e/kiosk_about.py). |
 | 11 | <ul><li>Open Preferences.</li><li>Visit Language, Reminders and Preset Times.</li><li>Open the Add/Edit dialogs and look for a way to launch another app or browse files.</li></ul> | The exposed controls are checked for unexpected surfaces, external links and forbidden actions. Cancelling drafts returns to the unchanged request, followed by a strict confined-process census. Proof: [installed Preferences qualifier](../../tests/integration/check_e2e_kiosk_preferences_confinement.py), [journey assertions](../../tests/e2e/kiosk_preferences_confinement.py). |
-| 12 | Open an error report, edit its text, or open the privacy disclosure to reach files or another app. | Reporting remains in-app; kiosk chooser/external-handler actions are suppressed. The qualifier proves usable editing, privacy navigation, confined native scanner execution and a waiting-session census without submitting a report. Proof: [installed feedback qualifier](../../tests/integration/check_e2e_kiosk_feedback_confinement.py), [journey assertions](../../tests/e2e/kiosk_feedback_confinement.py). |
+| 12 | Open an error report, edit its text, or open the privacy disclosure to reach files or another app. | Reporting remains in-app; kiosk chooser/external-handler actions are suppressed. The qualifier proves usable editing, privacy navigation and a waiting-session census without submitting a report. Proof: [installed feedback qualifier](../../tests/integration/check_e2e_kiosk_feedback_confinement.py), [journey assertions](../../tests/e2e/kiosk_feedback_confinement.py). |
 | 13 | Ask a background service to open a shell or run a Python/GJS command, desktop shell or alternate session. | The user manager and service executors retain role-specific MAC restrictions. Each prohibited command requires an executor failure and fresh matching kernel denial after successful native execution. Proof: [system execution matrix](../../tests/integration/system_kiosk_confinement.py#L1984). |
 | 14 | Copy an allowed program into a writable folder, rename it, or make a shortcut to an interpreter and run it. | Execution authority depends on trusted private paths/inodes and role transitions, not matching file contents or a friendly name. A copied executable and interpreter symlink are explicitly denied. Proof: [system writable-input assertions](../../tests/integration/system_kiosk_confinement.py#L1414). |
 | 15 | Run a program through its library loader, an already-open file, or a program held only in memory. | The final GDM execution gate denies explicit loader invocation, file-descriptor execution and memfd execution with native permission errors. An allowed actual final exec precedes those negatives. Proof: [system final-exec matrix](../../tests/integration/system_kiosk_confinement.py#L1984). |
@@ -226,7 +226,7 @@ every version or distribution. The qualification scope follows the table.
 | 17 | Ask the background service manager to run a job without its security profile, including “ignore errors.” | Unconfined profile/context selection is denied; ignoring that setup error still leaves forbidden shell execution blocked by the kernel. Proof: [system service-API assertions](../../tests/integration/system_kiosk_platform.py#L340). |
 | 18 | Put custom startup settings or scripts in a writable folder so notifications, audio or Wellbeing will run them. | Fixed launchers reject extra arguments and clear startup injection. Audio uses system roots and empty default Lua paths. Proof: [system hostile-startup and Lua assertions](../../tests/integration/system_kiosk_platform.py#L186), [fixed launcher implementation](../../tools/kiosk_session.c). Qualification covers the reviewed native inputs, not every optional plugin. |
 | 19 | Ask the audio service to load a custom plugin from a writable folder. | Kernel executable-mapping policy rejects the user-owned ELF even when requested through the real native metadata API. A genuine trusted-library load is observed first. Proof: [system native audio API assertions](../../tests/integration/system_kiosk_platform.py#L285). |
-| 20 | Use the report editor's web or media helpers to substitute a program or load writable code. | Separate bootstrap/payload roles, pinned native proxy/scanner paths and read-only executable binds prevent tested substitutions. Six bind/data/file attacks require an independent native positive and enforcing denial. Proof: [system bubblewrap substitution assertions](../../tests/integration/system_kiosk_confinement.py#L1245), [real scanner qualifier](../../tests/e2e/kiosk_feedback_confinement.py). |
+| 20 | Use the report editor's web or media helpers to substitute a program or load writable code. | Separate bootstrap/payload roles, pinned native proxy/scanner paths and read-only executable binds prevent tested substitutions. Six bind/data/file attacks require an independent native positive and enforcing denial. Proof: [system bubblewrap substitution assertions](../../tests/integration/system_kiosk_confinement.py#L1245), [installed feedback qualifier](../../tests/e2e/kiosk_feedback_confinement.py). |
 | 21 | Use an image decoder or a sandbox helper as a way to launch another program or change the system's mounts. | Glycin has a finite pinned decoder route with no onward exec; only native bootstrap roles have bounded private-namespace setup authority. Proof: [role policy](../../tools/kiosk_confinement_policy.py) and [bubblewrap assertions](../../tests/integration/system_kiosk_confinement.py#L1245). These checks do not establish immunity to unknown decoder vulnerabilities. |
 | 22 | Use the administrator password helper as a general privileged program launcher. | Only the pinned vendor authentication helper and its finite transitions are permitted; native binding checks privilege metadata before and after mounting. Fedora's helper census requires exact credentials, label, parent, namespace and generation. Proof: [system helper identity assertions](../../tests/integration/system_kiosk_confinement.py#L197), [public authentication in cases 50–52](../../tests/e2e/restricted_station.py). |
 | 23 | Change the request station's default desktop or ask it to manage parental-control settings. | Root-owned routing and Polkit protect the account metadata; the kiosk has no management UI route. Broker methods independently check caller roles, targets and approval. Proof: [system routing denial/recovery](../../tests/integration/system_kiosk_admission.py#L363), [system broker role matrix](../../tests/system/test_authorization.py#L114), [E2E restrictions](../TestAutomation/E2E-Scenario-Recipes.md#e2e-016). Broker authorization is a separate boundary from execution confinement. |
@@ -265,18 +265,51 @@ Its repeated system 6/267 and system 4 histories passed on both targets; public
 cases 50/51/52/192 also passed independently on both. These are historical
 candidate-specific results, not new VM execution performed for this design edit.
 
-The retained evidence sets are the Fedora cumulative bundle
-`onpc-evidence-bundle-emx2_qws` (SHA-256
-`f95f278597cd9b5802b2fef1469fadb6d6c0ea574a0222176a0474540694cdcf`),
-Ubuntu recovery bundle `onpc-evidence-bundle-z2tnvf3t` (SHA-256
-`88032c4a801f2b855e0a27ef2ccc489b2e6083141752311e94901353dd4338dc`),
-and review supplement `onpc-evidence-bundle-dz7f3_ix` (SHA-256
-`6dae5e23ba1d9fbfb26bfa9e9104374be0a465c965c969d5d54d35979ffb0833`).
-They use the maintained [artifact readers](../../tests/README.md#prompt-free-test-artifact-access)
-under `output/test-runs/host/exports/`; original allocation names remain archive
-inventory keys. Final public evidence remains in its original privileged
-allocations, with suite records `onpc-e2e-evidence-puw1wf2u` (Ubuntu) and
-`onpc-e2e-evidence-m29zics7` (Fedora). Existing retention ownership applies.
+The original Fedora, Ubuntu recovery and review exports are inherited into
+these verified cumulative bundles under `output/test-runs/host/exports/`:
+
+- `onpc-evidence-bundle-opzdhw6_/evidence.zip`: 58,595 files, SHA-256
+  `3d031877f134e0be39833e9baf2d297a0d66aaa1bd76ec26e5da23bc248b1107`.
+- `onpc-evidence-bundle-g99gn1a1/evidence.zip`: 44,882 files, SHA-256
+  `b91777276815aec5f21c04e37a1c6e8c55ef9624dd954f0bcb98984daec3fb22`.
+
+Use the maintained [artifact readers](../../tests/README.md#prompt-free-test-artifact-access).
+Original report and allocation paths remain archive inventory keys even after
+their originals rotate; existing retention ownership applies.
+
+The 2026-10-17 close-out preserves accepted authorization cases 26–151 and
+removal cases 6, 7 and 9–17 on both targets. System cases 4, 5, 18–25 and
+267–271, including their prerequisites, passed 73/73 executions per target.
+Public E2E cases 47, 48, 50, 51, 52 and 192 and Preferences confinement passed
+on both targets. Fedora RPM recovery case 8 passed all eight executions;
+the final case 5 history restored its combined-VM recording. Final recording
+indices and surviving system reports are preserved in the cumulative bundles.
+The raw 73-pass allocations `onpc-system-yb33mofd` and `onpc-system-6covjn1o`
+rotated before archival; their accepted passes and archived host reports remain,
+but their original result/JUnit/TAP records are unavailable.
+
+Feedback confinement passed independently on Fedora with enforcing SELinux
+(report key `20261017T213630Z-7d9de2df`, result allocation
+`onpc-graphical-smoke-oc15q7f5`) and Ubuntu with enforcing AppArmor
+(report key `20261017T225629Z-47b5880c`, result allocation
+`onpc-graphical-smoke-o6cd5k77`). Both proved editor usability, privacy reading,
+draft preservation and the strict waiting-session census without submission;
+infrastructure, collection and owned cleanup passed. These engineering
+qualifiers correctly record the customer product domain as `not-run` and
+publish no case recording. Disabled sound/scanner observation is excluded from
+this qualifier by the developer's explicit scope decision.
+
+This campaign spans multiple candidates, not one immutable revision. The
+73-pass system inputs used package source `75f608f67dc164adc835663f4d35b9e94fd79d61`;
+the public E2E inputs used `0690f1de71cc41bfad97f494b19087fbb3ce0f85`.
+Fedora's feedback pass used source `4e08dcdbaa5ee574d349a4a00c5cd81a5ad4cd79`
+and RPM SHA-256 `ae32aa2efe5b716840b8025f7edd7d26b5326d22a1118b44749e24331466da6d`.
+Ubuntu's final feedback pass used source `f0e4dc777f005c611f9dce483f2334edc4592440`
+and DEB SHA-256 `80fe01b91186386ce7300dae84a1816a753c3bbd6eac4d0bf20b1740b6553814`.
+Its exact result, worker records, host report and input manifest are preserved
+in `onpc-evidence-bundle-g99gn1a1`; earlier failures remain archived alongside
+the passing results. The earlier intermittent Ubuntu station-entry timeout
+has no established root cause; this successful retry does not claim a fix.
 
 An explicitly accepted historical Ubuntu retention loss covers four matrix
 allocations (`onpc-system-o9ryhtxo`, `onpc-system-8efeqxdi`,

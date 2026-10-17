@@ -329,6 +329,13 @@ another domain, URI, disk, XML or snapshot. A maintenance attempt must be stoppe
 before starting a system/E2E run. Routine test runs continue through their
 existing guarded controllers; raw `virsh` commands bypass these contracts.
 
+Shutdown and reboot use the shared guarded SSH transport under the
+[VM lifecycle mandate](../../docs/Mandates/VM-Mandate.MD#owned-maintenance-and-execution).
+Baseline maintenance bootstraps attempt-owned SSH access without installing the
+product; its private credentials remain bound to that run, VM and baseline.
+Online app maintenance reuses its verified saved identity. Off/boot observations
+and final baseline audits remain mandatory after a successful SSH request.
+
 Only the guarded runner may perform a normal test reset under its exclusive
 lease, outside a complete independent attempt. It restores the retained
 baseline, removes host transfer channels before boot while retaining the private

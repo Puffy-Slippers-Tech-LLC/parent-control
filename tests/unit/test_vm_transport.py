@@ -28,6 +28,35 @@ def client():
 
 
 @pytest.mark.parametrize('status', [0, 255, 1])
+def test_poweroff_submits_once_through_guarded_ssh_and_leaves_off_proof_to_owner(status):
+    value = client()
+    value.commands.last_returncode = status
+    if status == 1:
+        with pytest.raises(transport.Error, match='poweroff-command-failed'):
+            value.poweroff()
+    else:
+        value.poweroff()
+    value.guard.assert_called_once_with(value.config)
+    assert value.commands.run.call_count == 1
+    argv = shlex.split(value.commands.run.call_args.args[0][-1].split(' && exec ', 1)[1])
+    assert argv == ['systemctl', '--no-ask-password', '--no-block', 'poweroff']
+
+
+def test_poweroff_requires_current_owner_before_any_shutdown_input():
+    value = client()
+    value.guard.side_effect = transport.Error('lost-owner')
+    with pytest.raises(transport.Error, match='lost-owner'):
+        value.poweroff()
+    value.commands.run.assert_not_called()
+
+
+def test_lease_receives_latest_guarded_shutdown_transport():
+    lease = Mock()
+    value = transport.Transport(config(), Mock(), guard=Mock(), lease=lease)
+    assert lease.shutdown_request == value.poweroff
+
+
+@pytest.mark.parametrize('status', [0, 255, 1])
 def test_customer_reboot_is_one_guarded_boot_bound_command(status):
     value = client()
     value.commands.last_returncode = status

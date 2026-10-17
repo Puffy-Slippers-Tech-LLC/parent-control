@@ -65,13 +65,13 @@ def recover_identity(lease):
     return matches[0]
 
 
-def load(source, name, xml):
+def read_record(source, name):
     store = record_store(source)
     if not store.path.exists():
         return None
     with store.opened() as fd:
         try:
-            source_fd = os.open('snapshot.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
+            source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
         except FileNotFoundError:
             return None
         with os.fdopen(source_fd) as stream:
@@ -79,6 +79,13 @@ def load(source, name, xml):
             test_retention.private(info, regular=True)
             system.require(info.st_size <= 16384, 'online-snapshot:invalid-record')
             value = json.load(stream)
+    return value
+
+
+def load(source, name, xml):
+    value = read_record(source, 'snapshot.json')
+    if value is None:
+        return None
     system.require(isinstance(value, dict) and value.get('schema_version') == 1,
                    'online-snapshot:invalid-record')
     if (value.get('name'), value.get('snapshot_sha256')) != (name, fingerprint(xml)):
@@ -90,6 +97,37 @@ def load(source, name, xml):
         and all(isinstance(value[key], str) for key in
                 ('host_key', 'private_key', 'public_key')),
         'online-snapshot:invalid-record')
+    return value
+
+
+def publish_maintenance(lease, setup, host_key):
+    """Retain only this baseline maintenance run's private SSH identity."""
+    lease.guard(off=True)
+    value = dict(schema_version=1, run=lease.state['run'],
+        domain_uuid=lease.source.uuid, baseline_sha256=lease.state['baseline_sha256'],
+        host_key=host_key, private_key=(setup / 'ssh-key').read_text(),
+        public_key=(setup / 'ssh-key.pub').read_text())
+    store = record_store(lease.source, create=True)
+    with store.opened() as fd:
+        store.save(fd, value, name='maintenance.json')
+
+
+def load_maintenance(lease):
+    value = read_record(lease.source, 'maintenance.json')
+    if value is None:
+        return None
+    system.require(isinstance(value, dict) and set(value) == {
+        'schema_version', 'run', 'domain_uuid', 'baseline_sha256',
+        'host_key', 'private_key', 'public_key'} and
+        type(value['schema_version']) is int and value['schema_version'] == 1 and
+        all(isinstance(value[key], str) for key in value if key != 'schema_version') and
+        re.fullmatch(r'[0-9a-f]{32}', value['run']) is not None,
+        'maintenance-ssh:invalid-record')
+    if value['run'] != lease.state['run']:
+        return None
+    system.require(value['domain_uuid'] == lease.source.uuid and
+        value['baseline_sha256'] == lease.state['baseline_sha256'],
+        'maintenance-ssh:identity-changed')
     return value
 
 
@@ -304,7 +342,7 @@ def connect_saved_transport(lease, directory, record, hostname):
     (old / 'known-hosts').write_text(f"{hostname} {record['host_key']}\n")
     config = dict(directory=str(old), hostname=hostname, run=record['run'],
                   domain_uuid=lease.source.uuid, domain_id=lease.view.domain_id)
-    transport = Transport(config, lease.commands, guard=lambda _: lease.guard())
+    transport = Transport(config, lease.commands, guard=lambda _: lease.guard(), lease=lease)
     transport.probe_ready()
     return transport
 
@@ -343,7 +381,7 @@ def start(lease):
     transport.call(['/usr/bin/python3', '-c', REBIND], input=system.baseline.encode(data))
     (directory / 'known-hosts').write_text(f"{hostname} {record['host_key']}\n")
     fresh = Transport(dict(transport.config, directory=str(directory), run=lease.state['run']),
-                      lease.commands, guard=lambda _: lease.guard())
+                      lease.commands, guard=lambda _: lease.guard(), lease=lease)
     fresh.probe_ready()
     verify_credentials(fresh, lease)
     system.log(f'online-snapshot:attempt-ready seconds={time.monotonic() - started:.2f}')

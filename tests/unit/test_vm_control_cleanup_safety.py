@@ -8,7 +8,7 @@ import os
 import time
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import system_runner as runner
@@ -28,12 +28,14 @@ def reopened(lease):
 
 def start(lease):
     lease.view.graphics_type = 'vnc'
-    control.operate(lease, 'start', [])
+    with patch('vm_probe.prepare_maintenance_transport'):
+        control.operate(lease, 'start', [])
     lease.release()
 
 
 @pytest.mark.parametrize('phase', [
-    'validated', 'shutdown-requested', 'restore-requested', 'isolated', 'start-requested', 'cleanup-requested'])
+    'validated', 'shutdown-requested', 'restore-requested', 'isolated', 'ssh-bootstrap',
+    'start-requested', 'cleanup-requested'])
 @pytest.mark.parametrize('fault', [None, 'running', 'owner', 'configuration'])
 def test_preparation_recovers_never_started_owned_maintenance_without_booting(
         lease_rig, phase, fault):
@@ -41,7 +43,7 @@ def test_preparation_recovers_never_started_owned_maintenance_without_booting(
     lease.view.graphics_type = 'vnc'
     lease.__enter__()
     control.save_owner(lease)
-    if phase in ('isolated', 'start-requested', 'cleanup-requested'):
+    if phase in ('isolated', 'ssh-bootstrap', 'start-requested', 'cleanup-requested'):
         lease.prepare()
     lease.save(phase)
     lease.release()
@@ -72,7 +74,13 @@ def test_preparation_recovers_never_started_owned_maintenance_without_booting(
 
 
 def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lease_rig, monkeypatch):
+    import vm_probe
     lease, current = lease_rig
+    transport = Mock()
+    def connect(held):
+        held.shutdown_request = transport.poweroff
+        return transport
+    monkeypatch.setattr(vm_probe, 'connect', connect)
     monkeypatch.setattr(runner.baseline, 'digest', Mock(side_effect=AssertionError('image hash')))
     lease.commands.check = Mock(side_effect=AssertionError('image scan'))
     original = current['xml']
@@ -88,6 +96,8 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
         finally:
             resumed.release()
     assert lease.source.domain.revertToSnapshot.call_count == 1
+    transport.reboot.assert_called_once_with()
+    lease.source.domain.reboot.assert_not_called()
     lease.source.domain.sendKey.assert_called_once_with(
         lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [28], 1, 0)
     resumed = reopened(lease)
@@ -100,6 +110,7 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     assert resumed.state['phase'] == 'complete'
     assert resumed.capture.verification_totals['bytes_read'] == 0
     assert lease.source.off
+    transport.poweroff.assert_called_once_with()
 
 
 @pytest.mark.parametrize('phase', ['running', 'cleanup-requested'])
@@ -184,6 +195,9 @@ def test_restored_off_maintenance_refusals_preserve_journal_without_vm_mutation(
 def test_automatic_preparation_recovery_stops_only_proven_maintenance(
         lease_rig, tmp_path, monkeypatch, fault):
     import check_graphical_recovery as recovery
+    import vm_probe
+    monkeypatch.setattr(vm_probe, 'connect',
+                        lambda held: setattr(held, 'shutdown_request', Mock()))
     lease, current = lease_rig
     start(lease)
     before = lease.journal.read_bytes()
@@ -318,7 +332,8 @@ def test_replacement_or_unowned_attempt_never_receives_vm_actions(lease_rig, mut
 def test_busy_controller_lock_refuses_even_with_valid_identity(lease_rig):
     lease, _ = lease_rig
     lease.view.graphics_type = 'vnc'
-    control.operate(lease, 'start', [])
+    with patch('vm_probe.prepare_maintenance_transport'):
+        control.operate(lease, 'start', [])
     concurrent = reopened(lease)
     try:
         with pytest.raises(runner.Error, match='busy-controller'):
@@ -1106,7 +1121,8 @@ def probe_snapshot(held, current):
 
 @pytest.mark.parametrize('status', [0, 1, 127, 255])
 @pytest.mark.parametrize('input_stream', [False, True])
-def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status, input_stream):
+@pytest.mark.parametrize('maintenance', [False, True])
+def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status, input_stream, maintenance):
     import online_snapshot
     import vm_probe
     lease, current = lease_rig
@@ -1117,6 +1133,8 @@ def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch
     held.commands.directory.mkdir()
     _, _, record = probe_snapshot(held, current)
     monkeypatch.setattr(online_snapshot, 'load', Mock(return_value=record))
+    monkeypatch.setattr(online_snapshot, 'load_maintenance', Mock(
+        return_value=record if maintenance else None))
     monkeypatch.setattr(vm_probe.system, 'address', Mock(return_value='192.168.122.20'))
     transport = Mock()
     if input_stream:
@@ -1148,6 +1166,8 @@ def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch
     try:
         assert vm_probe.execute(held, ['journalctl', '--no-pager'], 120, input_stream=input_stream) == status
         connect.assert_called_once_with(held, held.commands.directory, record, '192.168.122.20')
+        if maintenance:
+            held.source.domain.snapshotCurrent.assert_not_called()
         assert held.journal.read_bytes() == journal
         assert (held.directory / 'vm-control.json').read_bytes() == owner
         assert held.source.domain.revertToSnapshot.call_count == restores
@@ -1236,7 +1256,8 @@ def test_root_probe_refuses_foreign_or_active_controller_before_ssh(lease_rig, m
     lease, current = lease_rig
     if fault == 'busy':
         lease.view.graphics_type = 'vnc'
-        control.operate(lease, 'start', [])
+        with patch('vm_probe.prepare_maintenance_transport'):
+            control.operate(lease, 'start', [])
     else:
         start(lease)
         if fault == 'owner':

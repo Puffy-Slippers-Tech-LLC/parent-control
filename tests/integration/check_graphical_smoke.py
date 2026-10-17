@@ -61,7 +61,7 @@ FUNCTIONAL_GDM_OPERATIONS = {
     'gdm-return': 'gdm-product-free-returned',
 }
 INSTALL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
-                  *InstallationBoundary.STAGES, 'reboot-ready', 'reboot-password',
+                  *InstallationBoundary.STAGES, 'reboot-ready', 'reboot-requested',
                   'reboot-observed', 'gdm-return')
 INSTALL_REFUSAL_STAGES = (*STAGES, 'serial-password', 'serial-authenticated',
                           *InstallationBoundary.REFUSAL_STAGES, 'serial-logout', 'gdm-return')
@@ -155,6 +155,7 @@ class Smoke:
         self.host_key = host_key
         self.steps = []
         self.vm = None
+        self.transport = None
         self.progress = progress
         self.transfer = transfer
         require(type(functional) is bool and (not functional or
@@ -176,7 +177,7 @@ class Smoke:
         self.installation = installation
         self._failed = False
         self._reboot_boot = None
-        self._reboot_password_verified = False
+        self._reboot_requested = False
         self._capture_protection = None
         self.stages = (FUNCTIONAL_SERIAL_STAGES if functional else
                        VT6_AUTH_STAGES if vt6_auth else VT6_PROMPT_STAGES if vt6_prompt else
@@ -242,11 +243,12 @@ class Smoke:
             config = {'directory': str(self.directory), 'hostname': hostname,
                       'domain_uuid': self.lease.source.uuid,
                       'domain_id': self.lease.view.domain_id, 'run': self.lease.state['run']}
-            transport = Transport(config, self.commands, guard=lambda _: self.lease.guard())
+            transport = Transport(config, self.commands, guard=lambda _: self.lease.guard(), lease=self.lease)
             transport.probe_ready(timeout=180)
             if self.functional:
                 self.ui = UiObservations(transport,
                     progress=getattr(self.lease, 'watch_progress', None))
+            self.transport = transport
             self.vm = ReadOnlyObservations(transport, on_diagnostic=(
                 lambda condition: self.progress(self.stages[len(self.steps)],
                     {'recipient_refusal': condition})) if self.progress is not None else None)
@@ -302,24 +304,17 @@ class Smoke:
             require(self.vm.read('boot')['boot_sha256'] == boot, 'smoke:premature-reboot')
             self._reboot_boot = boot
             reply = {**session, 'boot_sha256': boot, 'customer_reboot_authorized': True}
-        elif stage == 'reboot-password':
+        elif stage == 'reboot-requested':
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
-            require(self._reboot_boot is not None, 'smoke:reboot-not-authorized')
+            require(self._reboot_boot is not None and not self._reboot_requested,
+                    'smoke:reboot-not-authorized')
             self.installation.verified.recheck()
             require(self.vm.read('boot')['boot_sha256'] == self._reboot_boot,
                     'smoke:premature-reboot')
-            reply = self.vm.read('reboot-password')
-            require(reply.get('sudo_reboot_process_verified') is True
-                    and reply.get('terminal_echo_disabled') is True,
-                    'smoke:reboot-password-unverified')
-            require(self.vm.read('boot')['boot_sha256'] == self._reboot_boot,
-                    'smoke:premature-reboot')
-            self.installation.verified.recheck()
-            self._reboot_password_verified = True
-            reply = {**reply, 'boot_sha256': self._reboot_boot}
+            reply = {'boot_sha256': self._reboot_boot, 'reboot_request_pending': True}
         elif stage == 'reboot-observed':
             require(request['screenshot'] is None, 'smoke:authentication-capture-refused')
-            require(self._reboot_boot is not None and self._reboot_password_verified,
+            require(self._reboot_boot is not None and self._reboot_requested,
                     'smoke:reboot-not-authorized')
             if self.progress is not None:
                 self.progress(stage, {'serial_input_drained': True})
@@ -393,7 +388,19 @@ class Smoke:
             # A durable checkpoint failure above prevents input. Recheck the
             # owned worker after persistence, immediately before publication.
             self._worker_guard()
-        if stage in ('serial-password', 'reboot-password'):
+        if stage == 'reboot-requested':
+            # The durable checkpoint above records intent before mutation.
+            # Consume before sending; an uncertain SSH result cannot be retried.
+            self.installation.verified.recheck()
+            self._reboot_requested = True
+            self.transport.request_customer_reboot(self._reboot_boot)
+            reply.pop('reboot_request_pending')
+            reply['reboot_requested'] = True
+            self.steps[-1] = {'stage': stage, **reply}
+            if self.progress is not None:
+                self.progress(stage, self.steps[-1])
+            self.lease.guard()
+        if stage == 'serial-password':
             manager = protect_capture(root=ROOT)
             manager.__enter__()
             self._capture_protection = manager
@@ -522,6 +529,12 @@ class Qualification:
                 and type(recipient['matches_pinned_recipient']) is bool)), 'smoke:diagnostic-condition')
             self.result.setdefault('vt6_diagnostics', []).append({'stage': stage, **report})
             self.checkpoint('terminal-diagnostic')
+        elif stage == 'reboot-requested' and observed.get('reboot_request_pending') is True:
+            require(set(observed) == {'stage', 'boot_sha256', 'reboot_request_pending'}
+                    and re.fullmatch(r'[0-9a-f]{64}', observed['boot_sha256']) is not None,
+                    'smoke:diagnostic-condition')
+            self.result['reboot_request_pending'] = True
+            self.checkpoint('reboot-request-intent')
         elif stage == 'reboot-observed' and set(observed) == {'serial_input_drained'}:
             require(observed['serial_input_drained'] is True, 'smoke:diagnostic-condition')
             self.result['reboot_input_drained'] = True
@@ -538,14 +551,15 @@ class Qualification:
                 'smoke:diagnostic-condition')
             self.result['reboot_diagnostic'] = dict(report)
             self.checkpoint('reboot-probe-finished')
-        elif stage in ('install-password', 'reboot-password') and set(observed) == {'recipient_refusal'}:
+        elif stage == 'install-password' and set(observed) == {'recipient_refusal'}:
             # Refusal is diagnostic evidence, never a completed proof step.
             require(observed['recipient_refusal'] in
                     installation_observations.SUDO_PASSWORD_STAGES, 'smoke:diagnostic-condition')
-            key = 'installation_diagnostic' if stage == 'install-password' else 'reboot_authentication_diagnostic'
-            self.result[key] = dict(observed)
+            self.result['installation_diagnostic'] = dict(observed)
             self.checkpoint('stage-rejected')
         else:
+            if stage == 'reboot-requested':
+                self.result['reboot_request_pending'] = False
             self.result['steps'].append(dict(observed))
             self.active_stage = None
             self.checkpoint('stage-observed')

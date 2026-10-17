@@ -53,9 +53,11 @@ class Source:
     def snapshot(self):
         return copy.deepcopy(self.layout), self.off
 
-    def shutdown(self, revalidate, requested):
+    def shutdown(self, revalidate, requested, *, request=None):
         revalidate()
         self.shutdown_calls += 1
+        if not self.off and not requested and request is not None:
+            request()
         if self.timeout:
             raise host.CaptureError("shutdown:timeout")
         self.off = True

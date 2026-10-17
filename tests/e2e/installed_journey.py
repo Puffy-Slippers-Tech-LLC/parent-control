@@ -582,7 +582,8 @@ class InstalledJourney:
             config = {'directory': str(context.directory), 'hostname': hostname,
                 'domain_uuid': context.lease.source.uuid, 'domain_id': context.lease.view.domain_id,
                 'run': context.lease.state['run']}
-            transport = Transport(config, context.commands, guard=lambda _: context.lease.guard())
+            transport = Transport(config, context.commands, guard=lambda _: context.lease.guard(),
+                                  lease=context.lease)
             transport.probe_ready(timeout=180)
             # The snapshot's installed app persists, but its helper payload
             # belongs to the snapshot-creation run. Bootstrap has already bound

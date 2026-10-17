@@ -114,10 +114,20 @@ def transfer_diagnostic(raw):
 
 
 class Transport:
-    def __init__(self, config, commands=None, guard=guard_host):
+    def __init__(self, config, commands=None, guard=guard_host, *, lease=None):
         self.config = config
         self.commands = commands or Commands()
         self.guard = guard
+        if lease is not None:
+            lease.shutdown_request = self.poweroff
+
+    @observed('Requesting VM shutdown through its owned SSH transport')
+    def poweroff(self):
+        # Submit once. A disconnect is uncertain; the owning controller must
+        # independently observe this exact instance off, never replay input.
+        self.call(['systemctl', '--no-ask-password', '--no-block', 'poweroff'],
+                  timeout=30, check=False)
+        require(self.commands.last_returncode in (0, 255), 'transport:poweroff-command-failed')
 
     def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None,
              on_stream=None, diagnostic_stdout=None):
@@ -251,11 +261,7 @@ class Transport:
         before = self.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE])
         require(isinstance(before, bytes) and re.fullmatch(rb'[0-9a-f]{64}\n', before),
                 'transport:invalid-boot-output')
-        # Wait for connection closure caused by this reboot; the host deadline
-        # bounds failure. No sleeps and no discovery of signal targets.
-        program = 'import signal,subprocess; subprocess.run(["systemctl","reboot"],check=True); signal.pause()'
-        self.call(['python3', '-c', program], timeout=180, check=False)
-        require(self.commands.last_returncode in (0, 255), 'transport:reboot-command-failed')
+        self.request_customer_reboot(before.decode('ascii').strip())
         # The SSH session can close before sshd stops accepting new connections.
         # Reuse the bounded transition observer: a valid old boot is pending,
         # while malformed replies, guard errors and ownership loss still fail.

@@ -720,6 +720,7 @@ class Lease:
         self.watch = None
         self.watch_detached = False
         self.restored_by_callback = False
+        self.shutdown_request = None
 
     def save(self, phase):
         if self.capture.vm_ownership is not None:
@@ -857,6 +858,7 @@ class Lease:
 
     @observed('Starting the VM')
     def start(self):
+        self.shutdown_request = None
         if getattr(self, 'online_pending', False) is True:
             from online_snapshot import start
             require(self.online_bootstrap is not None, 'online-snapshot:bootstrap-required')
@@ -894,7 +896,7 @@ class Lease:
             # Only the domain instance started and identity-recorded by this run.
             require(self.view.domain_id is not None, 'cleanup:unowned-domain')
             try:
-                self.source.shutdown(self.guard, requested=False)
+                self.source.shutdown(self.guard, requested=False, request=self.shutdown_request)
             except Error as error:
                 if str(error) != 'shutdown:timeout':
                     raise
@@ -2033,15 +2035,15 @@ def main(argv=None):
                                                                  if configured is not None else None))
             print_selection(selection)
             return 0
+        if not args.check_tools:
+            require(os.geteuid() == os.getegid() == 0,
+                    'guard:root; run from a root shell on the VM host')
         selection = resolve_selection(args.area, args.test,
                                       recording_ids=args.id,
                                       qualification_failure=args.qualification_failure,
                                       fresh_install=args.previous_artifacts is not None,
                                       target_package_format=configured.require_package_format())
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
-        if not args.check_tools:
-            require(os.geteuid() == os.getegid() == 0,
-                    'guard:root; run from a root shell on the VM host')
         if args.completed_cases is not None:
             from tools.test_checkpoint import completed_cases
             selection = resume_selection(selection, completed_cases(args.completed_cases),

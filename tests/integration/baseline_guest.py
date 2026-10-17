@@ -267,8 +267,8 @@ def boot_and_wait(capture):
             require(time.monotonic() < deadline, 'guest:preparation-timeout')
             time.sleep(2)
     except BaseException:
-        # Only the instance we started may be asked to stop. No force kill.
-        if not source.snapshot()[1] and source.domain.ID() == instance:
-            source.shutdown(capture.revalidate, requested=False)
+        # This initial setup may not have SSH yet. Its guest service owns
+        # SuccessAction/FailureAction=poweroff; preserve the recorded instance
+        # for recovery rather than injecting a power key on a host-side error.
         raise
     capture.revalidate(off=True)

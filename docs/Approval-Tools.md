@@ -539,7 +539,7 @@ replacement by name alone.
 | `tools/test-vm --vm NAME rename --new-name LABEL` | Rename the idle, powered-off pinned UUID, preserve snapshots and disks, and move its private provenance directory; refuses existing destination state and unfinished controllers |
 | `tools/test-vm --vm NAME rename-disk` | Rename the idle pinned guest's single QCOW2 image to `NAME.qcow2` in its existing directory; update domain/internal-snapshot references and provenance, preserving bytes and inode; refuses overlays, shared disks, destination collisions and unfinished controllers |
 | `tools/test-vm --vm NAME start` | Acquire the shared lease, validate provenance/disks/snapshot, restore the outer baseline, record and boot an isolated maintenance attempt |
-| `tools/test-vm --vm NAME reboot` | Request an ACPI reboot of that same recorded running instance; preserve guest state |
+| `tools/test-vm --vm NAME reboot` | Request reboot over the same recorded instance's guarded SSH transport and verify its new boot; preserve guest state |
 | `tools/test-vm --vm NAME send-key 28` | Send 1–16 numeric Linux keycodes (1–255) to that instance; no shell or host command |
 | `tools/test-vm --vm NAME screenshot` | Capture the owned running guest through the legacy `/tmp/onpc-vm-screen-*` allocation; migration to [shared storage](Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes) remains required. This is separate from the caller-owned PNG export exception. |
 | `tools/test-vm --vm NAME stop` | Stop only that recorded maintenance instance, verify/restore the outer baseline and original domain configuration, leave it off |

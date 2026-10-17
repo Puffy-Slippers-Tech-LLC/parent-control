@@ -92,7 +92,7 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                 (attempt / 'known-hosts').write_text(f'{hostname} {host_key}\n')
                 config = {'directory': str(attempt), 'hostname': hostname, 'run': lease.state['run'],
                           'domain_uuid': source.uuid, 'domain_id': lease.view.domain_id}
-                vm = Transport(config, suite.commands, guard=lambda _: lease.guard())
+                vm = Transport(config, suite.commands, guard=lambda _: lease.guard(), lease=lease)
                 lease.guard()
                 system.installed_run(vm, lease, attempt, selected, ledger,
                                      already_installed=installed)

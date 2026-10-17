@@ -60,7 +60,7 @@ class ParentSetupQualification(smoke.Qualification):
                     config = {'directory': str(self.directory), 'hostname': hostname,
                               'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
                               'run': lease.state['run']}
-                    vm = smoke.Transport(config, self.commands, guard=lambda _: lease.guard())
+                    vm = smoke.Transport(config, self.commands, guard=lambda _: lease.guard(), lease=lease)
                     vm.probe_ready(timeout=180)
                     setup = smoke.installed_setup.InstalledSetup(self.directory, self.verified, vm)
                     reply = setup.run(guard)
@@ -244,10 +244,7 @@ class KioskFeedbackConfinementQualification(KioskEntryQualification):
         try:
             super().journey_failure(journey, category, code)
         finally:
-            try:
-                journey.restore_fault()
-            finally:
-                journey.stop_scanner()
+            journey.restore_fault()
 
     @staticmethod
     def journey(context, progress):

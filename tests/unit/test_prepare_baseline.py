@@ -1395,15 +1395,27 @@ def test_shutdown_uses_bounded_libvirt_event_loop(rig, timeout, monkeypatch):
     event = Mock()
     event.wait.side_effect = dispatch
     monkeypatch.setattr(host.threading, "Event", Mock(return_value=event))
+    request = Mock()
     if timeout:
         with pytest.raises(host.CaptureError, match="shutdown:timeout"):
-            source.shutdown(Mock(), requested=False)
+            source.shutdown(Mock(), requested=False, request=request)
     else:
-        source.shutdown(Mock(), requested=False)
-    domain.shutdownFlags.assert_called_once_with(1)
+        source.shutdown(Mock(), requested=False, request=request)
+    request.assert_called_once_with()
+    domain.shutdownFlags.assert_not_called()
     api.virEventRemoveTimeout.assert_called_once_with(11)
     api.open.return_value.domainEventDeregisterAny.assert_called_once()
     domain.destroy.assert_not_called()
+
+
+def test_running_shutdown_without_owned_ssh_refuses_power_button_fallback(rig):
+    api, domain = libvirt_fixture(rig)
+    source = host.LibvirtSource(api)
+    with pytest.raises(host.CaptureError, match='shutdown:ssh-transport-required'):
+        source.shutdown(Mock(), requested=False)
+    domain.shutdownFlags.assert_not_called()
+    domain.destroy.assert_not_called()
+    api.open.return_value.domainEventDeregisterAny.assert_called_once()
 
 
 def test_command_adapter_only_inspects_explicit_qcow2():

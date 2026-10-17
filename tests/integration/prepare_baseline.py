@@ -344,7 +344,7 @@ class LibvirtSource:
         require(domain.UUIDString() == self.uuid and domain.isPersistent(), "guard:domain-identity")
         require(not domain.hasManagedSaveImage(0), "guard:managed-save")
         state = domain.state()[0]
-        # An ACPI shutdown passes through SHUTDOWN before SHUTOFF. It is still
+        # Guest shutdown passes through SHUTDOWN before SHUTOFF. It is still
         # active storage and must never be mistaken for offline readiness.
         require(state in (self.api.VIR_DOMAIN_RUNNING, self.api.VIR_DOMAIN_SHUTDOWN,
                           self.api.VIR_DOMAIN_SHUTOFF), "guard:domain-state")
@@ -356,7 +356,7 @@ class LibvirtSource:
         return layout, state == self.api.VIR_DOMAIN_SHUTOFF
 
     @observed('Waiting for VM shutdown')
-    def shutdown(self, revalidate, requested, timeout=180):
+    def shutdown(self, revalidate, requested, timeout=180, *, request=None):
         expired = False
         changed = threading.Event()
 
@@ -373,7 +373,8 @@ class LibvirtSource:
             if self.snapshot()[1]:
                 return
             if not requested:
-                self.domain.shutdownFlags(self.api.VIR_DOMAIN_SHUTDOWN_ACPI_POWER_BTN)
+                require(callable(request), 'shutdown:ssh-transport-required')
+                request()
             while not self.snapshot()[1]:
                 require(not expired, "shutdown:timeout")
                 require(changed.wait(timeout), "shutdown:timeout")

@@ -901,10 +901,30 @@ def validate_boundary(journey, directory, boundary):
         {'stage': boundary, 'screenshot': None}, 'diagnosis:boundary-request')
 
 
+def prepare_maintenance_transport(lease):
+    """Reuse offline SSH bootstrap without installing a product or fixture."""
+    from qualification_storage import recovery_session, allocate
+    from online_snapshot import publish_maintenance
+    with operation('Preparing SSH access for the owned baseline maintenance VM'), recovery_session():
+        lease.guard(off=True)
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-maintenance-ssh-'))
+        (directory / 'input').mkdir(mode=0o700)
+        (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
+            'schema_version': 1, 'scope': 'maintenance-ssh', 'run': lease.state['run']}))
+        import guestfs
+        host_key = system.bootstrap(lease.commands, lease, directory, guestfs,
+                                    observation_only=True)
+        publish_maintenance(lease, directory, host_key)
+
+
 def connect(lease):
     """Bind a probe to the current owned online snapshot, without restoring it."""
-    from online_snapshot import load, connect_saved_transport, validate_saved_snapshot
+    from online_snapshot import load, load_maintenance, connect_saved_transport, validate_saved_snapshot
     lease.guard()
+    record = load_maintenance(lease)
+    if record is not None:
+        hostname = system.address(lease.source)
+        return connect_saved_transport(lease, lease.commands.directory, record, hostname)
     snapshot = lease.source.domain.snapshotCurrent(0)
     name, xml = snapshot.getName(), snapshot.getXMLDesc(0)
     system.require(re.fullmatch(r'onpc-v[0-9]+(?:\.[0-9]+)*', name) is not None,

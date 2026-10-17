@@ -1,9 +1,6 @@
 """Private fault filesystem and public UI doubles; no host services or VM use."""
 import json
 import os
-from pathlib import Path
-import signal
-import time
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -325,55 +322,15 @@ def test_dedicated_kiosk_report_refuses_exposed_download_without_activating_it()
     send.action.do_action.assert_not_called()
 
 
-@pytest.mark.parametrize('missing', [
-    {'scanner_observed': False, 'observation': 'not-observed'},
-    {'scanner_observed': False, 'observation': 'not-started'},
-    {'scanner_observed': False, 'observation': 'rejected'},
-    {'scanner_observed': True, 'observation': 'observed'},
-])
-def test_feedback_qualification_requires_positive_scanner_proof(tmp_path, missing):
+def test_feedback_qualification_requires_strict_census(tmp_path):
     from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
     journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.scanner_pending = True
-    journey.engineering = Mock(return_value=missing)
-    with pytest.raises(EvidenceError, match='kiosk-feedback:scanner-confinement-unproven'):
-        journey.check_request('kiosk-diagnostic-editor', {})
-    assert not journey.scanner_pending
-    journey.engineering.assert_called_once_with('scanner-finish')
-
-
-def test_feedback_qualification_accepts_observed_scanner_then_requires_strict_census(tmp_path):
-    from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
-    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.scanner_pending = True
-    scanner = {'scanner_observed': True, 'observation': 'observed',
-               'pinned_executable': True, 'private_namespace_and_generation': True,
-               'backend': 'apparmor', 'scanner_thread_roles': {'onpc-kiosk-scanner': 1},
-               'parent_thread_roles': {'onpc-kiosk-app': 2}}
     census = {'census': {'backend': 'apparmor'}}
-    journey.engineering = Mock(side_effect=[scanner, census])
+    journey.engineering = Mock(return_value=census)
     observed = {}
     journey.check_request('kiosk-diagnostic-editor', observed)
-    assert observed == {'engineering_scanner': scanner,
-                        'engineering_confinement': census}
-    assert [call.args[0] for call in journey.engineering.call_args_list] == ['scanner-finish', 'census']
-
-
-@pytest.mark.parametrize('change', [
-    {'backend': 'other'}, {'scanner_thread_roles': {}}, {'parent_thread_roles': {}},
-    {'scanner_thread_roles': {'onpc-kiosk-scanner': True}},
-    {'scanner_thread_roles': {'onpc-kiosk-scanner': 1, 'unconfined': 1}},
-    {'parent_thread_roles': {'unconfined': 1}}, {'pinned_executable': 1},
-    {'private_namespace_and_generation': False},
-])
-def test_scanner_positive_response_refuses_missing_or_malformed_boundary_fields(change):
-    from kiosk_feedback_confinement import scanner_proven
-    value = {'scanner_observed': True, 'observation': 'observed', 'backend': 'apparmor',
-             'pinned_executable': True, 'private_namespace_and_generation': True,
-             'scanner_thread_roles': {'onpc-kiosk-scanner': 1},
-             'parent_thread_roles': {'onpc-kiosk-webkit': 2}}
-    assert scanner_proven(value)
-    assert not scanner_proven({**value, **change})
+    assert observed == {'engineering_confinement': census}
+    journey.engineering.assert_called_once_with('census')
 
 
 def test_report_replaced_owner_refuses_before_dismissal():
@@ -418,30 +375,28 @@ def test_transport_checks_same_owner_order_and_exact_unsent_projection():
               draft_preserved=True, sent=False)
 
 
-def test_engineering_journey_restores_before_report_and_restores_unknown_fault(tmp_path):
+def test_engineering_journey_prepares_rest_of_day_before_fault_and_restores_before_report(tmp_path):
     from kiosk_feedback_confinement import KioskFeedbackConfinementJourney, PLAN
     from kiosk_eligible_choices import PLAN as original
     from parent_setup_qualification import KioskFeedbackConfinementQualification
-    context = SimpleNamespace(directory=tmp_path)
-    journey = KioskFeedbackConfinementJourney(context, Mock())
+    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
     assert PLAN.screen_tags.keys() >= original.screen_tags.keys()
     assert PLAN.worker_mode == 'kiosk_feedback_confinement'
-    journey.engineering = Mock(side_effect=[{'scanner_observer_started': True},
-        {'broker_unavailable': True, 'runtime_mask_owned': True}, {'broker_restored': True}])
+    order = []
+    journey.ui = SimpleNamespace(observe=Mock(side_effect=lambda operation:
+        order.append(operation) or {'valid_choice': 'independently-read'}))
+    responses = iter([{'broker_unavailable': True, 'runtime_mask_owned': True},
+                      {'broker_restored': True}])
+    journey.engineering = Mock(side_effect=lambda action: order.append(action) or next(responses))
     observed = {}
-    journey.check_request('station-list', observed)
-    assert journey.scanner_pending
-    assert observed['engineering_scanner_start'] == {'scanner_observer_started': True}
-    journey.check_request('selections-read', {})
+    journey.check_request('selections-read', observed)
+    assert observed['diagnostic_preparation'] == {'valid_choice': 'independently-read'}
+    assert order == ['kiosk-valid-rest-select', 'begin']
     assert journey.fault_pending
     observed = {}
     journey.check_request('kiosk-diagnostic-error', observed)
     assert observed['engineering_recovery'] == {'broker_restored': True}
     assert not journey.fault_pending
-    assert journey.scanner_pending
-    journey.engineering = Mock(return_value={'scanner_observed': False, 'observation': 'not-observed'})
-    assert journey.stop_scanner()['observation'] == 'not-observed'
-    assert not journey.scanner_pending
     journey.engineering = Mock(side_effect=RuntimeError('uncertain transport reply'))
     with pytest.raises(RuntimeError):
         journey.check_request('selections-read', {})
@@ -454,15 +409,25 @@ def test_engineering_journey_restores_before_report_and_restores_unknown_fault(t
     journey.engineering.assert_called_once_with('restore')
 
 
-@pytest.mark.parametrize('observed', [False, True])
-def test_strict_census_requires_webkit_and_reports_only_actual_scanner(monkeypatch, observed):
+def test_preparation_refusal_never_starts_broker_fault(tmp_path):
+    from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
+    journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
+    journey.ui = SimpleNamespace(observe=Mock(side_effect=EvidenceError('ui:unavailable')))
+    journey.engineering = Mock()
+    with pytest.raises(EvidenceError, match='ui:unavailable'):
+        journey.check_request('selections-read', {})
+    assert not journey.fault_pending
+    journey.engineering.assert_not_called()
+
+
+def test_strict_census_requires_webkit(monkeypatch):
     helper = load_module('private_kiosk_feedback_census', ROOT / 'tests/integration/system_kiosk_feedback.py')
     import system_kiosk_confinement
     value = {'backend': 'apparmor', 'confined_thread_roles': {
-        'onpc-kiosk-webkit': 7, **({'onpc-kiosk-scanner': 1} if observed else {})}}
+        'onpc-kiosk-webkit': 7}}
     census = Mock(return_value=value)
     monkeypatch.setattr(system_kiosk_confinement, 'census', census)
-    assert helper.feedback_census() == {'census': value, 'scanner_observed': observed}
+    assert helper.feedback_census() == {'census': value}
     assert census.call_args.kwargs['required_roles'] == (
         'manager', 'app', 'service', 'wellbeing', 'pipewire', 'webkit',
         'notifications', 'notification-client')
@@ -492,148 +457,16 @@ def test_worker_composes_public_station_steps_and_stops_on_fault_result_refusal(
     assert not any(event[0] in ('key', 'secret') for event in result['events'][boundary + 1:])
 
 
-@pytest.fixture
-def scanner_observer(fault, monkeypatch):
-    helper, _, _ = fault
-    for name, filename in (('SCANNER', 'observer.json'), ('SCANNER_STOP', 'stop'),
-                           ('SCANNER_RESULT', 'result.json')):
-        monkeypatch.setattr(helper, name, helper.RECORD.parent / filename)
-    real_fstat = os.fstat
-    def fstat(fd):
-        info = real_fstat(fd)
-        path = Path(os.readlink('/proc/self/fd/' + str(fd)))
-        if path.is_relative_to(helper.RECORD.parent):
-            values = list(info)
-            values[4] = values[5] = 0
-            return os.stat_result(values)
-        return info
-    monkeypatch.setattr(helper.os, 'fstat', fstat)
-    import system_kiosk_confinement as confinement
-    real_identity = confinement.process_identity
-    def identity(path):
-        value = real_identity(path)
-        return (*value[:2], ('0',) * 4)
-    monkeypatch.setattr(confinement, 'process_identity', identity)
-    def observe(stop_fd, ready):
-        ready()
-        deadline = time.monotonic() + 2
-        while not os.pread(stop_fd, 6, 0) and time.monotonic() < deadline:
-            time.sleep(0.005)
-        return {'scanner_observed': False, 'observation': 'not-observed', 'backend': 'apparmor'}
-    monkeypatch.setattr(confinement, 'observe_scanner', observe)
-    return helper
-
-
-def reap_observer(pid):
-    # This fixture's explicitly spawned unreaped direct child cannot recycle.
-    try:
-        waited, _ = os.waitpid(pid, os.WNOHANG)
-    except ChildProcessError:
-        return
-    if waited == 0:
-        os.kill(pid, signal.SIGKILL)
-        os.waitpid(pid, 0)
-
-
-def test_scanner_observer_owned_start_stop_reaps_child_and_keeps_missing_proof_explicit(scanner_observer):
-    helper = scanner_observer
-    assert helper.scanner_start() == {'scanner_observer_started': True}
-    pid = json.loads(helper.SCANNER.read_text())['pid']
-    try:
-        assert helper.scanner_finish() == {
-            'scanner_observed': False, 'observation': 'not-observed', 'backend': 'apparmor'}
-        with pytest.raises(ChildProcessError):
-            os.waitpid(pid, os.WNOHANG)
-        assert helper.scanner_finish()['observation'] == 'not-observed'
-    finally:
-        reap_observer(pid)
-
-
-@pytest.mark.parametrize('replacement', ['stop', 'result', 'attempt', 'boot', 'starttime'])
-def test_scanner_observer_refuses_replaced_identity_before_stopping(scanner_observer, replacement):
-    helper = scanner_observer
-    helper.scanner_start()
-    original = json.loads(helper.SCANNER.read_text())
-    try:
-        if replacement in ('stop', 'result'):
-            path = helper.SCANNER_STOP if replacement == 'stop' else helper.SCANNER_RESULT
-            path.rename(path.with_name('retained-original'))
-            path.touch(mode=0o600)
-        elif replacement == 'attempt':
-            helper.guest.guard.return_value = {'run': 'd' * 32}
-        elif replacement == 'boot':
-            helper.BOOT.write_text('another boot\n')
-        else:
-            value = dict(original, starttime='1')
-            helper.SCANNER.write_text(json.dumps(value))
-        with pytest.raises(helper.guest.GuestError, match='kiosk-scanner:'):
-            helper.scanner_finish()
-        assert helper.SCANNER_STOP.read_bytes() == b''
-    finally:
-        reap_observer(original['pid'])
-
-
-def test_scanner_observer_pidfd_acquisition_failure_reaps_own_fork(scanner_observer, monkeypatch):
-    helper = scanner_observer
-    real_fork = os.fork
-    children = []
-    def fork():
-        pid = real_fork()
-        if pid:
-            children.append(pid)
-        return pid
-    monkeypatch.setattr(helper.os, 'fork', fork)
-    monkeypatch.setattr(helper.os, 'pidfd_open', Mock(side_effect=OSError('private pidfd unavailable')))
-    with pytest.raises(OSError, match='private pidfd unavailable'):
-        helper.scanner_start()
-    assert len(children) == 1
-    with pytest.raises(ChildProcessError):
-        os.waitpid(children[0], os.WNOHANG)
-
-
-def test_scanner_observer_rejects_unknown_remaining_files(scanner_observer):
-    helper = scanner_observer
-    helper.SCANNER.parent.mkdir(mode=0o700)
-    helper.SCANNER_STOP.touch(mode=0o600)
-    with pytest.raises(helper.guest.GuestError, match='unrecorded-observer'):
-        helper.scanner_finish()
-
-
-def test_scanner_observer_timeout_kills_and_reaps_only_recorded_child(scanner_observer, monkeypatch):
-    helper = scanner_observer
-    helper.scanner_start()
-    pid = json.loads(helper.SCANNER.read_text())['pid']
-    polls = iter([[], [(pid, 1)]])
-    monkeypatch.setattr(helper.select, 'poll', lambda: SimpleNamespace(
-        register=lambda fd, flags: None, poll=lambda timeout: next(polls)))
-    signals = []
-    real_signal = signal.pidfd_send_signal
-    def send(pidfd, sig):
-        assert '\nPid:\t' + str(pid) + '\n' in Path('/proc/self/fdinfo/' + str(pidfd)).read_text()
-        signals.append(sig)
-        return real_signal(pidfd, sig)
-    monkeypatch.setattr(helper.signal, 'pidfd_send_signal', send)
-    try:
-        with pytest.raises(helper.guest.GuestError, match='observer-stop-timeout'):
-            helper.scanner_finish()
-        assert signals == [signal.SIGKILL]
-        with pytest.raises(ChildProcessError):
-            os.waitpid(pid, os.WNOHANG)
-    finally:
-        reap_observer(pid)
-
-
-def test_feedback_failure_restores_fault_and_stops_recorded_observer_even_on_recovery_failure(tmp_path):
+def test_feedback_failure_retains_pending_fault_when_recovery_fails(tmp_path):
     from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
     from parent_setup_qualification import KioskFeedbackConfinementQualification
     journey = KioskFeedbackConfinementJourney(SimpleNamespace(directory=tmp_path), Mock())
-    journey.fault_pending = journey.scanner_pending = True
-    journey.engineering = Mock(side_effect=[RuntimeError('private recovery error'),
-        {'scanner_observed': False, 'observation': 'not-observed'}])
+    journey.fault_pending = True
+    journey.engineering = Mock(side_effect=RuntimeError('private recovery error'))
     journey.collect_failure = Mock()
     qualification = KioskFeedbackConfinementQualification.__new__(KioskFeedbackConfinementQualification)
     qualification.failure = Mock()
     with pytest.raises(RuntimeError, match='private recovery error'):
         qualification.journey_failure(journey, 'engineering', 'private-failure')
-    assert [call.args[0] for call in journey.engineering.call_args_list] == ['restore', 'scanner-finish']
-    assert not journey.scanner_pending
+    journey.engineering.assert_called_once_with('restore')
+    assert journey.fault_pending

@@ -3312,6 +3312,9 @@ The engineering-only selector `check_e2e_kiosk_feedback_confinement` composes
 the existing installed eligible-account journey with an attempt-owned broker
 runtime mask, one public request failure, broker restoration, the public
 Report this error/result dismissal and real feedback editor/diagnostics checks.
+Before the outage, the shared valid-choice operation selects rest of day and
+independently reads its midnight estimate. This avoids periodic broker estimate
+errors opening an unrelated modal before the single Request action.
 It uses `kiosk_feedback_confinement.PLAN`, `UiObservations` and the shared
 `AccessibleUI.kiosk_diagnostic_*` operations; it never activates Send and grants
 no customer-case credit. The root helper retains the mask inode, attempt, boot
@@ -3326,13 +3329,10 @@ Installed qualification passes on Ubuntu 26.04 in
 collection, broker restoration, owned cleanup and baseline restoration. Both
 require editable text/document readback, prepared diagnostics, confined Privacy
 and hidden/absent kiosk download and attachment controls.
-Ordinary Parent ZIP export remains the separate FEED08 binding. A bounded
-observer starts before station login and captures the actual
-transient scanner, independently proving its executable, enforcing thread roles
-and matching private namespace/generation. Missing or rejected observations fail
-qualification. The later strict census requires actual manager, app, service,
+Ordinary Parent ZIP export remains the separate FEED08 binding.
+The strict census requires actual manager, app, service,
 Wellbeing, PipeWire, notification, notification-client and WebKit threads;
-configured policy or successful rendering cannot establish scanner execution.
+each observed thread must retain its enforcing role and private generation.
 
 The separate engineering selector `check_e2e_kiosk_notification_wellbeing`
 composes the same installed eligible-account entry with the public reminder

@@ -2,6 +2,7 @@
 from tests.support.vm_registry import vm_name
 from contextlib import nullcontext
 import runpy
+import json
 import time
 from unittest.mock import Mock
 import xml.etree.ElementTree as ET
@@ -282,6 +283,39 @@ def test_unfinished_attempt_recovery_failure_prevents_reprobe_and_build(launch):
     assert launcher.main([*VM_ARGS, '--y', '--overwrite', 'false']) == 2
     control.run.assert_called_once()
     allocation.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'run', 'uuid', 'baseline', 'schema', 'permissions', 'symlink'])
+def test_maintenance_credentials_are_private_and_bound_to_owned_run(tmp_path, monkeypatch, fault):
+    import online_snapshot
+    monkeypatch.setattr(online_snapshot.test_storage, 'directory', lambda _: tmp_path)
+    source = Mock(uuid='f95890e1-88e7-4779-8ae3-53fdcc34330a')
+    lease = Mock(source=source, state={'run': 'a' * 32, 'baseline_sha256': 'b' * 64})
+    setup = tmp_path / 'setup'
+    setup.mkdir()
+    (setup / 'ssh-key').write_text('private fixture key')
+    (setup / 'ssh-key.pub').write_text('ssh-ed25519 AAAA fixture\n')
+    assert online_snapshot.load_maintenance(lease) is None
+    online_snapshot.publish_maintenance(lease, setup, 'ssh-ed25519 AAAA')
+    lease.guard.assert_called_once_with(off=True)
+    path = online_snapshot.record_store(source).path / 'maintenance.json'
+    assert path.stat().st_mode & 0o777 == 0o600
+    value = json.loads(path.read_text())
+    key = {'run': 'run', 'uuid': 'domain_uuid', 'baseline': 'baseline_sha256', 'schema': 'schema_version'}.get(fault)
+    if key:
+        value[key] = 'c' * 32 if fault == 'run' else 2 if fault == 'schema' else 'changed'
+        path.write_text(json.dumps(value))
+    if fault == 'permissions':
+        path.chmod(0o644)
+    if fault == 'symlink':
+        path.rename(path.with_suffix('.saved'))
+        path.symlink_to(path.with_suffix('.saved'))
+    if fault in ('uuid', 'baseline', 'schema', 'permissions', 'symlink'):
+        with pytest.raises((RuntimeError, ValueError, OSError)):
+            online_snapshot.load_maintenance(lease)
+    else:
+        record = online_snapshot.load_maintenance(lease)
+        assert record is None if fault == 'run' else record['private_key'] == 'private fixture key'
 
 
 def test_online_credentials_are_private_and_bound_to_exact_snapshot(tmp_path, monkeypatch):

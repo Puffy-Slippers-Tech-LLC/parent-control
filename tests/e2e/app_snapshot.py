@@ -175,7 +175,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     (setup / 'known-hosts').write_text(f'{hostname} {host_key}\n')
     transport = Transport({'directory': str(setup), 'hostname': hostname,
         'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
-        'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard())
+        'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard(), lease=lease)
     transport.probe_ready()
     # Online snapshots capture activated services after a verified reboot.
     # Offline snapshots retain the original install/verify/shutdown sequence.
@@ -185,7 +185,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     verified.recheck()
     lease.capture.retire_vm_ownership()
     if mode == 'offline':
-        lease.source.shutdown(lease.guard, requested=False)
+        lease.source.shutdown(lease.guard, requested=False, request=transport.poweroff)
         lease.guard(off=True)
     preparation('Taking snapshot ' + name)
     from online_snapshot import disconnected_network, publish

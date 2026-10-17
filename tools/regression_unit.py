@@ -868,10 +868,10 @@ from regression_ui import Bucket
 # VM, bus, socket, display or shared cache. Two bounded, waited Perl worker
 # probes use process-local testapi doubles; small file I/O and CPU only;
 # compatible, with no cleanup prerequisite inventory or additional owner.
-# Scanner observer ownership checks additionally own bounded fork children,
-# pidfds, pipes and private stop/result records; credentials and actual scanning
-# use process-local doubles. Recorded children are killed/reaped on refusal and
-# timeout. Snapshot checks use private proc trees, without observing host tasks.
+# Disabled sound's scanner observer and its fork/pidfd fixtures are removed.
+# Feedback preparation/order checks use the existing in-memory UI/transport
+# doubles. Compatible unit scheduling still applies; cleanup/UI inventories
+# acquire no module, process, shared path or service.
 # e2e_kiosk_notification_wellbeing uses process-local public UI, user-manager,
 # account/environment and transport doubles with tiny pytest-private files.
 # Its two waited Perl workers have private testapi state. No real settings,

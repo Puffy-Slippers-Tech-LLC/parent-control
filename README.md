@@ -6,7 +6,9 @@
 
 # Developer handbook
 
-Run commands from the repository root on Ubuntu 26.04 Desktop.
+Run commands from the repository root in a host terminal on Ubuntu 26.04 Desktop
+or Fedora Workstation 44. Setup refuses unsupported environments such as a
+Flatpak runtime; use the host terminal when your editor is installed as a Flatpak.
 
 Routine authorized work runs unattended after setup. The repository-wide
 [approval tools guide](docs/Approval-Tools.md) covers reads, edits, builds,
@@ -20,6 +22,9 @@ human authorization.
 ```
 
 First setup may require administrator authentication. Rerun to refresh dependencies and tooling.
+Ordinary setup prepares builds and local checks without requiring VMs. To add
+libvirt/QEMU and installed-test dependencies later, run `./setup.sh --vm-host-only`.
+This installs host tools; baseline preparation remains a separate explicit action.
 
 Full setup and `--dependencies-only` include the offline GUI-fixture build
 prerequisites: Flatpak, Snap packaging, SquashFS, Python/GTK introspection,
@@ -45,7 +50,9 @@ real value in `.envrc.example`.
 | Task | Command |
 | --- | --- |
 | Refresh dependencies | `./setup.sh --dependencies-only` |
-| Install clean PPA build tools | `./setup.sh --ppa-build-tools` |
+| Install clean PPA build tools on Ubuntu | `./setup.sh --ppa-build-tools` |
+| Prepare native Fedora RPM tools or Ubuntu's RPM builder | `./setup.sh --rpm-build-tools` |
+| Add optional VM host tools and policies | `./setup.sh --vm-host-only` |
 | Refresh test helpers and policies | `./setup.sh --test-tools-only` |
 | Prepare UI tests in another worktree | `./setup.sh --ui-tests-only` |
 | Refresh Codex rules | `./setup.sh --codex-rules-only` |
@@ -102,10 +109,11 @@ make updateversion
 ```
 
 `make updateversion` prepares the latest product version from
-`docs/VersionHistory.md` and builds Debian and Fedora RPM packages in parallel from one frozen
-source snapshot. Outputs are under `output/deb/` and `output/rpm/`. Both backend
-prerequisites are required; failure in either makes the command fail while
-retaining successful artifacts. `make build` rebuilds the current version.
+`docs/VersionHistory.md` and builds packages using the host default: Debian and
+Fedora RPM in parallel on Ubuntu, or native RPM on Fedora 44. Outputs are under
+`output/deb/` and `output/rpm/`. Use `PACKAGE_FORMAT=deb|rpm|both` to select a
+different scope with its prerequisites installed. `make build` rebuilds the
+current version using the same selection.
 Run tests separately. See [Publishing](docs/Publishing.md) for private upgrade
 testing and publication without another product-version bump, and
 [Fedora packaging](docs/Fedora-Packaging.md) for prerequisites, focused commands,

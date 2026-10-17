@@ -3,6 +3,7 @@
 
 import os
 from pathlib import Path
+import platform
 import stat
 import subprocess
 import sys
@@ -119,8 +120,16 @@ def install_qemu_policy():
 def main():
     if len(sys.argv) != 1 or os.geteuid() != 0:
         raise SystemExit('graphical-policy: run as root without arguments')
-    install()
-    install_qemu_policy()
+    if platform.freedesktop_os_release().get('ID') == 'fedora':
+        print('graphical-policy: Fedora uses SELinux; no AppArmor policy installed')
+        return
+    if not any(path.exists() or path.is_symlink() for path in (PROFILE, QEMU_ABSTRACTION)):
+        print('graphical-policy: no libvirt AppArmor profiles; VM host setup is optional')
+        return
+    if PROFILE.exists() or PROFILE.is_symlink():
+        install()
+    if QEMU_ABSTRACTION.exists() or QEMU_ABSTRACTION.is_symlink():
+        install_qemu_policy()
 
 
 if __name__ == '__main__':

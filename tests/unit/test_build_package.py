@@ -7,8 +7,21 @@ from tools import build_package
 from tests.support.paths import ROOT
 
 
+@pytest.mark.parametrize('distribution,expected', [('ubuntu', 'both'), ('fedora', 'rpm'),
+                                                 ('"fedora"', 'rpm'), ("'fedora'", 'rpm')])
+def test_default_build_format_matches_host_and_can_be_overridden(tmp_path, distribution, expected):
+    release = tmp_path / 'os-release'
+    release.write_text(f'ID={distribution}\n')
+    for override in ([], ['PACKAGE_FORMAT=deb']):
+        result = subprocess.run(['make', '--no-print-directory', '-n', '-f', str(ROOT / 'Makefile'),
+                                 'build', f'OS_RELEASE={release}', *override],
+                                cwd=ROOT, capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0, result.stderr
+        assert f'--format "{"deb" if override else expected}"' in result.stdout
+
+
 @pytest.mark.parametrize('status', [0, 7])
-def test_updateversion_prepares_before_building_both_and_stops_on_failure(tmp_path, status):
+def test_updateversion_prepares_before_building_selected_format_and_stops_on_failure(tmp_path, status):
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'tools/bump_version.py').write_text(
         f'import sys\nprint("prepare", *sys.argv[1:], flush=True)\nsys.exit({status})\n')
@@ -20,7 +33,7 @@ def test_updateversion_prepares_before_building_both_and_stops_on_failure(tmp_pa
                             cwd=tmp_path, capture_output=True, text=True)
     assert bool(result.returncode) == bool(status), result.stderr
     assert result.stdout.splitlines() == (['prepare --latest'] if status else
-        ['prepare --latest', 'build --no-print-directory build PACKAGE_FORMAT=both'])
+        ['prepare --latest', 'build --no-print-directory build PACKAGE_FORMAT=deb'])
 
 
 @pytest.mark.parametrize('fail', [False, True])

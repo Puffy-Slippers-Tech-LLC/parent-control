@@ -35,6 +35,8 @@ def test_host_dependencies_use_only_the_fixed_package_module():
         '/bin/bash', str(ROOT / 'tools/setup_dependencies.sh'), '--ppa-build-tools']
     assert helper['command'](ROOT, ['rpm-build-tools']) == [
         '/bin/bash', str(ROOT / 'tools/setup_dependencies.sh'), '--rpm-build-tools']
+    assert helper['command'](ROOT, ['vm-host']) == [
+        '/bin/bash', str(ROOT / 'tools/setup_dependencies.sh'), '--vm-host-only']
 
 
 @pytest.mark.parametrize('args', [[], ['shell'], ['python3'], ['codex-rules', '/tmp/rules'],
@@ -46,7 +48,8 @@ def test_host_dependencies_use_only_the_fixed_package_module():
                                   ['replace-missing-baseline', '--y'], ['test-tools', '--y'],
                                   ['test-tools', '--command', 'arbitrary'], ['prepare-vm', '--reset'],
                                   ['dependencies', '/tmp/install.sh'], ['ppa-build-tools', '--command', 'id'],
-                                  ['rpm-build-tools', '--command', 'id'], ['checkout']])
+                                  ['rpm-build-tools', '--command', 'id'],
+                                  ['vm-host', '--command', 'id'], ['checkout']])
 def test_arbitrary_operations_and_trailing_arguments_are_refused(args):
     vm_args = (['--vm', vm_name()]
                if args and args[0] in ('prepare-vm', 'replace-missing-baseline') else [])

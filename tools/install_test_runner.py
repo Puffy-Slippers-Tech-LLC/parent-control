@@ -6,6 +6,7 @@ import json
 import importlib.util
 import os
 from pathlib import Path
+import platform
 import stat
 import subprocess
 import sys
@@ -15,6 +16,26 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
 import vm_config
+
+
+def host_distribution():
+    release = platform.freedesktop_os_release()
+    distribution = release.get('ID')
+    if distribution not in ('ubuntu', 'debian', 'fedora'):
+        raise ValueError('test-runner-install:unsupported-development-host')
+    if distribution == 'fedora' and release.get('VERSION_ID') != '44':
+        raise ValueError('test-runner-install:Fedora-44-required')
+    return distribution
+
+
+def development_rule(root, name):
+    """Use only the host's administrator group; keep all caller/path guards."""
+    source = (root / 'config' / name).read_text()
+    if source.count('subject.isInGroup("sudo")') != 1:
+        raise ValueError('test-runner-install:invalid-administrator-rule')
+    group = 'wheel' if host_distribution() == 'fedora' else 'sudo'
+    return source.replace('subject.isInGroup("sudo")',
+                          f'subject.isInGroup("{group}")').encode()
 
 
 def watch_terminal_available():
@@ -28,19 +49,25 @@ def watch_terminal_available():
 
 def install_missing_dependencies():
     """Fill missing launcher prerequisites with no requested upgrades or removals."""
+    fedora = host_distribution() == 'fedora'
     packages = [package for executable, package in
-                (('/usr/bin/ssh', 'openssh-client'),
+                (('/usr/bin/ssh', 'openssh-clients' if fedora else 'openssh-client'),
                  ('/usr/bin/rg', 'ripgrep'), ('/usr/bin/curl', 'curl'),
                  ('/usr/bin/gtk-update-icon-cache', 'gtk-update-icon-cache'))
                 if not os.access(executable, os.X_OK)]
     if importlib.util.find_spec('pytest_cov') is None:
         packages.append('python3-pytest-cov')
+    if importlib.util.find_spec('gi') is None:
+        packages.append('python3-gobject' if fedora else 'python3-gi')
     if not watch_terminal_available():
-        packages.append('gir1.2-vte-3.91')
+        packages.append('vte291-gtk4' if fedora else 'gir1.2-vte-3.91')
     if packages:
         print('test-runner-install: installing missing launcher dependencies', flush=True)
-        subprocess.run(['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'install',
-                        '--no-upgrade', '--no-remove', '--no-install-recommends', '-y', *packages],
+        command = (['/usr/bin/dnf', '-y', '--setopt=install_weak_deps=False', 'install']
+                   if fedora else
+                   ['/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=300', 'install',
+                    '--no-upgrade', '--no-remove', '--no-install-recommends', '-y'])
+        subprocess.run([*command, *packages],
                        env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                             'DEBIAN_FRONTEND': 'noninteractive'}, check=True)
 
@@ -198,6 +225,10 @@ def main():
     if len(pins) != len(set(pins)):
         raise ValueError('test-runner-install:duplicate-baseline-uuid')
     policy_data = validated_policy(root)
+    policy_names = ('50-onpc-screenshot-export.rules', '50-onpc-test-runner.rules',
+                    '50-onpc-test-artifacts.rules', '50-onpc-diagnostics.rules',
+                    '50-onpc-setup.rules')
+    policy_rules = {name: development_rule(root, name) for name in policy_names}
     names = ('onpc-test-runner', 'onpc-export-screenshot', 'onpc-test-artifacts', 'onpc-diagnostics', 'onpc-setup')
     rendered = {name: render_helper(root, name, identity).encode() for name in names}
     for name, data in rendered.items():
@@ -211,16 +242,9 @@ def main():
                  policy_data, 0o644)
     # Install authorization only after all validated, root-owned helpers exist.
     # polkitd watches this directory; activation is immediate (none).
-    policies = (
-        ('50-onpc-screenshot-export.rules', '.onpc-screenshot-policy-'),
-        ('50-onpc-test-runner.rules', '.onpc-test-runner-policy-'),
-        ('50-onpc-test-artifacts.rules', '.onpc-test-artifacts-policy-'),
-        ('50-onpc-diagnostics.rules', '.onpc-diagnostics-policy-'),
-        ('50-onpc-setup.rules', '.onpc-setup-policy-'),
-    )
-    for name, _prefix in policies:
+    for name, data in policy_rules.items():
         destination = Path('/etc/polkit-1/rules.d') / name
-        install_file(destination, (root / 'config' / name).read_bytes(), 0o644)
+        install_file(destination, data, 0o644)
     repair_checkout_bytecode(root)
     print('test-runner-install: installed root-owned development tools and scoped authorizations')
     print('test-runner-install: VM identities pinned only for finalized configured baselines')

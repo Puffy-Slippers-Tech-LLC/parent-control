@@ -23,6 +23,10 @@ def checkout(tmp_path):
     (root / 'installed-setup').touch()
     (root / 'Makefile').touch()
     (root / 'child/preview').touch(mode=0o755)
+    release = root / 'os-release'
+    release.write_text('ID=ubuntu\nVERSION_ID="26.04"\n')
+    (root / 'tools/setup_platform.sh').write_text(
+        (ROOT / 'tools/setup_platform.sh').read_text().replace('/etc/os-release', str(release)))
     stub = '''import json, os, pathlib, sys
 name = pathlib.Path(__file__).name
 with open(os.environ['ONPC_SETUP_TRACE'], 'a') as stream:
@@ -91,6 +95,7 @@ DEPS = [('setup_dependencies.sh.py', []), ('rpm_builder.py', []), ('setup_checko
 @pytest.mark.parametrize('mode,expected', [
     ([], [*DEPS, *TOOLS]),
     (['--dependencies-only'], DEPS),
+    (['--vm-host-only'], [('setup_dependencies.sh.py', ['--vm-host-only']), *TOOLS]),
     (['--ui-tests-only'], [('setup_checkout.sh.py', ['--ui-tests-only'])]),
     (['--ppa-build-tools'], [('setup_dependencies.sh.py', ['--ppa-build-tools'])]),
     (['--rpm-build-tools'], [('setup_dependencies.sh.py', ['--rpm-build-tools']), ('rpm_builder.py', [])]),
@@ -148,7 +153,7 @@ def test_help_and_invalid_selection_have_no_setup_side_effects(checkout, args, c
 
 @pytest.mark.skipif(os.geteuid() == 0, reason='authorization gate applies to unprivileged callers')
 @pytest.mark.parametrize('mode', ['', '--test-tools-only', '--codex-rules-only',
-                                  '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--rpm-build-tools', '--bootstrap-tools'])
+                                  '--replace-missing-baseline', '--dependencies-only', '--ppa-build-tools', '--rpm-build-tools', '--vm-host-only', '--bootstrap-tools'])
 def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode):
     vm_args = ['--vm', vm_name()] if mode == '--replace-missing-baseline' else []
     result, events = run_setup(checkout, mode, *vm_args, denied=True)
@@ -158,11 +163,14 @@ def test_denied_routine_setup_never_falls_back_to_authentication(checkout, mode)
 
 
 @pytest.mark.parametrize('mode', [[], ['--bootstrap-tools']])
-def test_first_install_authenticates_once_then_reuses_the_installed_grant(checkout, mode):
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_first_install_authenticates_once_then_reuses_the_installed_grant(checkout, mode, distribution):
+    (checkout / 'os-release').write_text(f'ID={distribution}\nVERSION_ID=44\n')
     (checkout / 'installed-setup').unlink()
     result, events = run_setup(checkout, *mode)
     assert result.returncode == 0, result.stderr
-    expected = [*DEPS, *TOOLS] if not mode else RULES
+    deps = DEPS if distribution == 'ubuntu' else [DEPS[0], DEPS[2]]
+    expected = [*deps, *TOOLS] if not mode else RULES
     assert events == [('install_test_runner.py', []), *expected]
     result, _events = run_setup(checkout, *mode)
     assert result.returncode == 0, result.stderr
@@ -217,3 +225,77 @@ def test_gui_fixture_prerequisites_are_in_the_master_dependency_route():
     assert {'flatpak', 'snapd', 'squashfs-tools', 'fonts-dejavu-core', 'xkb-data',
             'libc-bin', 'gir1.2-gtk-4.0', 'gir1.2-glib-2.0', 'python3',
             'python3-gi', 'python3-gi-cairo'} <= packages
+
+
+@pytest.mark.parametrize('mode,expected', [
+    ([], [DEPS[0], DEPS[2], *TOOLS]),
+    (['--dependencies-only'], [DEPS[0], DEPS[2]]),
+    (['--rpm-build-tools'], [('setup_dependencies.sh.py', ['--rpm-build-tools'])]),
+    (['--vm-host-only'], [('setup_dependencies.sh.py', ['--vm-host-only']), *TOOLS]),
+    (['--ppa-build-tools'], []),
+])
+def test_fedora_uses_native_build_tools_without_preparing_a_container(checkout, mode, expected):
+    (checkout / 'os-release').write_text('ID=fedora\nVERSION_ID=44\n')
+    result, events = run_setup(checkout, *mode)
+    assert result.returncode == (2 if mode == ['--ppa-build-tools'] else 0), result.stderr
+    assert events == expected
+
+
+@pytest.mark.parametrize('release', ['ID=fedora\nVERSION_ID=43\n',
+                                   'ID=org.freedesktop.platform\nVERSION_ID=25.08\n'])
+def test_unsupported_environment_fails_before_authentication_or_mutation(checkout, release):
+    (checkout / 'installed-setup').unlink()
+    (checkout / 'os-release').write_text(release)
+    result, events = run_setup(checkout)
+    assert result.returncode == 1
+    assert not events
+    assert not (checkout / 'authentication.log').exists()
+
+
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+@pytest.mark.parametrize('mode', [[], ['--rpm-build-tools'], ['--vm-host-only']])
+def test_package_routes_select_native_tools_and_keep_vm_dependencies_optional(tmp_path, distribution, mode):
+    root = tmp_path / 'package checkout'
+    (root / 'tools').mkdir(parents=True)
+    release = root / 'os-release'
+    release.write_text(f'ID={distribution}\nVERSION_ID=44\n')
+    (root / 'tools/setup_platform.sh').write_text(
+        (ROOT / 'tools/setup_platform.sh').read_text().replace('/etc/os-release', str(release)))
+    # Only this disposable fixture removes the root gate; package commands are
+    # private recording doubles, with no privileged host or network operations.
+    script = root / 'tools/setup_dependencies.sh'
+    script.write_text((ROOT / 'tools/setup_dependencies.sh').read_text().replace('EUID != 0', '0 != 0'))
+    trace = root / 'packages.jsonl'
+    binaries = root / 'bin'
+    binaries.mkdir()
+    for name in ('dnf', 'apt-get', 'add-apt-repository'):
+        tool = binaries / name
+        tool.write_text('#!/usr/bin/python3\nimport json, os, pathlib, sys\n'
+                        'with open(os.environ["ONPC_PACKAGE_TRACE"], "a") as stream:\n'
+                        '    stream.write(json.dumps([pathlib.Path(sys.argv[0]).name, *sys.argv[1:]]) + "\\n")\n')
+        tool.chmod(0o755)
+    result = subprocess.run(['/bin/bash', str(script), *mode],
+                            env={**os.environ, 'PATH': f'{binaries}:{os.environ["PATH"]}',
+                                 'ONPC_PACKAGE_TRACE': str(trace)},
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    commands = [json.loads(line) for line in trace.read_text().splitlines()]
+    tokens = {token for command in commands for token in command}
+    if distribution == 'fedora':
+        assert all(command[:3] == ['dnf', '-y', 'install'] for command in commands)
+        if mode != ['--vm-host-only']:
+            requires = {line.split(':', 1)[1].strip()
+                        for line in (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text().splitlines()
+                        if line.startswith('BuildRequires:')}
+            assert requires <= tokens
+        assert {'apt-get', 'apparmor', 'podman', 'sbuild', 'gir1.2-gtk-4.0'}.isdisjoint(tokens)
+        if not mode:
+            # Fedora splits the daemon and the Python client used by Dogtail.
+            assert {'gnome-ponytail-daemon', 'python3-gnome-ponytail-daemon', 'gtk3'} <= tokens
+        assert ('libvirt-daemon-kvm' in tokens) == (mode == ['--vm-host-only'])
+    else:
+        assert all(command[0] != 'dnf' for command in commands)
+        if not mode:
+            assert 'gir1.2-gtk-3.0' in tokens  # Dogtail rawinput imports GTK 3 on both hosts.
+        assert ('libvirt-daemon-system' in tokens) == (mode == ['--vm-host-only'])
+    assert ('os-autoinst' in tokens) == (mode == ['--vm-host-only'])

@@ -12,6 +12,7 @@ SHELL_FILES = [
     ROOT / "setup.sh",
     ROOT / "tools/setup_dependencies.sh",
     ROOT / "tools/setup_checkout.sh",
+    ROOT / "tools/setup_platform.sh",
     *(ROOT / "tests/integration/guest" / name for name in ("collect", "run", "setup", "verify")),
 ]
 
@@ -19,7 +20,7 @@ SHELL_FILES = [
 def main():
     shellcheck = shutil.which("shellcheck")
     if shellcheck is None:
-        print("ShellCheck is required for make check-static; install the Ubuntu archive package.", file=sys.stderr)
+        print("ShellCheck is required for make check-static; run ./setup.sh --dependencies-only.", file=sys.stderr)
         return 2
     files = [path for path in SHELL_FILES if path.is_file()]
     return subprocess.run(

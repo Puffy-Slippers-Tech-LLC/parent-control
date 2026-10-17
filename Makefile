@@ -10,8 +10,10 @@ PRODUCT_LIBDIR ?= $(PREFIX)/lib/oh-no-parent-control
 MULTIARCH ?= $(shell $(CC) -print-multiarch)
 PAM_MODULE_DIR ?= $(PREFIX)/lib/$(MULTIARCH)/security
 PACKAGE_DISTRIBUTION ?= ubuntu
-PACKAGE_FORMAT ?= both
 OS_RELEASE ?= $(firstword $(wildcard /etc/os-release /usr/lib/os-release))
+# Fedora builds natively; Ubuntu retains its DEB plus container RPM workflow.
+HOST_DISTRIBUTION = $(shell sed -n 's/^ID=//p' "$(OS_RELEASE)")
+PACKAGE_FORMAT ?= $(if $(filter fedora "fedora" 'fedora',$(HOST_DISTRIBUTION)),rpm,both)
 RPM_RELEASE ?= 0.1.dev
 UUID := oh-no-parent-control@tech.puffyslippers.com
 # Resolve packaging paths only when used; preparation does not need a compiler.
@@ -203,7 +205,7 @@ bump-version:
 
 updateversion:
 	@$(PYTHON) -B tools/bump_version.py --latest
-	@$(MAKE) --no-print-directory build PACKAGE_FORMAT=both
+	@$(MAKE) --no-print-directory build PACKAGE_FORMAT=$(PACKAGE_FORMAT)
 
 .PHONY: package-source-files
 .PHONY: watch

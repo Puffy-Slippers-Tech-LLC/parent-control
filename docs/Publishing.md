@@ -7,16 +7,17 @@ entry to [`VersionHistory.md`](VersionHistory.md), then run:
 make updateversion
 ```
 
-This takes no parameters. It reads the newest history version (including an
+This needs no version parameter. It reads the newest history version (including an
 undated draft), updates `data/app.json` and the Debian changelog for private
-builds, and automatically builds **both Debian and RPM** packages from one frozen
-source snapshot. For product 1.3, the private Debian version is
+builds, and builds the host's default formats: Debian and RPM on Ubuntu, native
+RPM on Fedora 44. `PACKAGE_FORMAT=deb|rpm|both` overrides this selection. Both
+formats share one frozen source snapshot when built together. For product 1.3, the private Debian version is
 `1.3+local1~ubuntu26.04.1`; RPM uses Version `1.3` and the configured `RPM_RELEASE`
 (default `0.1.dev`). Outputs are in `output/deb/` and `output/rpm/`.
-Both builders' prerequisites must already be installed; a failure in either
+The selected builders' prerequisites must already be installed; a failure in either
 fails the command and retains successful artifacts. Metadata remains prepared
 if a build fails. Development setup uses `./setup.sh --dependencies-only` for
-Debian prerequisites and `./setup.sh --rpm-build-tools` for the Fedora builder;
+the host's build prerequisites and `./setup.sh --rpm-build-tools` for just its RPM route;
 builds do not install them. Fix the prerequisite or build failure and rerun the command.
 Repeated runs rebuild the same product version, refresh changed private release
 notes, and do not duplicate unchanged changelog entries. An already prepared

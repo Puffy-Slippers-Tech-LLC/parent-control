@@ -114,10 +114,15 @@ an administrator-authorized root session; it never falls back after denial. For 
 changes, use `./setup.sh --codex-rules-only`. Repeat setup after moving the
 checkout or changing installed helpers; adding tests within a supported category
 does not require new approvals. A clean machine uses full `./setup.sh` for
-dependencies and host policies. Full setup and `--dependencies-only` also prepare
-the caller-owned Fedora 44 RPM build image. `--rpm-build-tools` installs only its
-RPM/Podman host prerequisites and prepares that image; refresh an older installed
-setup helper with `--test-tools-only` first. Builds never install prerequisites.
+dependencies and host policies on Ubuntu or Fedora Workstation 44, from a host
+terminal rather than a Flatpak runtime. Ordinary setup does not require VMs.
+`--vm-host-only` adds libvirt/QEMU and installed-test host prerequisites and
+refreshes helpers/policies without preparing or starting a VM. On Ubuntu, full
+setup and `--dependencies-only` also prepare the caller-owned Fedora 44 RPM build
+image. Fedora installs native RPM build prerequisites and does not prepare a
+container. `--rpm-build-tools` selects just that host's RPM route; PPA tools are
+Ubuntu/Debian-only. Refresh an older installed setup helper with
+`--test-tools-only` before using a new mode. Builds never install prerequisites.
 Explicit baseline preparation is
 `tools/prepare-vm --vm NAME --mode auto|manual [--y]`; launcher/session
 work includes `--y`, while manual work omits it to retain confirmation. See
@@ -159,7 +164,8 @@ Dedicated Polkit actions bind these exact executable paths and default to `no`,
 so missing authorization rules cannot trigger an authentication dialog. The
 wrappers query their own process identity without action details, which Polkit
 reserves for trusted callers. Polkit authorizes these programs for an active, local member of
-Ubuntu's `sudo` group. Other callers receive a denial, without an authentication
+the host's administrator group (`sudo` on Ubuntu, `wheel` on Fedora). The installer
+renders only that group's check into each development rule. Other callers receive a denial, without an authentication
 dialog. The checkout launchers check that authorization noninteractively before
 using `pkexec`, so a missing installation or unavailable grant fails with setup
 guidance. They do not enable password caching, authorize general privileged
@@ -209,9 +215,11 @@ Failed SSH or clock readiness after a successful restore performs owned cleanup.
 Tooling activation is `none` on the development host. Guest snapshot preparation
 still installs the declared product package and performs the mode's required
 restart; it supplies no customer-acceptance credit.
-Graphical AppArmor policies are installed by full `./setup.sh` and refreshed by
-`--test-tools-only`. Host package dependencies belong to full setup or
-`--dependencies-only`. Codex setup also installs its maintained machine-wide
+Graphical AppArmor policies are refreshed by full `./setup.sh`, `--vm-host-only`
+and `--test-tools-only` when libvirt's AppArmor profiles exist. Hosts without
+libvirt skip this stage; Fedora retains SELinux and receives no AppArmor changes.
+Development package dependencies belong to full setup or `--dependencies-only`;
+VM dependencies belong to `--vm-host-only`. Codex setup also installs its maintained machine-wide
 `pwd`, `git status`, `rg -n`, `rg --files` and `sed -n` rules in `/etc/codex/rules/onpc-read-only.rules`, without
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.
@@ -308,7 +316,7 @@ matches literal argument prefixes; the strictest decision wins.
 
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
-`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`,
+`codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`, `vm-host`,
 `replace-missing-baseline`, `prepare-vm`, `backupvm` or `restorevm`.
 The disaster recovery operations accept only a registered `--vm` queue selector
 (default `all`), never caller-supplied archive, domain XML or disk paths. They
@@ -319,7 +327,7 @@ requires the fixed arguments `--mode auto` or `--mode manual`, optionally
 followed by `--y`; arbitrary paths
 and other arguments are refused. Its
 dedicated Polkit action defaults to denial and grants only active local members
-of `sudo`. `setup.sh` and `tools/prepare-vm` check this authorization without
+of the host administrator group (`sudo` on Ubuntu, `wheel` on Fedora). `setup.sh` and `tools/prepare-vm` check this authorization without
 requesting interaction before invoking the helper, and never fall back to generic
 `pkexec` on denial. The public baseline-replacement entry is
 `tools/prepare-vm --vm NAME --mode auto|manual [--y]`; the

@@ -10,6 +10,22 @@ from tests.support.paths import ROOT
 policy = load_module('onpc_test_graphical_policy', ROOT / 'tools/install_graphical_test_policy.py')
 
 
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
+def test_fedora_and_hosts_without_libvirt_need_no_apparmor_changes(tmp_path, monkeypatch, distribution):
+    monkeypatch.setattr(policy.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(policy.sys, 'argv', ['install_graphical_test_policy.py'])
+    monkeypatch.setattr(policy.platform, 'freedesktop_os_release', lambda: {'ID': distribution})
+    monkeypatch.setattr(policy, 'PROFILE', tmp_path / 'absent-profile')
+    monkeypatch.setattr(policy, 'QEMU_ABSTRACTION', tmp_path / 'absent-abstraction')
+    if distribution == 'fedora':
+        policy.PROFILE.write_text('existing profile must stay untouched')
+        policy.QEMU_ABSTRACTION.write_text('existing abstraction must stay untouched')
+    with patch.object(policy, 'install') as install, patch.object(policy, 'install_qemu_policy') as qemu:
+        policy.main()
+    install.assert_not_called()
+    qemu.assert_not_called()
+
+
 def test_managed_policy_preserves_site_rules_and_is_idempotent():
     site = '# unrelated site policy\n/specific/path r,\n'
     added = policy.updated_local(site, 'first-rule,')
@@ -18,6 +34,34 @@ def test_managed_policy_preserves_site_rules_and_is_idempotent():
     replaced = policy.updated_local(added + '# suffix\n', 'new-rule,')
     assert replaced.startswith(site) and replaced.endswith('# suffix\n')
     assert 'first-rule' not in replaced and replaced.count('new-rule') == 1
+
+
+@pytest.mark.parametrize('libvirtd,qemu', [(True, False), (False, True), (True, True)])
+def test_only_installed_apparmor_components_are_refreshed(tmp_path, monkeypatch, libvirtd, qemu):
+    monkeypatch.setattr(policy.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(policy.sys, 'argv', ['install_graphical_test_policy.py'])
+    monkeypatch.setattr(policy.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
+    monkeypatch.setattr(policy, 'PROFILE', tmp_path / 'profile')
+    monkeypatch.setattr(policy, 'QEMU_ABSTRACTION', tmp_path / 'abstraction')
+    for path, present in ((policy.PROFILE, libvirtd), (policy.QEMU_ABSTRACTION, qemu)):
+        if present:
+            path.write_text('installed AppArmor component')
+    with patch.object(policy, 'install') as install, patch.object(policy, 'install_qemu_policy') as install_qemu:
+        policy.main()
+    assert install.call_count == int(libvirtd)
+    assert install_qemu.call_count == int(qemu)
+
+
+@pytest.mark.parametrize('component', ['PROFILE', 'QEMU_ABSTRACTION'])
+def test_substituted_apparmor_component_is_still_refused(tmp_path, monkeypatch, component):
+    monkeypatch.setattr(policy.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(policy.sys, 'argv', ['install_graphical_test_policy.py'])
+    monkeypatch.setattr(policy.platform, 'freedesktop_os_release', lambda: {'ID': 'ubuntu'})
+    monkeypatch.setattr(policy, 'PROFILE', tmp_path / 'profile')
+    monkeypatch.setattr(policy, 'QEMU_ABSTRACTION', tmp_path / 'abstraction')
+    getattr(policy, component).symlink_to('missing-target')
+    with pytest.raises(ValueError, match='unsafe-system-file'):
+        policy.main()
 
 
 @pytest.mark.parametrize('bad', [policy.BEGIN, policy.END, policy.BEGIN * 2 + policy.END,

@@ -42,16 +42,22 @@ upload and monitoring stay in the existing [publisher](Publishing.md).
 
 ## Local builds
 
-`make build` starts both binary formats concurrently from one frozen source
-generation, with separate working copies. Debian outputs, including debug
+On Fedora 44, `make build` builds native RPMs. On Ubuntu it starts both binary
+formats concurrently from one frozen source generation, with separate working
+copies. `PACKAGE_FORMAT=deb|rpm|both` overrides the host default for both
+`make build` and `make updateversion`. Debian outputs, including debug
 packages, `.changes` and `.buildinfo`, go to `output/deb/`. RPM sources, rendered
 spec, input fingerprint, SRPM and binary RPMs go to `output/rpm/`. A failed
 backend makes the command fail after both workers finish; successful artifacts
 from the other backend remain.
 
-Full `./setup.sh` and `./setup.sh --dependencies-only` install the Ubuntu build
-prerequisites, RPM tools and rootless Podman, then prepare a caller-owned Fedora
-44 build image. An existing development host can prepare just the RPM path with
+Full `./setup.sh` and `./setup.sh --dependencies-only` install development and
+local-check prerequisites without requiring VMs. Fedora 44 receives native RPM
+build dependencies from the spec's inventory, plus Debian archive helpers used
+by local regression fixtures. These do not qualify native DEB product builds
+on Fedora. Ubuntu receives DEB prerequisites,
+RPM tools and rootless Podman, then prepares a caller-owned Fedora 44 build image.
+An existing development host can prepare just its RPM path with
 `./setup.sh --rpm-build-tools`. Refresh installed setup helpers first with
 `./setup.sh --test-tools-only` when upgrading a checkout that predates this mode.
 
@@ -73,7 +79,8 @@ Host preparation follows [the setup contract](Approval-Tools.md#one-time-setup).
 
 | Scope | Command |
 | --- | --- |
-| Both binary formats, in parallel | `make build` |
+| Host default (RPM on Fedora; both on Ubuntu) | `make build` |
+| Both binary formats, with both backends prepared | `make build PACKAGE_FORMAT=both` |
 | Debian alone | `make build PACKAGE_FORMAT=deb` |
 | Fedora RPM and SRPM | `make build-rpm` |
 | SRPM only | `make srpm` |

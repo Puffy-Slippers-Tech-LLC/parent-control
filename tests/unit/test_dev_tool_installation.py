@@ -17,6 +17,12 @@ rules = runpy.run_path(str(ROOT / 'tools/install_codex_rules.py'))
 UUID = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 
 
+@pytest.fixture(autouse=True)
+def ubuntu_host(monkeypatch):
+    monkeypatch.setattr(installer['platform'], 'freedesktop_os_release',
+                        lambda: {'ID': 'ubuntu', 'VERSION_ID': '26.04'})
+
+
 @pytest.fixture
 def baseline(tmp_path):
     directory = tmp_path / 'baseline'
@@ -317,8 +323,11 @@ def test_action_policy_refuses_prompts_or_generic_programs(tmp_path, replacement
         installer['validated_policy'](tmp_path)
 
 
+@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora'])
 @pytest.mark.parametrize('missing', [False, True])
-def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypatch, missing):
+def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypatch, missing, distribution):
+    monkeypatch.setattr(installer['platform'], 'freedesktop_os_release',
+                        lambda: {'ID': distribution, 'VERSION_ID': '44'})
     monkeypatch.setattr(installer['os'], 'access', lambda *args: not missing)
     monkeypatch.setattr(installer['importlib'].util, 'find_spec', lambda *args: None if missing else object())
     monkeypatch.setitem(installer['install_missing_dependencies'].__globals__,
@@ -328,14 +337,33 @@ def test_only_missing_fixed_dependencies_are_installed_without_upgrades(monkeypa
     installer['install_missing_dependencies']()
     if missing:
         command = execute.call_args.args[0]
-        assert command[-6:] == ['openssh-client', 'ripgrep', 'curl', 'gtk-update-icon-cache',
-                               'python3-pytest-cov', 'gir1.2-vte-3.91']
-        assert '--no-upgrade' in command
-        assert '--no-remove' in command
-        assert '--no-install-recommends' in command
+        fedora = distribution == 'fedora'
+        assert command[-7:] == ['openssh-clients' if fedora else 'openssh-client',
+                               'ripgrep', 'curl', 'gtk-update-icon-cache', 'python3-pytest-cov',
+                               'python3-gobject' if fedora else 'python3-gi',
+                               'vte291-gtk4' if fedora else 'gir1.2-vte-3.91']
+        if fedora:
+            assert command[:4] == ['/usr/bin/dnf', '-y', '--setopt=install_weak_deps=False', 'install']
+        else:
+            assert '--no-upgrade' in command
+            assert '--no-remove' in command
+            assert '--no-install-recommends' in command
         assert execute.call_args.kwargs['check'] is True
     else:
         execute.assert_not_called()
+
+
+@pytest.mark.parametrize('distribution,group', [('ubuntu', 'sudo'), ('fedora', 'wheel')])
+@pytest.mark.parametrize('name', ['setup', 'test-runner', 'test-artifacts', 'diagnostics', 'screenshot-export'])
+def test_development_rules_keep_guards_and_use_only_the_native_admin_group(monkeypatch, distribution, group, name):
+    monkeypatch.setattr(installer['platform'], 'freedesktop_os_release',
+                        lambda: {'ID': distribution, 'VERSION_ID': '44'})
+    filename = f'50-onpc-{name}.rules'
+    actual = installer['development_rule'](ROOT, filename).decode()
+    assert actual == (ROOT / 'config' / filename).read_text().replace(
+        'subject.isInGroup("sudo")', f'subject.isInGroup("{group}")')
+    assert 'subject.local && subject.active' in actual
+    assert 'return polkit.Result.NO' in actual
 
 
 def test_system_rules_install_is_atomic_idempotent_and_preserves_other_rules(tmp_path, monkeypatch):

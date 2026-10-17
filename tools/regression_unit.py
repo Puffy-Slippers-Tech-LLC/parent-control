@@ -9,6 +9,13 @@ or UI inventory entry. VM latency cold-mode tests use only transport/reboot
 doubles and private result files, retaining vm_control_cleanup_safety's
 compatible unit and cleanup classifications.
 
+Cross-distribution setup regressions extend setup_entrypoint, setup_privileges,
+dev_tool_installation, graphical_host_policy and build_package with private
+os-release/command fixtures, process-local platform/Polkit/package doubles and
+bounded waited shell/Make children. No real package manager, VM, bus, display,
+network or shared cache is added. Their compatible unit classifications remain
+appropriate; cleanup and UI inventories gain no module or ownership mechanic.
+
 graphical_smoke's standalone-import regression owns one bounded, waited isolated
 Python child with bytecode disabled and a pytest-private working directory.
 It imports controller code without VM, display, bus, network or shared mutations;

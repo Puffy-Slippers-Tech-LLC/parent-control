@@ -8,10 +8,11 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
-  (no mode)             Set up/refresh the development machine and VM host
-  --dependencies-only   Install development, build, UI/GUI-fixture and VM host dependencies
+  (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
+  --dependencies-only   Install development, build and UI/GUI-fixture dependencies
+  --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites
-  --rpm-build-tools     Install RPM/container tools and prepare the Fedora 44 builder
+  --rpm-build-tools     Install native Fedora RPM tools, or prepare the Fedora 44 builder on Ubuntu
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
                        Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
@@ -34,7 +35,7 @@ fi
 readonly mode="${1-}"
 readonly vm_name="${3-}"
 case "$mode" in
-    ''|--dependencies-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
+    ''|--dependencies-only|--vm-host-only|--ppa-build-tools|--rpm-build-tools|--test-tools-only|--ui-tests-only|--codex-rules-only|--bootstrap-tools|--replace-missing-baseline|--install-extension) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -46,6 +47,19 @@ if [[ ! -f Makefile || ! -f child/preview ]]; then
     echo 'setup: run from a complete repository checkout' >&2
     exit 1
 fi
+source "$script_dir/tools/setup_platform.sh"
+
+if [[ $mode == --ppa-build-tools && $setup_platform == fedora ]]; then
+    echo 'setup: PPA build tools require an Ubuntu/Debian host; use --rpm-build-tools on Fedora' >&2
+    exit 2
+fi
+
+prepare_rpm_builder() {
+    # Fedora 44 builds natively. Ubuntu builds RPMs in the prepared image.
+    if [[ $setup_platform != fedora ]]; then
+        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
+    fi
+}
 
 run_root() {
     # Routine operations never fall back to generic pkexec authentication.
@@ -100,7 +114,11 @@ case "$mode" in
     --rpm-build-tools)
         echo 'setup: [stage:rpm-build-tools]'
         run_root rpm-build-tools /bin/bash "$script_dir/tools/setup_dependencies.sh" --rpm-build-tools
-        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
+        prepare_rpm_builder
+        ;;
+    --vm-host-only)
+        run_root vm-host /bin/bash "$script_dir/tools/setup_dependencies.sh" --vm-host-only
+        install_test_tools
         ;;
     --codex-rules-only) install_codex_rules ;;
     --test-tools-only) install_test_tools ;;
@@ -133,7 +151,7 @@ case "$mode" in
         fi
         echo 'setup: [stage:dependencies]'
         run_root dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh"
-        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
+        prepare_rpm_builder
         echo 'setup: [stage:checkout]'
         /bin/bash "$script_dir/tools/setup_checkout.sh"
         if [[ -z "$mode" ]]; then

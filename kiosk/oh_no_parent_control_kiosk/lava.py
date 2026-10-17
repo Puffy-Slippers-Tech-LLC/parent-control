@@ -2,6 +2,11 @@
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 import math
+from pathlib import Path
+import struct
+import zlib
+
+from .lava_artwork import PORTAL_BOUNDS, crop, load, treatments
 
 import gi
 
@@ -11,8 +16,6 @@ from gi.repository import Gdk, GLib, Graphene
 
 
 LOG = get_logger("kiosk-lava")
-# Limit color selection to the portal, in fractions of the source artwork.
-PORTAL_BOUNDS = (480 / 1672, 36 / 941, 1090 / 1672, 906 / 941)
 
 
 def heat_level(elapsed):
@@ -37,50 +40,33 @@ class LavaBands:
     are the only transform, and are identical to the background's bounds.
     """
 
-    def __init__(self, original):
+    def __init__(self, original, *, cached=False):
         self._cool = self._hot = None
         if original is None:
             return
 
         width, height = original.get_width(), original.get_height()
-        left, top, right, bottom = (
-            round(fraction * dimension)
-            for fraction, dimension in zip(PORTAL_BOUNDS, (width, height) * 2)
-        )
+        left, top, right, bottom = crop(width, height)
         crop_width, crop_height = right - left, bottom - top
         self._bounds = (left / width, top / height,
                         crop_width / width, crop_height / height)
-        downloader = Gdk.TextureDownloader.new(original)
-        downloader.set_format(Gdk.MemoryFormat.R8G8B8A8)
-        pixel_bytes, stride = downloader.download_bytes()
-        pixels = pixel_bytes.get_data()
-        cool = bytearray(crop_width * crop_height * 4)
-        hot = bytearray(len(cool))
-        selected = 0
-        for y in range(top, bottom):
-            for x in range(left, right):
-                source = y * stride + x * 4
-                red, green, blue, alpha = pixels[source:source + 4]
-                # Orange/yellow emission has both red and green above blue.
-                # Soft chroma thresholds retain antialiasing and exclude the
-                # violet metal, cyan lighting, opening, and nearby crystals.
-                warmth = min(1.0, max(0.0, (red - blue - 45) / 100))
-                warmth *= min(1.0, max(0.0, (green - blue - 8) / 60))
-                warmth *= min(1.0, max(0.0, (red - 110) / 100))
-                opacity = round(alpha * warmth)
-                if not opacity:
-                    continue
-                target = ((y - top) * crop_width + x - left) * 4
-                cool[target:target + 4] = bytes((
-                    round(red * 0.85), round(green * 0.55),
-                    round(blue * 0.5), opacity,
-                ))
-                hot[target:target + 4] = bytes((
-                    min(255, round(red * 1.08 + 12)),
-                    min(255, round(green * 1.4 + 28)),
-                    min(255, round(blue * 0.8 + 5)), opacity,
-                ))
-                selected += 1
+        prepared = None
+        if cached:
+            try:
+                prepared = load(Path(__file__).with_name('lava-heat.bin'),
+                                Path(__file__).with_name('kiosk-background-still.png'),
+                                width, height)
+            except (OSError, ValueError, struct.error, zlib.error):
+                # Checkout previews and edited artwork retain the exact original
+                # calculation; a stale or damaged cache never changes the scene.
+                pass
+        LOG.info('kiosk-lava.cache', cached=prepared is not None)
+        if prepared is None:
+            downloader = Gdk.TextureDownloader.new(original)
+            downloader.set_format(Gdk.MemoryFormat.R8G8B8A8)
+            pixel_bytes, stride = downloader.download_bytes()
+            prepared = treatments(width, height, pixel_bytes.get_data(), stride)
+        cool, hot, selected = prepared
 
         if not selected:
             LOG.warning("kiosk-lava.001")

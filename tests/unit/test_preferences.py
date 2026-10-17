@@ -39,6 +39,87 @@ def test_request_unit_legacy_default_and_per_user_persistence(tmp_path):
     assert store.load(1001)["request"]["last_custom_unit"] == "minutes"
 
 
+def test_identical_request_reuses_validated_durable_record(tmp_path):
+    store = PreferenceStore(tmp_path)
+    store.update_request(1001, 'custom', 1.25, True, 1000)
+    path = tmp_path / '1001.json'
+
+    def snapshot():
+        info = path.stat()
+        return ((info.st_dev, info.st_ino, info.st_size,
+                 info.st_mtime_ns, info.st_ctime_ns), path.read_bytes())
+
+    before = snapshot()
+    with mock.patch.object(store, '_write', wraps=store._write) as write:
+        saved = store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_not_called()
+        assert saved == store.load(1001)
+        assert snapshot() == before
+        store.update_request(1001, 'custom', 1.5, True, 1000)
+        write.assert_called_once()
+    path.write_text('{"version": 999}')
+    with mock.patch.object(store, '_write') as write:
+        with pytest.raises(PreferencesError):
+            store.update_request(1001, 'custom', 1.5, True, 1000)
+        write.assert_not_called()
+
+
+@pytest.mark.parametrize('restart', (False, True))
+@pytest.mark.parametrize('prior_success', (False, True))
+def test_identical_request_retries_failed_directory_flush(tmp_path, restart, prior_success):
+    import os
+    store = PreferenceStore(tmp_path)
+    if prior_success:
+        store.update_request(1001, 'custom', 1.0, True, 1000)
+    real_fsync = os.fsync
+    calls = []
+
+    def fail_directory(fd):
+        calls.append(fd)
+        if len(calls) == 2:
+            raise OSError('injected directory flush failure')
+        return real_fsync(fd)
+
+    with mock.patch('oh_no_parent_control.preferences.os.fsync', side_effect=fail_directory):
+        with pytest.raises(OSError):
+            store.update_request(1001, 'custom', 1.25, True, 1000)
+    assert store.load(1001)['request']['last_custom_minutes'] == 1.25
+    if restart:
+        store = PreferenceStore(tmp_path)
+    with mock.patch.object(store, '_write', wraps=store._write) as write:
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+
+
+def test_identical_replacement_requires_new_durability_proof(tmp_path):
+    store = PreferenceStore(tmp_path)
+    store.update_request(1001, 'custom', 1.25, True, 1000)
+    path = tmp_path / '1001.json'
+    replacement = tmp_path / 'replacement.json'
+    replacement.write_bytes(path.read_bytes())
+    replacement.replace(path)
+    with mock.patch.object(store, '_write', wraps=store._write) as write:
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+
+
+def test_failed_replace_invalidates_prior_durability_proof(tmp_path):
+    store = PreferenceStore(tmp_path)
+    store.update_request(1001, 'custom', 1.25, True, 1000)
+    with mock.patch('oh_no_parent_control.preferences.os.replace', side_effect=OSError):
+        with pytest.raises(OSError):
+            store.update_request(1001, 'custom', 1.5, True, 1000)
+    with mock.patch.object(store, '_write', wraps=store._write) as write:
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+        store.update_request(1001, 'custom', 1.25, True, 1000)
+        write.assert_called_once()
+
+
 def test_time_grant_preset_crud_sorting_and_preservation(tmp_path):
     store = PreferenceStore(tmp_path)
     assert store.load(1001)["personal"]["time_grant_presets"] == list(DEFAULT_TIME_GRANT_PRESETS)

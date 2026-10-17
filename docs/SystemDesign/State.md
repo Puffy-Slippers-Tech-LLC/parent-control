@@ -80,6 +80,16 @@ shared writer flushes the file and directory before success. Missing records
 use defaults. Duplicate keys, invalid records and unsupported schema versions
 are rejected; language saves never replace them.
 
+Request-choice updates read, validate and merge under the writer lock. A request
+that repeats an identical normalized record avoids another replacement and
+file/directory flush only when the current store has already completed both
+flushes for that exact file identity. The proof includes device, inode, size,
+modification time and change time, and is invalidated before every write attempt.
+New stores, changed files, missing/minimal/legacy records and failed writes use
+the normal writer. A broker restart therefore retains the first save's durability
+cost, including an identical retry after a failed directory flush; repeated
+unchanged saves can reuse the successful proof.
+
 `GetOwnLanguage()` returns a string; `SetOwnLanguage(language)` persists and
 returns that string. Both derive the account from bus credentials and accept no
 target UID. Administrators (including root), eligible children and the configured

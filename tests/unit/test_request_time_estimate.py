@@ -38,6 +38,133 @@ def estimate_window():
     ))
 
 
+@pytest.fixture
+def estimate_scheduler(monkeypatch):
+    pending, delays = {}, []
+
+    def add(delay, callback):
+        delays.append(delay)
+        source = len(delays)
+        pending[source] = callback
+        return source
+
+    def fire():
+        assert len(pending) == 1
+        source, callback = next(iter(pending.items()))
+        del pending[source]
+        return callback()
+
+    monkeypatch.setattr('oh_no_parent_control_kiosk.main.GLib.timeout_add', add)
+    monkeypatch.setattr('oh_no_parent_control_kiosk.main.GLib.source_remove',
+                        lambda source: pending.pop(source, None))
+    return SimpleNamespace(pending=pending, delays=delays, fire=fire)
+
+
+def scheduled_estimate_window(overlay=False):
+    window = bind_methods(estimate_window(), RequestWindow, (
+        '_queue_time_estimate', '_time_estimate_debounced', '_form_values_changed',
+        '_preferences_done', '_approvers_done', '_on_destroy'))
+    window._child_overlay = overlay
+    window._persist_form_values = Mock()
+    return window
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+@pytest.mark.parametrize('approvers_first', (False, True))
+@pytest.mark.parametrize('together', (False, True))
+def test_settled_load_queries_once_after_both_inputs(
+        estimate_scheduler, overlay, approvers_first, together):
+    window = scheduled_estimate_window(overlay)
+    form, loaded = window._request_content, set()
+    form.time_estimate_selection.side_effect = lambda: (
+        (1001, 75) if loaded == {'preferences', 'approvers'} else None)
+    form.set_preferences = Mock(side_effect=lambda _value: loaded.add('preferences'))
+    form.set_approvers = Mock(side_effect=lambda _value: loaded.add('approvers'))
+    form.is_selected_account = Mock(return_value=True)
+    form.muted_for_surface = Mock(return_value=True)
+    window._apply_mute = Mock()
+    window._mute_surface = Mock(return_value='child' if overlay else 'kiosk')
+    window._log_duration_selection = Mock()
+    window._show_error = Mock()
+    connection = SimpleNamespace(call_finish=lambda value: SimpleNamespace(unpack=lambda: value))
+    loads = [
+        lambda: window._preferences_done(1001, connection, ('{"parent_control_enabled":true}',)),
+        lambda: window._approvers_done(connection, (((1000, '[Parent user]', ''),),)),
+    ]
+    if approvers_first:
+        loads.reverse()
+    loads[0]()
+    if not together:
+        estimate_scheduler.fire()
+    window._bus_call.assert_not_called()
+    loads[1]()
+    assert estimate_scheduler.delays == [0, 0]
+    estimate_scheduler.fire()
+    window._bus_call.assert_called_once()
+    assert window._bus_call.call_args.args[0] == 'GetTimeStatus'
+    assert window._bus_call.call_args.args[1].unpack() == (1001, 75)
+    window._show_error.assert_not_called()
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+def test_edit_replaces_settled_dispatch_with_typing_debounce(estimate_scheduler, overlay):
+    window = scheduled_estimate_window(overlay)
+    window._queue_time_estimate(settled=True)
+    window._request_content.time_estimate_selection.return_value = (1001, 600)
+    window._form_values_changed()
+    assert estimate_scheduler.delays == [0, 250]
+    window._bus_call.assert_not_called()
+    estimate_scheduler.fire()
+    window._bus_call.assert_called_once()
+    assert window._bus_call.call_args.args[1].unpack() == (1001, 600)
+    window._persist_form_values.assert_called_once()
+
+
+@pytest.mark.parametrize('overlay', (False, True))
+@pytest.mark.parametrize('dispatch_first', (False, True))
+@pytest.mark.parametrize('error', (None, RuntimeError('private backend details')))
+def test_settled_load_coalesces_old_in_flight_reply(
+        estimate_scheduler, overlay, dispatch_first, error):
+    window = scheduled_estimate_window(overlay)
+    window._refresh_time_estimate()
+    window._request_content.time_estimate_selection.return_value = (1002, 600)
+    window._queue_time_estimate(settled=True)
+    window._request_content.set_time_estimate.reset_mock()
+    if dispatch_first:
+        estimate_scheduler.fire()
+    reply(window, error=error)
+    if not dispatch_first:
+        estimate_scheduler.fire()
+    assert window._bus_call.call_count == 2
+    assert window._bus_call.call_args.args[1].unpack() == (1002, 600)
+    window._request_content.set_time_estimate.assert_not_called()
+    window._errors.handle.assert_not_called()
+    reply(window, seconds=1800)
+    window._request_content.set_time_estimate.assert_called_once_with(
+        'Estimated remaining time: 30m')
+
+
+@pytest.mark.parametrize('error', (None, RuntimeError('private backend details')))
+def test_destroy_cancels_settled_dispatch_and_late_reply(estimate_scheduler, error):
+    window = scheduled_estimate_window()
+    window._refresh_time_estimate()
+    window._queue_time_estimate(settled=True)
+    callback = next(iter(estimate_scheduler.pending.values()))
+    window._startup_clock_handler = window._estimate_refresh_id = 0
+    window._whats_new = Mock()
+    window._agent_locale = window._session_logout = window._thunder = None
+    window._cancel_success_dismiss = Mock()
+    window._on_destroy()
+    assert not estimate_scheduler.pending
+    assert window._estimate_debounce_id == 0
+    window._request_content.set_time_estimate.reset_mock()
+    reply(window, error=error)
+    callback()
+    assert window._bus_call.call_count == 1
+    window._request_content.set_time_estimate.assert_not_called()
+    window._errors.handle.assert_not_called()
+
+
 @pytest.mark.parametrize("language,requested,prompt", [
     ("", False, True), ("fr", False, False), ("fr", True, True),
 ])
@@ -402,6 +529,40 @@ def test_kiosk_logout_acknowledges_session_protocol_before_exiting():
         logout._signal(connection, None, None, None, 'Stop', None)
         app.quit.assert_called_once()
         connection.signal_unsubscribe.assert_called_once()
+
+
+@pytest.mark.parametrize('during_registration', [False, True])
+def test_kiosk_logout_prepares_without_exiting_and_keeps_click_deadline(during_registration):
+    from gi.repository import GLib
+    app, connection = Mock(), Mock()
+    app.get_dbus_connection.return_value = connection
+    app.get_application_id.return_value = 'com.example.Station'
+    logout = KioskLogout(app)
+    with (patch('oh_no_parent_control_kiosk.session_logout.GLib.timeout_add', return_value=42) as deadline,
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.source_remove')):
+        logout.prepare()
+        logout.prepare()
+        assert connection.call.call_count == 1
+        assert connection.call.call_args.args[3] == 'RegisterClient'
+        registered = connection.call.call_args.args[-1]
+        app.quit.assert_not_called()
+        deadline.assert_not_called()
+        if during_registration:
+            logout.begin()
+            assert connection.call.call_count == 1
+        connection.call_finish.return_value = GLib.Variant('(o)', ('/client/station',))
+        registered(connection, object())
+        if not during_registration:
+            assert connection.call.call_count == 1
+            logout._signal(connection, None, None, None, 'CancelEndSession', None)
+            app.quit.assert_not_called()
+            logout.begin()
+        deadline.assert_called_once_with(750, logout._expired)
+        assert connection.call.call_count == 2
+        assert connection.call.call_args.args[3] == 'Logout'
+        app.quit.assert_not_called()
+        logout._expired()
+        app.quit.assert_called_once()
 
 
 @pytest.mark.parametrize('failure', ['missing-bus', 'register', 'logout', 'timeout', 'closed'])

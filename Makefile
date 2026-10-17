@@ -99,7 +99,7 @@ COMMON_SOURCES := __init__.py about.py accessibility.py gtk_automation.py app_po
 COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
 COMMON_SOURCES += application_ui.py application_ui_client.py
 COMMON_SOURCES += whats_new.py release_markdown.py
-KIOSK_SOURCES := __init__.py agent_locale.py chrome.py duration_controls.py floating_islands.py preference_dialog.py preset_dialog.py lava.py lightning.py main.py model.py request_content.py selection_store.py session_logout.py snowflakes.py thunder.py
+KIOSK_SOURCES := __init__.py agent_locale.py chrome.py duration_controls.py floating_islands.py preference_dialog.py preset_dialog.py lava.py lava_artwork.py lightning.py main.py model.py request_content.py selection_store.py session_logout.py snowflakes.py thunder.py
 KIOSK_SOURCES += notifications.py
 KIOSK_SOURCES += whats_new.py whats_new_dialog.py
 PARENT_SOURCES := __init__.py client.py main.py language_dialog.py whats_new_dialog.py release_markdown.py
@@ -598,6 +598,8 @@ endif
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor"
 	install -m 0644 common/oh_no_parent_control_ui/rich_editor/application_ui.js common/oh_no_parent_control_ui/rich_editor/quill.js common/oh_no_parent_control_ui/rich_editor/quill.snow.css common/oh_no_parent_control_ui/rich_editor/quill.js.LICENSE.txt common/oh_no_parent_control_ui/rich_editor/LICENSE "$(DESTDIR)$(PRODUCT_LIBDIR)/common/oh_no_parent_control_ui/rich_editor/"
 	install -m 0644 $(addprefix kiosk/oh_no_parent_control_kiosk/,$(KIOSK_SOURCES)) kiosk/oh_no_parent_control_kiosk/style.css kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png kiosk/oh_no_parent_control_kiosk/kiosk-background-scenery-clear.png child/request-options.json "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/"
+	$(PYTHON) kiosk/oh_no_parent_control_kiosk/lava_artwork.py --source kiosk/oh_no_parent_control_kiosk/kiosk-background-still.png --output "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/lava-heat.bin"
+	chmod 0644 "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/lava-heat.bin"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts"
 	install -m 0644 kiosk/oh_no_parent_control_kiosk/fonts/Monocraft.ttf kiosk/oh_no_parent_control_kiosk/fonts/OFL.txt "$(DESTDIR)$(PRODUCT_LIBDIR)/kiosk/oh_no_parent_control_kiosk/fonts/"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/parent/oh_no_parent_control_parent" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)" "$(DESTDIR)$(SYSTEM_EXTENSION_DIR)/schemas"

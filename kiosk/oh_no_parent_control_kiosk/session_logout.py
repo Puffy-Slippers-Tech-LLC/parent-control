@@ -14,6 +14,25 @@ class KioskLogout:
         self._subscription = self._deadline = 0
         self._started = self._closed = False
         self._client = None
+        self._registering = False
+
+    def prepare(self):
+        """Register while the form is idle, without requesting session exit."""
+        if self._closed or self._client is not None or self._registering:
+            return
+        try:
+            self._connection = self._application.get_dbus_connection()
+            if self._connection is None:
+                if self._started:
+                    self._finish()
+                return
+            self._registering = True
+            self._call(PATH, NAME, 'RegisterClient', GLib.Variant('(ss)', (
+                self._application.get_application_id(), '')), '(o)', self._registered)
+        except Exception:
+            self._registering = False
+            if self._started:
+                self._finish()
 
     def begin(self):
         if self._started or self._closed:
@@ -22,15 +41,10 @@ class KioskLogout:
         # OnSuccess on the app unit remains the fallback. Bound the extra
         # handoff time if the manager is missing, unresponsive or shutting down.
         self._deadline = GLib.timeout_add(750, self._expired)
-        try:
-            self._connection = self._application.get_dbus_connection()
-            if self._connection is None:
-                self._finish()
-                return
-            self._call(PATH, NAME, 'RegisterClient', GLib.Variant('(ss)', (
-                self._application.get_application_id(), '')), '(o)', self._registered)
-        except Exception:
-            self._finish()
+        if self._client is not None:
+            self._request_logout()
+        else:
+            self.prepare()
 
     def _call(self, path, interface, method, parameters, signature, completed):
         self._connection.call(NAME, path, interface, method, parameters,
@@ -40,6 +54,7 @@ class KioskLogout:
     def _registered(self, connection, result):
         if self._closed:
             return
+        self._registering = False
         try:
             self._client, = connection.call_finish(result).unpack()
             self._subscription = connection.signal_subscribe(
@@ -48,6 +63,14 @@ class KioskLogout:
             # Keep this client alive to acknowledge QueryEndSession. Exiting
             # first leaves a clientless manager waiting for its one-second
             # query timer before it can return the display to GDM.
+            if self._started:
+                self._request_logout()
+        except Exception:
+            if self._started:
+                self._finish()
+
+    def _request_logout(self):
+        try:
             self._call(PATH, NAME, 'Logout', GLib.Variant('(u)', (2,)),
                        '()', self._reply)
         except Exception:
@@ -56,7 +79,7 @@ class KioskLogout:
     def _signal(self, _connection, _sender, _path, _interface, signal, _parameters):
         if self._closed:
             return
-        if signal in ('Stop', 'CancelEndSession'):
+        if signal == 'Stop' or (signal == 'CancelEndSession' and self._started):
             self._finish()
         elif signal in ('QueryEndSession', 'EndSession'):
             try:

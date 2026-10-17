@@ -50,9 +50,11 @@ Implementation: [parent main.py](../../parent/oh_no_parent_control_parent/main.p
    to the kiosk user's session; ordinary desktops retain crash reporting.
    It remains request-only. Cancel or
    Escape returns to the sign-in screen, and approval does so after a brief
-   confirmation. The app registers a temporary client with GNOME's public
-   session manager and acknowledges its logout protocol before exiting, avoiding
-   the clientless query timeout. A 750 ms deadline bounds this handoff; app-unit
+   confirmation. The app registers its client with GNOME's public session
+   manager while idle and acknowledges its logout protocol before exiting,
+   avoiding registration on Cancel and the clientless query timeout. An external
+   cancelled logout leaves an idle form open. A 750 ms deadline starting at the
+   exit action bounds this handoff; app-unit
    `OnSuccess` shutdown remains the fallback if registration or logout fails.
 
 The child overlay and kiosk deliberately use the same GTK request form and
@@ -903,6 +905,16 @@ sizing and overflow container.
 Existing request data and package activation classifications are unchanged;
 new request windows load the updated UI.
 
+Package staging precomputes the lava's two fixed RGBA treatments from the shipped
+PNG through [lava_artwork.py](../../kiosk/oh_no_parent_control_kiosk/lava_artwork.py).
+The compressed cache binds its version, dimensions and exact source digest, and
+has a bounded, exact-length decoder. Runtime loads it into native memory textures
+instead of scanning the artwork's pixels in Python on every session entry.
+Missing, damaged or stale caches use the original calculation, including edited
+checkout previews. The narrow build-only PNG reader rejects unsupported color
+profiles and transparency formats; native-GDK pixel equivalence is checked on
+the actual shipped source. No additional package prerequisite is needed.
+
 ## Lightning audio
 
 Both request surfaces use [thunder.py](../../kiosk/oh_no_parent_control_kiosk/thunder.py)
@@ -945,8 +957,10 @@ It does not show an additional request operand or internal property names.
 
 The shared child/kiosk form uses its existing footer for the estimated time
 remaining if approved. Fixed-duration choices query `GetTimeStatus` with the
-selected child and requested additional seconds. Selection changes are debounced,
-reads are serialized, and replies for superseded selections are discarded. The
+selected child and requested additional seconds. Interactive changes use a
+250 ms debounce; completed preference and approver loads queue the read without
+that delay. Both paths dispatch asynchronously, serialize reads and discard
+replies for superseded selections. The
 form refreshes every 30 seconds while idle; rest-of-day requests instead say
 that access lasts until midnight. Approval still recalculates the actual grant.
 Loading, validation, denial and approval-in-progress messages take precedence.

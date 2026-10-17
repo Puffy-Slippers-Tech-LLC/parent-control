@@ -15,6 +15,179 @@ PREVIEW_SCREEN = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_screen.py"
 PREVIEW_VIEWER = ROOT / "kiosk/oh_no_parent_control_kiosk/preview_viewer.py"
 
 
+def test_packaged_lava_cache_preserves_native_artwork_pixels(tmp_path, monkeypatch):
+    import gi
+    gi.require_version('Gdk', '4.0')
+    from gi.repository import Gdk, Gio
+    from oh_no_parent_control_kiosk import lava_artwork
+
+    monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
+    source = KIOSK_MAIN.with_name('kiosk-background-still.png')
+    width, height, pixels = lava_artwork.read_png(source.read_bytes())
+    original = Gdk.Texture.new_from_file(Gio.File.new_for_path(str(source)))
+    downloader = Gdk.TextureDownloader.new(original)
+    downloader.set_format(Gdk.MemoryFormat.R8G8B8A8)
+    native, stride = downloader.download_bytes()
+    native = native.get_data()
+    assert (width, height) == (original.get_width(), original.get_height())
+    assert pixels == b''.join(native[y * stride:y * stride + width * 4]
+                              for y in range(height))
+    expected = lava_artwork.treatments(width, height, native, stride)
+    cache = tmp_path / 'lava-heat.bin'
+    lava_artwork.build(source, cache)
+    assert lava_artwork.load(cache, source, width, height) == expected
+    # Both alpha masks and all unselected transparent pixels are unchanged.
+    cool, hot, selected = expected
+    assert cool[3::4] == hot[3::4]
+    assert selected == sum(value != 0 for value in cool[3::4])
+    assert len(cache.read_bytes()) < len(cool) // 4
+
+
+def test_lava_cache_rejects_stale_and_overlong_payloads(tmp_path):
+    import hashlib
+    import pytest
+    import zlib
+    from oh_no_parent_control_kiosk import lava_artwork as art
+
+    source = tmp_path / 'source.png'
+    source.write_bytes(b'artwork')
+    width, height = 4, 4
+    left, top, right, bottom = art.crop(width, height)
+    size = (right - left) * (bottom - top) * 8
+    header = art.HEADER.pack(art.MAGIC, hashlib.sha256(b'artwork').digest(),
+                             width, height, 1)
+    cache = tmp_path / 'lava-heat.bin'
+    for payload in (b'x' * (size - 1), b'x' * (size + 1)):
+        cache.write_bytes(header + zlib.compress(payload))
+        with pytest.raises(ValueError):
+            art.load(cache, source, width, height)
+    cache.write_bytes(header + zlib.compress(b'x' * size) + b'trailing')
+    with pytest.raises(ValueError):
+        art.load(cache, source, width, height)
+    cache.write_bytes(header + zlib.compress(b'x' * size))
+    source.write_bytes(b'changed')
+    with pytest.raises(ValueError):
+        art.load(cache, source, width, height)
+
+
+def test_lava_build_refuses_unsupported_png_transparency_and_color():
+    import struct
+    import zlib
+    import pytest
+    from oh_no_parent_control_kiosk import lava_artwork as art
+
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+    header = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
+    for kind, data in ((b'tRNS', b'\x00' * 6), (b'cICP', b'\x01\x0d\x00\x01')):
+        with pytest.raises(ValueError, match='unsupported artwork color profile'):
+            art.read_png(header + chunk(kind, data) + chunk(b'IEND', b''))
+
+
+def test_lava_treatments_keep_rounding_transparency_and_padded_stride():
+    from oh_no_parent_control_kiosk import lava_artwork as art
+    pixels = bytearray(4 * 20)
+    pixels[4:8] = bytes((200, 140, 10, 128))
+    cool, hot, selected = art.treatments(4, 4, pixels, 20)
+    assert selected == 1
+    assert cool == bytes((170, 77, 5, 115)) + bytes(len(cool) - 4)
+    assert hot == bytes((228, 224, 13, 115)) + bytes(len(hot) - 4)
+
+
+def test_startup_timing_requires_settled_unblocked_request_and_actual_presentation():
+    from unittest.mock import Mock
+    from oh_no_parent_control_kiosk import main
+
+    clock = Mock()
+    clock.get_frame_counter.return_value = 123
+    content = SimpleNamespace(_accounts_loaded=True, _approvers_loaded=True,
+                              _screen_time_limit_enabled=False)
+    window = SimpleNamespace(
+        _startup_frame=None, _startup_clock=clock, _startup_clock_handler=42,
+        _language_ready=True, _language_dialog=None,
+        _whats_new=SimpleNamespace(_modal_blocked=lambda: False),
+        _request_content=content, _estimate_debounce_id=0, _estimate_in_flight=False,
+        _stack=SimpleNamespace(get_visible_child_name=lambda: 'request',
+                               get_transition_running=lambda: False),
+    )
+    with patch.object(main, '_log_timing') as timing:
+        window._whats_new._modal_blocked = lambda: True
+        main.RequestWindow._startup_painted(window, clock)
+        assert window._startup_frame is None
+        window._whats_new._modal_blocked = lambda: False
+        window._stack.get_visible_child_name = lambda: 'result'
+        main.RequestWindow._startup_painted(window, clock)
+        assert window._startup_frame is None
+        window._stack.get_visible_child_name = lambda: 'request'
+        main.RequestWindow._startup_painted(window, clock)
+        assert window._startup_frame[0] == 123
+        timing.assert_called_once_with('form-painted')
+    clock.get_timings.return_value.get_complete.return_value = True
+    clock.get_timings.return_value.get_presentation_time.return_value = 1_123_000
+    with patch.object(main, 'LOG') as logger, patch.object(main, 'PROCESS_STARTED_NS', 1_000_000_000):
+        main.RequestWindow._startup_painted(window, clock)
+        logger.info.assert_called_once_with('kiosk.timing', stage='form-presented', elapsed_ms=123)
+    clock.disconnect.assert_called_once_with(42)
+    assert window._startup_clock_handler == 0
+    assert window._startup_presented_ns == 1_123_000_000
+
+
+def test_startup_witness_returns_only_current_single_window_and_refuses_other_methods():
+    from unittest.mock import Mock
+    from oh_no_parent_control_kiosk import main
+
+    class Window:
+        _startup_frame = (123, 2_000_000_000)
+        _startup_presented_ns = 2_010_000_000
+
+    application = SimpleNamespace(get_windows=lambda: [Window()])
+    invocation = Mock()
+    with patch.object(main, 'RequestWindow', Window), patch.object(main, 'PROCESS_STARTED_NS', 1_000_000_000):
+        main.Application._startup_timing_reply(application, invocation)
+        assert invocation.return_value.call_args.args[0].unpack() == (
+            1_000_000_000, 2_000_000_000, 2_010_000_000)
+        application.get_windows = lambda: [Window(), Window()]
+        main.Application._startup_timing_reply(application, invocation)
+        assert invocation.return_value.call_args.args[0].unpack() == (1_000_000_000, 0, 0)
+        invocation.reset_mock()
+        main.Application._startup_timing_call(application, None, None, None, None,
+                                              'SetStartupTimings', None, invocation)
+        invocation.return_value.assert_not_called()
+        invocation.return_dbus_error.assert_called_once()
+
+
+def test_startup_witness_waits_for_same_user_and_bounds_pending_credentials():
+    from unittest.mock import Mock
+    from oh_no_parent_control_kiosk import main
+
+    authorized = []
+    application = SimpleNamespace(_timing_registration=1, _timing_pending={},
+        _application_ui=SimpleNamespace(_authorize=lambda _bus, _sender, _cancel, done:
+                                         authorized.append(done)),
+        _startup_timing_reply=Mock())
+    invocation = Mock()
+    main.Application._startup_timing_call(application, None, ':1.1', None, None,
+                                          'GetStartupTimings', None, invocation)
+    application._startup_timing_reply.assert_not_called()
+    authorized.pop()(ValueError())
+    invocation.return_dbus_error.assert_called_once()
+    assert not application._timing_pending
+    main.Application._startup_timing_call(application, None, ':1.1', None, None,
+                                          'GetStartupTimings', None, invocation)
+    application._timing_pending.clear()  # Teardown consumes tokens before cancellation.
+    authorized.pop()(None)
+    application._startup_timing_reply.assert_not_called()
+    main.Application._startup_timing_call(application, None, ':1.1', None, None,
+                                          'GetStartupTimings', None, invocation)
+    authorized.pop()(None)
+    application._startup_timing_reply.assert_called_once_with(invocation)
+    application._timing_pending = {number: invocation for number in range(32)}
+    main.Application._startup_timing_call(application, None, ':1.1', None, None,
+                                          'GetStartupTimings', None, invocation)
+    assert not authorized
+
+
 class KioskRenderingTests(unittest.TestCase):
     def test_reminder_preferences_activation_is_explicit_and_consumed_once(self):
         from oh_no_parent_control_kiosk import main

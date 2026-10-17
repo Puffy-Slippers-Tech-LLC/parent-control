@@ -32,6 +32,27 @@ ordinary history when export limits require trimming. Counters describe
 suppression, rotation, incidents, failed writes, invalid input, truncation, and missing
 component directories. In-memory counters describe the current broker process.
 
+`kiosk.timing` records bounded monotonic elapsed durations for background, lava
+and scenery construction, complete configured-form painting/presentation and
+the request's preference-save/dispatch stages. Artwork durations cover their
+own work; form durations start at Python module loading, excluding PAM and
+interpreter bootstrap; request durations start at submission. Form completion
+requires loaded accounts/settings/language, a settled estimate/transition, the
+request page and no owned modal. `form-presented` is emitted only when GDK
+supplies actual presentation feedback; `form-painted` alone does not establish
+display visibility. No raw clock, frame counter or account identity is logged.
+The request application's read-only session-bus `KioskTiming1.GetStartupTimings`
+method supplies Python-start, first eligible paint and available presentation
+monotonic nanoseconds to engineering probes. Zero means unavailable. This
+separate witness performs no UI or broker action and accepts no timestamps;
+it reuses the Application UI transport's asynchronous same-UID credential check,
+bounds pending checks and retires them on application D-Bus teardown;
+readers pin its live bus owner to the current app service/process and boot.
+Absolute clocks stay in private probe evidence, outside automatic diagnostics
+and feedback. Registration follows the application's D-Bus lifetime.
+Witness-registration failure leaves the ordinary request UI available and emits
+the fixed `kiosk.timing-unavailable` diagnostic.
+
 Countdown troubleshooting also retains `child.countdown-sample` once a minute,
 on estimate-source changes, zero transitions and deadline increases exceeding
 two seconds. It records the native and fresh timer remaining durations, the

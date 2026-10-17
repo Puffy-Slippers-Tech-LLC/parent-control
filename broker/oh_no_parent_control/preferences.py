@@ -316,11 +316,18 @@ class PreferenceStore:
     directory: Path = Path("/var/lib/oh-no-parent-control/preferences")
     _write_lock: threading.RLock = field(default_factory=threading.RLock,
                                         init=False, repr=False, compare=False)
+    _durable_records: dict[int, tuple[int, ...]] = field(default_factory=dict,
+                                         init=False, repr=False, compare=False)
 
     def _path(self, uid: int) -> Path:
         if type(uid) is not int or not 0 <= uid <= UINT32_MAX:
             raise PreferencesError("invalid preference UID")
         return self.directory / f"{uid}.json"
+
+    def _file_identity(self, uid: int) -> tuple[int, ...]:
+        info = self._path(uid).stat()
+        return (info.st_dev, info.st_ino, info.st_size,
+                info.st_mtime_ns, info.st_ctime_ns)
 
     def load(self, uid: int) -> dict:
         raw = self._load_record(uid)
@@ -402,6 +409,7 @@ class PreferenceStore:
     def _write(self, uid: int, normalized: dict) -> dict:
         LOG.info("preferences.004", app_policy_count=len(normalized.get("apps", {})))
         path = self._path(uid)
+        self._durable_records.pop(uid, None)
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.directory, 0o700)
         descriptor, temporary = tempfile.mkstemp(prefix=f".{uid}.", dir=self.directory)
@@ -425,21 +433,38 @@ class PreferenceStore:
             if os.path.exists(temporary):
                 os.unlink(temporary)
         LOG.info("preferences.006")
+        self._durable_records[uid] = self._file_identity(uid)
         return normalized
 
     def update_request(self, uid: int, selected: str, custom: float,
                        allow_soft: bool, last_selected_approver_uid: int = 0,
                        custom_unit: str = "minutes") -> dict:
-        current = self.load(uid)
-        current["request"] = {
-            **current["request"],
-            "last_selected_duration": selected,
-            "last_custom_minutes": custom,
-            "last_custom_unit": custom_unit,
-            "allow_soft_blocked_apps": allow_soft,
-            "last_selected_approver_uid": last_selected_approver_uid,
-        }
-        return self.save(uid, current)
+        with self._write_lock:
+            raw = self._load_record(uid)
+            current = validate_preferences(raw)
+            current["request"] = {
+                **current["request"],
+                "last_selected_duration": selected,
+                "last_custom_minutes": custom,
+                "last_custom_unit": custom_unit,
+                "allow_soft_blocked_apps": allow_soft,
+                "last_selected_approver_uid": last_selected_approver_uid,
+            }
+            normalized = validate_preferences(current)
+            # Request clicks repeat the choices already saved by form edits.
+            # Re-read and validate under the writer lock, but avoid replacing
+            # and fsyncing a record this store has already persisted completely.
+            # New stores, replaced files and failed writes require fresh proof.
+            durable = self._durable_records.get(uid)
+            if normalized == raw and durable is not None:
+                try:
+                    identity = self._file_identity(uid)
+                except FileNotFoundError:
+                    pass
+                else:
+                    if identity == durable:
+                        return normalized
+            return self._write(uid, normalized)
 
     def update_request_muted(self, uid: int, surface: str, muted: bool) -> dict:
         if surface not in {"kiosk", "child"}:

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import time
+
+PROCESS_STARTED_NS = time.monotonic_ns()
+
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.translation_widgets import (
     localized, set_text, accessible_text, context_for,
@@ -111,6 +115,11 @@ GATEWAY_FORM_PERSPECTIVE_DEPTH = 1_200.0
 PREVIEW_DEFAULT_WIDTH = 1918
 PREVIEW_DEFAULT_HEIGHT = 1443
 LOG = get_logger("kiosk")
+
+
+def _log_timing(stage, started_ns=PROCESS_STARTED_NS):
+    elapsed_ms = max(0, (time.monotonic_ns() - started_ns) // 1_000_000)
+    LOG.info('kiosk.timing', stage=stage, elapsed_ms=elapsed_ms)
 
 
 def _gateway_artwork_geometry(width, height):
@@ -253,11 +262,17 @@ class GatewayBackground(Gtk.Widget):
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
+        started = time.monotonic_ns()
         self._texture = self._load_texture()
-        self._lava = LavaBands(self._texture)
+        _log_timing('background', started)
+        started = time.monotonic_ns()
+        self._lava = LavaBands(self._texture, cached=True)
+        _log_timing('lava', started)
+        started = time.monotonic_ns()
         self._floating_islands = FloatingIslands(
             self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
         )
+        _log_timing('scenery', started)
         self._snowflakes = SnowflakeField()
         self._random = random.SystemRandom()
         self._lightning_bolts = []
@@ -284,7 +299,7 @@ class GatewayBackground(Gtk.Widget):
     def reload_texture(self):
         """Refresh the preview artwork without rebuilding the window."""
         self._texture = self._load_texture()
-        self._lava = LavaBands(self._texture)
+        self._lava = LavaBands(self._texture, cached=True)
         self._floating_islands = FloatingIslands(
             self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
         )
@@ -957,6 +972,14 @@ class RequestWindow(Adw.ApplicationWindow):
         self._preview_languages = {}
         self._agent_locale = None if child_overlay else KioskAgentLocale()
         self._session_logout = None
+        if not preview and not child_overlay:
+            from .session_logout import KioskLogout
+            self._session_logout = KioskLogout(application)
+            self._session_logout.prepare()
+        self._startup_frame = None
+        self._startup_presented_ns = 0
+        self._startup_clock = None
+        self._startup_clock_handler = 0
         self._state = RequestState()
         self._estimate_revision = 0
         self._estimate_in_flight = False
@@ -982,6 +1005,7 @@ class RequestWindow(Adw.ApplicationWindow):
         # surface can emit audio while preferences are loading.
         self._apply_mute(True)
         self.connect("destroy", self._on_destroy)
+        self.connect('map', self._measure_startup_frame)
         LOG.info("kiosk.006", overlay=child_overlay)
         if not preview or child_overlay or os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
             self.fullscreen()
@@ -997,6 +1021,9 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
+        if self._startup_clock_handler:
+            self._startup_clock.disconnect(self._startup_clock_handler)
+            self._startup_clock_handler = 0
         self._whats_new.close()
         if self._agent_locale is not None:
             self._agent_locale.close()
@@ -1010,6 +1037,42 @@ class RequestWindow(Adw.ApplicationWindow):
         if self._thunder is not None:
             self._thunder.close()
             self._thunder = None
+
+    def _measure_startup_frame(self, *_args):
+        if self._startup_clock is None:
+            self._startup_clock = self.get_frame_clock()
+            if self._startup_clock is not None:
+                self._startup_clock_handler = self._startup_clock.connect_after(
+                    'after-paint', self._startup_painted)
+
+    def _startup_painted(self, clock):
+        if self._startup_frame is not None:
+            counter, observed_ns = self._startup_frame
+            timings = clock.get_timings(counter)
+            if timings is not None and timings.get_complete():
+                presented = timings.get_presentation_time()
+                if presented:
+                    self._startup_presented_ns = presented * 1000
+                    LOG.info('kiosk.timing', stage='form-presented', elapsed_ms=max(
+                        0, (presented * 1000 - PROCESS_STARTED_NS) // 1_000_000))
+                self._startup_clock.disconnect(self._startup_clock_handler)
+                self._startup_clock_handler = 0
+            elif time.monotonic_ns() - observed_ns > 2_000_000_000:
+                # Some backends supply no presentation feedback. The painted
+                # measurement remains explicitly separate from display timing.
+                self._startup_clock.disconnect(self._startup_clock_handler)
+                self._startup_clock_handler = 0
+            return
+        content = self._request_content
+        if (self._language_ready and self._language_dialog is None
+                and not self._whats_new._modal_blocked()
+                and self._stack.get_visible_child_name() == 'request'
+                and content._accounts_loaded and content._approvers_loaded
+                and content._screen_time_limit_enabled is not None
+                and not self._estimate_debounce_id and not self._estimate_in_flight
+                and not self._stack.get_transition_running()):
+            self._startup_frame = (clock.get_frame_counter(), time.monotonic_ns())
+            _log_timing('form-painted')
 
     def _build(self):
         self._stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
@@ -1738,7 +1801,7 @@ class RequestWindow(Adw.ApplicationWindow):
             users, = connection.call_finish(result).unpack()
             LOG.info("kiosk.018", count=len(users))
             self._request_content.set_approvers(users)
-            self._queue_time_estimate()
+            self._queue_time_estimate(settled=True)
         except Exception as error:
             LOG.warning("kiosk.019", error_type=error_code(error))
             self._show_error(error)
@@ -1801,7 +1864,7 @@ class RequestWindow(Adw.ApplicationWindow):
                 )
             finally:
                 self._applying_preferences = False
-            self._queue_time_estimate()
+            self._queue_time_estimate(settled=True)
             LOG.info("kiosk.021")
             self._log_duration_selection("restored")
         except Exception as error:
@@ -1830,13 +1893,16 @@ class RequestWindow(Adw.ApplicationWindow):
         LOG.info("kiosk.duration-selection", stage=stage, kind=kind,
                  duration_seconds=seconds, overlay=self._child_overlay)
 
-    def _queue_time_estimate(self):
+    def _queue_time_estimate(self, *, settled=False):
         # Invalidate replies immediately, including when the form becomes invalid.
         self._estimate_revision += 1
         self._request_content.set_time_estimate(None)
         if self._estimate_debounce_id:
             GLib.source_remove(self._estimate_debounce_id)
-        self._estimate_debounce_id = GLib.timeout_add(250, self._time_estimate_debounced)
+        # Loaded choices are already complete. Keep dispatch asynchronous and
+        # retain the typing debounce only for interactive changes.
+        self._estimate_debounce_id = GLib.timeout_add(
+            0 if settled else 250, self._time_estimate_debounced)
 
     def _time_estimate_debounced(self):
         self._estimate_debounce_id = 0
@@ -1986,6 +2052,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_content.show_validation_error(error.args[0])
             return
         self._set_request_controls(False)
+        self._request_started_ns = time.monotonic_ns()
         self._log_duration_selection("submitted")
         LOG.info(
             "kiosk.028",
@@ -2012,6 +2079,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _preferences_saved(self, connection, result):
         try:
             connection.call_finish(result)
+            _log_timing('request-preferences', getattr(self, '_request_started_ns', time.monotonic_ns()))
             target_uid, approver_uid, duration_seconds, allow_soft = self._pending_request
             if self._child_overlay:
                 self._bus_call(
@@ -2034,6 +2102,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_failed(error)
             return
         try:
+            _log_timing('request-dispatch', getattr(self, '_request_started_ns', time.monotonic_ns()))
             self._bus_call(
                 'RequestAccess', GLib.Variant('(uuub)', self._pending_request),
                 '(ss)', self._request_done, REQUEST_TIMEOUT_MS)
@@ -2164,16 +2233,89 @@ class Application(Adw.Application):
         self._preview_reload_source_id = None
         self._preview_changed_paths = set()
         self._application_ui = ApplicationUI(self)
+        self._timing_registration = 0
+        self._timing_pending = {}
 
     def do_dbus_register(self, connection, object_path):
         if not Adw.Application.do_dbus_register(self, connection, object_path):
             return False
         self._application_ui.register(connection, object_path)
+        interface = Gio.DBusNodeInfo.new_for_xml('''<node>
+          <interface name="com.puffyslippers.OhNoParentControl.KioskTiming1">
+            <method name="GetStartupTimings">
+              <arg name="python_started_ns" type="t" direction="out"/>
+              <arg name="form_painted_ns" type="t" direction="out"/>
+              <arg name="form_presented_ns" type="t" direction="out"/>
+            </method>
+          </interface></node>''').interfaces[0]
+        try:
+            self._timing_registration = connection.register_object(
+                object_path + '/Timing', interface, self._startup_timing_call, None, None)
+        except Exception:
+            self._timing_registration = 0
+        if not self._timing_registration:
+            LOG.warning('kiosk.timing-unavailable')
         return True
+
+    def _startup_timing_call(self, _connection, _sender, _path, _interface,
+                             _method, _parameters, invocation):
+        # Engineering-only, read-only witness. No UI action, broker call or
+        # supplied timestamp is accepted. Pin the live bus owner when reading.
+        if _method != 'GetStartupTimings':
+            invocation.return_dbus_error('org.freedesktop.DBus.Error.UnknownMethod',
+                                         'Unknown method')
+            return
+        if not self._timing_registration or len(self._timing_pending) >= 32:
+            invocation.return_dbus_error('com.puffyslippers.OhNoParentControl.KioskTiming1.Unavailable',
+                                         'Timing witness unavailable')
+            return
+        cancellable = Gio.Cancellable()
+        self._timing_pending[cancellable] = invocation
+
+        def authorized(error):
+            pending = self._timing_pending.pop(cancellable, None)
+            if pending is None:
+                return
+            if error is not None:
+                pending.return_dbus_error('com.puffyslippers.OhNoParentControl.KioskTiming1.Denied',
+                                          'Timing witness denied')
+                return
+            self._startup_timing_reply(pending)
+
+        try:
+            self._application_ui._authorize(_connection, _sender, cancellable, authorized)
+        except Exception:
+            authorized(ValueError())
+
+    def _startup_timing_reply(self, invocation):
+        windows = [window for window in self.get_windows()
+                   if isinstance(window, RequestWindow)]
+        painted = presented = 0
+        if len(windows) == 1:
+            window = windows[0]
+            if window._startup_frame is not None:
+                painted = window._startup_frame[1]
+            presented = window._startup_presented_ns
+        invocation.return_value(GLib.Variant('(ttt)', (
+            PROCESS_STARTED_NS, painted, presented)))
 
     def do_dbus_unregister(self, connection, object_path):
         try:
-            self._application_ui.unregister(connection)
+            pending, self._timing_pending = self._timing_pending, {}
+            for cancellable, invocation in pending.items():
+                cancellable.cancel()
+                try:
+                    invocation.return_dbus_error(
+                        'com.puffyslippers.OhNoParentControl.KioskTiming1.Unavailable',
+                        'Timing witness unavailable')
+                except Exception:
+                    pass  # A disconnected diagnostic reader cannot block teardown.
+            try:
+                if self._timing_registration:
+                    connection.unregister_object(self._timing_registration)
+                    self._timing_registration = 0
+            finally:
+                self._application_ui.unregister(connection)
         finally:
             Adw.Application.do_dbus_unregister(self, connection, object_path)
 

@@ -344,6 +344,22 @@ class PolkitAdapterTests(unittest.TestCase):
                 ), self.assertRaisesRegex(TimerUsageError, "reply-too-large"):
             TimerUsage(object()).query_usage_as(1001, approver)
 
+    def test_timer_usage_retains_terminal_query_category_without_private_output(self):
+        identity = SimpleNamespace(pw_name="private-child-name", pw_gid=1201)
+        for status, category in ((75, "busy"), (79, "timeout"), (80, "access-denied")):
+            with self.subTest(category=category), \
+                    mock.patch("oh_no_parent_control.adapters.pwd.getpwuid", return_value=identity), \
+                    mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                               side_effect=self._helper_result("private error details", status)), \
+                    self.assertLogs("onpc.adapters", level="WARNING") as logs, \
+                    self.assertRaises(TimerUsageError) as raised:
+                TimerUsage(object()).query_usage(1001)
+            self.assertEqual(raised.exception.category, "backend-unavailable")
+            output = "\n".join(logs.output)
+            self.assertIn(f"QueryUsage failed category={category}", output)
+            self.assertNotIn("private", output)
+            self.assertNotIn("1001", output)
+
 
 if __name__ == "__main__":
     unittest.main()

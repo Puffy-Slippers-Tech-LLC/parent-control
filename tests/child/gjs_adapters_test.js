@@ -29,6 +29,8 @@ async function main() {
     assertEqual(timerErrorCategory(new Error('private JS exception')), 'other', 'plain JS error');
     assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
         'private.unknown.Error', 'private error text')), 'other', 'unknown remote name');
+    assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
+        'private.unknown.Error.Busy', 'private error text')), 'other', 'unknown Busy remote name');
     // Validation runs before the adapter makes a system-bus call, so this tests
     // the real GJS/Gio client safely without requiring product services.
     await calculateOwnRemainingTime(-1).then(

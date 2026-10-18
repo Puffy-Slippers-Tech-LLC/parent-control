@@ -226,12 +226,19 @@ on behalf of a child or kiosk status request. Approval-time usage queries retain
 the authenticated approver identity described above.
 
 The helper tolerates the timer daemon exiting normally at its inactivity
-deadline while a query is in flight. `NoReply`, `NameHasNoOwner`, and
-`ServiceUnknown` trigger at most two further reads addressed to the same
-well-known service name, allowing D-Bus activation to select its new owner.
-All attempts share a 25-second budget inside the broker's 30-second helper
-deadline, with 200 ms between attempts. Authorization failures and malformed
-replies are not retried, and a failed read never becomes zero usage. The helper
+deadline while a query is in flight. `NoReply`, `NameHasNoOwner`,
+`ServiceUnknown`, and local/remote timeout errors trigger at most two further
+reads addressed to the same well-known service name, allowing D-Bus activation
+to select its new owner. The exact timer `Error.Busy` response uses backoff of
+100, 250, 500, 1000 and 2000 ms, with at most six total attempts. Mixed failures
+share attempt indices and one 25-second monotonic budget inside the broker's
+30-second helper deadline; each call has at most five seconds. Other transient
+reads wait 200 ms. An overdue retry never dispatches another read.
+Authorization failures and malformed replies are not retried, and a failed
+read never becomes zero usage. Fixed private helper exit statuses retain the
+final reviewed timer category in `adapters.usage-query-failed`, while preserving
+the broker's backend-unavailable result. No raw exceptions, remote names or
+identities cross that diagnostic boundary. The helper
 is loaded on its next invocation (`none` activation); adapter logging changes
 activate with the broker's `process-restart` classification.
 
@@ -298,8 +305,22 @@ Cancellation prevents obsolete dispatch; it cannot retract an already dispatched
 D-Bus write. That write still contains only the identical recorded interval.
 The workaround remains asynchronous and cannot guarantee cache refresh during
 timer-service unavailability or make native deadline evaluation atomic with resume.
-Transient inactive failures back off; permanent failures use the existing child
-error reporter. This is a product compatibility workaround for the native cache
+Transient inactive failures back off and open the existing child error reporter
+after three consecutive failures while continuing recovery. A transient
+`QueryUsage` or `RecordUsage` boundary failure with a finite positive native
+deadline retains that countdown, records `child.resume-refresh-deferred`, and
+waits for the next inactivity transition
+without opening a reporter or replaying usage late. Repeated active failures at
+the same operation stage open one report from the third occurrence, without
+retrying a usage write during active use. Healthy idle refreshes do not erase
+this resume-only failure evidence; a complete successful active refresh or limit
+lifecycle change resets it. Ordinary countdown reads retry and report exhausted
+failures independently, but do not establish that usage query/replay is healthy.
+Permanent resume refresh failures, exhausted estimate reads, and failures
+without a finite native deadline use the existing child error reporter
+immediately. Only the exact public timer `Error.Busy` name is treated as
+contention; unrecognized remote names remain errors.
+This is a product compatibility workaround for the native cache
 defect, not a GNOME source fix or a second accounting/enforcement implementation.
 Remove it when the supported Shell implementation refreshes estimates before
 evaluating inactivity/resume deadlines.

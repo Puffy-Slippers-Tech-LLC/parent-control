@@ -35,7 +35,8 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
         },
     };
     class BusError extends Error {
-        matches(_domain, code) { return code === failure; }
+        constructor(code) { super(); this.code = code; }
+        matches(_domain, code) { return code === this.code; }
     }
     const context = vm.createContext({
         busyRetryDelay, logInfo() {}, logWarning(event, fields) {
@@ -60,13 +61,19 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
                 is_cancelled() { return Boolean(this.cancelled); }
             },
             Credentials: {new: () => ({get_unix_user: () => 1003})},
-            DBusError: {get_remote_error: () => null, NO_REPLY: 'NO_REPLY', ACCESS_DENIED: 'ACCESS_DENIED'},
+            DBusError: {
+                ...Object.fromEntries(['NO_REPLY', 'NAME_HAS_NO_OWNER', 'SERVICE_UNKNOWN',
+                    'TIMED_OUT', 'ACCESS_DENIED'].map(code => [code, code])),
+                get_remote_error: error => error.code === 'BUSY'
+                    ? 'org.freedesktop.MalcontentTimer1.Error.Busy'
+                    : error.code === 'UNREVIEWED_BUSY' ? 'private.secret.Error.Busy' : null,
+            },
             IOErrorEnum: {}, dbus_error_quark: () => 'dbus', io_error_quark: () => 'io',
             DBusCallFlags: {NONE: 0},
             DBus: {system: {call(...args) {
                 calls.push(args);
                 const finish = () => args.at(-1)({call_finish() {
-                    if (failure && (!failureMethod || failureMethod === args[3])) throw new BusError();
+                    if (failure && (!failureMethod || failureMethod === args[3])) throw new BusError(failure);
                     if (args[3] === 'RecordUsage') manager.emit();
                     return {deepUnpack: () => args[3] === 'QueryUsage' ? [records]
                         : args[3] === 'GetEstimatedTimes' ? [Math.floor(now), {'': [false, 0, Math.floor(now) + remaining]}]
@@ -321,6 +328,193 @@ test('resume diagnostics identify the failing timer operation without recording 
         assert.equal(h.timers.size, 0, 'diagnostics must not enable late active usage replays');
         assert(!JSON.stringify(h.logs).includes('1003'));
         assert(!JSON.stringify(h.logs).includes('login-session'));
+        h.bridge.close();
+    }
+});
+
+test('temporary resume failures preserve the active deadline without reporting or replaying late usage', async () => {
+    for (const [code, category] of [['BUSY', 'busy'], ['NO_REPLY', 'no-reply'],
+        ['NAME_HAS_NO_OWNER', 'no-owner'], ['SERVICE_UNKNOWN', 'service-unknown'],
+        ['TIMED_OUT', 'timeout']]) {
+        for (const [method, stage] of [['QueryUsage', 'query-usage'], ['RecordUsage', 'record-usage']]) {
+            const h = harness({remaining: 0});
+            h.activity(false);
+            await settle();
+            h.setRemaining(292);
+            h.setFailure(code, method);
+            h.activity(true);
+            const deadline = h.manager.dailyLimitTime;
+            await settle();
+            assert.equal(h.reports.length, 0, `${method} ${code} must not open a reporter`);
+            assert.equal(h.timers.size, 0, 'active use must never schedule another replay');
+            assert.equal(h.manager.dailyLimitTime, deadline);
+            assert.deepEqual(h.logs.at(-1), {
+                v: 1, event: 'child.resume-refresh-deferred', operation: 0, fields: {stage, category},
+            });
+            const calls = h.calls.length;
+            h.manager.emit();
+            h.manager.emit('notify::state');
+            await settle();
+            assert.equal(h.calls.length, calls, 'active notifications must not retry usage writes');
+            h.setFailure(null);
+            h.activity(false);
+            await settle();
+            assert.deepEqual(h.calls.slice(calls).map(call => call[3]),
+                ['QueryUsage', 'RecordUsage', 'GetEstimatedTimes']);
+            assert.deepEqual(plain(h.calls.at(-2)[4].value), [[[20, 40, 'login-session', '']]]);
+            assert.equal(h.reports.length, 0);
+            assert.equal(h.timers.size, 1, 'next inactivity must resume normal maintenance');
+            h.bridge.close();
+        }
+    }
+});
+
+test('persistent idle contention reports once, then recovers through the normal backoff', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'QueryUsage');
+    h.activity(false);
+    await settle();
+    for (const delay of [1000, 2000, 4000]) {
+        assert.equal([...h.timers.values()][0].delay, delay);
+        h.tick();
+        await settle();
+    }
+    assert.equal(h.reports.length, 1);
+    assert.equal(h.calls.filter(call => call[3] === 'RecordUsage').length, 0);
+    assert.equal(h.logs.some(log => log.event === 'child.resume-refresh-deferred'), false);
+    h.setFailure(null);
+    h.tick();
+    await settle();
+    assert.deepEqual(h.calls.slice(-3).map(call => call[3]),
+        ['QueryUsage', 'RecordUsage', 'GetEstimatedTimes']);
+    assert.equal(h.reports.length, 1);
+    assert.equal(h.bridge.failures, 0);
+    assert.equal(h.bridge.reported, false);
+    h.bridge.close();
+});
+
+test('resume-only failures escalate across healthy idle refreshes and reset after active recovery', async () => {
+    for (const method of ['QueryUsage', 'RecordUsage']) {
+        const h = harness();
+        for (let occurrence = 1; occurrence <= 4; occurrence++) {
+            h.setFailure(null);
+            h.activity(false);
+            await settle();
+            h.setFailure('BUSY', method);
+            h.activity(true);
+            await settle();
+            assert.equal(h.reports.length, occurrence < 3 ? 0 : 1,
+                `${method} occurrence ${occurrence} must escalate once from the third failure`);
+            assert.equal(h.timers.size, 0, 'escalation must never schedule an active usage replay');
+            if (occurrence >= 3) assert.deepEqual(h.logs.at(-1).fields, {
+                stage: method === 'QueryUsage' ? 'query-usage' : 'record-usage',
+                category: 'busy', active: true, limit_enabled: true,
+                failures: occurrence, retry: false, delay_ms: 0,
+            });
+        }
+        h.setFailure(null);
+        h.activity(false);
+        await settle();
+        h.activity(true);
+        await settle();
+        for (let occurrence = 1; occurrence <= 3; occurrence++) {
+            h.setFailure(null);
+            h.activity(false);
+            await settle();
+            h.setFailure('NO_REPLY', method);
+            h.activity(true);
+            await settle();
+            assert.equal(h.reports.length, occurrence < 3 ? 1 : 2,
+                'a complete successful active refresh must begin a fresh failure incident');
+            assert.equal(h.timers.size, 0);
+        }
+        h.bridge.close();
+    }
+});
+
+test('resume escalation counts each stage independently and opens at most one report per incident', async () => {
+    const h = harness();
+    for (const [index, method] of ['QueryUsage', 'RecordUsage', 'QueryUsage',
+        'RecordUsage', 'QueryUsage', 'RecordUsage'].entries()) {
+        h.setFailure(null);
+        h.activity(false);
+        await settle();
+        h.setFailure(index % 2 ? 'NO_REPLY' : 'BUSY', method);
+        h.activity(true);
+        await settle();
+        assert.equal(h.reports.length, index < 4 ? 0 : 1);
+        assert.equal(h.timers.size, 0);
+    }
+    h.bridge.close();
+});
+
+test('a limit lifecycle change rearms reporting without requiring a successful refresh', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'QueryUsage');
+    for (let occurrence = 1; occurrence <= 3; occurrence++) {
+        h.activity(false);
+        await settle();
+        h.activity(true);
+        await settle();
+    }
+    assert.equal(h.reports.length, 1);
+    h.manager.parentalControlsSessionLimitsEnabled = false;
+    h.manager.emit('notify::daily-limit-enabled');
+    h.manager.parentalControlsSessionLimitsEnabled = true;
+    h.manager.emit('notify::daily-limit-enabled');
+    for (let occurrence = 1; occurrence <= 3; occurrence++) {
+        h.activity(false);
+        await settle();
+        h.activity(true);
+        await settle();
+        assert.equal(h.reports.length, occurrence < 3 ? 1 : 2);
+        assert.equal(h.logs.at(-1).event,
+            occurrence < 3 ? 'child.resume-refresh-deferred' : 'child.resume-refresh-failed');
+        assert.equal(h.timers.size, 0);
+    }
+    h.bridge.close();
+});
+
+test('an exhausted estimate read reports immediately after its existing bounded retries', async () => {
+    const h = harness({remaining: 0});
+    h.activity(false);
+    await settle();
+    h.setRemaining(292);
+    h.setFailure('NO_REPLY', 'GetEstimatedTimes');
+    h.activity(true);
+    await settle();
+    for (let retry = 0; retry < 2; retry++) {
+        assert.equal([...h.timers.values()][0].delay, 200);
+        h.tick();
+        await settle();
+    }
+    assert.equal(h.reports.length, 1);
+    assert.equal(h.timers.size, 0);
+    assert.deepEqual(h.logs.at(-1).fields, {
+        stage: 'timer-estimate', category: 'no-reply', active: true, limit_enabled: true,
+        failures: 1, retry: false, delay_ms: 0,
+    });
+    h.bridge.close();
+});
+
+test('an unreviewed Busy error or invalid native deadline cannot defer a resume report', async () => {
+    for (const [code, deadline, category] of [
+        ['UNREVIEWED_BUSY', 200, 'other'], ['BUSY', Infinity, 'busy'],
+    ]) {
+        const h = harness();
+        h.activity(false);
+        await settle();
+        h.setFailure(code, 'QueryUsage');
+        h.manager.dailyLimitTime = deadline;
+        h.manager.emit();
+        await settle();
+        assert.equal(h.reports.length, 1);
+        assert.equal(h.timers.size, 0);
+        assert.deepEqual(h.logs.at(-1).fields, {
+            stage: 'query-usage', category, active: true, limit_enabled: true,
+            failures: 1, retry: false, delay_ms: 0,
+        });
+        assert(!JSON.stringify(h.logs).includes('private'));
         h.bridge.close();
     }
 });

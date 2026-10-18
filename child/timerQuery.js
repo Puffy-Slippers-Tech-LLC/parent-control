@@ -106,7 +106,7 @@ export function timerErrorCategory(error) {
     if (!(error instanceof GLib.Error))
         return 'other';
     const remote = Gio.DBusError.get_remote_error(error);
-    if (remote?.endsWith('.Error.Busy'))
+    if (remote === 'org.freedesktop.MalcontentTimer1.Error.Busy')
         return 'busy';
     for (const [code, category] of [
         [Gio.DBusError.NO_REPLY, 'no-reply'],

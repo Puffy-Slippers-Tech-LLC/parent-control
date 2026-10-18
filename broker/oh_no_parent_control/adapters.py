@@ -48,6 +48,13 @@ RUNTIME_MAX_USEC_INFINITY = (1 << 64) - 1
 CALL_TIMEOUT_MS = 30_000
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
+# Private exit statuses emitted by the fixed query helper. Keep the public
+# backend-unavailable failure while retaining its reviewed cause in diagnostics.
+USAGE_HELPER_ERROR_CATEGORIES = {
+    75: "busy", 76: "no-reply", 77: "no-owner", 78: "service-unknown",
+    79: "timeout", 80: "access-denied", 81: "invalid-argument",
+    82: "failed", 83: "disconnected",
+}
 LOG = get_logger("adapters")
 
 
@@ -422,7 +429,10 @@ class TimerUsage:
                     umask=0o077,
                 )
                 if result.returncode != 0:
-                    category = {
+                    timer_category = USAGE_HELPER_ERROR_CATEGORIES.get(result.returncode)
+                    if timer_category is not None:
+                        LOG.warning("adapters.usage-query-failed", category=timer_category)
+                    category = "backend-unavailable" if timer_category is not None else {
                         64: "invalid-request",
                         69: "backend-unavailable",
                         70: "invalid-backend-reply",

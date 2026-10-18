@@ -19,6 +19,8 @@ export class ResumeEstimateRefresh {
         this.again = false;
         this.timer = 0;
         this.failures = 0;
+        this.resumeFailures = new Map();
+        this.resumeReported = false;
         try {
             for (const signal of ['notify::daily-limit-time', 'notify::daily-limit-enabled', 'notify::state'])
                 this.connections.push(manager.connect(signal,
@@ -36,6 +38,11 @@ export class ResumeEstimateRefresh {
         const wasActive = this.active;
         this.enabled = this.manager.parentalControlsSessionLimitsEnabled;
         this.active = Number(this.manager.dailyLimitTime) > 0;
+        if (this.enabled !== wasEnabled) {
+            this.resumeFailures.clear();
+            this.resumeReported = false;
+            this.reported = false;
+        }
         if (this.enabled !== wasEnabled || this.active !== wasActive ||
             recheckInactive && this.enabled && !this.active) {
             this.cancelTimer();
@@ -80,6 +87,10 @@ export class ResumeEstimateRefresh {
             // completed interval. A genuine zero balance needs no heartbeat.
             this.failures = 0;
             this.reported = false;
+            if (replayed && this.active) {
+                this.resumeFailures.clear();
+                this.resumeReported = false;
+            }
             retry = !this.active && delay > 0;
         } catch (error) {
             if (cancellable.is_cancelled()) return;
@@ -90,16 +101,37 @@ export class ResumeEstimateRefresh {
             // Never replay late retries during active use: they would omit
             // ongoing, uncheckpointed usage and extend the native deadline.
             retry = transient && !this.active;
+            // A single temporary boundary failure can retain a finite native
+            // deadline. Keep per-stage evidence across idle successes: a
+            // resume-only QueryUsage/RecordUsage defect need not affect the
+            // independent countdown reads or idle maintenance at all.
+            const activeFailure = transient && this.active &&
+                ['query-usage', 'record-usage'].includes(stage) &&
+                Number.isFinite(Number(this.manager.dailyLimitTime));
+            const failures = activeFailure
+                ? Math.min(0x7fffffff, (this.resumeFailures.get(stage) ?? 0) + 1)
+                : Math.min(0x7fffffff, this.failures);
+            if (activeFailure) this.resumeFailures.set(stage, failures);
+            const deferred = activeFailure && failures < 3;
             delay = Math.min(60_000, 1000 * 2 ** Math.min(this.failures - 1, 6));
             try {
-                logWarning('child.resume-refresh-failed', {
-                    stage, category, active: Boolean(this.active),
-                    limit_enabled: Boolean(this.enabled),
-                    failures: Math.min(0x7fffffff, this.failures), retry,
-                    delay_ms: retry ? delay : 0,
-                });
+                if (deferred) {
+                    logWarning('child.resume-refresh-deferred', {stage, category});
+                } else {
+                    logWarning('child.resume-refresh-failed', {
+                        stage, category, active: Boolean(this.active),
+                        limit_enabled: Boolean(this.enabled),
+                        failures, retry,
+                        delay_ms: retry ? delay : 0,
+                    });
+                }
             } catch (_error) { /* preserve retry and error-report behavior */ }
-            if (!retry || this.failures >= 3) this.report(error);
+            if (activeFailure) {
+                if (!deferred && !this.resumeReported) {
+                    this.resumeReported = true;
+                    this.report(error);
+                }
+            } else if (!retry || this.failures >= 3) this.report(error);
         } finally {
             this.pending = false;
             if (!this.closed && this.enabled) {

@@ -66,6 +66,7 @@ test('failure diagnostics reject unreviewed provenance and private metadata', ()
         'child.failure': {operation: 'resume-refresh', error_type: 'GLib.Error', category: 'timeout'},
         'child.resume-refresh-failed': {stage: 'record-usage', category: 'busy', active: true,
             limit_enabled: true, failures: 1, retry: false, delay_ms: 0},
+        'child.resume-refresh-deferred': {stage: 'query-usage', category: 'busy'},
     };
     for (const [event, fields] of Object.entries(examples)) {
         assert.doesNotThrow(() => diagnosticEnvelope(catalog, event, fields));
@@ -77,6 +78,12 @@ test('failure diagnostics reject unreviewed provenance and private metadata', ()
         assert.throws(() => diagnosticEnvelope(catalog, 'child.resume-refresh-failed', {
             ...examples['child.resume-refresh-failed'], failures}));
     assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.error'));
+    assert.throws(() => diagnosticEnvelope(catalog, 'child.resume-refresh-deferred', {
+        stage: 'query-usage', category: 'access-denied',
+    }));
+    assert.throws(() => diagnosticEnvelope(catalog, 'child.resume-refresh-deferred', {
+        stage: 'timer-estimate', category: 'busy',
+    }));
 });
 
 test('countdown diagnostics preserve operands without recording every tick or raw deadlines', () => {

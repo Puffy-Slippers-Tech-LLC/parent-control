@@ -155,6 +155,9 @@ def test_child_failure_and_frontend_transport_provenance_survive_customer_export
     from common.oh_no_parent_control_ui.diagnostic_report import read_report
 
     observations = [
+        ("child", "WARNING", "child.resume-refresh-deferred", dict(
+            stage="query-usage", category="busy")),
+        ("broker", "WARNING", "adapters.usage-query-failed", dict(category="busy")),
         ("child", "WARNING", "child.resume-refresh-failed", dict(
             stage="record-usage", category="timeout", active=True, limit_enabled=True,
             failures=1, retry=False, delay_ms=0)),
@@ -165,7 +168,8 @@ def test_child_failure_and_frontend_transport_provenance_survive_customer_export
     ]
     writer = DailyLogWriter(tmp_path)
     for component, level, name, fields in observations:
-        writer.write(component, level, encode(event(name, fields)), source_uid=1098765)
+        writer.write(component, level, encode(event(name, fields)),
+                     source_uid=None if component == "broker" else 1098765)
     with ZipFile(BytesIO(writer.snapshot())) as archive:
         logs, _ = read_report(archive)
         retained = {row["event"]: row["fields"] for rows in logs.values() for row in rows}
@@ -173,6 +177,7 @@ def test_child_failure_and_frontend_transport_provenance_survive_customer_export
         text = "".join(archive.read(name).decode() for name in archive.namelist())
         assert "1098765" not in text
         assert "placeholder RuntimeError" in text
+        assert "active native countdown retained, no error report or late usage replay" in text
 
 
 @pytest.mark.parametrize('component,name,fields', [

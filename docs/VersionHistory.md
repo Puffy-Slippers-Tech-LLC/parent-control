@@ -16,6 +16,7 @@
 - **Kiosk**: Fixed a Fedora startup crash caused by missing GPU rendering permission.
 - **Child App**: Fixed countdown freezes during continuous use and premature screen locking after inactivity.
 - **Child App**: Fixed the desktop staying locked after successful authentication when more screen time has been granted.
+- **Screen Time**: Fixed unnecessary error reports after unlocking and improved recovery from temporary timer-service failures.
 - **Broker**: Fixed startup failures caused by temporary trust-database lock contention and preserved bounded dependency diagnostics after service recovery without collecting personal data.
 - **Broker**: Added automatic recovery when the fapolicyd service exits with an error.
 - **Parent App**: Parent app app grid column headers on some RTL languages overlap

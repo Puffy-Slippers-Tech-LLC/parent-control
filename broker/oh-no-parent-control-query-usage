@@ -18,36 +18,75 @@ TIMER_PATH = "/org/freedesktop/MalcontentTimer1"
 TIMER_PARENT_INTERFACE = "org.freedesktop.MalcontentTimer1.Parent"
 # Leave time for interpreter startup and serialization inside the broker's
 # 30-second subprocess deadline. All attempts share this budget.
-CALL_TIMEOUT_MS = 25_000
-MAX_ATTEMPTS = 3
+QUERY_BUDGET_MS = 25_000
+CALL_TIMEOUT_MS = 5_000
+BUSY_RETRY_DELAYS_SECONDS = (0.1, 0.25, 0.5, 1.0, 2.0)
+MAX_ATTEMPTS = len(BUSY_RETRY_DELAYS_SECONDS) + 1
 RETRY_DELAY_SECONDS = 0.2
 UINT32_MAX = (1 << 32) - 1
+# Private exit-status contract with adapters.TimerUsage. Never return exception
+# text, remote names, usage records or account identities as failure metadata.
+ERROR_EXIT_CODES = {
+    "busy": 75, "no-reply": 76, "no-owner": 77, "service-unknown": 78,
+    "timeout": 79, "access-denied": 80, "invalid-argument": 81,
+    "failed": 82, "disconnected": 83,
+}
+
+
+def timer_error_category(error):
+    if Gio.DBusError.get_remote_error(error) == "org.freedesktop.MalcontentTimer1.Error.Busy":
+        return "busy"
+    for code, category in (
+            (Gio.DBusError.NO_REPLY, "no-reply"),
+            (Gio.DBusError.NAME_HAS_NO_OWNER, "no-owner"),
+            (Gio.DBusError.SERVICE_UNKNOWN, "service-unknown"),
+            (Gio.DBusError.TIMEOUT, "timeout"),
+            (Gio.DBusError.TIMED_OUT, "timeout"),
+            (Gio.DBusError.ACCESS_DENIED, "access-denied"),
+            (Gio.DBusError.AUTH_FAILED, "access-denied"),
+            (Gio.DBusError.INVALID_ARGS, "invalid-argument"),
+            (Gio.DBusError.DISCONNECTED, "disconnected"),
+            (Gio.DBusError.FAILED, "failed")):
+        if error.matches(Gio.dbus_error_quark(), code):
+            return category
+    if error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT):
+        return "timeout"
+    return "other"
 
 
 def query_usage(connection, target_uid, *, monotonic=time.monotonic, sleep=time.sleep):
-    """Retry a read interrupted by the timer daemon's normal idle shutdown."""
-    deadline = monotonic() + CALL_TIMEOUT_MS / 1000
+    """Bound transient read retries while retaining the original final error."""
+    deadline = monotonic() + QUERY_BUDGET_MS / 1000
+    last_error = None
     for attempt in range(MAX_ATTEMPTS):
+        remaining_ms = int((deadline - monotonic()) * 1000)
+        if remaining_ms <= 0:
+            if last_error is not None:
+                raise last_error
+            raise GLib.Error.new_literal(
+                Gio.io_error_quark(), "Usage query timed out", Gio.IOErrorEnum.TIMED_OUT)
         try:
             reply = connection.call_sync(
                 TIMER_NAME, TIMER_PATH, TIMER_PARENT_INTERFACE, "QueryUsage",
                 GLib.Variant("(uss)", (target_uid, "login-session", "")),
                 GLib.VariantType.new("(a(tt))"), Gio.DBusCallFlags.NONE,
-                max(1, int((deadline - monotonic()) * 1000)), None,
+                min(CALL_TIMEOUT_MS, remaining_ms), None,
             )
             intervals, = reply.unpack()
             return intervals
         except GLib.Error as error:
-            transient = any(error.matches(Gio.dbus_error_quark(), code) for code in (
-                Gio.DBusError.NO_REPLY, Gio.DBusError.NAME_HAS_NO_OWNER,
-                Gio.DBusError.SERVICE_UNKNOWN,
-            ))
-            if (not transient or attempt + 1 == MAX_ATTEMPTS or
-                    deadline - monotonic() <= RETRY_DELAY_SECONDS):
+            last_error = error
+            category = timer_error_category(error)
+            delay = (BUSY_RETRY_DELAYS_SECONDS[attempt] if category == "busy" and
+                     attempt < len(BUSY_RETRY_DELAYS_SECONDS) else
+                     RETRY_DELAY_SECONDS if category in (
+                         "no-reply", "no-owner", "service-unknown", "timeout") and attempt < 2
+                     else None)
+            if delay is None or deadline - monotonic() <= delay:
                 raise
             # Re-address the well-known name so D-Bus can activate its next owner.
             # Authorization errors and malformed replies are never retried.
-            sleep(RETRY_DELAY_SECONDS)
+            sleep(delay)
 
 
 def main() -> int:
@@ -62,9 +101,12 @@ def main() -> int:
 
     try:
         connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
-        intervals = query_usage(connection, target_uid)
     except GLib.Error:
         return 69
+    try:
+        intervals = query_usage(connection, target_uid)
+    except GLib.Error as error:
+        return ERROR_EXIT_CODES.get(timer_error_category(error), 69)
 
     if any(
             type(start) is not int or type(end) is not int or

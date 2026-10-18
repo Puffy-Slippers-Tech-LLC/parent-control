@@ -133,7 +133,22 @@ test('an overdue retry never starts another read after the budget', async () => 
 test('unknown remote names and exception contents are reduced to fixed categories', () => {
     const h = harness([]);
     assert.equal(h.classify(new h.BusError('UNKNOWN', 'io', 'private.secret.Error')), 'other');
+    assert.equal(h.classify(new h.BusError('UNKNOWN', 'io', 'private.secret.Error.Busy')), 'other');
     assert.equal(h.classify(new h.BusError('TIMED_OUT', 'io')), 'timeout');
     assert.equal(h.classify(new h.BusError('CANCELLED', 'io')), 'cancelled');
     assert.equal(h.classify({get message() { throw new Error('must not read'); }}), 'other');
+});
+
+test('an unrecognized remote Busy name is reported without transient retries', async () => {
+    const outcomes = [];
+    const h = harness(outcomes);
+    const error = new h.BusError('UNKNOWN', 'io', 'private.secret.Error.Busy');
+    outcomes.push(error);
+    await assert.rejects(h.query(), observed => observed === error);
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.waits.length, 0);
+    assert.deepEqual(h.logs, [
+        {event: 'child.timer-read-failed', category: 'other', attempt: 1, retry: false},
+    ]);
+    assert(!JSON.stringify(h.logs).includes('private'));
 });

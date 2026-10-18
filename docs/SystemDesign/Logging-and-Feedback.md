@@ -66,6 +66,21 @@ All operands are bounded durations or closed categories derived from the existin
 countdown calculation; raw deadlines, usage intervals and account/session
 identities are excluded. No extra timer or policy query is made for logging.
 Diagnostic failure cannot interrupt a successful refresh, countdown or lock.
+`child.resume-refresh-deferred` distinguishes a temporary resume usage-query or
+usage-replay failure with a finite positive native deadline from a reported
+error: it records only the reviewed operation stage and transient category,
+explicitly retaining the native countdown and deferring usage replay until the
+next inactivity transition.
+Repeated active failures at the same stage use `child.resume-refresh-failed`
+from the third occurrence and open one report until active recovery or a limit
+lifecycle change. Their counts survive healthy idle refreshes because ordinary
+countdown and idle reads cannot prove that resume-only query/replay is healthy.
+Inactive retry diagnostics, permanent errors, and exhausted estimate reads
+retain their existing events and reporting behavior.
+`adapters.usage-query-failed` preserves the final reviewed category from the
+broker's identity-scoped usage helper after bounded read retries or a permanent
+failure. Its fixed exit-status protocol excludes raw exception text and account
+identities; the existing generic helper-failure event remains readable.
 The additive catalogue ships with the child and broker; session renewal and
 broker process restart load the new diagnostics. No saved-data migration is needed.
 

@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **004a — [Select finite native dependency package pairs](Core-Installation-Tasks/004a-native-package-pairs.md)**.
+Next task: **004b — [Implement verified native transaction inputs](Core-Installation-Tasks/004b-native-transaction-inputs.md)**.
 
 ## Purpose and continuation
 
@@ -573,16 +573,61 @@ attempt remains. Only documentation changes in this final gate; package
 sources, inventory and collection are unchanged, so no build or coverage refresh
 is required. Only 003 is newly complete; customer E2E tasks remain unchanged.
 
+## Task 004a finite native input review
+
+Accepted 2026-10-18 as **review**, with no declared acceptance targets or VM
+mutation. The [004b input plan](Core-Installation-Tasks/004b-native-transaction-inputs.md#004a-reviewed-input-selection)
+retains exact authoritative artifact/publication/build sources, package digests,
+native verification routes, compatible dependencies/reverse consumers and normal
+trigger requirements for both supported distros:
+
+- Ubuntu 26.04: `bubblewrap:amd64` `0.11.1-1` → `0.11.1-1ubuntu0.3`, one DEB.
+  Official build logs bind distinct ELF build IDs to `/usr/bin/bwrap`; the
+  compiled ptrace fix corroborates changed bytes. This is the native substitution
+  source, not the product wrapper visible at private `/usr/bin/bwrap`.
+- Fedora 44: `xdg-dbus-proxy.x86_64` `0:0.1.6-4.fc44` → `0:0.1.9-1.fc44`, one
+  RPM. Release/update downloads match their signed Koji copies; exact Koji file
+  records bind distinct executable SHA-256 values to both packages.
+
+Both pairs have compatible runtime requirements and reviewed current consumers,
+without a companion downgrade. Neither package owns runtime maintainer scripts;
+normal matching man-db triggers remain required, with independent results and
+installed trigger inventory. 004b must implement native cryptographic and payload
+verification, exact installed-set/trigger preflight and selected-input binding;
+Ubuntu's extracted executable SHA-256 values remain to be measured there.
+Those implementation gates do not claim installed transaction success here.
+
+The retained plan resolves old-generation preparation before admission, actual
+living executable mappings, retained enforcement, stale-manager refusal, loader
+exclusion under a real admission lease, explicit safe reexec, normal owned exit
+and reboot recovery. Native maintenance alone neither publishes a new private
+generation nor creates a product reboot request. All original 004 obligations
+remain required in the later installed histories. Independent source/contract
+review passed; all three read-only subagents completed without retained resources.
+Final plan, inventory, coverage, composition and launcher consistency checks
+passed **551/551**, report
+`output/test-runs/host/reports/20261018T192811Z-7080e093/report.md`.
+All 52 local links in the four changed Markdown documents passed. Queue diff
+review confirms only 004a's completion/link/evidence changed, every Scope and
+Requires cell is preserved, and 004b is the first unchecked row. Its temporary
+predecessor brief was removed after review; the final 004 gate links here.
+The maintained host runner finished and released its owner; no live process,
+VM resource or disposable research artifact remains owned by this task.
+No package/product/build source or inventory changed, so no build, coverage
+refresh or VM cleanup is required. Only 004a is newly complete.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
 Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
-complete. Continue with task 004a's finite native dependency package pairs.
+complete. Task 004a's [finite input review](#task-004a-finite-native-input-review)
+is complete; continue with 004b's verified native transaction inputs.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
 Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
-package pairs and selector are still unqualified/unimplemented; the product
+package pairs are selected; their staging and installed transaction qualification
+remain pending, and the selector remains unimplemented. The product
 earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual

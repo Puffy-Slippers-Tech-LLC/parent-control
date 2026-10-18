@@ -15,7 +15,7 @@ fresh product installation establishes a different history.
 
 Requires: 003, 004a, 004b, 004c, 004d.
 
-[004a](004a-native-package-pairs.md) resolves package-pair feasibility and exact
+[004a](../Core-Installation-Coverage-Handoff.md#task-004a-finite-native-input-review) resolves package-pair feasibility and exact
 expected generation behavior; [004b](004b-native-transaction-inputs.md) owns
 verified inputs and preparation; [004c](004c-native-update-history.md) owns
 registration and host-verified history implementation.

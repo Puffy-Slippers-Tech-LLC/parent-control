@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **004 — [Qualify native dependency updates during retained sessions](Core-Installation-Tasks/004-native-dependency-update.md)**.
+Next task: none.
 
 ## Purpose and continuation
 
@@ -973,6 +973,70 @@ bundle through 004 under the existing retention contract. No subagent remains.
 Only 004d is newly complete. Task 004 remains the final both-target evidence
 gate; customer E2E tasks remain untouched.
 
+## Task 004 final native-update acceptance
+
+Accepted 2026-10-18 on **onpc-Ubuntu26.04** and **onpc-Fedora44** using the
+complete installed [004d histories](#task-004d-native-update-qualification).
+The maintained bundle reader reverified all **4,329 files** in
+`output/test-runs/host/exports/onpc-evidence-bundle-imeub3ps/evidence.zip`,
+SHA-256 `fdbf8cf7e9732308ceee22a720fdaf5df6d0d1b6c0f4b2d5e1916beacbe37df1`.
+Original paths remain bundle member keys after ordinary source rotation.
+
+| Target | Report / allocation | Installed acceptance |
+| --- | --- | --- |
+| onpc-Ubuntu26.04 | `20261018T221414Z-71987d6a` / `onpc-system-3ioyj7oc` | Case 289: both phases passed, zero failures/skips; bubblewrap `0.11.1-1` → `0.11.1-1ubuntu0.3` |
+| onpc-Fedora44 | `20261018T221414Z-ffdaf92b` / `onpc-system-9izbqu1f` | Case 289: both phases passed, zero failures/skips; xdg-dbus-proxy `0:0.1.6-4.fc44` → `0:0.1.9-1.fc44` |
+
+Each allocation's `evidence/result.json`, both `guest-results/*.xml`, station
+receipts and old/updated/retired/loader-drained/complete checkpoints reconcile
+to one continuous attempt. Frozen input records are under
+`attempt-native-update/input/`: `selected-inputs.json`, `artifact-manifest.json`,
+`native-transaction-binding.json` and `native-transaction/native-inputs.json`.
+The **38 staged entries** and **27 host-source entries** comprise 62 distinct
+checkout sources; every SHA-256 matches the current checkout on both targets.
+All **353 package source inputs**, including modes, are unchanged from the
+recorded candidate revision `9162f12d8d92ac78ecbc465280b2b0197f1c4320`.
+Native manifests, signed input bytes, package/ELF digests, preparation and
+baseline bindings match the exact 004d receipts above. No input or assertion is
+invalidated, so the brief permits reuse without another installed run.
+
+The old native transaction precedes product installation and initial reboot.
+The real new transaction changes measured host bytes while exact living native
+mappings, manager/thread identity, private generation and enforcing labels
+remain unchanged. Independent positive and kernel-denial controls pass before
+and after update and reexec. Real stale GDM admission refuses; a separately held
+native admission excludes the loader without changing attestation or PAM.
+Normal public Cancel and witness exit precede a second real reboot. The drained
+loader then succeeds before fresh public admission, with generation A retired,
+native B measured, public broker operation and unchanged saved child policy.
+Ordinary-account execution and vendor PAM callback preservation pass at every
+checkpoint; Fedora remains enforcing. Native scripts/triggers and independent
+completion evidence remain required. Synthetic replacement/reexec coverage is
+preserved separately and supplies no native transaction acceptance.
+
+Both installed receipts independently pass product, infrastructure, collection
+and cleanup, record `cleanup_phase=complete`, and retain two baseline checks
+with zero failures. The combined queue result passes both targets; its finalized
+recording receipt binds the exported media to the 004d SHA-256 above. Final
+`tools/cleanup-e2e --vm 'onpc-Ubuntu26.04,onpc-Fedora44'` completed serial VM and
+host-storage recovery, retaining evidence. Fresh public status probes confirm
+both guests off. No subagent started or remains, and all owned cleanup ended.
+
+Focused native-history, runner, preflight, staging and confinement host checks
+passed **1,011/1,011**, report
+`output/test-runs/host/reports/20261018T223202Z-8685aedc/report.md`.
+Final documentation, inventory, coverage, composition and plan-adapter checks
+passed **315/315**, report
+`output/test-runs/host/reports/20261018T223331Z-03f40de1/report.md`.
+All **46** local links in the three changed Markdown documents passed. Queue
+diff review confirms every other row, Scope and Requires unchanged; no unchecked
+active row remains and the sole next-task pointer is `none`.
+Only documentation changes in this final gate; product/build inputs, test
+inventory and collection are unchanged, so no build or coverage regeneration is
+required. Pre-existing input/storage/rule changes are preserved. Only 004 is
+newly complete; the core installation queue is finished. Customer E2E and
+startup engineering obligations remain in their existing queue.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
@@ -981,14 +1045,15 @@ complete. Task 004a's [finite input review](#task-004a-finite-native-input-revie
 is complete, and 004b's [verified native inputs](#task-004b-verified-native-transaction-inputs)
 are implemented; 004c's history is registered and host-verified. Task 004d's
 [complete installed histories](#task-004d-native-update-qualification) now pass
-on both targets with final helpers and native trigger evidence. Continue with
-004's acceptance reconciliation against those retained receipts.
+on both targets with final helpers and native trigger evidence. Task 004's
+[final installed gate](#task-004-final-native-update-acceptance) reconciles those
+exact retained histories and completes this queue.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
 Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
 package pairs, verified staging and case 289 are implemented; 004d's installed
-transaction qualification is complete, while the final 004 gate remains pending. The product
+transaction qualification and the final 004 gate are complete. The product
 earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual
@@ -1069,7 +1134,7 @@ acceptance rather than requiring all unrelated investigations to finish first.
 | Optional PAM | Parser/control-flow, ownership, include and restoration checks; real-helper composition; tasks 001–002's accepted LXC, plain, Fedora SSSD and local-override native histories | Finite task 002 PAM variants are qualified on both targets. |
 | Failed configuration | OS gates, unsafe paths, migration schema/retry, service failures, backend/trust checks, task 001's native interruption/recovery and task 002's pending-vendor refusal/policy-preserving retry | Finite task 002 environment histories are qualified; future changes still need matching native evidence. |
 | Earlier product versions | Maintained released-source DEB/RPM inputs, case 288's qualified trusted witnesses and case 287's saved-policy/grant upgrade history; retained earlier diagnosis above | Task 003 passed both complete matching upgrade histories with qualified witnesses, retirement/refusal and cleanup. Same-version reinstall is a different result; customer update journeys remain pending. |
-| Live native dependencies | Native version receipts, synthetic executable replacement, retained mappings and reexec checks | Task 004 qualifies an actual distro package maintenance transaction while an owned session is retained; baseline updates before fresh installation do not establish this. |
+| Live native dependencies | Native version receipts, synthetic executable replacement, retained mappings and reexec checks | Task 004 passed both actual native package transaction histories with retained-session enforcement, loader/reexec safety and fresh-session recovery. Future changed inputs require matching evidence. |
 | Core customer behavior and startup faults | Component/system checks and some complete installed journeys already exist | Daily/grant enforcement, hard/soft transitions, natural lock/recovery, persistence and multi-session cases still have pending obligations in the existing E2E queue. Registered selectors are not passing evidence. |
 
 The last row remains owned by the

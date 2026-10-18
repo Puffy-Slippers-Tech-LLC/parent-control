@@ -9,7 +9,7 @@ Requires: 004a.
 Consume 004a's exact supported pairs below; do not substitute versions or
 expand their transaction closure. Implement only their maintained
 preparation, verification, staging and ownership, for both DEB and RPM.
-Read [004](004-native-dependency-update.md),
+Read [004's retained acceptance](../Core-Installation-Coverage-Handoff.md#task-004-final-native-update-acceptance),
 [reusable preparation ownership](../../../tests/integration/Environment.md#reusable-preparation-ownership),
 [VM baseline rules](../../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
 [storage allocation](../../Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes)

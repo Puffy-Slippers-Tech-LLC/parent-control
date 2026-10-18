@@ -121,6 +121,48 @@ def test_real_activation_invalid_phase_releases_no_input(monkeypatch, phase):
     lease.source.domain.sendKey.assert_not_called()
 
 
+@pytest.mark.parametrize('failed', [False, True])
+def test_native_station_remains_open_during_assertions_and_uses_public_exit(monkeypatch, failed):
+    helper, transport, lease, ui, factory, events = activation_harness(monkeypatch)
+    receipt = None
+    try:
+        with helper.native_update_station(transport, lease) as receipt:
+            assert not receipt['normal_exit']
+            assert ui.observe.call_args_list[-1].args[0] == 'restart-kiosk-missing-refused'
+            events.append(('assert-native',))
+            if failed:
+                raise RuntimeError('native assertion')
+    except RuntimeError as error:
+        assert failed and str(error) == 'native assertion'
+    assert receipt['normal_exit']
+    assert [call.args[0] for call in ui.observe.call_args_list][-2:] == [
+        'kiosk-request-cancel', 'gdm-station-returned']
+    lease.source.domain.sendKey.assert_called_once()
+    assert next(index for index, event in enumerate(events) if event == ('assert-native',)) < next(
+        index for index, event in enumerate(events) if event[:2] == ('observe', 'kiosk-request-cancel'))
+
+
+@pytest.mark.parametrize('fault', ['entry', 'form', 'exit'])
+def test_native_station_records_entry_refusal_and_owned_exit_failure(monkeypatch, fault):
+    helper, transport, lease, ui, factory, events = activation_harness(
+        monkeypatch, enter_error=EvidenceError('uncertain-entry') if fault == 'entry' else None)
+    original = ui.observe.side_effect
+    def observe(operation):
+        if operation == {'form': 'kiosk-request-form', 'exit': 'gdm-station-returned'}.get(fault):
+            raise EvidenceError('public-' + fault)
+        return original(operation)
+    ui.observe.side_effect = observe
+    receipt = {}
+    with pytest.raises(EvidenceError):
+        with helper.native_update_station(transport, lease, receipt=receipt):
+            assert fault == 'exit'
+    steps = [call.args[0] for call in ui.observe.call_args_list]
+    assert receipt['normal_exit'] == (fault == 'form')
+    assert receipt['station_confirmed'] == (fault != 'entry')
+    assert ('kiosk-request-cancel' in steps) == (fault != 'entry')
+    lease.source.domain.sendKey.assert_called_once()
+
+
 @pytest.mark.parametrize('fault', ['wrong-recipient', 'failed-proof', 'stale', 'backward-clock', 'boot'])
 def test_real_activation_refuses_bad_or_stale_recipient_without_retry(monkeypatch, fault):
     recipient = {'operation': 'gdm-station-focused', 'outcome': 'passed',

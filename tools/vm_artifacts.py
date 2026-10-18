@@ -13,7 +13,17 @@ from vm_selection import arguments, extract, selected
 
 
 def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False,
-            native_inputs=False):
+            native_inputs=False, system_native_inputs=False):
+    if system_native_inputs:
+        if native_inputs or upgrade_inputs or candidate is not None:
+            raise ValueError('system native inputs require new product and native bundles')
+        if output is None:
+            output = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
+            print('run-tests: output=' + str(output), flush=True)
+        status = prepare(root, control, environment, output=Path(output) / 'product')
+        if status:
+            return status
+        return prepare(root, control, environment, output=Path(output) / 'native', native_inputs=True)
     if native_inputs and upgrade_inputs:
         raise ValueError('native dependency and product upgrade inputs are separate operations')
     package_format = selected().require_package_format()
@@ -75,12 +85,14 @@ def main(argv=None):
     parser.add_argument('--output')
     parser.add_argument('--upgrade-inputs', action='store_true')
     parser.add_argument('--native-inputs', action='store_true')
+    parser.add_argument('--system-native-inputs', action='store_true')
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     with Control().installed(pipe=False) as control:
         return prepare(root, control, test_launcher.environment(root),
                        candidate=args.candidate, output=args.output, upgrade_inputs=args.upgrade_inputs,
-                       **({'native_inputs': True} if args.native_inputs else {}))
+                       **({'native_inputs': True} if args.native_inputs else {}),
+                       **({'system_native_inputs': True} if args.system_native_inputs else {}))
 
 
 if __name__ == '__main__':

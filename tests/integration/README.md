@@ -103,6 +103,53 @@ current source/package inputs; previous acceptance artifacts are not defaults.
 Future `test-system`/`test-e2e` prepare inputs automatically, and `test-all`
 coordinates host results and VM artifacts for the same source content.
 
+## Retained-session native dependency update
+
+`package` → `test_native_dependency_update_retained_session` (ID **289**) is an
+isolated baseline history. It uses the
+[verified finite native inputs](Environment.md#verified-finite-native-transaction-inputs),
+separately from earlier **product** release inputs. Prepare and run both targets
+in parallel through the existing registry scheduler:
+
+```sh
+tools/run-tests system --vm 'onpc-Ubuntu26.04,onpc-Fedora44' --id 289 --native-inputs
+```
+
+Each VM worker owns its current product bundle and the exact native DEB or RPM
+pair selected by its verified baseline. The explicit single-target route accepts
+`--artifacts 'PRODUCT-DIRECTORY' --native-artifacts 'NATIVE-DIRECTORY'`; prepare
+the latter with `tools/run-tests artifacts prepare --for-vm --native-inputs --vm NAME`.
+Automatic `--native-inputs` refuses explicit input paths and `--upgrade-inputs`.
+This history cannot be combined with other cases or earlier-product inputs.
+Listing the selector requires no artifact preparation or VM operation.
+The installed test dispatcher must include `--native-artifacts`; refresh changed
+development helpers through `./setup.sh --test-tools-only` under the
+[setup contract](../../docs/Approval-Tools.md#one-time-setup) before first live use.
+
+The runner establishes the verified old native package, with normal scripts and
+triggers, **before** installing the product through `make install`. Initial
+configuration and a real reboot precede `native-update`. That phase keeps a
+publicly entered request-station session and an identified old executable
+mapping alive during the offline native upgrade. It verifies changed host bytes,
+retained generation and enforcement, fresh unsafe-admission refusal, exclusion
+of the policy loader under a held admission lease and explicit safe manager
+reexecution. The station exits normally before a second real reboot.
+`native-update-rebooted` requires the bound predecessor checkpoint, changed boot,
+fresh station admission, public broker operation and unchanged saved child
+policy and vendor PAM. These are engineering assertions; the existing synthetic
+replacement/reexec matrix remains separate.
+
+Both phases stay in one owned baseline attempt. Resume reconstructs the whole
+history rather than splicing old phase passes into a restored guest. Native
+inputs, baseline, selected helper sources and private checkpoints bind that
+attempt. Pre-reboot phase evidence and failure collection use the existing
+runner; baseline restoration and off verification remain its cleanup owner.
+Each pytest phase and the old-package establishment command has a finite
+2,400-second timeout; the post-exit retirement check has a 180-second timeout.
+Registration and host doubles supply no installed transaction acceptance.
+The later [004d qualification](../../docs/TestAutomation/Core-Installation-Tasks/004d-native-update-histories.md)
+must pass both complete target histories with matching inputs and cleanup.
+
 ## Running the current installed suite
 
 Cases have permanent numeric IDs shown by `tools/run-tests system --list`.

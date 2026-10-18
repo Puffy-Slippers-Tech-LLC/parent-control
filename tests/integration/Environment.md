@@ -268,8 +268,9 @@ owned attempt input directory and binds the native manifest to the exact
 `selected-inputs.json` digest and accepted baseline provenance. Its durable
 applicability intent precedes copying, so interrupted retry cannot adopt another
 selection or baseline. `verify_native_assets()` rechecks that binding and the
-native bundle without repair. These are callable input routes; the live native
-history selector and its command-line input composition remain pending task 004c.
+native bundle without repair. The installed runner's
+[retained-session native history](README.md#retained-session-native-dependency-update)
+composes these routes with target-specific product inputs.
 
 [`native_transaction.preflight()`](native_transaction.py) consumes a verified
 manifest and performs read-only checks against the actual installed package set.

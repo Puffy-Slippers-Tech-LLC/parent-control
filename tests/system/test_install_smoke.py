@@ -49,6 +49,15 @@ def test_trusted_native_upgrade_fixtures(record_testsuite_property):
     qualify(record_testsuite_property)
 
 
+def test_native_dependency_update_retained_session(record_testsuite_property):
+    from system_native_update import retain_upgrade, fresh_after_reboot
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    guest.require(phase in ('native-update', 'native-update-rebooted'),
+                  'native-update:test-phase')
+    {'native-update': retain_upgrade, 'native-update-rebooted': fresh_after_reboot}[
+        phase](record_testsuite_property)
+
+
 def test_first_configuration_interruption_retry(record_testsuite_property):
     from system_first_configure import exercise, verify_reboot
     {'first-configure': exercise, 'first-configure-rebooted': verify_reboot}[

@@ -10,9 +10,23 @@ Requires: 004c.
 Run one complete history per target implementing every
 [004 assertion](004-native-dependency-update.md), using the finite DEB/RPM inputs
 from [004b](004b-native-transaction-inputs.md) and the registered history from
-[004c](004c-native-update-history.md). The selector
-`test_native_dependency_update_retained_session` is planned/unimplemented until
-004c records its actual registration/invocation. Verify both prerequisites and
+[004c](../Core-Installation-Coverage-Handoff.md#task-004c-retained-session-history).
+System case **289**, `test_native_dependency_update_retained_session`, has two
+ordered phases, `native-update` and `native-update-rebooted`, in one baseline
+attempt. Follow the [installed runner invocation](../../../tests/integration/README.md#retained-session-native-dependency-update):
+
+```sh
+tools/run-tests system --vm 'onpc-Ubuntu26.04,onpc-Fedora44' --id 289 --native-inputs
+```
+
+Each target worker prepares current product inputs and its own verified native
+pair; Ubuntu receives DEB/bubblewrap and Fedora receives RPM/xdg-dbus-proxy.
+Do not reuse a sibling's input path. The old native transaction precedes product
+installation, initial configuration and reboot; the first phase retains the
+public station across the new native transaction. Normal public exit, preserved
+pre-reboot evidence and a second real reboot precede fresh admission in the
+second phase. A failed or interrupted history restarts in full.
+Verify both prerequisites and
 accepted baseline provenance, dependency closure and exact staged inputs for
 each target before execution. Follow the
 [VM mandate](../../Mandates/VM-Mandate.MD) and maintained installed runner;

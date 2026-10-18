@@ -177,7 +177,10 @@ def vm_request(argv):
     from vm_selection import vm_config, execution_selection, extract_execution, selected
     args, selector = vm_config.extract_selector(argv)
     if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
-        execution_selection(selector)
+        _, vms = execution_selection(selector)
+        if len(vms) > 1 and any(value == '--native-artifacts' or value.startswith('--native-artifacts=')
+                                 for value in args):
+            raise ValueError('explicit native artifacts require a single VM; use --native-inputs for a queue')
     elif selector is not None:
         extract_execution(argv)
     return args, selected() if selector is not None else None
@@ -278,6 +281,9 @@ Aggregate aliases (no suite selectors)
   and supplies --artifacts/--previous-artifacts to the existing installed runner.
   It requires the VM's declared format to match its verified baseline; no format defaults.
   Explicit artifact paths cannot be combined with system --upgrade-inputs.
+  system --native-inputs prepares current product and finite native dependency
+  inputs independently per VM, then supplies --artifacts/--native-artifacts.
+  It cannot be combined with --upgrade-inputs or explicit artifact paths.
   Add --output PATH to prepare a new named input without replacing existing data.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
@@ -396,16 +402,31 @@ def vm_input_options(category, argv):
     probe. Explicit existing bundles and automatically built pairs are exclusive.
     """
     upgrade = '--upgrade-inputs' in argv
+    native = '--native-inputs' in argv
+    if native and (category != 'system' or argv.count('--native-inputs') != 1 or upgrade
+                   or any(value in ('--artifacts', '--previous-artifacts', '--native-artifacts')
+                          or value.startswith(('--artifacts=', '--previous-artifacts=', '--native-artifacts='))
+                          for value in argv)):
+        raise ValueError('native inputs require system and no upgrade or explicit artifact paths')
     if upgrade and (category != 'system' or argv.count('--upgrade-inputs') != 1
-                    or any(value in ('--artifacts', '--previous-artifacts')
-                           or value.startswith(('--artifacts=', '--previous-artifacts='))
+                    or any(value in ('--artifacts', '--previous-artifacts', '--native-artifacts')
+                           or value.startswith(('--artifacts=', '--previous-artifacts=', '--native-artifacts='))
                            for value in argv)):
         raise ValueError('upgrade inputs require system and no explicit artifact paths')
-    return [value for value in argv if value != '--upgrade-inputs'], upgrade
+    return [value for value in argv if value not in ('--upgrade-inputs', '--native-inputs')], upgrade
+
+
+def vm_preparation_flags(category, argv):
+    _, upgrade = vm_input_options(category, argv)
+    return (['--system-native-inputs'] if '--native-inputs' in argv else
+            ['--upgrade-inputs'] if upgrade else [])
 
 
 def prepared_vm_options(category, argv, directory):
     options, upgrade = vm_input_options(category, argv)
+    if '--native-inputs' in argv:
+        return [*options, '--artifacts=' + str(Path(directory) / 'product'),
+                '--native-artifacts=' + str(Path(directory) / 'native')]
     if upgrade:
         return [*options, '--artifacts=' + str(Path(directory) / 'current'),
                 '--previous-artifacts=' + str(Path(directory) / 'previous')]
@@ -492,6 +513,7 @@ def make_command(root, target, assignments=()):
 
 def plan(root, category, argv):
     """Validate everything before prerequisites, output creation or execution."""
+    native_inputs = category == 'system' and '--native-inputs' in argv
     if category in ('integration', 'system', 'e2e'):
         from vm_selection import extract_execution as extract
         argv, _ = extract(argv, required=False)
@@ -526,6 +548,39 @@ def plan(root, category, argv):
         vm_args = arguments() if '--list' not in argv else []
         command = dispatcher['selection'](root, [category, *argv, *vm_args],
                                           allow_missing_artifacts=category in ('system', 'e2e'))
+        selectors = dict(value.split('=', 1) for value in command
+                         if value.startswith(('--area=', '--test=', '--id=')))
+        explicit_native = any(value == '--native-artifacts' or value.startswith('--native-artifacts=')
+                              for value in argv)
+        native_selection = native_inputs or explicit_native
+        if category == 'system' and '--list' not in argv and (
+                native_selection or '--id' in selectors or '--test' in selectors):
+            # Resolve the finite history before allocating or building either
+            # bundle, using the installed runner's selector and inventory owner.
+            sys.path.insert(0, str(root / 'tests/integration'))
+            try:
+                import system_runner
+            finally:
+                sys.path.pop(0)
+            if '--id' in selectors:
+                from system_case_ids import parse_recording_ids
+                native_selection = native_selection or any(
+                    identity.case_id == system_runner.NATIVE_UPDATE_CASE
+                    for identity in parse_recording_ids(selectors['--id']))
+            native_selection = native_selection or selectors.get('--test') == system_runner.NATIVE_UPDATE_CASE
+        if native_selection and '--list' not in argv:
+            from vm_selection import selected
+            try:
+                system_runner.resolve_selection(
+                    selectors.get('--area'), selectors.get('--test'),
+                    **({'recording_ids': selectors['--id']} if '--id' in selectors else {}),
+                    qualification_failure='--qualification-failure' in argv,
+                    fresh_install=any(value == '--previous-artifacts' or
+                                      value.startswith('--previous-artifacts=') for value in argv),
+                    native_inputs=native_inputs or explicit_native,
+                    target_package_format=selected().require_package_format())
+            except system_runner.Error as error:
+                raise ValueError(str(error)) from error
         if '--list' in argv and category != 'integration':
             return [command], False
         # Forward the validated E2E options, preserving a multi-case selection.
@@ -696,7 +751,7 @@ def _main(argv=None, *, detached=False, checkpoint=None):
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
                     python_file(root, 'tools/vm_artifacts.py',
-                                *(['--upgrade-inputs'] if vm_input_options(category, options)[1] else []),
+                                *vm_preparation_flags(category, options),
                                 '--output', directory,
                                 *vm_arguments()),
                     cwd=root, env=host.environment(root), check=False).returncode

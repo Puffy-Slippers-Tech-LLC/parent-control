@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **004c — [Implement the retained-session transaction history](Core-Installation-Tasks/004c-native-update-history.md)**.
+Next task: **004d — [Qualify the Ubuntu and Fedora native update histories](Core-Installation-Tasks/004d-native-update-histories.md)**.
 
 ## Purpose and continuation
 
@@ -685,11 +685,65 @@ bundles/reports remain under their normal owners. Only 004b is newly complete.
 
 The [004b brief](Core-Installation-Tasks/004b-native-transaction-inputs.md)
 remains as 004a's authoritative finite input review and the remaining history
-checkpoint reference. The [004c brief](Core-Installation-Tasks/004c-native-update-history.md)
-now links the implemented input APIs. Actual installed solver/trigger behavior,
+checkpoint reference. The [004c history](#task-004c-retained-session-history)
+uses the implemented input APIs. Actual installed solver/trigger behavior,
 old-generation establishment, retained mappings and admission/reboot recovery
 remain unqualified until both complete 004d histories pass. No host result here
 substitutes for that installed acceptance.
+
+## Task 004c retained-session history
+
+System case **289**, `test_native_dependency_update_retained_session`, implements
+one isolated baseline attempt with `native-update` and `native-update-rebooted`.
+The [installed runner](../../tests/integration/README.md#retained-session-native-dependency-update)
+documents the actual invocation, phase ordering and finite timeouts. Its
+`--native-inputs` composition prepares current product inputs and the verified
+native pair independently in each target worker; explicit single-target bundles
+use `--artifacts` and `--native-artifacts`.
+
+The old native transaction runs before product installation and initial reboot.
+A publicly entered station then remains open across the exact new transaction,
+with an owned native executable witness, manager/thread boundary, independent
+allow/deny controls and immutable private generation evidence. Fresh unsafe
+admission refuses; a held native admission excludes policy loading; explicit
+manager reexecution retains the old boundary. Public Cancel owns normal session
+exit. A second real reboot precedes fresh station admission with new bytes,
+public broker access and preserved child policy/vendor PAM.
+
+Attempt-private append-only checkpoints bind package, native manifest, selected
+helpers, baseline and boot identities. The runner collects bounded redacted
+checkpoints and transaction diagnostics on failure and before reboot. Resume
+reconstructs both phases; it cannot splice retained passes into a new guest.
+Existing VM leases, transport/watch, recording and baseline cleanup owners remain
+authoritative. The synthetic replacement/reexec regressions remain separate.
+
+Accepted 2026-10-18 as **host**, with no declared acceptance targets or VM
+mutation. The final affected selection passed **3,600/3,600**, report
+`output/test-runs/host/reports/20261018T201425Z-7f91278e/report.md`.
+It covers both package formats, input prerequisites, binding/ownership/replay,
+ordered transactions/reboots, real mapping identity, retained enforcement and
+refusal assertions, public exit, recovery, collection on failure and owned
+cleanup. Independent review corrected the Fedora witness to use the established
+private app entrypoint before its native service transition, preserving product
+policy. Runtime enforcement remains an installed assertion for 004d.
+
+All applicable resource inventories were reviewed. New checks use tiny private
+files, auto-closed descriptors and in-process command/UI/process doubles, with
+no live VM, service, bus, display, network or shared cache. The three new modules
+are compatible unit work; existing cleanup/UI classifications remain unchanged.
+Generated coverage was refreshed: **125** added host cases and one system case;
+no E2E status changed. `PACKAGE_SOURCE_FILES` and ordinary build-tool dependencies
+are unaffected, so no `make build` is required. All subagents joined and the
+maintained host runner released its owner; scratch cleanup ended, retaining
+normal reports. No VM or other resource remains owned by this task.
+Final plan, inventory, coverage and composition checks passed **551/551** in
+`output/test-runs/host/reports/20261018T201548Z-8e2be988/report.md`;
+all **108** local links across seven changed Markdown documents passed. Queue
+diff review confirms every other row, every Scope and every Requires unchanged,
+with 004d as the first unchecked task. The completed temporary 004c brief was
+removed after its enduring invocation and evidence moved to the maintained owners.
+Only 004c is newly complete. Registration and host doubles grant no installed
+native transaction acceptance; both complete 004d target histories remain required.
 
 ## Coverage audit and remaining work
 
@@ -697,13 +751,14 @@ The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md)
 Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
 complete. Task 004a's [finite input review](#task-004a-finite-native-input-review)
 is complete, and 004b's [verified native inputs](#task-004b-verified-native-transaction-inputs)
-are implemented; continue with 004c's retained-session history.
+are implemented; 004c's history is registered and host-verified. Continue with
+004d's two complete installed histories.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
 Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
-package pairs and verified staging are implemented; installed transaction
-qualification remains pending, and the selector remains unimplemented. The product
+package pairs, verified staging and case 289 are implemented; installed transaction
+qualification remains pending. The product
 earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual

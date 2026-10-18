@@ -22,6 +22,7 @@ def attempts(selection, *, fresh_install=False):
     groups.insert(1, (system.FIRST_CONFIGURE_PHASES, False))
     groups[2:2] = [(history.phases, False) for history in system.PAM_HISTORIES]
     groups.append(((system.TRUSTED_FIXTURES_PHASE,), False))
+    groups.append((system.NATIVE_UPDATE_PHASES, False))
     result = []
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)
@@ -47,7 +48,7 @@ def installed_case(installed):
 
 
 def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                 *, fresh_install=False):
+                 *, fresh_install=False, native_artifacts=None):
     from system_progress import watching
     planned = attempts(selection, fresh_install=fresh_install)
     # Lifecycle histories can run in a different order from the phase registry.
@@ -55,11 +56,12 @@ def run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, 
     executions = tuple(item for selected, _ in planned for item in selected.executions)
     with watching(executions, suite.lease) as progress:
         return _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
-                             ledger, planned=planned, progress=progress)
+                             ledger, planned=planned, progress=progress,
+                             native_artifacts=native_artifacts)
 
 
 def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                  *, planned, progress):
+                  *, planned, progress, native_artifacts=None):
     from vm_transport import Transport
     from guest_inputs import Bundle
 
@@ -87,6 +89,22 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                             {'schema_version': 1, 'scope': 'system-installed-setup'}, root=system.ROOT)
                     else:
                         lease.prepare()
+                    if system.NATIVE_UPDATE_PHASES[0] in selected.phases:
+                        system.require(not installed and native_artifacts is not None,
+                                       'selection:native-update-requires-native-artifacts')
+                        system.require(system.native_update_host_inputs() == json.loads(
+                            (attempt / 'input/selected-inputs.json').read_bytes())['host_files'],
+                            'native-update:host-inputs-changed')
+                        system.stage_native_assets(native_artifacts, attempt / 'input',
+                            package_format=system.package_format(lease.capture.state['guest']),
+                            baseline_provenance_sha256=lease.state['baseline_sha256'],
+                            selected_inputs_sha256=selected_inputs_sha256)
+                        inventory = {str(path.relative_to(attempt / 'input')):
+                                     system.baseline.digest(path)
+                                     for path in sorted((attempt / 'input').rglob('*'))
+                                     if path.is_file() and path.name != 'transfer-sha256.json'}
+                        (attempt / 'input/transfer-sha256.json').write_bytes(
+                            system.baseline.encode(inventory))
                 with ledger.measure('bootstrap'):
                     host_key = system.bootstrap(suite.commands, lease, attempt, suite.guestfs)
                     lease.start()

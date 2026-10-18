@@ -17,7 +17,7 @@ Requires: 003, 004a, 004b, 004c, 004d.
 
 [004a](../Core-Installation-Coverage-Handoff.md#task-004a-finite-native-input-review) resolves package-pair feasibility and exact
 expected generation behavior; [004b](004b-native-transaction-inputs.md) owns
-verified inputs and preparation; [004c](004c-native-update-history.md) owns
+verified inputs and preparation; [004c](../Core-Installation-Coverage-Handoff.md#task-004c-retained-session-history) owns
 registration and host-verified history implementation.
 [004d](004d-native-update-histories.md) qualifies one complete history per target
 in parallel, with independent ownership and evidence. This final row retains all
@@ -48,9 +48,10 @@ input builder if needed, with provenance and ownership regressions; do not
 repair reusable dependencies during a test. The declared update itself is a
 scenario mutation, as permitted by the VM mandate.
 
-Planned selector: `test_native_dependency_update_retained_session` (unimplemented).
-Register it and its owned transaction inputs before executing. No new generic
-update/fault framework is needed. If no supported package pair is available,
+Registered selector: `test_native_dependency_update_retained_session` (system ID
+**289**); use the [installed runner's bound native-input route](../../../tests/integration/README.md#retained-session-native-dependency-update).
+Registration supplies no installed acceptance. No new generic update/fault
+framework is needed. If no supported package pair is available,
 retain a concrete blocker and required artifact identity.
 
 ## Validation and expected results

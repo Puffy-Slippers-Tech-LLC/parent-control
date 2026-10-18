@@ -963,7 +963,13 @@ from regression_ui import Bucket
 # native/authentication doubles. Baseline trust reconciliation tests remain
 # in-memory guestfs work, with no live trust DB, VM, bus, socket or new owner.
 # Both compatible unit/cleanup classifications for baseline/enforcement hold.
+# Native history route/controller/guest checks use pytest-private checkpoints,
+# small local descriptors and process-local package, UI, transport and process
+# doubles. Descriptors close on refusal; no native package, VM, service, bus,
+# display, network or shared cache is acquired. Existing kiosk-entry checks
+# remain compatible. These three new modules add no cleanup or UI inventory.
 REVIEWED = frozenset("""
+native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
 system_previous_upgrade

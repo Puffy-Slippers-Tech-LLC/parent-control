@@ -98,6 +98,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     system = categories.add_parser('system', allow_abbrev=False)
     system.add_argument('--artifacts', type=Path)
     system.add_argument('--previous-artifacts', type=Path)
+    system.add_argument('--native-artifacts', type=Path)
     system.add_argument('--area')
     system.add_argument('--test')
     system.add_argument('--id', help='comma-separated persistent numeric system case IDs')
@@ -153,6 +154,10 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     if args.category == 'system' and sum(
             argument == '--id' or argument.startswith('--id=') for argument in argv) > 1:
         raise ValueError('selection:repeated-numeric-id-option')
+    if args.category == 'system' and sum(
+            argument == '--native-artifacts' or argument.startswith('--native-artifacts=')
+            for argument in argv) > 1:
+        raise ValueError('selection:repeated-native-artifacts-option')
     if args.category == 'appsnapshot':
         if identity is None:
             raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
@@ -243,7 +248,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     command = ['/usr/bin/python3', '-B', str(target), *vm_args]
     if not args.list and args.artifacts is None and not allow_missing_artifacts:
         parser.error('system requires --artifacts unless --list is supplied')
-    for option in ('artifacts', 'previous_artifacts'):
+    for option in ('artifacts', 'previous_artifacts', 'native_artifacts'):
         artifact = getattr(args, option, None)
         if artifact is None:
             continue

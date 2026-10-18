@@ -2,6 +2,7 @@
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import station_entry
+from contextlib import contextmanager
 import json
 import re
 import system_runner as system
@@ -104,6 +105,40 @@ def observe_activation(transport, lease, phase):
         observe('gdm-station-returned')
         return {'phase': phase, 'boot_sha256': boot, 'public_observations': observations,
                 'engineering_confinement': census}
+
+
+@contextmanager
+def native_update_station(transport, lease, *, receipt=None):
+    """Hold one publicly admitted station across a native transaction assertion."""
+    ui = UiObservations(transport)
+    ui.boot_guard = ''
+    observations = []
+
+    def observe(operation):
+        lease.guard()
+        value = ui.observe(operation)
+        observations.append(value)
+        return value
+
+    with watch_activity.operation('Checking the native update request station'):
+        receipt = {} if receipt is None else receipt
+        receipt.update(boot_sha256=None, normal_exit=False, station_confirmed=False,
+                       public_observations=observations)
+        enter_station(lease, ui, observe)
+        receipt['boot_sha256'] = ui.boot_proof
+        observe('station-default-entry')
+        receipt['station_confirmed'] = True
+        try:
+            observe('kiosk-request-form')
+            observe('restart-kiosk-missing-refused')
+            receipt['engineering_confinement'] = confinement_census(transport, lease)
+            yield receipt
+        finally:
+            # Public cancellation owns logout. Never terminate the manager to
+            # manufacture an inactive session, including on an assertion error.
+            observe('kiosk-request-cancel')
+            observe('gdm-station-returned')
+            receipt['normal_exit'] = True
 
 
 class KioskEntryJourney(InstalledJourney):

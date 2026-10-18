@@ -849,6 +849,7 @@ def collect(marker, outcome):
     for source in sorted((PAYLOAD / 'private').glob('*/*.txt')):
         require(not source.is_symlink(), 'diagnostic-file-type')
         (output / f'{source.parent.name}-{source.name}').write_text(redacted(source.read_text(errors='replace')))
+    collect_native_checkpoints(output, redacted)
     (output / 'result.json').write_text(json.dumps({
         'schema_version': 1, 'test': 'install-smoke', 'outcome': outcome,
         'package_sha256': marker['package_sha256'], 'baseline_sha256': marker['baseline_sha256'],
@@ -869,11 +870,39 @@ def collect(marker, outcome):
         tree.write(source, encoding='utf-8', xml_declaration=True)
 
 
+def collect_native_checkpoints(output, redacted):
+    """Export only the finite native history records through normal redaction."""
+    for phase in ('intent', 'old', 'retained-intent', 'updated', 'retired', 'complete'):
+        source = PAYLOAD / 'private' / ('native-update-' + phase + '.json')
+        if not source.exists():
+            continue
+        info = source.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and
+                info.st_uid == info.st_gid == 0 and stat.S_IMODE(info.st_mode) == 0o600 and
+                info.st_size <= 8 * 1024 * 1024, 'native-update:collection-checkpoint')
+        contents = source.read_text()
+        require(isinstance(json.loads(contents), dict), 'native-update:collection-format')
+        (output / source.name).write_text(redacted(contents))
+
+
 def install_setup():
     marker = guard()
     require(sha(PAYLOAD / 'selected-inputs.json') == marker['selected_inputs_sha256'],
             'selected-inputs-digest')
     install()
+
+
+def native_establish_old():
+    from system_native_update import establish_old
+    guard()
+    enable_diagnostics()
+    establish_old(lambda *_: None)
+
+
+def native_retired():
+    from system_native_update import retired
+    guard()
+    retired(lambda *_: None)
 
 
 def install_suite():
@@ -971,11 +1000,13 @@ def main(argv=None):
             prepare_activation_greeter()
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
+                             ['native-establish-old'], ['native-retired'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
                              ['verify-setup'], ['install-suite'], ['verify-installed'],
                              ['verify-snapshot'], ['prepare-toggle-session']),
                     'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
+             'native-establish-old': native_establish_old, 'native-retired': native_retired,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
              'install-suite': install_suite, 'verify-installed': verify_installed,

@@ -1516,6 +1516,7 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'system_kiosk_admission.py', 'system_assertions.py',
         'system_kiosk_confinement.py', 'system_kiosk_scope.py',
         'system_kiosk_platform.py', 'system_wellbeing_qualification.py',
+        'system_native_update.py', 'native_transaction.py',
             'system_first_configure.py', 'system_pam_variants.py', 'system_previous_upgrade.py',
         'system_removal.py', 'system_removal_faults.py',
         'system_removal_identity.py', 'system_removal_ownership.py',

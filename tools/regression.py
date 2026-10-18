@@ -756,6 +756,9 @@ class Run:
             # normalized selectors; do not implement another CLI parser.
             options, selector = vm_config.extract_selector(list(options))
             from test_commands import vm_input_options
+            native_inputs = '--native-inputs' in options or any(
+                value == '--native-artifacts' or value.startswith('--native-artifacts=')
+                for value in options)
             options, upgrade_inputs = vm_input_options('system', options)
             configured = vm_config.load(selector) if selector is not None else None
             if configured is not None and configured.name != target.name:
@@ -771,6 +774,7 @@ class Run:
                 selectors.get('--area'), selectors.get('--test'), inventories=inventories,
                 **({'recording_ids': selectors['--id']} if '--id' in selectors else {}),
                 qualification_failure='--qualification-failure' in normalized,
+                **({'native_inputs': True} if native_inputs else {}),
                 fresh_install=upgrade_inputs or '--previous-artifacts' in normalized,
                 target_package_format=configured.require_package_format())
             return {execution.phase + '::' + execution.case_id

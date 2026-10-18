@@ -51,6 +51,8 @@ PREVIOUS_POLICY_CASE = 'test_previous_package_policy_preservation'
 PREVIOUS_POLICY_PHASES = ('previous-policy', 'installed', 'rebooted')
 TRUSTED_FIXTURES_CASE = 'test_trusted_native_upgrade_fixtures'
 TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
+NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
+NATIVE_UPDATE_PHASES = ('native-update', 'native-update-rebooted')
 
 
 @dataclass(frozen=True)
@@ -106,7 +108,7 @@ REMOVAL_FAMILIES = {
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
                    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
-PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
+PHASE_ORDER = (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session')
@@ -145,7 +147,14 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
     'common/oh_no_parent_control_ui/application_ui.py',
     'common/oh_no_parent_control_ui/application_ui_client.py', 'data/app.json',
 )
+NATIVE_UPDATE_HOST_INPUTS = (
+    'tools/native_transaction_inputs.py', 'tools/build_test_artifacts.py',
+    'tools/vm_artifacts.py', 'tools/test_commands.py', 'tools/onpc-test-runner',
+    'tools/regression.py', 'tools/regression_process.py',
+)
 PHASE_DEPENDENCIES = {
+    NATIVE_UPDATE_PHASES[0]: (),
+    NATIVE_UPDATE_PHASES[1]: NATIVE_UPDATE_PHASES[:1],
     TRUSTED_FIXTURES_PHASE: (),
     'previous-policy': (),
     'installed': (),
@@ -164,6 +173,10 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    NATIVE_UPDATE_PHASES[0]: ('verified-native-artifacts', 'old-native-before-install',
+                            'package-install', 'guest-reboot', 'retained-public-station'),
+    NATIVE_UPDATE_PHASES[1]: ('native-update-phase', 'normal-public-station-exit',
+                            'guest-reboot', 'fresh-public-station'),
     TRUSTED_FIXTURES_PHASE: ('genuine-earlier-package', 'previous-install-and-reboot',
                             'trusted-native-baseline-fixtures', 'fixture-passwords'),
     'previous-policy': ('genuine-earlier-package', 'previous-install-and-reboot',
@@ -379,6 +392,7 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
+        NATIVE_UPDATE_CASE: NATIVE_UPDATE_PHASES,
         TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
         PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
         **{history.case_id: history.phases for history in PAM_HISTORIES},
@@ -393,7 +407,8 @@ def case_phases(area, case_id):
 
 
 def resolve_selection(area=None, test=None, *, inventories=None, qualification_failure=False,
-                      fresh_install=False, target_package_format=None, recording_ids=None):
+                      fresh_install=False, target_package_format=None, recording_ids=None,
+                      native_inputs=False):
     """Resolve an exact case or registered family and its phase prerequisites."""
     require(recording_ids is None or area is test is None, 'selection:numeric-id-selector-conflict')
     require(area is None or area != '', 'selection:empty-area')
@@ -456,6 +471,17 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     trusted_fixtures = TRUSTED_FIXTURES_CASE in chosen.get('package', ())
     require(not trusted_fixtures or chosen == {'package': (TRUSTED_FIXTURES_CASE,)},
             'selection:trusted-fixtures-requires-isolated-history')
+    if test != NATIVE_UPDATE_CASE and not identities and 'package' in chosen:
+        chosen['package'] = tuple(case for case in chosen['package'] if case != NATIVE_UPDATE_CASE)
+    native_update = NATIVE_UPDATE_CASE in chosen.get('package', ())
+    require(not native_update or chosen == {'package': (NATIVE_UPDATE_CASE,)},
+            'selection:native-update-requires-isolated-history')
+    require(not native_update or not fresh_install,
+            'selection:native-update-refuses-previous-artifacts')
+    require(not native_update or native_inputs is not False,
+            'selection:native-update-requires-native-artifacts')
+    require(native_inputs is not True or native_update,
+            'selection:native-artifacts-require-native-update')
     # This optional history needs explicit earlier-package inputs. Ordinary
     # current-package suites keep their independent baseline histories.
     if not fresh_install and test is None and not identities and 'package' in chosen:
@@ -562,6 +588,9 @@ def resume_selection(selection, completed, *, fresh_install=False):
     if any(item.case_id == PREVIOUS_POLICY_CASE for item in remaining):
         remaining = tuple(item for item in selection.executions
                           if item in remaining or item.case_id == PREVIOUS_POLICY_CASE)
+    if any(item.case_id == NATIVE_UPDATE_CASE for item in remaining):
+        remaining = tuple(item for item in selection.executions
+                          if item in remaining or item.case_id == NATIVE_UPDATE_CASE)
     for history in (*REMOVAL_HISTORIES, *PAM_HISTORIES):
         # State-changing histories cannot splice retained predecessor passes
         # into a newly restored guest.
@@ -1512,9 +1541,11 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
-    if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE
+    if any(item.area == 'package' and item.case_id in (KIOSK_ACTIVATION_CASE, NATIVE_UPDATE_CASE)
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
+        if any(item.case_id == NATIVE_UPDATE_CASE for item in selection.executions):
+            identity['host_files'] = native_update_host_inputs()
     path = destination / 'selected-inputs.json'
     path.write_bytes(baseline.encode(identity))
     digest = baseline.digest(path)
@@ -1526,6 +1557,13 @@ def kiosk_activation_host_inputs():
     from guest_inputs import read
     return {source: hashlib.sha256(read(ROOT, source)).hexdigest()
             for source in KIOSK_ACTIVATION_HOST_INPUTS}
+
+
+def native_update_host_inputs():
+    from guest_inputs import read
+    return {**kiosk_activation_host_inputs(),
+            **{source: hashlib.sha256(read(ROOT, source)).hexdigest()
+               for source in NATIVE_UPDATE_HOST_INPUTS}}
 
 
 def observe_kiosk_activation(vm, lease, directory, selection, phase):
@@ -1891,11 +1929,48 @@ def run_pytest(vm, run, phase, selection):
     vm.commands.progress = Progress(phase, phase_executions(selection, phase), watch=watch_progress)
     try:
         return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
+                       timeout=2400 if phase in (*NATIVE_UPDATE_PHASES, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
                                            for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress.close()
         vm.commands.progress = previous
+
+
+def run_native_update_phase(vm, lease, directory, selection, phase, ledger=None):
+    from kiosk_entry import native_update_station
+    from private_artifacts import EvidenceError
+    inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    require(native_update_host_inputs() == inputs['host_files'],
+            'native-update:host-inputs-changed')
+    receipt = {}
+    try:
+        with native_update_station(vm, lease, receipt=receipt):
+            run_pytest(vm, lease.state['run'], phase, selection)
+    except EvidenceError as error:
+        if ledger is not None:
+            domain = 'infrastructure' if str(error).startswith('kiosk-activation:') else 'product'
+            ledger.fail_outcome(domain, error_category(error))
+        raise
+    finally:
+        if receipt:
+            receipt.update(phase=phase, host_files=inputs['host_files'],
+                           host_inputs_unchanged=native_update_host_inputs() == inputs['host_files'],
+                           selected_inputs_sha256=baseline.digest(
+                               directory / 'input/selected-inputs.json'))
+            output = directory / 'guest-results'
+            output.mkdir(mode=0o700, exist_ok=True)
+            (output / ('station-' + phase + '.json')).write_bytes(baseline.encode(receipt))
+    require(receipt and receipt['normal_exit'], 'native-update:public-exit-required')
+    require(native_update_host_inputs() == inputs['host_files'],
+            'native-update:host-inputs-changed')
+    if phase == NATIVE_UPDATE_PHASES[1]:
+        prior = json.loads((directory / 'guest-results' /
+                            ('station-' + NATIVE_UPDATE_PHASES[0] + '.json')).read_bytes())
+        require(prior['normal_exit'] and prior['selected_inputs_sha256'] ==
+                receipt['selected_inputs_sha256'] and prior['boot_sha256'] != receipt['boot_sha256'],
+                'native-update:recovery-boot-or-exit')
+    if phase == NATIVE_UPDATE_PHASES[0]:
+        vm.call(guest_command(lease.state['run'], 'native-retired'), timeout=180)
 
 
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
@@ -1913,6 +1988,16 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         has_previous = any(path.exists() for path in previous)
         previous_policy = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
         trusted_fixtures = any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)
+        native_update = any(item.case_id == NATIVE_UPDATE_CASE for item in selection.executions)
+        require(not native_update or (not already_installed and not has_previous and
+                selection.phases == NATIVE_UPDATE_PHASES and
+                all(item.case_id == NATIVE_UPDATE_CASE for item in selection.executions)),
+                'selection:native-update-requires-isolated-baseline')
+        if native_update:
+            verify_native_assets(directory / 'input',
+                package_format=package_format(lease.capture.state['guest']),
+                baseline_provenance_sha256=lease.state['baseline_sha256'],
+                selected_inputs_sha256=baseline.digest(directory / 'input/selected-inputs.json'))
         require(not trusted_fixtures or (has_previous and not already_installed and
                 selection.phases == (TRUSTED_FIXTURES_PHASE,) and
                 selection.executions == (CaseExecution(TRUSTED_FIXTURES_PHASE, 'package',
@@ -1972,9 +2057,22 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                     vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
         if not already_installed and not first_configure and pam_history is None and not trusted_fixtures:
+            if native_update:
+                lease.save('native-establish-old')
+                with ledger.measure('install'):
+                    vm.call(guest_command(run, 'native-establish-old'), timeout=2400)
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
+        if native_update:
+            with ledger.measure('collection'):
+                vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
+                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+            lease.save('native-install-reboot')
+            with ledger.measure('reboot'):
+                vm.reboot()
+            with ledger.measure('bootstrap'):
+                vm.call(guest_command(run, 'verify-setup'), timeout=660)
         if install_phases:
             phase = install_phases[0]
             # Observe fresh installation before deliberate metadata/fault
@@ -2018,24 +2116,28 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                 for phase in history.phases)
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
-        for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
+        for phase in (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
                       'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
-            if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
+            if phase in (NATIVE_UPDATE_PHASES[1], *rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
                          *(item for history in PAM_HISTORIES for item in history.phases[1:])):
                 # Keep removal, the health boot and reinstallation in one
                 # attempt. Restoration is cleanup, never a lifecycle step.
-                if phase in PAM_PHASES:
+                if phase in (*NATIVE_UPDATE_PHASES, *PAM_PHASES):
                     # Save the prior phase before a real reboot can lose the
                     # transport. Every variant remains one owned history.
                     with ledger.measure('collection'):
                         vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                         vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-                        prior = pam_history.phases[pam_history.phases.index(phase) - 1]
+                        prior = (NATIVE_UPDATE_PHASES[0] if native_update else
+                                 pam_history.phases[pam_history.phases.index(phase) - 1])
                         retained = directory / 'phase-results' / prior
                         retained.mkdir(parents=True, mode=0o700)
                         vm.copy(True, PAYLOAD + '/results/', str(retained) + '/')
+                        if native_update:
+                            shutil.copyfile(directory / 'guest-results' /
+                                ('station-' + prior + '.json'), retained / ('station-' + prior + '.json'))
                 lease.save('reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
@@ -2051,7 +2153,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             lease.save('pytest-' + phase)
             with ledger.measure('test'):
                 try:
-                    run_pytest(vm, run, phase, selection)
+                    if phase in NATIVE_UPDATE_PHASES:
+                        run_native_update_phase(vm, lease, directory, selection, phase, ledger)
+                    else:
+                        run_pytest(vm, run, phase, selection)
                 except CommandError as error:
                     domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
                               else 'infrastructure')
@@ -2201,6 +2306,8 @@ def main(argv=None):
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
                         help='verified prior package to install and reboot before upgrade or fixture qualification')
+    parser.add_argument('--native-artifacts', type=Path,
+                        help='verified finite native pair for the isolated retained-session history')
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--id', help='comma-separated persistent numeric system case IDs')
@@ -2230,6 +2337,7 @@ def main(argv=None):
                     for argument in argv) <= 1, 'selection:repeated-numeric-id-option')
         if args.list:
             selection = resolve_selection(args.area, args.test,
+                                          native_inputs=True if args.native_artifacts else None,
                                           recording_ids=args.id,
                                           qualification_failure=args.qualification_failure,
                                           fresh_install=args.previous_artifacts is not None,
@@ -2241,6 +2349,7 @@ def main(argv=None):
             require(os.geteuid() == os.getegid() == 0,
                     'guard:root; run from a root shell on the VM host')
         selection = resolve_selection(args.area, args.test,
+                                      native_inputs=args.native_artifacts is not None,
                                       recording_ids=args.id,
                                       qualification_failure=args.qualification_failure,
                                       fresh_install=args.previous_artifacts is not None,
@@ -2269,6 +2378,7 @@ def main(argv=None):
         with ledger.measure('preparation'):
             assets = artifact_source(args.artifacts)
             previous_assets = artifact_source(args.previous_artifacts) if args.previous_artifacts else None
+            native_assets = artifact_source(args.native_artifacts) if args.native_artifacts else None
         os.umask(0o077)
         from tools.test_retention import allocate
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-system-'))
@@ -2305,7 +2415,8 @@ def main(argv=None):
             raise KeyboardInterrupt
         signal.signal(signal.SIGTERM, interrupted)
         run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
-                     fresh_install=args.previous_artifacts is not None)
+                     fresh_install=args.previous_artifacts is not None,
+                     **({'native_artifacts': native_assets} if native_assets is not None else {}))
         ledger.pass_outcome('infrastructure')
         passed = True
         category = 'all-checks-passed'

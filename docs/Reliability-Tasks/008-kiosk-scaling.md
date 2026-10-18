@@ -10,8 +10,9 @@ Estimate: 60–90 minutes.
 ## Session boundary
 
 Deliver the paired ordinary/enlarged inventory measurements and independent
-functional/resource results. 008a supplies locale/Request ordering, including
-the agent-locale failure slice formerly in 009; 008b supplies logout fallback.
+functional/resource results. 008a cumulatively supplies 008c's locale-job
+contract and Request readiness, including the failure slice formerly in 009;
+008b supplies logout fallback.
 Session exception: all eight samples on each target must compare the same
 candidate and fixture profiles. Do not split cold/warm or ordinary/enlarged
 samples into independently accepted tasks or drop a failed intermediate result.

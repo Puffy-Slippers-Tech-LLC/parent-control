@@ -10,7 +10,8 @@ Estimate: 30–60 minutes.
 ## Session boundary
 
 Deliver actual crash-evidence export after the reporter app has died. 010a
-supplies diagnostic failure isolation; 010b supplies the distinct already-open
+cumulatively supplies 010c's child isolation and process-exit/cleanup diagnostic
+isolation; 010b supplies the distinct already-open
 child reporter/timer recovery export. Session exception: crash, reentry, fresh
 collection and validated download form one causal history per installed target.
 

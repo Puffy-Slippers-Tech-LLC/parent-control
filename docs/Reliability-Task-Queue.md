@@ -15,10 +15,16 @@ provider from the compositor/request-app pair. Numbered work sequences in longer
 briefs break execution into explicit steps; only the complete row earns
 acceptance, including both targets and cleanup where declared.
 
+Host prerequisites further separate child-read retries from query cancellation,
+unlock eligibility from authority lifetime, locale-job ordering from Request
+composition, and child diagnostic isolation from process-exit/cleanup isolation.
+Existing Scope cells remain cumulative; each consumer names its remaining slice.
+
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | 001a | [Broker usage-query retry budgets](Reliability-Tasks/001a-usage-query-budgets.md) | Baseline | Mixed native-error classifications, attempt limits and overdue helper dispatch | 15–30 min |
-| [ ] | 001b | [Child timer-query cancellation](Reliability-Tasks/001b-child-query-cancellation.md) | Baseline | Mixed child-read budgets, cancellation before dispatch and late replies | 15–30 min |
+| [ ] | 001d | [Child estimate-read retry budgets](Reliability-Tasks/001d-child-query-budgets.md) | Baseline | Mixed child estimate-read errors, shared attempt/deadline budgets and terminal categories | 15–30 min |
+| [ ] | 001b | [Child timer-query cancellation](Reliability-Tasks/001b-child-query-cancellation.md) | 001d | Mixed child-read budgets, cancellation before dispatch and late replies | 15–30 min |
 | [ ] | 001c | [Resume lifecycle cancellation](Reliability-Tasks/001c-resume-cancellation.md) | 001a, 001b | Controller query/replay cancellation, inert late callbacks and preserved replay endpoints | 15–30 min |
 | [ ] | 001 | [Timer failure ordering and accounting safety](Reliability-Tasks/001-timer-ordering.md) | 001a, 001b, 001c | Missing deterministic mixed-error, cancellation and operation-specific recovery histories | 15–30 min |
 | [ ] | 002b | [Native timer contention within budget](Reliability-Tasks/002b-timer-contention-recovery.md) | 001 | Real Busy release and recovery within original budgets with recorded-use and second-child controls | 30–60 min (session exception) |
@@ -27,7 +33,8 @@ acceptance, including both targets and cleanup where declared.
 | [ ] | 002 | [Installed timer contention and service recovery](Reliability-Tasks/002-timer-service.md) | 001, 002a, 002c | Real Busy/owner-loss recovery and exhaustion through canonical session tests | 30–60 min (session exception) |
 | [ ] | 003a | [Daily-only inactivity accounting](Reliability-Tasks/003a-daily-only-resume.md) | 001, 002 | Daily-only active/inactive balance intervals through native exhaustion | 45–75 min (session exception) |
 | [ ] | 003 | [Daily accounting across inactivity and delayed resume](Reliability-Tasks/003-daily-resume.md) | 001, 002, 003a | Daily-only and combined native accounting without premature lock or deadline extension | 45–75 min (session exception) |
-| [ ] | 004a | [Trusted unlock authority lifetime](Reliability-Tasks/004a-unlock-authority.md) | Baseline | Deterministic trusted-sender, one-use, expiry and cancellation regressions | 15–30 min |
+| [ ] | 004b | [Trusted unlock sender and eligibility](Reliability-Tasks/004b-unlock-eligibility.md) | Baseline | Trusted sender, parental-lock eligibility and native dispatch admission controls | 15–30 min |
+| [ ] | 004a | [Trusted unlock authority lifetime](Reliability-Tasks/004a-unlock-authority.md) | 004b | Deterministic trusted-sender, one-use, expiry and cancellation regressions | 15–30 min |
 | [ ] | 004 | [Single-authentication retained unlock recovery](Reliability-Tasks/004-retained-unlock.md) | 003, 004a | Natural exhaustion, real approval and one authorized usable return; stale authority refused | 45–75 min (session exception) |
 | [ ] | 005a | [Administrative bridge identity boundary](Reliability-Tasks/005a-bridge-identity.md) | Baseline | Positive verified bridge and negative identity/command PAM controls | 15–30 min |
 | [ ] | 005 | [Package triggers with exhausted retained users](Reliability-Tasks/005-package-triggers.md) | 004, 005a | Native administrative user-bus access succeeds while ordinary time/admission restrictions remain | 45–75 min (session exception) |
@@ -38,12 +45,14 @@ acceptance, including both targets and cleanup where declared.
 | [ ] | 007c | [Native notification-provider isolation](Reliability-Tasks/007c-notification-renderer.md) | 006, 007a | Real notification rendering, provider identity and native enforcing allow/deny controls | 30–60 min (session exception) |
 | [ ] | 007b | [Native renderer functions and isolation](Reliability-Tasks/007b-native-renderers.md) | 006, 007a, 007c | Three usable renderer roles and actual enforcing allow/deny scope on both VMs | 30–60 min (session exception) |
 | [ ] | 007 | [Native VM renderer roles and crash recovery](Reliability-Tasks/007-renderer-roles.md) | 006, 007a, 007b | Exercised renderer permissions, enforcing isolation and observable crash/reentry | 30–60 min (session exception) |
-| [ ] | 008a | [Request readiness and locale retry](Reliability-Tasks/008a-request-readiness.md) | Baseline | Warm-up failure/retry, stale language, supersession and late-callback guards | 15–30 min |
+| [ ] | 008c | [Agent-locale job failure and ordering](Reliability-Tasks/008c-agent-locale-jobs.md) | Baseline | Locale restart/job correlation, failure/retry, queued preparations and callback cleanup | 15–30 min |
+| [ ] | 008a | [Request readiness and locale retry](Reliability-Tasks/008a-request-readiness.md) | 008c | Warm-up failure/retry, stale language, supersession and late-callback guards | 15–30 min |
 | [ ] | 008b | [Bounded kiosk logout fallback](Reliability-Tasks/008b-logout-lifetime.md) | Baseline | Native exit failure, fallback deadline and owned callback/process lifetime | 15–30 min |
 | [ ] | 008 | [Kiosk startup and exit under inventory growth](Reliability-Tasks/008-kiosk-scaling.md) | 006, 007, 008a, 008b | Fixed cold/warm samples, bounded mount/process growth and responsive complete transitions | 60–90 min (session exception) |
 | [ ] | 009a | [Preference write durability and retry](Reliability-Tasks/009a-preference-durability.md) | Baseline | Write/replace/directory-flush failures with identical and changed retries | 15–30 min |
 | [ ] | 009 | [Durable request-state failure and retry](Reliability-Tasks/009-state-durability.md) | 008, 009a | Real private-filesystem write/flush/replace failures preserve state and permit correct retry | 15–30 min |
-| [ ] | 010a | [Diagnostic failure isolation](Reliability-Tasks/010a-diagnostic-isolation.md) | Baseline | Failed diagnostic writes/transports cannot change refresh, lock or cleanup results | 15–30 min |
+| [ ] | 010c | [Child diagnostic failure isolation](Reliability-Tasks/010c-child-diagnostic-isolation.md) | Baseline | Failed diagnostic writes/transports preserve child refresh/lock results and callback ownership | 15–30 min |
+| [ ] | 010a | [Diagnostic failure isolation](Reliability-Tasks/010a-diagnostic-isolation.md) | 010c | Failed diagnostic writes/transports cannot change refresh, lock or cleanup results | 15–30 min |
 | [ ] | 010b | [Timer incident export after recovery](Reliability-Tasks/010b-timer-diagnostic-export.md) | 002, 004, 009, 010a | Already-open reporter, later success and fresh sanitized archive retain timer cause | 45–75 min (session exception) |
 | [ ] | 010 | [Diagnostics survive failed and recovered components](Reliability-Tasks/010-diagnostic-recovery.md) | 002, 004, 007, 009, 010a, 010b | Original cause/category survives dead reporter, later success and actual sanitized export | 30–60 min (session exception) |
 | [ ] | 011a | [Bounded guest workload ownership](Reliability-Tasks/011a-bounded-workload.md) | 008, 010 | Qualified guest resource caps, precise owned identity, interruption and cleanup | 45–75 min (session exception) |

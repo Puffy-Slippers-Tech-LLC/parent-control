@@ -31,5 +31,6 @@ timeouts; include affected GJS checks if classification changes. Assert attempt
 counts, dispatch times, unchanged budget and final category. Fix demonstrated
 helper/adapter defects and review changed resource ownership. Follow master
 build, cleanup and evidence rules; record actual passing selections and close
-only 001a. Child cancellation and resume incidents remain in 001b/001; native
-service recovery remains in 002a/002.
+only 001a. Child estimate retries remain in 001d, query/replay cancellation in
+001b, controller lifecycle in 001c and resume incidents in 001; native service
+recovery remains in 002a/002.

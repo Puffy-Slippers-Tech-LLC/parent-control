@@ -10,7 +10,8 @@ Estimate: 45–75 minutes.
 ## Session boundary
 
 Deliver the complete installed exhaustion/approval/single-authentication return.
-004a supplies deterministic authority-ordering regressions. Session exception:
+004a cumulatively supplies 004b's eligibility and the authority-lifetime
+regressions. Session exception:
 splitting exhaustion from approval or return would lose the stale native state
 and retained-work result; the whole history remains required on both targets.
 

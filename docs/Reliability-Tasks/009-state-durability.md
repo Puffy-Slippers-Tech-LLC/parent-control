@@ -9,7 +9,7 @@ Estimate: 15–30 minutes.
 
 Deliver non-authoritative selector fallback and subsequent normal persistence.
 009a supplies authoritative preference write/replace/flush failures. Agent-locale
-retry, supersession and late-reply ordering moved to 008a, inherited through
+retry, supersession and late-reply ordering moved to 008c/008a, inherited through
 008. Together these preserve original 009's obligations with one owner each.
 
 ## Purpose and route

@@ -43,21 +43,24 @@ both VM targets, its complete native result and cleanup. There is no separate
 implementation/verification queue. Prerequisites supply maintained callables and
 matching evidence, never a predecessor's saved VM state or temporary brief.
 
-The further audit separates controller cancellation (001c) from operation-specific
-incident recovery (001), Busy recovery within budget (002b) from Busy exhaustion
-(002a), owner reactivation within budget (002c) from owner-loss exhaustion (002),
-and notification-provider qualification (007c) from compositor/request-app
-qualification (007b). Each extracted installed row owns a fresh complete fault
-or functional history on both targets; release/restoration and cleanup stay with
-that row. The compositor and GTK app remain paired because their independent
-functional result is one usable confined request form.
+The remaining host bundles are split at product ownership boundaries, with
+one independently checked result per new row:
 
-Daily-only and combined accounting, filesystem trust variants, renderer function
-and crash recovery, and the two diagnostic exports retain separate acceptance
-boundaries. Preference durability and selector fallback are separate host tasks;
-agent-locale failure ordering belongs once in 008a alongside Request readiness.
-Task 011a supplies and qualifies the bounded guest workload interface that the
-repeated history previously assumed existed.
+| Extracted prerequisite | Remaining consumer | Acceptance boundary |
+| --- | --- | --- |
+| 001d: child estimate-read retries | 001b: native query/replay cancellation | Read budgets and terminal error classification are separate from cancellation before dispatch and late-reply suppression. 001c still owns controller lifecycle composition; 001 owns incident rearming. |
+| 004b: unlock sender and eligibility | 004a: authority lifetime and consumption | Decide whether a trusted request may arm/dispatch before exercising expiry, supersession, cancellation and one-use authority. 004 retains the complete installed return. |
+| 008c: locale-job failure and ordering | 008a: Request readiness composition | Qualify the locale manager's job/result/callback contract before composing it with preference completion, current recipient/language and request submission. |
+| 010c: child diagnostic failure isolation | 010a: process-exit/cleanup diagnostic isolation | Child refresh/lock callbacks and app process/collector cleanup have different result and resource owners. Each row proves its operation survives diagnostic failure. |
+
+Existing splits still separate Busy recovery within budget from exhaustion,
+owner reactivation from owner-loss exhaustion, daily-only from combined
+accounting, filesystem trust variants, renderer function from crash recovery,
+preference durability from selector fallback, and the two diagnostic exports.
+Each installed row owns a fresh complete fault or functional history on both
+targets, including release/restoration and cleanup. The compositor and GTK app
+remain paired because their functional result is one usable confined request
+form. Task 011a qualifies the shared bounded workload before 011 composes it.
 
 Keep natural exhaustion/approval/single-authentication return in 004, the real
 package trigger history in 005, all eight paired inventory samples in 008 and
@@ -67,9 +70,9 @@ acceptance on both targets and cleanup; they are not reduced operation deadlines
 If an extracted capability still contains independent work beyond its estimate,
 split it through the existing prerequisite route before implementing it.
 
-The longer briefs now give numbered work sequences with observable results at
-each stage. These stages guide one task through implementation and its complete
-acceptance; they are not separately completed rows. Keep each refusal/restoration,
+Every newly split brief gives a finite work sequence and observable results.
+The longer installed briefs use stages within their complete acceptance;
+stages are not separately completed rows. Keep each refusal/restoration,
 crash/reentry and diagnostic-export history together. Task 011a's normal and
 interrupted outcomes jointly qualify the same owned workload safety boundary.
 Task 012 compares retained evidence first, then runs only invalidated histories;

@@ -52,7 +52,7 @@ function harness(outcomes, {callDuration = 0, waitDuration = null} = {}) {
                     if (outcome instanceof Error)
                         throw outcome;
                     if (outcome === null)
-                        throw new BusError('BUSY', 'io', 'org.freedesktop.MalcontentTimer1.Error.Busy');
+                        throw new BusError('BUSY', 'io', 'org.freedesktop.MalcontentTimer1.Child.Error.Busy');
                     return {deepUnpack: () => [0, outcome]};
                 }}, {}));
             }}},
@@ -134,21 +134,49 @@ test('unknown remote names and exception contents are reduced to fixed categorie
     const h = harness([]);
     assert.equal(h.classify(new h.BusError('UNKNOWN', 'io', 'private.secret.Error')), 'other');
     assert.equal(h.classify(new h.BusError('UNKNOWN', 'io', 'private.secret.Error.Busy')), 'other');
+    assert.equal(h.classify(new h.BusError('UNKNOWN', 'io', 'org.freedesktop.MalcontentTimer1.Error.Busy')), 'other');
+    for (const iface of ['Child', 'Parent'])
+        assert.equal(h.classify(new h.BusError('UNKNOWN', 'io',
+            `org.freedesktop.MalcontentTimer1.${iface}.Error.Busy`)), 'busy');
     assert.equal(h.classify(new h.BusError('TIMED_OUT', 'io')), 'timeout');
     assert.equal(h.classify(new h.BusError('CANCELLED', 'io')), 'cancelled');
     assert.equal(h.classify({get message() { throw new Error('must not read'); }}), 'other');
 });
 
-test('an unrecognized remote Busy name is reported without transient retries', async () => {
-    const outcomes = [];
-    const h = harness(outcomes);
-    const error = new h.BusError('UNKNOWN', 'io', 'private.secret.Error.Busy');
-    outcomes.push(error);
-    await assert.rejects(h.query(), observed => observed === error);
-    assert.equal(h.calls.length, 1);
-    assert.equal(h.waits.length, 0);
-    assert.deepEqual(h.logs, [
-        {event: 'child.timer-read-failed', category: 'other', attempt: 1, retry: false},
-    ]);
-    assert(!JSON.stringify(h.logs).includes('private'));
-});
+for (const iface of ['Child', 'Parent']) {
+    test(`the daemon's ${iface} Busy domain recovers without reporting`, async () => {
+        const outcomes = [];
+        const h = harness(outcomes);
+        const expected = {'': [true, 0, 123, 0, 0]};
+        outcomes.push(new h.BusError('UNKNOWN', 'io',
+            `org.freedesktop.MalcontentTimer1.${iface}.Error.Busy`), expected);
+        assert.equal(await h.query(), expected);
+        assert.equal(h.calls.length, 2);
+        assert.deepEqual(h.waits, [100]);
+        assert.deepEqual(h.logs, [
+            {event: 'child.timer-read-failed', category: 'busy', attempt: 1, retry: true},
+            {event: 'child.timer-recovered', attempts: 2},
+        ]);
+    });
+}
+
+for (const remote of [
+    'private.secret.Error.Busy', 'org.freedesktop.MalcontentTimer1.Error.Busy',
+    'org.freedesktop.MalcontentTimer1.Child.Error.IdentifyingUser',
+    'org.freedesktop.MalcontentTimer1.Parent.Error.IdentifyingUser',
+]) {
+    test(`${remote} is reported without transient retries or private text`, async () => {
+        const outcomes = [];
+        const h = harness(outcomes);
+        const error = new h.BusError('UNKNOWN', 'io', remote);
+        outcomes.push(error);
+        await assert.rejects(h.query(), observed => observed === error);
+        assert.equal(h.calls.length, 1);
+        assert.equal(h.waits.length, 0);
+        assert.deepEqual(h.logs, [
+            {event: 'child.timer-read-failed', category: 'other', attempt: 1, retry: false},
+        ]);
+        assert(!JSON.stringify(h.logs).includes('private'));
+        assert(!JSON.stringify(h.logs).includes(remote));
+    });
+}

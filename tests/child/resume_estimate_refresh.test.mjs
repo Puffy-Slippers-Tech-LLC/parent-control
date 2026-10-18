@@ -35,7 +35,10 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
         },
     };
     class BusError extends Error {
-        constructor(code) { super(); this.code = code; }
+        constructor(code, iface) {
+            super('private@example.test /home/private secret');
+            Object.assign(this, {code, iface});
+        }
         matches(_domain, code) { return code === this.code; }
     }
     const context = vm.createContext({
@@ -65,7 +68,8 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
                 ...Object.fromEntries(['NO_REPLY', 'NAME_HAS_NO_OWNER', 'SERVICE_UNKNOWN',
                     'TIMED_OUT', 'ACCESS_DENIED'].map(code => [code, code])),
                 get_remote_error: error => error.code === 'BUSY'
-                    ? 'org.freedesktop.MalcontentTimer1.Error.Busy'
+                    ? `${error.iface}.Error.Busy`
+                    : error.code === 'IDENTIFYING_USER' ? `${error.iface}.Error.IdentifyingUser`
                     : error.code === 'UNREVIEWED_BUSY' ? 'private.secret.Error.Busy' : null,
             },
             IOErrorEnum: {}, dbus_error_quark: () => 'dbus', io_error_quark: () => 'io',
@@ -73,7 +77,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
             DBus: {system: {call(...args) {
                 calls.push(args);
                 const finish = () => args.at(-1)({call_finish() {
-                    if (failure && (!failureMethod || failureMethod === args[3])) throw new BusError(failure);
+                    if (failure && (!failureMethod || failureMethod === args[3])) throw new BusError(failure, args[2]);
                     if (args[3] === 'RecordUsage') manager.emit();
                     return {deepUnpack: () => args[3] === 'QueryUsage' ? [records]
                         : args[3] === 'GetEstimatedTimes' ? [Math.floor(now), {'': [false, 0, Math.floor(now) + remaining]}]
@@ -370,27 +374,62 @@ test('temporary resume failures preserve the active deadline without reporting o
 });
 
 test('persistent idle contention reports once, then recovers through the normal backoff', async () => {
-    const h = harness();
-    h.setFailure('BUSY', 'QueryUsage');
-    h.activity(false);
-    await settle();
-    for (const delay of [1000, 2000, 4000]) {
-        assert.equal([...h.timers.values()][0].delay, delay);
+    for (const method of ['QueryUsage', 'RecordUsage']) {
+        const h = harness();
+        h.setFailure('BUSY', method);
+        h.activity(false);
+        await settle();
+        for (const delay of [1000, 2000, 4000]) {
+            assert.equal([...h.timers.values()][0].delay, delay);
+            h.tick();
+            await settle();
+        }
+        assert.equal(h.reports.length, 1);
+        assert.equal(h.calls.filter(call => call[3] === 'RecordUsage').length,
+            method === 'RecordUsage' ? 4 : 0);
+        assert.equal(h.calls.filter(call => call[3] === 'GetEstimatedTimes').length, 0);
+        assert.equal(h.logs.some(log => log.event === 'child.resume-refresh-deferred'), false);
+        assert(h.logs.every(log => log.fields.category === 'busy'));
+        h.setFailure(null);
         h.tick();
         await settle();
+        assert.deepEqual(h.calls.slice(-3).map(call => call[3]),
+            ['QueryUsage', 'RecordUsage', 'GetEstimatedTimes']);
+        assert.equal(h.reports.length, 1);
+        assert.equal(h.bridge.failures, 0);
+        assert.equal(h.bridge.reported, false);
+        h.bridge.close();
     }
-    assert.equal(h.reports.length, 1);
-    assert.equal(h.calls.filter(call => call[3] === 'RecordUsage').length, 0);
-    assert.equal(h.logs.some(log => log.event === 'child.resume-refresh-deferred'), false);
-    h.setFailure(null);
-    h.tick();
-    await settle();
-    assert.deepEqual(h.calls.slice(-3).map(call => call[3]),
-        ['QueryUsage', 'RecordUsage', 'GetEstimatedTimes']);
-    assert.equal(h.reports.length, 1);
-    assert.equal(h.bridge.failures, 0);
-    assert.equal(h.bridge.reported, false);
-    h.bridge.close();
+});
+
+test('native identity failures report immediately at every timer stage, including a finite active deadline', async () => {
+    for (const active of [false, true]) {
+        for (const [method, stage] of [['QueryUsage', 'query-usage'], ['RecordUsage', 'record-usage'],
+            ['GetEstimatedTimes', 'timer-estimate']]) {
+            const h = harness({remaining: 0});
+            if (active) {
+                h.activity(false);
+                await settle();
+                h.setRemaining(292);
+            }
+            const before = h.calls.length;
+            h.setFailure('IDENTIFYING_USER', method);
+            h.activity(active);
+            await settle();
+            assert.equal(h.calls.slice(before).filter(call => call[3] === method).length, 1);
+            assert.equal(h.reports.length, 1, `${method} identity failure must open a reporter`);
+            assert.equal(h.reports[0].code, 'IDENTIFYING_USER');
+            assert.equal(h.timers.size, 0, 'identity failures must not schedule recovery');
+            assert.deepEqual(h.logs.at(-1).fields, {
+                stage, category: 'other', active, limit_enabled: true,
+                failures: 1, retry: false, delay_ms: 0,
+            });
+            assert.equal(h.logs.some(log => log.event === 'child.resume-refresh-deferred'), false);
+            assert(!JSON.stringify(h.logs).includes('private'));
+            assert(!JSON.stringify(h.logs).includes('IdentifyingUser'));
+            h.bridge.close();
+        }
+    }
 });
 
 test('resume-only failures escalate across healthy idle refreshes and reset after active recovery', async () => {

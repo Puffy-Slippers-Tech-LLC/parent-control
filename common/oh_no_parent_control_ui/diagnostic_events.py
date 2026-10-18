@@ -366,7 +366,8 @@ def _gio_error_category(error):
         broker + "Busy": "busy", broker + "RateLimited": "rate-limited",
         broker + "BackendFailure": "backend-failure", broker + "RollbackFailure": "rollback-failure",
         broker + "RebootRequired": "reboot-required", broker + "Failed": "failed",
-        "org.freedesktop.MalcontentTimer1.Error.Busy": "busy",
+        "org.freedesktop.MalcontentTimer1.Child.Error.Busy": "busy",
+        "org.freedesktop.MalcontentTimer1.Parent.Error.Busy": "busy",
     }
     if remote in known_remote:
         return known_remote[remote]

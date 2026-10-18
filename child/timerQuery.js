@@ -36,7 +36,7 @@ export function queryEstimatedTimes() {
                 lastError = error;
                 const category = timerErrorCategory(error);
                 const retryDelay = category === 'busy'
-                    ? busyRetryDelay('org.freedesktop.MalcontentTimer1.Error.Busy', attempt)
+                    ? busyRetryDelay('org.freedesktop.MalcontentTimer1.Child.Error.Busy', attempt)
                     : (['no-reply', 'no-owner', 'service-unknown', 'timeout'].includes(category) &&
                         attempt < 2 ? 200 : undefined);
                 const retry = retryDelay !== undefined &&
@@ -106,7 +106,10 @@ export function timerErrorCategory(error) {
     if (!(error instanceof GLib.Error))
         return 'other';
     const remote = Gio.DBusError.get_remote_error(error);
-    if (remote === 'org.freedesktop.MalcontentTimer1.Error.Busy')
+    // The daemon registers separate error domains for its Child and Parent
+    // interfaces. Estimates/replay use Child; QueryUsage uses Parent.
+    if (remote === 'org.freedesktop.MalcontentTimer1.Child.Error.Busy' ||
+        remote === 'org.freedesktop.MalcontentTimer1.Parent.Error.Busy')
         return 'busy';
     for (const [code, category] of [
         [Gio.DBusError.NO_REPLY, 'no-reply'],

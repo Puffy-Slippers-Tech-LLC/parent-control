@@ -23,9 +23,17 @@ async function main() {
     assertEqual(timerErrorCategory(new GLib.Error(
         Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT, 'private timeout')),
     'timeout', 'local Gio timeout');
+    for (const iface of ['Child', 'Parent']) {
+        assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
+            `org.freedesktop.MalcontentTimer1.${iface}.Error.Busy`, 'private database path')),
+        'busy', 'timer interface busy category');
+        assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
+            `org.freedesktop.MalcontentTimer1.${iface}.Error.IdentifyingUser`, 'private identity')),
+        'other', 'identity failures remain outside transient recovery');
+    }
     assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
         'org.freedesktop.MalcontentTimer1.Error.Busy', 'private database path')),
-    'busy', 'timer busy category');
+    'other', 'unregistered timer busy domain');
     assertEqual(timerErrorCategory(new Error('private JS exception')), 'other', 'plain JS error');
     assertEqual(timerErrorCategory(Gio.DBusError.new_for_dbus_error(
         'private.unknown.Error', 'private error text')), 'other', 'unknown remote name');

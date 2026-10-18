@@ -735,7 +735,11 @@ def test_fault_locations_do_not_use_traceback_paths_or_unknown_modules(caplog):
 @pytest.mark.parametrize("remote,category", [
     ("org.freedesktop.DBus.Error.NoReply", "no-reply"),
     ("org.freedesktop.DBus.Error.ServiceUnknown", "service-unknown"),
-    ("org.freedesktop.MalcontentTimer1.Error.Busy", "busy"),
+    ("org.freedesktop.MalcontentTimer1.Child.Error.Busy", "busy"),
+    ("org.freedesktop.MalcontentTimer1.Parent.Error.Busy", "busy"),
+    ("org.freedesktop.MalcontentTimer1.Error.Busy", "other"),
+    ("org.freedesktop.MalcontentTimer1.Child.Error.IdentifyingUser", "other"),
+    ("org.freedesktop.MalcontentTimer1.Parent.Error.IdentifyingUser", "other"),
     ("com.puffyslippers.OhNoParentControl1.Error.RebootRequired", "reboot-required"),
     ("com.puffyslippers.OhNoParentControl1.Error.BackendFailure", "backend-failure"),
     ("com.puffyslippers.OhNoParentControl1.Error.AccessDenied", "access-denied"),

@@ -67,7 +67,7 @@ def test_timeout_budget_is_shared_by_attempts():
 
 def busy_error():
     return Gio.DBusError.new_for_dbus_error(
-        "org.freedesktop.MalcontentTimer1.Error.Busy", "private error details")
+        "org.freedesktop.MalcontentTimer1.Parent.Error.Busy", "private error details")
 
 
 def test_busy_database_recovers_with_bounded_backoff_and_identical_query():
@@ -165,8 +165,14 @@ def test_helper_and_adapter_exit_status_contract_match():
         USAGE_HELPER_ERROR_CATEGORIES
 
 
-def test_unrecognized_remote_busy_name_is_not_retried_or_emitted():
-    original = Gio.DBusError.new_for_dbus_error("private.secret.Error.Busy", "private error details")
+@pytest.mark.parametrize("name", (
+    "private.secret.Error.Busy", "org.freedesktop.MalcontentTimer1.Error.Busy",
+    "org.freedesktop.MalcontentTimer1.Child.Error.Busy",
+    "org.freedesktop.MalcontentTimer1.Child.Error.IdentifyingUser",
+    "org.freedesktop.MalcontentTimer1.Parent.Error.IdentifyingUser",
+))
+def test_unreviewed_or_identity_remote_error_is_not_retried_or_emitted(name, monkeypatch, capsys):
+    original = Gio.DBusError.new_for_dbus_error(name, "private error details")
     connection = Mock(call_sync=Mock(side_effect=original))
     sleep = Mock()
     with pytest.raises(GLib.Error) as raised:
@@ -175,3 +181,9 @@ def test_unrecognized_remote_busy_name_is_not_retried_or_emitted():
     assert helper.timer_error_category(raised.value) == "other"
     assert connection.call_sync.call_count == 1
     sleep.assert_not_called()
+    monkeypatch.setattr(helper.os, "geteuid", lambda: 1001)
+    monkeypatch.setattr(helper.sys, "argv", ["query-usage", "1001"])
+    monkeypatch.setattr(helper.Gio, "bus_get_sync", Mock(return_value=connection))
+    assert helper.main() == 69
+    assert connection.call_sync.call_count == 2
+    assert capsys.readouterr() == ("", "")

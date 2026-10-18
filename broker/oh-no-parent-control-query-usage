@@ -34,7 +34,7 @@ ERROR_EXIT_CODES = {
 
 
 def timer_error_category(error):
-    if Gio.DBusError.get_remote_error(error) == "org.freedesktop.MalcontentTimer1.Error.Busy":
+    if Gio.DBusError.get_remote_error(error) == "org.freedesktop.MalcontentTimer1.Parent.Error.Busy":
         return "busy"
     for code, category in (
             (Gio.DBusError.NO_REPLY, "no-reply"),

@@ -229,7 +229,7 @@ The helper tolerates the timer daemon exiting normally at its inactivity
 deadline while a query is in flight. `NoReply`, `NameHasNoOwner`,
 `ServiceUnknown`, and local/remote timeout errors trigger at most two further
 reads addressed to the same well-known service name, allowing D-Bus activation
-to select its new owner. The exact timer `Error.Busy` response uses backoff of
+to select its new owner. The exact timer `Parent.Error.Busy` response uses backoff of
 100, 250, 500, 1000 and 2000 ms, with at most six total attempts. Mixed failures
 share attempt indices and one 25-second monotonic budget inside the broker's
 30-second helper deadline; each call has at most five seconds. Other transient
@@ -318,15 +318,18 @@ lifecycle change resets it. Ordinary countdown reads retry and report exhausted
 failures independently, but do not establish that usage query/replay is healthy.
 Permanent resume refresh failures, exhausted estimate reads, and failures
 without a finite native deadline use the existing child error reporter
-immediately. Only the exact public timer `Error.Busy` name is treated as
-contention; unrecognized remote names remain errors.
+immediately. Only the daemon's exact `Child.Error.Busy` and
+`Parent.Error.Busy` names are treated as contention; unrecognized remote names
+remain errors. These are the names registered by the daemon's
+[Child service](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/child-timer-service.c)
+and [Parent service](https://gitlab.freedesktop.org/pwithnall/malcontent/-/blob/0.14.0/libmalcontent-timer/parent-timer-service.c).
 This is a product compatibility workaround for the native cache
 defect, not a GNOME source fix or a second accounting/enforcement implementation.
 Remove it when the supported Shell implementation refreshes estimates before
 evaluating inactivity/resume deadlines.
 
 The public estimate API is `EstimatedTimesChanged` and `GetEstimatedTimes`.
-Estimate reads use bounded backoff for `Error.Busy`, which can occur while
+Estimate reads use bounded backoff for `Child.Error.Busy`, which can occur while
 another supported client has the user's timer database open. The extension
 does not modify GNOME Shell's private time-limit state.
 
@@ -403,7 +406,7 @@ Diagnostics record a closed error category, attempt number, retry decision and
 successful recovery. Terminal refresh diagnostics distinguish the timer read,
 local allowance calculation and broker calculation, plus loaded/locked/greeter
 booleans. Categories come only from Gio error domains/codes or the recognized
-busy suffix; raw remote names, messages and stacks never enter events. New event
+timer Busy names; raw remote names, messages and stacks never enter events. New event
 IDs preserve the historical field-free `child.estimate-failed` contract. The
 shared catalogue and child enum validator must ship together with the broker;
 child changes require session renewal and the broker loads the catalogue on

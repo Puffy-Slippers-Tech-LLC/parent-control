@@ -130,7 +130,7 @@ def test_native_attempt_stages_binding_before_bootstrap_and_uses_owned_cleanup(
 
 @pytest.mark.parametrize('failure', [None, 'native-establish-old', 'install', 'reboot-1',
                                    'verify-setup', 'native-update', 'reboot-2',
-                                   'native-update-rebooted'])
+                                   'native-loader-drained', 'native-update-rebooted'])
 @pytest.mark.parametrize('guest', [{'ubuntu_version': '26.04'},
                                   {'os_id': 'fedora', 'version': '44'}])
 def test_native_order_and_failure_collection(tmp_path, monkeypatch, failure, guest):
@@ -149,6 +149,8 @@ def test_native_order_and_failure_collection(tmp_path, monkeypatch, failure, gue
             vm.commands.last_returncode = 1
             raise system.CommandError('native-failure')
     def call(command, **kwargs):
+        if command[len(system.guest_command(RUN))] == 'native-loader-drained':
+            assert kwargs == {'timeout': 900}
         event(command[len(system.guest_command(RUN))])
     def reboot():
         nonlocal reboots
@@ -175,12 +177,12 @@ def test_native_order_and_failure_collection(tmp_path, monkeypatch, failure, gue
         assert tuple(system.installed_run(vm, lease, tmp_path, selected, ledger)) == selected.phases
     assert events[-2:] == ['collect', 'copy']
     lifecycle = ['native-establish-old', 'install', 'reboot-1', 'verify-setup',
-                 'native-update', 'reboot-2', 'native-update-rebooted']
+                 'native-update', 'reboot-2', 'native-loader-drained', 'native-update-rebooted']
     actual = [item for item in events if item not in ('collect', 'copy')]
     assert actual == (lifecycle[:lifecycle.index(failure) + 1] if failure else lifecycle)
     lease.prepare.assert_not_called()
     lease.restore.assert_not_called()
-    if not failure or failure in ('reboot-2', 'native-update-rebooted'):
+    if not failure or failure in ('reboot-2', 'native-loader-drained', 'native-update-rebooted'):
         assert (tmp_path / 'phase-results/native-update/station-native-update.json').is_file()
 
 

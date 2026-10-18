@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **004d — [Qualify the Ubuntu and Fedora native update histories](Core-Installation-Tasks/004d-native-update-histories.md)**.
+Next task: **004 — [Qualify native dependency updates during retained sessions](Core-Installation-Tasks/004-native-dependency-update.md)**.
 
 ## Purpose and continuation
 
@@ -866,20 +866,129 @@ All **72** local links across the four changed Markdown documents passed.
 Queue review preserves every other row, Scope and Requires as supplied at entry;
 the completed temporary 004c1 brief was removed after its context moved here.
 
+## Task 004d native update qualification
+
+Accepted 2026-10-18 on **onpc-Ubuntu26.04** and **onpc-Fedora44** with final
+applicable helpers and target-specific native inputs. Maintained case **289**
+passed both ordered phases, `native-update` and `native-update-rebooted`, with
+zero failures or skips in each target's single owned attempt. The combined
+runner session is `fedb6b681fa947ad91ed82789c9910e0`; its queue result is
+`output/test-runs/host/allocations/onpc-vm-queue-163mrsr9/results.json`.
+
+| Target | Report / allocation | Real native update |
+| --- | --- | --- |
+| onpc-Ubuntu26.04 | `20261018T221414Z-71987d6a` / `onpc-system-3ioyj7oc` | bubblewrap:amd64 `0.11.1-1` → `0.11.1-1ubuntu0.3` |
+| onpc-Fedora44 | `20261018T221414Z-ffdaf92b` / `onpc-system-9izbqu1f` | xdg-dbus-proxy.x86_64 `0:0.1.6-4.fc44` → `0:0.1.9-1.fc44` |
+
+The old transaction precedes product installation/configuration and the first
+reboot. Each complete history proves changed native bytes while exact old
+process mappings, identities, private generation and enforcing labels survive;
+independent positive and denial controls pass before/after update and reexec.
+Real stale GDM admission refuses without publishing another generation. The
+loader refuses under an independently held native admission, preserving its
+attestation and PAM state. The station and native witness exit normally; after
+the second real reboot, all old handles drain and the loader succeeds before
+fresh public station admission. Recovery proves native B, retirement of A,
+public broker operation, unchanged saved child policy, ordinary-user behavior
+and vendor PAM callbacks. Fedora remains enforcing throughout. No intermediate
+restore, forced manager exit or synthetic replacement supplies this acceptance.
+
+Each allocation retains `evidence/result.json`, both phase JUnits and native
+checkpoints/diagnostics under `guest-results/attempt-native-update/`. Both phase
+station receipts record normal exit, unchanged host inputs and different boot
+hashes. All four result domains—product, infrastructure, collection and
+cleanup—pass independently, with `cleanup_phase=complete`. Acquisition and
+restoration baseline checks both pass with zero failures; public status probes
+confirm both VMs off. All runner workers joined. The parallel live run took
+9.6 minutes through target cleanup; recording then finalized successfully.
+Its session `recordings.json` binds `system-289-Ubuntu26.04-Fedora44.webm` to
+SHA-256 `13b150c39d0c45833c4a52c0efe2e7437dc0bef03e8859ec3be177f3834c3d71`.
+
+Exact applicability bindings (SHA-256):
+
+| Binding | Ubuntu | Fedora |
+| --- | --- | --- |
+| Accepted baseline | `566c6935653c9be4704bcfa4b713107356fe58d73fae5affbf39fc28b905c29a` | `cd6633bdc9a3af5a493eb03988c54d0b74ee61b6913f52362a1605f57f83f0d8` |
+| Product package | `ce10b0b5e36cda0a31b0f822adff12edd7d7ef384e57fe9aabb6ec0e97911a26` | `04f31135daa171782d89196c291b49888a9d04b9b3471b72427d484c8aebb50d` |
+| Native input manifest | `93e4ece7a3f98f1585ac8e3ef4d2d720c369f65abbbe4e74d6081ae1f6a7ce49` | `e4a951734c57373ee0be3cc998c73597b5d25e2b7fa9a7ebfd780d858dae8752` |
+| Native binding | `41c152d5f3ef56bf7f1479b953f5dbecbbdfd028cc711ed2d15fdca7bd9d585f` | `5a04be92f737d041ea579a02fce67630c1ed0e65ec46c480333a0520669e2e30` |
+| Preparation | `bcb7a7326492978b83a5998e29ae1b228902c5fa653d6d9fad86277f45b04699` | `227f6806195e322856aa049808cf5be2e4b1e4509c9cbcd187dd7448e90304ee` |
+| Measured ELF A | `8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b` | `1bfd8870b59939c54580bd7cb29ae7d2cffd8b348dbe9aeec7a3687e349e62c4` |
+| Measured ELF B | `523da3e7399044be5163aee6f57a77a6bef7454376e28f0a0627920bae1b76b6` | `90d90a08aa46bc99b8fa226295be5869935e00a0f307f1dee4d78988e277d5af` |
+
+Both targets bind the same 38 selected helper files and host-source inventory:
+`b7f9ac9817d9fabb8eac0c1f41fccb892aee13bf504b71cbb09f9b801cb87c92`.
+The final native-history helper hashes to
+`56744e8bc396803fef94991fdc181c59a92d0c22344635f0b6532833e75843c1`;
+the staged manifest and current helper hashes were compared directly.
+Product source is revision `9162f12d8d92ac78ecbc465280b2b0197f1c4320`,
+353 package files, digest
+`3847aa39a5c73d6657056bc94e375e56c02c9cd0fa0ed30ec9e836725ee0df29`.
+The fixture digest is
+`c12399c7d679ee5f1bbed9de8ee0d51cacbcf88f07dd2e506c465a483ff533cd`.
+Native manifests retain the signed input provenance and exact package digests.
+
+Qualification repaired mechanical evidence/readiness defects without changing
+product code or weakening confinement assertions. Ubuntu consumes complete
+multi-write info JSON and waits for the exact native block-fd setup barrier,
+rather than an early inherited root view. Fedora keeps the complete large RPM
+preflight receipt privately with a hash/length reference; all six reviewed
+trigger registrations remain pinned, while RPM 6.0.2's replaced-path erase
+semantics require five actual executions per transaction. Fresh PID-1 journal
+start/done jobs prove man-db execution even after systemd collects inactive
+runtime properties; independent cache/loader/filesystem results remain required.
+The loader check follows real lifetime PAM leases and waits for completed boot
+before checking recovery. Existing nondeferred loader consumers keep their full
+before/held/after cycle. Resource review retains unit/cleanup compatibility;
+new receipt and FIFO tests own only pytest-private files and in-process doubles.
+
+Host reports include `20261018T213048Z-016b97fc` (1,263/1,263),
+`20261018T214431Z-cb0bc3f8` (459/459),
+`20261018T215302Z-a67655c6` (136/136),
+`20261018T215815Z-a29d06f2` (171/171), and final affected helper/resource
+checks `20261018T221319Z-a0a797b2` (171/171). These overlap; they are not
+distinct acceptance executions. Final plan/inventory/coverage/composition checks
+passed **313/313** in `20261018T222539Z-8bba27ba`; all **118** local links in
+the seven changed Markdown documents passed. Generated unit inventory is 34,226 (previously
+34,170); customer E2E status is unchanged. Test/tooling/documentation changes do
+not affect package sources or build-tool dependencies, so no `make build` is
+required. Pre-existing input/storage/rule changes were preserved as received.
+
+Failed attempts and the earlier Fedora pass in `20261018T220020Z-b0d24fc1`
+are historical evidence only. That pass was invalidated by the final shared
+helper edit; both targets were rerun completely with the bindings above.
+The verified cumulative **4,329-file** bundle is
+`output/test-runs/host/exports/onpc-evidence-bundle-imeub3ps/evidence.zip`,
+**204,789,192 bytes**, SHA-256
+`fdbf8cf7e9732308ceee22a720fdaf5df6d0d1b6c0f4b2d5e1916beacbe37df1`.
+Its selection digest is
+`1cd2912928c80e140baa2c66cd9ab539bd38a98571540e26a541bd26a3bd5739`.
+It flattens the prior 1,455-file bundle and retains both accepted reports,
+receipts/JUnits/checkpoints/native diagnostics, frozen target-specific native
+bundles/bindings/selected helpers, host checks, queue results and the exported
+recording plus recording receipt. Original paths remain bundle member keys
+after normal source rotation. All bytes/digests and both accepted target
+receipts were reverified after publication; export cleanup completed. Keep this
+bundle through 004 under the existing retention contract. No subagent remains.
+Only 004d is newly complete. Task 004 remains the final both-target evidence
+gate; customer E2E tasks remain untouched.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
 Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
 complete. Task 004a's [finite input review](#task-004a-finite-native-input-review)
 is complete, and 004b's [verified native inputs](#task-004b-verified-native-transaction-inputs)
-are implemented; 004c's history is registered and host-verified. Continue with
-004d's two complete installed histories with 004c1's additional Fedora trigger coverage.
+are implemented; 004c's history is registered and host-verified. Task 004d's
+[complete installed histories](#task-004d-native-update-qualification) now pass
+on both targets with final helpers and native trigger evidence. Continue with
+004's acceptance reconciliation against those retained receipts.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
 Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
-package pairs, verified staging and case 289 are implemented; installed transaction
-qualification remains pending. The product
+package pairs, verified staging and case 289 are implemented; 004d's installed
+transaction qualification is complete, while the final 004 gate remains pending. The product
 earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual

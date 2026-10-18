@@ -1880,18 +1880,20 @@ def record_native_packages(config, record):
     return files
 
 
-def verify_loader_admission_refusal(config, record):
+def verify_loader_admission_refusal(config, record, *, defer_drain=False):
     """A native held admission excludes the real policy/attestation writer."""
     from system_kiosk_accounts import owned_bytes
     from system_kiosk_admission import held_account
     integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
     state = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
     preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
-    guest.run([integration, 'load'], timeout=90)
+    if not defer_drain:
+        guest.run([integration, 'load'], timeout=90)
     preparation['enforcing'](config)
     before = owned_bytes(state, private=True)
     pam = guest.pam_service_state()
-    record('onpc.kiosk.loader.allowed-before-admission', True)
+    if not defer_drain:
+        record('onpc.kiosk.loader.allowed-before-admission', True)
     with held_account(record) as pid:
         holder = PROC / str(pid)
         identity = process_identity(holder)
@@ -1909,9 +1911,29 @@ def verify_loader_admission_refusal(config, record):
                       'kiosk-loader:refusal-changed-admission-state')
         preparation['enforcing'](config)
         record('onpc.kiosk.loader.held-admission-preserved', hashlib.sha256(before).hexdigest())
+    digest = hashlib.sha256(before).hexdigest()
+    if defer_drain:
+        # Real GDM and manager PAM handles retain their own lifetime leases.
+        # Public exit alone must not be mistaken for every handle draining.
+        record('onpc.kiosk.loader.drain-deferred-to-retirement', True)
+    else:
+        verify_loader_admission_drained(config, record, digest, pam)
+    return digest
+
+
+def verify_loader_admission_drained(config, record, expected_state_sha256, expected_pam):
+    """Complete the same loader cycle only after every owned handle has ended."""
+    from system_kiosk_accounts import owned_bytes
+    guest.require(isinstance(expected_state_sha256, str) and
+                  re.fullmatch(r'[a-f0-9]{64}', expected_state_sha256) is not None,
+                  'kiosk-loader:invalid-drain-checkpoint')
+    integration = '/usr/libexec/oh-no-parent-control-kiosk-confinement-integration'
+    state = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
     guest.run([integration, 'load'], timeout=90)
-    guest.require(owned_bytes(state, private=True) == before and guest.pam_service_state() == pam,
+    guest.require(hashlib.sha256(owned_bytes(state, private=True)).hexdigest() == expected_state_sha256
+                  and guest.pam_service_state() == expected_pam,
                   'kiosk-loader:drained-load-changed-admission-state')
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
     preparation['enforcing'](config)
     record('onpc.kiosk.loader.allowed-after-admission', True)
 

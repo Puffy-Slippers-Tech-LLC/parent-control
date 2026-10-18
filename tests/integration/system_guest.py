@@ -872,7 +872,7 @@ def collect(marker, outcome):
 
 def collect_native_checkpoints(output, redacted):
     """Export only the finite native history records through normal redaction."""
-    for phase in ('intent', 'old', 'retained-intent', 'updated', 'retired', 'complete'):
+    for phase in ('intent', 'old', 'retained-intent', 'updated', 'retired', 'loader-drained', 'complete'):
         source = PAYLOAD / 'private' / ('native-update-' + phase + '.json')
         if not source.exists():
             continue
@@ -903,6 +903,12 @@ def native_retired():
     from system_native_update import retired
     guard()
     retired(lambda *_: None)
+
+
+def native_loader_drained():
+    from system_native_update import loader_after_reboot
+    guard()
+    loader_after_reboot()
 
 
 def install_suite():
@@ -1000,13 +1006,14 @@ def main(argv=None):
             prepare_activation_greeter()
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
-                             ['native-establish-old'], ['native-retired'],
+                             ['native-establish-old'], ['native-retired'], ['native-loader-drained'],
                              ['install-previous'], ['upgrade'], ['install-setup'],
                              ['verify-setup'], ['install-suite'], ['verify-installed'],
                              ['verify-snapshot'], ['prepare-toggle-session']),
                     'invalid-command')
             {'guard': guard, 'before-install': before_install, 'install': install,
              'native-establish-old': native_establish_old, 'native-retired': native_retired,
+             'native-loader-drained': native_loader_drained,
              'install-previous': install_previous, 'upgrade': upgrade,
              'install-setup': install_setup, 'verify-setup': verify_setup,
              'install-suite': install_suite, 'verify-installed': verify_installed,

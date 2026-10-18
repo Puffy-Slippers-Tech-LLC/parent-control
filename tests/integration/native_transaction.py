@@ -440,6 +440,38 @@ def rpm_trigger_environment(root, runner):
             'configuration': configuration}
 
 
+def rpm_trigger_transaction(triggers, incoming, outgoing):
+    """Bind each reviewed registration to RPM 6.0.2's transaction file set.
+
+    Per-package postun iterators omit files whose erase action is skipped
+    because the incoming package replaces them. Transaction postun triggers
+    are instead queued from the outgoing header before replacement.
+    """
+    incoming, outgoing = set(incoming), set(outgoing)
+    result = {'incoming_paths': sorted(incoming), 'outgoing_paths': sorted(outgoing),
+              'applicable': [], 'not_applicable': []}
+    for trigger in triggers['applicable']:
+        actions = []
+        kind = trigger['kind']
+        definitions = trigger['definitions']
+        for action in trigger['actions']:
+            prefixes = [name for name, index in zip(definitions[kind + 'name'],
+                        definitions[kind + 'index']) if index == action['index']]
+            paths = incoming if action['action'].endswith('in') else outgoing
+            matched = {path for path in paths if any(path.startswith(p) for p in prefixes)}
+            require(matched, 'missing-transaction-trigger-paths')
+            if action['action'] == 'filetriggerpostun':
+                replaced = matched & incoming
+                matched -= incoming
+                if not matched:
+                    result['not_applicable'].append({'owner': trigger['owner'], **action,
+                        'paths': sorted(replaced), 'reason': 'all-matching-erases-replaced'})
+                    continue
+            actions.append({**action, 'paths': sorted(matched)})
+        result['applicable'].append({**trigger, 'actions': actions})
+    return result
+
+
 def rpm_trigger_idle(runner):
     evidence = command(runner, ['systemctl', 'show', 'man-db-cache-update.service',
         '--property=LoadState,ActiveState,SubState,Result,Job'])
@@ -594,15 +626,17 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
         legacy_locks = legacy_record['definition'] if legacy_record else None
         require(not legacy_locks or not any(line.strip() and not line.lstrip().startswith(b'#')
                                            for line in legacy_locks.encode().splitlines()), 'held-packages')
-        payload_paths = set(command(runner, ['rpm', '-ql', selection['package']])['stdout'].splitlines())
+        installed_paths = set(command(runner, ['rpm', '-ql', selection['package']])['stdout'].splitlines())
+        payload_paths = set(installed_paths)
         require(all(path.startswith('/') for path in payload_paths), 'installed-file-inventory')
-        providers = {}
+        providers, phase_paths = {}, {}
         for phase in ('old', 'new'):
             native_identity = command(runner, ['rpm', '-qp', '--queryformat',
                 '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n', str(paths[phase])])
             require(native_identity['stdout'].strip().split('\t') == [selection['package'],
                     packages[phase]['version'], selection['architecture']], 'wrong-package-identity')
-            payload_paths.update(command(runner, ['rpm', '-qpl', str(paths[phase])])['stdout'].splitlines())
+            phase_paths[phase] = set(command(runner, ['rpm', '-qpl', str(paths[phase])])['stdout'].splitlines())
+            payload_paths.update(phase_paths[phase])
             require(all(path.startswith('/') for path in payload_paths), 'package-file-inventory')
             requirements = command(runner, ['rpm', '-qp', '--requires', str(paths[phase])])['stdout'].splitlines()
             providers[phase] = {}
@@ -622,6 +656,8 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
             phases[phase] = command(runner, ['rpm', '--upgrade', '--test', '--oldpackage',
                                               '--replacepkgs', str(paths[phase])])
         triggers = rpm_triggers(installed, selection, payload_paths)
+        triggers['transactions'] = {phase: rpm_trigger_transaction(triggers, phase_paths[phase],
+            installed_paths if phase == 'old' else phase_paths['old']) for phase in ('old', 'new')}
         triggers['environment'] = rpm_trigger_environment(root, runner)
         triggers['baseline_service_state'] = rpm_trigger_idle(runner)
         require(rpm_inventory(rpm_module) == installed, 'native-state-changed')

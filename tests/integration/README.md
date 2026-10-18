@@ -130,10 +130,25 @@ The runner establishes the verified old native package, with normal scripts and
 triggers, **before** installing the product through `make install`. Initial
 configuration and a real reboot precede `native-update`. That phase keeps a
 publicly entered request-station session and an identified old executable
-mapping alive during the offline native upgrade. It verifies changed host bytes,
-retained generation and enforcement, fresh unsafe-admission refusal, exclusion
+mapping alive during the offline native upgrade.
+Ubuntu's first mapping snapshot waits for the identified native child's one-byte
+read on the owned release pipe, after mount setup, using the kernel's
+[`/proc/pid/syscall` observation](https://man7.org/linux/man-pages/man5/proc_pid_syscall.5.html).
+An early root view or info notification alone is insufficient. The pinned
+[native block-fd read](https://github.com/containers/bubblewrap/blob/v0.11.1/bubblewrap.c#L3260)
+follows mount setup and privilege dropping. The same child, pipe and executable
+identity remain required; later observations do not retry a changed boundary.
+The history verifies changed host bytes, retained generation and enforcement,
+fresh unsafe-admission refusal, exclusion
 of the policy loader under a held admission lease and explicit safe manager
 reexecution. The station exits normally before a second real reboot.
+The open station's PAM handle retains an admission lease: the loader must refuse
+while an additional independently held native admission is exercised. Only after
+normal public station exit and the required reboot does the history require the
+drained loader to succeed, before entering a fresh station. The manager's own PAM
+handle may retain its lease until that reboot. The loader preserves attestation/PAM
+bytes and child policy, and cannot revive the retired generation. Recovery requires
+that completed checkpoint; it cannot skip the deferred drain check.
 `native-update-rebooted` requires the bound predecessor checkpoint, changed boot,
 fresh station admission, public broker operation and unchanged saved child
 policy and vendor PAM. These are engineering assertions; the existing synthetic
@@ -146,9 +161,12 @@ attempt. Pre-reboot phase evidence and failure collection use the existing
 runner; baseline restoration and off verification remain its cleanup owner.
 Each pytest phase and the old-package establishment command has a finite
 2,400-second timeout; the post-exit retirement check has a 180-second timeout.
+The pre-admission loader checkpoint has a 900-second timeout, covering the
+maintained boot-readiness wait and bounded loader verification after SSH returns.
 Registration and host doubles supply no installed transaction acceptance.
-The later [004d qualification](../../docs/TestAutomation/Core-Installation-Tasks/004d-native-update-histories.md)
-must pass both complete target histories with matching inputs and cleanup.
+The [004d qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification)
+records both complete passing target histories with exact input/helper bindings
+and cleanup. Later candidates require matching evidence or a complete rerun.
 
 ## Running the current installed suite
 

@@ -18,6 +18,7 @@ import shutil
 import stat
 import sys
 import time
+import traceback
 
 import native_transaction as native
 import system_guest as guest
@@ -256,6 +257,38 @@ def rpm_completion(triggers, before_cache, started_ns):
                            'links': environment['links']}, 'loader_cache': cache}
 
 
+def rpm_service_execution(output, unit, started_us, boot):
+    """Match fresh PID-1 start/done jobs even after inactive-unit collection."""
+    boot = boot.replace('-', '')
+    guest.require(re.fullmatch(r'[a-f0-9]{32}', boot) is not None, 'native-update:trigger-boot')
+    starts, finished = {}, {}
+    for line in output.splitlines():
+        row = json.loads(line)
+        if not (row.get('UNIT') == unit and row.get('JOB_TYPE') == 'start' and
+                row.get('_PID') == '1' and row.get('_UID') == '0' and
+                row.get('_SYSTEMD_UNIT') == 'init.scope' and row.get('_BOOT_ID') == boot):
+            continue
+        stamp = row.get('__MONOTONIC_TIMESTAMP', '')
+        invocation, job = row.get('INVOCATION_ID', ''), row.get('JOB_ID', '')
+        if not (isinstance(stamp, str) and stamp.isdecimal() and int(stamp) >= started_us and
+                isinstance(invocation, str) and re.fullmatch(r'[a-f0-9]{32}', invocation) and
+                isinstance(job, str) and job.isdecimal()):
+            continue
+        key = (invocation, job)
+        if row.get('MESSAGE_ID') == '7d4958e842da4a758f6c1cdc7b36dcc5':
+            guest.require(key not in starts, 'native-update:duplicate-trigger-start')
+            starts[key] = int(stamp)
+        elif row.get('MESSAGE_ID') == '39f53479d3a045ac8e11786248231fbf' and row.get('JOB_RESULT') == 'done':
+            guest.require(key not in finished, 'native-update:duplicate-trigger-completion')
+            finished[key] = int(stamp)
+    # Each of the two native shell requests may start the unit, or coalesce.
+    guest.require(len(starts) <= 2, 'native-update:extra-trigger-service-execution')
+    if not starts or starts.keys() != finished.keys() or any(finished[key] < stamp for key, stamp in starts.items()):
+        return None
+    return [{'invocation': key[0], 'job': key[1], 'started_us': stamp, 'ended_us': finished[key]}
+            for key, stamp in sorted(starts.items())]
+
+
 def transaction(binding, manifest, directory, phase, before, record):
     """Exactly one supplied package; no repository or resolver repair route."""
     package = directory / manifest['packages'][phase]['path']
@@ -263,6 +296,7 @@ def transaction(binding, manifest, directory, phase, before, record):
     started = time.time()
     started_ns = time.time_ns()
     monotonic_started = int(time.monotonic() * 1000000)
+    boot = BOOT.read_text().strip()
     diagnostic = private() / 'native-update-output'
     diagnostic.mkdir(mode=0o700, exist_ok=True)
     if manifest['package_format'] == 'rpm':
@@ -281,12 +315,12 @@ def transaction(binding, manifest, directory, phase, before, record):
         guest.require('Processing triggers for man-db ' in result.stdout,
                       'native-update:man-db-trigger-not-observed')
     else:
-        execution = rpm_execution(result.stdout, triggers)
+        execution = rpm_execution(result.stdout, triggers['transactions'][phase])
         completion = rpm_completion(triggers, before_cache, started_ns)
         native_diagnostic(diagnostic, phase + '-native-triggers.txt', json.dumps(
             {'execution': execution, 'completion': completion}, sort_keys=True))
         deadline = time.monotonic() + 90
-        state, execution, wait_error = {}, {}, None
+        state, execution, wait_error, journal_execution = {}, {}, None, None
         try:
             while True:
                 try:
@@ -295,10 +329,11 @@ def transaction(binding, manifest, directory, phase, before, record):
                         triggers['completion_unit'],
                         '--property=ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic,ExecMainStatus'
                         ]).splitlines())
-                    if (int(execution['ExecMainStartTimestampMonotonic']) >= monotonic_started and
-                            int(execution['ExecMainExitTimestampMonotonic']) >=
-                            int(execution['ExecMainStartTimestampMonotonic']) and
-                            execution['ExecMainStatus'] == '0'):
+                    evidence = guest.run(['journalctl', '--no-pager', '--output=json',
+                        '--since=@' + str(started), '-u', triggers['completion_unit']], timeout=30)
+                    journal_execution = rpm_service_execution(
+                        evidence, triggers['completion_unit'], monotonic_started, boot)
+                    if journal_execution:
                         break
                 except ValueError as error:
                     wait_error = type(error).__name__
@@ -307,7 +342,8 @@ def transaction(binding, manifest, directory, phase, before, record):
         finally:
             # Preserve the failed boundary before normal collection/cleanup.
             native_diagnostic(diagnostic, phase + '-trigger-wait.txt', json.dumps(
-                {'state': state, 'execution': execution, 'error': wait_error}, sort_keys=True))
+                {'state': state, 'execution': execution, 'error': wait_error,
+                 'journal_execution': journal_execution}, sort_keys=True))
             failing = sys.exc_info()[0] is not None
             try:
                 evidence = guest.run(['journalctl', '--no-pager', '--output=json',
@@ -318,10 +354,9 @@ def transaction(binding, manifest, directory, phase, before, record):
                     raise
             else:
                 native_diagnostic(diagnostic, phase + '-trigger-journal.txt', evidence)
-        rows = [json.loads(line) for line in evidence.splitlines()]
-        guest.require(any(row.get('UNIT') == triggers['completion_unit'] and
-                          row.get('JOB_TYPE') == 'start' and row.get('JOB_RESULT') == 'done'
-                          for row in rows), 'native-update:trigger-completion-journal')
+        journal_execution = rpm_service_execution(evidence, triggers['completion_unit'], monotonic_started, boot)
+        guest.require(journal_execution is not None, 'native-update:trigger-completion-journal')
+        record('onpc.native-update.' + phase + '.trigger-execution', json.dumps(journal_execution, sort_keys=True))
         record('onpc.native-update.' + phase + '.trigger-state', json.dumps(state, sort_keys=True))
     identity = native_identity(manifest, phase)
     after = preflight(binding, manifest, directory)
@@ -347,10 +382,29 @@ def establish_old(record=lambda *_: None):
     guest.enable_diagnostics()
     guest.require(not (private() / 'native-update-intent.json').exists(),
                   'native-update:attempt-already-started')
-    before = preflight(binding, manifest, directory)
-    save('intent', binding, boot=BOOT.read_text().strip(), preflight=before)
-    transaction(binding, manifest, directory, 'old', before, record)
-    save('old', binding, boot=BOOT.read_text().strip(), native=native_identity(manifest, 'old'))
+    diagnostic = private() / 'native-update-output'
+    diagnostic.mkdir(mode=0o700, exist_ok=True)
+    try:
+        before = preflight(binding, manifest, directory)
+        # A complete installed RPM inventory exceeds the small checkpoint limit
+        # on the supported baseline. Keep every receipt byte in native evidence,
+        # and bind it from the checkpoint instead of duplicating it there.
+        receipt = json.dumps(before, sort_keys=True)
+        native_diagnostic(diagnostic, 'old-preflight.txt', receipt)
+        save('intent', binding, boot=BOOT.read_text().strip(), preflight={
+            'read_only': before['read_only'], 'path': 'native-update-output/old-preflight.txt',
+            'sha256': hashlib.sha256(receipt.encode()).hexdigest(),
+            'bytes': len(receipt.encode())})
+        transaction(binding, manifest, directory, 'old', before, record)
+        save('old', binding, boot=BOOT.read_text().strip(), native=native_identity(manifest, 'old'))
+    except Exception:
+        # The public dispatcher deliberately hides arbitrary exception text.
+        # Preserve its cause in the existing private, redacted evidence route.
+        try:
+            native_diagnostic(diagnostic, 'old-failure.txt', traceback.format_exc())
+        except Exception:
+            pass  # Diagnostic failure must not replace the original exception.
+        raise
 
 
 def measured_record(manifest, preparation, config):
@@ -398,28 +452,48 @@ def mapping(pid, account, backend, generation, executable, expected_role):
             'device': info.st_dev, 'inode': info.st_ino, 'mappings': maps}
 
 
-def wait_read(descriptor, maximum=4096):
+def wait_read(descriptor, maximum=4096, *, until_eof=False):
     poll = select.poll()
     poll.register(descriptor, select.POLLIN | select.POLLHUP)
-    guest.require(poll.poll(15000), 'native-update:witness-ready-timeout')
-    data = os.read(descriptor, maximum + 1)
-    guest.require(bool(data) and len(data) <= maximum, 'native-update:witness-ready-data')
-    return data
+    deadline = time.monotonic() + 15
+    data = b''
+    while True:
+        remaining = deadline - time.monotonic()
+        guest.require(remaining > 0 and poll.poll(max(1, int(remaining * 1000))),
+                      'native-update:witness-ready-timeout')
+        part = os.read(descriptor, maximum + 1 - len(data))
+        data += part
+        guest.require(len(data) <= maximum, 'native-update:witness-ready-data')
+        if not until_eof or not part:
+            guest.require(bool(data), 'native-update:witness-ready-data')
+            return data
 
 
-def wait_mapping(pid, pidfd, account, backend, generation, executable, role):
-    """Info-fd announces the native child before its mount setup finishes."""
+def bwrap_setup_blocked(pid, descriptor, pipe_identity):
+    """Ubuntu amd64: native bwrap's final one-byte block-fd read follows mounts."""
+    process = confinement.PROC / str(pid)
+    fields = (process / 'syscall').read_text().split()
+    if not (len(fields) == 9 and fields[0] == '0' and
+            int(fields[1], 0) == descriptor and int(fields[3], 0) == 1):
+        return False
+    info = (process / 'fd' / str(descriptor)).stat()
+    guest.require(stat.S_ISFIFO(info.st_mode) and (info.st_dev, info.st_ino) == pipe_identity,
+                  'native-update:setup-pipe-replaced')
+    return True
+
+
+def wait_mapping(pid, pidfd, account, backend, generation, executable, role, *, block_fd, pipe_identity):
+    """Wait for the owned native setup barrier, not an early /proc/root view."""
     deadline = time.monotonic() + 15
     while True:
         guest.require(not confinement.exited(pidfd), 'native-update:witness-exited')
-        try:
-            return mapping(pid, account, backend, generation, executable, role)
-        except FileNotFoundError:
-            # Only incomplete proc/root setup is transient. A wrong identity,
-            # label, generation or mapping remains an immediate refusal.
-            guest.require(time.monotonic() < deadline,
-                          'native-update:witness-mapping-ready-timeout')
-            time.sleep(0.02)
+        if bwrap_setup_blocked(pid, block_fd, pipe_identity):
+            result = mapping(pid, account, backend, generation, executable, role)
+            guest.require(not confinement.exited(pidfd), 'native-update:witness-exited')
+            return result
+        guest.require(time.monotonic() < deadline,
+                      'native-update:witness-mapping-ready-timeout')
+        time.sleep(0.02)
 
 
 def proxy_exec(request):
@@ -536,7 +610,9 @@ def native_witness(account, boundary, manifest, record):
         pidfd = os.pidfd_open(child)
         for descriptor in (ready_write, release_read, proof_write):
             close(descriptor)
-        data = wait_read(ready_read)
+        # Native bubblewrap writes info JSON in several writes, then closes
+        # this FD. The proxy's one-byte sync FD instead stays open until exit.
+        data = wait_read(ready_read, until_eof=backend == 'apparmor')
         if backend == 'apparmor':
             sandbox_pid = confinement.bwrap_child_pid(data)
             proof = json.loads(wait_read(proof_read))
@@ -550,8 +626,11 @@ def native_witness(account, boundary, manifest, record):
                           'native-update:bwrap-monitor-child')
             record('onpc.native-update.bwrap.sandbox-child', sandbox_pid)
             sandbox_fd = os.pidfd_open(sandbox_pid)
+            pipe = os.fstat(release_write)
             wait_mapping(sandbox_pid, sandbox_fd, account, backend,
-                         boundary['generation'], manifest['packages']['old']['executable'], 'bwrap')
+                         boundary['generation'], manifest['packages']['old']['executable'], 'bwrap',
+                         block_fd=release_read, pipe_identity=(pipe.st_dev, pipe.st_ino))
+            record('onpc.native-update.bwrap.setup-barrier', True)
         else:
             guest.require(data == b'x', 'native-update:proxy-ready-protocol')
             info = socket_path.lstat()
@@ -742,7 +821,8 @@ def retain_upgrade(record):
                       if re.fullmatch(r'[a-f0-9]{64}', path.name)) == generations,
                       'native-update:stale-admission-published-generation')
         unchanged()
-        confinement.verify_loader_admission_refusal(config, record)
+        loader_state_sha256 = confinement.verify_loader_admission_refusal(
+            config, record, defer_drain=True)
         unchanged()
         guest.require(guest.run(['systemctl', 'show', '--value', '--property=Type', unit]) ==
                       'notify-reload' and guest.run(['systemctl', 'show', '--value',
@@ -752,7 +832,8 @@ def retain_upgrade(record):
         controls(account, backend, record, 'reexec')
         unchanged()
     save('updated', binding, boot=BOOT.read_text().strip(), boundary=boundary,
-         native_record=measured, policy=policy, pam=pam, old_mapping=original)
+         native_record=measured, policy=policy, pam=pam, old_mapping=original,
+         loader_state_sha256=loader_state_sha256)
     record('onpc.native-update.updated', 'native-B; retained-A; admission-refused; loader-excluded; reexec-safe')
 
 
@@ -785,12 +866,59 @@ def retired(record=lambda *_: None):
 record_retired = retired
 
 
+def loader_after_reboot(record=lambda *_: None):
+    """All old PAM handles must retire before load, and before fresh admission."""
+    binding, manifest, _directory = inputs()
+    guest.enable_diagnostics()
+    try:
+        finish_loader_after_reboot(binding, manifest, record)
+    except Exception:
+        try:
+            diagnostic = private() / 'native-update-output'
+            diagnostic.mkdir(mode=0o700, exist_ok=True)
+            native_diagnostic(diagnostic, 'loader-failure.txt', traceback.format_exc())
+        except Exception:
+            pass
+        raise
+
+
+def finish_loader_after_reboot(binding, manifest, record):
+    retired_state = checkpoint('retired', binding)
+    state = checkpoint('updated', binding)
+    boot = BOOT.read_text().strip()
+    guest.require(boot != retired_state['boot'], 'native-update:loader-reboot-required')
+    # SSH precedes systemd's completed boot and the broker's prerequisites.
+    # Reuse the established readiness boundary before any policy D-Bus read.
+    guest.wait_for_boot()
+    account = pwd.getpwnam('oh-no-parent-control')
+    confinement.wait_kiosk_inactive(account)
+    native_identity(manifest, 'new')
+    def generations():
+        return sorted(path.name for path in RUNTIME.iterdir()
+                      if re.fullmatch(r'[a-f0-9]{64}', path.name)) if RUNTIME.exists() else []
+    before_generations = generations()
+    guest.require(state['boundary']['generation'].strip() not in before_generations,
+                  'native-update:loader-old-generation')
+    config = json.loads(CONFIG.read_text())
+    confinement.verify_loader_admission_drained(
+        config, record, state['loader_state_sha256'], state['pam'])
+    guest.require(policy_state() == state['policy'] and
+                  generations() == before_generations and
+                  BOOT.read_text().strip() == boot,
+                  'native-update:drained-loader-changed-generation-or-policy')
+    save('loader-drained', binding, boot=boot, loader_state_sha256=state['loader_state_sha256'])
+
+
 def fresh_after_reboot(record):
     import runpy
     binding, manifest, _directory = inputs()
     retired_state = checkpoint('retired', binding)
     state = checkpoint('updated', binding)
     guest.require(BOOT.read_text().strip() != retired_state['boot'], 'native-update:recovery-reboot-required')
+    drained = checkpoint('loader-drained', binding)
+    guest.require(drained['boot'] == BOOT.read_text().strip() and
+                  drained['loader_state_sha256'] == state['loader_state_sha256'],
+                  'native-update:loader-drain-required')
     guest.installed()
     native_identity(manifest, 'new')
     guest.require(policy_state() == state['policy'] and guest.pam_service_state() == state['pam'],

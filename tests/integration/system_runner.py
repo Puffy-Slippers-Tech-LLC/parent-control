@@ -2141,6 +2141,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 lease.save('reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
+                if native_update and phase == NATIVE_UPDATE_PHASES[1]:
+                    lease.save('native-loader-drained')
+                    with ledger.measure('test'):
+                        vm.call(guest_command(run, 'native-loader-drained'), timeout=900)
             if phase == 'session':
                 lease.save('graphical-expiry-fixture')
                 with ledger.measure('test'):

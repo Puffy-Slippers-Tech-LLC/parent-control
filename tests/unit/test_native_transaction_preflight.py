@@ -358,7 +358,8 @@ class RpmRunner:
                       '/usr/lib/.build-id/ab/cdef\n')
         elif '-ql' in arguments:
             assert arguments == ['rpm', '-ql', 'xdg-dbus-proxy']
-            output = '/usr/bin/xdg-dbus-proxy\n/usr/share/man/man1/xdg-dbus-proxy.1.gz\n'
+            output = ('/usr/bin/xdg-dbus-proxy\n/usr/share/man/man1/xdg-dbus-proxy.1.gz\n'
+                      '/usr/lib/.build-id/ef/abcd\n')
         elif '--requires' in arguments:
             output = 'libgio-2.0.so.0()(64bit)\nrpmlib(PayloadIsZstd) <= 5.4.18-1\n'
         elif '--whatprovides' in arguments:
@@ -440,6 +441,46 @@ def test_rpm_trigger_arrays_bind_each_matching_script_and_payload(rpm_review):
                 item['definitions'][kind + 'scripts'][index].encode()).hexdigest())
             for index, action in ((0, 'in'), (1, 'postun'))]
     assert records == before
+
+
+@pytest.mark.parametrize('replaced', [True, False])
+def test_rpm_transaction_distinguishes_replaced_file_erases_from_queued_postun(rpm_review, replaced):
+    records = native.rpm_inventory(rpm_review)
+    outgoing = set(RPM_PAYLOAD)
+    incoming = set(RPM_PAYLOAD) - {'/usr/lib/.build-id/ab/cdef'} | {'/usr/lib/.build-id/ef/abcd'}
+    if not replaced:
+        incoming.remove('/usr/bin/xdg-dbus-proxy')
+        incoming.add('/usr/bin/replacement-proxy')
+    triggers = native.rpm_triggers(records, {'package': 'xdg-dbus-proxy'}, outgoing | incoming)
+    before = copy.deepcopy(triggers)
+    plan = native.rpm_trigger_transaction(triggers, incoming, outgoing)
+    actions = [(trigger['owner'].split('-0:')[0], action['action'], action['paths'])
+               for trigger in plan['applicable'] for action in trigger['actions']]
+    assert ('filesystem', 'filetriggerin', [
+        '/usr/bin/xdg-dbus-proxy' if replaced else '/usr/bin/replacement-proxy']) in actions
+    assert ('glibc-common', 'transfiletriggerpostun', ['/usr/lib/.build-id/ab/cdef']) in actions
+    assert ('man-db', 'transfiletriggerpostun', ['/usr/share/man/man1/xdg-dbus-proxy.1.gz']) in actions
+    assert len(actions) == (5 if replaced else 6)
+    if replaced:
+        assert len(plan['not_applicable']) == 1
+        skipped = plan['not_applicable'][0]
+        assert skipped['owner'] == 'filesystem-0:3.18-52.fc44.x86_64'
+        assert skipped['action'] == 'filetriggerpostun'
+        assert skipped['paths'] == ['/usr/bin/xdg-dbus-proxy']
+        assert skipped['reason'] == 'all-matching-erases-replaced'
+    else:
+        assert ('filesystem', 'filetriggerpostun', ['/usr/bin/xdg-dbus-proxy']) in actions
+        assert plan['not_applicable'] == []
+    assert plan['incoming_paths'] == sorted(incoming)
+    assert plan['outgoing_paths'] == sorted(outgoing)
+    assert triggers == before
+
+
+def test_rpm_transaction_refuses_a_missing_required_trigger_path(rpm_review):
+    records = native.rpm_inventory(rpm_review)
+    triggers = native.rpm_triggers(records, {'package': 'xdg-dbus-proxy'}, RPM_PAYLOAD)
+    with pytest.raises(native.PreflightError, match='missing-transaction-trigger-paths'):
+        native.rpm_trigger_transaction(triggers, RPM_PAYLOAD - {'/usr/lib/.build-id/ab/cdef'}, RPM_PAYLOAD)
 
 
 @pytest.mark.parametrize('field,value', [

@@ -19,7 +19,7 @@ Requires: 003, 004a, 004b, 004c, 004d.
 expected generation behavior; [004b](004b-native-transaction-inputs.md) owns
 verified inputs and preparation; [004c](../Core-Installation-Coverage-Handoff.md#task-004c-retained-session-history) owns
 registration and host-verified history implementation.
-[004d](004d-native-update-histories.md) qualifies one complete history per target
+[004d](../Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification) qualifies one complete history per target
 in parallel, with independent ownership and evidence. This final row retains all
 original requirements below and reconciles both matching installed receipts and owned
 cleanup. It does not require duplicate runs when the retained candidate,

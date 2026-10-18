@@ -297,9 +297,10 @@ On Ubuntu the measured input is the native `/usr/bin/bwrap` source copied to
 private `/usr/libexec/oh-no-parent-control-kiosk-bwrap`, rather than the private
 wrapper at `/usr/bin/bwrap`; Fedora measures the direct proxy executable.
 Actual transaction scripts/triggers, retained mappings, stale-manager refusal,
-lease exclusion, reexec and fresh-boot recovery remain **unqualified until task
-004d** passes both complete histories. Input verification supplies no installed
-transaction acceptance.
+lease exclusion, reexec and fresh-boot recovery are qualified by the matching
+[004d installed receipts](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification).
+Input verification alone supplies no installed transaction acceptance; changed
+helpers/inputs require the affected complete history again.
 
 #### Fedora 44 reviewed external triggers
 
@@ -325,8 +326,16 @@ select script arrays; the registration and script arrays have different lengths.
 - Filesystem uses embedded Lua file triggers at indexes 0/1 for `/usr/bin`.
   Its index 2 and transaction trigger cover other paths and do not match this
   payload. The reviewed branch has `/usr/sbin -> bin` and `/sbin -> usr/sbin`:
-  both applicable scripts return immediately. Require native execution and the
-  unchanged link identities/targets; unmerged layouts need a separate review.
+  both registered scripts return immediately. The per-package post-uninstall
+  iterator skips erase actions for files replaced by the incoming RPM, so
+  `/usr/bin/xdg-dbus-proxy` does not invoke that script during either replacement.
+  Preflight binds each phase's incoming/outgoing paths and this non-execution
+  reason. Require the applicable install script, refuse an unexpected extra
+  execution and verify unchanged link identities/targets; unmerged layouts need
+  a separate review. RPM's pinned
+  [file iterator](https://github.com/rpm-software-management/rpm/blob/rpm-6.0.2-release/lib/rpmtriggers.cc#L288)
+  filters skipped per-package file actions; its transaction post-uninstall
+  registrations are queued separately from the outgoing header before erasure.
 - Glibc-common's embedded Lua transaction triggers at indexes 0/1 have priority
   2000000 and match `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`. Build-ID files
   therefore match even without a shared-library payload. Both scripts invoke
@@ -342,11 +351,18 @@ select script arrays; the registration and script arrays have different lengths.
   mask failures, so native status or service success alone cannot prove completion.
   Bind the exact enabled configuration, service, effective drop-ins and
   `/etc/man_db.conf` mapping of `/usr/share/man` to `/var/cache/man`; require
-  bounded fresh service execution/journal evidence, a fresh manual-cache database
+  bounded fresh PID-1 journal start/done jobs, matched by invocation, job, boot
+  and monotonic time, plus a fresh manual-cache database
   and independent `whatis --exact xdg-dbus-proxy -M /usr/share/man` success.
+  The two native requests may coalesce or produce two complete executions.
+  Reject unmatched, duplicate, extra or failed jobs. Do not require retained
+  `ExecMain*` properties after the idle service is collected: systemd explicitly
+  [discards that runtime state while preserving journal records](https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#Unit%20Garbage%20Collection).
 
-The current reviewed engine is RPM 6.0.2. The normal single-RPM transaction uses
-`-vv` to retain every expected Lua entry and shell start/exec/matching successful
+The current reviewed engine is RPM 6.0.2. All six registration associations remain
+pinned; each actual replacement requires five executions, with the filesystem
+post-uninstall non-execution bound to the replaced path. The normal single-RPM
+transaction uses `-vv` to retain every expected Lua entry and shell start/exec/matching successful
 wait, refusing missing, duplicate or additional trigger executions.
 [RPM's script runner](https://github.com/rpm-software-management/rpm/blob/rpm-6.0.2-release/lib/rpmscript.cc)
 does not log Lua exits; the
@@ -356,8 +372,9 @@ observation. The receipt also binds rpm, shell, systemd and man-db executable
 providers/bytes. Private before-state, native output and completion records use
 the existing redacted failure/reboot collector. Safe typed preflight reasons
 survive the guest command route without exporting private path/argument suffixes.
-These engineering checks grant no installed acceptance; both complete case 289
-histories with final input/helper bindings remain required in task 004d.
+These engineering checks alone grant no installed acceptance. Both complete
+case 289 histories with matching input/helper bindings passed in the
+[004d qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification).
 
 ## Resources
 

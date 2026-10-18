@@ -19,7 +19,70 @@ def private(tmp_path, monkeypatch):
     directory = tmp_path / 'private'
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(history, 'private', lambda: directory)
+    monkeypatch.setattr(history, 'BOOT', SimpleNamespace(read_text=lambda: 'b' * 32))
+    monkeypatch.setattr(history.guest, 'enable_diagnostics', Mock())
     return directory
+
+
+def completed_man_db_journal():
+    common = {'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start',
+              '_PID': '1', '_UID': '0', '_SYSTEMD_UNIT': 'init.scope', '_BOOT_ID': 'b' * 32,
+              'INVOCATION_ID': 'a' * 32, 'JOB_ID': '3959'}
+    return [dict(common, MESSAGE_ID='7d4958e842da4a758f6c1cdc7b36dcc5',
+                 __MONOTONIC_TIMESTAMP='1000001'),
+            dict(common, MESSAGE_ID='39f53479d3a045ac8e11786248231fbf',
+                 __MONOTONIC_TIMESTAMP='1000002', JOB_RESULT='done')]
+
+
+@pytest.mark.parametrize('fault', [None, 'missing-start', 'missing-done', 'wrong-invocation',
+    'wrong-job', 'old-start', 'backward', 'failed', 'wrong-boot', 'wrong-pid', 'extra-incomplete'])
+def test_service_completion_requires_fresh_bound_pid1_journal_jobs(fault):
+    rows = completed_man_db_journal()
+    if fault == 'missing-start':
+        rows.pop(0)
+    elif fault == 'missing-done':
+        rows.pop()
+    elif fault == 'wrong-invocation':
+        rows[-1]['INVOCATION_ID'] = 'c' * 32
+    elif fault == 'wrong-job':
+        rows[-1]['JOB_ID'] = '3960'
+    elif fault == 'old-start':
+        rows[0]['__MONOTONIC_TIMESTAMP'] = '999999'
+    elif fault == 'backward':
+        rows[-1]['__MONOTONIC_TIMESTAMP'] = '1000000'
+    elif fault == 'failed':
+        rows[-1]['JOB_RESULT'] = 'failed'
+    elif fault == 'wrong-boot':
+        rows[0]['_BOOT_ID'] = 'c' * 32
+    elif fault == 'wrong-pid':
+        rows[0]['_PID'] = '99'
+    elif fault == 'extra-incomplete':
+        rows.append({**rows[0], 'INVOCATION_ID': 'c' * 32, 'JOB_ID': '3960'})
+    result = history.rpm_service_execution('\n'.join(json.dumps(row) for row in rows),
+        'man-db-cache-update.service', 1000000, 'b' * 32)
+    assert result == (None if fault else [{'invocation': 'a' * 32, 'job': '3959',
+                                          'started_us': 1000001, 'ended_us': 1000002}])
+    if not fault:
+        assert history.rpm_service_execution('\n'.join(json.dumps(row) for row in rows),
+            'man-db-cache-update.service', 1000000, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') == result
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate-start', 'duplicate-done', 'extra-execution'])
+def test_service_completion_accounts_for_both_native_requests_or_coalescing(fault):
+    rows = completed_man_db_journal()
+    rows += [{**row, 'INVOCATION_ID': 'c' * 32, 'JOB_ID': '3960'} for row in rows]
+    if fault == 'duplicate-start':
+        rows.append(rows[0])
+    elif fault == 'duplicate-done':
+        rows.append(rows[1])
+    elif fault == 'extra-execution':
+        rows += [{**row, 'INVOCATION_ID': 'd' * 32, 'JOB_ID': '3961'} for row in rows[:2]]
+    output = '\n'.join(json.dumps(row) for row in rows)
+    if fault:
+        with pytest.raises(history.guest.GuestError, match='duplicate-trigger|extra-trigger-service'):
+            history.rpm_service_execution(output, 'man-db-cache-update.service', 1000000, 'b' * 32)
+    else:
+        assert len(history.rpm_service_execution(output, 'man-db-cache-update.service', 1000000, 'b' * 32)) == 2
 
 
 def test_checkpoints_are_append_only_and_reject_phase_splicing(private, monkeypatch):
@@ -119,6 +182,88 @@ def test_old_native_transaction_precedes_any_product_admission(private, monkeypa
     assert events.count('old-native') == 1
 
 
+def test_large_native_inventory_keeps_full_receipt_outside_small_checkpoint(private, monkeypatch):
+    before = {'read_only': True, 'native_state': {'installed': 'x' * (9 * 1024 * 1024)}}
+    monkeypatch.setattr(history, 'inputs', lambda: ({'run': 'owned'}, {}, 'bundle'))
+    monkeypatch.setattr(history.guest, 'before_install', lambda: None)
+    monkeypatch.setattr(history.guest, 'enable_diagnostics', lambda: None)
+    monkeypatch.setattr(history, 'preflight', lambda *args: before)
+    transaction = Mock()
+    monkeypatch.setattr(history, 'transaction', transaction)
+    monkeypatch.setattr(history, 'native_identity', lambda *args: {'sha256': 'old'})
+    monkeypatch.setattr(history, 'BOOT', SimpleNamespace(read_text=lambda: 'initial-boot'))
+    history.establish_old()
+    intent = private / 'native-update-intent.json'
+    assert intent.stat().st_size < 4096
+    reference = json.loads(intent.read_bytes())['preflight']
+    receipt = (private / reference['path']).read_bytes()
+    assert len(receipt) > 8 * 1024 * 1024
+    assert json.loads(receipt) == before
+    assert reference['sha256'] == hashlib.sha256(receipt).hexdigest()
+    assert reference['bytes'] == len(receipt)
+    assert transaction.call_args.args[4] is before
+
+
+@pytest.mark.parametrize('diagnostic_failure', [False, True])
+def test_old_failure_retains_private_cause_without_replacing_it(private, monkeypatch, diagnostic_failure):
+    monkeypatch.setattr(history, 'inputs', lambda: ({'run': 'owned'}, {}, 'bundle'))
+    monkeypatch.setattr(history.guest, 'before_install', lambda: None)
+    monkeypatch.setattr(history.guest, 'enable_diagnostics', lambda: None)
+    error = RuntimeError('private failure detail')
+    monkeypatch.setattr(history, 'preflight', Mock(side_effect=error))
+    if diagnostic_failure:
+        monkeypatch.setattr(history, 'native_diagnostic', Mock(side_effect=OSError('diagnostic')))
+    with pytest.raises(RuntimeError) as raised:
+        history.establish_old()
+    assert raised.value is error
+    if not diagnostic_failure:
+        assert 'RuntimeError: private failure detail' in (
+            private / 'native-update-output/old-failure.txt').read_text()
+
+
+@pytest.mark.parametrize('chunks', [
+    [b'{\n    "child-pid": 4321', b', "mnt-namespace": 123', b'\n}\n', b''],
+    [b'{"child-pid": 4321}\n', b''],
+])
+def test_native_info_waits_for_every_write_and_eof(monkeypatch, chunks):
+    poll = Mock()
+    poll.poll.return_value = [(42, history.select.POLLIN)]
+    monkeypatch.setattr(history.select, 'poll', lambda: poll)
+    read = Mock(side_effect=chunks)
+    monkeypatch.setattr(history.os, 'read', read)
+    monkeypatch.setattr(history.time, 'monotonic', lambda: 1)
+    data = history.wait_read(42, until_eof=True)
+    assert history.confinement.bwrap_child_pid(data) == 4321
+    assert read.call_count == len(chunks)
+    assert all(0 < call.args[0] <= 15000 for call in poll.poll.call_args_list)
+
+
+@pytest.mark.parametrize('fault', ['empty', 'oversize', 'timeout', 'partial-timeout'])
+def test_native_info_keeps_finite_size_and_total_deadline(monkeypatch, fault):
+    poll = Mock()
+    poll.poll.return_value = [(42, history.select.POLLIN)]
+    monkeypatch.setattr(history.select, 'poll', lambda: poll)
+    monkeypatch.setattr(history.time, 'monotonic', lambda: 1)
+    monkeypatch.setattr(history.os, 'read', Mock(return_value=b'' if fault == 'empty' else b'x' * 4097))
+    if fault == 'timeout':
+        poll.poll.return_value = []
+    elif fault == 'partial-timeout':
+        monkeypatch.setattr(history.os, 'read', Mock(return_value=b'{'))
+        monkeypatch.setattr(history.time, 'monotonic', Mock(side_effect=[1, 1, 17]))
+    with pytest.raises(history.guest.GuestError, match='witness-ready-'):
+        history.wait_read(42, until_eof=True)
+
+
+def test_proxy_sync_byte_does_not_wait_for_its_lifetime_fd_to_close(monkeypatch):
+    poll = Mock()
+    poll.poll.return_value = [(42, history.select.POLLIN)]
+    monkeypatch.setattr(history.select, 'poll', lambda: poll)
+    read = Mock(side_effect=[b'x', AssertionError('must not wait for EOF')])
+    monkeypatch.setattr(history.os, 'read', read)
+    assert history.wait_read(42) == b'x'
+    read.assert_called_once()
+
+
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_native_transaction_is_one_local_package_with_normal_triggers(private, monkeypatch, package_format):
     manifest = {'package_format': package_format, 'selection': {'package': 'selected'},
@@ -126,6 +271,7 @@ def test_native_transaction_is_one_local_package_with_normal_triggers(private, m
     installed = ({'selected:amd64': {'Package': 'selected'}, 'libc:amd64': {'Package': 'libc'}}
                  if package_format == 'deb' else [{'name': 'selected'}, {'name': 'libc'}])
     triggers = {'applicable': ['man-db'], 'completion_unit': 'man-db-cache-update.service'}
+    triggers['transactions'] = {'new': {'applicable': ['phase-specific-man-db']}}
     before = {'native_state': {'installed': installed, 'triggers': triggers}}
     command = Mock(return_value=SimpleNamespace(returncode=0,
         stdout='Processing triggers for man-db (2.13) ...'))
@@ -143,8 +289,10 @@ def test_native_transaction_is_one_local_package_with_normal_triggers(private, m
 
     def run(arguments, **kwargs):
         if arguments[0] == 'systemctl':
-            return 'ExecMainStartTimestampMonotonic=1000001\nExecMainExitTimestampMonotonic=1000002\nExecMainStatus=0'
-        return json.dumps({'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start', 'JOB_RESULT': 'done'})
+            # Inactive unit collection discards these properties. The native
+            # journal still proves the fresh completed execution independently.
+            return 'ExecMainStartTimestampMonotonic=0\nExecMainExitTimestampMonotonic=0\nExecMainStatus=0'
+        return '\n'.join(json.dumps(row) for row in completed_man_db_journal())
     monkeypatch.setattr(history.guest, 'run', run)
     history.transaction({}, manifest, Path('/owned-bundle'), 'new', before, lambda *_: None)
     argv = command.call_args.args[0]
@@ -153,7 +301,7 @@ def test_native_transaction_is_one_local_package_with_normal_triggers(private, m
     assert command.call_args.kwargs == {'timeout': 180}
     assert (private / 'native-update-output/new.txt').is_file()
     if package_format == 'rpm':
-        execution.assert_called_once_with(command.return_value.stdout, triggers)
+        execution.assert_called_once_with(command.return_value.stdout, triggers['transactions']['new'])
         assert completion.call_args.args[:2] == (triggers, {'mtime_ns': 1})
         evidence = json.loads((private / 'native-update-output/new-native-triggers.txt').read_text())
         assert evidence == {'execution': execution.return_value, 'completion': completion.return_value}
@@ -200,6 +348,20 @@ def test_rpm_execution_accounts_for_all_six_actions_without_inventing_lua_exit(f
         ('glibc-common-0:2.43-9.fc44.x86_64', 'transfiletriggerpostun', '<lua>'),
         ('man-db-0:2.13.1-3.fc44.x86_64', 'transfiletriggerin', '/bin/sh'),
         ('man-db-0:2.13.1-3.fc44.x86_64', 'transfiletriggerpostun', '/bin/sh')]
+
+
+@pytest.mark.parametrize('unexpected_skipped_execution', [False, True])
+def test_rpm_execution_requires_exact_five_action_replacement_plan(
+        fedora_trigger_execution, unexpected_skipped_execution):
+    triggers, output = fedora_trigger_execution
+    triggers['applicable'][0]['actions'].pop()
+    if not unexpected_skipped_execution:
+        output = output.replace(
+            'D: %filetriggerpostun(filesystem-3.18-52.fc44.x86_64): running <lua> scriptlet.\n', '')
+        assert len(history.rpm_execution(output, triggers)) == 5
+    else:
+        with pytest.raises(history.guest.GuestError, match='unaccounted-trigger-execution'):
+            history.rpm_execution(output, triggers)
 
 
 @pytest.mark.parametrize('fault', ['missing-lua', 'duplicate-lua', 'missing-shell',
@@ -369,6 +531,7 @@ def test_rpm_transaction_retains_native_output_when_independent_checks_fail(
         private, monkeypatch, fedora_trigger_execution, fault):
     triggers, output = fedora_trigger_execution
     triggers['completion_unit'] = 'man-db-cache-update.service'
+    triggers['transactions'] = {'new': {'applicable': copy.deepcopy(triggers['applicable'])}}
     manifest = {'package_format': 'rpm', 'selection': {'package': 'xdg-dbus-proxy'},
                 'packages': {'new': {'path': 'new.rpm'}}}
     before = {'native_state': {'installed': [{'name': 'xdg-dbus-proxy'}, {'name': 'unrelated'}],
@@ -402,7 +565,8 @@ def test_rpm_transaction_retains_native_output_when_independent_checks_fail(
                 return 'ExecMainStartTimestampMonotonic=1\nExecMainExitTimestampMonotonic=2\nExecMainStatus=0'
             return 'ExecMainStartTimestampMonotonic=1000001\nExecMainExitTimestampMonotonic=1000002\nExecMainStatus=0'
         assert arguments[0] == 'journalctl'
-        return json.dumps({'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start', 'JOB_RESULT': 'done'})
+        rows = completed_man_db_journal()
+        return '\n'.join(json.dumps(row) for row in (rows[:1] if fault == 'trigger-timeout' else rows))
 
     monkeypatch.setattr(history.guest, 'run', run)
     record = Mock()
@@ -426,8 +590,9 @@ def test_rpm_transaction_retains_native_output_when_independent_checks_fail(
         assert wait['execution'] == {'ExecMainStartTimestampMonotonic': '1',
             'ExecMainExitTimestampMonotonic': '2', 'ExecMainStatus': '0'}
         assert wait['error'] is None
-        journal = json.loads((private / 'native-update-output/new-trigger-journal.txt').read_text())
-        assert journal == {'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start', 'JOB_RESULT': 'done'}
+        assert wait['journal_execution'] is None
+        journal = [json.loads(line) for line in (private / 'native-update-output/new-trigger-journal.txt').read_text().splitlines()]
+        assert journal == completed_man_db_journal()[:1]
     if fault == 'man-completion':
         assert 'started_ns' in cache.call_args.kwargs
     else:
@@ -587,15 +752,20 @@ def test_retained_mapping_requires_real_executable_and_enforcing_identity(tmp_pa
 
 def test_native_child_readiness_waits_for_mount_setup_without_replaying_input(monkeypatch):
     expected = {'pid': 4321, 'generation': 'old', 'mappings': ['native A']}
-    observe = Mock(side_effect=[FileNotFoundError('root not constructed'), expected])
+    observe = Mock(return_value=expected)
     monkeypatch.setattr(history, 'mapping', observe)
+    def blocked(*args):
+        assert observe.call_count == 0
+        return blocked_checks.pop(0)
+    blocked_checks = [False, True]
+    monkeypatch.setattr(history, 'bwrap_setup_blocked', blocked)
     monkeypatch.setattr(history.confinement, 'exited', lambda fd: False)
     pause = Mock()
     monkeypatch.setattr(history.time, 'sleep', pause)
     account = SimpleNamespace(pw_uid=1001)
     assert history.wait_mapping(4321, 12, account, 'apparmor', 'old',
-                                {'sha256': 'A'}, 'bwrap') == expected
-    assert observe.call_count == 2
+                                {'sha256': 'A'}, 'bwrap', block_fd=7, pipe_identity=(1, 2)) == expected
+    assert observe.call_count == 1
     pause.assert_called_once_with(0.02)
 
 
@@ -604,6 +774,7 @@ def test_native_child_readiness_refuses_bad_boundary_exit_and_incomplete_setup(m
     observe = Mock(side_effect=(history.guest.GuestError('native-update:witness-boundary')
                                if fault == 'boundary' else FileNotFoundError('root not constructed')))
     monkeypatch.setattr(history, 'mapping', observe)
+    monkeypatch.setattr(history, 'bwrap_setup_blocked', lambda *args: fault == 'boundary')
     monkeypatch.setattr(history.confinement, 'exited', lambda fd: fault == 'exited')
     monkeypatch.setattr(history.time, 'monotonic', Mock(side_effect=[0, 15]))
     pause = Mock(side_effect=AssertionError('refused readiness must not sleep'))
@@ -612,9 +783,43 @@ def test_native_child_readiness_refuses_bad_boundary_exit_and_incomplete_setup(m
             'boundary': 'witness-boundary', 'exited': 'witness-exited',
             'deadline': 'witness-mapping-ready-timeout'}[fault]):
         history.wait_mapping(4321, 12, SimpleNamespace(pw_uid=1001), 'apparmor',
-                             'old', {'sha256': 'A'}, 'bwrap')
+                             'old', {'sha256': 'A'}, 'bwrap', block_fd=7, pipe_identity=(1, 2))
     pause.assert_not_called()
-    assert observe.call_count == (0 if fault == 'exited' else 1)
+    assert observe.call_count == (1 if fault == 'boundary' else 0)
+
+
+@pytest.mark.parametrize('syscall', ['running', '-1 0x0 0x0',
+    '1 0x7 0x1000 0x1 0x0 0x0 0x0 0x0 0x0',
+    '0 0x8 0x1000 0x1 0x0 0x0 0x0 0x0 0x0',
+    '0 0x7 0x1000 0x2 0x0 0x0 0x0 0x0 0x0',
+    '0 0x7 0x1000 0x1 0x0 0x0 0x0 0x0 0x0'])
+def test_bwrap_setup_barrier_requires_owned_pipe_one_byte_read(tmp_path, monkeypatch, syscall):
+    process = tmp_path / '4321'
+    (process / 'fd').mkdir(parents=True)
+    (process / 'syscall').write_text(syscall)
+    # Only metadata is needed: no FIFO is opened or worker/process acquired.
+    pipe = process / 'fd/7'
+    os.mkfifo(pipe, mode=0o600)
+    info = pipe.stat()
+    monkeypatch.setattr(history.confinement, 'PROC', tmp_path)
+    expected = syscall == '0 0x7 0x1000 0x1 0x0 0x0 0x0 0x0 0x0'
+    assert history.bwrap_setup_blocked(4321, 7, (info.st_dev, info.st_ino)) is expected
+
+
+@pytest.mark.parametrize('fault', ['identity', 'regular'])
+def test_bwrap_setup_barrier_refuses_replaced_release_pipe(tmp_path, monkeypatch, fault):
+    process = tmp_path / '4321'
+    (process / 'fd').mkdir(parents=True)
+    (process / 'syscall').write_text('0 0x7 0x1000 0x1 0x0 0x0 0x0 0x0 0x0')
+    pipe = process / 'fd/7'
+    if fault == 'regular':
+        pipe.write_bytes(b'foreign')
+    else:
+        os.mkfifo(pipe, mode=0o600)
+    info = pipe.stat()
+    monkeypatch.setattr(history.confinement, 'PROC', tmp_path)
+    with pytest.raises(history.guest.GuestError, match='setup-pipe-replaced'):
+        history.bwrap_setup_blocked(4321, 7, (info.st_dev, info.st_ino + (fault == 'identity')))
 
 
 @pytest.mark.parametrize('failure', ['native-status', 'missing-trigger', 'extra-package'])
@@ -692,7 +897,7 @@ def test_complete_retained_phase_requires_every_boundary_before_checkpoint(priva
     monkeypatch.setattr(history, 'controls', control)
     monkeypatch.setattr(history, 'stale_admission', lambda *args: events.append('stale-refused'))
     monkeypatch.setattr(history.confinement, 'verify_loader_admission_refusal',
-                        lambda *args: events.append('held-loader-refused'))
+                        lambda *args, **kwargs: events.append('held-loader-refused') or 'loader-state')
 
     def run(arguments, **kwargs):
         if '--property=Type' in arguments:
@@ -716,17 +921,69 @@ def test_complete_retained_phase_requires_every_boundary_before_checkpoint(priva
         assert [event for event in events if event != 'enforcing'] == expected
 
 
-@pytest.mark.parametrize('failure', [None, 'policy', 'same-generation', 'old-runtime'])
+@pytest.mark.parametrize('failure', [None, 'loader', 'policy', 'publication', 'old-generation', 'same-boot', 'manager'])
+def test_changed_boot_must_complete_deferred_loader_before_fresh_admission(
+        private, tmp_path, monkeypatch, failure):
+    boundary = {'pid': 4321, 'generation': 'a' * 64 + '\n'}
+    state = {'boot': 'same-boot', 'boundary': boundary, 'loader_state_sha256': 'c' * 64,
+             'pam': {'vendor': 'unchanged'}, 'policy': {'child': 'unchanged'}}
+    monkeypatch.setattr(history, 'inputs', lambda: ({'run': 'owned'}, {}, None))
+    monkeypatch.setattr(history, 'checkpoint', lambda phase, binding:
+                        {'boot': 'old-boot'} if phase == 'retired' else state)
+    monkeypatch.setattr(history, 'BOOT', SimpleNamespace(
+        read_text=lambda: 'old-boot' if failure == 'same-boot' else 'new-boot'))
+    monkeypatch.setattr(history.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1001))
+    events = []
+    monkeypatch.setattr(history.guest, 'wait_for_boot', lambda: events.append('boot-ready'))
+    def inactive(account):
+        if failure == 'manager':
+            raise history.guest.GuestError('manager-active')
+        events.append('manager-inactive')
+    monkeypatch.setattr(history.confinement, 'wait_kiosk_inactive', inactive)
+    monkeypatch.setattr(history, 'native_identity', lambda *args: events.append('native-B'))
+    config = tmp_path / 'config.json'
+    config.write_text('{"backend":"apparmor"}')
+    monkeypatch.setattr(history, 'CONFIG', config)
+    runtime = tmp_path / 'runtime'
+    runtime.mkdir()
+    if failure == 'old-generation':
+        (runtime / ('a' * 64)).mkdir()
+    monkeypatch.setattr(history, 'RUNTIME', runtime)
+    monkeypatch.setattr(history, 'policy_state', lambda: {'changed': True} if failure == 'policy' else state['policy'])
+    def drain(config, record, digest, pam):
+        assert digest == state['loader_state_sha256'] and pam == state['pam']
+        assert events == ['boot-ready', 'manager-inactive', 'native-B']
+        if failure == 'loader':
+            raise history.guest.GuestError('load-refused')
+        if failure == 'publication':
+            (runtime / ('b' * 64)).mkdir()
+        events.append('drained-load')
+    monkeypatch.setattr(history.confinement, 'verify_loader_admission_drained', drain)
+    if failure:
+        with pytest.raises(history.guest.GuestError):
+            history.loader_after_reboot()
+        assert not (private / 'native-update-loader-drained.json').exists()
+    else:
+        history.loader_after_reboot()
+        assert events == ['boot-ready', 'manager-inactive', 'native-B', 'drained-load']
+        result = json.loads((private / 'native-update-loader-drained.json').read_text())
+        assert result['boot'] == 'new-boot' and result['loader_state_sha256'] == 'c' * 64
+
+
+@pytest.mark.parametrize('failure', [None, 'policy', 'same-generation', 'old-runtime', 'undrained'])
 def test_rebooted_public_station_requires_B_policy_native_enforcement_and_broker(private, tmp_path, monkeypatch, failure):
     import runpy
     import system_enforcement
     events = []
     manifest = {'packages': {'new': {'executable': {'sha256': 'new'}}}}
     policy = {'child': 1002}
-    updated = {'policy': policy, 'pam': {'saved': True}, 'boundary': {'generation': 'a' * 64 + '\n'}}
+    updated = {'policy': policy, 'pam': {'saved': True}, 'boundary': {'generation': 'a' * 64 + '\n'},
+               'loader_state_sha256': 'c' * 64}
     monkeypatch.setattr(history, 'inputs', lambda: ({'run': 'owned'}, manifest, None))
     monkeypatch.setattr(history, 'checkpoint', lambda phase, binding:
-                        {'boot': 'old-boot'} if phase == 'retired' else updated)
+                        {'boot': 'old-boot'} if phase == 'retired' else
+                        {'boot': 'new-boot', 'loader_state_sha256': 'wrong' if failure == 'undrained' else 'c' * 64}
+                        if phase == 'loader-drained' else updated)
     monkeypatch.setattr(history, 'BOOT', SimpleNamespace(read_text=lambda: 'new-boot'))
     monkeypatch.setattr(history.guest, 'installed', lambda: events.append('installed'))
     monkeypatch.setattr(history, 'native_identity', lambda *args: events.append('new-native-identity'))

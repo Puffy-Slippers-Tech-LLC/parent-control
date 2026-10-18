@@ -303,7 +303,14 @@ def test_native_establish_dispatch_preserves_only_safe_preflight_errors(
     assert 'private-person' not in output.err
     guard.assert_called_once_with()
     transaction.assert_not_called()
-    assert not list(tmp_path.iterdir())
+    # Refusal still precedes every transaction/checkpoint. Its detailed cause
+    # now remains in the private evidence route, never the public diagnostic.
+    diagnostic = tmp_path / 'native-update-output'
+    assert list(tmp_path.iterdir()) == [diagnostic]
+    failure = diagnostic / 'old-failure.txt'
+    assert list(diagnostic.iterdir()) == [failure]
+    assert stat.S_IMODE(failure.stat().st_mode) == 0o600
+    assert reason in failure.read_text()
 
 
 def test_native_preflight_failure_remains_collectable_through_guest_dispatch(

@@ -1,5 +1,6 @@
 """Private confinement lifecycle machines; no host PAM or kernel policy changes."""
 import importlib.util
+import hashlib
 import json
 import fcntl
 import os
@@ -4488,8 +4489,9 @@ def test_payload_drift_requires_native_and_boot_refusal_before_exact_recovery(
 @pytest.mark.parametrize('fault', [None, 'accepted-load', 'wrong-refusal', 'holder-changed',
                                    'record-changed', 'pam-changed', 'policy-unenforced',
                                    'drained-load-failed'])
+@pytest.mark.parametrize('defer_drain', [False, True])
 def test_installed_loader_refusal_preserves_real_admission_and_policy(
-        census_model, monkeypatch, fault):
+        census_model, monkeypatch, fault, defer_drain):
     from contextlib import contextmanager
     helper = census_model
     events, records = [], {}
@@ -4518,7 +4520,7 @@ def test_installed_loader_refusal_preserves_real_admission_and_policy(
         assert command[-1] == 'load' and not current['held'] and timeout == 90
         events.append('load')
         current['loads'] += 1
-        if fault == 'drained-load-failed' and current['loads'] == 2:
+        if fault == 'drained-load-failed' and current['loads'] == (1 if defer_drain else 2):
             raise helper.guest.GuestError('drained-load-failed')
     monkeypatch.setattr(helper.guest, 'run', run)
     def refused(command, **options):
@@ -4534,19 +4536,29 @@ def test_installed_loader_refusal_preserves_real_admission_and_policy(
     monkeypatch.setattr(helper, 'process_identity', lambda process:
         ('replacement', *native_identity[1:]) if fault == 'holder-changed' and current['attempted']
         else native_identity)
+    def verify():
+        digest = helper.verify_loader_admission_refusal(
+            {'backend': 'apparmor'}, records.__setitem__, defer_drain=defer_drain)
+        assert digest == hashlib.sha256(b'original').hexdigest()
+        if defer_drain:
+            assert records['onpc.kiosk.loader.drain-deferred-to-retirement'] is True
+            assert 'onpc.kiosk.loader.allowed-after-admission' not in records
+            assert current['loads'] == 0
+            helper.verify_loader_admission_drained(
+                {'backend': 'apparmor'}, records.__setitem__, digest, 'original')
     if fault:
         category = ('policy-unenforced' if fault == 'policy-unenforced' else
                     'drained-load-failed' if fault == 'drained-load-failed' else
                     'held-admission-not-refused' if fault in ('accepted-load', 'wrong-refusal') else
                     'refusal-changed-admission-state')
         with pytest.raises((helper.guest.GuestError, ValueError), match=category):
-            helper.verify_loader_admission_refusal({'backend': 'apparmor'}, records.__setitem__)
+            verify()
         assert 'onpc.kiosk.loader.allowed-after-admission' not in records
     else:
-        helper.verify_loader_admission_refusal({'backend': 'apparmor'}, records.__setitem__)
-        assert events == ['load', 'enforcing', 'hold', 'refused-load', 'enforcing',
+        verify()
+        assert events == ([] if defer_drain else ['load']) + ['enforcing', 'hold', 'refused-load', 'enforcing',
                           'pam-end', 'load', 'enforcing']
-        assert records['onpc.kiosk.loader.allowed-before-admission'] is True
+        assert records.get('onpc.kiosk.loader.allowed-before-admission') is (None if defer_drain else True)
         assert records['onpc.kiosk.loader.allowed-after-admission'] is True
     assert not current['held']
 

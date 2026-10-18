@@ -968,6 +968,10 @@ from regression_ui import Bucket
 # doubles. Descriptors close on refusal; no native package, VM, service, bus,
 # display, network or shared cache is acquired. Existing kiosk-entry checks
 # remain compatible. These three new modules add no cleanup or UI inventory.
+# Native-history receipt-size coverage owns one bounded 9-MiB pytest-private
+# file and in-process pipe/clock doubles; the compatible classification holds.
+# The native setup-barrier checks stat tiny unopened pytest-private FIFOs;
+# they acquire no worker or live pipe reader and retain compatible isolation.
 REVIEWED = frozenset("""
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging

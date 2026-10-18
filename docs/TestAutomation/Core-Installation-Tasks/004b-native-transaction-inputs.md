@@ -270,4 +270,4 @@ Run affected host checks, check Markdown/plan, and refresh generated inventory
 if collection changes. Product/build-input changes require `make build`; report
 missing prerequisites. Mark only 004b complete. Real transaction scripts,
 retained mappings and admission recovery remain unqualified until
-[004d](004d-native-update-histories.md) passes on both targets.
+[004d](../Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification) passes on both targets.

@@ -234,6 +234,14 @@ Plan/E2E coordinators report a short `last_error` once per new occurrence and
 update `status` through `LAUNCHER_STATUS` commentary. The launcher supplies the
 error timestamp; repeated old failures must not reset it. Testing statuses require
 evidence about the previous error point, not merely starting an unrelated test.
+Before launching the test or retry that verifies a fix at the previous error point,
+the coordinator sends `Testing fix, previous error point not reached yet` in a
+separate `LAUNCHER_STATUS` commentary before the verification tool call. Keep
+that yellow status through setup, earlier steps and waiting for evidence that
+the previous error point passed; do not leave the panel on fixing during that run.
+Report `Testing fix, previous error point passed` only after observing that
+evidence. A changed fix needing fresh verification returns to yellow before its
+retry, even if an earlier candidate passed that point.
 These fields are presentation only and never acceptance evidence. Conversation
 lifecycle notices and developer questions appear separately from the status value.
 Valid `LAUNCHER_STATUS` metadata is omitted from the general transcript and

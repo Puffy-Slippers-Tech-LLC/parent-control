@@ -47,6 +47,8 @@ REMOVAL_PHASES = ('removal', 'removed-rebooted', 'reinstalled-rebooted',
                   'purged-rebooted', 'purge-reinstalled-rebooted')
 FIRST_CONFIGURE_CASE = 'test_first_configuration_interruption_retry'
 FIRST_CONFIGURE_PHASES = ('first-configure', 'first-configure-rebooted')
+PREVIOUS_POLICY_CASE = 'test_previous_package_policy_preservation'
+PREVIOUS_POLICY_PHASES = ('previous-policy', 'installed', 'rebooted')
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,16 @@ class History:
     prerequisites: tuple[str, ...]
     start: str = 'baseline'
     package_format: str | None = None
+
+
+PAM_CASE = 'test_pam_environment_installation_variants'
+PAM_VARIANTS = ('plain', 'distro-profile', 'administrator-override', 'pending-vendor')
+PAM_HISTORIES = tuple(
+    History(f'{PAM_CASE}[{variant}]',
+            (f'pam-{variant}', f'pam-{variant}-rebooted',
+             f'pam-{variant}-configured-rebooted', f'pam-{variant}-removed-rebooted'), ())
+    for variant in PAM_VARIANTS)
+PAM_PHASES = tuple(phase for history in PAM_HISTORIES for phase in history.phases)
 
 
 REMOVAL_HISTORIES = (
@@ -92,7 +104,7 @@ REMOVAL_FAMILIES = {
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
                    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
-PHASE_ORDER = ('installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *REMOVAL_PHASES,
+PHASE_ORDER = ('previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session')
@@ -131,10 +143,13 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
     'common/oh_no_parent_control_ui/application_ui_client.py', 'data/app.json',
 )
 PHASE_DEPENDENCIES = {
+    'previous-policy': (),
     'installed': (),
     'rebooted': ('installed',),
     FIRST_CONFIGURE_PHASES[0]: (),
     FIRST_CONFIGURE_PHASES[1]: (FIRST_CONFIGURE_PHASES[0],),
+    **{phase: history.phases[:index]
+       for history in PAM_HISTORIES for index, phase in enumerate(history.phases)},
     **{phase: (*history.prerequisites, *history.phases[:index])
        for history in REMOVAL_HISTORIES
        for index, phase in enumerate(history.phases)},
@@ -145,11 +160,17 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    'previous-policy': ('genuine-earlier-package', 'previous-install-and-reboot',
+                        'saved-child-policy-and-authenticated-grant', 'fixture-passwords'),
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
     'rebooted': ('installed-phase', 'guest-reboot', 'boot-readiness'),
     FIRST_CONFIGURE_PHASES[0]: ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap',
                               'owned-configure-interruption-retry'),
     FIRST_CONFIGURE_PHASES[1]: ('first-configure-phase', 'guest-reboot', 'boot-readiness'),
+    **{history.phases[0]: ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap',
+                         'owned-pam-environment-installation') for history in PAM_HISTORIES},
+    **{phase: (history.phases[index - 1] + '-phase', 'guest-reboot', 'boot-readiness')
+       for history in PAM_HISTORIES for index, phase in enumerate(history.phases) if index},
     'removal': ('installed-phase', 'guest-reboot', 'native-enforcement-fixture'),
     'removed-rebooted': ('removal-phase', 'guest-reboot', 'desktop-health'),
     'reinstalled-rebooted': ('reinstall-phase', 'guest-reboot', 'boot-readiness'),
@@ -352,6 +373,8 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
+        PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
+        **{history.case_id: history.phases for history in PAM_HISTORIES},
         FIRST_CONFIGURE_CASE: FIRST_CONFIGURE_PHASES,
         'test_installed_package': ('installed', 'rebooted'),
         'test_first_install_requests_reboot': ('installed',),
@@ -398,7 +421,9 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     inventories['removal'] = tuple(case for case in inventories['removal']
                                   if case not in incompatible_histories)
 
-    family = REMOVAL_FAMILIES.get(test) if area == 'removal' else None
+    family = REMOVAL_FAMILIES.get(test) if area == 'removal' else (
+        tuple(history.case_id for history in PAM_HISTORIES)
+        if area == 'package' and test == PAM_CASE else None)
     if family is not None:
         registered = tuple(case for case in inventories[area] if case.startswith(test + '['))
         require(family and set(registered) == set(family), 'selection:invalid-family-registry')
@@ -416,10 +441,18 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         chosen = {name: tuple(case for case in cases if (name, case) in selected)
                   for name, cases in chosen.items()}
         chosen = {name: cases for name, cases in chosen.items() if cases}
+    # This optional history needs explicit earlier-package inputs. Ordinary
+    # current-package suites keep their independent baseline histories.
+    if not fresh_install and test is None and not identities and 'package' in chosen:
+        chosen['package'] = tuple(case for case in chosen['package']
+                                  if case != PREVIOUS_POLICY_CASE)
     require(not fresh_install or not any(history.case_id in chosen.get('removal', ())
             for history in REMOVAL_HISTORIES[1:]), 'selection:recovery-requires-current-package')
     require(not fresh_install or FIRST_CONFIGURE_CASE not in chosen.get('package', ()),
             'selection:first-configure-requires-current-package')
+    require(not fresh_install or not any(history.case_id in chosen.get('package', ())
+                                        for history in PAM_HISTORIES),
+            'selection:pam-variants-require-current-package')
 
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}
@@ -511,7 +544,10 @@ def resume_selection(selection, completed, *, fresh_install=False):
     if any(item.phase in FIRST_CONFIGURE_PHASES for item in remaining):
         remaining = tuple(item for item in selection.executions
                           if item in remaining or item.phase in FIRST_CONFIGURE_PHASES)
-    for history in REMOVAL_HISTORIES:
+    if any(item.case_id == PREVIOUS_POLICY_CASE for item in remaining):
+        remaining = tuple(item for item in selection.executions
+                          if item in remaining or item.case_id == PREVIOUS_POLICY_CASE)
+    for history in (*REMOVAL_HISTORIES, *PAM_HISTORIES):
         # State-changing histories cannot splice retained predecessor passes
         # into a newly restored guest.
         lifecycle = (*history.prerequisites, *history.phases)
@@ -1285,7 +1321,7 @@ def stage_assets(source, destination, commands):
     return manifest
 
 
-def stage_previous_assets(source, destination, commands, current):
+def stage_previous_assets(source, destination, commands, current, *, genuine=False):
     """Bind an explicit prior package to the same platform as the current one."""
     previous = stage_assets(source, destination, commands)
     old_format = Path(previous['artifacts']['package']['path']).suffix
@@ -1293,16 +1329,24 @@ def stage_previous_assets(source, destination, commands, current):
     require(old_format == new_format, 'assets:previous-package-format')
     require(previous['artifacts']['package']['sha256'] !=
             current['artifacts']['package']['sha256'], 'assets:identical-update-payload')
-    payload = destination.parent / 'input'
+    upgrade_identity = None
+    if genuine:
+        from build_test_artifacts import verify_upgrade
+        # Reuse the independently verified release/current pair validator after
+        # freezing both inputs. No mutable input-parent layout is trusted.
+        upgrade_identity = verify_upgrade(destination.parent, staged=True, repository=ROOT)
+    payload = destination.parent if genuine else destination.parent / 'input'
     shutil.copyfile(destination / ('package' + old_format),
                     payload / ('previous-package' + old_format))
     current['previous_package'] = {
         'sha256': previous['artifacts']['package']['sha256'], 'source': previous['source']}
+    if upgrade_identity is not None:
+        current['previous_package']['upgrade_identity'] = upgrade_identity
     (payload / 'previous-inputs.json').write_bytes(baseline.encode(current['previous_package']))
 
 
 def stage_upgrade_assets(source, destination, commands):
-    """FIX04's finite genuine-v1.2/current binding; no arbitrary bundle interface."""
+    """Finite pinned-release/current binding; no arbitrary bundle interface."""
     from build_test_artifacts import verify_upgrade
     from provenance import snapshot
     before = snapshot(source)
@@ -1313,7 +1357,8 @@ def stage_upgrade_assets(source, destination, commands):
     # These finite files are created by staging, rather than copied source
     # metadata. Make their privacy independent of the controller's umask.
     for root in (destination, destination / 'previous'):
-        for name in ('package.deb', 'installed-files.json', 'transfer-sha256.json'):
+        package = 'package' + Path(manifest['artifacts']['package']['path']).suffix
+        for name in (package, 'installed-files.json', 'transfer-sha256.json'):
             (root / name).chmod(0o600)
     (destination / 'previous').chmod(0o700)
     inventory = {str(p.relative_to(destination)): baseline.digest(p)
@@ -1737,7 +1782,7 @@ def run_pytest(vm, run, phase, selection):
     vm.commands.progress = Progress(phase, phase_executions(selection, phase), watch=watch_progress)
     try:
         return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if phase in FIRST_CONFIGURE_PHASES or any(phase in history.phases
+                       timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy') or any(phase in history.phases
                                            for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress.close()
@@ -1757,7 +1802,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     for extension in ('deb', 'rpm')]
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
         has_previous = any(path.exists() for path in previous)
+        previous_policy = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+        require(not previous_policy or (has_previous and not already_installed and
+                selection.phases == PREVIOUS_POLICY_PHASES),
+                'selection:previous-policy-requires-isolated-upgrade')
         first_configure = any(phase in FIRST_CONFIGURE_PHASES for phase in selection.phases)
+        pam_history = next((history for history in PAM_HISTORIES
+                            if any(phase in selection.phases for phase in history.phases)), None)
         install_phases = tuple(phase for phase in selection.phases
                                if PHASE_SEMANTICS.get(phase, phase) == 'installed')
         reboot_phases = tuple(phase for phase in selection.phases
@@ -1765,11 +1816,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         require(len(install_phases) <= 1 and len(reboot_phases) <= 1,
                 'selection:multiple-installation-histories')
         require(not already_installed or (not has_previous and
-                not install_phases and not reboot_phases and not first_configure),
+                not install_phases and not reboot_phases and not first_configure and not pam_history),
                 'selection:installation-requires-baseline')
         require(not first_configure or (not has_previous and not install_phases and
                 not reboot_phases and selection.phases == FIRST_CONFIGURE_PHASES),
                 'selection:first-configure-requires-isolated-baseline')
+        require(pam_history is None or (not has_previous and not install_phases and
+                not reboot_phases and selection.phases == pam_history.phases),
+                'selection:pam-variants-require-isolated-baseline')
         if already_installed:
             lease.save('snapshot-readiness')
             with ledger.measure('bootstrap'):
@@ -1781,7 +1835,21 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             lease.save('previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
-        if not already_installed and not first_configure:
+            if previous_policy:
+                lease.save('pytest-previous-policy')
+                with ledger.measure('test'):
+                    try:
+                        run_pytest(vm, run, 'previous-policy', selection)
+                    except CommandError as error:
+                        domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
+                                  else 'infrastructure')
+                        ledger.fail_outcome(domain, 'pytest:failed:previous-policy'
+                                            if domain == 'product' else error_category(error))
+                        raise
+                with ledger.measure('collection'):
+                    vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
+                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+        if not already_installed and not first_configure and pam_history is None:
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
@@ -1828,12 +1896,24 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                 for phase in history.phases)
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
-        for phase in (*FIRST_CONFIGURE_PHASES, *recovery_phases, 'authorization', 'enforcement', 'session'):
+        for phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
+                      'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
-            if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1]):
+            if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
+                         *(item for history in PAM_HISTORIES for item in history.phases[1:])):
                 # Keep removal, the health boot and reinstallation in one
                 # attempt. Restoration is cleanup, never a lifecycle step.
+                if phase in PAM_PHASES:
+                    # Save the prior phase before a real reboot can lose the
+                    # transport. Every variant remains one owned history.
+                    with ledger.measure('collection'):
+                        vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
+                        vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                        prior = pam_history.phases[pam_history.phases.index(phase) - 1]
+                        retained = directory / 'phase-results' / prior
+                        retained.mkdir(parents=True, mode=0o700)
+                        vm.copy(True, PAYLOAD + '/results/', str(retained) + '/')
                 lease.save('reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
@@ -2043,6 +2123,9 @@ def main(argv=None):
                                       qualification_failure=args.qualification_failure,
                                       fresh_install=args.previous_artifacts is not None,
                                       target_package_format=configured.require_package_format())
+        require(not any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+                or args.previous_artifacts is not None,
+                'selection:previous-policy-requires-previous-artifacts')
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
         if args.completed_cases is not None:
             from tools.test_checkpoint import completed_cases
@@ -2071,7 +2154,10 @@ def main(argv=None):
         with ledger.measure('preparation'):
             manifest = stage_assets(assets, directory / 'input', commands)
             if previous_assets is not None:
-                stage_previous_assets(previous_assets, directory / 'previous', commands, manifest)
+                genuine = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+                stage_previous_assets(previous_assets,
+                    directory / 'input/previous' if genuine else directory / 'previous',
+                    commands, manifest, genuine=genuine)
             host_before = host_fingerprint(commands)
             selected_inputs_sha256 = stage_selected_inputs(selection, directory / 'input')
             # Include the exact test/helper bytes as well as package and fixtures.

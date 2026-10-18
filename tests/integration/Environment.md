@@ -235,8 +235,11 @@ present during installation and confined manager teardown. The package's default
 installation, after successful retry and after reboot; package presence alone
 does not establish this coverage. Missing or altered rules refuse that history
 with baseline-refresh guidance. Tests never enable the profile to repair their
-own prerequisites. The new input and history require installed qualification;
-see the [core installation handoff](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md).
+own prerequisites. This input passed the complete native installation/retry/reboot
+and confinement histories on Ubuntu, with Fedora regression acceptance retained;
+see [task 001 qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification)
+for the exact baselines, native versions and receipts. Other PAM variants remain
+separate unfinished work in that queue.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
 minimum qualified versions, accepts newer security/maintenance versions,
 generates missing SSH host keys, enables SSH and checks public-key

@@ -584,6 +584,16 @@ CASES = (
                  'Kiosk expiry installed runtime'),
     CaseIdentity(282, 'session', 'test_kiosk_expiry_graphical_runtime',
                  'Kiosk expiry graphical runtime'),
+    CaseIdentity(283, 'package', 'test_pam_environment_installation_variants[plain]',
+                 'PAM environment installation [plain]'),
+    CaseIdentity(284, 'package', 'test_pam_environment_installation_variants[distro-profile]',
+                 'PAM environment installation [distro-profile]'),
+    CaseIdentity(285, 'package', 'test_pam_environment_installation_variants[administrator-override]',
+                 'PAM environment installation [administrator-override]'),
+    CaseIdentity(286, 'package', 'test_pam_environment_installation_variants[pending-vendor]',
+                 'PAM environment installation [pending-vendor]'),
+    CaseIdentity(287, 'package', 'test_previous_package_policy_preservation',
+                 'Previous package policy preservation'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

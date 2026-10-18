@@ -11,7 +11,7 @@ import system_runner as system
 def attempts(selection, *, fresh_install=False):
     """Keep lifecycle transitions together; restore before each installed area."""
     full = system.REMOVAL_HISTORIES[0]
-    lifecycle = (*full.prerequisites, *full.phases)
+    lifecycle = ('previous-policy', *full.prerequisites, *full.phases)
     independent = ('authorization', 'enforcement', 'session')
     groups = ([((*lifecycle, *independent), False)] if fresh_install else
               [(lifecycle, full.start == 'installed'), *(((phase,), True) for phase in independent)])
@@ -20,6 +20,7 @@ def attempts(selection, *, fresh_install=False):
     groups[1:1] = [((*history.prerequisites, *history.phases), history.start == 'installed')
                    for history in system.REMOVAL_HISTORIES[1:]]
     groups.insert(1, (system.FIRST_CONFIGURE_PHASES, False))
+    groups[2:2] = [(history.phases, False) for history in system.PAM_HISTORIES]
     result = []
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)

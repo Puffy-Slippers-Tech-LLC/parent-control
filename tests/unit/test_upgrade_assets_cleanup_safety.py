@@ -314,37 +314,47 @@ def test_selector_real_constructor_and_shared_worker_order(monkeypatch):
     assert [event[1] for event in result['events'] if event[0] == 'stage'] == list(owner.plan.screen_tags)
 
 
-def test_released_source_refuses_retargeted_or_missing_release_without_archive(tmp_path, monkeypatch):
-    monkeypatch.setattr(builder, '_run', Mock(return_value=SimpleNamespace(stdout='f' * 40)))
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+@pytest.mark.parametrize('fault', ['tag', 'commit'])
+def test_released_source_refuses_retargeted_or_missing_release_without_archive(
+        tmp_path, monkeypatch, package_format, fault):
+    release = builder.PREVIOUS_RELEASES[package_format]
+    run = Mock(side_effect=[SimpleNamespace(stdout='f' * 40 if fault == 'tag' else release['tag']),
+                           SimpleNamespace(stdout='f' * 40 if fault == 'commit' else release['commit'])])
+    monkeypatch.setattr(builder, '_run', run)
     archive = Mock(side_effect=AssertionError('unverified archive read'))
     monkeypatch.setattr(builder.subprocess, 'run', archive)
-    with pytest.raises(builder.ArtifactError, match='authentic v1.2'):
-        with builder.released_source(repository=tmp_path): pass
+    with pytest.raises(builder.ArtifactError, match='authentic v1.'):
+        with builder.released_source(repository=tmp_path, package_format=package_format): pass
+    assert run.call_args_list[0].args[0][-1] == 'refs/tags/' + release['name']
+    assert run.call_args_list[1].args[0][-1] == release['tag'] + '^{commit}'
     archive.assert_not_called()
 
 
 @pytest.mark.parametrize('entry', ['builder', 'cli'])
-def test_unavailable_fedora_predecessor_refuses_before_allocation_or_build(tmp_path, monkeypatch, capsys, entry):
+def test_unknown_predecessor_format_refuses_before_allocation_or_build(tmp_path, monkeypatch, capsys, entry):
     prepare = Mock(side_effect=AssertionError('unavailable predecessor must not allocate output'))
     build = Mock(side_effect=AssertionError('unavailable predecessor must not build a candidate'))
     monkeypatch.setattr(builder, '_require_empty_output', prepare)
     monkeypatch.setattr(builder, 'build', build)
-    output = tmp_path / 'unavailable-rpm-upgrade'
+    output = tmp_path / 'unavailable-upgrade'
     if entry == 'builder':
-        with pytest.raises(builder.ArtifactError, match='genuine previous Fedora RPM release unavailable'):
-            builder.build_upgrade(output, package_format='rpm')
+        with pytest.raises(builder.ArtifactError, match='unsupported upgrade package format'):
+            builder.build_upgrade(output, package_format='unknown')
     else:
         monkeypatch.setattr(builder.sys, 'argv', [
-            'build_test_artifacts', '--upgrade-inputs', '--package-format', 'rpm', '--output', str(output)])
-        assert builder.main() == 1
-        assert 'Fedora older-release upgrade qualification is blocked' in capsys.readouterr().err
+            'build_test_artifacts', '--upgrade-inputs', '--package-format', 'unknown', '--output', str(output)])
+        with pytest.raises(SystemExit) as failure:
+            builder.main()
+        assert failure.value.code == 2
+        assert 'invalid choice' in capsys.readouterr().err
     prepare.assert_not_called()
     build.assert_not_called()
     assert not output.exists()
 
 
-@pytest.mark.parametrize('formats', [('rpm', 'rpm'), ('deb', 'rpm'), ('rpm', 'deb')])
-def test_fabricated_rpm_or_mixed_upgrade_bundle_refuses_before_release_or_identity_reads(
+@pytest.mark.parametrize('formats', [('deb', 'rpm'), ('rpm', 'deb')])
+def test_mixed_upgrade_bundle_refuses_before_release_or_identity_reads(
         upgrade, monkeypatch, formats):
     assets, source, *_ = upgrade
     for root, extension in zip((assets, assets / 'previous'), formats):
@@ -359,10 +369,55 @@ def test_fabricated_rpm_or_mixed_upgrade_bundle_refuses_before_release_or_identi
     identity = Mock(side_effect=AssertionError('unqualified format must not invoke package metadata tools'))
     monkeypatch.setattr(builder, 'released_source', release)
     monkeypatch.setattr(builder, 'package_identity', identity)
-    with pytest.raises(builder.ArtifactError, match='previous Fedora RPM release unavailable|format mismatch'):
+    with pytest.raises(builder.ArtifactError, match='format mismatch'):
         builder.verify_upgrade(assets, staged=True, repository=source)
     release.assert_not_called()
     identity.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['', 'deb-source', 'wrong-commit', 'architecture',
+                                  'old-version', 'current-version', 'same-bytes'])
+def test_pinned_rpm_upgrade_binds_release_architecture_versions_and_bytes(upgrade, monkeypatch, fault):
+    assets, source, *_ = upgrade
+    (source / 'data').mkdir()
+    (source / 'data/app.json').write_text('{"version":"1.4"}')
+    release = builder.PREVIOUS_RELEASES['rpm']
+    for directory in (assets, assets / 'previous'):
+        (directory / 'package.deb').rename(directory / 'package.rpm')
+        path = directory / builder.MANIFEST_NAME
+        manifest = json.loads(path.read_text())
+        manifest['artifacts']['package']['path'] = 'package.rpm'
+        if directory != assets:
+            manifest['source'].update(revision=release['commit'], release_tag=release['tag'])
+            if fault == 'deb-source':
+                manifest['source'].update(revision=builder.RELEASE_COMMIT, release_tag=builder.RELEASE_TAG)
+            if fault == 'wrong-commit': manifest['source']['revision'] = 'f' * 40
+            if fault == 'same-bytes':
+                (directory / 'package.rpm').write_bytes((assets / 'package.rpm').read_bytes())
+                manifest['artifacts']['package']['sha256'] = builder._sha256(directory / 'package.rpm')
+        path.write_text(json.dumps(manifest))
+
+    def identity(path):
+        previous = path.parent.name == 'previous'
+        version = release['version'] if previous else '0:1.4-0.1.dev.fc44'
+        if (fault == 'old-version' and previous) or (fault == 'current-version' and not previous):
+            version = '0:1.2-0.1.dev.fc44'
+        return {'name': 'oh-no-parent-control', 'version': version,
+                'architecture': 'amd64' if fault == 'architecture' else 'x86_64',
+                'sha256': builder._sha256(path)}
+
+    monkeypatch.setattr(builder, 'package_identity', identity)
+    compare = Mock()
+    monkeypatch.setattr(builder, '_require_newer_version', compare)
+    if fault:
+        with pytest.raises(builder.ArtifactError):
+            builder.verify_upgrade(assets, staged=True, repository=source)
+        compare.assert_not_called()
+    else:
+        result = builder.verify_upgrade(assets, staged=True, repository=source)
+        assert result['sources']['previous']['revision'] == release['commit']
+        assert result['sources']['previous']['release_tag'] == release['tag']
+        compare.assert_called_once_with('0:1.4-0.1.dev.fc44', release['version'], package_format='rpm')
 
 
 @pytest.mark.parametrize('changed', [False, True])

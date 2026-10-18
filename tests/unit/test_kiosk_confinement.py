@@ -1654,6 +1654,8 @@ def test_pam_lifecycle_observer_pins_and_reaps_owned_executor_and_orphan(
     helper = census_model
     observer = os.getpid()
     monkeypatch.setattr(helper, 'manager_pid', lambda unit: observer)
+    # This existing plain-stack fixture declares no optional LXC callback.
+    monkeypatch.setattr(helper, 'optional_cgfs_session', lambda backend: False)
     original_read = Path.read_text
     expected = 'onpc-kiosk-manager (enforce)'
     def read(path, *args, **kwargs):
@@ -2394,6 +2396,132 @@ def test_native_package_inventory_preserves_exact_binary_and_source_builds(
 def test_native_package_inventory_refuses_missing_or_ambiguous_source_identity(census_model, rows):
     with pytest.raises(census_model.guest.GuestError, match='kiosk-native:package-identity'):
         census_model.native_package_rows('selinux', rows)
+
+
+@pytest.mark.parametrize('directive', ['@include ', 'session include ', 'session substack '])
+@pytest.mark.parametrize('profile', ['active', 'plain', 'other-arguments', 'commented'])
+def test_optional_cgfs_witness_selects_only_declared_exact_session_profile(
+        census_model, integration, monkeypatch, directive, profile):
+    installed, _ = integration
+    rule = 'session optional pam_cgfs.so -c freezer,memory,name=systemd\n'
+    if profile == 'plain':
+        rule = 'session required pam_unix.so\n'
+    elif profile == 'other-arguments':
+        rule = 'session optional pam_cgfs.so -c memory\n'
+    elif profile == 'commented':
+        rule = '# ' + rule
+    (installed.PAM_LOCAL / 'systemd-user').write_text(directive + 'shared-session\n')
+    (installed.PAM_LOCAL / 'shared-session').write_text(rule)
+    reader = Mock(return_value={'included_source': installed.included_source,
+                                'pam_lines': installed.pam_lines})
+    monkeypatch.setattr(census_model.runpy, 'run_path', reader)
+    assert census_model.optional_cgfs_session('apparmor') == (profile == 'active')
+    reader.reset_mock()
+    assert not census_model.optional_cgfs_session('selinux')
+    reader.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'absent', 'disappeared', 'missing-map', 'data-only', 'foreign-inode',
+                                  'foreign-device', 'deleted', 'receipt', 'changed'])
+def test_pam_cgfs_mapping_requires_native_executable_inode_and_receipt(
+        census_model, tmp_path, monkeypatch, fault):
+    helper = census_model
+    native = tmp_path / 'pam_cgfs.so'
+    native.write_bytes(b'\x7fELFprivate native callback')
+    identity = native.stat()
+    digest = helper.guest.sha(native)
+    measured = {'role': 'library', 'path': str(native), 'sha256': digest}
+    source = Mock(side_effect=[measured, {**measured, 'sha256': 'f' * 64}
+                               if fault == 'changed' else measured])
+    preparation = {'trusted': Mock(return_value=native), 'source_record': source}
+    reader = Mock(return_value=preparation)
+    monkeypatch.setattr(helper.runpy, 'run_path', reader)
+    original_exists = os.path.lexists
+    monkeypatch.setattr(helper.os.path, 'lexists', lambda path: fault not in ('absent', 'disappeared')
+                        if str(path) == '/usr/lib/x86_64-linux-gnu/security/pam_cgfs.so'
+                        else original_exists(path))
+    device = f'{os.major(identity.st_dev):x}:{os.minor(identity.st_dev):x}'
+    if fault == 'foreign-device':
+        device = 'ff:ff'
+    inode = identity.st_ino + (fault == 'foreign-inode')
+    permissions = 'r--p' if fault == 'data-only' else 'r-xp'
+    mapped = str(native) + (' (deleted)' if fault == 'deleted' else '')
+    (tmp_path / 'maps').write_text('' if fault == 'missing-map' else
+        f'1000-2000 {permissions} 00000000 {device} {inode} {mapped}\n')
+    receipts = [{'path': str(native), 'sha256': '0' * 64 if fault == 'receipt' else digest}]
+    if fault == 'absent':
+        receipts = []
+    events = {}
+    if fault is not None:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-lifecycle:cgfs-'):
+            helper.lifecycle_cgfs_mapping(tmp_path, receipts, events.__setitem__)
+        assert not events
+    else:
+        helper.lifecycle_cgfs_mapping(tmp_path, receipts, events.__setitem__)
+        assert json.loads(events['onpc.kiosk.pam-lifecycle.pam-cgfs-native-mapping']) == {
+            'path': str(native), 'sha256': digest, 'device': device, 'inode': identity.st_ino}
+        assert source.call_args_list[0].args == ('library', native)
+
+
+@pytest.mark.parametrize('backend,present', [('apparmor', True), ('apparmor', False),
+                                          ('selinux', True)])
+def test_native_receipts_include_installed_optional_cgfs_bytes_and_package(
+        census_model, tmp_path, monkeypatch, backend, present):
+    helper = census_model
+    # A finite private distro tree keeps package queries and every write off the host.
+    library = '/usr/lib/x86_64-linux-gnu' if backend == 'apparmor' else '/usr/lib64'
+    names = ['/usr/libexec/gdm-session-worker', '/usr/lib/systemd/systemd-executor',
+             library + '/libpam.so.0', library + '/security/pam_namespace.so',
+             library + '/security/pam_selinux.so', library + '/libselinux.so.1']
+    if backend == 'apparmor':
+        names.append(library + '/libapparmor.so.1')
+    optional = library + '/security/pam_cgfs.so'
+    for name in names + ([optional] if present else []):
+        path = tmp_path / name.lstrip('/')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'\x7fELF' + name.encode())
+    def path(value):
+        value = Path(value)
+        return tmp_path / str(value).lstrip('/') if str(value).startswith('/usr/') else value
+    monkeypatch.setattr(helper, 'Path', path)
+    original_relative = Path.is_relative_to
+    monkeypatch.setattr(Path, 'is_relative_to', lambda value, other:
+                        original_relative(value, tmp_path / 'usr') if other == '/usr'
+                        else original_relative(value, other))
+    original_stat = Path.stat
+    def metadata(value, **options):
+        info = original_stat(value, **options)
+        return SimpleNamespace(st_uid=0, st_mode=info.st_mode & ~0o022)
+    monkeypatch.setattr(Path, 'stat', metadata)
+    trusted = Mock(side_effect=lambda value, **options: value.resolve(strict=True))
+    monkeypatch.setattr(helper.runpy, 'run_path', Mock(return_value={
+        'inventory': lambda config: [], 'trusted': trusted}))
+    commands = []
+    def query(arguments):
+        commands.append(arguments)
+        if arguments[:2] == ['dpkg-query', '-S']:
+            return '\n'.join(('libpam-cgfs:amd64' if value.endswith('/pam_cgfs.so') else
+                              'native-input:amd64') + ': ' + value for value in arguments[2:])
+        if arguments[:2] == ['dpkg-query', '-W']:
+            return '\n'.join(name + '\t6.0.6-1ubuntu2\tamd64\tlxc\t6.0.6-1ubuntu2'
+                             for name in arguments[3:])
+        if arguments[:2] == ['rpm', '-qf']:
+            return 'native-input\n'
+        assert arguments[:2] == ['rpm', '-q']
+        return 'native-input\t0:1.2-3.fc44\tx86_64\tnative-input-1.2-3.fc44.src.rpm\n'
+    monkeypatch.setattr(helper.guest, 'run', query)
+    events = {}
+    files = helper.record_native_packages({'backend': backend}, events.__setitem__)
+    included = backend == 'apparmor' and present
+    actual = path(optional)
+    if included:
+        assert {'path': str(actual), 'sha256': helper.guest.sha(actual)} in files
+    else:
+        assert not any(item['path'].endswith('/pam_cgfs.so') for item in files)
+    packages = json.loads(events['onpc.kiosk.native.packages'])
+    assert any(item['package'] == 'libpam-cgfs:amd64' and item['version'] == '6.0.6-1ubuntu2'
+               for item in packages) == included
+    assert trusted.call_count == included
 
 
 @pytest.mark.parametrize('fault', [None, 'alias-owner', 'original-ancestor',

@@ -24,6 +24,171 @@ def first_configure_inventories():
             'package': (*RECOVERY_INVENTORIES['package'], system.FIRST_CONFIGURE_CASE)}
 
 
+@pytest.fixture
+def pam_inventories():
+    return {**RECOVERY_INVENTORIES, 'package': (*RECOVERY_INVENTORIES['package'], *(
+        history.case_id for history in system.PAM_HISTORIES))}
+
+
+def test_previous_policy_history_never_restores_between_old_package_and_final_reboot():
+    inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'], system.PREVIOUS_POLICY_CASE)}
+    selected = system.resolve_selection('package', system.PREVIOUS_POLICY_CASE,
+                                        inventories=inventories, fresh_install=True)
+    assert snapshots.attempts(selected, fresh_install=True) == [(selected, False)]
+    assert selected.phases == ('previous-policy', 'installed', 'rebooted')
+
+
+@pytest.mark.parametrize('area', [None, 'package'])
+def test_pam_broad_selection_partitions_each_variant_into_its_own_baseline_history(
+        pam_inventories, area):
+    selection = system.resolve_selection(area, inventories=pam_inventories)
+    planned = snapshots.attempts(selection)
+    executions = [item for part, _ in planned for item in part.executions]
+    assert len(executions) == len(set(executions)) == len(selection.executions)
+    assert set(executions) == set(selection.executions)
+    for history in system.PAM_HISTORIES:
+        exact = system.resolve_selection('package', history.case_id, inventories=pam_inventories)
+        matches = [(part, installed) for part, installed in planned
+                   if any(item.case_id == history.case_id for item in part.executions)]
+        assert len(matches) == 1
+        part, installed = matches[0]
+        assert not installed
+        assert part.phases == exact.phases == history.phases
+        assert part.executions == exact.executions
+        assert snapshots.attempts(exact) == [(exact, False)]
+
+
+def test_pam_family_resume_replays_whole_unfinished_histories(pam_inventories):
+    selection = system.resolve_selection('package', system.PAM_CASE, inventories=pam_inventories)
+    exact = [system.resolve_selection('package', history.case_id, inventories=pam_inventories)
+             for history in system.PAM_HISTORIES]
+    planned = snapshots.attempts(selection)
+    assert len(planned) == len(exact)
+    for (part, installed), focused in zip(planned, exact):
+        assert not installed
+        assert part.phases == focused.phases
+        assert part.executions == focused.executions
+    for count in range(len(selection.executions) + 1):
+        completed = {item.phase + '::' + item.case_id for item in selection.executions[:count]}
+        resumed = system.resume_selection(selection, completed)
+        remaining = exact[min(count // 4, len(exact) - 1):]
+        assert resumed.executions == tuple(item for part in remaining for item in part.executions)
+        assert len(snapshots.attempts(resumed)) == len(remaining)
+    broad = system.resolve_selection(inventories=pam_inventories)
+    for focused in exact:
+        for phase in focused.phases:
+            completed = {item.phase + '::' + item.case_id for item in broad.executions
+                         if item.phase != phase}
+            resumed = system.resume_selection(broad, completed)
+            assert resumed.phases == focused.phases
+            assert resumed.executions == focused.executions
+            assert snapshots.attempts(resumed) == [(resumed, False)]
+        with pytest.raises(system.Error, match='selection:resume-inventory-changed'):
+            system.resume_selection(focused, {'foreign::' + focused.test})
+
+
+@pytest.mark.parametrize('variant', ['plain', 'distro-profile', 'administrator-override', 'pending-vendor'])
+@pytest.mark.parametrize('failure', [None, 'initial', 'first-archive', 'first-reboot', 'configured',
+                                   'second-reboot', 'removal', 'third-reboot', 'removed'])
+def test_pam_controller_never_preinstalls_and_retains_results_before_each_reboot(
+        tmp_path, monkeypatch, pam_inventories, variant, failure):
+    selection = system.resolve_selection('package', f'{system.PAM_CASE}[{variant}]',
+                                         inventories=pam_inventories)
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    events = []
+    phases = selection.phases
+    phase_labels = dict(zip(phases, ('initial', 'configured', 'removal', 'removed')))
+    reboots = iter(('first-reboot', 'second-reboot', 'third-reboot'))
+    archives = []
+
+    def reboot():
+        label = next(reboots)
+        # A complete result transfer from the preceding phase must finish
+        # before a reboot can make its guest artifacts unavailable.
+        assert events[-3:] == ['collect', 'copy-results', 'archive-results']
+        assert archives[-1] == phases[('first-reboot', 'second-reboot', 'third-reboot').index(label)]
+        events.append(label)
+        if failure == label:
+            raise system.CommandError('pam-reboot-failed')
+
+    def execute(owned_vm, token, phase, selected):
+        assert owned_vm is vm and token == RUN and selected == selection
+        label = phase_labels[phase]
+        events.append(label)
+        if failure == label:
+            vm.commands.last_returncode = 1
+            raise system.CommandError('pam-phase-failed')
+
+    def call(command, *, timeout):
+        # The phase owns install/configure/removal; the controller may only
+        # collect its evidence, never invoke an installer or activation probe.
+        assert command[:len(system.guest_command(RUN, 'collect'))] == system.guest_command(RUN, 'collect')
+        assert timeout == 180
+        events.append('collect')
+
+    def copy(download, source, destination):
+        if download:
+            assert source == system.PAYLOAD + '/results/'
+            if destination == str(tmp_path / 'guest-results') + '/':
+                events.append('copy-results')
+            else:
+                prior = phases[len(archives)]
+                retained = tmp_path / 'phase-results' / prior
+                assert destination == str(retained) + '/'
+                assert retained.is_dir()
+                assert events[-2:] == ['collect', 'copy-results']
+                archives.append(prior)
+                events.append('archive-results')
+                if failure == 'first-archive':
+                    raise system.CommandError('pam-archive-failed')
+
+    vm.reboot.side_effect = reboot
+    vm.call.side_effect = call
+    vm.copy.side_effect = copy
+    monkeypatch.setattr(system, 'run_pytest', execute)
+    activation = Mock()
+    monkeypatch.setattr(system, 'run_kiosk_activation', activation)
+    write_junit_results(tmp_path, selection)
+    ledger = system.RunLedger()
+    if failure:
+        with pytest.raises(system.CommandError):
+            system.installed_run(vm, lease, tmp_path, selection, ledger)
+        if failure in phase_labels.values():
+            failed_phase = next(phase for phase, label in phase_labels.items() if label == failure)
+            assert ledger.outcomes['product']['category'] == 'pytest:failed:' + failed_phase
+    else:
+        assert tuple(system.installed_run(vm, lease, tmp_path, selection, ledger)) == phases
+    lifecycle = ['initial', 'first-reboot', 'configured', 'second-reboot',
+                 'removal', 'third-reboot', 'removed']
+    expected = (['initial'] if failure == 'first-archive' else
+                lifecycle[:lifecycle.index(failure) + 1] if failure else lifecycle)
+    assert [event for event in events
+            if event not in ('collect', 'copy-results', 'archive-results')] == expected
+    assert archives == list(phases[:len(archives)])
+    assert all((tmp_path / 'phase-results' / phase).is_dir() for phase in archives)
+    if failure == 'first-archive':
+        vm.reboot.assert_not_called()
+    assert events[-2:] == ['collect', 'copy-results']
+    activation.assert_not_called()
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
+
+
+def test_pam_controller_refuses_installed_snapshot_before_any_phase(
+        tmp_path, monkeypatch, pam_inventories):
+    selection = system.resolve_selection('package', system.PAM_HISTORIES[0].case_id,
+                                         inventories=pam_inventories)
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    execute = Mock()
+    monkeypatch.setattr(system, 'run_pytest', execute)
+    with pytest.raises(system.Error, match='installation-requires-baseline'):
+        system.installed_run(vm, lease, tmp_path, selection, already_installed=True)
+    execute.assert_not_called()
+    vm.reboot.assert_not_called()
+    assert [call.args[0] for call in vm.call.call_args_list] == [
+        system.guest_command(RUN, 'collect', 'failed')]
+
+
 @pytest.mark.parametrize('area', [None, 'package'])
 def test_first_configuration_broad_selection_keeps_its_history_in_an_isolated_baseline_attempt(
         first_configure_inventories, area):

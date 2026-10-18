@@ -924,7 +924,14 @@ from regression_ui import Bucket
 # bounded FFmpeg/FFprobe children with null decoded output. They own no VM,
 # desktop, shared cache or external service.
 # The recording storage safety module is reviewed in the cleanup inventory too.
+# PAM environment history regressions use pytest-private paths and in-process
+# command/account doubles. They acquire no VM, host PAM, bus or process owner.
+# Earlier-package history checks use tiny pytest-private checkpoints and
+# in-process account/clock/transport doubles. Existing runner staging reads
+# immutable source files; no host bus, service, VM, cache or child is added.
 REVIEWED = frozenset("""
+system_previous_upgrade
+system_pam_variants
 vm_recording
 watch_recording
 recording_storage_cleanup_safety

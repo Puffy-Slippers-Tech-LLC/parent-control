@@ -863,7 +863,72 @@ def lifecycle_generation_diagnostic(manager, helper, record):
             pass
 
 
-def verify_pam_lifecycle(account, unit, backend, directory, record):
+def optional_cgfs_session(backend):
+    """Select only the declared Ubuntu optional profile, using the installed parser."""
+    if backend != 'apparmor':
+        return False
+    integration = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement-integration')
+
+    def declared(name, seen=()):
+        source, ancestry = integration['included_source'](name, seen)
+        found = False
+        for raw, group, control, module in integration['pam_lines'](source):
+            if group == '@include' or (group == 'session' and control in ('include', 'substack')):
+                found = declared(module, ancestry) or found
+            elif group == 'session' and control == 'optional' and module == 'pam_cgfs.so':
+                logical = re.sub(r'\\[ \t]*\n', ' ', raw)
+                found = (shlex.split(logical, comments=True) == [
+                    'session', 'optional', 'pam_cgfs.so', '-c',
+                    'freezer,memory,name=systemd']) or found
+        return found
+
+    return declared('systemd-user')
+
+
+def lifecycle_cgfs_mapping(process, native_files, record):
+    """Observe the native PAM load; never load a module to manufacture evidence."""
+    module = Path('/usr/lib/x86_64-linux-gnu/security/pam_cgfs.so')
+    # Called only for an active declared profile. A plain stack skips this
+    # witness; a declared callback with missing bytes must never count as one.
+    guest.require(os.path.lexists(module), 'kiosk-lifecycle:cgfs-module-missing')
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    path = preparation['trusted'](module, symlinks=True)
+    measured = preparation['source_record']('library', path)
+    guest.require(native_files is not None and
+                  {'path': str(path), 'sha256': measured['sha256']} in native_files,
+                  'kiosk-lifecycle:cgfs-native-receipt')
+    before = path.stat()
+    with (process / 'maps').open() as stream:
+        maps = stream.read(8 * 1024 * 1024 + 1)
+    guest.require(len(maps) <= 8 * 1024 * 1024, 'kiosk-lifecycle:cgfs-maps-size')
+    matching = []
+    for line in maps.splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) != 6 or 'pam_cgfs.so' not in fields[5]:
+            continue
+        guest.require(fields[5] == str(path), 'kiosk-lifecycle:cgfs-mapped-path')
+        device = fields[3].split(':')
+        guest.require(len(device) == 2 and all(re.fullmatch(r'[0-9a-f]+', part) for part in device)
+                      and fields[4].isdecimal(), 'kiosk-lifecycle:cgfs-map-format')
+        guest.require((int(device[0], 16), int(device[1], 16), int(fields[4])) ==
+                      (os.major(before.st_dev), os.minor(before.st_dev), before.st_ino),
+                      'kiosk-lifecycle:cgfs-mapped-identity')
+        matching.append(fields[1])
+    guest.require(any('x' in permissions for permissions in matching),
+                  'kiosk-lifecycle:cgfs-not-loaded')
+    after = preparation['source_record']('library', path)
+    current = path.stat()
+    guest.require(after == measured and all(getattr(current, field) == getattr(before, field)
+                  for field in ('st_dev', 'st_ino', 'st_size', 'st_mode', 'st_uid', 'st_gid',
+                                'st_mtime_ns', 'st_ctime_ns')),
+                  'kiosk-lifecycle:cgfs-module-changed')
+    record('onpc.kiosk.pam-lifecycle.pam-cgfs-native-mapping', json.dumps({
+        'path': str(path), 'sha256': measured['sha256'],
+        'device': f'{os.major(before.st_dev):x}:{os.minor(before.st_dev):x}',
+        'inode': before.st_ino}, sort_keys=True))
+
+
+def verify_pam_lifecycle(account, unit, backend, directory, record, *, native_files=None):
     """Hold a real PAM child past executor exit; retain the saved user manager."""
     saved_pid = manager_pid(unit)
     saved_identity = process_identity(PROC / str(saved_pid))
@@ -926,6 +991,10 @@ def verify_pam_lifecycle(account, unit, backend, directory, record):
         if helper_generation != manager_generation:
             lifecycle_generation_diagnostic(manager_generation, helper_generation, record)
         guest.require(helper_generation == manager_generation, 'kiosk-lifecycle:waiting-generation')
+        if optional_cgfs_session(backend):
+            lifecycle_cgfs_mapping(PROC / str(helper), native_files, record)
+            guest.require(process_identity(PROC / str(helper)) == identity and
+                          not exited(workers[helper]), 'kiosk-lifecycle:mapping-helper-changed')
         os.write(executor_write, b'E')
         status = lifecycle_wait(executor, workers[executor])
         os.close(workers.pop(executor))
@@ -1772,6 +1841,9 @@ def record_native_packages(config, record):
                 (str(library / 'libselinux.so.1'),)]
     if backend == 'apparmor':
         required.append((str(library / 'libapparmor.so.1'),))
+        optional = library / 'security/pam_cgfs.so'
+        if os.path.lexists(optional):
+            paths.add(preparation['trusted'](optional, symlinks=True))
     for alternatives in required:
         present = {Path(path).resolve(strict=True) for path in alternatives if Path(path).exists()}
         guest.require(len(present) == 1, 'kiosk-native:required-input-missing-or-ambiguous')
@@ -1805,6 +1877,7 @@ def record_native_packages(config, record):
                   'kiosk-native:package-query-incomplete')
     record('onpc.kiosk.native.packages', json.dumps(identities, sort_keys=True))
     record('onpc.kiosk.native.files', json.dumps(files, sort_keys=True))
+    return files
 
 
 def verify_loader_admission_refusal(config, record):
@@ -1848,7 +1921,7 @@ def verify_execution_boundary(record):
     guest.guard()
     guest.enable_diagnostics()
     config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
-    record_native_packages(config, record)
+    native_files = record_native_packages(config, record)
     account = pwd.getpwnam('oh-no-parent-control')
     unit = f'user@{account.pw_uid}.service'
     guest.require(account.pw_shell == '/usr/sbin/nologin' and guest.run([
@@ -1916,7 +1989,7 @@ def verify_execution_boundary(record):
         # the executable selected after final PAM admission, including FDs.
         with tempfile.TemporaryDirectory(prefix='kiosk-confinement-', dir=guest.PAYLOAD) as temporary:
             directory = Path(temporary)
-            verify_pam_lifecycle(account, unit, backend, directory, record)
+            verify_pam_lifecycle(account, unit, backend, directory, record, native_files=native_files)
             config = Path('/usr/share/oh-no-parent-control/confinement/config.json')
             with appended_probe(config, b'\n'):
                 status, data = first_exec(account, directory,

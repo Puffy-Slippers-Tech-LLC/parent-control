@@ -111,6 +111,24 @@ selector forms refuses. IDs cover parameter variants and remain the same across
 lifecycle phases. VM watch recordings use these IDs under the
 [shared recording contract](../README.md#vm-watch-recordings).
 
+`package` → `test_pam_environment_installation_variants` selects four independent
+baseline histories (IDs 283–286): plain, distro profile, administrator override
+and pending vendor replacement. Each keeps initial installation, reboot, saved
+policy/reconfiguration (including refusal and repaired-input retry), another
+reboot with native enforcement, removal and the removal reboot together. The
+controller collects each phase before reboot and restores only after the whole
+history. Ubuntu's plain input disables only the optional LXC profile through
+`pam-auth-update`. Fedora's plain input retains its baseline stack; its profile
+input uses `authselect` to select the shipped SSSD profile while preserving
+baseline features and required modules, then restores the original selection
+and native rules after removal.
+The administrator case records its original local `systemd-user` bytes for exact
+removal restoration. These are engineering histories, not customer UI journeys.
+
+```sh
+tools/run-tests system --vm NAME --area package --test test_pam_environment_installation_variants
+```
+
 For implementation, use the [E2E building blocks](../../docs/TestAutomation/E2E-Building-Blocks.md).
 The current controller executes the registered installed/reboot/removal/authorization/
 enforcement/session scope when unselected. F1 can list the registered `package`, `removal`, `authorization`, `enforcement`, and `session`
@@ -196,8 +214,12 @@ On Ubuntu the history now requires the baseline's real LXC `cgfs` session profil
 in both shared session stacks before installation, after retry and after reboot.
 Its fixed compatibility receipts prove that the optional module was active;
 absence, comments, duplicate entries or changed controls/options cannot become
-a compatibility pass. This extension has host coverage; its installed acceptance
-is pending under the [core installation handoff](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md).
+a compatibility pass. The shared confinement lifecycle additionally observes
+the native module's executable mapping and retains its package/file receipts
+before testing confined close/delete/end callbacks. These witnesses extend
+existing cases 4 and 267. Their installed acceptance, including failed-manager
+recovery, passed on both targets under
+[task 001](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification).
 Faults belong to this engineering qualification and use an owned read-only
 integration directory plus an exact native policy-loader refusal. Mount identity,
 native empty-token authentication/account results and retained expiry are
@@ -466,6 +488,36 @@ against the new bytes. Explicit updates keep their selected post-install checks
 in the same baseline-based attempt, so restoring a cached app cannot bypass the
 upgrade under test. `update-activation.json` records both package digests and
 the same-version reinstall observation. Neither package is installed on the host.
+
+`package` → `test_previous_package_policy_preservation` (ID **287**) adds a finite
+genuine earlier-release history to that route. Prepare its owned input with
+`tools/run-tests artifacts prepare --for-vm --upgrade-inputs --vm NAME`, then pass
+the returned bundle's `current` and `previous` directories as `--artifacts` and
+`--previous-artifacts`. Ubuntu pins released v1.2; Fedora pins released v1.3's
+existing RPM recipe. The builder verifies the annotated tag/commit, exact source
+digest, package version and architecture and native strictly increasing version
+order. The focused selector refuses a missing prior input or a fabricated release.
+Ordinary current-package suites omit this optional history.
+
+One baseline attempt installs and boots the old package, then runs
+`previous-policy`, `installed` and `rebooted` without restoration between them.
+Public broker calls save a 37-minute daily allowance, hard and soft app rules,
+custom request choices and a real Polkit-approved fixed request for twelve
+additional hours.
+The grant's exact issuance/duration must survive; its remaining wall-clock time
+must decrease across update/reboot, following [grant arithmetic](../../docs/SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
+Before reboot, policy activation returns the exact reboot-required refusal and
+the legacy admission receipt refuses removal. After reboot, public policy/time
+queries, session preparation, hard-app denial, approved soft-app execution,
+unrelated-user execution and saved identity/policy preservation must pass.
+The exact declared kiosk-shell change from the pinned releases' `/bin/bash` to
+current `/usr/sbin/nologin` is required; UID, group, home identity and every
+ordinary account remain unchanged. Ubuntu also requires schema 3 → 4 migration;
+Fedora retains schema 4. Saved language/default language remains intact.
+Each phase is collected before crossing its next lifecycle boundary. Resume
+replays the entire unfinished history; earlier phase passes cannot be spliced
+into another restored guest. This engineering case supplies no customer GUI
+update-journey acceptance.
 
 `test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
 other-child assertions using a fixed executable filename containing a space.

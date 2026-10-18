@@ -29,14 +29,15 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: configured package_format does not match the verified VM baseline; '
               'existing inputs preserved', file=sys.stderr)
         return 2
-    if upgrade_inputs and package_format != 'deb':
-        print('run-tests: genuine v1.2 upgrade inputs support DEB only; '
-              'RPM upgrade qualification is unavailable', file=sys.stderr)
-        return 2
     if candidate is not None:
         if upgrade_inputs:
             from build_test_artifacts import verify_upgrade
-            verify_upgrade(Path(candidate))
+            receipt = verify_upgrade(Path(candidate))
+            expected_architecture = {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]
+            if receipt['packages']['current']['architecture'] != expected_architecture:
+                print('run-tests: upgrade input package format does not match '
+                      'the verified VM baseline; existing inputs preserved', file=sys.stderr)
+                return 2
             print('run-tests: output=' + str(candidate), flush=True)
             return 0
         from build_test_artifacts import verify

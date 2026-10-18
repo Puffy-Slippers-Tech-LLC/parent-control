@@ -129,10 +129,52 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         allocate.assert_called_once()
 
 
-def test_vm_preparation_plan_uses_selected_vm():
-    planned, safety = commands.plan(ROOT, 'artifacts', ['prepare', '--for-vm'])
-    assert planned == [commands.python_file(ROOT, 'tools/vm_artifacts.py', *VM_ARGS)]
+@pytest.mark.parametrize('flags', [[], ['--upgrade-inputs']])
+def test_vm_preparation_plan_uses_selected_vm(flags):
+    planned, safety = commands.plan(ROOT, 'artifacts', ['prepare', '--for-vm', *flags])
+    assert planned == [commands.python_file(ROOT, 'tools/vm_artifacts.py', *flags, *VM_ARGS)]
     assert not safety
+
+
+@pytest.mark.parametrize('options', [
+    ['prepare', '--upgrade-inputs'],
+    ['prepare', '--for-vm', '--upgrade-inputs', '--upgrade-inputs'],
+    ['prepare', '--for-vm', '--upgrade-inputs', '--unknown'],
+])
+def test_upgrade_preparation_rejects_unvalidated_option_shapes(options):
+    with pytest.raises(ValueError, match='invalid artifact operation'):
+        commands.plan(ROOT, 'artifacts', options)
+
+
+@pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm')])
+@pytest.mark.parametrize('candidate', [False, True])
+def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
+        tmp_path, monkeypatch, status, package_format, candidate):
+    import vm_artifacts
+    import build_test_artifacts
+    configured = replace(vm_artifacts.selected(), package_format=package_format)
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
+    monkeypatch.setattr(vm_artifacts, 'check', Mock())
+    output = tmp_path / 'output'
+    allocate = Mock(return_value=str(output))
+    monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
+    verify = Mock(return_value={'packages': {'current': {
+        'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]}}})
+    monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify)
+    control = Mock()
+    control.run.side_effect = [status, 0]
+    assert vm_artifacts.prepare(ROOT, control, {}, upgrade_inputs=True,
+                                candidate=output if candidate else None) == 0
+    if candidate:
+        verify.assert_called_once_with(output)
+        allocate.assert_not_called()
+        assert control.run.call_count == 1
+    else:
+        allocate.assert_called_once_with(vm_artifacts.tempfile.mkdtemp, prefix='onpc-test-artifacts-')
+        verify.assert_not_called()
+        assert control.run.call_args.args[0] == [
+            '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
+            '--upgrade-inputs', '--package-format', package_format, '--output', str(output)]
 
 
 @pytest.mark.parametrize('declared,baseline', [('deb', 5), ('rpm', 3), (None, 5)])
@@ -335,7 +377,7 @@ def test_ambiguous_input_declaration_refuses_before_allocation(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize('upgrade', [False, True])
-def test_fedora_refuses_wrong_cached_format_or_deb_only_upgrade_before_build(
+def test_fedora_refuses_wrong_cached_format_before_build(
         tmp_path, monkeypatch, upgrade):
     import vm_artifacts
     import build_test_artifacts
@@ -348,6 +390,8 @@ def test_fedora_refuses_wrong_cached_format_or_deb_only_upgrade_before_build(
     monkeypatch.setattr(vm_artifacts, 'check', Mock())
     verify = Mock(return_value={'artifacts': {'package': {'path': 'package.deb'}}})
     monkeypatch.setattr(build_test_artifacts, 'verify', verify)
+    verify_upgrade = Mock(return_value={'packages': {'current': {'architecture': 'amd64'}}})
+    monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify_upgrade)
     control = Mock()
     control.run.return_value = 5
     assert vm_artifacts.prepare(ROOT, control, {}, candidate=candidate, output=candidate,
@@ -355,6 +399,7 @@ def test_fedora_refuses_wrong_cached_format_or_deb_only_upgrade_before_build(
     assert control.run.call_count == 1
     assert preserved.read_bytes() == b'existing DEB evidence'
     assert verify.call_count == (0 if upgrade else 1)
+    assert verify_upgrade.call_count == (1 if upgrade else 0)
 
 
 @pytest.mark.parametrize('output', [

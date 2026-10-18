@@ -39,6 +39,17 @@ SCHEMA_VERSION = 1
 RELEASE_TAG = 'f0520a6f36ad43f57357cdc9e8cd9fa1216e73ae'
 RELEASE_COMMIT = '81ffa5c37abeefdc922825bc27b5933b3eff3ba6'
 RELEASE_VERSION = '1.2+ppa1~ubuntu26.04.1'
+PREVIOUS_RELEASES = {
+    'deb': {'name': 'v1.2', 'tag': RELEASE_TAG, 'commit': RELEASE_COMMIT,
+            'version': RELEASE_VERSION, 'architecture': 'amd64'},
+    # Unsigned v1.3 annotated tag/commit independently matched to GitHub's
+    # public git/tags API on 2026-10-17. It contains the Fedora 44 recipe.
+    # Build those exact inputs with the maintained builder; never backport
+    # today's packaging.
+    'rpm': {'name': 'v1.3', 'tag': '8e2423f3308893cc8a582cb2a66f60aab5f88a77',
+            'commit': '188be907c46b1cd0dabae06ac898c43e75beb05e',
+            'version': '0:1.3-0.1.dev.fc44', 'architecture': 'x86_64'},
+}
 
 
 class ArtifactError(RuntimeError):
@@ -250,18 +261,19 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
 
 
 @contextmanager
-def released_source(*, repository=None):
-    """Read the one pinned release into shared disposable scratch, without Git edits."""
+def released_source(*, repository=None, package_format='deb'):
+    """Read a format's pinned release into shared scratch, without Git edits."""
+    release = _require_previous_release(package_format)
     repository = REPOSITORY if repository is None else repository
     prefix = ['git', '-c', 'safe.directory=' + str(repository)]
-    tag = _run([*prefix, 'rev-parse', 'refs/tags/v1.2'], cwd=repository).stdout.strip()
-    commit = _run([*prefix, 'rev-parse', RELEASE_TAG + '^{commit}'], cwd=repository).stdout.strip()
-    if tag != RELEASE_TAG or commit != RELEASE_COMMIT:
-        raise ArtifactError('authentic v1.2 release source unavailable')
+    tag = _run([*prefix, 'rev-parse', 'refs/tags/' + release['name']], cwd=repository).stdout.strip()
+    commit = _run([*prefix, 'rev-parse', release['tag'] + '^{commit}'], cwd=repository).stdout.strip()
+    if tag != release['tag'] or commit != release['commit']:
+        raise ArtifactError(f"authentic {release['name']} release source unavailable")
     from tools.test_storage import scratch_directory, scratch_descriptors
     with tempfile.TemporaryDirectory(prefix='onpc-release-source-', dir=scratch_directory()) as name:
         root = Path(name)
-        raw = subprocess.run([*prefix, 'archive', '--format=tar', RELEASE_COMMIT],
+        raw = subprocess.run([*prefix, 'archive', '--format=tar', release['commit']],
             cwd=repository, check=True, capture_output=True, pass_fds=scratch_descriptors()).stdout
         with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
             # Source links and special files are never accepted as build inputs.
@@ -273,36 +285,31 @@ def released_source(*, repository=None):
         yield root
 
 
-def release_identity(root):
+def release_identity(root, *, package_format='deb'):
+    release = _require_previous_release(package_format)
     selected = package_inputs.paths(root)
-    return {'revision': RELEASE_COMMIT, 'release_tag': RELEASE_TAG, 'scope': 'package',
+    return {'revision': release['commit'], 'release_tag': release['tag'], 'scope': 'package',
             'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
 
 
 def _require_previous_release(package_format):
-    # Fedora packaging has no genuine published predecessor yet. v1.2 has
-    # Debian source only; adding today's RPM recipe or changing a version would
-    # fabricate upgrade history. Admit RPM only after pinning a published prior
-    # RPM/source identity and qualifying its native version ordering/migration.
-    if package_format == 'rpm':
-        raise ArtifactError('genuine previous Fedora RPM release unavailable; '
-                            'Fedora older-release upgrade qualification is blocked')
-    if package_format != 'deb':
+    if package_format not in PREVIOUS_RELEASES:
         raise ArtifactError('unsupported upgrade package format')
+    return PREVIOUS_RELEASES[package_format]
 
 
 def build_upgrade(output, *, package_format):
     """Finite genuine release/current preparation; no fabricated predecessor."""
-    _require_previous_release(package_format)
+    release = _require_previous_release(package_format)
     output = _require_empty_output(output)
     build(output / 'current', package_format=package_format)
-    with released_source() as root:
+    with released_source(package_format=package_format) as root:
         selected = package_inputs.paths(root)
-        source = release_identity(root)
+        source = release_identity(root, package_format=package_format)
         metadata = _metadata(package_inputs.paths(REPOSITORY), source['digest_sha256'])
         metadata['source'] = source
         metadata['build_inputs']['source_date_epoch'] = int(_run(
-            ['git', 'show', '-s', '--format=%ct', RELEASE_COMMIT], cwd=REPOSITORY).stdout.strip())
+            ['git', 'show', '-s', '--format=%ct', release['commit']], cwd=REPOSITORY).stdout.strip())
         _build(output / 'previous', root, selected, source['digest_sha256'], metadata,
                package_format=package_format)
     verify_upgrade(output)
@@ -325,6 +332,26 @@ def package_identity(path):
             'architecture': fields['Architecture'], 'sha256': _sha256(path)}
 
 
+def _require_newer_version(new, old, *, package_format):
+    if package_format == 'deb':
+        _run(['dpkg', '--compare-versions', new, 'gt', old])
+        return
+    # Compare epoch, version and release separately with RPM's own comparator.
+    # Strict EVR parsing also keeps package header values out of Lua syntax.
+    pattern = r'([0-9]+):([A-Za-z0-9][A-Za-z0-9._+~^]*)-([A-Za-z0-9][A-Za-z0-9._+~^]*)'
+    values = [re.fullmatch(pattern, value) for value in (new, old)]
+    if any(value is None for value in values):
+        raise ArtifactError('invalid RPM upgrade version')
+    for current, previous in zip(values[0].groups(), values[1].groups()):
+        result = _run(['rpm', '--eval',
+            '%{lua:print(rpm.vercmp("' + current + '","' + previous + '"))}']).stdout.strip()
+        if result == '1':
+            return
+        if result != '0':
+            raise ArtifactError('RPM upgrade version is not newer')
+    raise ArtifactError('RPM upgrade version is not newer')
+
+
 def verify_upgrade(output, *, staged=False, repository=None):
     """Independently bind both manifests, source identities and exact package bytes."""
     output = Path(output)
@@ -344,7 +371,7 @@ def verify_upgrade(output, *, staged=False, repository=None):
             raise ArtifactError('upgrade input layout mismatch')
         for root in (output / 'current', output / 'previous'):
             if any(os.path.lexists(root / name) for name in (
-                    'package.deb', 'installed-files.json', 'transfer-sha256.json', 'previous')):
+                    'package.deb', 'package.rpm', 'installed-files.json', 'transfer-sha256.json', 'previous')):
                 raise ArtifactError('upgrade staging name collision')
     current_root = output if staged else output / 'current'
     current, previous = verify(current_root), verify(output / 'previous')
@@ -352,10 +379,11 @@ def verify_upgrade(output, *, staged=False, repository=None):
                for manifest in (current, previous)}
     if len(formats) != 1:
         raise ArtifactError('upgrade package format mismatch')
-    _require_previous_release(formats.pop().removeprefix('.'))
-    with released_source(repository=repository) as root:
-        if previous['source'] != release_identity(root):
-            raise ArtifactError('v1.2 source identity mismatch')
+    package_format = formats.pop().removeprefix('.')
+    release = _require_previous_release(package_format)
+    with released_source(repository=repository, package_format=package_format) as root:
+        if previous['source'] != release_identity(root, package_format=package_format):
+            raise ArtifactError(f"{release['name']} source identity mismatch")
     repository = REPOSITORY if repository is None else repository
     selected = package_inputs.paths(repository)
     if (set(current['source']) != {'revision', 'scope', 'digest_sha256', 'file_count'}
@@ -369,17 +397,21 @@ def verify_upgrade(output, *, staged=False, repository=None):
     for label, directory, manifest in (('current', current_root, current),
                                        ('previous', output / 'previous', previous)):
         item = package_identity(directory / manifest['artifacts']['package']['path'])
-        if item['name'] != 'oh-no-parent-control' or item['architecture'] != 'amd64':
+        if item['name'] != 'oh-no-parent-control' or item['architecture'] != release['architecture']:
             raise ArtifactError('upgrade package product or architecture mismatch')
         identities[label] = item
     old, new = identities['previous'], identities['current']
-    expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
-                     '-S', 'Version']).stdout.strip()
-    if (old['version'] != RELEASE_VERSION or new['version'] != expected
+    if package_format == 'rpm':
+        from tools.build_rpm import metadata as rpm_metadata
+        expected = f"0:{rpm_metadata(repository, '0.1.dev')[0]}-0.1.dev.fc44"
+    else:
+        expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
+                         '-S', 'Version']).stdout.strip()
+    if (old['version'] != release['version'] or new['version'] != expected
             or old['sha256'] == new['sha256']
             or current['source']['digest_sha256'] == previous['source']['digest_sha256']):
         raise ArtifactError('upgrade package release identity mismatch')
-    _run(['dpkg', '--compare-versions', new['version'], 'gt', old['version']])
+    _require_newer_version(new['version'], old['version'], package_format=package_format)
     return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
 
 
@@ -432,7 +464,7 @@ def main() -> int:
     parser.add_argument('--package-format', choices=('deb', 'rpm'),
                         help='required for every build; no default package format')
     parser.add_argument('--upgrade-inputs', action='store_true',
-                        help='build genuine prior-release/current inputs; Fedora predecessor unavailable')
+                        help='build pinned genuine prior-release/current inputs for the selected format')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
     if not (arguments.verify or arguments.compare) and arguments.package_format is None:

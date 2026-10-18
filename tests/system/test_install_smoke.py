@@ -33,10 +33,35 @@ def test_reboot_applies_installation():
     assert guest.reboot_cleared()
 
 
+def test_previous_package_policy_preservation(record_testsuite_property):
+    from system_previous_upgrade import prepare, verify_updated, verify_reboot
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    guest.require(phase in ('previous-policy', 'installed', 'rebooted'),
+                  'previous-upgrade:test-phase')
+    {'previous-policy': prepare, 'installed': verify_updated, 'rebooted': verify_reboot}[
+        phase](record_testsuite_property)
+
+
 def test_first_configuration_interruption_retry(record_testsuite_property):
     from system_first_configure import exercise, verify_reboot
     {'first-configure': exercise, 'first-configure-rebooted': verify_reboot}[
         os.environ['ONPC_SYSTEM_PHASE']](record_testsuite_property)
+
+
+@pytest.mark.parametrize('variant', ['plain', 'distro-profile', 'administrator-override',
+                                   'pending-vendor'])
+def test_pam_environment_installation_variants(variant, record_testsuite_property):
+    from system_pam_variants import exercise, verify_reboot, remove, verify_removed_reboot
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    if phase == f'pam-{variant}':
+        exercise(record_testsuite_property, variant)
+    elif phase == f'pam-{variant}-rebooted':
+        verify_reboot(record_testsuite_property, variant)
+    elif phase == f'pam-{variant}-configured-rebooted':
+        remove(record_testsuite_property, variant)
+    else:
+        guest.require(phase == f'pam-{variant}-removed-rebooted', 'pam-variants:test-phase')
+        verify_removed_reboot(record_testsuite_property, variant)
 
 
 def test_kiosk_account_classification_survives_reboot(record_testsuite_property):

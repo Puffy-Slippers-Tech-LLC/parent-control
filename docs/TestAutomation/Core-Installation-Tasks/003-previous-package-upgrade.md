@@ -36,10 +36,17 @@ Add a bounded pre-upgrade scenario checkpoint through the existing runner to
 establish non-default child allowance, hard/soft policy and an unexpired grant
 using supported product interfaces. Do not preseed those in the baseline.
 
-Planned selector: `test_previous_package_policy_preservation` (unimplemented).
-Register its full history before using the existing `--previous-artifacts` option.
+Registered selector: `test_previous_package_policy_preservation` (system ID 287).
+Its `previous-policy`, `installed` and `rebooted` phases are one owned history;
+use the [installed runner's verified earlier-release route](../../../tests/integration/README.md#running-the-current-installed-suite).
 Select a supported prior release covering the admission protocol transition
 when available; explicitly record the chosen compatibility boundary.
+
+The finite state is a 37-minute daily allowance, a permanent hard app rule,
+a conditional soft app rule, a custom 23-minute request choice and a real
+authenticated fixed request for twelve additional hours. The grant's exact issuance and duration
+survive update/reboot; elapsed wall-clock time reduces remaining time, including
+across midnight, under [grant arithmetic](../../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
 
 ## Acceptance and close-out
 
@@ -56,3 +63,17 @@ Keep this complete history in one owned attempt; restore only during normal
 cleanup. Retain both target receipts and cleanup. Run `make build` after product
 edits, refresh generated inventory/links, close only this engineering row and
 advance the master. Do not close customer E2E tasks from this evidence.
+
+## Suspended for fixture prerequisite 002a
+
+Complete [002a](002a-trusted-native-upgrade-fixtures.md) before resuming this
+consumer. The [master's retained work](../Core-Installation-Coverage-Handoff.md#task-003-retained-work-and-fixture-prerequisite)
+records the implementation, exact prior inputs, Ubuntu's earlier 3/3 slice,
+Fedora's repeated failure/compiled policy and completed cleanup. Fedora's old
+default policy denies the current untrusted native fixture for the unrelated
+user. Add a genuinely trusted native positive-control input through maintained
+baseline preparation; preserve every existing native allow/deny assertion.
+This is an input-preparation prerequisite, not acceptance or a current-candidate
+product defect. Requalify both full histories after the final fixture/baseline
+change; retained earlier phases cannot substitute for that work. Keep this row
+unchecked until every original installed requirement and cleanup passes.

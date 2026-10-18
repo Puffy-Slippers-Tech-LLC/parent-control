@@ -594,7 +594,8 @@ managers alone. A state-query or reset error fails configuration and retains
 activation records for retry; earlier configuration failures leave the failed
 unit untouched. Both Ubuntu and Fedora use this shared completion step. The
 installed interruption/retry check also verifies exclusion from native trigger
-enumeration and a kiosk-scoped wildcard reload; live qualification is pending.
+enumeration and a kiosk-scoped wildcard reload; both targets passed this history
+in [task 001 qualification](../TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification).
 
 Successful configuration prints a green completion line. If this package has
 requested a reboot, the helper then prints

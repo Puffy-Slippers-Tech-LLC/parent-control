@@ -269,6 +269,7 @@ Aggregate aliases (no suite selectors)
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
+  Add --upgrade-inputs to build pinned earlier-release/current inputs in a new retained bundle.
   Add --output PATH to prepare a new named input without replacing existing data.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
@@ -565,6 +566,9 @@ def plan(root, category, argv):
             return [[*command, *(['--package-format', 'deb'] if category == 'artifacts' else [])]], False
         if category == 'artifacts' and argv == ['prepare']:
             return [[*command, '--package-format', 'deb', '--reuse']], False
+        if category == 'artifacts' and argv == ['prepare', '--for-vm', '--upgrade-inputs']:
+            from vm_selection import arguments
+            return [python_file(root, 'tools/vm_artifacts.py', '--upgrade-inputs', *arguments())], False
         if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
                 len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
             from vm_selection import arguments

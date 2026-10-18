@@ -134,6 +134,30 @@ and its completion is already recorded in the committed queue. Pending Git
 transactions and active owners must finish first. Ordinary restart guards remain
 unchanged; this explicit operation is not an automatic structural override.
 
+For explicitly reviewed consolidation of equivalent unfinished tasks, the same
+route accepts repeated `--merge-task 'OLD=KEEP'` declarations and
+`--reconcile-base FULL_COMMIT`. The base must be an ancestor commit whose master,
+queue identities, completion, scopes and dependencies match the retained queue.
+Only the declared unchecked source rows may disappear, into earlier unchecked
+destinations; a source with a retained handoff cannot be removed. Surviving order
+and unrelated scopes remain fixed. Dependencies must map through the declared
+merges, and combined acceptance must retain the original kind and union of all
+targets. Each combined brief retains every original queue Scope verbatim.
+The checkpoint also retains the complete original briefs/scopes and supplies
+them whenever the combined task runs, including after intervening work or a
+prerequisite suspension. Original assertions remain required; current combined
+briefs replace former single-target scheduling and queue close-out instructions.
+This option grants no acceptance, completion or session-count reset.
+
+Run the explicit merge command with `--check` first, then omit `--check` to adopt
+it. Reconciliation preserves the exact prior checkpoint in its existing run
+before atomic publication and verifies the adopted state through the ordinary
+restart guards. It can also recover an older cancelled session still marked
+in flight only when the inactive run has the exact zero-completion cancellation
+result, caller-owned cancellation/cleanup markers, no agent response/error and
+an empty nested-owner record. Other interrupted sessions retain their refusal;
+never edit checkpoints or clear ownership records manually.
+
 Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
 [`launcher_runtime.py`](../tools/launcher_runtime.py). A successful agent session
 with missing/malformed JSON or a rejected handoff/acceptance/queue transition

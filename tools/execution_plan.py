@@ -58,6 +58,20 @@ def closeout_structure(rows, selected):
     return normalized
 
 
+def acceptance_metadata(text, identity):
+    acceptance = re.findall(r'^Acceptance: (.*)$', text, re.M)
+    if len(acceptance) != 1 or acceptance[0] not in ('installed', 'review', 'host', 'reconciliation'):
+        raise ValueError(f'task {identity} needs one Acceptance declaration in its brief')
+    targets = re.findall(r'^Targets: (.*)$', text, re.M)
+    if len(targets) > 1:
+        raise ValueError(f'task {identity} has duplicate Targets declarations')
+    names = [name.strip() for name in targets[0].split(',')] if targets else []
+    if (any(not name for name in names) or len(set(names)) != len(names)
+            or acceptance[0] == 'installed' and not names):
+        raise ValueError(f'task {identity} needs distinct explicit acceptance targets')
+    return dict(acceptance=acceptance[0], targets=names)
+
+
 @dataclass(frozen=True)
 class Task:
     id: str
@@ -67,18 +81,7 @@ class Task:
     requires: tuple
 
     def acceptance_metadata(self):
-        text = self.brief.read_text()
-        acceptance = re.findall(r'^Acceptance: (.*)$', text, re.M)
-        if len(acceptance) != 1 or acceptance[0] not in ('installed', 'review', 'host', 'reconciliation'):
-            raise ValueError(f'task {self.id} needs one Acceptance declaration in its brief')
-        targets = re.findall(r'^Targets: (.*)$', text, re.M)
-        if len(targets) > 1:
-            raise ValueError(f'task {self.id} has duplicate Targets declarations')
-        names = [name.strip() for name in targets[0].split(',')] if targets else []
-        if (any(not name for name in names) or len(set(names)) != len(names)
-                or acceptance[0] == 'installed' and not names):
-            raise ValueError(f'task {self.id} needs distinct explicit acceptance targets')
-        return dict(acceptance=acceptance[0], targets=names)
+        return acceptance_metadata(self.brief.read_text(), self.id)
 
 
 @dataclass(frozen=True)

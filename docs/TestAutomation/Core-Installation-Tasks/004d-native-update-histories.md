@@ -25,6 +25,11 @@ evidence. Neither target depends on the other's pass. Keep each VM's phases
 ordered. Split out a target-specific prerequisite only for an evidenced issue
 unique to that VM; keep shared implementation and fixes in common tasks.
 
+Original scopes retained by consolidation:
+
+- Complete retained-session native package transaction and recovery on Ubuntu, with owned cleanup
+- Complete retained-session native package transaction and recovery on Fedora, with owned cleanup
+
 ## Acceptance and close-out
 
 Keep the complete old-generation admission → retained-session native transaction

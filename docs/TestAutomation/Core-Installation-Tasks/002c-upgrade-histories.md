@@ -26,6 +26,11 @@ Keep phases ordered within each VM. Separate diagnosis into a target-specific
 prerequisite only when evidence establishes an issue unique to that VM; shared
 helper/input work stays shared.
 
+Original scopes retained by consolidation:
+
+- Case 287 on Ubuntu with final qualified inputs; all three phases and cleanup
+- Case 287 on Fedora with final qualified inputs; all three phases and cleanup
+
 ## Acceptance and close-out
 
 Run registered `test_previous_package_policy_preservation` (ID 287) through the

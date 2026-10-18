@@ -73,6 +73,7 @@ def validate_result_payload(state, result):
     elif result['blocker'] is not None:
         raise ValueError('only a blocked result may carry a developer question')
     if result['status'] == 'task_complete':
+        validate_consolidated_metadata(state['task'], state.get('consolidation_obligations', {}))
         required = state['task']['acceptance']
         targets = state['task']['targets'] or ['']
         if (not result['cleanup_complete'] or not result['checks']
@@ -157,9 +158,20 @@ passed/failed/not_run result and exact retained evidence or review findings.
 Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
 Developer answer: {json.dumps(state.get('answer'))}
+Original consolidated obligations: {json.dumps(state.get('consolidation_obligations', {}).get(state['task_id'], []))}
+For a consolidated task, every original scope and per-target acceptance assertion
+above remains required. The current combined brief replaces only the former
+single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
 {result_recovery_instructions(state.get('result_recovery'))}
 """
+
+
+def validate_consolidated_metadata(record, obligations):
+    originals = obligations.get(record['task_id'], [])
+    if originals and (any(item['acceptance'] != record['acceptance'] for item in originals)
+            or set(record['targets']) != {target for item in originals for target in item['targets']}):
+        raise ValueError('consolidated task must retain its original acceptance kind and all targets')
 
 
 def validate_task_metadata(plan, state):
@@ -170,6 +182,7 @@ def validate_task_metadata(plan, state):
         return  # Recovery may restore a brief removed during partial close-out.
     brief = local_file(plan.root, str(brief.relative_to(plan.root)))
     current = task_record(Task(state['task_id'], False, state['title'], brief, ()))
+    validate_consolidated_metadata(current, state.get('consolidation_obligations', {}))
     if any(current[key] != state['task'][key] for key in ('acceptance', 'targets')):
         raise ValueError('task acceptance or targets changed since its checkpoint; reconcile the retained handoff')
 
@@ -183,6 +196,7 @@ def defer_to_prerequisite(plan, state):
     consumer.update(phase='recover', in_flight=False)
     pending[state['task_id']] = consumer
     return dict(phase='complete', suspended_tasks=pending, total_sessions=state.get('total_sessions', 0),
+                consolidation_obligations=state.get('consolidation_obligations', {}),
                 task_sessions=0, replan_baseline=state['stage_baseline'],
                 protected_staged=state['protected_staged'],
                 task_id=None, queue_before=plan.state(), queue_structure=plan.structure(),
@@ -194,6 +208,12 @@ def initial_state(plan, spec, directory):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        if (state.get('consolidation_obligations') and not any(
+                state.get(key) for key in ('in_flight', 'pending_completion',
+                                          'git_reconciliation', 'pull_intent', 'result_recovery'))):
+            for task in plan.tasks():
+                if not task.complete:
+                    validate_consolidated_metadata(task_record(task), state['consolidation_obligations'])
         # Older workers stopped on a rejected structured handoff. Recover only
         # when the retained response reproduces that exact controller rejection;
         # process/provider failures and arbitrary interrupted edits stay guarded.
@@ -238,14 +258,30 @@ def initial_state(plan, spec, directory):
                 if question['id'] == state.get('blocker_id') and question.get('answer') is not None:
                     state.update(phase='recover', answer={'question': question['question'], 'answer': question['answer']})
             return state
-        if state.get('suspended_tasks'):
+        if state.get('suspended_tasks') or state.get('consolidation_obligations'):
             plan.validate_recovery(state)
             state['recovery_run'] = str(previous)
             return state
     return {'phase': 'complete', 'task_sessions': 0, 'total_sessions': 0}
 
 
-def reconcile_plan(root, spec, identity, *, check=False):
+def finished_cancellation(run, state):
+    """Recognize the old worker's finished cancellation without inventing a result."""
+    if (state.get('reason') != 'cancelled after owned cleanup'
+            or (run / 'agent-result.json').exists() or (run / 'agent-error.json').exists()):
+        return False
+    for name in ('cancel', 'nested-closed', 'result.json', 'nested.json'):
+        try:
+            info = (run / name).lstat()
+        except FileNotFoundError:
+            return False
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            return False
+    return (json.loads((run / 'result.json').read_text()) == dict(status=130, tasks=0)
+            and json.loads((run / 'nested.json').read_text()) == [])
+
+
+def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=None):
     """Explicitly adopt a committed replan, preserving the inactive checkpoint.
 
     This administrative operation executes no task and grants no acceptance.
@@ -289,6 +325,10 @@ def reconcile_plan(root, spec, identity, *, check=False):
         if type(state) is not dict or type(state.get('in_flight', False)) is not bool:
             raise ValueError('retained checkpoint is malformed')
         if state.get('reconciliation'):
+            receipt = state['reconciliation']
+            if ((merge_tasks and list(merge_tasks) != receipt.get('merge_tasks'))
+                    or (base is not None and base != receipt.get('base'))):
+                raise ValueError('reconciliation options differ from the retained receipt')
             resumed = initial_state(plan, spec, directory)
             if resumed['phase'] != 'complete' or resumed.get('pending_completion'):
                 raise ValueError('reconciled checkpoint is not ready to select its next task')
@@ -298,7 +338,8 @@ def reconcile_plan(root, spec, identity, *, check=False):
                         reconciled=True, checked=check, resume_ready=True)
         if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation', 'result_recovery')):
             raise ValueError('finish the retained Git transaction before reconciling the queue')
-        if state.get('in_flight') or not (run / 'result.json').is_file():
+        if ((state.get('in_flight') and not finished_cancellation(run, state))
+                or not (run / 'result.json').is_file()):
             raise ValueError('finish the retained session before reconciling the queue')
         before, after = state['queue_before'], plan.state()
         saved_rows = state.get('queue_structure')
@@ -308,10 +349,14 @@ def reconcile_plan(root, spec, identity, *, check=False):
                        or any(type(value) is not str for value in row) for row in saved_rows)
                 or [row[2] for row in saved_rows] != list(before)):
             raise ValueError('retained queue is malformed; preserve the checkpoint')
-        if [key for key in after if key in before] != list(before):
+        merges, obligations = {}, state.get('consolidation_obligations', {})
+        if merge_tasks or base is not None:
+            from plan_reconciliation import consolidation
+            merges, obligations = consolidation(root, plan, state, merge_tasks, base, git=git_output)
+        elif [key for key in after if key in before] != list(before):
             raise ValueError('reconciliation cannot remove or reorder existing tasks')
         result = state.get('pending_completion')
-        changed = [key for key in before if before[key] != after[key]]
+        changed = [key for key in before if key in after and before[key] != after[key]]
         if changed:
             if (changed != [state.get('task_id')] or not after[changed[0]]
                     or result != read_session_result(run) or result.get('status') != 'task_complete'
@@ -325,7 +370,7 @@ def reconcile_plan(root, spec, identity, *, check=False):
         if any(after[key] for key in after if key not in before):
             raise ValueError('new plan tasks must remain unchecked')
         rows = {row[2]: row for row in plan.structure()}
-        for row in state['queue_structure']:
+        for row in (() if merges else state['queue_structure']):
             dependencies = set(row[4].split(', ')) - {'', '—', '-', 'Baseline'}
             current_dependencies = set(rows[row[2]][4].split(', ')) - {'', '—', '-', 'Baseline'}
             if row[5] != rows[row[2]][5] or not dependencies.issubset(current_dependencies):
@@ -334,7 +379,7 @@ def reconcile_plan(root, spec, identity, *, check=False):
             raise ValueError('retained suspended tasks are malformed')
         pending = dict(state.get('suspended_tasks', {}))
         if state.get('task') and not after[state['task_id']]:
-            pending[state['task_id']] = state
+            pending[state['task_id']] = {key: value for key, value in state.items() if key != 'suspended_tasks'}
         baseline = worktree_snapshot(root)
         staged = list(filter(None, git_output(root, 'diff', '--cached', '--name-only', '-z').stdout.split('\0')))
         for key, saved in pending.items():
@@ -343,19 +388,27 @@ def reconcile_plan(root, spec, identity, *, check=False):
             task = next(task for task in tasks if task.id == key)
             if (type(saved) is not dict or type(saved.get('task')) is not dict
                     or key != saved.get('task_id') or key != saved['task'].get('task_id')
-                    or saved['task'].get('brief') != str(task.brief)
+                    or (key not in merges.values() and saved['task'].get('brief') != str(task.brief))
                     or any(saved.get(field) for field in ('pending_completion', 'commit_intent',
                         'pull_intent', 'git_reconciliation', 'result_recovery', 'suspended_tasks', 'blocker'))):
                 raise ValueError('suspended task needs its original identity and no pending transaction')
             pending[key] = dict(saved, phase='recover', in_flight=False,
+                                consolidation_obligations=obligations,
                                 queue_before=after, queue_structure=plan.structure(selected=key),
                                 stage_baseline=baseline, protected_staged=staged)
+            if key in merges.values():
+                record = task_record(task)
+                pending[key].update(record, task=record)
+                pending[key]['handoff'] = (saved.get('handoff', '')
+                    + '\nExplicit consolidation preserves all original obligations. '
+                    'Complete acceptance for every target in the combined brief; no completion credit was granted.')
             validate_task_metadata(plan, pending[key])
         for saved in (state, *pending.values()):
             if any(type(saved.get(field, 0)) is not int or saved.get(field, 0) < 0
                    for field in ('total_sessions', 'task_sessions', 'session_limit')):
                 raise ValueError('retained session counts are malformed')
         updated = dict(phase='complete', in_flight=False, task_id=None, task_sessions=0,
+                       consolidation_obligations=obligations,
                        total_sessions=state.get('total_sessions', 0),
                        queue_before=after, queue_structure=plan.structure(),
                        suspended_tasks=pending, replan_baseline=baseline, protected_staged=staged,
@@ -364,6 +417,11 @@ def reconcile_plan(root, spec, identity, *, check=False):
                                + state.get('handoff', ''),
                        reconciliation=dict(source_run=identity, checkpoint_sha256=hashlib.sha256(raw).hexdigest(),
                            head=git_output(root, 'rev-parse', '--verify', 'HEAD').stdout.strip()))
+        if merges:
+            updated['reconciliation'].update(merge_tasks=list(merge_tasks), base=base)
+        for task in tasks:
+            if not task.complete:
+                validate_consolidated_metadata(task_record(task), obligations)
         plan.validate_recovery(updated)
         if not check:
             launcher.finish_nested(root, run)
@@ -490,6 +548,7 @@ def worker(root, run, owner, spec, state):
                         raise ValueError('queue exhausted with unaccepted suspended tasks; reconcile the retained handoff')
                     reason = 'queue complete'
                     break
+                validate_consolidated_metadata(task_record(task), state.get('consolidation_obligations', {}))
                 if not budget.admit():
                     reason = 'task limit reached'
                     break
@@ -512,6 +571,8 @@ def worker(root, run, owner, spec, state):
                              queue_before=plan.state(), queue_structure=plan.structure(selected=task.id))
                 if pending:
                     selected.update(suspended_tasks=pending, replan_baseline=selected['stage_baseline'])
+                if state.get('consolidation_obligations'):
+                    selected['consolidation_obligations'] = state['consolidation_obligations']
                 state = selected
             if state['phase'] == 'blocked':
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
@@ -608,6 +669,10 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--check', action='store_true', help='validate plan, queue and unfinished briefs without execution')
     parser.add_argument('--reconcile', metavar='RUN',
                         help='adopt a reviewed committed replan for an inactive retained run; no task execution')
+    parser.add_argument('--merge-task', action='append', default=[], metavar='OLD=KEEP',
+                        help='explicitly consolidate an unstarted task during --reconcile; repeat for each source')
+    parser.add_argument('--reconcile-base', metavar='COMMIT',
+                        help='full ancestor commit matching the retained queue before explicit task consolidation')
     add_options(parser)
     args = parser.parse_args(argv)
     run = None
@@ -629,8 +694,11 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         if args.reconcile:
             if args.stop or args.tasks is not None or args.vm is not None:
                 raise ValueError('--reconcile cannot be combined with execution, stop or VM options')
-            print(json.dumps(reconcile_plan(root, spec, args.reconcile, check=args.check)))
+            print(json.dumps(reconcile_plan(root, spec, args.reconcile, check=args.check,
+                                           merge_tasks=args.merge_task, base=args.reconcile_base)))
             return 0
+        if args.merge_task or args.reconcile_base:
+            raise ValueError('--merge-task and --reconcile-base require --reconcile')
         if args.check:
             plan = Plan.load(root, path)
             records = [task_record(task) for task in plan.tasks() if not task.complete]

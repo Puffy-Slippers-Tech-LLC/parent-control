@@ -621,10 +621,14 @@ def test_cancellation_retains_inflight_task_and_runs_owned_cleanup(rig, monkeypa
     assert rig.cleanups == [rig.run]
 
 
-def test_interrupted_partial_closeout_resumes_without_a_brief(rig, monkeypatch):
+@pytest.mark.parametrize('consolidated', [False, True])
+def test_interrupted_partial_closeout_resumes_without_a_brief(rig, monkeypatch, consolidated):
     previous = rig.root / 'previous'
     previous.mkdir()
     state = state_for(rig.plan, in_flight=True, task_sessions=2)
+    if consolidated:
+        state['consolidation_obligations'] = {'001': [dict(task_id='original',
+            scope='Original history', brief='Retain the complete history.', acceptance='host', targets=[])]}
     workflow.launcher.atomic(previous / 'checkpoint.json', state)
     (rig.root / 'docs/001.md').unlink()
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
@@ -1430,6 +1434,224 @@ def test_public_replan_check_does_not_select_vms_or_start_tasks(replan, monkeypa
     assert json.loads(capsys.readouterr().out)['next_task'] == 'pre'
 
 
+@pytest.fixture
+def consolidated_plan(git_plan):
+    from test_storage import directory
+
+    scene = git_plan
+    queue = scene.root / scene.plan.queue
+    queue.write_text(queue.read_text().replace('| [ ] | 001 |',
+        '| [x] | 000 | Baseline | Baseline | accepted baseline |\n| [ ] | 001 |').replace(
+        '| [ ] | 002 | [Task 002](002.md) | — |',
+        '| [ ] | 002 | [Task 002](002.md) | 001 |').replace('## Deferred future work',
+        '| [ ] | 003 | [Final gate](003.md) | 001, 002 | final gate |\n## Deferred future work'))
+    for identity, targets in [('001', 'Ubuntu'), ('002', 'Fedora'), ('003', 'Ubuntu, Fedora')]:
+        (scene.root / f'docs/{identity}.md').write_text(f'Acceptance: installed\nTargets: {targets}\n')
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '-qm', 'Private separate qualification tasks')
+    scene.base = scene.git('rev-parse', 'HEAD').stdout.strip()
+    state = state_for(scene.plan, task_sessions=1, total_sessions=8,
+                      in_flight=True, reason='cancelled after owned cleanup')
+    consumer = workflow.task_record(scene.plan.tasks()[3])
+    state['suspended_tasks'] = {'003': dict(state_for(scene.plan), **consumer, task=consumer,
+        task_sessions=2, total_sessions=5, handoff='Retain both complete histories and their exact inputs.')}
+    queue.write_text('\n'.join(line for line in queue.read_text().splitlines()
+                                if not line.startswith('| [ ] | 002 |')).replace(
+        '[Task 001](001.md)', '[Both targets](combined.md)').replace(
+        'finite scope 001', 'both complete histories').replace('001, 002 | final gate', '001 | final gate') + '\n')
+    (scene.root / 'docs/combined.md').write_text('Acceptance: installed\nTargets: Ubuntu, Fedora\n'
+                                              'finite scope 001\nfinite scope 002\n')
+    (scene.root / 'docs/001.md').unlink()
+    (scene.root / 'docs/002.md').unlink()
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '-qm', 'Reviewed combined qualification task')
+    namespace = workflow.launcher.private_directory(directory('plans', root=scene.root) / scene.plan.namespace)
+    scene.run = workflow.launcher.private_directory(namespace / ('a' * 32))
+    workflow.launcher.atomic(namespace / 'current.json', dict(run=scene.run.name))
+    workflow.launcher.atomic(scene.run / 'checkpoint.json', state)
+    workflow.launcher.atomic(scene.run / 'result.json', dict(status=130, tasks=0))
+    workflow.launcher.atomic(scene.run / 'nested.json', [])
+    (scene.run / 'cancel').touch()
+    (scene.run / 'nested-closed').touch()
+    (scene.root / 'shared.py').write_text('unrelated staged work\n')
+    scene.git('add', '--', 'shared.py')
+    (scene.root / 'unrelated.py').write_text('unrelated unstaged work\n')
+    scene.spec = workflow.PlanWorkflow('fixture-plan', scene.plan.path, vm=True)
+    return scene
+
+
+def test_consolidation_recovers_cancelled_owner_preserving_both_targets_and_handoffs(
+        consolidated_plan, monkeypatch):
+    scene = consolidated_plan
+    checkpoint = scene.run / 'checkpoint.json'
+    raw = checkpoint.read_bytes()
+    head = scene.git('rev-parse', 'HEAD').stdout
+    index, worktree = scene.git('diff', '--cached').stdout, scene.git('diff').stdout
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('administrative reconciliation attempted task execution')
+    monkeypatch.setattr(workflow, 'execute', unexpected)
+    monkeypatch.setattr(workflow, 'session_command', lambda *_: ['unused-model-command'])
+    options = dict(merge_tasks=['002=001'], base=scene.base)
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, check=True, **options)['checked']
+    assert checkpoint.read_bytes() == raw
+    assert not list(scene.run.glob('checkpoint-before-reconcile-*'))
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **options)['reconciled']
+    backup, = scene.run.glob('checkpoint-before-reconcile-*')
+    assert json.loads(backup.read_text())['checkpoint_utf8'].encode() == raw
+    updated = json.loads(checkpoint.read_text())
+    assert updated['queue_before'] == {'000': True, '001': False, '003': False}
+    assert updated['total_sessions'] == 8 and updated['task_id'] is None
+    active, consumer = (updated['suspended_tasks'][key] for key in ('001', '003'))
+    assert active['task_sessions'] == 1 and consumer['task_sessions'] == 2
+    assert active['task']['targets'] == ['Ubuntu', 'Fedora']
+    assert active['task']['brief'] == str(scene.root / 'docs/combined.md')
+    assert consumer['handoff'] == 'Retain both complete histories and their exact inputs.'
+    originals = updated['consolidation_obligations']['001']
+    assert [item['task_id'] for item in originals] == ['001', '002']
+    assert originals[1]['brief'] == 'Acceptance: installed\nTargets: Fedora\n'
+    active['consolidation_obligations'] = updated['consolidation_obligations']
+    assert 'finite scope 002' in workflow.session_prompt(scene.plan, scene.spec, active)
+    assert 'shared.py' in updated['protected_staged'] and 'unrelated.py' in updated['replan_baseline']
+    result = response(active)
+    result['checks'] = [dict(kind='installed', target='Ubuntu', result='passed', evidence='one history')]
+    with pytest.raises(ValueError, match='passing scoped acceptance'):
+        workflow.validate_result_payload(active, result)
+    assert workflow.initial_state(scene.plan, scene.spec, scene.run.parent)['phase'] == 'complete'
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, check=True, **options)['resume_ready']
+    assert scene.git('rev-parse', 'HEAD').stdout == head
+    assert scene.git('diff', '--cached').stdout == index and scene.git('diff').stdout == worktree
+
+
+@pytest.mark.parametrize('defect', [
+    'implicit', 'missing-base', 'wrong-base', 'wrong-map', 'chain', 'completed-source',
+    'target-loss', 'kind-change', 'unrelated-scope', 'dropped-dependency', 'saved-source',
+    'saved-metadata', 'lost-scope', 'uncancelled', 'unclosed', 'result-mismatch', 'response-present',
+    'agent-error', 'nested-owner', 'cancel-symlink', 'cancel-hardlink', 'pending-git',
+])
+def test_consolidation_refuses_lost_obligations_and_unfinished_owners(consolidated_plan, defect):
+    scene = consolidated_plan
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    queue = scene.root / scene.plan.queue
+    options = dict(merge_tasks=['002=001'], base=scene.base)
+    if defect == 'implicit': options = {}
+    if defect == 'missing-base': options['base'] = None
+    if defect == 'wrong-base': options['base'] = scene.git('rev-parse', scene.base + '^').stdout.strip()
+    if defect == 'wrong-map': options['merge_tasks'] = ['missing=001']
+    if defect == 'chain': options['merge_tasks'] = ['002=001', '001=003']
+    if defect == 'completed-source': state['queue_before']['002'] = True
+    if defect == 'target-loss':
+        path = scene.root / 'docs/combined.md'
+        path.write_text(path.read_text().replace('Ubuntu, Fedora', 'Ubuntu'))
+    if defect == 'kind-change':
+        (scene.root / 'docs/combined.md').write_text('Acceptance: review\nTargets: Ubuntu, Fedora\n')
+    if defect == 'unrelated-scope': queue.write_text(queue.read_text().replace('final gate |', 'weaker gate |'))
+    if defect == 'dropped-dependency': queue.write_text(queue.read_text().replace('001 | final gate', '— | final gate'))
+    if defect == 'saved-source':
+        state['suspended_tasks']['002'] = dict(state, task_id='002', suspended_tasks={})
+    if defect == 'saved-metadata': state['task']['targets'] = ['unrelated-target']
+    if defect == 'lost-scope':
+        path = scene.root / 'docs/combined.md'
+        path.write_text(path.read_text().replace('finite scope 002', 'weaker scope'))
+    if defect == 'uncancelled': (scene.run / 'cancel').unlink()
+    if defect == 'unclosed': (scene.run / 'nested-closed').unlink()
+    if defect == 'result-mismatch': workflow.launcher.atomic(scene.run / 'result.json', dict(status=1, tasks=0))
+    if defect == 'response-present': workflow.launcher.atomic(scene.run / 'agent-result.json', response(state))
+    if defect == 'agent-error': workflow.launcher.atomic(scene.run / 'agent-error.json', {'message': 'failed'})
+    if defect == 'nested-owner': workflow.launcher.atomic(scene.run / 'nested.json', [{'path': 'unfinished'}])
+    if defect == 'cancel-symlink':
+        (scene.run / 'cancel').unlink()
+        (scene.run / 'cancel').symlink_to(scene.run / 'nested-closed')
+    if defect == 'cancel-hardlink': os.link(scene.run / 'cancel', scene.run / 'other-cancel')
+    if defect == 'pending-git': state['commit_intent'] = {'parent': 'private-head'}
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '--allow-empty', '-qm', 'Private changed replan')
+    workflow.launcher.atomic(checkpoint, state)
+    raw = checkpoint.read_bytes()
+    with pytest.raises(ValueError):
+        workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, **options)
+    assert checkpoint.read_bytes() == raw
+    assert not list(scene.run.glob('checkpoint-before-reconcile-*'))
+
+
+def test_consolidation_after_completed_task_boundary_keeps_future_obligations(consolidated_plan):
+    scene = consolidated_plan
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    historical = dict(task_id='000', title='Baseline', brief=str(scene.root / 'docs/retired.md'),
+                      acceptance='host', targets=[])
+    state.update(historical, task=historical, phase='complete', in_flight=False)
+    workflow.launcher.atomic(checkpoint, state)
+    workflow.launcher.atomic(scene.run / 'result.json', dict(status=0, tasks=1))
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                                   merge_tasks=['002=001'], base=scene.base)['reconciled']
+    updated = workflow.initial_state(scene.plan, scene.spec, scene.run.parent)
+    assert set(updated['suspended_tasks']) == {'003'}
+    assert updated['consolidation_obligations']['001'][1]['targets'] == ['Fedora']
+
+
+def test_future_consolidated_obligations_survive_intervening_task_closeout(rig, monkeypatch):
+    original = dict(task_id='retired-source', scope='Required future retained-history witness',
+                    brief='Preserve native denial and unrelated-user execution.',
+                    acceptance='host', targets=[])
+    obligations = {'002': [original]}
+    calls = []
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append(state['task_id'])
+        assert state['consolidation_obligations'] == obligations
+        if state['task_id'] == '002':
+            prompt = (run / 'prompt.txt').read_text()
+            assert original['scope'] in prompt and original['brief'] in prompt
+        complete(rig.plan, state['task_id'])
+        return response(state)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    TaskBudget(rig.run).initialize(1)
+    assert rig.worker(dict(phase='complete', task_sessions=0, total_sessions=0,
+                           consolidation_obligations=obligations)) == 0
+    assert calls == ['001']
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    recovered = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    assert recovered['consolidation_obligations'] == obligations
+    restarted = rig.root / 'restarted'
+    restarted.mkdir()
+    TaskBudget(restarted).initialize(1)
+    owner = os.open(restarted / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(rig.root, restarted, owner, rig.spec, recovered) == 0
+    assert calls == ['001', '002']
+
+
+@pytest.mark.parametrize('destination', ['001', '003'])
+def test_additional_consolidation_preserves_earlier_original_obligations(consolidated_plan, destination):
+    scene = consolidated_plan
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    original = dict(task_id='older-source', scope='Original retained obligation',
+                    brief='Require both complete matching histories and cleanup.',
+                    acceptance='installed', targets=['Ubuntu'] if destination == '001' else ['Ubuntu', 'Fedora'])
+    state['consolidation_obligations'] = {destination: [original]}
+    workflow.launcher.atomic(checkpoint, state)
+    workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                            merge_tasks=['002=001'], base=scene.base)
+    updated = json.loads(checkpoint.read_text())
+    assert updated['consolidation_obligations'][destination][0] == original
+    assert updated['consolidation_obligations']['001'][-1]['task_id'] == '002'
+
+
+def test_future_merged_brief_cannot_drop_acceptance_before_selection(consolidated_plan):
+    scene = consolidated_plan
+    workflow.reconcile_plan(scene.root, scene.spec, scene.run.name,
+                            merge_tasks=['002=001'], base=scene.base)
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    state['suspended_tasks'].pop('001')  # The destination has not started on this branch.
+    workflow.launcher.atomic(checkpoint, state)
+    brief = scene.root / 'docs/combined.md'
+    brief.write_text(brief.read_text().replace('Ubuntu, Fedora', 'Ubuntu'))
+    with pytest.raises(ValueError, match='original acceptance kind and all targets'):
+        workflow.initial_state(scene.plan, scene.spec, scene.run.parent)
+
+
 def peer_change(fixture, path, content):
     (fixture.peer / path).write_text(content)
     fixture.git('add', '--', path, cwd=fixture.peer)
@@ -1939,6 +2161,8 @@ def prerequisite_plan(root):
 
 def test_prerequisite_repair_recognizes_exact_multilevel_block_without_accepting_consumer(tmp_path):
     plan, state = prerequisite_plan(tmp_path)
+    state['consolidation_obligations'] = {'002': [dict(task_id='original', scope='Retained obligation',
+        brief='Preserve the full original assertion.', acceptance='host', targets=[])]}
     checkpoint = json.dumps(state, sort_keys=True)
     selected = plan.prerequisite_repair(state)
     assert selected.id == 'pre-a' and selected.brief == tmp_path / 'docs/pre-a.md'
@@ -1946,6 +2170,8 @@ def test_prerequisite_repair_recognizes_exact_multilevel_block_without_accepting
     assert plan.state() == {'001': True, 'pre-a': False, 'pre-b': False, '002': False, '003': False}
     assert json.dumps(state, sort_keys=True) == checkpoint
     assert state['task_id'] == '002' and 'unfinished' in state['handoff']
+    deferred = workflow.defer_to_prerequisite(plan, state)
+    assert deferred['consolidation_obligations'] == state['consolidation_obligations']
 
 
 @pytest.mark.parametrize('defect', [

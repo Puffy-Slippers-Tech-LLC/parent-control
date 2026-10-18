@@ -490,11 +490,19 @@ The bounded `--tasks 1` invocation stopped at its task limit before starting 002
 That recovery left the then-current queue, 002c pointer and suspended 003 handoff
 intact; it executed no additional queue task or installed history and required no
 manual replan. The subsequent consolidation changes task structure and target
-declarations. Existing retained checkpoints predate this revision: preserve their
-evidence and unfinished handoffs, and resolve structural restart conflicts under
-the [shared checkpoint contract](../Execution-Plans.md#common-launcher-interface)
-before execution. This documentation edit does not migrate checkpoints or bypass
-their guards.
+declarations. Cancelled run `3f10b5e801564ca2a94b2102263d7c39` predates that revision.
+Use the [explicit consolidation route](../Execution-Plans.md#common-launcher-interface)
+with the exact old committed queue and the two reviewed mappings:
+
+```sh
+tools/install-coverage --reconcile '3f10b5e801564ca2a94b2102263d7c39' --merge-task '002d=002c' --merge-task '004e=004d' --reconcile-base 'd8cfd759310098f04f6b0f2829b3c973b33ae3cb' --check
+```
+
+Omit `--check` to adopt after its checks pass; repeat with `--check` to verify
+`resume_ready`. The route preserves the original checkpoint, original per-target
+briefs/scopes, unfinished 002c/003 handoffs and session counts. It grants no
+completion and starts no installed history. After adoption,
+`tools/install-coverage --tasks 0` resumes combined 002c under the ordinary guards.
 
 Target upgrade diagnosis belongs to 002c, and native package-pair feasibility
 to 004a. These are execution work,

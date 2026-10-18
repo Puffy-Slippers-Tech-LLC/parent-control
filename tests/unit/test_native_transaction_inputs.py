@@ -8,10 +8,50 @@ import os
 from pathlib import Path
 import subprocess
 import tarfile
+from types import SimpleNamespace
 
 import pytest
 
 from tools import native_transaction_inputs as native
+
+
+@pytest.fixture
+def shared_owner_split(tmp_path, monkeypatch):
+    """Model the shared boundary without switching process credentials."""
+    from tools import test_storage
+
+    base = tmp_path / 'shared-storage'
+    base.mkdir(mode=0o755)
+    host = base / 'caller'
+    private = base / 'controller'
+    host.mkdir(mode=0o700)
+    private.mkdir(mode=0o700)
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir(mode=0o700)
+    repository = Path(native.__file__).resolve().parents[1]
+    owners = {}
+
+    def metadata(original):
+        def adjusted(path, *args, **kwargs):
+            info = original(path, *args, **kwargs)
+            uid = owners.get(path)
+            if uid is None:
+                if path in (repository, base) or path.is_relative_to(host):
+                    uid = 1000
+                elif path.is_relative_to(private):
+                    uid = 0
+                else:
+                    return info
+            values = {name: getattr(info, name) for name in dir(info) if name.startswith('st_')}
+            return SimpleNamespace(**{**values, 'st_uid': uid})
+        return adjusted
+
+    monkeypatch.setattr(Path, 'stat', metadata(Path.stat))
+    monkeypatch.setattr(Path, 'lstat', metadata(Path.lstat))
+    monkeypatch.setattr(test_storage, 'BASE', base)
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(native.os, 'geteuid', lambda: 1000)
+    return base, host, private, owners
 
 
 def _tar(entries):
@@ -143,14 +183,20 @@ def test_prepare_repeat_and_read_only_verify(inputs):
     assert {'gpgv', 'dpkg', 'dpkg-deb', 'readelf'} <= tools if package_format == 'deb' else {'gpg', 'rpm', 'rpmkeys', 'rpm2cpio'} <= tools
 
 
-def test_controller_stages_actual_verified_schema_and_preflight_consumes_it(inputs, tmp_path):
+def test_controller_stages_actual_verified_schema_and_preflight_consumes_it(
+        inputs, shared_owner_split, monkeypatch):
     import system_runner
     from tests.integration import native_transaction
 
     package_format, _, output, _, _ = inputs
+    base, host, private, _ = shared_owner_split
+    output = output.rename(host / 'bundle')
     manifest = native.prepare(output, package_format=package_format)
-    destination = tmp_path / 'attempt-input'
+    monkeypatch.setattr(native.os, 'geteuid', lambda: 0)
+    destination = private / 'attempt-input'
     destination.mkdir(mode=0o700)
+    assert base.stat().st_uid == output.stat().st_uid == 1000
+    assert destination.stat().st_uid == 0
     selected = destination / 'selected-inputs.json'
     selected.write_bytes(b'{"files":{"helper.py":{"sha256":"selected"}}}')
     selected.chmod(0o600)
@@ -165,6 +211,40 @@ def test_controller_stages_actual_verified_schema_and_preflight_consumes_it(inpu
     assert set(paths) == {'old', 'new'}
     assert system_runner.stage_native_assets(output, destination, **options) == binding
     assert system_runner.verify_native_assets(destination, **options) == binding
+
+
+@pytest.mark.parametrize('fault', [
+    'foreign_base', 'foreign_ancestor', 'foreign_tree', 'writable_base',
+    'linked_base', 'linked_tree', 'hardlinked_tree',
+])
+def test_shared_boundary_keeps_ownership_mode_and_link_refusals(
+        shared_owner_split, monkeypatch, fault):
+    base, _, private, owners = shared_owner_split
+    monkeypatch.setattr(native.os, 'geteuid', lambda: 0)
+    output = private / 'bundle'
+    output.mkdir(mode=0o700)
+    package = output / 'package'
+    package.write_bytes(b'fixture package')
+    package.chmod(0o600)
+    assert native._safe_tree(output) == output
+    if fault == 'foreign_base':
+        owners[base] = 987654
+    elif fault == 'foreign_ancestor':
+        owners[private] = 1000
+    elif fault == 'foreign_tree':
+        owners[package] = 1000
+    elif fault == 'writable_base':
+        base.chmod(0o775)
+    elif fault == 'linked_base':
+        actual = base.rename(base.with_name('actual-storage'))
+        base.symlink_to(actual, target_is_directory=True)
+    elif fault == 'linked_tree':
+        package.unlink()
+        package.symlink_to(output / 'missing')
+    else:
+        os.link(package, output / 'alias')
+    with pytest.raises(native.NativeInputError):
+        native._safe_tree(output)
 
 
 @pytest.mark.parametrize('fault', ['wrong_version', 'wrong_arch', 'bad_signature', 'same_payload'])

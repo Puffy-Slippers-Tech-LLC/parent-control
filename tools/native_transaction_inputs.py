@@ -120,7 +120,12 @@ def _safe_tree(output):
             # The shared storage implementation owns traversal above its root,
             # including developer-owned checkout ancestors and bind mounts.
             continue
-        if (info.st_uid not in (0, owner, Path('/').stat().st_uid) or not stat.S_ISDIR(info.st_mode)
+        allowed_owners = (0, owner, Path('/').stat().st_uid)
+        if managed and ancestor == test_storage.BASE:
+            # This traversable boundary is shared by caller-owned inputs and
+            # root-owned staging; only the boundary may use the checkout owner.
+            allowed_owners += (repository_owner,)
+        if (info.st_uid not in allowed_owners or not stat.S_ISDIR(info.st_mode)
                 or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)):
             raise NativeInputError('unsafe native input ancestor')
     for entry in (output, *output.rglob('*')):

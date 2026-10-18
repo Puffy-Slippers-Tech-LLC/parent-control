@@ -1,6 +1,7 @@
 """Select test package inputs from the pinned VM's verified baseline."""
 
 import argparse
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -20,6 +21,24 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         if output is None:
             output = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
             print('run-tests: output=' + str(output), flush=True)
+        # The caller registers the empty allocation before payload creation.
+        # Create both private children before either builder; never adopt an
+        # existing child or follow a link in the registered root's path.
+        descriptor = test_retention.directory(output)
+        try:
+            test_retention.private(os.fstat(descriptor))
+            if os.listdir(descriptor):
+                raise ValueError('system native input allocation must be empty')
+            for name in ('product', 'native'):
+                os.mkdir(name, mode=0o700, dir_fd=descriptor)
+                child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=descriptor)
+                try:
+                    test_retention.private(os.fstat(child))
+                finally:
+                    os.close(child)
+        finally:
+            os.close(descriptor)
         status = prepare(root, control, environment, output=Path(output) / 'product')
         if status:
             return status

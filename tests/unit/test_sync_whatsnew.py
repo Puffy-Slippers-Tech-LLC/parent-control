@@ -71,6 +71,38 @@ def finish(root):
     return release
 
 
+def test_launcher_totals_count_languages_across_all_latest_release_records(repository):
+    from launcher_view import view_for, whatsnew_totals
+
+    assert view_for('sync-whatsnew').totals is whatsnew_totals
+    assert whatsnew_totals(repository) == (0, 2, 2)
+    assert not (repository / 'po/whats-new').exists()
+    release = catalogs.prepare(repository)
+    work = catalogs.pending(repository, release)
+    # Completing one audience still leaves that language pending.
+    partial = {'fr': work['fr'][:1]}
+    sync.apply_response(repository, release, partial, response(partial),
+                        originals(repository, release, partial))
+    assert whatsnew_totals(repository) == (0, 2, 2)
+    work = {'fr': catalogs.pending(repository, release)['fr']}
+    sync.apply_response(repository, release, work, response(work), originals(repository, release, work))
+    assert whatsnew_totals(repository) == (1, 1, 2)
+    finish(repository)
+    assert whatsnew_totals(repository) == (2, 0, 2)
+    source(repository, [('1.11', 'Parent', 'New release notes')])
+    assert whatsnew_totals(repository) == (0, 2, 2)
+
+
+def test_launcher_totals_refuse_malformed_catalogue_without_crashing_observer(repository):
+    from launcher_view import whatsnew_totals
+
+    release = catalogs.prepare(repository)
+    catalogs.catalog_path(repository, release, 'fr').write_text('msgid ""\nmsgstr """\n')
+    # The shared display handles ValueError by retaining the last valid totals.
+    with pytest.raises(ValueError, match='invalid translation catalogue'):
+        whatsnew_totals(repository)
+
+
 def test_numeric_latest_includes_all_audiences_ignores_installed_version_and_preserves_history(repository):
     source(repository, [('1.10.0', 'Parent', 'Parent notes'), ('1.9', 'Parent,Child', 'Old notes'),
                         ('1.10', 'Child', 'Child notes')])

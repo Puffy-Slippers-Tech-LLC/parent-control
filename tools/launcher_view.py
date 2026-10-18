@@ -38,6 +38,21 @@ def e2e_totals():
     return plan_totals(Path(__file__).resolve().parent.parent, PLAN)
 
 
+def whatsnew_totals(root=None):
+    """Count complete languages across all records of the latest release."""
+    from tools import whats_new_catalogs as catalogs
+    root = root if root is not None else Path(__file__).resolve().parent.parent
+    release = catalogs.latest(root)
+    try:
+        remaining = len(catalogs.pending(root, release))
+    except SyntaxError as error:
+        # The display retains its last valid totals on ValueError while an
+        # externally edited catalogue is malformed; keep the observer attached.
+        raise ValueError('invalid translation catalogue') from error
+    total = len(release.languages)
+    return total - remaining, remaining, total
+
+
 @dataclass(frozen=True)
 class WorkflowView:
     input_mode: str = 'none'
@@ -55,6 +70,7 @@ VIEWS = {
     'write-e2e': WorkflowView('chat', True, e2e_progress, e2e_totals),
     'fix-tests': WorkflowView('question', True, repair_progress),
     'run-tests': WorkflowView(),
+    'sync-whatsnew': WorkflowView(totals=whatsnew_totals),
 }
 
 

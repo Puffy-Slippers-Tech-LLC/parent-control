@@ -386,6 +386,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
                    'reproduce-countdown-minutes',
                    'reproduce-natural-expiry',
                    'reproduce-countdown-resume',
+                   'reproduce-retained-unlock',
                    'probe-retained-app-launch',
                    'probe-lock-curtain', 'reproduce-transfer-refusal', 'probe-transfer-refusal',
                    'reproduce-riley-native-grid', 'probe-riley-native-grid',
@@ -661,6 +662,209 @@ def test_kiosk_approval_reproduction_stops_before_qualification_and_secret_input
     assert prefix[-1] == 'approval-open'
     assert PLAN.screen_tags['approval-open'] == 'ui:kiosk-mate-open'
     assert not {'approval-rechecked', 'approval-success'} & set(prefix)
+
+
+def test_retained_unlock_reproduction_preserves_exact_history_before_desktop_read(monkeypatch):
+    import vm_probe
+    from desktop_session import RetainedUnlockJourney, RETAINED_UNLOCK_PLAN
+    import tools.test_storage as storage
+    assets = Mock()
+    monkeypatch.setattr(storage, 'named_input', Mock(return_value=assets))
+    reproduce = Mock()
+    monkeypatch.setattr(vm_probe, 'reproduce_denial', reproduce)
+    lease = object()
+    vm_probe.reproduce_retained_unlock(lease)
+    reproduce.assert_called_once_with(lease, RetainedUnlockJourney, RETAINED_UNLOCK_PLAN,
+        'unlock-desktop', 'retained-unlock', assets=assets,
+        boundary_operation='child-retained-unlock-diagnostic', unlock_capture=True)
+    storage.named_input.assert_called_once_with(vm_source=True, fixture_source=True)
+    prefix = RETAINED_UNLOCK_PLAN.stages[:RETAINED_UNLOCK_PLAN.stages.index('unlock-desktop')]
+    assert prefix[-1] == 'retained-recipient-rechecked'
+    assert {'activity-submitted', 'activity-capture', 'lock', 'return-greeter'} <= set(prefix)
+    assert not {'unlock-desktop', 'returned-activity', 'usable-activity'} & set(prefix)
+    assets.is_dir.return_value = False
+    reproduce.reset_mock()
+    with pytest.raises(runner.Error, match='diagnosis:fixture-inputs-required'):
+        vm_probe.reproduce_retained_unlock(lease)
+    reproduce.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', [None, 'before-ready', 'after-ready', 'wrong-boot', 'partial', 'oversize'])
+def test_retained_unlock_capture_has_private_command_owner_and_waits_for_completion(
+        tmp_path, monkeypatch, fault):
+    from retained_unlock_capture import Capture
+    import vm_transport
+    boot = 'a' * 64
+    complete = __import__('threading').Event()
+    source = SimpleNamespace(config={'run': 'owned'}, commands=SimpleNamespace(lock_fd=17), guard=Mock())
+    lease = SimpleNamespace(guard=Mock())
+    ready = {'event': 'ready', 'monotonic_ns': 100, 'boot_sha256': boot,
+        'session_sha256': 'b' * 64, 'screensaver_active': True,
+        'session_active': False, 'locked_hint': True}
+    if fault == 'wrong-boot':
+        ready['boot_sha256'] = 'c' * 64
+    def call(argv, **kwargs):
+        assert argv == ['/usr/bin/python3', '-I', '-']
+        assert kwargs['timeout'] == 75
+        # The payload imports no host integration code in the guest.
+        compile(kwargs['input'], '<capture>', 'exec')
+        try:
+            if fault == 'before-ready':
+                raise RuntimeError('synthetic-command-error')
+            send = kwargs['on_stream']
+            raw = (json.dumps(ready) + '\n').encode()
+            send(raw[:12], 'stdout')
+            send(raw[12:], 'stdout')
+            if fault == 'after-ready':
+                raise RuntimeError('synthetic-command-error')
+            if fault == 'partial':
+                send(b'{', 'stdout')
+            elif fault == 'oversize':
+                send(b'x' * 262145, 'stdout')
+            else:
+                send(b'{"event":"finished","monotonic_ns":200}\n', 'stdout')
+        finally:
+            complete.set()
+    transport = SimpleNamespace(call=Mock(side_effect=call))
+    factory = Mock(return_value=transport)
+    monkeypatch.setattr(vm_transport, 'Transport', factory)
+    capture = Capture(lease, source, tmp_path)
+    if fault:
+        try:
+            capture.start(boot)
+        except runner.Error:
+            pass
+        with pytest.raises(RuntimeError, match='capture:failed'):
+            capture.close()
+    else:
+        capture.start(boot)
+        capture.close()
+    assert complete.is_set() and not capture.thread.is_alive()
+    config, commands = factory.call_args.args
+    assert config == source.config and config is not source.config
+    assert commands is not source.commands and commands.lock_fd == 17
+    assert commands.directory == tmp_path / 'unlock-capture'
+    assert factory.call_args.kwargs == {'guard': source.guard}
+    result = json.loads((tmp_path / 'unlock-capture-result.json').read_text())
+    assert result['outcome'] == ('failed' if fault else 'captured')
+    assert result['ready'] == (fault not in ('before-ready', 'wrong-boot'))
+    assert result['timestamp_scope'] == 'guest-observer-dispatch'
+    assert result['cross_bus_ordering'] == 'unproven'
+    assert json.loads((tmp_path / 'unlock-transitions.json').read_text()) == capture.rows
+
+
+@pytest.mark.parametrize('failed', [False, True])
+@pytest.mark.parametrize('capture_failed', [False, True])
+def test_unlock_capture_starts_before_first_recipient_proof_and_closes_after_worker(
+        tmp_path, monkeypatch, failed, capture_failed):
+    from contextlib import nullcontext
+    import vm_probe
+    import retained_unlock_capture
+    import fixture_credentials
+    import e2e_worker
+    import qualification_storage
+    from desktop_session import RETAINED_UNLOCK_PLAN
+    monkeypatch.setattr(qualification_storage, 'recovery_session', nullcontext)
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *_args, **_kwargs: str(tmp_path))
+    monkeypatch.setattr(fixture_credentials, 'FixtureCredentials', Mock())
+    monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=object()))
+    events = []
+    capture = SimpleNamespace(
+        start=Mock(side_effect=lambda boot: events.append(('capture', boot))),
+        close=Mock(side_effect=lambda: events.append(('close', None))))
+    if capture_failed:
+        def close():
+            events.append(('close', None))
+            raise RuntimeError('capture-failure')
+        capture.close.side_effect = close
+    monkeypatch.setattr(retained_unlock_capture, 'Capture', Mock(return_value=capture))
+    class Journey:
+        def __init__(self, *_args, plan):
+            self.plan, self.boot = plan, 'a' * 64
+            self.steps = [{'stage': stage} for stage in plan.stages[
+                :plan.stages.index('retained-recipient-qualified')]]
+        def step(self, guard):
+            return self._step(guard)
+        def _step(self, guard):
+            events.append(('proof', None))
+    def run(directory, lease, ledger, **kwargs):
+        # Polls before the request must not launch capture.
+        kwargs['guarded_observe'](Mock())
+        assert events == [('proof', None)]
+        events.clear()
+        (directory / 'retained-recipient-qualified.request.json').write_text('{}')
+        kwargs['guarded_observe'](Mock())
+        assert events == [('capture', 'a' * 64), ('proof', None)]
+        events.append(('worker-stopped', None))
+        if failed:
+            raise runner.Error('worker-refused')
+        return {'worker_stopped': True, 'callback_closed': True}
+    monkeypatch.setattr(e2e_worker, 'run_distribution', run)
+    lease = SimpleNamespace(commands=SimpleNamespace(directory=None), guard=Mock())
+    if failed or capture_failed:
+        with pytest.raises(RuntimeError, match='worker-refused' if failed else 'capture-failure'):
+            vm_probe.reproduce_denial(lease, Journey, RETAINED_UNLOCK_PLAN, 'unlock-desktop',
+                'retained-unlock', boundary_operation='child-retained-unlock-diagnostic', unlock_capture=True)
+    else:
+        vm_probe.reproduce_denial(lease, Journey, RETAINED_UNLOCK_PLAN, 'unlock-desktop',
+            'retained-unlock', boundary_operation='child-retained-unlock-diagnostic', unlock_capture=True)
+    assert events[-2:] == [('worker-stopped', None), ('close', None)]
+    capture.start.assert_called_once_with('a' * 64)
+    capture.close.assert_called_once_with()
+
+
+def test_unlock_capture_refuses_other_reproduction_boundaries():
+    import vm_probe
+    with pytest.raises(runner.Error, match='retained-unlock-capture:caller'):
+        vm_probe.reproduce_denial(None, object, None, 'request-form', 'kiosk-entry', unlock_capture=True)
+
+
+def test_unlock_capture_window_must_span_recipient_proofs_and_desktop_boundary(tmp_path):
+    from retained_unlock_capture import Capture
+    capture = Capture(None, None, tmp_path)
+    with pytest.raises(runner.Error, match='capture:window-ended'):
+        capture.require_active()
+    capture.ready.set()
+    capture.rows.append({'event': 'ready'})
+    capture.require_active()
+    capture.rows.append({'event': 'finished'})
+    with pytest.raises(runner.Error, match='capture:window-ended'):
+        capture.require_active()
+    capture.rows.pop()
+    capture.done.set()
+    with pytest.raises(runner.Error, match='capture:window-ended'):
+        capture.require_active()
+
+
+@pytest.mark.parametrize('fault', [None, 'duplicate', 'foreign', 'bad-state', 'deadline'])
+def test_unlock_capture_baseline_reads_roles_and_states_without_names_or_password_text(monkeypatch, fault):
+    import retained_unlock_capture as capture
+    from public_atspi import ROOT
+    native = SimpleNamespace(Role=SimpleNamespace(DIALOG=10, ALERT=11, PASSWORD_TEXT=12),
+        StateType=SimpleNamespace(MODAL=1, SHOWING=2, VISIBLE=3))
+    def call(owner, path, interface, method):
+        assert owner == ':1.7' and interface == 'org.a11y.atspi.Accessible'
+        assert method in ('GetRole', 'GetState', 'GetChildren')
+        if method == 'GetRole':
+            return {ROOT: 0, '/dialog': 10, '/password': 12}[path]
+        if method == 'GetState':
+            return [0] if fault == 'bad-state' else [14 if path == '/dialog' else 12, 0]
+        return ({ROOT: [(':9.9' if fault == 'foreign' else ':1.7', '/dialog')],
+                 '/dialog': [(':1.7', ROOT if fault == 'duplicate' else '/password')],
+                 '/password': []}[path])
+    api = SimpleNamespace(call=Mock(side_effect=call))
+    if fault == 'deadline':
+        monkeypatch.setattr(capture.time, 'monotonic', Mock(side_effect=[0, 11]))
+    if fault:
+        with pytest.raises(RuntimeError, match='capture:baseline'):
+            capture.shell_baseline(api, ':1.7', native)
+    else:
+        roles, interesting = capture.shell_baseline(api, ':1.7', native)
+        assert roles == {ROOT: 'other', '/dialog': 'dialog', '/password': 'password'}
+        assert [item['role'] for item in interesting] == ['dialog', 'password']
+        assert interesting[0] == {'role': 'dialog', 'modal': True, 'visible': True,
+            'showing': True, 'source_sha256': hashlib.sha256(b':1.7/dialog').hexdigest()}
+        assert interesting[1]['modal'] is False
 
 
 def test_natural_expiry_reproduction_reuses_full_activity_loop_before_lock_input(monkeypatch):

@@ -4128,6 +4128,31 @@ preparation; `session_control.ACCOUNTS['standard']` in guarded readback). Baseli
 inspection verifies bytes, modes, owners and launchers before snapshot capture;
 fixture sources participate in its preparation digest.
 
+Supporting screen-time and retained-work command activity uses the separate
+root-owned `/opt/onpc-test-fixtures-activity/native-fixture` and its private
+`onpc-test-gui.py` / `gtk_automation.py`. Its compiled identity differs from
+A/H/S/N and the mechanical controls. Baseline reconciliation admits exactly
+these three files through the existing native file-trust receipt; it changes
+no execution-policy rule. `native_activity_entry` explicitly binds
+`native-activity-launch`; APP01's policy-target command and grid routes retain
+their original A fixture. The installed journey verifies source digests,
+root ownership/modes, completed preparation/backend provenance and exact loaded
+file-trust rows before an activity consumer begins. The verifier also refuses
+trust rows for the existing untrusted controls. It performs no prerequisite
+repair. Existing public activity IDs, draft submission and retained-window
+comparisons remain the activity contract.
+
+The new binding passed direct and retained-GDM unlock on Ubuntu in
+`20261018T160135Z-5e894563`. Fedora's `20261018T160135Z-35147dc0` passed the
+complete direct-unlock slice and the retained slice's launch, draft submission
+and capture. The latter then failed in the worker/SSH path after
+`retained-recipient-rechecked`, before an independently acknowledged returned
+desktop; its complete retained-return qualification remains open. Both reports
+are under `output/test-runs/host/reports/`, retain successful owned cleanup and
+supply no complete customer-scenario or execution-plan task credit. Native
+policy and enforcing SELinux were preserved; existing untrusted controls were
+not admitted.
+
 [NativeFixtures](../../tests/e2e/native_fixtures.py) uses guarded administrator
 SSH after independent graphical entry solely for readback. `fixture_actions()`
 supplies wrong-entry refusal and `native-verify`; `verify()` independently reads

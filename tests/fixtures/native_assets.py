@@ -14,6 +14,20 @@ TRUSTED_NATIVE = {
     'trusted-hard': ('/opt/onpc-test-fixtures-trusted-hard/native-fixture', 'TrustedHard'),
     'trusted-soft': ('/opt/onpc-test-fixtures-trusted-soft/native-fixture', 'TrustedSoft'),
 }
+ACTIVITY_PREFIX = '/opt/onpc-test-fixtures-activity'
+ACTIVITY_EXECUTABLE = ACTIVITY_PREFIX + '/native-fixture'
+
+
+def trusted_file_modes():
+    """Exact root-owned admitted inputs; existing policy controls stay untrusted."""
+    return {path: 0o755 for path, _ in TRUSTED_NATIVE.values()} | {
+        ACTIVITY_EXECUTABLE: 0o755,
+        **{ACTIVITY_PREFIX + '/' + name: 0o644 for name in GUI_FILES}}
+
+
+def activity_sources():
+    return ('fixtures/native/identity-trusted-activity',
+            'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')
 
 
 def desktop_id(role):

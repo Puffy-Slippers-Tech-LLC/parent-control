@@ -144,6 +144,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-countdown-minutes',
                                       'reproduce-natural-expiry',
                                       'reproduce-countdown-resume',
+                                      'reproduce-retained-unlock',
                                       'reproduce-remembered-return', 'probe-remembered-return',
                                       'repeat-remembered-return', 'enter-remembered-return'))
     vm.add_argument('keys', nargs='*', type=int)

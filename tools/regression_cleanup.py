@@ -109,6 +109,8 @@ fixtures and external resources have been reviewed; never omit their cases.
 # VM input-file checks use private pytest files/FIFO and in-memory descriptor,
 # stdin and SSH doubles, without touching a live VM, host stdin or shared state.
 # vm_control_cleanup_safety retains its existing compatible cleanup classification.
+# Retained-unlock capture uses a joined local thread around mocked transport
+# calls and pytest-private evidence; no live process, VM, bus or shared cache.
 # Keeper scratch-lifetime coverage in vm_watch_session_cleanup_safety uses only
 # private tmp_path logs and process/socket/descriptor doubles; compatible unit
 # and cleanup scheduling remains valid, with no live child or shared resource.

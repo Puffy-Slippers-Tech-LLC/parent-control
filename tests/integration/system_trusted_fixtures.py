@@ -24,12 +24,14 @@ try:
         TRUST_FILE, TRUST_RECORD, TRUST_PENDING, TRUST_PURPOSE,
         BACKEND_CONFIG, BACKEND_RECORD, BACKEND_PENDING,
         native_tool_paths, trust_entries, validate_trusted_record, validate_backend_provenance,
+        database_row,
     )
 except ImportError:
     from tests.fixtures.native_trust import (
         TRUST_FILE, TRUST_RECORD, TRUST_PENDING, TRUST_PURPOSE,
         BACKEND_CONFIG, BACKEND_RECORD, BACKEND_PENDING,
         native_tool_paths, trust_entries, validate_trusted_record, validate_backend_provenance,
+        database_row,
     )
 
 FIXTURE_RECORD = Path('/var/lib/onpc-baseline-fixtures.json')
@@ -52,15 +54,6 @@ def root_file(path, mode, *, gid=0, limit=262144):
         raw = stream.read(limit + 1)
         guest.require(len(raw) <= limit, 'trusted-fixtures:record-size')
         return raw
-
-
-def database_row(line):
-    """Native dumps leave spaces in paths; size/hash are the final two fields."""
-    source = line.split(None, 1)
-    if len(source) != 2:
-        return None
-    fields = source[1].rsplit(None, 2)
-    return [source[0], *fields] if len(fields) == 3 else None
 
 
 def validate_database(raw, files, untrusted):
@@ -144,6 +137,18 @@ def verify_trust():
                       and source.is_file() and not source.is_symlink()
                       and guest.sha(source) == spec['sha256'],
                       'trusted-fixtures:payload-changed')
+    try:
+        from native_assets import ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, GUI_FILES, activity_sources
+    except ImportError:
+        from tests.fixtures.native_assets import ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, GUI_FILES, activity_sources
+    for target, source in zip((ACTIVITY_EXECUTABLE,
+                              *(ACTIVITY_PREFIX + '/' + name for name in GUI_FILES)), activity_sources()):
+        spec = record['files'][target]
+        data = root_file(target, spec['mode'], limit=16777216)
+        source = guest.PAYLOAD / source
+        guest.require(len(data) == spec['size'] and hashlib.sha256(data).hexdigest() == spec['sha256']
+                      and source.is_file() and not source.is_symlink()
+                      and guest.sha(source) == spec['sha256'], 'trusted-fixtures:payload-changed')
     untrusted = []
     for variant in ('command', 'whitespace'):
         target, _, _ = native_paths(variant)

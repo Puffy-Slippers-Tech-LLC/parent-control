@@ -169,7 +169,8 @@ def native_activity_entry(prefix, *, route='command', child='child'):
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'journey:native-activity-prefix')
-    return {**{f'{prefix}-{stage}': tag for stage, tag in
+    return {**{f'{prefix}-{stage}': tag.replace('native-command-launch', 'native-activity-launch')
+               for stage, tag in
                native_usable_app(route, child=child).items()},
             f'{prefix}-capture': 'ui:' + {'child': 'overlay-native-',
                 'parent': 'parent-native-', 'other-child': 'native-'}[child] + 'activity'}

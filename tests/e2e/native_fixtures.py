@@ -13,13 +13,15 @@ from ui_observations import AppRowsObservation
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import ASSETS, desktop_id, sources, riley_grid_sources
+from tests.fixtures.native_assets import ASSETS, desktop_id, sources, riley_grid_sources, activity_sources
 
 
 def guest_source():
     modules = {
         'guest_files': Path(__file__).with_name('guest_files.py'),
         'native_assets': ROOT / 'tests/fixtures/native_assets.py',
+        'baseline_assets': ROOT / 'tests/fixtures/baseline_assets.py',
+        'native_trust': ROOT / 'tests/fixtures/native_trust.py',
         'session_control': Path(__file__).with_name('session_control.py'),
         'chinese_language_assets': ROOT / 'tests/integration/chinese_language_assets.py',
         'guest_test_dependencies': ROOT / 'tests/integration/guest_test_dependencies.py',
@@ -36,7 +38,7 @@ def guest_source():
 
 class NativeFixtures:
     def __init__(self, transport, verified, *, profile='native'):
-        require(profile in ('native', 'chinese', 'riley-grid'), 'native:profile')
+        require(profile in ('native', 'chinese', 'riley-grid', 'activity'), 'native:profile')
         self.profile = profile
         self.transport, self.verified = transport, verified
         self.attempt = dict(transport.config)
@@ -48,10 +50,11 @@ class NativeFixtures:
         require(self.transport.config == self.attempt, 'native:wrong-attempt')
         self.transport.guard(self.attempt)
         self.verified.recheck()
-        names = riley_grid_sources() if self.profile == 'riley-grid' else sources()
+        names = (activity_sources() if self.profile == 'activity' else
+                 riley_grid_sources() if self.profile == 'riley-grid' else sources())
         expected = ({name: self.verified.asset_files[name] for name in names}
                     if self.profile != 'chinese' else {})
-        if self.profile != 'chinese':
+        if self.profile not in ('chinese', 'activity'):
             require(len({expected[name] for name in sources()[:4]}) == 4, 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action, self.profile,
                                    json.dumps(expected, sort_keys=True)],
@@ -74,8 +77,19 @@ class NativeFixtures:
         self.attempted = self.failed = True
         with operation('Verifying baseline Chinese locale, native translations and CJK fonts'
                        if self.profile == 'chinese' else
+                       'Verifying root-owned activity inputs and loaded native file trust'
+                       if self.profile == 'activity' else
                        'Verifying four baseline native launchers for [Child user]'):
             value = self.command('read')
+            if self.profile == 'activity':
+                require(set(value) == {'files', 'native_trust'}
+                        and set(value['files']) == set(activity_sources())
+                        and value['native_trust'] is True, 'native:activity-receipt')
+                require(self.command('read') == value, 'native:independent-readback')
+                self.receipt = value
+                self.failed = False
+                return {'verified_files': len(value['files']), 'native_trust': True,
+                        'independent_readback': True}
             if self.profile == 'chinese':
                 from chinese_language_assets import validate_receipt
                 require(set(value) == {'profile', 'os_id', 'release', 'locale', 'provider',

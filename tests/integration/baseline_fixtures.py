@@ -37,10 +37,12 @@ def build_payload():
         result['mechanical'] = _compile_native(root, headless=True).read_bytes()
         for identity in assets.TRUSTED_NATIVE:
             result[identity] = _compile_native(root, headless=True, identity=identity).read_bytes()
+        result['trusted-activity'] = _compile_native(root, identity='trusted-activity').read_bytes()
         result['onpc-test-gui.py'] = GUI_SOURCE.read_bytes()
         result['gtk_automation.py'] = GTK_AUTOMATION_SOURCE.read_bytes()
     require(len({result[role] for role, *_ in assets.ASSETS}) == 4)
-    require(len({result[key] for key in ('mechanical', *assets.TRUSTED_NATIVE)}) == 3)
+    require(len({result[key] for key in ('mechanical', *assets.TRUSTED_NATIVE, 'trusted-activity',
+                                        *(role for role, *_ in assets.ASSETS))}) == 8)
     return result
 
 
@@ -109,7 +111,8 @@ def declared_files(g, identities):
 
 def reconcile(g, payload):
     """Repeat without writes; atomic owned upgrades and interrupted retries."""
-    keys = ('mechanical', *assets.TRUSTED_NATIVE)
+    keys = ('mechanical', *assets.TRUSTED_NATIVE, 'trusted-activity',
+            *(role for role, *_ in assets.ASSETS))
     require(all(isinstance(payload.get(key), bytes) and payload[key] for key in keys)
             and len({payload[key] for key in keys}) == len(keys))
     # Appliance-created staging files stay private even if writing is interrupted
@@ -351,8 +354,9 @@ def verify_foreign_trust(g, *, inactive=False):
             directory(g, path)
         else:
             candidates.append(path)
-    targets = {p for p, _ in assets.TRUSTED_NATIVE.values()} | {
-        assets.NATIVE[key][0] for key in ('command', 'whitespace')}
+    targets = set(assets.trusted_file_modes()) | {
+        assets.NATIVE[key][0] for key in ('command', 'whitespace')} | {
+        assets.PREFIX + '/' + asset[1] for asset in assets.ASSETS}
     for path in candidates:
         if not g.exists(path) and not g.is_symlink(path):
             continue
@@ -459,7 +463,7 @@ def reconcile_backend(g):
 
 
 def reconcile_trusted(g, transaction):
-    """Generate only two file trust entries through the native supported API.
+    """Generate the finite file trust inventory through the native supported API.
 
     The guest is powered off. No daemon update, rule change or directory trust
     is needed: its next boot loads the atomically published trust fragment.
@@ -472,7 +476,7 @@ def reconcile_trusted(g, transaction):
                'preparation_script_sha256': prepare_vm.preparation_digest(),
                'fixture_record_sha256': hashlib.sha256(fixture_record).hexdigest(),
                'files': {path: fixture['files'][path] | {'size': g.filesize(path)}
-                         for path, _ in assets.TRUSTED_NATIVE.values()},
+                         for path in assets.trusted_file_modes()},
                'native': native_trust_provenance(g), 'backend': backend, 'trust_file_sha256': None}
     desired['trust_file_metadata'] = {'mode': 0o600, 'uid': 0,
                                     'gid': desired['native']['service_gid']}
@@ -509,9 +513,10 @@ def reconcile_trusted(g, transaction):
     g.write(TRUST_PENDING, g.read_file(TRUST_FILE) if published else b'')
     g.chown(0, 0, TRUST_PENDING)
     g.chmod(0o600, TRUST_PENDING)
+    existing = trust_entries(g.read_file(TRUST_PENDING))
     for path in desired['files']:
         g.command([native_tool_paths(desired['native']['os_id'])['cli'],
-                   '--file', 'update' if published else 'add', path,
+                   '--file', 'update' if path in existing else 'add', path,
                    '--trust-file', Path(TRUST_PENDING).name])
         regular(g, TRUST_PENDING, 0, 0, 0o600)
     require(trust_entries(g.read_file(TRUST_PENDING)) == {
@@ -545,7 +550,7 @@ def verify_trusted(g, script_digest=None):
         for path, spec in record['files'].items()})
     for path, spec in record['files'].items():
         directory(g, str(Path(path).parent))
-        regular(g, path, 0, 0, 0o755)
+        regular(g, path, 0, 0, assets.trusted_file_modes()[path])
         require(g.checksum('sha256', path) == spec['sha256'] and g.filesize(path) == spec['size'])
     require(native_trust_provenance(g) == record['native'])
     regular(g, BACKEND_RECORD, 0, 0, 0o600)

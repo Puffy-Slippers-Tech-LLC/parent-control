@@ -169,11 +169,11 @@ NATIVE_APP_OPERATIONS = frozenset('native-' + suffix for suffix in (
     'desktop', 'search-ready', 'search-focused', 'search-entered', 'grid',
     'grid-refusals', 'command-launch', 'command-refusals', 'wrong-entry',
     'opened', 'submit', 'resubmit', 'submitted', 'close', 'closed',
-    'activity', 'activity-wrong-entry', 'command-blocked'))
+    'activity', 'activity-wrong-entry', 'command-blocked', 'activity-launch'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 PARENT_NATIVE_OPERATIONS = frozenset('parent-native-' + suffix for suffix in (
-    'desktop', 'command-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
+    'desktop', 'command-launch', 'activity-launch', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed'))
 OPERATIONS |= PARENT_NATIVE_OPERATIONS
 COUNTDOWN_OPERATIONS = frozenset({'child-countdown-present', 'child-countdown-absent'})
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
@@ -182,7 +182,7 @@ OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
-CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop'}) | COUNTDOWN_OPERATIONS
+CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-unlock-diagnostic'}) | COUNTDOWN_OPERATIONS
                             | PANEL_ANIMATION_OPERATIONS)
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
@@ -190,7 +190,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-panel-ready',
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_LANGUAGE_OPERATIONS - {'overlay-language-wrong-entry'}
 OVERLAY_NATIVE_OPERATIONS = frozenset('overlay-native-' + suffix for suffix in (
-    'desktop', 'command-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
+    'desktop', 'command-launch', 'activity-launch', 'command-blocked', 'opened', 'submit', 'resubmit', 'submitted', 'activity', 'close', 'closed',
     'search-ready', 'search-focused', 'search-entered', 'grid', 'grid-refusals'))
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
@@ -7568,9 +7568,12 @@ class AccessibleUI:
         require(language in ('en', 'zh-Hans'), 'ui:desktop-language-binding')
         root = self.api.get_desktop(0)
         require(root is not None, 'ui:incomplete-tree')
+        capture = getattr(self, 'retained_unlock_diagnostic_active', False)
+        observed_start = time.monotonic_ns() if capture else None
         snapshot, facts, identities = {}, {}, {}
         nodes = list(self.nodes(root, strict=True, protect_text=True,
                                 snapshot=snapshot, facts=facts, identities=identities))
+        observed_end = time.monotonic_ns() if capture else None
         if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
             error = UiError('ui:incomplete-tree')
             error.add_note('desktop observation contains a defunct node')
@@ -7581,6 +7584,13 @@ class AccessibleUI:
                                        diagnostics=diagnostics) is not None:
                 error = UiError('ui:fresh-desktop-prompt')
                 error.system_prompts = diagnostics
+                if capture:
+                    try:
+                        error.retained_unlock_snapshot = self.retained_unlock_snapshot(
+                            (nodes, snapshot, identities, facts),
+                            observation_window=(observed_start, observed_end))
+                    except Exception:
+                        pass  # Diagnostic projection never replaces this refusal.
                 raise error
         # Resolve candidates from the complete read before issuing live owner
         # checks. Querying Parent/Role/Name again for every Shell descendant can
@@ -7600,6 +7610,104 @@ class AccessibleUI:
         if not panels:
             return None
         return owners[0], panels[0], (nodes, snapshot, identities, facts)
+
+    def retained_unlock_snapshot(self, observation, *, observation_window=None):
+        """Project fixed public categories; password names and text stay unread."""
+        nodes, edges, _identities, facts = observation
+        visible = [facts[node] for node in nodes if facts[node]['showing']]
+        labels = {item['name'] for item in visible if item['role'] == 'label'}
+        def fingerprint(node):
+            # BusNode's already resolved public reference, exactly matching
+            # retained_unlock_capture. Never query the provider or hash names.
+            bus, path = getattr(node, 'bus', None), getattr(node, 'path', None)
+            if type(bus) is str and type(path) is str:
+                return hashlib.sha256((bus + path).encode()).hexdigest()
+            return None
+
+        objects = []
+        candidates = [node for node in nodes
+                      if facts[node]['role'] in ('dialog', 'alert', 'password text')]
+        for node in candidates[:32]:
+            item = facts[node]
+            record = {'source_sha256': fingerprint(node),
+                      'role': 'password' if item['role'] == 'password text' else item['role'],
+                      'showing': item['showing']}
+            if item['role'] != 'password text':
+                passwords = [child for child in self.snapshot_scope(nodes, edges, node)
+                             if facts[child]['role'] == 'password text']
+                record['password_sources_sha256'] = [fingerprint(child) for child in passwords[:16]]
+                record['password_sources_truncated'] = len(passwords) > 16
+            objects.append(record)
+        return {
+            # These bracket the original read, not projection or later lock
+            # queries. Separate observer/bus delivery still proves no causality.
+            'observation_start_monotonic_ns': observation_window[0] if observation_window else None,
+            'observation_end_monotonic_ns': observation_window[1] if observation_window else None,
+            'objects': objects, 'objects_truncated': len(candidates) > 32,
+            'visible_passwords': min(16, sum(item['role'] == 'password text' for item in visible)),
+            'visible_dialogs': min(16, sum(item['role'] in ('dialog', 'alert') for item in visible)),
+            'unlock_hint': 'Click or press a key to unlock' in labels,
+            'time_restriction': 'Screen Time Limit Reached' in labels,
+            'unlock_action': any(item['role'] in ('push button', 'button')
+                                 and item['name'] == 'Unlock' for item in visible),
+            'authentication_title': any(item['role'] in ('dialog', 'alert')
+                                        and self._prompt_title(item['name']) for item in visible),
+        }
+
+    def retained_unlock_diagnostic(self):
+        """Run the unchanged desktop check; extra reads never clear its refusal."""
+        self.retained_unlock_diagnostic_active = True
+        try:
+            return self.standard_shell_desktop(no_prompt=True)
+        except UiError as original:
+            if str(original) != 'ui:fresh-desktop-prompt':
+                raise
+            started = time.monotonic()
+            deadline = started + 5
+            def emit(index, snapshot, status):
+                active = None
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    try:
+                        result = subprocess.run([
+                            '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
+                            '--object-path', '/org/gnome/ScreenSaver',
+                            '--method', 'org.gnome.ScreenSaver.GetActive'],
+                            stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                            check=True, timeout=min(.5, remaining))
+                        active = {'(true,)': True, '(false,)': False}.get(result.stdout.strip())
+                    except (OSError, subprocess.SubprocessError):
+                        pass
+                print(json.dumps({'event': 'retained-unlock-diagnostic', 'sample': index,
+                    'elapsed_ms': max(0, int((time.monotonic() - started) * 1000)),
+                    'snapshot': snapshot, 'status': status, 'screensaver_active': active},
+                    sort_keys=True), file=sys.stderr, flush=True)
+            try:
+                emit(0, getattr(original, 'retained_unlock_snapshot', None), 'original-refusal')
+                # Start at most three reads within five seconds. An in-flight
+                # public read retains its existing bounded API/transport limits.
+                for index in range(1, 4):
+                    if time.monotonic() >= deadline:
+                        break
+                    time.sleep(min(.25, max(0, deadline - time.monotonic())))
+                    if time.monotonic() >= deadline:
+                        break
+                    self.invalidate_observation()
+                    try:
+                        observed_start = time.monotonic_ns()
+                        observation = self.read_snapshot(protect_text=True)
+                        observed_end = time.monotonic_ns()
+                        snapshot = self.retained_unlock_snapshot(observation,
+                            observation_window=(observed_start, observed_end))
+                    except Exception:
+                        emit(index, None, 'unavailable')
+                        break
+                    emit(index, snapshot, 'read-only')
+            except Exception:
+                pass  # Evidence availability cannot replace the first refusal.
+            raise
+        finally:
+            self.retained_unlock_diagnostic_active = False
 
     def child_countdown(self, present):
         """Read the panel's public API text or bounded complete absence."""
@@ -11510,7 +11618,8 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
-    def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False):
+    def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False,
+                              fixture='policy'):
         """APP01: one fixed native command in Jordan's active desktop session.
 
         FIX06 verifies the baseline inputs before this operation. Submission is
@@ -11519,6 +11628,8 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(instance == 'primary', 'ui:native-binding')
         require(type(blocked) is bool, 'ui:native-binding')
+        require(fixture in ('policy', 'activity') and (not blocked or fixture == 'policy'),
+                'ui:native-binding')
         require(child in (PARENT, CHILD, EXISTING_CHILD) and
                 (child != PARENT or not blocked), 'ui:native-child-binding')
         def ready():
@@ -11555,7 +11666,8 @@ class AccessibleUI:
             *(['--wait', '--pipe'] if blocked else []),
             *(['--unit=' + unit] if unit is not None else []),
             '--service-type=exec',
-            '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
+            ('/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
+             '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
             # The next read runs in a separate observer process. Retain this
@@ -11686,6 +11798,8 @@ class AccessibleUI:
             self.wait(self.native_app_closed, 'native-closed')
         elif operation == 'native-command-launch':
             self.native_launch_command(child=child)
+        elif operation == 'native-activity-launch':
+            self.native_launch_command(child=child, fixture='activity')
         elif operation == 'native-command-blocked':
             self.native_launch_command(child=child, blocked=True)
         elif operation == 'native-command-refusals':
@@ -12402,9 +12516,13 @@ class AccessibleUI:
             else:
                 raise UiError('ui:countdown-wrong-account-accepted')
             result['refused'] = True
-        elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop'):
-            self.standard_shell_desktop(no_prompt=True)
-            if operation == 'fresh-child-desktop':
+        elif operation in ('fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop',
+                           'child-retained-unlock-diagnostic'):
+            if operation == 'child-retained-unlock-diagnostic':
+                self.retained_unlock_diagnostic()
+            else:
+                self.standard_shell_desktop(no_prompt=True)
+            if operation in ('fresh-child-desktop', 'child-retained-unlock-diagnostic'):
                 result['provider'] = self.shell_provider_metadata()
         elif operation == 'parent-desktop-provider':
             self.standard_shell_desktop(no_prompt=True)
@@ -13324,7 +13442,7 @@ def native_startup_diagnostic():
             for label, marker in markers:
                 if marker in message and label not in value['markers']:
                     value['markers'].append(label)
-            frame = re.search(r'File "/opt/onpc-test-fixtures/Applications/'
+            frame = re.search(r'File "/opt/(?:onpc-test-fixtures/Applications|onpc-test-fixtures-activity)/'
                               r'(onpc-test-gui|gtk_automation)\.py", line ([0-9]{1,6})', message)
             if frame and len(value['frames']) < 8:
                 value['frames'].append({'module': frame[1], 'line': int(frame[2])})

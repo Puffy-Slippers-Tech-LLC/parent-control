@@ -7,13 +7,17 @@ import os
 from pathlib import Path
 import pwd
 import stat
+import subprocess
 import sys
+from types import SimpleNamespace
 
 from guest_files import identity, read_regular, require
 if __name__ == '__main__':
-    from native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources, riley_grid_sources
+    from native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
+                              riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources)
 else:
-    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources, riley_grid_sources
+    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id,
+        sources, riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources)
 import session_control
 
 LIMIT = 2 * 1024 * 1024
@@ -112,6 +116,73 @@ def riley_readback(shared_owner, expected):
     return {'files': result, 'launchers': [desktop_id('A')]}
 
 
+def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
+    path = Path(path)
+    with directory(path.parent, SimpleNamespace(pw_uid=0)) as (fd, guard):
+        data, info = read_regular(fd, path.name, owner=0, mode=mode, limit=limit)
+        require(info.st_gid == gid)
+        guard()
+        return data
+
+
+def activity_readback(expected):
+    """Root-only read of prepared activity inputs and exact active file trust."""
+    try:
+        import native_trust as trust
+    except ImportError:
+        from tests.fixtures import native_trust as trust
+    require(os.geteuid() == 0 and type(expected) is dict
+            and set(expected) == set(activity_sources()))
+
+    read = activity_root_file
+    preparation = json.loads(read('/etc/oh-no-parent-control-test-baseline.json'))
+    fixture_raw = read(trust.FIXTURE_RECORD)
+    transaction = json.loads(read(trust.TRUST_RECORD))
+    require(set(transaction) == {'purpose', 'complete', 'pending'}
+            and transaction['purpose'] == trust.TRUST_PURPOSE and transaction['pending'] is None
+            and not os.path.lexists(trust.TRUST_PENDING) and not os.path.lexists(trust.BACKEND_PENDING))
+    record = trust.validate_trusted_record(transaction['complete'], fixture_raw,
+                                          preparation['preparation_script_sha256'])
+    native = record['native']
+    require(grp.getgrnam('fapolicyd').gr_gid == native['service_gid'])
+    raw = read(trust.TRUST_FILE, gid=native['service_gid'])
+    require(hashlib.sha256(raw).hexdigest() == record['trust_file_sha256']
+            and trust.trust_entries(raw) == {path: {key: spec[key] for key in ('size', 'sha256')}
+                                             for path, spec in record['files'].items()})
+    backend = record['backend']
+    trust.validate_backend_provenance(backend,
+        read(trust.BACKEND_CONFIG, backend['mode'], backend['gid']),
+        read(trust.BACKEND_RECORD), native['os_id'])
+    tools = trust.native_tool_paths(native['os_id'])
+    for label, path in tools.items():
+        require(Path('/usr/sbin/' + Path(path).name).resolve() == Path(path))
+        require(hashlib.sha256(read(path, 0o755, limit=16777216)).hexdigest()
+                == native[label + '_sha256'])
+    result = {}
+    for source, path in zip(activity_sources(), (ACTIVITY_EXECUTABLE,
+                            *(ACTIVITY_PREFIX + '/' + name for name in GUI_FILES))):
+        spec = record['files'][path]
+        raw = read(path, spec['mode'])
+        require(len(raw) == spec['size'] and hashlib.sha256(raw).hexdigest()
+                == spec['sha256'] == expected[source])
+        result[source] = {'sha256': spec['sha256'], 'mode': spec['mode']}
+    database = subprocess.run([tools['cli'], '--dump-db'], stdin=subprocess.DEVNULL,
+                              capture_output=True, check=True, timeout=30).stdout
+    require(len(database) <= 33554432)
+    from_paths = [PREFIX + '/' + asset[1] for asset in ASSETS]
+    from_paths.extend(('/opt/onpc-test-fixtures-command/native-fixture',
+                       '/opt/onpc-test-fixtures-whitespace/native fixture'))
+    rows = {path: [] for path in (*record['files'], *from_paths)}
+    for line in database.decode('utf-8').splitlines():
+        fields = trust.database_row(line)
+        if fields is not None and fields[1] in rows:
+            rows[fields[1]].append(fields)
+    require(all(rows[path] == [['filedb', path, str(spec['size']), spec['sha256']]]
+                for path, spec in record['files'].items())
+            and all(not rows[path] for path in from_paths))
+    return {'files': result, 'native_trust': True}
+
+
 def product_tree(g, path, parent):
     """Bounded read-only preservation witness for installed product directories.
 
@@ -161,7 +232,10 @@ def product_tree(g, path, parent):
 
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
-    require(profile in ('native', 'chinese', 'riley-grid'))
+    require(profile in ('native', 'chinese', 'riley-grid', 'activity'))
+    if profile == 'activity':
+        require(action == 'read')
+        return activity_readback(expected)
     if action == 'refuse':
         try:
             authority()

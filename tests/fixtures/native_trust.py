@@ -5,9 +5,9 @@ import re
 import stat
 
 try:
-    from baseline_assets import TRUSTED_NATIVE, MECHANICAL
+    from baseline_assets import TRUSTED_NATIVE, MECHANICAL, trusted_file_modes
 except ImportError:
-    from tests.fixtures.baseline_assets import TRUSTED_NATIVE, MECHANICAL
+    from tests.fixtures.baseline_assets import TRUSTED_NATIVE, MECHANICAL, trusted_file_modes
 
 TRUST_RECORD = '/var/lib/onpc-baseline-native-trust.json'
 TRUST_FILE = '/etc/fapolicyd/trust.d/onpc-baseline-native.trust'
@@ -143,11 +143,20 @@ def trust_entries(content):
         if not line.strip() or line.startswith('#'):
             continue
         fields = line.split()
-        require(len(fields) == 3 and fields[0] in {p for p, _ in TRUSTED_NATIVE.values()}
+        require(len(fields) == 3 and fields[0] in trusted_file_modes()
                 and fields[0] not in entries and fields[1].isdigit()
                 and re.fullmatch('[0-9a-f]{64}', fields[2]) is not None)
         entries[fields[0]] = {'size': int(fields[1]), 'sha256': fields[2]}
     return entries
+
+
+def database_row(line):
+    """Native dumps preserve spaces in paths; size/hash are the last fields."""
+    source = line.split(None, 1)
+    if len(source) != 2:
+        return None
+    fields = source[1].rsplit(None, 2)
+    return [source[0], *fields] if len(fields) == 3 else None
 
 
 def validate_trusted_shape(record, *, pending=False, allow_legacy=False):
@@ -162,15 +171,18 @@ def validate_trusted_shape(record, *, pending=False, allow_legacy=False):
         if key == 'trust_file_sha256' and pending and record[key] is None:
             continue
         require(isinstance(record[key], str) and re.fullmatch('[0-9a-f]{64}', record[key]) is not None)
-    require(isinstance(record['files'], dict) and set(record['files']) == {
-        p for p, _ in TRUSTED_NATIVE.values()})
-    for spec in record['files'].values():
+    modes = trusted_file_modes()
+    legacy_paths = {p for p, _ in TRUSTED_NATIVE.values()}
+    require(isinstance(record['files'], dict) and (set(record['files']) == set(modes)
+            or (allow_legacy and set(record['files']) == legacy_paths)))
+    for path, spec in record['files'].items():
         require(isinstance(spec, dict) and set(spec) == {'sha256', 'size', 'mode', 'uid', 'gid'}
                 and type(spec['size']) is int and spec['size'] > 0
-                and type(spec['mode']) is int and spec['mode'] == 0o755
+                and type(spec['mode']) is int and spec['mode'] == modes[path]
                 and type(spec['uid']) is int and type(spec['gid']) is int and spec['uid'] == spec['gid'] == 0
                 and isinstance(spec['sha256'], str) and re.fullmatch('[0-9a-f]{64}', spec['sha256']) is not None)
-    require(len({spec['sha256'] for spec in record['files'].values()}) == 2)
+    require(len({spec['sha256'] for path, spec in record['files'].items()
+                 if modes[path] == 0o755}) == sum(modes[path] == 0o755 for path in record['files']))
     native = record['native']
     native_keys = {'os_id', 'package', 'version', 'daemon_sha256', 'cli_sha256'}
     require(isinstance(native, dict) and set(native) == (

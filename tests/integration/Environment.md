@@ -161,6 +161,7 @@ Snap, Flatpak and game fixtures as well as current declarations.
 | A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
 | Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
 | Trusted hard/soft native witnesses | `baseline_assets.TRUSTED_NATIVE`, the same fixture reconciler and `native_trust` provenance schema; two distinct payloads admitted through exact native file-trust entries, alongside unchanged untrusted variants |
+| Supporting screen-time and retained activity | `native_assets.ACTIVITY_EXECUTABLE`, a distinct root-owned GUI executable with two private root-owned Python runtime files; the same reconciler admits their exact file-trust identities while A/H/S/N and the mechanical controls remain untrusted |
 | Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
 | Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
 | Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
@@ -178,7 +179,7 @@ inspection verifies fixtures and console configuration before capture.
 Trusted native fixtures additionally bind their exact payload identities, native
 package/tool identities and generated trust-fragment digest to the preparation
 source and fixture record. First placement uses `fapolicyd-cli --file add` for
-each fixed executable; owned updates use its scoped `--file update` operation.
+each fixed input; owned updates use its scoped `--file update` operation.
 Preparation atomically publishes only that finite trust fragment.
 Durable intent permits interrupted retry without adopting foreign fragments.
 Before publication, preparation enables the native file backend only in a

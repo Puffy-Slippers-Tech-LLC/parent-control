@@ -67,6 +67,28 @@ def test_command_requires_child_desktop_and_never_replays(monkeypatch, fault):
 
 
 @pytest.mark.parametrize('child', [accessible_ui.PARENT, accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
+def test_activity_launch_is_explicit_and_never_retargets_policy_launch(monkeypatch, child):
+    ui = ui_for(Node())
+    monkeypatch.setattr(accessible_ui, 'require_active_launch_session', Mock())
+    ui.desktop_result = Mock()
+    ui.require_child_overlay_session = Mock()
+    ui.native_app_closed = Mock(return_value=True)
+    ui.handle_system_prompt = Mock()
+    ui.prepare_launch_desktop = Mock()
+    submit = Mock()
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', submit)
+    ui.native_launch_command(child=child, fixture='activity')
+    assert submit.call_args.args[0][-1] == '/opt/onpc-test-fixtures-activity/native-fixture'
+    assert submit.call_count == 1 and ui.input_uncertain
+    with pytest.raises(UiError, match='uncertain-input'):
+        ui.native_launch_command(child=child, fixture='activity')
+    ui.input_uncertain = False
+    with pytest.raises(UiError, match='native-binding'):
+        ui.native_launch_command(child=child, fixture='activity', blocked=True)
+    assert submit.call_count == 1
+
+
+@pytest.mark.parametrize('child', [accessible_ui.PARENT, accessible_ui.EXISTING_CHILD, accessible_ui.CHILD])
 @pytest.mark.parametrize('failure', ['query', 'incomplete', 'persistent', 'window', 'submission'])
 def test_launch_reacquires_complete_preflight_without_replaying_input(monkeypatch, child, failure):
     ui = ui_for(Node())

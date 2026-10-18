@@ -53,7 +53,7 @@ class TestApplicationFixtures(unittest.TestCase):
             output = Path(temporary) / "payload"
             fixtures.build(output)
             fixtures.verify(output)
-            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id, desktop_entry
+            from tests.fixtures.native_assets import ASSETS, PREFIX, desktop_id, desktop_entry, activity_sources
             binaries = [output / ('image-root' + PREFIX) / asset[1] for asset in ASSETS]
             import hashlib
             self.assertEqual(len({hashlib.sha256(path.read_bytes()).hexdigest() for path in binaries}), 4)
@@ -91,6 +91,14 @@ class TestApplicationFixtures(unittest.TestCase):
                        for identity in fixtures.TRUSTED_NATIVE]
             self.assertEqual(len({path.read_bytes() for path in trusted} |
                                  {(output / 'mechanical/onpc-test-application').read_bytes()}), 3)
+            activity = [output / source.removeprefix('fixtures/') for source in activity_sources()]
+            self.assertEqual(len({path.read_bytes() for path in (*binaries, *trusted, activity[0])} |
+                                 {(output / 'mechanical/onpc-test-application').read_bytes()}), 8)
+            self.assertEqual(activity[1].read_bytes(), fixtures.GUI_SOURCE.read_bytes())
+            self.assertEqual(activity[2].read_bytes(), fixtures.GTK_AUTOMATION_SOURCE.read_bytes())
+            result = subprocess.run([str(activity[0]), '--invalid-fixture-option'],
+                                    text=True, capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 2)
             for path in trusted:
                 result = subprocess.run([str(path)], check=True, text=True,
                                         capture_output=True, timeout=5)

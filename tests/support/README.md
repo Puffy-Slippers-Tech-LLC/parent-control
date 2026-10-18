@@ -798,6 +798,13 @@ reread and close. Invocation prefixes determine both controller checkpoints and
 actual worker titles. The helpers add no process, storage or cleanup owner and
 never relaunch during resume. Keep the existing complete-order/failure-stop
 checks alongside an independent caller with renamed prefixes.
+Command activity explicitly selects the root-owned trusted activity fixture;
+ordinary APP01 policy and grid launches retain the A fixture. Journey setup
+uses `NativeFixtures(profile='activity')` for read-only source, receipt,
+metadata and loaded file-trust verification. Preparation alone admits the
+finite executable/runtime inventory. Host regressions extend the existing
+private unit/cleanup doubles and existing builder's sequential compiler work;
+they add no shared host path, live database, VM, bus or display owner.
 
 Distinct-user retained histories compose `journey_blocks.retained_app_activities`
 / `onpc_app_rows::retained_app_activities` for a finite user/entry list, then

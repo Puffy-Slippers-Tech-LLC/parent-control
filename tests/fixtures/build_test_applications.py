@@ -365,6 +365,7 @@ def build(output: Path) -> None:
     _compile_native(output, headless=True)
     for identity in TRUSTED_NATIVE:
         _compile_native(output, headless=True, identity=identity)
+    _compile_native(output, identity='trusted-activity')
     _build_native_layout(output, native)
     game = _compile_native(output, kind='game')
     target = output / 'image-root' / INSTALL_PREFIX / 'Applications/onpc-test-game'

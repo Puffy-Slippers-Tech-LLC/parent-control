@@ -702,6 +702,8 @@ from regression_ui import Bucket
 # public-setter doubles in e2e_kiosk_valid_duration; no live bus or display.
 # Native diagnostic capture in vm_control_cleanup_safety uses private journal
 # records and transport/lease doubles, with no live journal or new shared owner.
+# Retained-unlock capture checks use private files, mocked SSH/bus/lease calls
+# and one joined process-local thread; no live child, VM, display or shared cache.
 # Remembered-return diagnostic prefix checks use the same private requests and
 # dispatcher doubles; no live VM, bus, display, shared cache or new owner.
 # Short return diagnostic worker checks in e2e_overlay_valid_choices use the

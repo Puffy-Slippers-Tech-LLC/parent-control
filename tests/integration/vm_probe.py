@@ -567,6 +567,23 @@ def reproduce_natural_expiry(lease):
                             'lock-input-ready', 'natural-expiry', assets=assets)
 
 
+def reproduce_retained_unlock(lease):
+    """Diagnose the exact authenticated GDM return before advancing the journey."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from desktop_session import RetainedUnlockJourney, RETAINED_UNLOCK_PLAN
+    from tools.test_storage import named_input
+
+    assets = named_input(vm_source=True, fixture_source=True)
+    if not assets.is_dir():
+        print('retained-unlock-diagnosis: prepare fixture inputs with '
+              'tools/run-tests artifacts prepare --for-vm --vm NAME --output ' + str(assets),
+              flush=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, RetainedUnlockJourney, RETAINED_UNLOCK_PLAN,
+        'unlock-desktop', 'retained-unlock', assets=assets,
+        boundary_operation='child-retained-unlock-diagnostic', unlock_capture=True)
+
+
 def reproduce_countdown_resume(lease):
     """Inspect countdown use/pause/return through the qualified lock journey."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -794,7 +811,7 @@ def probe_lock_curtain(lease):
 
 
 def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_operation=None,
-                     assets=None, actions=None, native_log=False):
+                     assets=None, actions=None, native_log=False, unlock_capture=False):
     """Shared maintenance envelope; fixed callers own the finite history/boundary."""
     from fixture_credentials import FixtureCredentials
     from observation_transport import ReadOnlyObservations
@@ -803,6 +820,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
     system.require(type(native_log) is bool and (not native_log or (
         surface == 'kiosk-approval' and boundary == 'approval-qualified')),
         'kiosk-native-log:caller')
+    system.require(type(unlock_capture) is bool and (not unlock_capture or (
+        surface == 'retained-unlock' and boundary == 'unlock-desktop'
+        and boundary_operation == 'child-retained-unlock-diagnostic')),
+        'retained-unlock-capture:caller')
 
     with operation('Reproducing the child ' + surface + ' boundary for live diagnosis'), recovery_session():
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + surface + '-diagnosis-'))
@@ -810,6 +831,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         private.mkdir(mode=0o700)
         lease.commands.directory = private
         transport = connect(lease)
+        capture = None
+        if unlock_capture:
+            from retained_unlock_capture import Capture
+            capture = Capture(lease, transport, directory)
         credentials = FixtureCredentials()
         credentials.provision_online(lease, transport)
         context = SimpleNamespace(directory=directory, lease=lease)
@@ -826,6 +851,15 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         class Reproduction(journey_type):
             def _step(self, guard):
                 stage = self.plan.stages[len(self.steps)]
+                if (capture is not None and stage == 'retained-recipient-qualified'
+                        and (directory / (stage + '.request.json')).exists()):
+                    # Capture is ready before either fresh credential proof.
+                    # Input and the immediate desktop read keep their original
+                    # sequence; capture never retries or delays the result read.
+                    capture.start(self.boot)
+                if (capture is not None and stage == 'retained-recipient-rechecked'
+                        and (directory / (stage + '.request.json')).exists()):
+                    capture.require_active()
                 if stage != 'setup-detached':
                     return super()._step(guard)
                 # The maintenance snapshot already owns the installed package
@@ -868,6 +902,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             if (directory / (boundary + '.request.json')).exists():
                 guard()
                 validate()
+                if capture is not None:
+                    capture.require_active()
                 if boundary_operation is not None:
                     from ui_observations import UiObservations
                     try:
@@ -880,13 +916,23 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             journey.step(guard)
             return False
 
-        with kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext():
-            result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
-                expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
-                guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
-            system.require(result['worker_stopped'] and result['callback_closed'],
-                           'diagnosis:cleanup-incomplete')
-            lease.guard()
+        try:
+            with kiosk_native_evidence(lease, transport, directory) if native_log else nullcontext():
+                result = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
+                    expected_inputs=expected_inputs, observe=lambda: None, validate=validate,
+                    guarded_observe=observe, credentials=credentials, maintenance=True, timeout=900)
+                system.require(result['worker_stopped'] and result['callback_closed'],
+                               'diagnosis:cleanup-incomplete')
+                lease.guard()
+        finally:
+            original = sys.exc_info()[1]
+            if capture is not None:
+                try:
+                    capture.close()
+                    lease.guard()
+                except Exception:
+                    if original is None:
+                        raise
         print(surface + '-diagnosis: scene retained; evidence=' + str(directory), flush=True)
 
 

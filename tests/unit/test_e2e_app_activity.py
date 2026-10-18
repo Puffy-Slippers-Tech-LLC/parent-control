@@ -568,6 +568,8 @@ def test_retained_shared_fragments_refuse_duplicate_users_and_wrong_modes():
         retained_app_visit('return', account='parent', source='desktop', source_account='parent')
     with pytest.raises(EvidenceError): native_usable_app('grid', child='parent')
     assert native_activity_entry('independent', child='parent')['independent-capture'] == 'ui:parent-native-activity'
+    assert native_activity_entry('independent', child='parent')['independent-command'] == 'ui:parent-native-activity-launch'
+    assert native_usable_app('command')['command'] == 'ui:native-command-launch'
 
 
 @pytest.mark.parametrize('account', ['parent', 'child', 'other-child'])

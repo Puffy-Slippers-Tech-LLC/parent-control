@@ -682,6 +682,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     provision = Mock()
     monkeypatch.setattr(installed_setup, 'InstalledSetup',
                         Mock(return_value=SimpleNamespace(run=setup, provision=provision)))
+    import native_fixtures
+    monkeypatch.setattr(native_fixtures, 'NativeFixtures',
+                        Mock(return_value=SimpleNamespace(verify=Mock(return_value={'native_trust': True}))))
     boot = SimpleNamespace(read=Mock(return_value={'boot_sha256': 'b' * 64}))
     monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock(return_value=boot))
     operation_counts = {}
@@ -1166,6 +1169,44 @@ def test_clean_baseline_qualification_installs_before_authorizing_customer_input
         assert json.loads((tmp_path / 'setup-detached.reply.json').read_text()) == {'setup_complete': True}
     setup.return_value.run.assert_called_once_with(guard, verify=False)
     setup.return_value.provision.assert_not_called()
+
+
+@pytest.mark.parametrize('binding,failure', [('activity', False), ('activity', True), ('policy', False)])
+def test_activity_consumer_verifies_baseline_before_setup_reply(tmp_path, monkeypatch, binding, failure):
+    import native_fixtures
+    setup, transport, fixtures = Mock(), Mock(), Mock()
+    if failure:
+        fixtures.return_value.verify.side_effect = EvidenceError('native:activity-not-ready')
+    monkeypatch.setattr(installed_setup, 'InstalledSetup', setup)
+    monkeypatch.setattr(journeys, 'Transport', transport)
+    monkeypatch.setattr(journeys, 'ReadOnlyObservations', Mock())
+    monkeypatch.setattr(journeys.system, 'address', lambda *_args, **_kwargs: '192.0.2.1')
+    monkeypatch.setattr(native_fixtures, 'NativeFixtures', fixtures)
+    tag = 'ui:overlay-native-activity-launch' if binding == 'activity' else 'ui:native-command-launch'
+    plan = replace(SYNTHETIC, screen_tags={'activity-command': tag},
+                   phases={'ready': 'setup', 'setup-detached': 'setup', 'activity-command': 'step-1'})
+    context = SimpleNamespace(directory=tmp_path, installed_snapshot='accepted-snapshot',
+                              lease=Mock(), verified=Mock(), commands=Mock(), host_key='test-key')
+    context.lease.state = {'run': 'test-run'}
+    journey = journeys.InstalledJourney(context, Mock(), plan)
+    guard = Mock()
+    for stage in ('ready', 'setup-detached'):
+        (tmp_path / (stage + '.request.json')).write_text(
+            json.dumps({'stage': stage, 'screenshot': None}))
+    journey.step(guard)
+    if failure:
+        with pytest.raises(EvidenceError, match='native:activity-not-ready'): journey.step(guard)
+        assert not (tmp_path / 'setup-detached.reply.json').exists()
+        with pytest.raises(EvidenceError, match='previous-failure'): journey.step(guard)
+    else:
+        journey.step(guard)
+        assert json.loads((tmp_path / 'setup-detached.reply.json').read_text()) == {'setup_complete': True}
+    if binding == 'activity':
+        fixtures.assert_called_once_with(transport.return_value, context.verified, profile='activity')
+        fixtures.return_value.verify.assert_called_once_with()
+    else:
+        fixtures.assert_not_called()
+    setup.return_value.run.assert_not_called()
 
 
 def test_review_requires_a_named_qualification_mode(tmp_path):

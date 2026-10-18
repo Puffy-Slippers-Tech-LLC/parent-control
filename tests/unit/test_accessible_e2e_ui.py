@@ -2813,8 +2813,9 @@ def test_semantic_wrong_prompt_proves_other_parent_and_refuses_intended_account(
     field.get_child_count.assert_not_called()
 
 
-def test_child_desktop_observer_selects_the_intended_fixture_account(monkeypatch):
-    monkeypatch.setattr(accessible_ui.sys, 'argv', ['observer', 'fresh-child-desktop', '1.1'])
+@pytest.mark.parametrize('operation', ['fresh-child-desktop', 'child-retained-unlock-diagnostic'])
+def test_child_desktop_observer_selects_the_intended_fixture_account(monkeypatch, operation):
+    monkeypatch.setattr(accessible_ui.sys, 'argv', ['observer', operation, '1.1'])
     monkeypatch.setattr(accessible_ui.os, 'geteuid', lambda: 0)
     lookup = Mock(side_effect=LookupError('stop before connecting'))
     monkeypatch.setattr(accessible_ui.pwd, 'getpwnam', lookup)
@@ -3808,7 +3809,8 @@ def test_shell_metadata_does_not_retry_positive_owner_or_prompt_refusal(monkeypa
     ui._shell_provider_metadata.assert_not_called()
 
 
-@pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop', 'fresh-child-desktop'])
+@pytest.mark.parametrize('operation', ['fresh-parent-desktop', 'fresh-standard-desktop',
+                                     'fresh-child-desktop', 'child-retained-unlock-diagnostic'])
 def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkeypatch, operation):
     from itertools import count
     panel = Node('Activities', 'toggle button')
@@ -3819,9 +3821,140 @@ def test_fresh_desktop_requires_sustained_positive_shell_without_a_prompt(monkey
     ui.timeout = 10
     clock = count(0, 0.25)
     monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
-        monotonic=lambda: next(clock), sleep=lambda _: None))
+        monotonic=lambda: next(clock), monotonic_ns=lambda: 123, sleep=lambda _: None))
     assert ui.run(operation, '')['outcome'] == 'passed'
     panel.action.do_action.assert_not_called()
+
+
+@pytest.mark.parametrize('fault', ['none', 'reread', 'lock-state', 'deadline'])
+def test_retained_unlock_diagnostic_preserves_first_refusal_and_bounds_read_only_samples(
+        monkeypatch, capsys, fault):
+    ui, controls = semantic_prompt('shell-polkit')
+    application = ui.api.get_desktop(0).children[0]
+    application.children[0].name = 'PRIVATE_DIALOG'
+    controls[0].name = 'PRIVATE_PASSWORD_NAME'
+    controls[0].get_text_iface = Mock(side_effect=AssertionError('secret text read'))
+    with pytest.raises(UiError, match='ui:fresh-desktop-prompt') as caught:
+        ui.shell_desktop_observation(no_prompt=True)
+    original = caught.value
+    original.retained_unlock_snapshot = ui.retained_unlock_snapshot(ui.read_snapshot())
+    ui.standard_shell_desktop = Mock(side_effect=original)
+    ui.invalidate_observation = Mock()
+    snapshot = ui.read_snapshot()
+    now = [0.0]
+    def read(**kwargs):
+        assert kwargs == {'protect_text': True}
+        if fault == 'reread':
+            raise UiError('ui:second-failure')
+        if fault == 'deadline':
+            now[0] = 5.0
+        return snapshot
+    ui.read_snapshot = Mock(side_effect=read)
+    monkeypatch.setattr(accessible_ui, 'time', SimpleNamespace(
+        monotonic=lambda: now[0], monotonic_ns=lambda: int(now[0] * 1_000_000_000),
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds)))
+    lock = Mock(side_effect=subprocess.TimeoutExpired('gdbus', .5) if fault == 'lock-state'
+                else None, return_value=SimpleNamespace(stdout='(false,)'))
+    monkeypatch.setattr(accessible_ui.subprocess, 'run', lock)
+    with pytest.raises(UiError) as retained:
+        ui.retained_unlock_diagnostic()
+    assert retained.value is original
+    assert ui.retained_unlock_diagnostic_active is False
+    assert ui.read_snapshot.call_count == (1 if fault in ('reread', 'deadline') else 3)
+    records = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert records[0]['status'] == 'original-refusal'
+    assert len(records) <= 4
+    assert records[0]['snapshot']['visible_passwords'] == 1
+    assert records[0]['screensaver_active'] is (None if fault == 'lock-state' else False)
+    assert 'PRIVATE_' not in json.dumps(records)
+    assert all(call.kwargs['timeout'] <= .5 for call in lock.call_args_list)
+    controls[0].get_text_iface.assert_not_called()
+    for control in controls:
+        control.action.do_action.assert_not_called()
+        control.component.grab_focus.assert_not_called()
+
+
+def test_retained_unlock_diagnostic_only_samples_the_declared_prompt_refusal(monkeypatch):
+    ui, _controls = semantic_prompt('shell-polkit')
+    original = UiError('ui:incomplete-tree')
+    ui.standard_shell_desktop = Mock(side_effect=original)
+    ui.read_snapshot = Mock(side_effect=AssertionError('unexpected diagnostic sample'))
+    with pytest.raises(UiError) as retained:
+        ui.retained_unlock_diagnostic()
+    assert retained.value is original
+    ui.read_snapshot.assert_not_called()
+
+
+def test_retained_unlock_initial_projection_failure_preserves_prompt_refusal():
+    ui, _controls = semantic_prompt('shell-polkit')
+    ui.retained_unlock_diagnostic_active = True
+    ui.retained_unlock_snapshot = Mock(side_effect=RuntimeError('diagnostic-only'))
+    with pytest.raises(UiError, match='^ui:fresh-desktop-prompt$'):
+        ui.shell_desktop_observation(no_prompt=True)
+    ui.retained_unlock_snapshot.assert_called_once()
+
+
+def test_retained_unlock_projection_never_queries_password_names_or_text():
+    ui, _controls = semantic_prompt('shell-polkit')
+    password = Mock()
+    password.get_name.side_effect = AssertionError('password name read')
+    password.get_text_iface.side_effect = AssertionError('password contents read')
+    result = ui.retained_unlock_snapshot(([password], {}, {}, {
+        password: {'role': 'password text', 'showing': True}}))
+    assert result['visible_passwords'] == 1
+    password.get_name.assert_not_called()
+    password.get_text_iface.assert_not_called()
+
+
+def test_retained_unlock_original_snapshot_links_dialog_password_identities_and_read_times(monkeypatch):
+    ui, controls = semantic_prompt('shell-polkit')
+    application = ui.api.get_desktop(0).children[0]
+    dialog, password = application.children[0], controls[0]
+    dialog.bus, dialog.path = ':1.42', '/org/a11y/atspi/accessible/17'
+    password.bus, password.path = dialog.bus, '/org/a11y/atspi/accessible/18'
+    dialog.name = 'PRIVATE_DIALOG'
+    password.name = 'PRIVATE_PASSWORD'
+    password.get_text_iface = Mock(side_effect=AssertionError('secret text read'))
+    hidden = Node('PRIVATE_OLD_DIALOG', 'dialog', states=())
+    hidden.bus, hidden.path = dialog.bus, '/org/a11y/atspi/accessible/19'
+    application.children.append(hidden)
+    ui.retained_unlock_diagnostic_active = True
+    clock = Mock(side_effect=[123, 456])
+    monkeypatch.setattr(accessible_ui.time, 'monotonic_ns', clock)
+    with pytest.raises(UiError, match='^ui:fresh-desktop-prompt$') as caught:
+        ui.shell_desktop_observation(no_prompt=True)
+    result = caught.value.retained_unlock_snapshot
+    digest = lambda node: accessible_ui.hashlib.sha256((node.bus + node.path).encode()).hexdigest()
+    records = {item['source_sha256']: item for item in result['objects']}
+    assert records[digest(dialog)] == {
+        'source_sha256': digest(dialog), 'role': 'dialog', 'showing': True,
+        'password_sources_sha256': [digest(password)], 'password_sources_truncated': False}
+    assert records[digest(password)] == {
+        'source_sha256': digest(password), 'role': 'password', 'showing': True}
+    assert records[digest(hidden)]['showing'] is False
+    assert result['observation_start_monotonic_ns'] == 123
+    assert result['observation_end_monotonic_ns'] == 456
+    assert not result['objects_truncated']
+    assert 'PRIVATE_' not in json.dumps(result)
+    assert dialog.path not in json.dumps(result) and dialog.bus not in json.dumps(result)
+    password.get_text_iface.assert_not_called()
+    for control in controls:
+        control.action.do_action.assert_not_called()
+        control.component.grab_focus.assert_not_called()
+
+
+def test_retained_unlock_object_evidence_bounds_and_missing_references():
+    passwords = [Node('PRIVATE_PASSWORD', 'password text') for _ in range(40)]
+    dialog = Node('PRIVATE_DIALOG', 'dialog', children=passwords)
+    ui = ui_for(Node(children=[dialog]))
+    result = ui.retained_unlock_snapshot(ui.read_snapshot())
+    assert len(result['objects']) == 32 and result['objects_truncated']
+    record = next(item for item in result['objects'] if item['role'] == 'dialog')
+    assert record['password_sources_sha256'] == [None] * 16
+    assert record['password_sources_truncated']
+    assert result['observation_start_monotonic_ns'] is None
+    assert result['observation_end_monotonic_ns'] is None
+    assert 'PRIVATE_' not in json.dumps(result)
 
 
 def test_dead_unrelated_subtree_does_not_hide_live_control():

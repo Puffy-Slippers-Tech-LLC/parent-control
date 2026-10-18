@@ -602,6 +602,12 @@ class InstalledJourney:
                     observed['setup'] = {'installed_snapshot': context.installed_snapshot}
             self.vm = ReadOnlyObservations(transport)
             self.transport = transport
+            if any(tag.endswith('native-activity-launch') for tag in plan.screen_tags.values()):
+                from native_fixtures import NativeFixtures
+                guard()
+                observed['setup']['activity_fixture'] = NativeFixtures(
+                    transport, context.verified, profile='activity').verify()
+                guard()
             if getattr(context, 'asset_transfer', None) is not None:
                 observed['setup']['assets'] = context.asset_transfer.observe(self.vm)
             reply = {'setup_complete': True}

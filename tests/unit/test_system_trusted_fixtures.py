@@ -170,6 +170,18 @@ def live_receipt(tmp_path, monkeypatch, request):
     fixture['files'][baseline_assets.MECHANICAL] = original
     raw_files = {str(enforcement.native_paths(variant)[0]): contents[variant]
                  for variant in trusted.TRUSTED_VARIANTS}
+    from tests.fixtures.native_assets import ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, GUI_FILES, activity_sources
+    for target, source in zip((ACTIVITY_EXECUTABLE,
+                              *(ACTIVITY_PREFIX + '/' + name for name in GUI_FILES)), activity_sources()):
+        raw = source.encode()
+        raw_files[target] = raw
+        spec = dict(sha256=h(raw), size=len(raw),
+                    mode=baseline_assets.trusted_file_modes()[target], uid=0, gid=0)
+        files[target] = spec
+        fixture['files'][target] = {key: value for key, value in spec.items() if key != 'size'}
+        path = tmp_path / source
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
     for variant in ('command', 'whitespace'):
         path = str(enforcement.native_paths(variant)[0])
         fixture['files'][path] = original
@@ -299,6 +311,86 @@ def test_live_consumer_requires_complete_matching_receipt_and_exact_inputs(live_
         assert result['baseline_sha256'] == 'b' * 64
     assert all(call.args[0][0] in ('dpkg-query', 'rpm', 'fapolicyd-cli') for call in state.run.call_args_list)
     assert all(call.args[0][1] not in ('--file', '--update') for call in state.run.call_args_list)
+
+
+@pytest.mark.parametrize('fault', [None, 'source', 'runtime', 'mode', 'owner', 'unfinished',
+                                  'tool', 'backend', 'missing-db', 'duplicate-db', 'wrong-db',
+                                  'source-db', 'trusted-control'])
+def test_activity_preflight_reads_exact_prepared_runtime_and_active_trust(live_receipt, monkeypatch, fault):
+    import native_fixtures_guest as activity
+    from tests.fixtures.native_assets import ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, GUI_FILES, activity_sources
+    state = live_receipt
+    targets = (ACTIVITY_EXECUTABLE, *(ACTIVITY_PREFIX + '/' + name for name in GUI_FILES))
+    expected = {source: state.record['files'][path]['sha256']
+                for source, path in zip(activity_sources(), targets)}
+    monkeypatch.setattr(activity, 'activity_root_file',
+                        lambda path, mode=0o600, gid=0, **kw:
+                        trusted.root_file(path, mode, gid=gid, **kw))
+    monkeypatch.setattr(activity.os, 'geteuid', lambda: 0)
+    database = [f'filedb {path} {spec["size"]} {spec["sha256"]}'
+                for path, spec in state.record['files'].items()]
+    if fault == 'source': expected[activity_sources()[0]] = 'f' * 64
+    if fault == 'runtime': state.raw_files[targets[1]] += b'changed'
+    if fault == 'mode': state.record['files'][targets[1]]['mode'] = 0o755
+    if fault == 'owner': state.record['files'][targets[0]]['uid'] = 1001
+    if fault == 'unfinished': state.transaction['pending'] = state.record
+    if fault == 'tool': state.raw_files[state.tools['cli']] += b'changed'
+    if fault == 'backend': state.raw_files[trusted.BACKEND_CONFIG] += b'changed'
+    if fault == 'missing-db': database.pop()
+    if fault == 'duplicate-db': database.append(database[-1])
+    if fault == 'wrong-db': database[-1] = database[-1][:-64] + 'f' * 64
+    if fault == 'source-db': database[-1] = database[-1].replace('filedb ', 'rpmdb ', 1)
+    if fault == 'trusted-control':
+        database.append('filedb /opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage 1 ' + 'a' * 64)
+    command = Mock(return_value=SimpleNamespace(stdout=('\n'.join(database) + '\n').encode()))
+    monkeypatch.setattr(activity.subprocess, 'run', command)
+    if fault:
+        with pytest.raises(ValueError): activity.activity_readback(expected)
+    else:
+        result = activity.activity_readback(expected)
+        assert result == {'native_trust': True, 'files': {
+            source: {'sha256': expected[source], 'mode': state.record['files'][path]['mode']}
+            for source, path in zip(activity_sources(), targets)}}
+    assert command.call_count <= 1
+    if command.called:
+        assert command.call_args.args[0] == [state.tools['cli'], '--dump-db']
+
+
+@pytest.mark.parametrize('fault', [None, 'child-parent', 'writable-parent', 'runtime-mode',
+                                  'runtime-link', 'hardlink'])
+def test_activity_root_reader_preserves_strict_root_metadata(tmp_path, private_metadata, monkeypatch, fault):
+    import native_fixtures_guest as activity
+    monkeypatch.setattr(activity, 'ROOT_DIRECTORY', tmp_path)
+    parent = tmp_path / 'activity'
+    parent.mkdir(mode=0o755)
+    path = parent / 'onpc-test-gui.py'
+    path.write_bytes(b'fixed activity runtime')
+    path.chmod(0o644)
+    if fault == 'runtime-mode': path.chmod(0o666)
+    if fault == 'runtime-link':
+        path.rename(parent / 'original')
+        path.symlink_to(parent / 'original')
+    if fault == 'hardlink': os.link(path, parent / 'alias')
+    original = activity.os.fstat
+    original_stat = activity.os.stat
+    target_inode = parent.stat().st_ino
+
+    def metadata(info):
+        fields = list(info)
+        fields[4] = fields[5] = 0
+        # Reader comparisons use the same protected metadata for directory
+        # descriptors and entries. Model a replaced ancestor, never chown host.
+        if info.st_ino == target_inode:
+            if fault == 'child-parent': fields[4] = 1001
+            if fault == 'writable-parent': fields[0] |= 0o020
+        return os.stat_result(fields)
+
+    monkeypatch.setattr(activity.os, 'fstat', lambda fd: metadata(original(fd)))
+    monkeypatch.setattr(activity.os, 'stat', lambda *args, **kw: metadata(original_stat(*args, **kw)))
+    if fault:
+        with pytest.raises((ValueError, OSError)): activity.activity_root_file(path, 0o644)
+    else:
+        assert activity.activity_root_file(path, 0o644) == b'fixed activity runtime'
 
 
 @pytest.fixture

@@ -1031,7 +1031,7 @@ def guest_fixture(*, os_id='ubuntu'):
                                               'st_uid': 0, 'st_gid': 0, 'st_nlink': 1})
     files[baseline_fixtures.RECORD] = json.dumps(record).encode()
     trusted_files = {path: record['files'][path] | {'size': len(files[path])}
-                     for path, _ in baseline_fixtures.assets.TRUSTED_NATIVE.values()}
+                     for path in baseline_fixtures.assets.trusted_file_modes()}
     trust_bytes = ''.join(f'{path} {spec["size"]} {spec["sha256"]}\n'
                           for path, spec in trusted_files.items()).encode()
     files[baseline_fixtures.TRUST_FILE] = trust_bytes

@@ -2,9 +2,11 @@
 from pathlib import Path
 
 try:
-    from native_assets import ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, desktop_entry, desktop_id
+    from native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, ACTIVITY_PREFIX,
+                               ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id)
 except ImportError:
-    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, desktop_entry, desktop_id
+    from tests.fixtures.native_assets import (ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE,
+        ACTIVITY_PREFIX, ACTIVITY_EXECUTABLE, trusted_file_modes, desktop_entry, desktop_id)
 
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
@@ -29,6 +31,9 @@ def native_files(accounts):
         files[PREFIX + '/' + filename] = (role, 0o755, 'other')
     for filename in GUI_FILES:
         files[PREFIX + '/' + filename] = (filename, 0o644, 'other')
+    files[ACTIVITY_EXECUTABLE] = ('trusted-activity', 0o755, 'system')
+    for filename in GUI_FILES:
+        files[ACTIVITY_PREFIX + '/' + filename] = (filename, 0o644, 'system')
     # Both fixed children are native-policy consumers. Their catalogues are
     # user-scoped; Jordan's launchers cannot supply Riley's removal journey.
     for child_role in ('child', 'other'):

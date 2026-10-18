@@ -132,7 +132,7 @@ def prepared():
     guest = Guest()
     payload = {key: ('distinct-' + key).encode() for key in
                ('A', 'H', 'S', 'N', 'mechanical', 'onpc-test-gui.py', 'gtk_automation.py',
-                'trusted-hard', 'trusted-soft')}
+                'trusted-hard', 'trusted-soft', 'trusted-activity')}
     return guest, payload
 
 
@@ -817,8 +817,8 @@ def test_trusted_variants_bind_native_api_exact_payloads_and_baseline_without_ch
     assert provenance['native']['os_id'] == os_id
     assert provenance['preparation_script_sha256'] == fixture.prepare_vm.preparation_digest()
     assert provenance['fixture_record_sha256'] == hashlib.sha256(guest.read_file(fixture.RECORD)).hexdigest()
-    assert set(provenance['files']) == {p for p, _ in fixture.assets.TRUSTED_NATIVE.values()}
-    assert len({spec['sha256'] for spec in provenance['files'].values()}) == 2
+    assert set(provenance['files']) == set(fixture.assets.trusted_file_modes())
+    assert len({spec['sha256'] for spec in provenance['files'].values()}) == 5
     for identity, (path, suffix) in fixture.assets.TRUSTED_NATIVE.items():
         assert guest.read_file(path) == payload[identity]
         assert guest.read_file('/usr/share/applications/com.puffyslippers.ONPCTest.' + suffix + '.desktop').count(path.encode()) == 1
@@ -830,7 +830,7 @@ def test_trusted_variants_bind_native_api_exact_payloads_and_baseline_without_ch
     assert trust_commands == [
         [cli, '--file', 'add', path,
          '--trust-file', PurePosixPath(fixture.TRUST_PENDING).name]
-        for path, _ in fixture.assets.TRUSTED_NATIVE.values()]
+        for path in fixture.assets.trusted_file_modes()]
     assert not any('--update' in argv or '--reload-rules' in argv for argv in commands)
     before = copy.deepcopy(guest.nodes)
     commands.clear()
@@ -859,6 +859,52 @@ def test_trusted_native_inventory_upgrades_old_baseline_without_rewriting_untrus
         if path != fixture.RECORD:
             assert guest.nodes[path] == node
     fixture.verify_trusted(guest)
+
+
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_activity_upgrade_preserves_old_trust_and_controls_and_retries_new_admission(prepared, monkeypatch, interrupted):
+    guest, payload = prepared
+    fixture.reconcile(guest, payload)
+    activity_paths = {fixture.assets.ACTIVITY_EXECUTABLE,
+                      *(fixture.assets.ACTIVITY_PREFIX + '/' + name for name in fixture.assets.GUI_FILES)}
+    files = json.loads(guest.read_file(fixture.RECORD))
+    for path in activity_paths:
+        del guest.nodes[path]
+        del files['files'][path]
+    guest.write(fixture.RECORD, json.dumps(files).encode())
+    transaction = json.loads(guest.read_file(fixture.TRUST_RECORD))
+    old = transaction['complete']
+    old['files'] = {path: spec for path, spec in old['files'].items() if path not in activity_paths}
+    trust = b''.join(line for line in guest.read_file(fixture.TRUST_FILE).splitlines(keepends=True)
+                     if line.split()[0].decode() not in activity_paths)
+    guest.write(fixture.TRUST_FILE, trust)
+    old['fixture_record_sha256'] = hashlib.sha256(guest.read_file(fixture.RECORD)).hexdigest()
+    old['trust_file_sha256'] = hashlib.sha256(trust).hexdigest()
+    guest.write(fixture.TRUST_RECORD, json.dumps(transaction).encode())
+    preserved = {path: copy.deepcopy(guest.nodes[path]) for path in files['files']}
+    commands, failed = [], False
+    actual = guest.command
+
+    def command(argv):
+        nonlocal failed
+        commands.append(argv)
+        if interrupted and not failed and argv[1:3] == ['--file', 'add']:
+            failed = True
+            guest.write(fixture.TRUST_PENDING, b'partial native admission')
+            raise RuntimeError('interrupted activity admission')
+        return actual(argv)
+
+    monkeypatch.setattr(guest, 'command', command)
+    if interrupted:
+        with pytest.raises(RuntimeError, match='interrupted activity admission'):
+            fixture.reconcile(guest, payload)
+    fixture.reconcile(guest, payload)
+    fixture.verify_trusted(guest)
+    assert all(guest.nodes[path] == node for path, node in preserved.items())
+    assert all(guest.lstatns(path)['st_uid'] == 0 for path in activity_paths)
+    assert all(argv[2] == ('add' if argv[3] in activity_paths else 'update')
+               for argv in commands if argv[1:2] == ['--file'])
+    assert set(fixture.trust_entries(guest.read_file(fixture.TRUST_FILE))) == set(fixture.assets.trusted_file_modes())
 
 
 @pytest.mark.parametrize('boundary', ['intent', 'cli-partial', 'cli-finished', 'generated-record', 'publish', 'complete'])

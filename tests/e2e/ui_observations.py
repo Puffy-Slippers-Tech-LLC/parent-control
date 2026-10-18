@@ -76,6 +76,7 @@ OPERATION_LABELS = {
     **{operation: 'Checking the intended child graphical login recipient'
        for operation in accessible_ui.CHILD_GREETER_OPERATIONS},
     'fresh-child-desktop': 'Independently observing the usable intended child desktop',
+    'child-retained-unlock-diagnostic': 'Diagnosing the retained child desktop without input',
     'child-countdown-present': 'Reading the child desktop countdown',
     'child-countdown-absent': 'Requiring stable countdown absence on the child desktop',
     'child-countdown-wrong-account-refused': 'Refusing countdown observation on another account',
@@ -1909,7 +1910,8 @@ class UiObservations:
             # private; journey records and worker replies receive only presence.
             expected['approver_uids'] = uids
         if operation in ('parent-search-close-ready', 'standard-search-qualified',
-                         'parent-desktop-provider', 'fresh-child-desktop'):
+                         'parent-desktop-provider', 'fresh-child-desktop',
+                         'child-retained-unlock-diagnostic'):
             require(type(result) is dict and set(result) == {*expected, 'provider'}, 'ui:response')
             expected['provider'] = accessible_ui.validate_shell_metadata(result['provider'])
         if operation == 'gdm-product-free-provider':

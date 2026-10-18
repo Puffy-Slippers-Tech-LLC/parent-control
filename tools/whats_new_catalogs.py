@@ -216,7 +216,10 @@ def markdown_signature(text):
     protected = Counter(re.findall(r'https?://[^\s<>\)\]"\']+', text))
     protected.update(re.findall(r'`+[^`\n]+`+', text))
     protected.update(re.findall(r'%\([^)]+\)[a-zA-Z]|\{[A-Za-z_][A-Za-z0-9_]*\}', text))
-    protected.update(re.findall(r'(?<![\w.])v?[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}\b', text))
+    # Version literals use ASCII syntax. Unicode word boundaries would hide an
+    # unchanged version beside Japanese text or a Korean grammatical particle.
+    protected.update(re.findall(r'(?<![\w.])v?[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}\b',
+                                text, flags=re.ASCII))
     protected.update(re.findall(r'<[^>]+>', text))
     protected['Oh No! Parent Control'] = text.count('Oh No! Parent Control')
     return structure, fenced, protected, text.count('**')
@@ -226,8 +229,13 @@ def validate_content(source, translated):
     if (not isinstance(translated, str) or not translated.strip() or len(translated) > 65536
             or '\x00' in translated or any(0xD800 <= ord(char) <= 0xDFFF for char in translated)):
         raise ValueError('invalid translated Markdown')
-    if markdown_signature(source) != markdown_signature(translated):
-        raise ValueError('translation changed Markdown structure or protected literals')
+    expected, actual = markdown_signature(source), markdown_signature(translated)
+    differences = [label for label, before, after in zip(
+        ('heading/list structure', 'fenced code', 'protected literals', 'bold formatting'),
+        expected, actual) if before != after]
+    if differences:
+        raise ValueError('translation changed Markdown structure or protected literals: '
+                         + ', '.join(differences))
 
 
 def pending(root=ROOT, release=None):

@@ -183,7 +183,10 @@ def apply_response(root, release, work, response, originals):
             identity = item['record_id']
             if not isinstance(identity, str) or identity not in expected or identity in translated:
                 raise ValueError('agent returned an unexpected/duplicate record')
-            catalogs.validate_content(expected[identity]['Content'], item['content'])
+            try:
+                catalogs.validate_content(expected[identity]['Content'], item['content'])
+            except ValueError as error:
+                raise ValueError(f'{language} {identity}: {error}') from error
             translated[identity] = item['content']
         accepted[language] = translated
     if catalogs.latest(root) != release:

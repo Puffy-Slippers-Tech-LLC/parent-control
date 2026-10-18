@@ -207,6 +207,30 @@ def test_protected_markdown_operands_and_structure(operand, replacement):
         catalogs.validate_content(source_text, source_text.replace(operand, replacement))
 
 
+@pytest.mark.parametrize('translated', [
+    'v1.1のバグ修正', 'v1.1의 버그 수정', '版本v1.1修复',
+    'نسخهٔ v1.1', 'виправлення v1.1',
+])
+def test_version_literals_allow_adjacent_localized_text_but_still_refuse_changes(translated):
+    catalogs.validate_content('v1.1 bug fix', translated)
+    with pytest.raises(ValueError, match='protected literals'):
+        catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', 'v1.2'))
+    with pytest.raises(ValueError, match='protected literals'):
+        catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', ''))
+
+
+def test_bad_translation_identifies_language_record_and_failed_guard_before_any_write(repository):
+    release = catalogs.prepare(repository)
+    work = catalogs.pending(repository)
+    before = originals(repository, release, work)
+    result = response(work)
+    # A later record/language must still refuse the entire batch atomically.
+    result['translations'][-1]['records'][-1]['content'] += '\n- Extra list item\n'
+    with pytest.raises(ValueError, match='de 1.10:Child: .*heading/list structure'):
+        sync.apply_response(repository, release, work, result, before)
+    assert originals(repository, release, work) == before
+
+
 def test_concurrent_source_or_translation_edit_is_preserved(repository):
     release = catalogs.prepare(repository)
     work = catalogs.pending(repository)

@@ -394,8 +394,31 @@ def test_errors_keep_their_age_across_retries_and_task_suspension(conversation, 
     assert task_info(tmp_path, '001')['status'] == 'Investigating'
 
 
+def test_status_clock_resets_only_on_status_changes_and_survives_task_suspension(tmp_path, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_chat.time.time', lambda: clock[0])
+    update_task_info(tmp_path, '001', {})
+    assert task_info(tmp_path, '001')['status_at'] == 1000.0
+    clock[0] += 60
+    update_task_info(tmp_path, '001', {'explanation': 'Checks the countdown.', 'status': 'Running'})
+    assert task_info(tmp_path, '001')['status_at'] == 1000.0
+    update_task_info(tmp_path, '001', {'last_error': 'The countdown stopped.'})
+    assert task_info(tmp_path, '001')['status_at'] == 1060.0
+    clock[0] += 60
+    update_task_info(tmp_path, '001', {'last_error': 'The countdown stopped again.'})
+    assert task_info(tmp_path, '001')['status_at'] == 1060.0
+    update_task_info(tmp_path, '001', {'status': TASK_STATUSES[1]})
+    assert task_info(tmp_path, '001')['status_at'] == 1120.0
+    clock[0] += 60
+    update_task_info(tmp_path, '002', {})
+    assert task_info(tmp_path, '002')['status_at'] == 1180.0
+    update_task_info(tmp_path, '001', {})  # Resume without restarting the clock.
+    assert task_info(tmp_path, '001')['status_at'] == 1120.0
+    assert task_info(tmp_path, '001')['status'] == TASK_STATUSES[1]
+
+
 @pytest.mark.parametrize('value', [
-    {'status': 'Running session 1.'}, {'last_error_at': 0},
+    {'status': 'Running session 1.'}, {'last_error_at': 0}, {'status_at': 0},
     {'last_error': ''}, {'last_error': '-'}, {'last_error': 42}, {'status': '\033[31m'},
 ])
 def test_invalid_panel_updates_preserve_the_previous_task_information(conversation, tmp_path, value):
@@ -533,14 +556,15 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     assert empty.plain.rstrip() == 'Last Error: -'
     assert not empty.get_style_at_offset(display.console, len('Last Error: ')).bold
     assert empty.get_style_at_offset(display.console, len('Last Error: ')).color is None
-    assert line('Status:').plain.rstrip() == 'Status: Running'
+    assert line('Status:').plain.rstrip() == 'Status: Running (0m ago)'
     assert line('Status:').get_style_at_offset(display.console, len('Status: ')).color.name == 'blue'
     for no_error in ('', '-', '  '):
         display.task_info.update(last_error=no_error, status=status)
         display.draw()
         assert line('Last Error:').plain.rstrip() == 'Last Error: -'
-        assert line('Status:').plain.rstrip() == 'Status: Running'
-    display.task_info.update(last_error='The countdown stopped.', last_error_at=1000.0, status=status)
+        assert line('Status:').plain.rstrip() == 'Status: Running (0m ago)'
+    display.task_info.update(last_error='The countdown stopped.', last_error_at=1000.0,
+                             status=status, status_at=1000.0)
     clock[0] += 120
     display.draw()
     rows = [row.plain.rstrip() for row in panel()]
@@ -549,7 +573,7 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     assert set(rows[header - 1]) == set(rows[header + 2]) == {'─'}
     assert rows[header + 3] == 'Last Error: The countdown stopped. (2m ago)'
     assert rows[header + 4] == ''
-    assert rows[header + 5] == 'Status: ' + status
+    assert rows[header + 5] == 'Status: ' + status + ' (2m ago)'
     for prefix in ('Explanation:', 'Last Error:', 'Status:'):
         row = line(prefix)
         assert all(row.get_style_at_offset(display.console, offset).bold for offset in range(len(prefix)))
@@ -569,6 +593,7 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     clock[0] += 1
     display.draw()
     assert '(3m ago)' in line('Last Error:').plain
+    assert '(3m ago)' in line('Status:').plain
     # An observer reconnect keeps the owner's timestamp.
     launcher.atomic(tmp_path / 'task-info.json', display.task_info)
     launcher.atomic(tmp_path / 'chat-state.json', display.chat_state)
@@ -577,6 +602,7 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     reconnected.chat_state = display.chat_state.copy()
     reconnected.draw()
     assert '(3m ago)' in ''.join(row.plain for row in reconnected.previous)
+    assert 'Status: ' + status + ' (3m ago)' in ''.join(row.plain for row in reconnected.previous)
     # A suspended task can be rendered before its next agent session starts.
     update_task_info(tmp_path, '002', {})
     reconnected.refresh_chat()
@@ -586,7 +612,46 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     display.chat_state['progress_key'] = '1'
     display.update([{'key': '2', 'lines': ['Task 002: Next', 'Session [1]: Writing code']}], [])
     assert line('Last Error:').plain.rstrip() == 'Last Error: -'
-    assert line('Status:').plain.rstrip() == 'Status: Running'
+    assert line('Status:').plain.rstrip() == 'Status: Running (0m ago)'
+
+
+@pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
+@pytest.mark.parametrize('retained', [True, False])
+def test_status_age_refreshes_without_output_and_resets_on_change(tmp_path, monkeypatch, input_mode, retained):
+    clock = [1000.0]
+    monkeypatch.setattr('launcher_display.time.time', lambda: clock[0])
+    display, terminal = display_fixture(tmp_path, width=400, input_mode=input_mode)
+    if retained:
+        update_task_info(tmp_path, '001', {})
+        display.task_info = task_info(tmp_path, '001')
+        display.draw()
+
+    def status():
+        return next(row[display.divider_column:].plain.rstrip() for row in display.previous
+                    if row[display.divider_column:].plain.startswith('Status:'))
+
+    assert status() == 'Status: Running (0m ago)'
+    before = terminal.getvalue()
+    clock[0] += 59
+    display.draw()
+    assert terminal.getvalue() == before
+    clock[0] += 1
+    display.draw()
+    assert status() == 'Status: Running (1m ago)'
+    clock[0] = 1000.0 + 72 * 60
+    display.draw()
+    assert status() == 'Status: Running (1h 12m ago)'
+    # Changing status restarts its clock, independent of the older error age.
+    if retained:
+        update_task_info(tmp_path, '001', {'last_error': 'The countdown stopped.'})
+        display.task_info = task_info(tmp_path, '001')
+    else:
+        display.task_info.update(last_error='The countdown stopped.', status='Investigating')
+    display.draw()
+    assert status() == 'Status: Investigating (0m ago)'
+    clock[0] += 60
+    display.draw()
+    assert status() == 'Status: Investigating (1m ago)'
 
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
@@ -1009,10 +1074,14 @@ def test_session_duration_refreshes_without_output_and_survives_reconnection(tmp
     assert 'Writing code; 1h 12m' in screen.visible()
     reconnected.chat_state.update(status='finished', finished_at=clock[0])
     reconnected.draw()
-    unchanged = screen.getvalue()
+    # Session time stops; only the independent status age keeps refreshing.
+    unchanged = [row.plain for row in reconnected.previous if 'Status:' not in row.plain]
     clock[0] += 120
     reconnected.draw()
-    assert screen.getvalue() == unchanged
+    assert [row.plain for row in reconnected.previous if 'Status:' not in row.plain] == unchanged
+    assert 'Writing code; 1h 12m' in screen.visible()
+    assert 'Working (' not in screen.visible()
+    assert 'Status: Running (2m ago)' in screen.visible()
     assert reconnected.steps[-1]['lines'][-1] == 'Session [1]: Writing code'
 
     # At the next session boundary stale owner metadata must not leak a clock.

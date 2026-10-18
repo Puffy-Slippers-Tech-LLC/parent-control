@@ -17,7 +17,7 @@ from launcher_render import LauncherDisplay, clean, retained_tail
 
 
 def clock_duration(seconds):
-    """Elapsed whole minutes, shared by the session and backend-launch clocks."""
+    """Elapsed whole minutes, shared by launcher clocks and task-field ages."""
     hours, minutes = divmod(max(0, int(seconds // 60)), 60)
     return f'{hours}h {minutes}m' if hours else f'{minutes}m'
 
@@ -109,6 +109,7 @@ class TaskDisplay(LauncherDisplay):
         self.description_grab = None
         self.chat_state = {}
         self.task_info = {}
+        self.status_clock = None
         self.editor = ChatEditor(self.submit)
         self.divider_column = 0
         self.top_divider_column = 0
@@ -537,8 +538,20 @@ class TaskDisplay(LauncherDisplay):
         has_error = bool(error_summary and error_summary != '-')
         error_at = task_info.get('last_error_at') if has_error else None
         error_age = clock_duration(time.time() - error_at) if error_at is not None else None
+        status = task_info.get('status')
+        if not has_error:
+            status = 'Running'
+        elif status not in TASK_STATUSES or status == 'Running':
+            status = TASK_STATUSES[0]
+        status_key = (current['key'] if current else None, self.chat_state.get('task_id'), status)
+        if self.status_clock is None or self.status_clock[0] != status_key:
+            # Older backends and non-agent workflows have no retained status
+            # timestamp. Measure from observation rather than inventing an age.
+            self.status_clock = (status_key, time.time())
+        status_at = task_info.get('status_at', self.status_clock[1])
+        status_age = clock_duration(time.time() - status_at)
         state = (size, self.ratio, self.dragging, self.task_totals,
-                 tuple(summary_lines), total_duration, working, error_age,
+                 tuple(summary_lines), total_duration, working, error_age, status_age,
                  tuple((s['key'], tuple(s['lines']), bool(s.get('replaces')),
                  bool(s.get('pinned'))) for s in self.steps), tuple(self.details),
                  tuple(self.transcript), self.pending, tuple(self.offsets.items()),
@@ -589,11 +602,6 @@ class TaskDisplay(LauncherDisplay):
         self.summary_bottom = len(top) + 1 + summary_height
         explanation = task_info.get('explanation', 'Preparing the task explanation…'
                                     if self.input_mode == 'chat' else 'Execution details appear on the left.')
-        status = task_info.get('status')
-        if not has_error:
-            status = 'Running'
-        elif status not in TASK_STATUSES or status == 'Running':
-            status = TASK_STATUSES[0]
         last_error = Text('Last Error: ')
         last_error.stylize('bold', 0, len('Last Error:'))
         if has_error:
@@ -607,6 +615,7 @@ class TaskDisplay(LauncherDisplay):
         status_line.stylize('bold', 0, len('Status:'))
         colors = dict(zip(TASK_STATUSES, ('blue', 'blue', 'yellow', 'green', 'blue')))
         status_line.append(status, style=colors[status])
+        status_line.append(f' ({status_age} ago)')
         info_lines = [Text('Explanation:', style='bold'), Text(clean(explanation)),
                       Text('─'), last_error, Text(''), status_line]
         lifecycle = {

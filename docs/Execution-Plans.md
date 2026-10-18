@@ -182,6 +182,14 @@ exactly one of the following. With no last error, it is always blue `Running`:
 | Testing fix, previous error point not reached yet | Yellow |
 | Testing fix, previous error point passed | Green |
 
+The status is followed by its age in parentheses, such as `Running (12m ago)` or
+`Investigating (1h 12m ago)`, using the shared minute/hour duration formatter.
+Its clock resets only when the status value changes and refreshes every minute
+without requiring new output. Task-local status timestamps survive retries,
+suspension and observer reconnections. For older backends or non-agent workflows
+without a retained timestamp, the observer measures from its first observation
+of the current task/status.
+
 Plan/E2E coordinators report a short `last_error` once per new occurrence and
 update `status` through `LAUNCHER_STATUS` commentary. The launcher supplies the
 error timestamp; repeated old failures must not reset it. Testing statuses require

@@ -35,7 +35,7 @@ def task_info(run, task):
 
 
 def update_task_info(run, task, value):
-    """Keep task-local errors and their original clock through retries/suspension."""
+    """Retain task-local error and status clocks through retries/suspension."""
     path = run / 'task-info.json'
     previous = json.loads(path.read_text()) if path.exists() else {}
     history = previous.get('previous_tasks', {}).copy()
@@ -43,6 +43,7 @@ def update_task_info(run, task, value):
         history[previous['task_id']] = {key: item for key, item in previous.items()
                                        if key != 'previous_tasks'}
     current = task_info(run, task)
+    previous_status = current.get('status')
     current.update(value)
     if 'last_error' in value:
         current['last_error_at'] = time.time()
@@ -51,6 +52,8 @@ def update_task_info(run, task, value):
         current['status'] = 'Running'
     elif current.get('status') not in TASK_STATUSES or current['status'] == 'Running':
         current['status'] = TASK_STATUSES[0]
+    if current['status'] != previous_status or 'status_at' not in current:
+        current['status_at'] = time.time()
     history.pop(task, None)
     launcher.atomic(path, dict(current, previous_tasks=history))
 

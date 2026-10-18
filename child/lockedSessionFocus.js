@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import {recordChildFailure} from './errorHandler.js';
 
 // GNOME 50 compatibility: keyboard_enable restores the remembered Wayland
 // surface when devices return, even while Shell's existing grab is active.
@@ -39,9 +40,10 @@ export class LockedSessionFocus {
             } finally {
                 this._notifying = false;
             }
-        } catch (_error) {
+        } catch (error) {
             // Never expose device identities or exception text, or interrupt
             // Shell's normal device handling when the compatibility hook fails.
+            recordChildFailure(error, 'locked-focus');
             this._record('failed');
         }
     }

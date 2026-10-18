@@ -1,5 +1,6 @@
 import GLib from 'gi://GLib';
 import {TimeLimitsState} from 'resource:///org/gnome/shell/misc/timeLimitsManager.js';
+import {recordChildFailure} from './errorHandler.js';
 
 const REQUEST_LIFETIME_MS = 2000;
 const OBSERVATION_LIFETIME_MS = 2000;
@@ -46,6 +47,7 @@ export class SessionUnlockRecovery {
                     this._unlockRequested(sender);
             }, true);
         } catch (error) {
+            recordChildFailure(error, 'unlock-startup');
             this.close();
             throw error;
         }
@@ -55,9 +57,9 @@ export class SessionUnlockRecovery {
         const safe = (...args) => {
             if (this._closed)
                 return;
-            try { callback(...args); } catch (_error) {
+            try { callback(...args); } catch (error) {
                 this._finish('failed', 'unavailable');
-                this._failed();
+                this._failed(error, 'unlock-signal');
             }
         };
         const id = dbus ? object.connectSignal(signal, safe) : object.connect(signal, safe);
@@ -128,9 +130,9 @@ export class SessionUnlockRecovery {
             return;
         this._idle = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._idle = 0;
-            try { this._continue(); } catch (_error) {
+            try { this._continue(); } catch (error) {
                 this._finish('failed', 'unavailable');
-                this._failed();
+                this._failed(error, 'unlock-dispatch');
             }
             return GLib.SOURCE_REMOVE;
         });
@@ -198,12 +200,13 @@ export class SessionUnlockRecovery {
                 session_active: Boolean(this._session.Active),
                 native_remaining: Number.isFinite(remaining)
                     ? Math.max(0, Math.min(4294967295, Math.ceil(remaining))) : 0});
-        } catch (_error) {
-            this._failed();
+        } catch (error) {
+            this._failed(error, 'unlock-observe');
         }
     }
 
-    _failed() {
+    _failed(error, operation) {
+        recordChildFailure(error, operation);
         try { this._failure(); } catch (_error) { /* diagnostics only */ }
     }
 
@@ -236,7 +239,9 @@ export class SessionUnlockRecovery {
         this._closed = true;
         this._finish('cancelled', 'closed');
         for (const disconnect of this._disconnect.splice(0).reverse()) {
-            try { disconnect(); } catch (_error) { /* finish owned cleanup */ }
+            try { disconnect(); } catch (error) {
+                recordChildFailure(error, 'unlock-cleanup');
+            }
         }
     }
 }

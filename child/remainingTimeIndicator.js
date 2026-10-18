@@ -172,7 +172,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._sessionPreparePending = false;
         this._sessionPrepared = false;
         this._resumeEstimateRefresh = this._preview ? null : new ResumeEstimateRefresh(
-            Main.timeLimitsManager, error => this._onError?.(error));
+            Main.timeLimitsManager, error => this._onError?.(error, 'resume-refresh'));
         this._vertical = null;
         this._timerSignalId = this._preview ? 0 : Gio.DBus.system.signal_subscribe(
             TIMER_BUS_NAME, TIMER_INTERFACE, 'EstimatedTimesChanged',
@@ -435,7 +435,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
     _setCountdownAnimationEnabled(enabled) {
         if (this._destroyed || !this._settings?.set_boolean(COUNTDOWN_ANIMATION_KEY, enabled)) {
             logWarning('child.animation-save-failed');
-            this._onError?.(new Error('Could not save countdown animation preference'));
+            this._onError?.(new Error('Could not save countdown animation preference'), 'countdown-preference');
             this._syncCountdownAnimationSetting();
             return false;
         }
@@ -626,7 +626,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                     locked: Main.sessionMode.isLocked,
                     greeter: Main.sessionMode.isGreeter,
                 });
-                this._onError?.(error);
+                this._onError?.(error, 'countdown-refresh');
             }
         } finally {
             this._refreshPending = false;
@@ -717,7 +717,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         } catch (error) {
             if (!this._destroyed) {
                 logWarning('child.prepare-failed');
-                this._onError?.(error);
+                this._onError?.(error, 'session-prepare');
             }
         } finally {
             this._sessionPreparePending = false;
@@ -820,7 +820,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 } catch (error) {
                     if (!this._destroyed) {
                         logWarning('child.lock-failed');
-                        this._onError?.(error);
+                        this._onError?.(error, 'session-lock');
                     }
                 } finally {
                     this._lockPending = false;

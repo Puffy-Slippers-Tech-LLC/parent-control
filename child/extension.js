@@ -6,7 +6,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {appLogoPath, appName} from './branding.js';
 import {RemainingTimeIndicator} from './remainingTimeIndicator.js';
-import {ChildErrorHandler} from './errorHandler.js';
+import {ChildErrorHandler, recordChildProcessExit} from './errorHandler.js';
 import {logInfo, logWarning} from './logger.js';
 import {canOpenRequest, requestCompletionState} from './indicatorLogic.mjs';
 import {TranslationContext} from './localization.js';
@@ -37,7 +37,7 @@ export default class OhNoParentControlExtension extends Extension {
             this._sessionDiagnostics = null;
             this._lockedSessionFocus?.close();
             this._lockedSessionFocus = null;
-            this._errors.report(error);
+            this._errors.report(error, 'startup');
             // Keep GNOME's extension startup failure visible to the broker;
             // a reporting dialog cannot make a failed enforcer healthy.
             throw new Error('Child App could not start; see the error report.');
@@ -62,20 +62,20 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             this._wellbeing = new WellbeingSuppression(Main.timeLimitsManager, Main.sessionMode,
                 () => this._indicator?._notifications?.preferences,
-                error => this._errors?.report(error),
+                error => this._errors?.report(error, 'wellbeing'),
                 (stage, outcome) => (outcome === 'failed' ? logWarning : logInfo)(
                     'child.wellbeing', {stage, outcome}));
         } catch (error) {
             // Optional banner suppression must never prevent enforcement startup.
             logWarning('child.wellbeing', {stage: 'startup', outcome: 'failed'});
-            try { this._errors.report(error); } catch (_error) { /* optional feature */ }
+            try { this._errors.report(error, 'wellbeing'); } catch (_error) { /* optional feature */ }
         }
         try {
             this._reminderPreview = new ReminderPreview(this._appName, appLogoPath(this),
                 this._translations, () => this._showRequest(true));
         } catch (_error) {
             // Preview availability must not disable countdown or locking.
-            this._errors.report(new Error('Reminder preview could not start'));
+            this._errors.report(_error, 'reminder-preview');
         }
         this._applicationUiAdapter = new GnomeApplicationUiAdapter(this._indicator, this._reminderPreview);
         try {
@@ -83,7 +83,7 @@ export default class OhNoParentControlExtension extends Extension {
         } catch (_error) {
             this._applicationUiAdapter.close();
             // A UI transport failure must not disable screen-time enforcement.
-            this._errors.report(new Error('Child Application UI could not start'));
+            this._errors.report(_error, 'ui-transport');
         }
         this._refreshLanguage();
     }
@@ -118,7 +118,7 @@ export default class OhNoParentControlExtension extends Extension {
             this._indicator?.refreshLanguage();
             this._indicator?.refreshNotifications();
         }, error => {
-            this._errors?.report(error);
+            this._errors?.report(error, 'language');
             this._indicator?.refreshNotifications();
         });
     }
@@ -146,7 +146,7 @@ export default class OhNoParentControlExtension extends Extension {
             '',
             appLogoPath(this),
             this._settings,
-            error => this._errors.report(error), this._translations,
+            (error, operation) => this._errors.report(error, operation), this._translations,
             () => this._refreshLanguage());
     }
 
@@ -184,7 +184,7 @@ export default class OhNoParentControlExtension extends Extension {
                 new GLib.Variant('(sava{sv})', ['preferences', [], {}]), null,
                 Gio.DBusCallFlags.NONE, 5000, null, (connection, result) => {
                     try { connection.call_finish(result); }
-                    catch (error) { this._errors?.report(error); }
+                    catch (error) { this._errors?.report(error, 'request-activate'); }
                 });
             return;
         }
@@ -202,8 +202,10 @@ export default class OhNoParentControlExtension extends Extension {
             this._requestProcess.wait_async(null, (process, result) => {
                 try {
                     process.wait_finish(result);
+                    if (this._requestProcess === process)
+                        recordChildProcessExit(process, 'request');
                 } catch (error) {
-                    this._errors.report(error);
+                    this._errors.report(error, 'request-wait');
                 }
                 this._requestProcess = null;
                 const completion = requestCompletionState();
@@ -213,7 +215,7 @@ export default class OhNoParentControlExtension extends Extension {
                 this._refreshLanguage();
             });
         } catch (error) {
-            this._errors.report(error);
+            this._errors.report(error, 'request-start');
             this._indicator?.setRequestActive(false);
         } finally {
             this._openingRequest = false;

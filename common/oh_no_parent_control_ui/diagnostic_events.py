@@ -343,6 +343,54 @@ def os_error_code(error):
     }.get(error.errno, "other")
 
 
+def gio_error_category(error):
+    """Project public Gio error identities; never retain remote names or text."""
+    try:
+        return _gio_error_category(error)
+    except Exception:
+        return "other"
+
+
+def _gio_error_category(error):
+    # Keep this module usable by pure-Python tools without GI installed.
+    try:
+        from gi.repository import Gio, GLib
+    except ImportError:
+        return "other"
+    if not isinstance(error, GLib.Error):
+        return "other"
+    remote = Gio.DBusError.get_remote_error(error)
+    broker = "com.puffyslippers.OhNoParentControl1.Error."
+    known_remote = {
+        broker + "AccessDenied": "access-denied", broker + "InvalidRequest": "invalid-request",
+        broker + "Busy": "busy", broker + "RateLimited": "rate-limited",
+        broker + "BackendFailure": "backend-failure", broker + "RollbackFailure": "rollback-failure",
+        broker + "RebootRequired": "reboot-required", broker + "Failed": "failed",
+        "org.freedesktop.MalcontentTimer1.Error.Busy": "busy",
+    }
+    if remote in known_remote:
+        return known_remote[remote]
+    for code, category in (
+        (Gio.DBusError.NO_REPLY, "no-reply"), (Gio.DBusError.NAME_HAS_NO_OWNER, "no-owner"),
+        (Gio.DBusError.SERVICE_UNKNOWN, "service-unknown"), (Gio.DBusError.TIMEOUT, "timeout"),
+        (Gio.DBusError.TIMED_OUT, "timeout"), (Gio.DBusError.ACCESS_DENIED, "access-denied"),
+        (Gio.DBusError.AUTH_FAILED, "access-denied"), (Gio.DBusError.INVALID_ARGS, "invalid-argument"),
+        (Gio.DBusError.DISCONNECTED, "disconnected"), (Gio.DBusError.FAILED, "failed"),
+    ):
+        if error.matches(Gio.dbus_error_quark(), code):
+            return category
+    for code, category in (
+        (Gio.IOErrorEnum.TIMED_OUT, "timeout"), (Gio.IOErrorEnum.CANCELLED, "cancelled"),
+        (Gio.IOErrorEnum.PERMISSION_DENIED, "access-denied"),
+        (Gio.IOErrorEnum.INVALID_ARGUMENT, "invalid-argument"),
+        (Gio.IOErrorEnum.NOT_FOUND, "not-found"), (Gio.IOErrorEnum.NO_SPACE, "resource-limit"),
+        (Gio.IOErrorEnum.READ_ONLY, "read-only"), (Gio.IOErrorEnum.CLOSED, "disconnected"),
+    ):
+        if error.matches(Gio.io_error_quark(), code):
+            return category
+    return "other"
+
+
 def _fault_location(error):
     source, line = "other", 0
     current = error.__traceback__
@@ -385,6 +433,9 @@ def _record_exception(error):
         logger.error("runtime.failure-cause", depth=depth, link=link,
                      error_type=error_code(cause), source=source, line=line,
                      os_error=os_error_code(cause), exit_code=code)
+        category = gio_error_category(cause)
+        if category != "other":
+            logger.error("runtime.failure-gio", depth=depth, category=category)
     logger.error("runtime.failure-chain", count=len(chain), end=end)
     source, line = _fault_location(error)
     logger.error("runtime.fault", error_type=error_code(error), source=source, line=line)

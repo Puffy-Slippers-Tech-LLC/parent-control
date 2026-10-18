@@ -28,7 +28,7 @@ function signals(properties = {}) {
 
 function harness({hold = false, unavailable = false} = {}) {
     let now = 1000, owner = ':1.42', resolveSession;
-    const records = [], failures = [], timers = new Map();
+    const records = [], failures = [], causes = [], timers = new Map();
     let nextTimer = 0;
     const manager = signals({state: states.LIMIT_REACHED, shouldLockSession: true,
         parentalControlsSessionLimitsEnabled: true, dailyLimitTime: 0,
@@ -41,6 +41,7 @@ function harness({hold = false, unavailable = false} = {}) {
         ? new Promise(resolve => { resolveSession = resolve; })
         : Promise.resolve(unavailable ? null : session)});
     const context = vm.createContext({TimeLimitsState: states,
+        recordChildFailure: (error, operation) => causes.push({error, operation}),
         Gio: {DBus: {system: {}}, DBusProxy: {makeProxyWrapper(xml) {
             for (const property of ['Active', 'IdleHint', 'LockedHint'])
                 assert.ok(xml.includes(`property name="${property}" type="b" access="read"`));
@@ -66,7 +67,7 @@ function harness({hold = false, unavailable = false} = {}) {
         records.push(JSON.parse(diagnosticEnvelope(catalog, 'child.session-state',
             JSON.parse(JSON.stringify(fields)))));
     }, () => failures.push('failed'), login);
-    return {monitor, context, manager, mode, session, login, records, failures, timers,
+    return {monitor, context, manager, mode, session, login, records, failures, causes, timers,
         release: () => resolveSession(session),
         setOwner(value) { owner = value; session.emit('notify::g-name-owner'); },
         advance(seconds) { now += seconds; },
@@ -208,6 +209,7 @@ test('unavailable or late session discovery and partial startup leave no observe
     const missing = harness({unavailable: true});
     await missing.monitor.ready;
     assert.deepEqual(missing.failures, ['failed']);
+    assert.equal(missing.causes[0].operation, 'session-monitor-attach');
     const late = harness({hold: true});
     late.monitor.close();
     late.release();
@@ -220,6 +222,7 @@ test('unavailable or late session discovery and partial startup leave no observe
     await partial.monitor.ready;
     assert.equal(partial.manager.handlers.size, 0);
     assert.deepEqual(partial.failures, ['failed']);
+    assert.equal(partial.causes[0].operation, 'session-monitor-attach');
 });
 
 test('logging and property-read failures cannot escape into native signal dispatch', async () => {
@@ -231,7 +234,20 @@ test('logging and property-read failures cannot escape into native signal dispat
     h.session.get_name_owner = () => { throw new Error('PRIVATE'); };
     assert.doesNotThrow(() => h.session.emit('Unlock', ':1.42', []));
     assert.doesNotThrow(() => h.settle());
+    assert(h.causes.some(value => value.operation === 'session-monitor-observe'));
+    assert(h.causes.some(value => value.operation === 'session-monitor-signal'));
     h.monitor.close();
+});
+
+test('observer cleanup keeps the original disconnect failure and releases remaining owners', async () => {
+    const h = harness();
+    await h.monitor.ready;
+    const error = new TypeError('PRIVATE cleanup failure');
+    h.login.disconnect = () => { throw error; };
+    h.monitor.close();
+    assert(h.causes.some(value => value.error === error && value.operation === 'session-monitor-cleanup'));
+    assert.equal(h.manager.handlers.size, 0);
+    assert.equal(h.mode.handlers.size, 0);
 });
 
 test('extension failure and disable retire the observer independently of the indicator', async () => {

@@ -27,7 +27,7 @@ function signals(properties = {}) {
 // doubles. No live account, bus, display, setting, file write or subprocess.
 function harness() {
     let elapsed = 0, owner = ':1.42', sequence = 0, holdUnlock = false, failUnlock = false;
-    const idle = new Map(), timers = new Map(), records = [], failures = [], calls = [];
+    const idle = new Map(), timers = new Map(), records = [], failures = [], calls = [], causes = [];
     const nativeCallbacks = [];
     const manager = signals({state: states.LIMIT_REACHED, shouldLockSession: true,
         dailyLimitTime: 0, parentalControlsSessionLimitsEnabled: true,
@@ -52,7 +52,8 @@ function harness() {
             else complete();
         },
     });
-    const context = vm.createContext({TimeLimitsState: states, GLib: {
+    const context = vm.createContext({TimeLimitsState: states,
+        recordChildFailure: (error, operation) => causes.push({error, operation}), GLib: {
         get_monotonic_time: () => elapsed * 1000,
         idle_add(_priority, callback) { idle.set(++sequence, callback); return sequence; },
         timeout_add(_priority, delay, callback) {
@@ -70,7 +71,7 @@ function harness() {
             JSON.parse(JSON.stringify(fields))))), () => failures.push('unavailable'));
     const controller = create();
     return {context, create, controller, manager, mode, session, login, shield,
-        idle, timers, records, failures, calls,
+        idle, timers, records, failures, calls, causes,
         unlock(sender = owner) { session.emit('Unlock', sender, []); },
         active() { session.Active = true; session.IdleHint = false; session.emit('g-properties-changed'); },
         available() {
@@ -362,6 +363,7 @@ test('diagnostic exceptions do not prevent recovery, while native failures stop 
     assert.doesNotThrow(() => next.flush());
     assert.equal(next.records.at(-1).fields.stage, 'failed');
     assert.deepEqual(next.failures, ['unavailable']);
+    assert.equal(next.causes.at(-1).operation, 'unlock-dispatch');
     assert.equal(next.timers.size, 0);
     next.manager.emit('notify::state');
     next.flush();
@@ -396,6 +398,7 @@ test('shutdown and partial constructor failure release every owned connection an
     assert.equal(h.timers.size, 0);
     h.login.connect = () => { throw new Error('PRIVATE setup failure'); };
     assert.throws(() => h.create());
+    assert.equal(h.causes.at(-1).operation, 'unlock-startup');
     for (const object of [h.manager, h.mode, h.session, h.shield, h.login])
         assert.equal(object.handlers.size, 0);
 });

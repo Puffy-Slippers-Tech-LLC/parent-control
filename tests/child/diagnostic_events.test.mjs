@@ -61,6 +61,24 @@ test('timer failure diagnostics accept only reviewed categories and bounded stat
     assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.estimate-failed'));
 });
 
+test('failure diagnostics reject unreviewed provenance and private metadata', () => {
+    const examples = {
+        'child.failure': {operation: 'resume-refresh', error_type: 'GLib.Error', category: 'timeout'},
+        'child.resume-refresh-failed': {stage: 'record-usage', category: 'busy', active: true,
+            limit_enabled: true, failures: 1, retry: false, delay_ms: 0},
+    };
+    for (const [event, fields] of Object.entries(examples)) {
+        assert.doesNotThrow(() => diagnosticEnvelope(catalog, event, fields));
+        assert.throws(() => diagnosticEnvelope(catalog, event, {...fields, message: '/home/private'}));
+        for (const key of Object.keys(fields))
+            assert.throws(() => diagnosticEnvelope(catalog, event, {...fields, [key]: '/home/private'}));
+    }
+    for (const failures of [0, 0x80000000, Infinity])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.resume-refresh-failed', {
+            ...examples['child.resume-refresh-failed'], failures}));
+    assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.error'));
+});
+
 test('countdown diagnostics preserve operands without recording every tick or raw deadlines', () => {
     let now = 1_000_000;
     const logs = [];

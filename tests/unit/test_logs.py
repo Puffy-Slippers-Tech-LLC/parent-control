@@ -151,6 +151,55 @@ def test_unlock_continuation_decisions_survive_storage_and_export(tmp_path):
         assert [row["fields"] for row in retained] == observations
 
 
+def test_child_failure_and_frontend_transport_provenance_survive_customer_export(tmp_path):
+    from common.oh_no_parent_control_ui.diagnostic_report import read_report
+
+    observations = [
+        ("child", "WARNING", "child.resume-refresh-failed", dict(
+            stage="record-usage", category="timeout", active=True, limit_enabled=True,
+            failures=1, retry=False, delay_ms=0)),
+        ("child", "ERROR", "child.failure", dict(
+            operation="resume-refresh", error_type="GLib.Error", category="timeout")),
+        ("parent", "ERROR", "runtime.failure-gio", dict(depth=1, category="reboot-required")),
+        ("kiosk", "WARNING", "kiosk.agent-preparation-failed", dict(stage="restart-reply")),
+    ]
+    writer = DailyLogWriter(tmp_path)
+    for component, level, name, fields in observations:
+        writer.write(component, level, encode(event(name, fields)), source_uid=1098765)
+    with ZipFile(BytesIO(writer.snapshot())) as archive:
+        logs, _ = read_report(archive)
+        retained = {row["event"]: row["fields"] for rows in logs.values() for row in rows}
+        assert retained == {name: fields for _, _, name, fields in observations}
+        text = "".join(archive.read(name).decode() for name in archive.namelist())
+        assert "1098765" not in text
+        assert "placeholder RuntimeError" in text
+
+
+@pytest.mark.parametrize('component,name,fields', [
+    ('child', 'child.failure', dict(operation='unlock-dispatch', error_type='TypeError', category='other')),
+    ('kiosk', 'kiosk.logout-fallback', dict(stage='response-reply', outcome='failed', requested=True)),
+    ('child', 'kiosk-selection-store.failure', dict(
+        stage='replace', error_type='PermissionError', os_error='read-only')),
+])
+def test_native_recovery_and_local_fallback_evidence_survives_customer_export(
+        tmp_path, component, name, fields):
+    from common.oh_no_parent_control_ui.diagnostic_report import read_report
+
+    writer = DailyLogWriter(tmp_path)
+    writer.write(component, 'ERROR', encode(event(name, fields)), source_uid=1098765)
+    with ZipFile(BytesIO(writer.snapshot())) as archive:
+        logs, _ = read_report(archive)
+        retained = [row for rows in logs.values() for row in rows]
+        assert [(row['event'], row['fields']) for row in retained] == [(name, fields)]
+        text = ''.join(archive.read(path).decode() for path in archive.namelist())
+        assert '1098765' not in text
+    for key in fields:
+        with pytest.raises(ValueError):
+            event(name, dict(fields, **{key: 'PRIVATE /home/private'}))
+    with pytest.raises(ValueError):
+        event(name, dict(fields, message='PRIVATE'))
+
+
 @pytest.mark.parametrize("component,level,message", [
     ("unknown", "INFO", payload()), ("child", "NOTICE", payload()),
     ("child", "INFO", ""), ("child", "INFO", "private@example.test"),

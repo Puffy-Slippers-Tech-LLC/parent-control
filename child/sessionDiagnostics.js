@@ -2,6 +2,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
 import {TimeLimitsState} from 'resource:///org/gnome/shell/misc/timeLimitsManager.js';
+import {recordChildFailure} from './errorHandler.js';
 
 const SETTLE_MS = 1000;
 const UINT32_MAX = 4294967295;
@@ -32,10 +33,10 @@ export class SessionDiagnostics {
         this._attempt = 0;
         this._unlockStarted = null;
         this._timer = 0;
-        this.ready = this._attach(login).catch(() => {
+        this.ready = this._attach(login).catch(error => {
             if (!this._closed) {
                 this.close();
-                this._failed();
+                this._failed(error, 'session-monitor-attach');
             }
         });
     }
@@ -44,7 +45,7 @@ export class SessionDiagnostics {
         const safe = (...args) => {
             if (this._closed)
                 return;
-            try { callback(...args); } catch (_error) { this._failed(); }
+            try { callback(...args); } catch (error) { this._failed(error, 'session-monitor-signal'); }
         };
         const id = dbus ? object.connectSignal(signal, safe) : object.connect(signal, safe);
         this._disconnect.push(() => dbus ? object.disconnectSignal(id) : object.disconnect(id));
@@ -131,12 +132,13 @@ export class SessionDiagnostics {
                 native_remaining: Number.isFinite(remaining)
                     ? Math.max(0, Math.min(UINT32_MAX, Math.ceil(remaining))) : 0,
                 elapsed_ms: Math.max(0, Math.min(UINT32_MAX, Math.floor(elapsed)))});
-        } catch (_error) {
-            this._failed();
+        } catch (error) {
+            this._failed(error, 'session-monitor-observe');
         }
     }
 
-    _failed() {
+    _failed(error, operation) {
+        recordChildFailure(error, operation);
         try { this._failure(); } catch (_error) { /* diagnostics only */ }
     }
 
@@ -151,7 +153,9 @@ export class SessionDiagnostics {
         this._closed = true;
         this._cancelObservation();
         for (const disconnect of this._disconnect.splice(0).reverse()) {
-            try { disconnect(); } catch (_error) { /* finish owned cleanup */ }
+            try { disconnect(); } catch (error) {
+                recordChildFailure(error, 'session-monitor-cleanup');
+            }
         }
     }
 }

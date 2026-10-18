@@ -213,6 +213,7 @@ class ErrorHandler:
             return self._dialog
         except Exception as error:
             # Reporting failures cannot recursively trigger another reporter.
+            record_exception(error)
             LOG.warning("errors.002", component=self.component, error_type=error_code(error))
             self._dialog = None
             from gi.repository import Gtk
@@ -302,11 +303,13 @@ def install_exception_hooks(application, component):
             else:
                 try:
                     window._show_error(error)
-                except Exception:
+                except Exception as caught:
                     # A partially constructed window may not have its public
                     # error surface yet. Keep startup failures reviewable.
+                    record_exception(caught)
                     show_startup_error(application, component, error)
         except Exception as caught:
+            record_exception(caught)
             LOG.warning("errors.003", error_type=error_code(caught))
         finally:
             with lock:
@@ -318,9 +321,15 @@ def install_exception_hooks(application, component):
         if issubclass(kind, (SystemExit, KeyboardInterrupt)):
             return
         with lock:
-            if pending or stopped:
+            if stopped:
                 return
+            coalesced = pending
             pending = True
+        # Retain the original even if UI delivery or its fallback also fails.
+        # Coalescing windows must not discard a second worker's cause.
+        record_exception(error)
+        if coalesced:
+            return
         GLib.idle_add(deliver, error)
 
     def thread_uncaught(args):

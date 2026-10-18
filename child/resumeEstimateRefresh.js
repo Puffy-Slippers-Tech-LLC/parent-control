@@ -2,6 +2,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 import {queryEstimatedTimes, replayOwnUsage, timerErrorCategory} from './timerQuery.js';
+import {logWarning} from './logger.js';
 
 // GNOME 50 retains its parental-controls wall-clock deadline across inactivity.
 // Its public dailyLimitTime getter is zero while inactive. Refresh that cache
@@ -60,12 +61,15 @@ export class ResumeEstimateRefresh {
         this.cancellable = cancellable;
         let delay = 1000;
         let retry = false;
+        let stage = 'usage-queue';
         try {
-            const replayed = await replayOwnUsage(cancellable);
+            const replayed = await replayOwnUsage(cancellable, value => { stage = value; });
             if (cancellable.is_cancelled()) return;
             if (replayed) {
+                stage = 'timer-estimate';
                 const estimates = await queryEstimatedTimes();
                 if (cancellable.is_cancelled()) return;
+                stage = 'estimate-processing';
                 const remaining = Number(estimates['']?.[2]) - GLib.get_real_time() / 1_000_000;
                 // Refresh before an idle cached deadline expires. Use subsecond
                 // scheduling near exhaustion, accounting for fractional time.
@@ -80,12 +84,21 @@ export class ResumeEstimateRefresh {
         } catch (error) {
             if (cancellable.is_cancelled()) return;
             this.failures++;
+            const category = timerErrorCategory(error);
             const transient = ['busy', 'no-reply', 'no-owner', 'service-unknown', 'timeout']
-                .includes(timerErrorCategory(error));
+                .includes(category);
             // Never replay late retries during active use: they would omit
             // ongoing, uncheckpointed usage and extend the native deadline.
             retry = transient && !this.active;
             delay = Math.min(60_000, 1000 * 2 ** Math.min(this.failures - 1, 6));
+            try {
+                logWarning('child.resume-refresh-failed', {
+                    stage, category, active: Boolean(this.active),
+                    limit_enabled: Boolean(this.enabled),
+                    failures: Math.min(0x7fffffff, this.failures), retry,
+                    delay_ms: retry ? delay : 0,
+                });
+            } catch (_error) { /* preserve retry and error-report behavior */ }
             if (!retry || this.failures >= 3) this.report(error);
         } finally {
             this.pending = false;

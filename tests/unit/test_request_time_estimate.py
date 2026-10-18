@@ -357,7 +357,7 @@ def test_agent_deadline_ignores_late_restart_reply_after_close(tmp_path):
 
 
 @pytest.mark.parametrize('failure', ('failed', 'timeout'))
-def test_agent_failed_locale_change_invalidates_previously_applied_settings(tmp_path, failure):
+def test_agent_failed_locale_change_invalidates_previously_applied_settings(tmp_path, failure, caplog):
     agent = KioskAgentLocale()
     agent._locales = ('en_US.utf8',)
     agent._applied = agent_environment('en', '', agent._locales)
@@ -372,6 +372,15 @@ def test_agent_failed_locale_change_invalidates_previously_applied_settings(tmp_
         else:
             agent._completed('failed')
         assert done.call_args.args[0] is not None
+        from common.oh_no_parent_control_ui.diagnostic_events import decode
+        observations = [decode(record.onpc_payload) for record in caplog.records]
+        assert any(value['event'] == 'kiosk.agent-preparation-failed' and value['fields'] == {
+            'stage': 'timeout' if failure == 'timeout' else 'job-result'} for value in observations)
+        if failure == 'failed':
+            assert any(value['event'] == 'kiosk.agent-job-failed' and value['fields'] == {
+                'result': 'failed'} for value in observations)
+        assert str(tmp_path) not in caplog.text
+        assert 'zh-Hans' not in caplog.text
         bus.reset_mock()
         agent.prepare('en', '', done)
         assert bus.call.call_args.args[3] == 'RestartUnit'
@@ -566,7 +575,7 @@ def test_kiosk_logout_prepares_without_exiting_and_keeps_click_deadline(during_r
 
 
 @pytest.mark.parametrize('failure', ['missing-bus', 'register', 'logout', 'timeout', 'closed'])
-def test_kiosk_logout_falls_back_once_and_ignores_late_replies(failure):
+def test_kiosk_logout_falls_back_once_and_ignores_late_replies(failure, caplog):
     from gi.repository import GLib
     app, connection = Mock(), Mock()
     app.get_dbus_connection.return_value = None if failure == 'missing-bus' else connection
@@ -582,18 +591,74 @@ def test_kiosk_logout_falls_back_once_and_ignores_late_replies(failure):
             elif failure == 'timeout':
                 logout._expired()
             elif failure == 'register':
-                connection.call_finish.side_effect = RuntimeError('unavailable')
+                connection.call_finish.side_effect = RuntimeError('PRIVATE unavailable')
                 registered(connection, object())
             else:
                 connection.call_finish.return_value = GLib.Variant('(o)', ('/client/station',))
                 registered(connection, object())
-                connection.call_finish.side_effect = RuntimeError('unavailable')
+                connection.call_finish.side_effect = RuntimeError('PRIVATE unavailable')
                 connection.call.call_args.args[-1](connection, object())
             connection.call_finish.reset_mock()
             registered(connection, object())
             connection.call_finish.assert_not_called()
         assert app.quit.call_count == (0 if failure == 'closed' else 1)
+        from common.oh_no_parent_control_ui.diagnostic_events import decode
+        observations = [decode(record.onpc_payload)['fields'] for record in caplog.records
+                        if decode(record.onpc_payload)['event'] == 'kiosk.logout-fallback']
+        expected = {
+            'missing-bus': ('connection', 'unavailable'), 'register': ('register-reply', 'failed'),
+            'logout': ('logout-reply', 'failed'), 'timeout': ('deadline', 'timeout'),
+        }
+        assert observations == ([] if failure == 'closed' else [dict(
+            stage=expected[failure][0], outcome=expected[failure][1], requested=True)])
+        assert 'PRIVATE' not in caplog.text
+        assert '/client/station' not in caplog.text
         logout.close()
+
+
+@pytest.mark.parametrize('stage', ['register-dispatch', 'response-dispatch', 'response-reply'])
+def test_kiosk_logout_dispatch_and_acknowledgement_failures_keep_transport_cause(stage, caplog):
+    from gi.repository import Gio, GLib
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    app, connection = Mock(), Mock()
+    app.get_dbus_connection.return_value = connection
+    app.get_application_id.return_value = 'PRIVATE-app'
+    logout = KioskLogout(app)
+    error = Gio.DBusError.new_for_dbus_error('org.freedesktop.DBus.Error.NoReply', 'PRIVATE session')
+    with (patch('oh_no_parent_control_kiosk.session_logout.GLib.timeout_add', return_value=42),
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.source_remove')):
+        if stage == 'register-dispatch':
+            connection.call.side_effect = error
+        logout.begin()
+        if stage != 'register-dispatch':
+            connection.call_finish.return_value = GLib.Variant('(o)', ('/PRIVATE/client',))
+            connection.call.call_args.args[-1](connection, object())
+            if stage == 'response-dispatch':
+                connection.call.side_effect = error
+            logout._signal(connection, None, None, None, 'EndSession', None)
+            if stage == 'response-reply':
+                connection.call_finish.side_effect = error
+                connection.call.call_args.args[-1](connection, object())
+        app.quit.assert_called_once()
+        observations = [decode(record.onpc_payload) for record in caplog.records]
+        assert any(value['event'] == 'kiosk.logout-fallback' and value['fields'] == {
+            'stage': stage, 'outcome': 'failed', 'requested': True} for value in observations)
+        assert any(value['event'] == 'runtime.failure-gio' and value['fields']['category'] == 'no-reply'
+                   for value in observations)
+        assert 'PRIVATE' not in caplog.text
+
+
+def test_logout_logging_failure_does_not_prevent_deadline_fallback():
+    app = Mock(get_dbus_connection=Mock(return_value=None))
+    logout = KioskLogout(app)
+    with (patch('oh_no_parent_control_kiosk.session_logout.LOG.warning', side_effect=RuntimeError('PRIVATE')),
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.timeout_add', return_value=42),
+          patch('oh_no_parent_control_kiosk.session_logout.GLib.source_remove')):
+        logout.begin()
+        app.quit.assert_called_once()
+        logout._expired()
+        app.quit.assert_called_once()
 
 
 def reply(window, seconds=1200, error=None):

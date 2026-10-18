@@ -152,7 +152,12 @@ class ParentClientTests(unittest.TestCase):
 
                 self.assertIs(caught.exception, error)
                 self.assertEqual(len(connection.calls), 1)
-                self.assertIn("time-status stage=broker outcome=failed", logs.output[0])
+                self.assertTrue(any("time-status stage=broker outcome=failed" in line
+                                    for line in logs.output))
+                self.assertTrue(any("Broker call failed method=GetTimeStatus" in line
+                                    for line in logs.output))
+                self.assertTrue(any(f"category={'access-denied' if name == 'AccessDenied' else 'backend-failure'}"
+                                    in line for line in logs.output))
                 self.assertNotIn("private-account-detail", "\n".join(logs.output))
                 self.assertNotIn("1001", "\n".join(logs.output))
 

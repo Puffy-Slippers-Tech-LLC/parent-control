@@ -1,6 +1,9 @@
 """Cooperate with GNOME's public logout protocol before exiting the station."""
 
 from gi.repository import Gio, GLib
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, record_exception
+
+LOG = get_logger('kiosk')
 
 NAME = 'org.gnome.SessionManager'
 PATH = '/org/gnome/SessionManager'
@@ -23,13 +26,15 @@ class KioskLogout:
         try:
             self._connection = self._application.get_dbus_connection()
             if self._connection is None:
+                self._record('connection', 'unavailable')
                 if self._started:
                     self._finish()
                 return
             self._registering = True
             self._call(PATH, NAME, 'RegisterClient', GLib.Variant('(ss)', (
                 self._application.get_application_id(), '')), '(o)', self._registered)
-        except Exception:
+        except Exception as error:
+            self._record('register-dispatch', 'failed', error)
             self._registering = False
             if self._started:
                 self._finish()
@@ -65,15 +70,17 @@ class KioskLogout:
             # query timer before it can return the display to GDM.
             if self._started:
                 self._request_logout()
-        except Exception:
+        except Exception as error:
+            self._record('register-reply', 'failed', error)
             if self._started:
                 self._finish()
 
     def _request_logout(self):
         try:
             self._call(PATH, NAME, 'Logout', GLib.Variant('(u)', (2,)),
-                       '()', self._reply)
-        except Exception:
+                       '()', lambda connection, result: self._reply(connection, result, 'logout-reply'))
+        except Exception as error:
+            self._record('logout-dispatch', 'failed', error)
             self._finish()
 
     def _signal(self, _connection, _sender, _path, _interface, signal, _parameters):
@@ -84,21 +91,36 @@ class KioskLogout:
         elif signal in ('QueryEndSession', 'EndSession'):
             try:
                 self._call(self._client, CLIENT, 'EndSessionResponse',
-                           GLib.Variant('(bs)', (True, '')), '()', self._reply)
-            except Exception:
+                           GLib.Variant('(bs)', (True, '')), '()',
+                           lambda connection, result: self._reply(connection, result, 'response-reply'))
+            except Exception as error:
+                self._record('response-dispatch', 'failed', error)
                 self._finish()
 
-    def _reply(self, connection, result):
+    def _reply(self, connection, result, stage):
         if not self._closed:
             try:
                 connection.call_finish(result)
-            except Exception:
+            except Exception as error:
+                self._record(stage, 'failed', error)
                 self._finish()
 
     def _expired(self):
         self._deadline = 0
+        if not self._closed:
+            self._record('deadline', 'timeout')
         self._finish()
         return GLib.SOURCE_REMOVE
+
+    def _record(self, stage, outcome, error=None):
+        try:
+            LOG.warning('kiosk.logout-fallback', stage=stage, outcome=outcome,
+                        requested=self._started)
+            if error is not None:
+                record_exception(error)
+        except Exception:
+            # Logging cannot delay the existing 750 ms fallback or logout.
+            pass
 
     def _finish(self):
         if not self._closed:

@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 
 function harness() {
-    const events = [], handlers = new Map();
+    const events = [], handlers = new Map(), causes = [];
     let sequence = 0, surface = null, grab = {}, notifyFailure = false;
     const mode = {isLocked: true, isGreeter: false};
     const device = {get_capabilities: () => 1};
@@ -34,6 +34,7 @@ function harness() {
         },
     };
     const context = vm.createContext({Clutter: {InputCapabilities: {KEYBOARD: 1}},
+        recordChildFailure: (error, operation) => causes.push({error, operation}),
         Extension: class {}, ChildErrorHandler: class { report() {} close() {} },
         logInfo() {}, logWarning() {}, LockedSessionFocus: null});
     vm.runInContext(readFileSync(new URL('../../child/lockedSessionFocus.js', import.meta.url), 'utf8')
@@ -42,7 +43,7 @@ function harness() {
     const observed = [];
     const create = () => new context.LockedSessionFocus(seat, stage, mode,
         outcome => observed.push(outcome));
-    return {context, create, controller: create(), seat, stage, mode, events, observed, handlers,
+    return {context, create, controller: create(), seat, stage, mode, events, observed, handlers, causes,
         get surface() { return surface; },
         setGrab: value => { grab = value; }, failNotify: value => { notifyFailure = value; }};
 }
@@ -95,6 +96,8 @@ test('notification failure releases the guard and emits only a closed outcome', 
     h.failNotify(false);
     h.seat.emit();
     assert.deepEqual(h.observed, ['failed', 'complete']);
+    assert.equal(h.causes.length, 1);
+    assert.equal(h.causes[0].operation, 'locked-focus');
     const catalog = JSON.parse(readFileSync(new URL(
         '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
     for (const outcome of h.observed) {

@@ -204,6 +204,40 @@ def test_unwritable_state_is_nonfatal_and_logs_no_identity(tmp_path, caplog):
     assert "could not be saved" in caplog.text
     assert "1234567" not in caplog.text
     assert str(path) not in caplog.text
+    assert 'stage=directory' in caplog.text and 'os_error=not-directory' in caplog.text
+
+
+@pytest.mark.parametrize('stage,reason', [('read', 'permission-denied'), ('decode', 'none'),
+                                        ('write', 'resource-limit'), ('replace', 'read-only')])
+def test_selector_persistence_failures_distinguish_stage_without_contents_or_identity(
+        tmp_path, monkeypatch, caplog, stage, reason):
+    import errno
+    from pathlib import Path
+    from oh_no_parent_control_kiosk import selection_store
+
+    path = tmp_path / 'PRIVATE-selections.json'
+    private = 'PRIVATE content and account'
+    if stage == 'decode':
+        path.write_text(private)
+    elif stage == 'read':
+        def read_failed(*_args, **_kwargs):
+            raise PermissionError(errno.EACCES, private, str(path))
+        monkeypatch.setattr(Path, 'read_text', read_failed)
+    store = SelectionStore(path)
+    if stage in ('write', 'replace'):
+        def save_failed(*_args, **_kwargs):
+            raise OSError(errno.ENOSPC if stage == 'write' else errno.EROFS, private, str(path))
+        if stage == 'write':
+            monkeypatch.setattr(selection_store.tempfile, 'NamedTemporaryFile', save_failed)
+        else:
+            monkeypatch.setattr(selection_store.os, 'replace', save_failed)
+        store.remember('approver_uid', 1234567)
+        assert store.preferred('approver_uid') == 1234567
+    fields = [decode(record.onpc_payload)['fields'] for record in caplog.records
+              if decode(record.onpc_payload)['event'] == 'kiosk-selection-store.failure']
+    assert len(fields) == 1 and fields[0]['stage'] == stage and fields[0]['os_error'] == reason
+    assert str(path) not in caplog.text and private not in caplog.text
+    assert '1234567' not in caplog.text
 
 
 def diagnostic_window(overlay):

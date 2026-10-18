@@ -3,17 +3,23 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import {busyRetryDelay} from '../../child/indicatorLogic.mjs';
+import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
+
+const catalog = JSON.parse(readFileSync(new URL(
+    '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
 
 // Exercise the real timer client and controller together. Each case owns its
 // fake bus, usage history, clock, signals and timers; no live/shared resources.
 function harness({active = true, records = [[20, 40]], remaining = 100, now = 100} = {}) {
     const calls = [];
     const reports = [];
+    const logs = [];
     const timers = new Map();
     const deferred = [];
     let nextTimer = 0;
     let hold = false;
     let failure = null;
+    let failureMethod = null;
     const manager = {
         parentalControlsSessionLimitsEnabled: true, dailyLimitTime: active ? 200 : 0,
         handlers: new Map(), nextId: 0,
@@ -32,7 +38,10 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
         matches(_domain, code) { return code === failure; }
     }
     const context = vm.createContext({
-        busyRetryDelay, logInfo() {}, logWarning() {},
+        busyRetryDelay, logInfo() {}, logWarning(event, fields) {
+            logs.push(JSON.parse(diagnosticEnvelope(catalog, event,
+                JSON.parse(JSON.stringify(fields)))));
+        },
         GLib: {
             Error: BusError,
             Variant: class { constructor(type, value) { Object.assign(this, {type, value}); } },
@@ -57,7 +66,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
             DBus: {system: {call(...args) {
                 calls.push(args);
                 const finish = () => args.at(-1)({call_finish() {
-                    if (failure) throw new BusError();
+                    if (failure && (!failureMethod || failureMethod === args[3])) throw new BusError();
                     if (args[3] === 'RecordUsage') manager.emit();
                     return {deepUnpack: () => args[3] === 'QueryUsage' ? [records]
                         : args[3] === 'GetEstimatedTimes' ? [Math.floor(now), {'': [false, 0, Math.floor(now) + remaining]}]
@@ -73,10 +82,10 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
             .replace(/^import[\s\S]*?;\n/gm, '').replace(/^export /gm, '')
             .replace('class ResumeEstimateRefresh', 'globalThis.ResumeEstimateRefresh = class'), context);
     const bridge = new context.ResumeEstimateRefresh(manager, error => reports.push(error));
-    return {bridge, calls, reports, timers, manager, records,
+    return {bridge, calls, reports, logs, timers, manager, records,
         query: context.queryEstimatedTimes,
         setRemaining: value => { remaining = value; },
-        setFailure: value => { failure = value; },
+        setFailure: (value, method = null) => { failure = value; failureMethod = method; },
         setHold: value => { hold = value; },
         release: () => deferred.splice(0).forEach(finish => finish()),
         activity(active) { manager.dailyLimitTime = active ? now + remaining : 0; manager.emit(); },
@@ -276,6 +285,11 @@ test('idle transient failures back off; denial and resume failures never replay 
     assert.equal([...idle.timers.values()][0].delay, 2000);
     idle.tick(); await settle();
     assert.equal(idle.reports.length, 1);
+    assert.deepEqual(idle.logs.filter(log => log.event === 'child.resume-refresh-failed')
+        .map(log => log.fields), [1, 2, 3].map(failures => ({
+            stage: 'query-usage', category: 'no-reply', active: false,
+            limit_enabled: true, failures, retry: true, delay_ms: 1000 * 2 ** (failures - 1),
+        })));
     idle.activity(true);
     await settle();
     assert.equal(idle.timers.size, 0);
@@ -289,4 +303,24 @@ test('idle transient failures back off; denial and resume failures never replay 
     assert.equal(denied.timers.size, 0);
     assert.equal(denied.reports.length, 1);
     denied.bridge.close();
+});
+
+test('resume diagnostics identify the failing timer operation without recording usage or identity', async () => {
+    for (const [method, stage] of [['QueryUsage', 'query-usage'], ['RecordUsage', 'record-usage'],
+        ['GetEstimatedTimes', 'timer-estimate']]) {
+        const h = harness({remaining: 0});
+        h.activity(false);
+        await settle();
+        h.setFailure('ACCESS_DENIED', method);
+        h.activity(true);
+        await settle();
+        const failure = h.logs.find(log => log.event === 'child.resume-refresh-failed');
+        assert.deepEqual(failure.fields, {stage, category: 'access-denied', active: true,
+            limit_enabled: true, failures: 1, retry: false, delay_ms: 0});
+        assert.equal(h.reports.length, 1);
+        assert.equal(h.timers.size, 0, 'diagnostics must not enable late active usage replays');
+        assert(!JSON.stringify(h.logs).includes('1003'));
+        assert(!JSON.stringify(h.logs).includes('login-session'));
+        h.bridge.close();
+    }
 });

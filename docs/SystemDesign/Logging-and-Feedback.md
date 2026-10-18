@@ -89,6 +89,13 @@ session, bus-owner or device identifiers, passwords, raw deadlines or error text
 It never performs a lock/unlock or changes a hint, policy or native state.
 
 `child.session-monitor-failed` explicitly reports unavailable observation.
+`child.failure` retains the built-in exception type and reviewed error category
+with separate session-monitor attach, signal, observation and cleanup operation
+labels. Unlock continuation similarly distinguishes startup, signal handling,
+native dispatch, observation and cleanup; locked keyboard-focus recovery records
+its own operation. These optional helpers use the shared diagnostic projection
+without opening an error report, exposing session/device identities or changing
+native admission. A diagnostic transport failure remains isolated.
 Observer failures cannot interrupt native signal dispatch or child enforcement;
 all connections and the timer are retired on failed startup and disable. The
 additive catalogue ships with the child and broker. A child session renewal loads
@@ -414,6 +421,55 @@ No saved-data migration
 or portal change is required.
 
 ### Investigation coverage
+
+Child failures emit `child.failure` before launching the reporting window,
+including failures received while that window is already open. Call sites own
+closed operation labels for startup, language, reminders, Wellbeing, countdown,
+session preparation/locking and request/report subprocesses. Only built-in
+exception types and reviewed Gio/broker error categories leave the extension;
+messages, stacks, paths, arbitrary remote names and request arguments do not.
+The reporting window's separate empty `RuntimeError` is a placeholder, not the
+original child exception. `child.process-exit` distinguishes an abnormal request
+or reporter exit from a successful wait/communication; it records only the fixed
+process role, exit/signal kind and bounded code (256 means unavailable). Owned
+shutdown does not report its deliberately stopped process as a new failure.
+
+`child.resume-refresh-failed` identifies queueing, usage query, record selection,
+usage replay, estimate query or estimate processing, with the fixed error
+category, observed native activity/limit booleans, consecutive failure count and
+retry decision/delay. It adds no query or usage write and preserves cancellation,
+backoff and the prohibition on late active-use replays. No usage intervals, UID,
+native deadline or record contents enter diagnostics. Existing session
+observations supply sleep/wake and lock context independently.
+
+Python cause-chain recording adds `runtime.failure-gio` at each recognized
+Gio cause depth, distinguishing transport failures and explicit broker refusals
+such as reboot-required or backend-failure. Parent broker calls also record the
+reviewed method name without arguments. GTK exception hooks retain original and
+coalesced worker/callback failures before UI delivery, plus failures in error
+presentation and its fallback. Kiosk authentication-agent preparation records
+the failed stage and reviewed systemd job result, including speculative warm-up
+failures; environment values, languages and job identities remain excluded.
+These observations preserve existing error/retry behavior. The additive
+catalogue ships with all validators; broker restart, child session renewal and
+frontend relaunch load the respective changes. No saved-data migration is needed.
+
+`kiosk.logout-fallback` records the failed session-manager handoff stage, fixed
+failure/unavailable/timeout outcome and whether exit was requested. It separates
+idle registration from an exit attempt and distinguishes registration, logout,
+end-session acknowledgement and the existing 750 ms deadline. Exception paths
+retain the ordinary privacy-safe Python cause/Gio details. It records no client
+path, application/session identity or response payload, opens no new error UI,
+and does not claim that the fallback returned the display to the sign-in screen.
+Closed helpers ignore late replies and do not emit a new deadline failure.
+
+`kiosk-selection-store.failure` distinguishes local-selector read, JSON decode,
+directory creation, temporary write and atomic replacement failures. It retains
+only the reviewed exception type and OS error category, including permission,
+storage exhaustion, read-only storage and directory/file shape mismatches.
+Missing files remain ordinary first-run state. No remembered UID, selector-file
+path, JSON content or temporary filename enters diagnostics; the existing
+nonfatal in-memory fallback and persistence/cleanup behavior are unchanged.
 
 The child records anonymous logical display dimensions, geometry scale, Shell
 theme scale and text scale at extension startup and display configuration changes.

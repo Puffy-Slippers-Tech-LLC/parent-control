@@ -8,6 +8,9 @@ import subprocess
 from gi.repository import Gio, GLib
 
 from common.oh_no_parent_control_ui.languages import selected_language, supported_language
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, record_exception
+
+LOG = get_logger('kiosk')
 
 UNIT = 'oh-no-parent-control-polkit-agent.service'
 NAME = 'org.freedesktop.systemd1'
@@ -65,12 +68,14 @@ class KioskAgentLocale:
         self._revision = 0
         self._locales = None
         self._queue = []
+        self._stage = 'environment'
 
     def prepare(self, language, desktop_language, done):
         """Complete the agent restart before dispatching an approval request."""
         try:
             environment = self._environment(language, desktop_language)
         except Exception as error:
+            self._record_failure(error, 'environment')
             done(error)
             return
         self._queue.append((environment, done))
@@ -85,7 +90,8 @@ class KioskAgentLocale:
         """
         try:
             environment = self._environment(language, desktop_language)
-        except Exception:
+        except Exception as error:
+            self._record_failure(error, 'environment')
             return
         self._queue = [(value, done) for value, done in self._queue if done is not None]
         self._queue.append((environment, None))
@@ -115,11 +121,14 @@ class KioskAgentLocale:
         self._job = None
         self._results = {}
         try:
+            self._stage = 'environment-write'
             directory = Path(GLib.get_user_runtime_dir()) / 'oh-no-parent-control'
             directory.mkdir(mode=0o700, exist_ok=True)
             Gio.File.new_for_path(str(directory / 'polkit-agent.env')).replace_contents(
                 environment.encode('ascii'), None, False, Gio.FileCreateFlags.PRIVATE, None)
+            self._stage = 'bus-connect'
             self._connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            self._stage = 'job-subscribe'
             self._subscription = self._connection.signal_subscribe(
                 NAME, INTERFACE, 'JobRemoved', PATH, None, Gio.DBusSignalFlags.NONE,
                 lambda *args: self._job_removed(*args) if revision == self._revision else None)
@@ -129,6 +138,7 @@ class KioskAgentLocale:
                 if self._done is None or revision != self._revision:
                     return
                 try:
+                    self._stage = 'restart-reply'
                     self._job, = connection.call_finish(result).unpack()
                 except Exception as error:
                     self._finish(error)
@@ -137,6 +147,7 @@ class KioskAgentLocale:
                     self._completed(self._results[self._job])
 
             self._pending_environment = environment
+            self._stage = 'restart-dispatch'
             self._connection.call(
                 NAME, PATH, INTERFACE, 'RestartUnit', GLib.Variant('(ss)', (UNIT, 'replace')),
                 GLib.VariantType.new('(o)'), Gio.DBusCallFlags.NONE, 30_000, None, restarted)
@@ -157,19 +168,29 @@ class KioskAgentLocale:
             self._applied = self._pending_environment
             self._finish(None)
         else:
+            LOG.warning('kiosk.agent-job-failed', result=result)
+            self._stage = 'job-result'
             self._finish(RuntimeError('kiosk authentication agent restart failed'))
 
     def _timed_out(self):
         self._deadline = 0
+        self._stage = 'timeout'
         self._finish(TimeoutError('kiosk authentication agent restart timed out'))
         return GLib.SOURCE_REMOVE
 
     def _finish(self, error):
+        if error is not None:
+            self._record_failure(error, self._stage)
         done, self._done = self._done, None
         self._clear_sources()
         if done is not None:
             done(error)
         self._advance()
+
+    @staticmethod
+    def _record_failure(error, stage):
+        LOG.warning('kiosk.agent-preparation-failed', stage=stage)
+        record_exception(error)
 
     def close(self):
         self._done = None

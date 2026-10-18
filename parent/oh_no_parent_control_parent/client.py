@@ -3,7 +3,7 @@
 import json
 import logging
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
-from common.oh_no_parent_control_ui.diagnostic_events import record_payload
+from common.oh_no_parent_control_ui.diagnostic_events import record_payload, record_exception, gio_error_category
 from common.oh_no_parent_control_ui.errors import broker_reboot_required
 
 import gi
@@ -28,11 +28,17 @@ class BrokerClient:
         self.connection = connection or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
 
     def _call(self, method, parameters, signature):
-        result = self.connection.call_sync(
-            BUS_NAME, OBJECT_PATH, INTERFACE, method, parameters,
-            GLib.VariantType.new(signature), Gio.DBusCallFlags.NONE, 120_000, None,
-        )
-        return result.unpack()
+        try:
+            result = self.connection.call_sync(
+                BUS_NAME, OBJECT_PATH, INTERFACE, method, parameters,
+                GLib.VariantType.new(signature), Gio.DBusCallFlags.NONE, 120_000, None,
+            )
+            return result.unpack()
+        except Exception as error:
+            LOG.warning("parent-client.call-failed", method=method,
+                        error_type=error_code(error), category=gio_error_category(error))
+            record_exception(error)
+            raise
 
     def list_users(self):
         users, = self._call("ListManagedUsers", None, "(a(uss))")

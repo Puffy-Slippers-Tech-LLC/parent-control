@@ -57,19 +57,22 @@ export function queryEstimatedTimes() {
 // Replaying a returned interval is idempotent: Malcontent merges overlapping
 // records. Its public EstimatedTimesChanged signal also refreshes GNOME's cache.
 // Query as the actual child; never create an interval or send an empty record.
-export function replayOwnUsage(cancellable) {
+export function replayOwnUsage(cancellable, observeStage = () => {}) {
     return enqueue(async () => {
         if (cancellable.is_cancelled()) return false;
+        observeStage('query-usage');
         const uid = Gio.Credentials.new().get_unix_user();
         const [records] = await callTimer('org.freedesktop.MalcontentTimer1.Parent',
             'QueryUsage', new GLib.Variant('(uss)', [uid, 'login-session', '']),
             '(a(tt))', CALL_TIMEOUT_MS, cancellable);
         if (cancellable.is_cancelled()) return false;
+        observeStage('select-record');
         const now = Math.floor(GLib.get_real_time() / 1_000_000);
         const record = records.findLast(([start, end]) =>
             Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
             start >= 0 && end >= start && end <= now);
         if (!record) return false;
+        observeStage('record-usage');
         await callTimer(INTERFACE, 'RecordUsage', new GLib.Variant('(a(ttss))',
             [[[record[0], record[1], 'login-session', '']]]), '()', CALL_TIMEOUT_MS, cancellable);
         return true;

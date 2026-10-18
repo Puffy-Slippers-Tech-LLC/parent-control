@@ -69,7 +69,7 @@ export class RemainingTimeNotifications {
                     this.changed();
                 } catch (error) {
                     // Preserve the last saved configuration on read failure.
-                    this.onError?.(error);
+                    this.onError?.(error, 'reminder-settings');
                 }
             });
     }
@@ -99,7 +99,7 @@ export class RemainingTimeNotifications {
         } catch (error) {
             // Notification failures must never interrupt countdown or locking.
             this.clear();
-            this.onError?.(error);
+            this.onError?.(error, 'reminder-render');
         }
     }
 
@@ -137,7 +137,7 @@ export class RemainingTimeNotifications {
                 try {
                     [allowSoftApps] = connection.call_finish(result).deep_unpack();
                 } catch (error) {
-                    this.onError?.(error);
+                    this.onError?.(error, 'reminder-policy');
                 }
                 try {
                     if (current) {
@@ -150,7 +150,7 @@ export class RemainingTimeNotifications {
                     }
                 } catch (error) {
                     this.clear();
-                    this.onError?.(error);
+                    this.onError?.(error, 'reminder-render');
                 }
             });
     }

@@ -732,6 +732,46 @@ def test_fault_locations_do_not_use_traceback_paths_or_unknown_modules(caplog):
     assert SECRET not in caplog.text
 
 
+@pytest.mark.parametrize("remote,category", [
+    ("org.freedesktop.DBus.Error.NoReply", "no-reply"),
+    ("org.freedesktop.DBus.Error.ServiceUnknown", "service-unknown"),
+    ("org.freedesktop.MalcontentTimer1.Error.Busy", "busy"),
+    ("com.puffyslippers.OhNoParentControl1.Error.RebootRequired", "reboot-required"),
+    ("com.puffyslippers.OhNoParentControl1.Error.BackendFailure", "backend-failure"),
+    ("com.puffyslippers.OhNoParentControl1.Error.AccessDenied", "access-denied"),
+    ("private.remote.Error", "other"),
+])
+def test_gio_failure_categories_preserve_cause_depth_without_remote_text(caplog, remote, category):
+    from gi.repository import Gio
+
+    cause = Gio.DBusError.new_for_dbus_error(remote, SECRET)
+    wrapped = RuntimeError(SECRET)
+    wrapped.__cause__ = cause
+    events.record_exception(wrapped)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    details = [value["fields"] for value in decoded if value["event"] == "runtime.failure-gio"]
+    assert details == ([] if category == "other" else [{"depth": 1, "category": category}])
+    assert decoded[-1]["event"] == "runtime.fault"
+    assert SECRET not in caplog.text
+    assert remote not in caplog.text
+
+
+@pytest.mark.parametrize("name,category", [
+    ("TIMED_OUT", "timeout"), ("CANCELLED", "cancelled"),
+    ("PERMISSION_DENIED", "access-denied"), ("NOT_FOUND", "not-found"),
+    ("NO_SPACE", "resource-limit"), ("READ_ONLY", "read-only"),
+])
+def test_gio_io_failure_categories_do_not_read_message_or_path(caplog, name, category):
+    from gi.repository import Gio, GLib
+
+    error = GLib.Error.new_literal(Gio.io_error_quark(), SECRET, getattr(Gio.IOErrorEnum, name))
+    events.record_exception(error)
+    decoded = [events.decode(record.onpc_payload) for record in caplog.records]
+    assert any(value["event"] == "runtime.failure-gio" and value["fields"] == {
+        "depth": 0, "category": category} for value in decoded)
+    assert SECRET not in caplog.text
+
+
 def test_noop_write_cannot_explain_a_later_external_change(caplog):
     caplog.set_level(logging.INFO)
     tracker = GrantDiagnostics()

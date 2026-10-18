@@ -194,7 +194,7 @@ def test_transport_rejects_header_injection():
         transport.Submission.create("message", "", "1.0", subject="bad\r\nBcc: x@y.test")
 
 
-def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shutdown(monkeypatch):
+def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shutdown(monkeypatch, caplog):
     import sys
     import threading
     from gi.repository import GLib
@@ -208,10 +208,15 @@ def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shut
     install_exception_hooks(application, "Parent App")
     shutdown = application.connect.call_args.args[1]
     error = RuntimeError("private internal details")
+    second = PermissionError("private second failure")
     try:
         sys.excepthook(type(error), error, None)
-        threading.excepthook(SimpleNamespace(exc_type=type(error), exc_value=error, exc_traceback=None))
+        threading.excepthook(SimpleNamespace(exc_type=type(second), exc_value=second, exc_traceback=None))
         assert len(callbacks) == 1
+        from common.oh_no_parent_control_ui.diagnostic_events import decode
+        assert any(decode(record.onpc_payload)["fields"].get("error_type") == "PermissionError"
+                   for record in caplog.records)
+        assert "private second failure" not in caplog.text
         callback, captured = callbacks.pop()
         callback(captured)
         window._show_error.assert_called_once_with(error)
@@ -221,6 +226,33 @@ def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shut
         assert threading.excepthook is previous_thread
         thread_hook(SimpleNamespace(exc_type=type(error), exc_value=error, exc_traceback=None))
         assert callbacks == []
+    finally:
+        shutdown()
+
+
+def test_exception_hook_retains_error_surface_failure_before_startup_fallback(monkeypatch, caplog):
+    import sys
+    from gi.repository import GLib
+    from common.oh_no_parent_control_ui import errors
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    callbacks = []
+    monkeypatch.setattr(GLib, "idle_add", lambda *args: callbacks.append(args))
+    original = ValueError("private original")
+    window = SimpleNamespace(_show_error=Mock(side_effect=PermissionError("private report failure")))
+    application = Mock(get_windows=Mock(return_value=[window]))
+    fallback = Mock(side_effect=RuntimeError("private fallback failure"))
+    monkeypatch.setattr(errors, "show_startup_error", fallback)
+    install_exception_hooks(application, "Kiosk App")
+    shutdown = application.connect.call_args.args[1]
+    try:
+        sys.excepthook(type(original), original, None)
+        callback, captured = callbacks.pop()
+        callback(captured)
+        fallback.assert_called_once_with(application, "Kiosk App", original)
+        types = [decode(record.onpc_payload)["fields"].get("error_type") for record in caplog.records]
+        assert "ValueError" in types and "PermissionError" in types and "RuntimeError" in types
+        assert "private" not in caplog.text
     finally:
         shutdown()
 

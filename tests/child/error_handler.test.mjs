@@ -2,15 +2,27 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import {diagnosticEnvelope} from '../../child/diagnosticEvents.mjs';
 
-function harness() {
+const catalog = JSON.parse(readFileSync(new URL(
+    '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url)));
+
+function harness({brokenLogging = false} = {}) {
     const calls = [];
     const logs = [];
+    class BusError extends Error {
+        constructor(remote) { super('private error message'); this.remote = remote; }
+    }
     const source = readFileSync(new URL('../../child/errorHandler.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')
+        .replace(/^export function /gm, 'function ')
         .replace('export class ChildErrorHandler', 'globalThis.ChildErrorHandler = class ChildErrorHandler');
     const context = vm.createContext({
-        Gio: {SubprocessFlags: {STDIN_PIPE: 1}, Subprocess: {new(argv, flags) {
+        Error, TypeError, RangeError, ReferenceError, SyntaxError, URIError, EvalError,
+        GLib: {Error: BusError},
+        timerErrorCategory: () => 'other',
+        Gio: {DBusError: {get_remote_error: error => error.remote},
+            SubprocessFlags: {STDIN_PIPE: 1}, Subprocess: {new(argv, flags) {
             const process = {
                 argv, flags, stopped: false,
                 communicate_utf8_async(text, _cancel, callback) {
@@ -18,15 +30,25 @@ function harness() {
                     this.done = () => callback(this, {});
                 },
                 communicate_utf8_finish() {},
+                get_if_exited() { return !this.signal; },
+                get_exit_status() { return this.exitCode ?? 0; },
+                get_if_signaled() { return Boolean(this.signal); },
+                get_term_sig() { return this.signal; },
                 force_exit() { this.stopped = true; },
             };
             calls.push(process);
             return process;
         }}},
         logWarning: text => logs.push(text),
+        logError(event, fields) {
+            if (brokenLogging) throw Error('private logging failure');
+            logs.push(JSON.parse(diagnosticEnvelope(catalog, event,
+                JSON.parse(JSON.stringify(fields)))));
+        },
     });
     vm.runInContext(source, context);
-    return {handler: new context.ChildErrorHandler(() => ['/usr/bin/oh-no-parent-control']), calls, logs};
+    return {handler: new context.ChildErrorHandler(() => ['/usr/bin/oh-no-parent-control']), calls, logs, BusError,
+        record: context.recordChildFailure};
 }
 
 test('reports travel over stdin with Child App context and no private logging', () => {
@@ -37,7 +59,86 @@ test('reports travel over stdin with Child App context and no private logging', 
         '/usr/bin/oh-no-parent-control', '--error-report-stdin', '--child-overlay',
     ]);
     assert.equal(calls[0].text, 'child-operation-failed');
-    assert(!logs.join('').includes('private'));
+    assert(!JSON.stringify(logs).includes('private'));
+    assert.deepEqual(logs[0].fields, {operation: 'other', error_type: 'Error', category: 'other'});
+});
+
+test('failure provenance distinguishes operations and types without reading exception text', () => {
+    const {handler, calls, logs} = harness();
+    const error = new TypeError('private@example.test /home/private');
+    for (const key of ['message', 'stack', 'name'])
+        Object.defineProperty(error, key, {get() { throw Error('must not read'); }});
+    handler.report(error, 'reminder-render');
+    handler.report(new RangeError('private'), 'language');
+    handler.report({message: 'private', name: 'TypeError'}, 'private-operation');
+    assert.equal(calls.length, 1, 'an existing reporter does not discard later provenance');
+    assert.deepEqual(logs.filter(log => log.event === 'child.failure').map(log => log.fields), [
+        {operation: 'reminder-render', error_type: 'TypeError', category: 'other'},
+        {operation: 'language', error_type: 'RangeError', category: 'other'},
+        {operation: 'other', error_type: 'other', category: 'other'},
+    ]);
+    assert(!JSON.stringify(logs).includes('private'));
+    handler.close();
+    const before = logs.length;
+    handler.report(error, 'startup');
+    assert.equal(logs.length, before);
+});
+
+test('diagnostic failure cannot prevent opening the error reporter', () => {
+    const {handler, calls} = harness({brokenLogging: true});
+    assert.doesNotThrow(() => handler.report(new Error('private'), 'resume-refresh'));
+    assert.equal(calls.length, 1);
+});
+
+test('native helper failures retain safe provenance without launching a reporting process', () => {
+    const {record, calls, logs} = harness();
+    const operations = ['session-monitor-attach', 'session-monitor-signal', 'session-monitor-observe',
+        'session-monitor-cleanup', 'unlock-startup', 'unlock-signal', 'unlock-dispatch',
+        'unlock-observe', 'unlock-cleanup', 'locked-focus'];
+    for (const operation of operations) record(new TypeError('PRIVATE /home/private'), operation);
+    assert.equal(calls.length, 0);
+    assert.deepEqual(logs.map(log => log.fields.operation), operations);
+    assert(logs.every(log => log.fields.error_type === 'TypeError'));
+    assert(!JSON.stringify(logs).includes('PRIVATE'));
+    assert(!JSON.stringify(logs).includes('/home/private'));
+    assert.doesNotThrow(() => harness({brokenLogging: true}).record(new Error('PRIVATE'), 'unlock-dispatch'));
+});
+
+test('broker refusals retain reviewed categories without arbitrary remote error names', () => {
+    const {handler, logs, BusError} = harness();
+    for (const name of ['RebootRequired', 'AccessDenied', 'BackendFailure', 'private.error'])
+        handler.report(new BusError(name.includes('.') ? name
+            : `com.puffyslippers.OhNoParentControl1.Error.${name}`), 'language');
+    assert.deepEqual(logs.filter(log => log.event === 'child.failure').map(log => log.fields.category),
+        ['reboot-required', 'access-denied', 'backend-failure', 'other']);
+    assert(!JSON.stringify(logs).includes('private'));
+});
+
+test('reporter failures preserve their own provenance without recursively launching reports', () => {
+    const {handler, calls, logs} = harness();
+    handler.report(new Error('private'), 'resume-refresh');
+    calls[0].communicate_utf8_finish = () => { throw new TypeError('private'); };
+    calls[0].done();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(logs.filter(log => log.event === 'child.failure').at(-1).fields,
+        {operation: 'report-communication', error_type: 'TypeError', category: 'other'});
+});
+
+test('completed reporter waits retain abnormal exit status without output or recursive reports', () => {
+    const {handler, calls, logs} = harness();
+    handler.report(new Error('private'), 'language');
+    calls[0].exitCode = 1;
+    calls[0].done();
+    handler.report(new Error('private'), 'resume-refresh');
+    calls[1].signal = 11;
+    calls[1].done();
+    handler.report(new Error('private'), 'startup');
+    calls[2].done();
+    assert.deepEqual(logs.filter(log => log.event === 'child.process-exit').map(log => log.fields), [
+        {operation: 'report', kind: 'exited', code: 1},
+        {operation: 'report', kind: 'signaled', code: 11},
+    ]);
+    assert.equal(calls.length, 3);
 });
 
 test('duplicate failures preserve the owned reporter and cleanup signals only that process', () => {
@@ -125,6 +226,7 @@ test('production extension uses live state while the separate preview supplies f
         logInfo() {},
         canOpenRequest: () => true,
         requestCompletionState: () => ({requestActive: false, refreshEstimate: true}),
+        recordChildProcessExit() {},
         Gio: {SubprocessFlags: {NONE: 0}, Subprocess: {new() {
             return {wait_async(_cancel, done) { requestDone = () => done(this, {}); },
                 wait_finish() {}};

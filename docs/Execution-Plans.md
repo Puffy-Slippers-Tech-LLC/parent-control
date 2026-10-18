@@ -237,7 +237,8 @@ when the session finishes.
 The top and lower splits share one 75:25 width ratio. Dragging either vertical
 divider resizes both frames together; their dividers stay aligned during dragging
 and terminal resizing. The top-right `Total Tasks: x/y/z` shows completed
-tasks in green, unfinished tasks in blue and the total in the normal text color.
+tasks in green, unfinished tasks in explicit blue (`#0098ff`) and the total in
+the normal text color.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`, and refresh automatically as the queue changes.
 Displays without a Markdown plan show unavailable counts as dashes.

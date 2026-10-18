@@ -572,7 +572,7 @@ class TaskDisplay(LauncherDisplay):
         completed, unfinished, total = self.task_totals or ('—', '—', '—')
         totals.append(str(completed), style='green')
         totals.append('/')
-        totals.append(str(unfinished), style='blue')
+        totals.append(str(unfinished), style='#0098ff')
         totals.append('/')
         totals.append(str(total))
         totals.append('\nTotal Duration: ' + total_duration)

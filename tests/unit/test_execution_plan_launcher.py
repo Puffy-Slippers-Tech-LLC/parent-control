@@ -1296,7 +1296,7 @@ def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_p
         row = display.previous[0]
         start = row.plain.index('Total Tasks: ') + len('Total Tasks: ')
         assert row.get_style_at_offset(display.console, start).color.name == 'green'
-        assert row.get_style_at_offset(display.console, start + 2).color.name == 'blue'
+        assert row.get_style_at_offset(display.console, start + 2).color.name == '#0098ff'
         assert row.get_style_at_offset(display.console, start + 4).color is None
         valid = queue.read_text()
         queue.write_text('Partial rewrite')

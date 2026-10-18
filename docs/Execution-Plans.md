@@ -303,7 +303,14 @@ and original staging, and re-run acceptance whose inputs changed. The coordinato
 may use bounded Git reconciliation commands for that handoff; it never creates
 the task completion commit or pushes. A subsequent close-out pulls again.
 Existing staged or unrelated work is excluded; conflicting ownership stops
-close-out with a retained checkpoint. Pull transport/configuration, staging,
+close-out with a retained checkpoint. A retained dirty-file baseline no longer
+protects a path when its exact captured contents are now committed in HEAD;
+new task edits on that path can close out normally, including after restart.
+Uncommitted baseline contents and pre-existing staged paths remain protected.
+Content-only file fingerprints omit executable mode, so release also requires a regular
+working file with HEAD's executable mode; ambiguous deletion/type/mode changes
+remain protected for explicit reconciliation.
+Pull transport/configuration, staging,
 commit or push failures retain the accepted result; a fresh run retries close-out
 without repeating unaffected acceptance
 or creating a duplicate completion commit. Missing upstream configuration or

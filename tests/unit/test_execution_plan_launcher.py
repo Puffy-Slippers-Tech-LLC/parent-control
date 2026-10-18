@@ -1016,6 +1016,7 @@ def test_closeout_refuses_preexisting_claimed_changes(rig, monkeypatch, protecte
     state[protected] = {'docs/plan.md': 'original'} if protected == 'stage_baseline' else ['docs/plan.md']
     state['pending_completion'] = response(state)
     complete(rig.plan, '001')
+    monkeypatch.setattr(launcher_git, 'committed_fingerprint', lambda *_: 'different committed content')
     monkeypatch.setattr(workflow, 'stage_task', lambda *_args, **_kwargs: pytest.fail('must not stage protected work'))
     monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: pytest.fail('must not pull over protected work'))
     with pytest.raises(ValueError, match='overlaps pre-existing work'):
@@ -1051,6 +1052,134 @@ def git_plan(tmp_path):
     run = root / 'run'
     run.mkdir()
     return SimpleNamespace(root=root, plan=plan, remote=remote, peer=peer, run=run, git=git)
+
+
+@pytest.mark.parametrize('kind', ['file', 'binary', 'link', 'deleted', 'executable-on', 'executable-off'])
+@pytest.mark.parametrize('committed', ['no', 'exact', 'different'])
+def test_closeout_baseline_requires_exact_committed_contents(git_plan, kind, committed):
+    f = git_plan
+    path = f.root / 'task.py'
+    if kind == 'file':
+        path.write_text('pre-existing work\n')
+    elif kind == 'binary':
+        path.write_bytes(b'\xff\x00pre-existing binary\n')
+    elif kind == 'link':
+        path.unlink()
+        path.symlink_to('shared.py')
+    elif kind == 'executable-on':
+        path.chmod(0o755)
+    elif kind == 'executable-off':
+        path.chmod(0o755)
+        f.git('add', '--', 'task.py')
+        f.git('commit', '-qm', 'Executable baseline')
+        path.chmod(0o644)
+    else:
+        path.unlink()
+    baseline = workflow.worktree_snapshot(f.root)
+    if committed != 'no':
+        if committed == 'different':
+            path.unlink(missing_ok=True)
+            path.write_text('a different committed change\n')
+        f.git('add', '--', 'task.py')
+        f.git('commit', '-qm', 'Reviewed change')
+    path.unlink(missing_ok=True)
+    path.write_text('new task work\n')
+    if kind == 'executable-on':
+        path.chmod(0o755)
+    state = dict(stage_baseline=baseline, protected_staged=[])
+    if committed == 'exact':
+        # Staged ownership is independent and must never be inferred from HEAD.
+        state['protected_staged'] = ['task.py']
+        with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
+            launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        state['protected_staged'] = []
+        launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        assert state['stage_baseline'] == {}
+    else:
+        with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
+            launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        assert state['stage_baseline'] == baseline
+
+
+@pytest.mark.parametrize('change', ['chmod', 'delete', 'link'])
+def test_legacy_file_baseline_refuses_ambiguous_mode_or_type(git_plan, change):
+    f = git_plan
+    path = f.root / 'task.py'
+    path.write_text('pre-existing content\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Reviewed pre-existing content')
+    if change == 'chmod':
+        path.chmod(0o755)
+    else:
+        path.unlink()
+        if change == 'link':
+            path.symlink_to('shared.py')
+    state = dict(stage_baseline=baseline, protected_staged=[])
+    with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
+        launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+    assert state['stage_baseline'] == baseline
+
+
+@pytest.mark.parametrize('pending', [False, True], ids=['inherited-baseline', 'accepted-restart'])
+def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan, monkeypatch, pending):
+    f = git_plan
+    (f.root / 'task.py').write_text('pre-existing work\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Reviewed pre-existing work')
+    # Like a reconciled plan, retain a baseline captured before another workflow
+    # committed it. The task must not adopt unrelated dirty or staged changes.
+    (f.root / 'unrelated.py').write_text('unrelated unstaged work\n')
+    (f.root / 'shared.py').write_text('unrelated staged work\n')
+    f.git('add', '--', 'shared.py')
+    calls = []
+
+    def accepted(state):
+        (f.root / 'task.py').write_text('completed task ' + state['task_id'] + '\n')
+        complete(f.plan, state['task_id'])
+        result = response(state)
+        result['stage_paths'].append('task.py')
+        return result
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        if state['task_id'] == '002':
+            assert f.git('log', '-1', '--format=%s').stdout.strip() == 'TA: Completed task 001'
+            assert f.git('rev-parse', 'HEAD').stdout == f.git('rev-parse', 'HEAD', cwd=f.remote).stdout
+        calls.append(state['task_id'])
+        return accepted(state)
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: None)
+    monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)
+    spec = workflow.PlanWorkflow('fixture-plan', f.plan.path)
+    record = workflow.task_record(f.plan.tasks()[1])
+    consumer = dict(state_for(f.plan), **record, task=record, stage_baseline=baseline,
+                    protected_staged=['shared.py'])
+    if pending:
+        state = state_for(f.plan, stage_baseline=baseline, protected_staged=['shared.py'],
+                          replan_baseline=baseline, suspended_tasks={'002': consumer})
+        state['pending_completion'] = accepted(state)
+        workflow.launcher.atomic(f.run / 'checkpoint.json', state)
+        monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: f.run)
+        state = workflow.initial_state(f.plan, spec, f.run.parent)
+    else:
+        state = dict(phase='complete', task_sessions=0, total_sessions=0,
+                     replan_baseline=baseline, protected_staged=['shared.py'],
+                     suspended_tasks={'002': consumer})
+    TaskBudget(f.run).initialize(0)
+    owner = os.open(f.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(f.root, f.run, owner, spec, state) == 0
+    assert calls == (['002'] if pending else ['001', '002'])
+    assert json.loads((f.run / 'result.json').read_text()) == dict(status=0, tasks=2)
+    assert f.plan.next_task() is None
+    assert f.git('log', '-2', '--format=%s').stdout.splitlines() == [
+        'TA: Completed task 002', 'TA: Completed task 001']
+    assert f.git('rev-parse', 'HEAD').stdout == f.git('rev-parse', 'HEAD', cwd=f.remote).stdout
+    assert f.git('diff', '--cached', '--name-only').stdout.splitlines() == ['shared.py']
+    assert (f.root / 'unrelated.py').read_text() == 'unrelated unstaged work\n'
+    assert f.git('show', 'HEAD:unrelated.py').stdout == 'initial unrelated\n'
 
 
 @pytest.fixture

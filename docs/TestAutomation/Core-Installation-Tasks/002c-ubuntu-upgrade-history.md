@@ -13,7 +13,8 @@ Qualify only Ubuntu's complete case 287, preserving every requirement in
 [earlier-release route](../../../tests/integration/README.md#running-the-current-installed-suite),
 and [retained evidence](../Core-Installation-Coverage-Handoff.md#task-003-retained-work-and-fixture-prerequisite).
 Verify accepted preparation contains 002a's trusted variants and the staged
-consumer includes 002b. Prepare missing verified current/previous inputs through
+consumer matches [002b's final helper/input requirements](../Core-Installation-Coverage-Handoff.md#task-002b-qualified-fixture-integration).
+Prepare missing verified current/previous inputs through
 `tools/run-tests artifacts prepare --for-vm --upgrade-inputs --vm 'onpc-Ubuntu26.04'`.
 Use the returned directories immediately; never fabricate a previous version.
 

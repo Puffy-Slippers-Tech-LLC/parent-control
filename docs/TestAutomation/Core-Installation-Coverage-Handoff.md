@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **002b — [Integrate qualified fixtures into case 287](Core-Installation-Tasks/002b-upgrade-fixture-integration.md)**.
+Next task: **002c — [Run the complete Ubuntu upgrade history](Core-Installation-Tasks/002c-ubuntu-upgrade-history.md)**.
 
 ## Purpose and continuation
 
@@ -381,13 +381,49 @@ its retained report is
 All 151 local links in the seven changed Markdown documents passed. Only 002a
 is checked; 003/004 retain their status, order, scope and dependencies.
 
+## Task 002b qualified fixture integration
+
+Case **287** now selects baseline-owned `trusted-hard` / `trusted-soft`
+consistently in provisioning, saved desktop/target choices, strict soft denial
+before authentication, rule evidence and previous/rebooted child/unrelated-user
+launches. Rule evidence requires the hard denial and approved soft allowance for
+their exact variants. All policy, grant, identity, migration, real Polkit and
+admission assertions remain. Consumers verify prepared trust through the existing
+closed interface; they add no trust or distribution rules.
+
+Affected host checks passed **1,391/1,391** in
+`output/test-runs/host/reports/20261018T182003Z-99065707/report.md`, including
+both platform setup paths, strict denial before approval, both enforcement
+checkpoints, closed fixture/provenance guards and complete history staging.
+Final consumer, documentation, inventory and plan regressions passed
+**408/408** in
+`output/test-runs/host/reports/20261018T182120Z-694ec03c/report.md`.
+The five added host cases use tiny pytest-private files and in-process doubles;
+there is no new process, service, bus, display, socket, shared cache or cleanup
+owner. The existing compatible unit classification remains valid, with no
+cleanup/UI inventory change. Generated coverage was refreshed. These test and
+documentation edits affect neither product package sources nor build tools;
+no `make build` is required. No installed qualification occurs in 002b.
+Both maintained host runs finished and released their owners; no worker or
+VM resource remains from this task. Only 002b was newly completed.
+
+For **002c/002d**, require the staged `system_previous_upgrade.py` SHA-256
+`8703b2d4e671598ad3f6dd43c04862231a62b175bee8a1faa8ca1bc0b7c62176`
+in each exact `input/selected-inputs.json`. Stage the final checkout's shared
+enforcement/trust helpers and payloads, and verify 002a's accepted trusted
+baseline provenance and pinned earlier package identities above. Prepare missing
+verified current/previous bundles through the existing artifact route; preserve
+existing inputs. Each target must run all three case 287 phases in one owned
+history and retain matching candidate, input, baseline and cleanup receipts.
+The earlier Ubuntu slice and case 288 qualification supply no acceptance for
+these final upgrade inputs. Task 003 remains unchecked.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
-Start with 002b: case 287's `system_previous_upgrade` still selects `command` /
-`whitespace` in setup, saved policy and enforcement; accepted 002a qualification
-does not automatically change that consumer. Tasks 002c and 002d then run one
-complete upgrade history per target. Task 003 reconciles their matching evidence
+Continue with 002c and 002d, which run one complete upgrade history per target
+using the final [002b consumer](#task-002b-qualified-fixture-integration).
+Task 003 reconciles their matching evidence
 against every original requirement; it remains an installed, both-target gate.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
@@ -411,12 +447,28 @@ Task 002a's accepted implementation is recorded in commit `6e1ecfd3`. The
 retained launcher originally stopped before recording that commit and this queue
 decomposition.
 The explicit [manual replan route](../Execution-Plans.md#common-launcher-interface)
-reconciles that inactive checkpoint with the committed queue, preserving the
-accepted evidence and unfinished 003 handoff. This reconciliation executes no
-queue task, grants no new acceptance and does not renew session counts.
+has since reconciled that inactive checkpoint with the committed queue, preserving
+the accepted evidence and unfinished 003 handoff without new acceptance or renewed
+session counts.
 
-Unresolved fixture integration belongs to 002b, target upgrade diagnosis to
-002c/002d, and native package-pair feasibility to 004a. These are execution work,
+The 2026-10-18 run `b7681335a53c4fd78aea4e0ac1de6d01` accepted 002b and
+retained its passing response and completed cleanup, then stopped before Git
+close-out: `close-out overlaps pre-existing work: docs/Test-Coverage.md`.
+Its task limit was unlimited; zero tasks were counted because commit/push had not
+finished. The inherited baseline still protected that report even though its
+exact captured contents had already been committed. The shared
+[close-out guard](../Execution-Plans.md#common-launcher-interface) now releases
+such committed baseline contents, including inherited/suspended copies, while
+preserving uncommitted and staged work.
+
+Resume with `tools/install-coverage --tasks 0`. The retained 002b completion must
+finish commit/push before the launcher starts 002c; unchanged accepted work needs
+no new coordinator session. This is ordinary close-out recovery, not another
+manual replan. Keep the current queue, 002c pointer and suspended 003 handoff;
+no additional queue task or installed history was executed by this launcher fix.
+
+Target upgrade diagnosis belongs to 002c/002d, and native package-pair feasibility
+to 004a. These are execution work,
 not prerequisites for starting this plan. The retained-unlock investigation stays
 in the existing E2E work unless evidence establishes a dependency for one of this
 queue's acceptance histories. If a selected task discovers such a dependency,

@@ -9,16 +9,17 @@ Use a genuinely earlier supported product package, not the current candidate
 reinstalled. Qualify saved policy, migration/exclusion and admission retirement
 through native update and required reboot. Existing `--previous-artifacts`
 support installs and reboots the old package and verifies retirement/activation.
-Case 287 now adds prior child policy and an active grant; its fixture integration
-and final installed qualification remain unfinished. Extend that route rather
+Case 287 now adds prior child policy and an active grant with qualified trusted
+fixtures; its final installed qualification remains unfinished. Extend that route rather
 than building another one.
 
 ## Prerequisites and task boundary
 
 Requires: 002, 002a, 002b, 002c, 002d.
 
-[002b](002b-upgrade-fixture-integration.md) owns consumer integration and focused
-host checks. [002c](002c-ubuntu-upgrade-history.md) and
+[002b](../Core-Installation-Coverage-Handoff.md#task-002b-qualified-fixture-integration)
+delivered consumer integration and focused host checks.
+[002c](002c-ubuntu-upgrade-history.md) and
 [002d](002d-fedora-upgrade-history.md) own the complete Ubuntu and Fedora
 histories, respectively. This row retains every original requirement below and
 accepts only both matching target results. It owns final evidence reconciliation

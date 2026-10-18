@@ -39,6 +39,11 @@ joined budget-update threads. Its relocated CLI check owns one bounded, waited P
 child without model inference. No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
+Committed-baseline close-out checks reuse pytest-private checkouts and bare
+remotes with finite, synchronously waited Git commands. They cover binary/link/
+deletion fingerprints, executable-mode ownership and two-task push/advance/restart
+behavior without an external network, model process or shared Git mutation; compatible overlap stays
+appropriate.
 Installation and reliability plan adapters share those same private fixtures
 for default-plan validation, owner attachment, stop and task-limit checks;
 neither adapter test selects a real VM or starts an agent or Git operation.

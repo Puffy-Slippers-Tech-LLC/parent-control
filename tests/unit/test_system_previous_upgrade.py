@@ -2,6 +2,7 @@
 
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -151,16 +152,147 @@ def test_update_gate_is_diagnostics_only_and_preserves_rules(preserved, monkeypa
     record.assert_any_call('onpc.previous-upgrade.admission', 'pre-reboot-removal-refused')
 
 
-def test_enforcement_witness_requires_hard_denial_soft_allowance_and_uid_isolation(monkeypatch):
+@pytest.mark.parametrize('stage', ['previous', 'rebooted'])
+def test_enforcement_witness_requires_hard_denial_soft_allowance_and_uid_isolation(monkeypatch, stage):
     launch = Mock()
     monkeypatch.setattr(upgrade, 'observe_launch', launch)
     rules = Mock()
     monkeypatch.setattr(upgrade, 'record_rules', rules)
-    upgrade.witness_enforcement({'child': 1001, 'other': 1002}, Mock(), 'rebooted')
-    assert rules.call_args.args[:3] == ('previous-upgrade-rebooted', 1001, True)
+    record = Mock()
+    upgrade.witness_enforcement({'child': 1001, 'other': 1002}, record, stage)
+    assert [(args.args, args.kwargs) for args in rules.call_args_list] == [
+        ((f'previous-upgrade-{stage}', 1001, True, record), {'variant': 'trusted-hard'}),
+        ((f'previous-upgrade-{stage}', 1001, False, record), {'variant': 'trusted-soft'})]
     assert [(args.args, args.kwargs) for args in launch.call_args_list] == [
-        ((1001, False), {'variant': 'command'}), ((1002, True), {'variant': 'command'}),
-        ((1001, True), {'variant': 'whitespace'}), ((1002, True), {'variant': 'whitespace'})]
+        ((1001, False), {'variant': 'trusted-hard'}), ((1002, True), {'variant': 'trusted-hard'}),
+        ((1001, True), {'variant': 'trusted-soft'}), ((1002, True), {'variant': 'trusted-soft'})]
+
+
+@pytest.fixture
+def preparation(tmp_path, monkeypatch):
+    (tmp_path / 'results').mkdir()
+    (tmp_path / 'results/previous-install.json').write_text(json.dumps({
+        'boot': 'before', 'previous_package_sha256': 'a' * 64}))
+    monkeypatch.setattr(upgrade.guest, 'PAYLOAD', tmp_path)
+    marker = dict(run='a' * 32, package_sha256='b' * 64,
+                  baseline_sha256='c' * 64, selected_inputs_sha256='d' * 64)
+    monkeypatch.setattr(upgrade.guest, 'guard', lambda: marker)
+    monkeypatch.setattr(upgrade.guest, 'wait_for_boot', Mock())
+    monkeypatch.setattr(upgrade, 'boot', lambda: 'after')
+    monkeypatch.setattr(upgrade.guest, 'reboot_cleared', lambda: True)
+    monkeypatch.setattr(upgrade.guest, 'sha', lambda path: 'a' * 64)
+    monkeypatch.setattr(upgrade.guest, 'KIOSK_CONFINEMENT_STATE', tmp_path / 'absent')
+    monkeypatch.setattr(upgrade.guest, 'verify_package_files', Mock())
+    monkeypatch.setattr(upgrade.guest, 'package_identity',
+                        lambda path, **kw: 'old' if path.name.startswith('previous-') else 'new')
+    accounts = {'child': 1001, 'other': 1002, 'parent': 1003}
+    provision = Mock(side_effect=lambda variant: accounts.copy())
+    monkeypatch.setattr(upgrade, 'provision_native', provision)
+    monkeypatch.setattr(upgrade, 'account_digest', lambda uid: 'unchanged')
+    monkeypatch.setattr(upgrade, 'identity', lambda uid: {'account': [uid, '/bin/bash']})
+    monkeypatch.setattr(upgrade, 'native_state', lambda uid: {
+        'limits': [2, 2220, [100, 45420]], 'filter': ['hard'], 'extensions': []})
+    monkeypatch.setattr(upgrade.time, 'time', lambda: 200)
+    monkeypatch.setattr(upgrade.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1004))
+    read_text = upgrade.Path.read_text
+    monkeypatch.setattr(upgrade.Path, 'read_text', lambda path, *a, **kw:
+                        '{"kiosk_uid": 1005}' if str(path) == '/etc/oh-no-parent-control/config.json'
+                        else read_text(path, *a, **kw))
+    preferences = {'apps': {}, 'parent_control_enabled': False, 'daily_time_limit_minutes': 0,
+                   'request': {'last_selected_duration': 'default', 'last_custom_minutes': 0,
+                               'allow_soft_blocked_apps': False, 'last_selected_approver_uid': 0,
+                               'kiosk_muted': True, 'child_muted': True}}
+
+    def call(uid, method, signature='()', args=()):
+        if method == 'GetPreferences':
+            return [json.dumps(preferences)]
+        if method == 'SetParentControl':
+            preferences.update(parent_control_enabled=args[1], daily_time_limit_minutes=args[2])
+        elif method == 'SetPreferences':
+            preferences.update(json.loads(args[1]))
+        elif method == 'UpdateRequestPreferences':
+            preferences['request'].update(zip((
+                'last_selected_duration', 'last_custom_minutes', 'allow_soft_blocked_apps',
+                'last_selected_approver_uid'), args[1:]))
+        else:
+            raise AssertionError(method)
+        return []
+
+    monkeypatch.setattr(upgrade, 'call', call)
+    events = Mock()
+    monkeypatch.setattr(upgrade, 'record_rules', events.rules)
+    monkeypatch.setattr(upgrade, 'observe_launch', events.launch)
+    password = Mock()
+    monkeypatch.setattr(upgrade, 'FixturePassword', lambda: password)
+    caller = Mock()
+    caller.receive.return_value = {'result': [True, 'approved']}
+    caller.__enter__ = Mock(return_value=caller)
+    caller.__exit__ = Mock(return_value=False)
+    agent = Mock()
+    agent.__enter__ = Mock(return_value=agent)
+    agent.__exit__ = Mock(return_value=False)
+    agent.authenticate.side_effect = lambda credential: events.authenticate(credential)
+    monkeypatch.setattr(upgrade, 'PersistentCaller', lambda uid: caller)
+    monkeypatch.setattr(upgrade, 'TextAgent', lambda target: agent)
+    checkpoint = Mock()
+    monkeypatch.setattr(upgrade, 'save_state', checkpoint)
+    return SimpleNamespace(preferences=preferences, provision=provision, events=events,
+                           password=password, caller=caller, agent=agent, checkpoint=checkpoint)
+
+
+@pytest.mark.parametrize('suffix,schema', [('.deb', 3), ('.rpm', 4)])
+def test_preparation_saves_qualified_choices_and_denies_soft_before_approval(
+        preparation, monkeypatch, tmp_path, suffix, schema):
+    state = preparation
+    monkeypatch.setattr(upgrade.guest, 'package_path', lambda: tmp_path / ('package' + suffix))
+    state.preferences['version'] = schema
+    record = Mock()
+    upgrade.prepare(record)
+    assert [item.args for item in state.provision.call_args_list] == [
+        ('trusted-hard',), ('trusted-soft',)]
+    saved = state.checkpoint.call_args.args[0]
+    expected = {}
+    for variant, app_state in (('trusted-hard', 'permanent'), ('trusted-soft', 'conditional')):
+        target, _, desktop = upgrade.native_paths(variant)
+        expected[desktop] = {'state': app_state, 'targets': [str(target)], 'patterns': [],
+                             'user_saved_match_rule': False}
+    assert saved['policy']['apps'] == expected
+    assert saved['native']['limits'] == [2, 2220, [100, 45420]]
+    assert [(item[0], item.args, item.kwargs) for item in state.events.mock_calls] == [
+        ('rules', ('previous-upgrade-strict', 1001, True, record), {'variant': 'trusted-soft'}),
+        ('launch', (1001, False), {'variant': 'trusted-soft'}),
+        ('authenticate', (state.password,), {}),
+        ('rules', ('previous-upgrade-previous', 1001, True, record), {'variant': 'trusted-hard'}),
+        ('launch', (1001, False), {'variant': 'trusted-hard'}),
+        ('launch', (1002, True), {'variant': 'trusted-hard'}),
+        ('rules', ('previous-upgrade-previous', 1001, False, record), {'variant': 'trusted-soft'}),
+        ('launch', (1001, True), {'variant': 'trusted-soft'}),
+        ('launch', (1002, True), {'variant': 'trusted-soft'})]
+    state.password.install.assert_called_once_with(1003)
+    state.agent.prompt.assert_called_once_with(1003, 1004)
+    state.caller.send.assert_called_once_with({
+        'kind': 'call', 'method': 'RequestOwnAccess', 'signature': '(uub)',
+        'args': (1003, 43200, True)})
+    state.agent.__exit__.assert_called_once()
+    state.caller.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize('fault', ['identities', 'strict-soft'])
+def test_preparation_refuses_mismatched_fixtures_or_missing_strict_denial(
+        preparation, monkeypatch, tmp_path, fault):
+    state = preparation
+    monkeypatch.setattr(upgrade.guest, 'package_path', lambda: tmp_path / 'package.rpm')
+    state.preferences['version'] = 4
+    if fault == 'identities':
+        state.provision.side_effect = [{'child': 1001, 'other': 1002, 'parent': 1003}, {}]
+    else:
+        state.events.launch.side_effect = upgrade.guest.GuestError('enforcement:expected-denial')
+    with pytest.raises(upgrade.guest.GuestError, match=(
+            'fixture-identities' if fault == 'identities' else 'expected-denial')):
+        upgrade.prepare(Mock())
+    state.password.install.assert_not_called()
+    state.agent.authenticate.assert_not_called()
+    state.checkpoint.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', [None, 'same-boot', 'marker', 'replenished-status'])
@@ -197,9 +329,10 @@ def test_reboot_requires_new_boot_and_public_elapsed_grant(preserved, monkeypatc
             upgrade.verify_reboot(Mock())
         witness.assert_not_called()
     else:
-        upgrade.verify_reboot(Mock())
+        record = Mock()
+        upgrade.verify_reboot(record)
         assert calls == ['GetPreferences', 'PrepareOwnSession', 'GetTimeStatus']
-        witness.assert_called_once()
+        witness.assert_called_once_with(preserved['accounts'], record, 'rebooted')
 
 
 def test_policy_comparison_preserves_old_choices_with_compatible_new_fields():

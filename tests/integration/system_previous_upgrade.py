@@ -153,8 +153,9 @@ def verify_preserved(state, record=None):
 
 
 def witness_enforcement(accounts, record, stage):
-    record_rules('previous-upgrade-' + stage, accounts['child'], True, record)
-    for variant, allowed in (('command', False), ('whitespace', True)):
+    for variant, allowed in (('trusted-hard', False), ('trusted-soft', True)):
+        record_rules('previous-upgrade-' + stage, accounts['child'], not allowed,
+                     record, variant=variant)
         observe_launch(accounts['child'], allowed, variant=variant)
         observe_launch(accounts['other'], True, variant=variant)
     record(f'onpc.previous-upgrade.{stage}.native',
@@ -183,8 +184,8 @@ def prepare(record):
         'candidate_sha256': marker['package_sha256'],
         'boundary': 'prelease-package-without-confinement-record-to-admission-protocol-1',
     }, sort_keys=True))
-    accounts = provision_native('command')
-    guest.require(provision_native('whitespace') == accounts,
+    accounts = provision_native('trusted-hard')
+    guest.require(provision_native('trusted-soft') == accounts,
                   'previous-upgrade:fixture-identities')
     parent, child, other = (accounts[role] for role in ('parent', 'child', 'other'))
     before_other = account_digest(other)
@@ -194,14 +195,15 @@ def prepare(record):
     call(parent, 'SetParentControl', '(ubu)', (child, True, DAILY_MINUTES))
     preferences = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
     preferences['apps'] = {}
-    for variant, app_state in (('command', 'permanent'), ('whitespace', 'conditional')):
+    for variant, app_state in (('trusted-hard', 'permanent'), ('trusted-soft', 'conditional')):
         target, _, desktop = native_paths(variant)
         preferences['apps'][desktop] = {'state': app_state, 'targets': [str(target)],
                                        'patterns': [], 'user_saved_match_rule': False}
     call(parent, 'SetPreferences', '(us)', (child, json.dumps(preferences)))
     call(child, 'UpdateRequestPreferences', '(usdbu)', (child, 'custom', 23.0, True, parent))
     # Witness strict soft denial before approval so a missing soft rule cannot pass.
-    observe_launch(child, False, variant='whitespace')
+    record_rules('previous-upgrade-strict', child, True, record, variant='trusted-soft')
+    observe_launch(child, False, variant='trusted-soft')
     password = FixturePassword()
     password.install(parent)
     other_parent = pwd.getpwnam('onpc-parent-casey').pw_uid

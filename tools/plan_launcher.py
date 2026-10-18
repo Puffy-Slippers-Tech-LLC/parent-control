@@ -25,7 +25,7 @@ import detached_launcher as launcher
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
 from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
-                          validate_pull_identity, worktree_snapshot)
+                          validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
@@ -389,9 +389,7 @@ def closeout(plan, spec, run, state):
         paths = state.get('commit_intent', {}).get('paths')
         if paths is None:
             paths = list(dict.fromkeys(result['stage_paths']))
-            overlap = set(paths) & (set(state['stage_baseline']) | set(state['protected_staged']))
-            if overlap:
-                raise ValueError('close-out overlaps pre-existing work: ' + ', '.join(sorted(overlap)))
+            validate_closeout_ownership(plan.root, paths, state)
         state['plan_queue'] = plan.queue
         try:
             pull_before_commit(plan.root, run, state, git=git_output)

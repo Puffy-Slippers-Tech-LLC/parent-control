@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 
 import detached_launcher as launcher
@@ -160,6 +161,66 @@ def session_changes(root, before):
     after = worktree_snapshot(root)
     return [name for name, fingerprint in after.items()
             if before.get(name) != fingerprint]
+
+
+def committed_fingerprint(root, path):
+    """Match worktree_snapshot's representation against the current commit.
+
+    Read blobs as bytes, including binary files and symlink targets. A retained
+    dirty baseline may have been committed by another workflow since capture;
+    only the exact original contents in HEAD release that ownership guard.
+    """
+    entry = subprocess.run(['git', '--literal-pathspecs', 'ls-tree', '-z', 'HEAD', '--', path],
+                           cwd=root, env=launcher.environment(), capture_output=True, check=True).stdout
+    if not entry:
+        return 'deleted'
+    metadata, name = entry.rstrip(b'\0').split(b'\t', 1)
+    mode, kind, identity = metadata.split()
+    if name != os.fsencode(path) or kind != b'blob' or mode not in (b'100644', b'100755', b'120000'):
+        return None
+    content = subprocess.run(['git', 'cat-file', 'blob', identity.decode('ascii')],
+                             cwd=root, env=launcher.environment(), capture_output=True, check=True).stdout
+    if mode == b'120000':
+        return 'link:' + os.fsdecode(content)
+    # Existing checkpoints fingerprint file bytes without executable mode. A
+    # chmod-only dirty baseline can therefore hash exactly like HEAD. Release
+    # these legacy fingerprints only while the working file still proves the
+    # committed mode; deletion/type replacement cannot provide that proof.
+    try:
+        current = (root / path).lstat()
+    except FileNotFoundError:
+        return None
+    if (not stat.S_ISREG(current.st_mode)
+            or bool(current.st_mode & stat.S_IXUSR) != (mode == b'100755')):
+        return None
+    return 'file:' + hashlib.sha256(content).hexdigest()
+
+
+def validate_closeout_ownership(root, paths, state):
+    """Exclude pre-existing work unless its captured contents are now committed."""
+    baseline = state['stage_baseline']
+    overlap = set(paths) & set(state['protected_staged'])
+    released = {}
+    for path in set(paths) & set(baseline):
+        if path not in overlap:
+            if committed_fingerprint(root, path) == baseline[path]:
+                released[path] = baseline[path]
+            else:
+                overlap.add(path)
+    if overlap:
+        raise ValueError('close-out overlaps pre-existing work: ' + ', '.join(sorted(overlap)))
+
+    def retire(saved):
+        # Retire only the proven fingerprint, including inherited copies. After
+        # this task commits new contents, HEAD will no longer match the old one.
+        for field in ('stage_baseline', 'replan_baseline'):
+            if field in saved:
+                saved[field] = {path: value for path, value in saved[field].items()
+                                if path not in released or released[path] != value}
+        for consumer in saved.get('suspended_tasks', {}).values():
+            retire(consumer)
+
+    retire(state)  # The caller checkpoints this before any Git write.
 
 
 def git_output(root, *arguments, check=True):

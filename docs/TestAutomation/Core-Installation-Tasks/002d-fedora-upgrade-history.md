@@ -12,7 +12,8 @@ Qualify only Fedora's complete case 287 against all requirements in
 [VM mandate](../../Mandates/VM-Mandate.MD), the installed runner's
 [earlier-release route](../../../tests/integration/README.md#running-the-current-installed-suite),
 and the [retained diagnosis](../Core-Installation-Coverage-Handoff.md#task-003-retained-work-and-fixture-prerequisite).
-Verify 002a's accepted trusted baseline variants and the final 002b consumer.
+Verify 002a's accepted trusted baseline variants and
+[002b's final helper/input requirements](../Core-Installation-Coverage-Handoff.md#task-002b-qualified-fixture-integration).
 Prepare missing inputs through
 `tools/run-tests artifacts prepare --for-vm --upgrade-inputs --vm 'onpc-Fedora44'`
 and use the returned current/previous directories immediately. The pinned RPM

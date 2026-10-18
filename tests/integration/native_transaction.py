@@ -13,8 +13,10 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
+import tempfile
 import tomllib
 
 
@@ -36,6 +38,33 @@ RPM_TAGS = (
     'prein', 'postin', 'preun', 'postun', 'pretrans', 'posttrans',
 )
 
+# Fedora 44 native headers, reviewed against the distro sources linked in
+# Environment.md. Hash ALL arrays together, including nonmatching registrations:
+# changing a flag, index, interpreter, priority or script is a new review.
+RPM_TRIGGER_REVIEW = {
+    'filesystem-0:3.18-52.fc44.x86_64': {
+        'trigger': 'a31f229af00e0ee683d1f782cde49bd5ab6128bcb5affa347f345832c2cff3a7',
+        'filetrigger': 'b1222c988ae7579b89e79993c0719398d1edee856b72cc0e87649d02ae1b38ca',
+        'transfiletrigger': '6d0a2c9b8f7ff8dc7fdabbc3952f1db4b47001f0a0431405b54f8cb9b37484ca'},
+    'glibc-common-0:2.43-9.fc44.x86_64': {
+        'trigger': 'a31f229af00e0ee683d1f782cde49bd5ab6128bcb5affa347f345832c2cff3a7',
+        'filetrigger': '21aa17bf05abc33e8027b7862ea409dfa629535d431969f35e28a45a59243b1d',
+        'transfiletrigger': '4a35cf34cd84230db7a964e4bc795e93593d855dfde885175c81a4b33b3ddce8'},
+    'man-db-0:2.13.1-3.fc44.x86_64': {
+        'trigger': 'a31f229af00e0ee683d1f782cde49bd5ab6128bcb5affa347f345832c2cff3a7',
+        'filetrigger': '21aa17bf05abc33e8027b7862ea409dfa629535d431969f35e28a45a59243b1d',
+        'transfiletrigger': '0685eabdbb763028052a739c44695898e2481c4c55c2c3cd77a5fc42a5134e1f'},
+}
+RPM_SERVICE_REVIEW = {
+    'usr/lib/systemd/system/man-db-cache-update.service':
+        '909ac47ac04f63aa97b285e6ced6d66c5476b806b19da36f4174e5a01a8d86f5',
+    'etc/sysconfig/man-db':
+        '5e6010aaf8f2a47923c21ee10dc717232ca94f0c708bcbdbafe2e769179265d5',
+    'etc/man_db.conf':
+        'cd1332024210e4a9117c3d8a59429e3f43e24bc473208f55ea504682e06fc46f',
+    'effective_service': 'a3f1287a3cff868f1ed516a335c8c967e9e2bb6c6595d9f9167761cdd6684939',
+}
+
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'),
@@ -50,9 +79,19 @@ def provenance_digest(value):
     return value
 
 
+class PreflightError(ValueError):
+    """Keep detailed private evidence separate from the public failure reason."""
+    def __init__(self, category):
+        super().__init__('native-preflight:' + category + REFRESH)
+        reason = category.split(':', 1)[0]
+        if not re.fullmatch(r'[a-z][a-z0-9-]{0,80}', reason):
+            reason = 'invalid-diagnostic'
+        self.public_category = 'native-preflight:' + reason + REFRESH
+
+
 def require(condition, category):
     if not condition:
-        raise ValueError('native-preflight:' + category + REFRESH)
+        raise PreflightError(category)
 
 
 class Runner:
@@ -69,7 +108,7 @@ def command(runner, arguments, *, pass_fds=(), empty=False):
     try:
         result = runner.run(arguments, **options)
     except (OSError, subprocess.SubprocessError) as error:
-        raise ValueError('native-preflight:command-unavailable' + REFRESH) from error
+        raise PreflightError('command-unavailable') from error
     require(result.returncode == 0, 'native-command-failed:' + arguments[0])
     require(not empty or not result.stdout.strip(), 'package-health')
     return {'argv': arguments, 'stdout': result.stdout, 'stderr': result.stderr,
@@ -84,7 +123,7 @@ def read_file(path, *, optional=False):
         require(optional, 'missing-file:' + str(path))
         return None
     except OSError as error:
-        raise ValueError('native-preflight:unsafe-file' + REFRESH) from error
+        raise PreflightError('unsafe-file') from error
     try:
         before = os.fstat(descriptor)
         require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, 'unsafe-file')
@@ -158,10 +197,11 @@ def installed_deb(root):
 
 
 @contextmanager
-def status_view(source):
-    """APT reads a private anonymous status view, never a modified guest file."""
-    descriptor = os.memfd_create('onpc-native-status', os.MFD_CLOEXEC)
-    try:
+def status_view(source, *, directory):
+    """APT canonicalizes this private temporary view; the native DB is untouched."""
+    require(directory is not None, 'status-view-workspace-required')
+    with tempfile.NamedTemporaryFile(prefix='native-status-', dir=directory) as stream:
+        descriptor = stream.fileno()
         remaining = memoryview(source.encode())
         while remaining:
             written = os.write(descriptor, remaining)
@@ -169,8 +209,6 @@ def status_view(source):
             remaining = remaining[written:]
         os.lseek(descriptor, 0, os.SEEK_SET)
         yield descriptor
-    finally:
-        os.close(descriptor)
 
 
 def replaced_status(source, metadata, package, architecture):
@@ -186,15 +224,17 @@ def replaced_status(source, metadata, package, architecture):
     return '\n\n'.join(result) + '\n\n'
 
 
-def deb_plan(runner, source, path, package, architecture, version):
-    with status_view(source) as descriptor:
+def deb_plan(runner, source, path, package, architecture, version, *, status_directory=None):
+    directory = status_directory if status_directory is not None else getattr(runner, 'status_directory', None)
+    with status_view(source, directory=directory) as descriptor:
+        status_path = Path('/proc/self/fd/' + str(descriptor)).resolve(strict=True)
         arguments = ['apt-get', '--simulate', '--no-download', '--no-install-recommends',
                      '-o', 'Debug::NoLocking=1', '-o', 'APT::Get::Show-Versions=true',
                      '-o', 'Dir::Etc::sourcelist=/dev/null',
                      '-o', 'Dir::Etc::sourceparts=-',
-                     '-o', 'Dir::State::status=/proc/self/fd/' + str(descriptor),
+                     '-o', 'Dir::State::status=' + str(status_path),
                      'install', '--reinstall', '--allow-downgrades', str(path)]
-        evidence = command(runner, arguments, pass_fds=(descriptor,))
+        evidence = command(runner, arguments)
     actions = [line for line in evidence['stdout'].splitlines()
                if re.match(r'^(Inst|Conf|Remv|Purg)\s', line)]
     installs = [line for line in actions if line.startswith('Inst ')]
@@ -207,7 +247,7 @@ def deb_plan(runner, source, path, package, architecture, version):
                 and match[2] == version, 'unexpected-native-change')
     # Descriptor numbers are ephemeral, and must not become receipt identity.
     evidence['argv'] = [arg if not arg.startswith('Dir::State::status=') else
-                        'Dir::State::status=<anonymous-status-view>' for arg in arguments]
+                        'Dir::State::status=<private-status-view>' for arg in arguments]
     return evidence
 
 
@@ -271,9 +311,15 @@ def rpm_inventory(rpm_module):
         for header in transaction.dbMatch():
             record = {key: header[key] for key in ('name', 'version', 'release', 'arch')}
             record['epoch'] = header['epoch'] or 0
+            require(all(isinstance(record[key], str) and record[key]
+                        for key in ('name', 'version', 'release')), 'malformed-rpm-status')
+            key_record = record['name'] == 'gpg-pubkey' and record['arch'] is None
+            require(key_record or isinstance(record['arch'], str) and bool(record['arch']),
+                    'malformed-rpm-status')
             record.update({tag: rpm_value(header, tag) for tag in RPM_TAGS})
             record['identity'] = (record['name'] + '-' + str(record['epoch']) + ':' +
-                                  record['version'] + '-' + record['release'] + '.' + record['arch'])
+                                  record['version'] + '-' + record['release'] + '.' +
+                                  ('(none)' if key_record else record['arch']))
             result.append(record)
     finally:
         transaction.closeDB()
@@ -282,11 +328,19 @@ def rpm_inventory(rpm_module):
     return result
 
 
+def rpm_trigger_definitions(record, prefix):
+    return {tag: record[tag] for tag in RPM_TAGS if tag.startswith(prefix)}
+
+
 def rpm_triggers(installed, selection, payload_paths):
     applicable = []
+    reviewed = set()
     for record in installed:
         for prefix in ('filetrigger', 'transfiletrigger', 'trigger'):
             names = record[prefix + 'name']
+            require(all(isinstance(name, str) and name and
+                        (prefix == 'trigger' or name.startswith('/')) for name in names),
+                    'malformed-trigger-association')
             if prefix == 'trigger':
                 matches = [name for name in names if name == selection['package']]
             else:
@@ -294,16 +348,96 @@ def rpm_triggers(installed, selection, payload_paths):
                     path.startswith(name) for path in payload_paths)]
             if not matches:
                 continue
-            require(record['name'] == 'man-db' and prefix != 'trigger' and
-                    all(name == '/usr/share/man' for name in matches),
+            expected = RPM_TRIGGER_REVIEW.get(record['identity'])
+            require(expected is not None and prefix != 'trigger',
                     'unreviewed-external-trigger:' + record['name'])
+            for kind in ('trigger', 'filetrigger', 'transfiletrigger'):
+                require(digest(rpm_trigger_definitions(record, kind)) == expected[kind],
+                        'changed-reviewed-trigger:' + record['name'])
+            reviewed.add(record['name'])
+            definitions = rpm_trigger_definitions(record, prefix)
+            indexes = record[prefix + 'index']
+            flags = record[prefix + 'flags']
+            scripts = record[prefix + 'scripts']
+            require(bool(scripts) and
+                    len(names) == len(indexes) == len(flags) == len(record[prefix + 'version'])
+                    and len(scripts) == len(record[prefix + 'scriptprog']) ==
+                    len(record[prefix + 'priorities']) and
+                    len(record[prefix + 'scriptflags']) in (0, len(scripts)),
+                    'malformed-trigger-association')
+            actions = []
+            for index, script in enumerate(scripts):
+                registrations = [i for i, value in enumerate(indexes) if value == index]
+                require(registrations and all(type(value) is int and 0 <= value < len(scripts)
+                                              for value in indexes),
+                        'malformed-trigger-association')
+                matching = [i for i in registrations if names[i] in matches]
+                if not matching:
+                    continue
+                action_flags = {flags[i] for i in matching}
+                require(len(action_flags) == 1 and action_flags <= {65536, 262144},
+                        'unreviewed-trigger-action')
+                action = 'in' if action_flags == {65536} else 'postun'
+                actions.append({'index': index, 'action': prefix + action,
+                    'paths': sorted({path for path in payload_paths
+                                    if any(path.startswith(names[i]) for i in matching)}),
+                    'interpreter': record[prefix + 'scriptprog'][index],
+                    'script_sha256': hashlib.sha256(script.encode()).hexdigest()})
             applicable.append({'owner': record['identity'], 'kind': prefix, 'matches': matches,
-                               'definitions': {tag: record[tag] for tag in RPM_TAGS
-                                               if tag.startswith(prefix)}})
-    require(any(record['kind'] == 'transfiletrigger' for record in applicable),
+                               'definitions': definitions, 'actions': actions})
+    require('man-db' in reviewed,
             'missing-reviewed-man-db-trigger')
+    require(reviewed == {'filesystem', 'glibc-common', 'man-db'},
+            'missing-reviewed-native-trigger')
     return {'applicable': applicable, 'completion_required': bool(applicable),
             'completion_unit': 'man-db-cache-update.service', 'completion_path': '/var/cache/man'}
+
+
+def rpm_trigger_environment(root, runner):
+    """Bind the reviewed merged-sbin branch and every external executable."""
+    links = {}
+    for relative, target in (('usr/sbin', 'bin'), ('sbin', 'usr/sbin')):
+        path = root / relative
+        info = path.lstat()
+        require(stat.S_ISLNK(info.st_mode) and info.st_uid == root.stat().st_uid and os.readlink(path) == target,
+                'unreviewed-filesystem-layout')
+        links['/' + relative] = {'target': target, 'device': info.st_dev, 'inode': info.st_ino}
+    rpm_version = command(runner, ['rpm', '--version'])['stdout'].strip()
+    require(rpm_version == 'RPM version 6.0.2', 'unreviewed-rpm-engine')
+    ldconfig = shutil.which('ldconfig')
+    require(ldconfig is not None and Path(ldconfig).resolve() ==
+            (root / 'usr/bin/ldconfig').resolve(), 'unreviewed-ldconfig-resolution')
+    executables = {}
+    for path in ('/usr/bin/rpm', '/usr/bin/ldconfig', '/bin/sh', '/usr/bin/systemd-run',
+                 '/usr/bin/systemctl', '/usr/bin/mandb', '/usr/bin/whatis'):
+        resolved = (root / path.lstrip('/')).resolve(strict=True)
+        require(resolved.is_relative_to(root.resolve()), 'unsafe-trigger-executable')
+        info = resolved.stat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == root.stat().st_uid and
+                info.st_mode & 0o111 and not info.st_mode & 0o022,
+                'unsafe-trigger-executable')
+        provider = command(runner, ['rpm', '-q', '--whatprovides', path, '--queryformat',
+            '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n'])['stdout'].splitlines()
+        require(len(provider) == 1 and len(provider[0].split('\t')) == 3,
+                'trigger-executable-provider')
+        owner = ('rpm' if path.endswith('/rpm') else 'glibc' if path.endswith('/ldconfig') else
+                 'bash' if path == '/bin/sh' else 'man-db' if path.endswith(('/mandb', '/whatis'))
+                 else 'systemd')
+        require(provider[0].split('\t')[0] == owner, 'trigger-executable-provider')
+        executables[path] = {'resolved': '/' + str(resolved.relative_to(root.resolve())),
+            'sha256': hashlib.sha256(read_file(resolved)).hexdigest(), 'provider': provider[0]}
+    service = command(runner, ['systemctl', 'cat', 'man-db-cache-update.service'])['stdout']
+    require(hashlib.sha256(service.encode()).hexdigest() == RPM_SERVICE_REVIEW['effective_service'],
+            'man-db-service-definition')
+    configuration = {}
+    for relative, expected in RPM_SERVICE_REVIEW.items():
+        if relative == 'effective_service':
+            continue
+        configuration[relative] = configuration_record(root, relative)
+        require(configuration[relative]['sha256'] == expected, 'man-db-service-definition')
+    return {'filesystem_branch': 'merged-sbin-noop', 'links': links,
+            'rpm_version': rpm_version, 'executables': executables, 'man_db_service': service,
+            'configuration': configuration}
 
 
 def rpm_trigger_idle(runner):
@@ -346,12 +480,14 @@ def validate_manifest(manifest, bundle):
 
 
 def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sha256,
-              runner=None, root=Path('/'), rpm_module=None):
+              runner=None, root=Path('/'), rpm_module=None, status_directory=None):
     """Return a baseline/input-bound receipt; perform no native transaction.
 
     Call the bundle builder's verify() before this API. ``baseline_provenance``
     is the controller's independently verified accepted-baseline identity. The
     guest caller must already own its VM lease. No receipt is published here.
+    Ubuntu callers supply an owned private ``status_directory`` or a runner
+    with that attribute; only the temporary solver view is written there.
     """
     baseline_digest = provenance_digest(baseline_provenance)
     require(isinstance(selected_input_sha256, str) and
@@ -404,10 +540,11 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
         # --reinstall gives an exact selected-package plan even when the
         # accepted baseline already has A. New is simulated explicitly from A.
         phases['old'] = deb_plan(runner, source, paths['old'], selection['package'],
-                                 selection['architecture'], packages['old']['version'])
+                                 selection['architecture'], packages['old']['version'],
+                                 status_directory=status_directory)
         phases['new'] = deb_plan(runner, replaced_status(source, controls['old'],
             selection['package'], selection['architecture']), paths['new'], selection['package'],
-            selection['architecture'], packages['new']['version'])
+            selection['architecture'], packages['new']['version'], status_directory=status_directory)
         triggers = deb_triggers(root, installed, payload_paths)
         require(installed_deb(root) == (source, installed), 'native-state-changed')
         require(deb_triggers(root, installed, payload_paths) == triggers,
@@ -422,7 +559,7 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
             try:
                 import rpm as rpm_module
             except ImportError as error:
-                raise ValueError('native-preflight:python3-rpm-missing' + REFRESH) from error
+                raise PreflightError('python3-rpm-missing') from error
         installed = rpm_inventory(rpm_module)
         targets = [record for record in installed if record['name'] == selection['package']]
         require(len(targets) == 1 and targets[0]['arch'] == selection['architecture'],
@@ -449,7 +586,7 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
             try:
                 parsed_locks = tomllib.loads(locks)
             except (ValueError, UnicodeError) as error:
-                raise ValueError('native-preflight:malformed-versionlocks' + REFRESH) from error
+                raise PreflightError('malformed-versionlocks') from error
             require(parsed_locks.get('version') == '1.0' and
                     not parsed_locks.get('packages'), 'held-packages')
         # Do not accidentally bypass a legacy DNF4 versionlock configuration.
@@ -466,6 +603,7 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
             require(native_identity['stdout'].strip().split('\t') == [selection['package'],
                     packages[phase]['version'], selection['architecture']], 'wrong-package-identity')
             payload_paths.update(command(runner, ['rpm', '-qpl', str(paths[phase])])['stdout'].splitlines())
+            require(all(path.startswith('/') for path in payload_paths), 'package-file-inventory')
             requirements = command(runner, ['rpm', '-qp', '--requires', str(paths[phase])])['stdout'].splitlines()
             providers[phase] = {}
             for requirement in requirements:
@@ -484,6 +622,7 @@ def preflight(os_id, manifest, bundle, *, baseline_provenance, selected_input_sh
             phases[phase] = command(runner, ['rpm', '--upgrade', '--test', '--oldpackage',
                                               '--replacepkgs', str(paths[phase])])
         triggers = rpm_triggers(installed, selection, payload_paths)
+        triggers['environment'] = rpm_trigger_environment(root, runner)
         triggers['baseline_service_state'] = rpm_trigger_idle(runner)
         require(rpm_inventory(rpm_module) == installed, 'native-state-changed')
         require({path: configuration_record(root, path, optional=True)

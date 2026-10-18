@@ -3,7 +3,15 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
-Requires: 004c.
+Requires: 004c, 004c1.
+
+The [004c1 host prerequisite](../Core-Installation-Coverage-Handoff.md#task-004c1-fedora-native-triggers)
+reconciled the actual Fedora external trigger inventory. Its host checks and
+read-only probes supply no installed acceptance.
+The [master recovery record](../Core-Installation-Coverage-Handoff.md#task-004d-qualification-suspension)
+retains failed attempts, exact bindings, the host-checked Ubuntu readiness repair
+and completed cleanup. Neither failed history supplies acceptance; restart both
+complete histories after the prerequisite with final applicable inputs/helpers.
 
 ## Scope and prerequisites
 

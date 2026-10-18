@@ -6,6 +6,7 @@ This module never installs prerequisites or stops the station's user manager.
 
 from contextlib import contextmanager
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -105,6 +106,10 @@ def save(phase, binding, **values):
 
 class GuestRunner:
     """Use existing bounded command ownership and private diagnostics."""
+    @property
+    def status_directory(self):
+        return private()
+
     def run(self, arguments, *, timeout=120, pass_fds=()):
         from types import SimpleNamespace
         output = guest.commands.run(['/usr/bin/env', 'LC_ALL=C', 'LANG=C', *arguments],
@@ -149,7 +154,7 @@ def unrelated_packages(receipt, package):
     return [value for value in installed if value['name'] != package]
 
 
-def cache_result(manifest, triggers):
+def cache_result(manifest, triggers, *, started_ns=None):
     directory = Path(triggers['completion_path'])
     guest.require(directory.is_dir() and not directory.is_symlink(), 'native-update:man-cache')
     if not triggers['completion_required']:
@@ -158,13 +163,97 @@ def cache_result(manifest, triggers):
                       'native-update:disabled-cache-branch')
         return {'branch': 'verified-disabled'}
     name = 'bwrap' if manifest['package_format'] == 'deb' else 'xdg-dbus-proxy'
-    output = guest.run(['whatis', '--exact', name])
+    arguments = ['whatis', '--exact', name]
+    if started_ns is not None:
+        arguments.extend(['-M', '/usr/share/man'])
+    output = guest.run(arguments)
     guest.require(any(re.match(r'^' + re.escape(name) + r'\s+\(1\)', line)
                       for line in output.splitlines()), 'native-update:man-cache-result')
     databases = sorted(directory.rglob('index.db'))
     guest.require(databases, 'native-update:man-cache-database-missing')
+    if started_ns is not None:
+        # The Fedora unit masks mandb errors. An old whatis hit and unit success
+        # alone could both survive a failed update; require a fresh database too.
+        database = directory / 'index.db'
+        guest.require(database.is_file() and not database.is_symlink(),
+                      'native-update:man-cache-database-missing')
+        guest.require(started_ns <= database.stat().st_mtime_ns <= time.time_ns(),
+                      'native-update:man-cache-not-refreshed')
+        databases = [database]
     return {'branch': 'completed', 'databases': [
         {'sha256': guest.sha(path), 'mtime_ns': path.stat().st_mtime_ns} for path in databases]}
+
+
+def native_diagnostic(directory, name, value):
+    descriptor = os.open(directory / name,
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'w') as stream:
+        stream.write(value)
+
+
+def rpm_execution(output, triggers):
+    """RPM 6.0.2 logs Lua entry, and shell entry/exit, through normal -vv."""
+    observed = []
+    for trigger in triggers['applicable']:
+        owner = trigger['owner'].replace('-0:', '-', 1)
+        for action in trigger['actions']:
+            label = '%' + action['action'] + '(' + owner + ')'
+            prefix = re.escape(label) + r': '
+            if action['interpreter'] == '<lua>':
+                starts = re.findall(prefix + r'running <lua> scriptlet\.', output)
+                guest.require(len(starts) == 1, 'native-update:lua-trigger-not-observed')
+            else:
+                guest.require(action['interpreter'] == '/bin/sh' and
+                              len(re.findall(prefix + r'scriptlet start', output)) == 1,
+                              'native-update:shell-trigger-not-observed')
+                starts = re.findall(prefix + r'execv\(/bin/sh\) pid (\d+)', output)
+                exits = re.findall(prefix + r'waitpid\((\d+)\) rc (\d+) status ([0-9a-fA-F]+)', output)
+                guest.require(len(starts) == len(exits) == 1 and int(starts[0]) > 0 and
+                              exits[0][0] == exits[0][1] == starts[0] and
+                              int(exits[0][2], 16) == 0,
+                              'native-update:trigger-script-failed')
+            observed.append({'owner': trigger['owner'], **action})
+    # Matching unreviewed script executions must never disappear in debug noise.
+    actual = re.findall(r'(%(?:transfiletrigger|filetrigger|trigger)(?:in|un|postun)\([^\n]+?\)):'
+                        r' (?:running <lua> scriptlet\.|scriptlet start)', output)
+    expected = ['%' + item['action'] + '(' + item['owner'].replace('-0:', '-', 1) + ')'
+                for item in observed]
+    guest.require(sorted(actual) == sorted(expected), 'native-update:unaccounted-trigger-execution')
+    return observed
+
+
+def loader_cache():
+    path = Path('/etc/ld.so.cache')
+    before = path.lstat()
+    data = native.read_file(path)
+    info = path.lstat()
+    guest.require(info.st_uid == info.st_gid == 0 and stat.S_IMODE(info.st_mode) == 0o644,
+                  'native-update:loader-cache-metadata')
+    listing = guest.run(['/usr/bin/ldconfig', '-p'])
+    guest.require('libc.so.6 ' in listing and 'libgio-2.0.so.0 ' in listing,
+                  'native-update:loader-cache-result')
+    fields = ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
+    after = path.lstat()
+    guest.require(tuple(getattr(before, key) for key in fields) ==
+                  tuple(getattr(info, key) for key in fields) ==
+                  tuple(getattr(after, key) for key in fields), 'native-update:loader-cache-changed')
+    return {'sha256': hashlib.sha256(data).hexdigest(), 'device': info.st_dev,
+            'inode': info.st_ino, 'mtime_ns': info.st_mtime_ns, 'ctime_ns': info.st_ctime_ns,
+            'listing': listing}
+
+
+def rpm_completion(triggers, before_cache, started_ns):
+    environment = native.rpm_trigger_environment(Path('/'), GuestRunner())
+    guest.require(environment == triggers['environment'], 'native-update:trigger-environment-drift')
+    cache = loader_cache()
+    ended_ns = time.time_ns()
+    guest.require(started_ns <= cache['mtime_ns'] <= ended_ns and
+                  started_ns <= cache['ctime_ns'] <= ended_ns and
+                  cache['mtime_ns'] > before_cache['mtime_ns'] and
+                  cache['listing'] == before_cache['listing'],
+                  'native-update:loader-cache-not-refreshed')
+    return {'filesystem': {'branch': environment['filesystem_branch'],
+                           'links': environment['links']}, 'loader_cache': cache}
 
 
 def transaction(binding, manifest, directory, phase, before, record):
@@ -172,51 +261,67 @@ def transaction(binding, manifest, directory, phase, before, record):
     package = directory / manifest['packages'][phase]['path']
     triggers = before['native_state']['triggers']
     started = time.time()
+    started_ns = time.time_ns()
     monotonic_started = int(time.monotonic() * 1000000)
+    diagnostic = private() / 'native-update-output'
+    diagnostic.mkdir(mode=0o700, exist_ok=True)
+    if manifest['package_format'] == 'rpm':
+        before_cache = loader_cache()
+        native_diagnostic(diagnostic, phase + '-triggers-before.txt', json.dumps(
+            {'triggers': triggers, 'loader_cache': before_cache}, sort_keys=True))
     if manifest['package_format'] == 'deb':
         arguments = ['dpkg', '--install', str(package)]
     else:
-        arguments = ['rpm', '--upgrade', '--oldpackage', '--replacepkgs', str(package)]
+        arguments = ['rpm', '-vv', '--upgrade', '--oldpackage', '--replacepkgs', str(package)]
     result = GuestRunner().run(arguments, timeout=180)
     # Native output is private and collected through the existing redactor.
-    diagnostic = private() / 'native-update-output'
-    diagnostic.mkdir(mode=0o700, exist_ok=True)
-    descriptor = os.open(diagnostic / (phase + '.txt'),
-                         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(descriptor, 'w') as stream:
-        stream.write(result.stdout)
+    native_diagnostic(diagnostic, phase + '.txt', result.stdout)
     guest.require(result.returncode == 0, 'native-update:native-transaction-failed')
     if manifest['package_format'] == 'deb':
         guest.require('Processing triggers for man-db ' in result.stdout,
                       'native-update:man-db-trigger-not-observed')
     else:
+        execution = rpm_execution(result.stdout, triggers)
+        completion = rpm_completion(triggers, before_cache, started_ns)
+        native_diagnostic(diagnostic, phase + '-native-triggers.txt', json.dumps(
+            {'execution': execution, 'completion': completion}, sort_keys=True))
         deadline = time.monotonic() + 90
-        while True:
+        state, execution, wait_error = {}, {}, None
+        try:
+            while True:
+                try:
+                    state = native.rpm_trigger_idle(GuestRunner())
+                    execution = dict(line.split('=', 1) for line in guest.run(['systemctl', 'show',
+                        triggers['completion_unit'],
+                        '--property=ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic,ExecMainStatus'
+                        ]).splitlines())
+                    if (int(execution['ExecMainStartTimestampMonotonic']) >= monotonic_started and
+                            int(execution['ExecMainExitTimestampMonotonic']) >=
+                            int(execution['ExecMainStartTimestampMonotonic']) and
+                            execution['ExecMainStatus'] == '0'):
+                        break
+                except ValueError as error:
+                    wait_error = type(error).__name__
+                guest.require(time.monotonic() < deadline, 'native-update:trigger-timeout')
+                time.sleep(0.25)
+        finally:
+            # Preserve the failed boundary before normal collection/cleanup.
+            native_diagnostic(diagnostic, phase + '-trigger-wait.txt', json.dumps(
+                {'state': state, 'execution': execution, 'error': wait_error}, sort_keys=True))
+            failing = sys.exc_info()[0] is not None
             try:
-                state = native.rpm_trigger_idle(GuestRunner())
-                execution = dict(line.split('=', 1) for line in guest.run(['systemctl', 'show',
-                    triggers['completion_unit'],
-                    '--property=ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic,ExecMainStatus'
-                    ]).splitlines())
-                if (int(execution['ExecMainStartTimestampMonotonic']) >= monotonic_started and
-                        int(execution['ExecMainExitTimestampMonotonic']) >=
-                        int(execution['ExecMainStartTimestampMonotonic']) and
-                        execution['ExecMainStatus'] == '0'):
-                    break
-            except ValueError:
-                pass
-            guest.require(time.monotonic() < deadline, 'native-update:trigger-timeout')
-            time.sleep(0.25)
-        evidence = guest.run(['journalctl', '--no-pager', '--output=json',
-            '--since=@' + str(started), '-u', triggers['completion_unit']], timeout=30)
+                evidence = guest.run(['journalctl', '--no-pager', '--output=json',
+                    '--since=@' + str(started), '-u', triggers['completion_unit']], timeout=30)
+            except Exception as error:
+                native_diagnostic(diagnostic, phase + '-trigger-journal-error.txt', type(error).__name__)
+                if not failing:
+                    raise
+            else:
+                native_diagnostic(diagnostic, phase + '-trigger-journal.txt', evidence)
         rows = [json.loads(line) for line in evidence.splitlines()]
         guest.require(any(row.get('UNIT') == triggers['completion_unit'] and
                           row.get('JOB_TYPE') == 'start' and row.get('JOB_RESULT') == 'done'
                           for row in rows), 'native-update:trigger-completion-journal')
-        descriptor = os.open(diagnostic / (phase + '-trigger-journal.txt'),
-                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(descriptor, 'w') as stream:
-            stream.write(evidence)
         record('onpc.native-update.' + phase + '.trigger-state', json.dumps(state, sort_keys=True))
     identity = native_identity(manifest, phase)
     after = preflight(binding, manifest, directory)
@@ -225,7 +330,8 @@ def transaction(binding, manifest, directory, phase, before, record):
                   'native-update:unrelated-native-changes')
     guest.require(after['native_state']['triggers']['applicable'] == triggers['applicable'],
                   'native-update:trigger-owner-drift')
-    cache = cache_result(manifest, triggers)
+    cache = cache_result(manifest, triggers, **({'started_ns': started_ns}
+                        if manifest['package_format'] == 'rpm' else {}))
     descriptor = os.open(diagnostic / (phase + '-cache.txt'),
                          os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(descriptor, 'w') as stream:
@@ -299,6 +405,21 @@ def wait_read(descriptor, maximum=4096):
     data = os.read(descriptor, maximum + 1)
     guest.require(bool(data) and len(data) <= maximum, 'native-update:witness-ready-data')
     return data
+
+
+def wait_mapping(pid, pidfd, account, backend, generation, executable, role):
+    """Info-fd announces the native child before its mount setup finishes."""
+    deadline = time.monotonic() + 15
+    while True:
+        guest.require(not confinement.exited(pidfd), 'native-update:witness-exited')
+        try:
+            return mapping(pid, account, backend, generation, executable, role)
+        except FileNotFoundError:
+            # Only incomplete proc/root setup is transient. A wrong identity,
+            # label, generation or mapping remains an immediate refusal.
+            guest.require(time.monotonic() < deadline,
+                          'native-update:witness-mapping-ready-timeout')
+            time.sleep(0.02)
 
 
 def proxy_exec(request):
@@ -429,6 +550,8 @@ def native_witness(account, boundary, manifest, record):
                           'native-update:bwrap-monitor-child')
             record('onpc.native-update.bwrap.sandbox-child', sandbox_pid)
             sandbox_fd = os.pidfd_open(sandbox_pid)
+            wait_mapping(sandbox_pid, sandbox_fd, account, backend,
+                         boundary['generation'], manifest['packages']['old']['executable'], 'bwrap')
         else:
             guest.require(data == b'x', 'native-update:proxy-ready-protocol')
             info = socket_path.lstat()

@@ -276,8 +276,9 @@ composes these routes with target-specific product inputs.
 manifest and performs read-only checks against the actual installed package set.
 It retains exact providers/reverse-dependency inputs, offline single-package
 plans, package health/holds, matching external trigger owners/definitions and
-the man-db completion branch. Ubuntu simulates baseline → old, then old → new
-using an anonymous status view. Fedora tests each complete single-RPM replacement
+the native completion branches below. Ubuntu simulates baseline → old, then old → new
+using a private temporary status view in the caller's owned workspace, removed
+after each plan. Fedora tests each complete single-RPM replacement
 without resolving or downloading other packages. Unreviewed matching triggers,
 missing dependencies, extra changes and incompatible state refuse with baseline
 refresh guidance. Its receipt binds both native and selected input identities to
@@ -299,6 +300,64 @@ Actual transaction scripts/triggers, retained mappings, stale-manager refusal,
 lease exclusion, reexec and fresh-boot recovery remain **unqualified until task
 004d** passes both complete histories. Input verification supplies no installed
 transaction acceptance.
+
+#### Fedora 44 reviewed external triggers
+
+The finite proxy payload touches `/usr/bin`, `/usr/lib/.build-id` and
+`/usr/share/man`. The accepted baseline's additional owners are
+`filesystem-0:3.18-52.fc44.x86_64`, `glibc-common-0:2.43-9.fc44.x86_64` and
+`man-db-0:2.13.1-3.fc44.x86_64`. `RPM_TRIGGER_REVIEW` pins the complete native
+header arrays, including nonmatching registrations and expanded script bytes;
+the existing receipt retains the exact definitions, matching payload paths and
+index-to-script associations. Unknown owners, changed definitions, malformed
+associations and missing expected actions refuse. Owner names alone grant nothing.
+
+The authoritative sources are Fedora's immutable
+[filesystem spec](https://src.fedoraproject.org/rpms/filesystem/raw/cf9061fec83ccac5a1ef2359b7a91e39f0c406f6/f/filesystem.spec)
+and [expanded filename table](https://src.fedoraproject.org/rpms/filesystem/raw/cf9061fec83ccac5a1ef2359b7a91e39f0c406f6/f/sbin-filenames),
+[glibc spec](https://src.fedoraproject.org/rpms/glibc/raw/8e9e7eb6e4f312296c6fc451b8e0ca1049725391/f/glibc.spec)
+and [man-db spec](https://src.fedoraproject.org/rpms/man-db/raw/000ef4d2090cfd61db5320f4eaf04401a0163d6c/f/man-db.spec).
+RPM's [file-trigger contract](https://rpm.org/docs/6.0.x/manual/file_triggers.html)
+and [native flags](https://github.com/rpm-software-management/rpm/blob/rpm-6.0.2-release/include/rpm/rpmds.h)
+define `65536` as install and `262144` as post-uninstall. Registration indexes
+select script arrays; the registration and script arrays have different lengths.
+
+- Filesystem uses embedded Lua file triggers at indexes 0/1 for `/usr/bin`.
+  Its index 2 and transaction trigger cover other paths and do not match this
+  payload. The reviewed branch has `/usr/sbin -> bin` and `/sbin -> usr/sbin`:
+  both applicable scripts return immediately. Require native execution and the
+  unchanged link identities/targets; unmerged layouts need a separate review.
+- Glibc-common's embedded Lua transaction triggers at indexes 0/1 have priority
+  2000000 and match `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`. Build-ID files
+  therefore match even without a shared-library payload. Both scripts invoke
+  bare `ldconfig`. Preflight binds its actual search-path resolution, main glibc
+  provider and executable bytes. Completion requires fresh loader-cache
+  timestamps within the transaction, a valid `ldconfig -p` result and unchanged
+  loader entries. Unchanged cache bytes are valid:
+  [glibc's exact cache writer](https://sourceware.org/git/?p=glibc.git;a=blob_plain;f=elf/cache.c;hb=9cda6fc96a)
+  still replaces the cache. Inode inequality alone is insufficient across two calls.
+- Man-db uses shell transaction triggers at indexes 0/1, priority 1000000.
+  They request the cache service through systemd-run. Both the request and
+  [service](https://src.fedoraproject.org/rpms/man-db/raw/000ef4d2090cfd61db5320f4eaf04401a0163d6c/f/man-db-cache-update.service)
+  mask failures, so native status or service success alone cannot prove completion.
+  Bind the exact enabled configuration, service, effective drop-ins and
+  `/etc/man_db.conf` mapping of `/usr/share/man` to `/var/cache/man`; require
+  bounded fresh service execution/journal evidence, a fresh manual-cache database
+  and independent `whatis --exact xdg-dbus-proxy -M /usr/share/man` success.
+
+The current reviewed engine is RPM 6.0.2. The normal single-RPM transaction uses
+`-vv` to retain every expected Lua entry and shell start/exec/matching successful
+wait, refusing missing, duplicate or additional trigger executions.
+[RPM's script runner](https://github.com/rpm-software-management/rpm/blob/rpm-6.0.2-release/lib/rpmscript.cc)
+does not log Lua exits; the
+[transaction result](https://github.com/rpm-software-management/rpm/blob/rpm-6.0.2-release/lib/transaction.cc)
+propagates script failure. Require that result and each independent completion
+observation. The receipt also binds rpm, shell, systemd and man-db executable
+providers/bytes. Private before-state, native output and completion records use
+the existing redacted failure/reboot collector. Safe typed preflight reasons
+survive the guest command route without exporting private path/argument suffixes.
+These engineering checks grant no installed acceptance; both complete case 289
+histories with final input/helper bindings remain required in task 004d.
 
 ## Resources
 

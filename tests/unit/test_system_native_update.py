@@ -132,7 +132,12 @@ def test_native_transaction_is_one_local_package_with_normal_triggers(private, m
     monkeypatch.setattr(history, 'GuestRunner', lambda: SimpleNamespace(run=command))
     monkeypatch.setattr(history, 'preflight', lambda *args: copy.deepcopy(before))
     monkeypatch.setattr(history, 'native_identity', lambda *args: {'sha256': 'new'})
-    monkeypatch.setattr(history, 'cache_result', lambda *args: {'branch': 'completed'})
+    monkeypatch.setattr(history, 'cache_result', lambda *args, **kwargs: {'branch': 'completed'})
+    monkeypatch.setattr(history, 'loader_cache', lambda: {'mtime_ns': 1})
+    execution = Mock(return_value=[{'owner': 'reviewed'}])
+    completion = Mock(return_value={'filesystem': {'branch': 'merged-sbin-noop'}})
+    monkeypatch.setattr(history, 'rpm_execution', execution)
+    monkeypatch.setattr(history, 'rpm_completion', completion)
     monkeypatch.setattr(history.time, 'monotonic', lambda: 1.0)
     monkeypatch.setattr(history.native, 'rpm_trigger_idle', lambda *args: {'Result': 'success'})
 
@@ -144,9 +149,289 @@ def test_native_transaction_is_one_local_package_with_normal_triggers(private, m
     history.transaction({}, manifest, Path('/owned-bundle'), 'new', before, lambda *_: None)
     argv = command.call_args.args[0]
     assert argv == (['dpkg', '--install', '/owned-bundle/new.deb'] if package_format == 'deb' else
-                    ['rpm', '--upgrade', '--oldpackage', '--replacepkgs', '/owned-bundle/new.rpm'])
+                    ['rpm', '-vv', '--upgrade', '--oldpackage', '--replacepkgs', '/owned-bundle/new.rpm'])
     assert command.call_args.kwargs == {'timeout': 180}
     assert (private / 'native-update-output/new.txt').is_file()
+    if package_format == 'rpm':
+        execution.assert_called_once_with(command.return_value.stdout, triggers)
+        assert completion.call_args.args[:2] == (triggers, {'mtime_ns': 1})
+        evidence = json.loads((private / 'native-update-output/new-native-triggers.txt').read_text())
+        assert evidence == {'execution': execution.return_value, 'completion': completion.return_value}
+    else:
+        execution.assert_not_called()
+        completion.assert_not_called()
+
+
+@pytest.fixture
+def fedora_trigger_execution():
+    # Finite external RPM 6.0.2 debug records. Lua has no waitpid record;
+    # glibc's Lua script spawns ldconfig; man-db uses a shell scriptlet.
+    triggers = {'applicable': [
+        {'owner': 'filesystem-0:3.18-52.fc44.x86_64', 'actions': [
+            {'index': 0, 'action': 'filetriggerin', 'interpreter': '<lua>'},
+            {'index': 1, 'action': 'filetriggerpostun', 'interpreter': '<lua>'}]},
+        {'owner': 'glibc-common-0:2.43-9.fc44.x86_64', 'actions': [
+            {'index': 0, 'action': 'transfiletriggerin', 'interpreter': '<lua>'},
+            {'index': 1, 'action': 'transfiletriggerpostun', 'interpreter': '<lua>'}]},
+        {'owner': 'man-db-0:2.13.1-3.fc44.x86_64', 'actions': [
+            {'index': 0, 'action': 'transfiletriggerin', 'interpreter': '/bin/sh'},
+            {'index': 1, 'action': 'transfiletriggerpostun', 'interpreter': '/bin/sh'}]}]}
+    output = '''D: %filetriggerin(filesystem-3.18-52.fc44.x86_64): running <lua> scriptlet.
+D: %filetriggerpostun(filesystem-3.18-52.fc44.x86_64): running <lua> scriptlet.
+D: %transfiletriggerin(glibc-common-2.43-9.fc44.x86_64): running <lua> scriptlet.
+D: %transfiletriggerpostun(glibc-common-2.43-9.fc44.x86_64): running <lua> scriptlet.
+D: %transfiletriggerin(man-db-2.13.1-3.fc44.x86_64): scriptlet start
+D: %transfiletriggerin(man-db-2.13.1-3.fc44.x86_64): execv(/bin/sh) pid 403
+D: %transfiletriggerin(man-db-2.13.1-3.fc44.x86_64): waitpid(403) rc 403 status 0
+D: %transfiletriggerpostun(man-db-2.13.1-3.fc44.x86_64): scriptlet start
+D: %transfiletriggerpostun(man-db-2.13.1-3.fc44.x86_64): execv(/bin/sh) pid 404
+D: %transfiletriggerpostun(man-db-2.13.1-3.fc44.x86_64): waitpid(404) rc 404 status 0
+'''
+    return triggers, output
+
+
+def test_rpm_execution_accounts_for_all_six_actions_without_inventing_lua_exit(fedora_trigger_execution):
+    triggers, output = fedora_trigger_execution
+    result = history.rpm_execution(output, triggers)
+    assert [(item['owner'], item['action'], item['interpreter']) for item in result] == [
+        ('filesystem-0:3.18-52.fc44.x86_64', 'filetriggerin', '<lua>'),
+        ('filesystem-0:3.18-52.fc44.x86_64', 'filetriggerpostun', '<lua>'),
+        ('glibc-common-0:2.43-9.fc44.x86_64', 'transfiletriggerin', '<lua>'),
+        ('glibc-common-0:2.43-9.fc44.x86_64', 'transfiletriggerpostun', '<lua>'),
+        ('man-db-0:2.13.1-3.fc44.x86_64', 'transfiletriggerin', '/bin/sh'),
+        ('man-db-0:2.13.1-3.fc44.x86_64', 'transfiletriggerpostun', '/bin/sh')]
+
+
+@pytest.mark.parametrize('fault', ['missing-lua', 'duplicate-lua', 'missing-shell',
+    'duplicate-shell', 'wrong-pid', 'wrong-return-pid', 'nonzero', 'signal',
+    'missing-exit', 'unaccounted'])
+def test_rpm_execution_refuses_incomplete_failed_or_extra_actions(fedora_trigger_execution, fault):
+    triggers, output = fedora_trigger_execution
+    lua = 'D: %filetriggerin(filesystem-3.18-52.fc44.x86_64): running <lua> scriptlet.\n'
+    shell = 'D: %transfiletriggerin(man-db-2.13.1-3.fc44.x86_64): scriptlet start\n'
+    exit_record = 'D: %transfiletriggerin(man-db-2.13.1-3.fc44.x86_64): waitpid(403) rc 403 status 0\n'
+    changes = {
+        'missing-lua': (lua, ''), 'duplicate-lua': (lua, lua * 2),
+        'missing-shell': (shell, ''), 'duplicate-shell': (shell, shell * 2),
+        'wrong-pid': ('waitpid(403)', 'waitpid(999)'),
+        'wrong-return-pid': ('rc 403 status 0', 'rc 999 status 0'),
+        'nonzero': ('rc 403 status 0', 'rc 403 status 100'),
+        'signal': ('rc 403 status 0', 'rc 403 status 9'),
+        'missing-exit': (exit_record, ''),
+        'unaccounted': ('', '')}
+    if fault == 'unaccounted':
+        output += 'D: %transfiletriggerin(unknown-1-1.x86_64): running <lua> scriptlet.\n'
+    else:
+        output = output.replace(*changes[fault])
+    with pytest.raises(history.guest.GuestError, match={
+            'missing-lua': 'lua-trigger-not-observed', 'duplicate-lua': 'lua-trigger-not-observed',
+            'missing-shell': 'shell-trigger-not-observed', 'duplicate-shell': 'shell-trigger-not-observed',
+            'unaccounted': 'unaccounted-trigger-execution'}.get(fault, 'trigger-script-failed')):
+        history.rpm_execution(output, triggers)
+
+
+@pytest.fixture
+def trigger_environment():
+    return {'filesystem_branch': 'merged-sbin-noop',
+            'links': {'/usr/sbin': {'target': 'bin', 'device': 1, 'inode': 2},
+                      '/sbin': {'target': 'usr/sbin', 'device': 1, 'inode': 3}},
+            'rpm_version': 'RPM version 6.0.2',
+            'executables': {'/usr/bin/ldconfig': {'resolved': '/usr/bin/ldconfig',
+                'sha256': 'a' * 64, 'provider': 'glibc\t0:2.43-9.fc44\tx86_64'}},
+            'man_db_service': 'ExecStart=/usr/bin/mandb --quiet'}
+
+
+@pytest.mark.parametrize('fault', [None, 'old-mtime', 'old-ctime', 'future-mtime',
+    'future-ctime', 'unchanged', 'listing', 'layout', 'link-inode', 'provider', 'executable'])
+def test_rpm_completion_requires_fresh_cache_and_unchanged_bindings(monkeypatch, trigger_environment, fault):
+    before = {'mtime_ns': 90, 'ctime_ns': 90, 'listing': 'unchanged native library listing'}
+    after = dict(before, mtime_ns=110, ctime_ns=111)
+    environment = copy.deepcopy(trigger_environment)
+    if fault in ('old-mtime', 'old-ctime', 'future-mtime', 'future-ctime'):
+        after['mtime_ns' if fault.endswith('mtime') else 'ctime_ns'] = 99 if fault.startswith('old') else 121
+    elif fault == 'unchanged':
+        before['mtime_ns'] = after['mtime_ns']
+    elif fault == 'listing':
+        after['listing'] += ' unexpected provider'
+    elif fault == 'layout':
+        environment['links']['/usr/sbin']['target'] = 'other'
+    elif fault == 'link-inode':
+        environment['links']['/sbin']['inode'] += 1
+    elif fault in ('provider', 'executable'):
+        environment['executables']['/usr/bin/ldconfig'][
+            'provider' if fault == 'provider' else 'sha256'] = 'changed'
+    monkeypatch.setattr(history.native, 'rpm_trigger_environment', lambda *args: environment)
+    monkeypatch.setattr(history, 'loader_cache', lambda: after)
+    monkeypatch.setattr(history.time, 'time_ns', lambda: 120)
+    if fault:
+        with pytest.raises(history.guest.GuestError, match=(
+                'trigger-environment-drift' if fault in ('layout', 'link-inode', 'provider', 'executable')
+                else 'loader-cache-not-refreshed')):
+            history.rpm_completion({'environment': trigger_environment}, before, 100)
+    else:
+        assert history.rpm_completion({'environment': trigger_environment}, before, 100) == {
+            'filesystem': {'branch': 'merged-sbin-noop', 'links': trigger_environment['links']},
+            'loader_cache': after}
+
+
+@pytest.mark.parametrize('fault', [None, 'stale', 'future', 'missing', 'wrong-entry',
+                                   'fresh-locale-only', 'symlink'])
+def test_man_cache_requires_independent_fresh_database(tmp_path, monkeypatch, fault):
+    directory = tmp_path / 'man'
+    directory.mkdir()
+    database = directory / 'index.db'
+    if fault != 'missing':
+        database.write_bytes(b'finite mandb database')
+        timestamp = 99 if fault in ('stale', 'fresh-locale-only') else 121 if fault == 'future' else 110
+        os.utime(database, ns=(timestamp, timestamp))
+    if fault == 'fresh-locale-only':
+        locale = directory / 'de'
+        locale.mkdir()
+        (locale / 'index.db').write_bytes(b'unrelated fresh locale database')
+        os.utime(locale / 'index.db', ns=(110, 110))
+    elif fault == 'symlink':
+        target = directory / 'foreign-index.db'
+        database.rename(target)
+        database.symlink_to(target)
+    monkeypatch.setattr(history.time, 'time_ns', lambda: 120)
+    command = Mock(return_value='unrelated (1) - wrong' if fault == 'wrong-entry' else
+                   'xdg-dbus-proxy (1) - D-Bus proxy')
+    monkeypatch.setattr(history.guest, 'run', command)
+    triggers = {'completion_path': str(directory), 'completion_required': True}
+    if fault:
+        with pytest.raises(history.guest.GuestError, match={
+                'missing': 'man-cache-database-missing', 'symlink': 'man-cache-database-missing',
+                'wrong-entry': 'man-cache-result'
+                }.get(fault, 'man-cache-not-refreshed')):
+            history.cache_result({'package_format': 'rpm'}, triggers, started_ns=100)
+    else:
+        result = history.cache_result({'package_format': 'rpm'}, triggers, started_ns=100)
+        assert result == {'branch': 'completed', 'databases': [
+            {'sha256': hashlib.sha256(b'finite mandb database').hexdigest(), 'mtime_ns': 110}]}
+    command.assert_called_once_with(['whatis', '--exact', 'xdg-dbus-proxy', '-M', '/usr/share/man'])
+
+
+@pytest.mark.parametrize('fault', [None, 'owner', 'mode', 'missing-libc', 'missing-gio'])
+def test_loader_cache_records_metadata_and_checks_native_listing(monkeypatch, fault):
+    metadata = SimpleNamespace(st_uid=1001 if fault == 'owner' else 0, st_gid=0,
+        st_mode=0o100666 if fault == 'mode' else 0o100644, st_dev=4, st_ino=12,
+        st_size=len(b'finite loader cache'), st_mtime_ns=110, st_ctime_ns=111)
+    path = SimpleNamespace(lstat=lambda: metadata)
+    monkeypatch.setattr(history, 'Path', lambda value: path if value == '/etc/ld.so.cache' else
+                        pytest.fail('unexpected native file read'))
+    read = Mock(return_value=b'finite loader cache')
+    monkeypatch.setattr(history.native, 'read_file', read)
+    listing = ('libc.so.6 (libc6,x86-64) => /lib64/libc.so.6\n'
+               'libgio-2.0.so.0 (libc6,x86-64) => /lib64/libgio-2.0.so.0\n')
+    if fault == 'missing-libc':
+        listing = listing.splitlines(keepends=True)[1]
+    elif fault == 'missing-gio':
+        listing = listing.splitlines(keepends=True)[0]
+    command = Mock(return_value=listing)
+    monkeypatch.setattr(history.guest, 'run', command)
+    if fault:
+        with pytest.raises(history.guest.GuestError, match=(
+                'loader-cache-metadata' if fault in ('owner', 'mode') else 'loader-cache-result')):
+            history.loader_cache()
+    else:
+        assert history.loader_cache() == {'sha256': hashlib.sha256(b'finite loader cache').hexdigest(),
+            'device': 4, 'inode': 12, 'mtime_ns': 110, 'ctime_ns': 111, 'listing': listing}
+        command.assert_called_once_with(['/usr/bin/ldconfig', '-p'])
+    read.assert_called_once_with(path)
+
+
+@pytest.mark.parametrize('field', ['st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns'])
+@pytest.mark.parametrize('stage', ['reading', 'listing'])
+def test_loader_cache_refuses_replacement_or_mutation_during_observation(monkeypatch, field, stage):
+    before = SimpleNamespace(st_uid=0, st_gid=0, st_mode=0o100644, st_dev=4,
+        st_ino=12, st_size=len(b'finite loader cache'), st_mtime_ns=110, st_ctime_ns=111)
+    after = copy.copy(before)
+    setattr(after, field, getattr(after, field) + 1)
+    metadata = Mock(side_effect=[before, after, after] if stage == 'reading' else [before, before, after])
+    path = SimpleNamespace(lstat=metadata)
+    monkeypatch.setattr(history, 'Path', lambda value: path if value == '/etc/ld.so.cache' else
+                        pytest.fail('unexpected native file read'))
+    read = Mock(return_value=b'finite loader cache')
+    monkeypatch.setattr(history.native, 'read_file', read)
+    command = Mock(return_value='libc.so.6 (libc6) => /lib64/libc.so.6\n'
+                   'libgio-2.0.so.0 (libc6) => /lib64/libgio-2.0.so.0\n')
+    monkeypatch.setattr(history.guest, 'run', command)
+    with pytest.raises(history.guest.GuestError, match='loader-cache-changed'):
+        history.loader_cache()
+    assert metadata.call_count == 3
+    read.assert_called_once_with(path)
+    command.assert_called_once_with(['/usr/bin/ldconfig', '-p'])
+
+
+@pytest.mark.parametrize('fault', ['native-status', 'loader-completion', 'man-completion',
+                                   'unrelated-package', 'trigger-owner', 'trigger-timeout'])
+def test_rpm_transaction_retains_native_output_when_independent_checks_fail(
+        private, monkeypatch, fedora_trigger_execution, fault):
+    triggers, output = fedora_trigger_execution
+    triggers['completion_unit'] = 'man-db-cache-update.service'
+    manifest = {'package_format': 'rpm', 'selection': {'package': 'xdg-dbus-proxy'},
+                'packages': {'new': {'path': 'new.rpm'}}}
+    before = {'native_state': {'installed': [{'name': 'xdg-dbus-proxy'}, {'name': 'unrelated'}],
+                               'triggers': triggers}}
+    after = copy.deepcopy(before)
+    if fault == 'unrelated-package':
+        after['native_state']['installed'].append({'name': 'unexpected'})
+    elif fault == 'trigger-owner':
+        after['native_state']['triggers']['applicable'][0]['owner'] = 'changed'
+    command = Mock(return_value=SimpleNamespace(returncode=1 if fault == 'native-status' else 0,
+                                               stdout=output))
+    monkeypatch.setattr(history, 'GuestRunner', lambda: SimpleNamespace(run=command))
+    monkeypatch.setattr(history, 'loader_cache', lambda: {'mtime_ns': 90})
+    completion = Mock(return_value={'loader_cache': 'independently fresh'})
+    if fault == 'loader-completion':
+        completion.side_effect = history.guest.GuestError('native-update:loader-cache-not-refreshed')
+    monkeypatch.setattr(history, 'rpm_completion', completion)
+    monkeypatch.setattr(history.native, 'rpm_trigger_idle', lambda *args: {'Result': 'success'})
+    monkeypatch.setattr(history.time, 'monotonic', lambda: 1.0)
+    if fault == 'trigger-timeout':
+        monkeypatch.setattr(history.time, 'monotonic', Mock(side_effect=[1.0, 1.0, 92.0]))
+        monkeypatch.setattr(history.time, 'sleep', Mock(side_effect=AssertionError('deadline already expired')))
+    monkeypatch.setattr(history, 'native_identity', lambda *args: {'sha256': 'new'})
+    monkeypatch.setattr(history, 'preflight', lambda *args: after)
+    cache = Mock(side_effect=history.guest.GuestError('native-update:man-cache-not-refreshed'))
+    monkeypatch.setattr(history, 'cache_result', cache)
+
+    def run(arguments, **kwargs):
+        if arguments[0] == 'systemctl':
+            if fault == 'trigger-timeout':
+                return 'ExecMainStartTimestampMonotonic=1\nExecMainExitTimestampMonotonic=2\nExecMainStatus=0'
+            return 'ExecMainStartTimestampMonotonic=1000001\nExecMainExitTimestampMonotonic=1000002\nExecMainStatus=0'
+        assert arguments[0] == 'journalctl'
+        return json.dumps({'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start', 'JOB_RESULT': 'done'})
+
+    monkeypatch.setattr(history.guest, 'run', run)
+    record = Mock()
+    with pytest.raises(history.guest.GuestError, match={
+            'native-status': 'native-transaction-failed',
+            'loader-completion': 'loader-cache-not-refreshed',
+            'man-completion': 'man-cache-not-refreshed',
+            'unrelated-package': 'unrelated-native-changes',
+            'trigger-owner': 'trigger-owner-drift', 'trigger-timeout': 'trigger-timeout'}[fault]):
+        history.transaction({}, manifest, Path('/owned'), 'new', before, record)
+    assert (private / 'native-update-output/new.txt').read_text() == output
+    assert json.loads((private / 'native-update-output/new-triggers-before.txt').read_text()) == {
+        'triggers': triggers, 'loader_cache': {'mtime_ns': 90}}
+    assert not (private / 'native-update-output/new-cache.txt').exists()
+    assert not any(call.args[0].endswith(('.cache', '.native')) for call in record.call_args_list)
+    if fault == 'native-status':
+        completion.assert_not_called()
+    if fault == 'trigger-timeout':
+        wait = json.loads((private / 'native-update-output/new-trigger-wait.txt').read_text())
+        assert wait['state'] == {'Result': 'success'}
+        assert wait['execution'] == {'ExecMainStartTimestampMonotonic': '1',
+            'ExecMainExitTimestampMonotonic': '2', 'ExecMainStatus': '0'}
+        assert wait['error'] is None
+        journal = json.loads((private / 'native-update-output/new-trigger-journal.txt').read_text())
+        assert journal == {'UNIT': 'man-db-cache-update.service', 'JOB_TYPE': 'start', 'JOB_RESULT': 'done'}
+    if fault == 'man-completion':
+        assert 'started_ns' in cache.call_args.kwargs
+    else:
+        cache.assert_not_called()
 
 
 @pytest.mark.parametrize('fault', ['new-version', 'same-bytes', 'source-instead-of-private'])
@@ -298,6 +583,38 @@ def test_retained_mapping_requires_real_executable_and_enforcing_identity(tmp_pa
                                  'a' * 64 + '\n', expected, 'bwrap')
         assert result['inode'] == info.st_ino and result['sha256'] == expected['sha256']
         assert result['mappings'] and result['identity'][0] == '123'
+
+
+def test_native_child_readiness_waits_for_mount_setup_without_replaying_input(monkeypatch):
+    expected = {'pid': 4321, 'generation': 'old', 'mappings': ['native A']}
+    observe = Mock(side_effect=[FileNotFoundError('root not constructed'), expected])
+    monkeypatch.setattr(history, 'mapping', observe)
+    monkeypatch.setattr(history.confinement, 'exited', lambda fd: False)
+    pause = Mock()
+    monkeypatch.setattr(history.time, 'sleep', pause)
+    account = SimpleNamespace(pw_uid=1001)
+    assert history.wait_mapping(4321, 12, account, 'apparmor', 'old',
+                                {'sha256': 'A'}, 'bwrap') == expected
+    assert observe.call_count == 2
+    pause.assert_called_once_with(0.02)
+
+
+@pytest.mark.parametrize('fault', ['boundary', 'exited', 'deadline'])
+def test_native_child_readiness_refuses_bad_boundary_exit_and_incomplete_setup(monkeypatch, fault):
+    observe = Mock(side_effect=(history.guest.GuestError('native-update:witness-boundary')
+                               if fault == 'boundary' else FileNotFoundError('root not constructed')))
+    monkeypatch.setattr(history, 'mapping', observe)
+    monkeypatch.setattr(history.confinement, 'exited', lambda fd: fault == 'exited')
+    monkeypatch.setattr(history.time, 'monotonic', Mock(side_effect=[0, 15]))
+    pause = Mock(side_effect=AssertionError('refused readiness must not sleep'))
+    monkeypatch.setattr(history.time, 'sleep', pause)
+    with pytest.raises(history.guest.GuestError, match={
+            'boundary': 'witness-boundary', 'exited': 'witness-exited',
+            'deadline': 'witness-mapping-ready-timeout'}[fault]):
+        history.wait_mapping(4321, 12, SimpleNamespace(pw_uid=1001), 'apparmor',
+                             'old', {'sha256': 'A'}, 'bwrap')
+    pause.assert_not_called()
+    assert observe.call_count == (0 if fault == 'exited' else 1)
 
 
 @pytest.mark.parametrize('failure', ['native-status', 'missing-trigger', 'extra-package'])

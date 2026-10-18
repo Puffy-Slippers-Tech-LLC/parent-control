@@ -745,6 +745,127 @@ removed after its enduring invocation and evidence moved to the maintained owner
 Only 004c is newly complete. Registration and host doubles grant no installed
 native transaction acceptance; both complete 004d target histories remain required.
 
+## Task 004d qualification suspension
+
+No installed acceptance credit. The retained parallel run
+`0c680ad01de84f3a850ae643c508b390` failed both histories, with reports
+`output/test-runs/host/reports/20261018T204609Z-4bdbe7ba/report.md` (Ubuntu)
+and `output/test-runs/host/reports/20261018T204609Z-59b47c0d/report.md` (Fedora).
+Their allocations are `onpc-system-1u3l6usn` and `onpc-system-2v778nbo` under
+`output/test-runs/privileged/allocations/`. Both results retain collection and
+cleanup passed, restored-baseline verification passed, and product not-run;
+Ubuntu additionally retains the failed first-phase JUnit. Neither result
+contains a passing recovery phase. The selected helper binding was
+`3a115c9787c1162298bcdf6f0a7084dd09c282e3ceb6cb72b0c7d1548d281ba0`.
+
+Fedora stopped during old-input preflight, before a native transaction or product
+installation. A guarded read-only reprobe in its retained maintenance instance,
+bound to the same baseline digest
+`cd6633bdc9a3af5a493eb03988c54d0b74ee61b6913f52362a1605f57f83f0d8`,
+reproduced `native-preflight:unreviewed-external-trigger:filesystem`.
+The actual matching inventory includes `filesystem-3.18-52.fc44.x86_64`
+file triggers on `/usr/bin`, `glibc-common-2.43-9.fc44.x86_64` transaction file
+triggers on `/usr/lib`, and the already reviewed
+`man-db-2.13.1-3.fc44.x86_64` transaction file triggers on `/usr/share/man`.
+The first two require additional finite review, execution evidence and completion
+assertions; admitting their names alone would weaken the current refusal.
+This is a test/preparation coverage gap, not an established product defect.
+[004c1](#task-004c1-fedora-native-triggers) supplies that
+additional coverage before 004d resumes. All native transaction, retained-session,
+enforcement, refusal, reexec, recovery and per-target cleanup obligations remain.
+
+Ubuntu reached the public station and passed initial positive/denial controls,
+then read its bwrap sandbox child's generation before mount setup finished.
+The native `--info-fd` notification precedes that setup. The history now waits
+at most 15 seconds for the owned child's mapping; it still immediately refuses
+incorrect identity, label, generation or executable mappings, and still checks
+both monitor and child. Focused host checks passed **253/253**, report
+`output/test-runs/host/reports/20261018T210342Z-63563e53/report.md`.
+The repair is not installed-qualified. Run both complete histories with final
+helpers/inputs after 004c1; never splice either failed phase into a new attempt.
+New tests use in-process doubles only; existing compatible unit and cleanup
+classifications remain applicable. Package sources and ordinary build-tool
+dependencies are unchanged, so no `make build` is required.
+
+The retained Fedora maintenance owner was resumed only through guarded probes,
+then stopped through the maintained route. Baseline restoration passed, and
+independent status reads verified both registered VMs off (`id=-1`). No subagent
+remains; the attempted review worker never started. Pre-existing work is preserved.
+004d and 004 remain unchecked. The queue's only new row is the unchecked 004c1
+immediately before 004d; its dependency was added without removing 004c.
+Final plan/inventory/coverage/composition checks passed **313/313**, report
+`output/test-runs/host/reports/20261018T210634Z-e3d0aec5/report.md`;
+all **53** local links in the four task documents passed. Coverage was regenerated
+with four additional host readiness cases; no installed/E2E status changed.
+
+The verified **365-file** retained bundle is
+`output/test-runs/host/exports/onpc-evidence-bundle-cvevjuqw/evidence.zip`, SHA-256
+`2dccaebca636d1b681f8d0c5021dbd46c6001f4ccbe31c9ae112707a12ac2fe6`.
+It preserves both failed histories' redacted evidence/results, native bundles,
+input/helper bindings and original reports, plus the 253-check host report.
+Bundle inspection verified every byte and export cleanup completed. The later
+313-check report remains in ordinary host retention. Original paths remain bundle
+member keys if execution reports rotate. Future consumers must use maintained
+preparation and exact applicability checks, not stage from this diagnostic export.
+
+## Task 004c1 Fedora native triggers
+
+Accepted 2026-10-18 as **host** for `onpc-Fedora44`. The maintained
+[finite trigger contract](../../tests/integration/Environment.md#fedora-44-reviewed-external-triggers)
+records authoritative Fedora/RPM/glibc sources and exact expected branches.
+Admission pins complete native trigger definitions, registration flags/indexes,
+interpreters, priorities and versions for filesystem 3.18-52, glibc-common
+2.43-9 and man-db 2.13.1-3. Receipts retain full definitions, applicable payload
+paths, six actions, executable providers/bytes, merged filesystem links and
+enabled man-db service/configuration. Unknown, changed or malformed definitions
+still refuse. The normal single-RPM transaction retains RPM 6.0.2 debug evidence,
+successful status, unchanged filesystem links, fresh consistent loader-cache
+results, and bounded man-db execution/journal plus fresh global-cache/whatis
+results. Failure and reboot collection retain the private native evidence;
+typed public preflight reasons hide private suffixes.
+
+Read-only engineering probes through the maintained Fedora maintenance route
+reverified the actual matching native headers, providers, RPM 6.0.2, current
+payload paths (including build IDs), symlink branch and exact service/configuration.
+The final probe executed checkout helper SHA-256
+`52cc4805d0398c026278811bec40a75f9028c2c7840258e8b49144856f1d1ae8`;
+its environment binding was
+`8fd3158f2df30f68437dfc98619bbc3914635fffd3c7e1f52f142c17786072f2`.
+All three complete definition pins and all six action associations passed;
+the native cache service was idle/successful. This probe performed no package
+transaction and grants no installed acceptance. The accepted baseline was
+restored and independently verified; final public status was off (`id=-1`).
+
+The effective affected host selection passed **1,511** checks: **1,442**
+unchanged checks in
+`output/test-runs/host/reports/20261018T211648Z-150111a2/report.md`, plus
+the final **69/69** preflight checks in
+`output/test-runs/host/reports/20261018T211754Z-10deb9e0/report.md`.
+The earlier report retains three new-fixture failures: a stale glibc interpreter
+oracle, an incorrectly selected unknown-owner fixture and writable fixture
+configuration. Their mechanical corrections preserve all assertions. Only that
+test module changed after the first run; all affected executable helpers and
+other selected tests match their passing results. Both Ubuntu and Fedora host
+branches, execution/completion failures, unchanged unrelated state and failure
+collection are covered. Independent source review also corrected global-cache
+selection, loader-cache observation consistency and timeout evidence retention.
+
+Applicable unit, cleanup, UI and host-resource inventories were reviewed. Added
+checks use tiny pytest-private files, closed descriptors and in-process
+command/clock/account doubles; no live VM/service/bus/display/network or shared
+cache is acquired by host tests. Existing compatible classifications remain
+valid. Generated coverage was refreshed without installed/E2E status changes.
+Product/package sources and ordinary build-tool dependencies are unchanged,
+so no `make build` is required. All workers joined, VM maintenance cleanup ended
+and normal reports remain retained. Only 004c1 is newly complete; 004d must run
+both complete installed histories with final exact applicable helpers/inputs.
+Final plan/inventory/coverage/composition and actual core-plan pointer checks
+passed **314/314**, report
+`output/test-runs/host/reports/20261018T211923Z-4cffc10d/report.md`.
+All **72** local links across the four changed Markdown documents passed.
+Queue review preserves every other row, Scope and Requires as supplied at entry;
+the completed temporary 004c1 brief was removed after its context moved here.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
@@ -752,7 +873,7 @@ Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
 complete. Task 004a's [finite input review](#task-004a-finite-native-input-review)
 is complete, and 004b's [verified native inputs](#task-004b-verified-native-transaction-inputs)
 are implemented; 004c's history is registered and host-verified. Continue with
-004d's two complete installed histories.
+004d's two complete installed histories with 004c1's additional Fedora trigger coverage.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent

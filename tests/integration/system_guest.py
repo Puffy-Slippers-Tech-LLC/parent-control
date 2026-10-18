@@ -1014,7 +1014,11 @@ def main(argv=None):
              'prepare-toggle-session': prepare_toggle_session}[argv[0]]()
         return 0
     except Exception as error:
-        category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'
+        from native_transaction import PreflightError
+        if isinstance(error, PreflightError):
+            category = error.public_category
+        else:
+            category = str(error) if isinstance(error, (GuestError, CommandError)) else 'unexpected-failure'
         print(f'onpc-system: outcome=failed category={category}', file=sys.stderr)
         return 1
 

@@ -1,6 +1,9 @@
 """Host-only composition of per-target native transaction history inputs."""
 
 from dataclasses import replace
+import json
+from pathlib import Path
+import stat
 from types import SimpleNamespace
 from unittest.mock import Mock
 import tempfile
@@ -131,8 +134,35 @@ def test_composite_prepares_product_then_native_with_verified_target_format(
     allocate = Mock(side_effect=AssertionError('worker already registered its root'))
     monkeypatch.setattr(test_retention, 'allocate', allocate)
     control = Mock()
-    control.run.side_effect = [probe, product_status, probe, native_status]
     output = tmp_path / 'registered-inputs'
+    output.mkdir(mode=0o700)
+    identity = output.stat()
+    events = []
+
+    def run(command, **kwargs):
+        if 'appsnapshot' in command:
+            events.append('probe')
+            return probe
+        from tools import build_test_artifacts, native_transaction_inputs, test_storage
+
+        destination = Path(command[command.index('--output') + 1])
+        # Mirror the CLI's strict DEB resolution and the real builders' folder
+        # guards, replacing only expensive package/cache/download work.
+        assert all(stat.S_IMODE((output / name).stat().st_mode) == 0o700
+                   for name in ('product', 'native'))
+        if '--native-inputs' in command:
+            events.append('native')
+            monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
+            native_transaction_inputs._safe_tree(destination)
+            native_transaction_inputs._begin(destination, package_format)
+            return native_status
+        events.append('product')
+        if '--reuse' in command:
+            destination = destination.resolve(strict=True)
+        build_test_artifacts._require_empty_output(destination)
+        return product_status
+
+    control.run.side_effect = run
     assert vm_artifacts.prepare(ROOT, control, {}, output=output,
                                 system_native_inputs=True) == (product_status or native_status)
     builds = [call.args[0] for call in control.run.call_args_list
@@ -147,7 +177,55 @@ def test_composite_prepares_product_then_native_with_verified_target_format(
             ROOT, 'tools/build_test_artifacts.py', '--native-inputs',
             '--package-format', package_format, '--output', str(output / 'native'))
     allocate.assert_not_called()
-    assert not output.exists()
+    assert events == (['probe', 'product'] if product_status else
+                      ['probe', 'product', 'probe', 'native'])
+    assert (output.stat().st_dev, output.stat().st_ino) == (identity.st_dev, identity.st_ino)
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    if product_status:
+        assert not list((output / 'native').iterdir())
+
+
+@pytest.mark.parametrize('entry', ['product', 'native', 'foreign', 'link'])
+def test_composite_preserves_existing_entries_before_any_builder(tmp_path, entry):
+    output = tmp_path / 'registered-inputs'
+    output.mkdir(mode=0o700)
+    sentinel = tmp_path / 'sentinel'
+    sentinel.write_text('preserve')
+    if entry == 'link':
+        (output / 'native').symlink_to(sentinel)
+    elif entry in ('product', 'native'):
+        (output / entry).mkdir(mode=0o700)
+    else:
+        (output / entry).write_text('foreign payload')
+    before = list(output.iterdir())
+    control = Mock()
+    with pytest.raises(ValueError, match='allocation must be empty'):
+        vm_artifacts.prepare(ROOT, control, {}, output=output, system_native_inputs=True)
+    control.run.assert_not_called()
+    assert list(output.iterdir()) == before
+    assert sentinel.read_text() == 'preserve'
+
+
+@pytest.mark.parametrize('unsafe', ['missing', 'linked', 'public', 'foreign'])
+def test_composite_requires_existing_private_caller_root(tmp_path, monkeypatch, unsafe):
+    output = tmp_path / 'registered-inputs'
+    if unsafe != 'missing':
+        output.mkdir(mode=0o700)
+    if unsafe == 'linked':
+        linked = tmp_path / 'linked-inputs'
+        linked.symlink_to(output, target_is_directory=True)
+        output = linked
+    elif unsafe == 'public':
+        output.chmod(0o755)
+    elif unsafe == 'foreign':
+        # Model foreign ownership without changing host credentials or files.
+        monkeypatch.setattr(test_retention.os, 'geteuid', lambda: output.stat().st_uid + 1)
+    control = Mock()
+    with pytest.raises((ValueError, OSError)):
+        vm_artifacts.prepare(ROOT, control, {}, output=output, system_native_inputs=True)
+    control.run.assert_not_called()
+    if unsafe != 'missing':
+        assert not list(output.iterdir())
 
 
 @pytest.mark.parametrize('conflict', [dict(upgrade_inputs=True), dict(native_inputs=True),
@@ -188,3 +266,92 @@ def test_explicit_native_inputs_require_one_target(monkeypatch):
                                        '--id', '289', '--native-artifacts=/tmp/onpc-native'])
     assert target.name == vm_name(0)
     assert '--native-artifacts=/tmp/onpc-native' in args
+
+
+@pytest.mark.parametrize('kind,reason,category', [
+    ('native', 'unreviewed-rpm-trigger-owner', 'native-preflight:unreviewed-rpm-trigger-owner'),
+    ('native', 'missing-file:/home/private-person/config', 'native-preflight:missing-file'),
+    ('native', '/home/private-person/config', 'native-preflight:invalid-diagnostic'),
+    ('value', 'native-preflight:missing-file:/home/private-person/config', 'unexpected-failure'),
+])
+def test_native_establish_dispatch_preserves_only_safe_preflight_errors(
+        tmp_path, monkeypatch, capsys, kind, reason, category):
+    import native_transaction as native
+    import system_guest as guest
+    import system_native_update as update
+
+    guard = Mock(return_value={})
+    monkeypatch.setattr(guest, 'guard', guard)
+    monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(guest, 'before_install', Mock())
+    monkeypatch.setattr(update, 'inputs', lambda: ({}, {}, tmp_path))
+    monkeypatch.setattr(update, 'private', lambda: tmp_path)
+
+    def refuse(*args):
+        if kind == 'native':
+            native.require(False, reason)
+        raise ValueError(reason)
+
+    monkeypatch.setattr(update, 'preflight', refuse)
+    transaction = Mock(side_effect=AssertionError('refused preflight started transaction'))
+    monkeypatch.setattr(update, 'transaction', transaction)
+    assert guest.main(['native-establish-old']) == 1
+    output = capsys.readouterr()
+    expected = category + (native.REFRESH if kind == 'native' else '')
+    assert output.err == f'onpc-system: outcome=failed category={expected}\n'
+    assert not output.out
+    assert 'private-person' not in output.err
+    guard.assert_called_once_with()
+    transaction.assert_not_called()
+    assert not list(tmp_path.iterdir())
+
+
+def test_native_preflight_failure_remains_collectable_through_guest_dispatch(
+        tmp_path, monkeypatch, capsys):
+    import pwd
+    import native_transaction as native
+    import system_guest as guest
+    import system_native_update as update
+
+    marker = dict(run='a' * 32, package_sha256='b' * 64,
+                  baseline_sha256='c' * 64, selected_inputs_sha256='d' * 64)
+    monkeypatch.setattr(guest, 'PAYLOAD', tmp_path)
+    monkeypatch.setattr(guest, 'EXPIRY_DIAGNOSTICS', tmp_path / 'expiry')
+    monkeypatch.setattr(guest, 'guard', lambda: marker)
+    monkeypatch.setattr(guest, 'enable_diagnostics', Mock())
+    monkeypatch.setattr(guest, 'before_install', Mock())
+    monkeypatch.setattr(update, 'inputs', lambda: ({}, {}, tmp_path))
+    private = tmp_path / 'private'
+    private.mkdir()
+    monkeypatch.setattr(update, 'private', lambda: private)
+    stage = private / 'stage-diagnostic'
+    stage.mkdir()
+    source = stage / 'preflight.txt'
+    source.write_text('native database refused for private-person\n')
+    hostname = tmp_path / 'hostname'
+    hostname.write_text('test-host')
+    monkeypatch.setattr(guest, 'Path', lambda value: hostname if str(value) == '/etc/hostname'
+                        else tmp_path / 'empty-logs' if str(value) == '/var/log/oh-no-parent-control'
+                        else Path(value))
+    monkeypatch.setattr(pwd, 'getpwall', lambda: [SimpleNamespace(
+        pw_uid=1000, pw_name='private-person', pw_gecos='', pw_dir='/home/private-person')])
+    command = Mock()
+    command.run.return_value = b''
+    monkeypatch.setattr(guest, 'Commands', lambda: command)
+
+    def refuse(*args):
+        native.require(False, 'unreviewed-rpm-trigger-owner')
+
+    monkeypatch.setattr(update, 'preflight', refuse)
+    assert guest.main(['native-establish-old']) == 1
+    assert 'native-preflight:unreviewed-rpm-trigger-owner' in capsys.readouterr().err
+    assert guest.main(['collect', 'failed']) == 0
+    output = tmp_path / 'results'
+    result = json.loads((output / 'result.json').read_text())
+    assert result['outcome'] == 'failed'
+    assert result['selected_inputs_sha256'] == marker['selected_inputs_sha256']
+    assert (output / 'stage-diagnostic-preflight.txt').read_text() == (
+        'native database refused for [Test user]\n')
+    assert 'private-person' in source.read_text()
+    assert not (private / 'native-update-intent.json').exists()
+    assert not capsys.readouterr().err

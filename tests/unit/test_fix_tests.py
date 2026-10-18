@@ -928,7 +928,8 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
         assert text.count('\033[?1049h') == text.count('\033[?1049l') == 1
         assert text.index('final summary') < text.index('\033[?1049l')
     else:
-        assert text.count('Overall - 50%') == 1
+        assert text.count('Overall - 50%') == 2  # Live update, then the required exit recap.
+        assert text.rstrip().endswith('Round 1: Category: unit (1/4) | Overall - 50%')
         assert '\033[?1049' not in text
 
 

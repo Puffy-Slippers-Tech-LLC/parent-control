@@ -471,6 +471,10 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # Repair-budget additions run finite synthetic agents under the existing recorded
 # launcher owners and private tmp_path roots. They retain compatible unit/cleanup
 # scheduling, bounded waits and teardown; no real model or VM is invoked.
+# Shared response-rejection/restart cases reuse those private launcher trees,
+# recorded synthetic agent/test children and bounded teardown. Cleanup finishes
+# before correction; the five-session limit bounds repeated rejection. No new
+# shared resource or owner; both launcher modules remain compatible here and in unit.
 # Parent rejected-report recorder cases reuse function-local tmp_path evidence,
 # UI/transport doubles and the existing durable-reply fault matrix. No guest,
 # display, process or shared state is added; the unit/cleanup split stays valid.

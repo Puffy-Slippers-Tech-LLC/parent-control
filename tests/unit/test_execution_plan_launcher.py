@@ -197,6 +197,153 @@ def test_plan_selects_first_unfinished_and_excludes_deferred_rows(tmp_path):
     assert plan.namespace == Plan.load(tmp_path, plan.path).namespace
 
 
+@pytest.mark.parametrize('payload', [None, '', 'not JSON', '{', '\udcff'])
+def test_shared_response_reader_classifies_only_missing_or_malformed_result(tmp_path, payload):
+    from launcher_runtime import SessionResultRejected, read_session_result
+    if payload is not None:
+        (tmp_path / 'agent-result.json').write_bytes(payload.encode('utf-8', errors='surrogateescape'))
+    with pytest.raises(SessionResultRejected, match='missing or invalid JSON'):
+        read_session_result(tmp_path)
+
+
+@pytest.mark.parametrize('failure', [OSError('ownership refused'), PermissionError('missing grant')])
+def test_shared_response_gate_does_not_retry_infrastructure_failures(failure):
+    from launcher_runtime import validate_session_result
+    def validate(_):
+        raise failure
+    with pytest.raises(type(failure), match=str(failure)):
+        validate_session_result({}, validate)
+
+
+def insert_unlinked_prerequisite(plan, consumer):
+    queue = plan.root / plan.queue
+    queue.write_text(queue.read_text().replace(f'| [ ] | {consumer} |',
+        '| [ ] | pre | [Prerequisite](pre.md) | Baseline | Needed shared fixture |\n'
+        f'| [ ] | {consumer} |'))
+    (plan.root / 'docs/pre.md').write_text('Acceptance: host\n')
+    (plan.root / plan.path).write_text('Task queue: [Queue](queue.md).\nNext task: **pre — Prerequisite**.\n')
+
+
+def test_rejected_prerequisite_returns_to_same_coordinator_before_advancing(rig, monkeypatch):
+    original = rig.plan.state()
+    calls = []
+    accepted = workflow.execute
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append(state['task_id'])
+        if len(calls) == 1:
+            insert_unlinked_prerequisite(rig.plan, '001')
+            return response(state, 'prerequisite_required')
+        if len(calls) == 2:
+            assert state['task_id'] == '001' and state['task_sessions'] == 2
+            assert state['queue_before'] == original
+            assert 'prerequisite handoff' in (run / 'prompt.txt').read_text()
+            assert 'Requires chain' in (run / 'prompt.txt').read_text()
+            assert TaskBudget(run).read()['completed'] == 0
+            queue = root / rig.plan.queue
+            queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+            return response(state, 'prerequisite_required')
+        return accepted(root, spec, run, owner)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker() == 0
+    assert calls == ['001', '001', 'pre']
+    assert rig.plan.state() == {'pre': True, '001': False, '002': False}
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert state['suspended_tasks']['001']['task_sessions'] == 2
+    assert 'result_recovery' not in state['suspended_tasks']['001']
+    assert json.loads((rig.run / 'rejected-agent-result.json').read_text())['status'] == 'prerequisite_required'
+    assert TaskBudget(rig.run).read()['completed'] == 1
+
+
+def test_rejected_result_retries_are_bounded_and_retain_original_baseline(rig, monkeypatch):
+    original = rig.plan.state()
+    attempts = []
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append(state['task_sessions'])
+        assert state['queue_before'] == original
+        return response(state)  # No acceptance/queue close-out was performed.
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'closeout', lambda *_: pytest.fail('rejected completion reached Git'))
+    assert rig.worker() == 1
+    assert attempts == [1, 2, 3, 4, 5]
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert state['reason'].startswith('task session limit reached')
+    assert 'only the selected task' in state['result_recovery']['reason']
+    assert state['queue_before'] == original and rig.plan.state() == original
+    assert 'controller rejected' in (rig.run / 'handoff.txt').read_text()
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_rejected_handoff_resumes_after_stop_with_unchanged_task_and_guards(rig, monkeypatch, legacy):
+    state = state_for(rig.plan, in_flight=True, task_sessions=1)
+    insert_unlinked_prerequisite(rig.plan, '001')
+    result = response(state, 'prerequisite_required')
+    (rig.run / 'agent-result.json').write_text(json.dumps(result))
+    if legacy:
+        state['reason'] = 'prerequisite handoff needs a valid backward dependency insertion and owned cleanup'
+    else:
+        from launcher_runtime import SessionResultRejected, retain_result_rejection
+        state.update(phase='recover', in_flight=False, plan_queue=rig.plan.queue,
+                     result_recovery=retain_result_rejection(rig.run,
+                         SessionResultRejected('unlinked prerequisite', result), label='fixture'))
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    restored = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    assert restored['task_id'] == '001' and restored['queue_before'] == state['queue_before']
+    assert restored['result_recovery']['reason']
+    assert restored['session_limit'] == 6
+    assert workflow.load_plan(rig.root, rig.plan.path, restored) == rig.plan
+    (rig.run / 'stop').touch()
+    assert rig.worker(restored) == 0
+    assert not rig.calls and TaskBudget(rig.run).read()['completed'] == 0
+    assert 'controller rejected' in (rig.run / 'handoff.txt').read_text()
+
+
+@pytest.mark.parametrize('adapter', ['ordinary-plan', 'write-e2e'])
+def test_interrupted_rejection_retention_resumes_exact_response_and_original_task(rig, monkeypatch, adapter):
+    from launcher_runtime import SessionResultRejected, retain_result_rejection
+    import write_e2e
+
+    state = state_for(rig.plan, phase='recover', in_flight=False, task_sessions=1,
+                      plan_queue=rig.plan.queue)
+    source = rig.run / 'agent-result.json'
+    source.write_text('{"latest": "rejected response"}')
+    (rig.run / 'rejected-agent-result.json').write_text('stale preceding response')
+    read_bytes = Path.read_bytes
+    def interrupted(path):
+        if path == source:
+            raise OSError('interrupted while retaining rejected response')
+        return read_bytes(path)
+    monkeypatch.setattr(Path, 'read_bytes', interrupted)
+    with pytest.raises(OSError, match='interrupted while retaining'):
+        retain_result_rejection(rig.run, SessionResultRejected('latest guard failure'),
+                                label='fixture', checkpoint=state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    restored = (workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+                if adapter == 'ordinary-plan' else write_e2e.initial_state(rig.root, rig.run.parent))
+    assert restored['task_id'] == '001' and restored['queue_before'] == state['queue_before']
+    rejection = restored['result_recovery']
+    assert rejection['reason'] == 'latest guard failure'
+    assert Path(rejection['response']).read_text() == '{"latest": "rejected response"}'
+    assert Path(rejection['response']) != rig.run / 'rejected-agent-result.json'
+
+
+def test_legacy_malformed_response_resumes_only_matching_retained_decode_failure(rig, monkeypatch):
+    state = state_for(rig.plan, in_flight=True, task_sessions=1)
+    try:
+        json.loads('malformed result')
+    except ValueError as error:
+        state['reason'] = str(error)
+    (rig.run / 'agent-result.json').write_text('malformed result')
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    restored = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    assert restored['result_recovery']['reason'].startswith('agent response is missing or invalid JSON')
+    assert not restored['in_flight'] and restored['session_limit'] == 6
+
+
 @pytest.mark.parametrize('provider_error', [True, False])
 def test_failed_agent_preserves_current_reason_and_unfinished_task(rig, monkeypatch, provider_error):
     reason = 'Codex turn failed (cyberPolicy): Provider rejected the turn.'
@@ -526,6 +673,33 @@ def test_public_entry_allows_checkpoint_recovery_before_strict_brief_validation(
     display.refresh_chat()
     display.update([dict(key='001', lines=['Task 001: Countdown'])], [])
     assert 'Last Error: The countdown stopped.' in ''.join(row.plain for row in display.previous)
+
+
+@pytest.mark.parametrize('damage', ['master', 'queue', 'brief'])
+def test_public_entry_resumes_rejected_partial_edits_before_strict_metadata_validation(rig, monkeypatch, damage):
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    state = state_for(rig.plan, phase='recover', task_sessions=1,
+                      plan_queue=rig.plan.queue,
+                      result_recovery={'reason': 'rejected partial close-out',
+                                       'response': str(previous / 'rejected-agent-result.json')})
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    path = {'master': rig.plan.path, 'queue': rig.plan.queue, 'brief': 'docs/001.md'}[damage]
+    (rig.root / path).write_text('Partial edit requiring correction.\n')
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    monkeypatch.setattr(workflow, 'session_command', lambda *_args: [])
+    def select(root, name, command, **options):
+        command(rig.run, -1)
+        options['on_start'](rig.run)
+        return rig.run, True
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    monkeypatch.setattr(workflow.launcher, 'follow', lambda *_args, **_kwargs: 0)
+    assert workflow.main(rig.spec, []) == 0
+    restored = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert restored['task_id'] == '001' and restored['queue_before'] == state['queue_before']
+    assert restored['task']['acceptance'] == 'host' and restored['session_limit'] == 6
+    assert restored['result_recovery'] == state['result_recovery']
 
 
 def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget(rig, monkeypatch):
@@ -1456,6 +1630,15 @@ def test_prerequisite_repair_refuses_accepted_or_unverifiable_checkpoint(tmp_pat
 def test_prerequisite_repair_requires_added_work(tmp_path):
     plan = prepare(tmp_path)
     assert plan.prerequisite_repair(state_for(plan)) is None
+
+
+def test_prerequisite_insertion_cannot_drop_existing_consumer_dependency(tmp_path):
+    plan, state = prerequisite_plan(tmp_path)
+    selected = next(row for row in state['queue_structure'] if row[2] == '002')
+    selected[4] = '001'
+    queue = tmp_path / plan.queue
+    queue.write_text(queue.read_text().replace('| pre-b, 001 |', '| pre-b |'))
+    assert plan.prerequisite_repair(state) is None
 
 
 @pytest.mark.parametrize('declaration', ['Acceptance: review\n', 'Acceptance: host\nTargets: newly-required-target\n'])

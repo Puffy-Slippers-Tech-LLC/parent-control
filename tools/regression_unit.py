@@ -79,6 +79,12 @@ Conversation race checks use deterministic in-process protocol orderings and
 private mailboxes. Broken-input and interrupt cleanup checks reuse the same
 recorded children and nested owners, with bounded waits and fixture teardown;
 no new shared resource, service or cleanup lifetime is introduced.
+Shared response-recovery checks reuse execution_plan_launcher's private
+Markdown/checkpoint trees and process-local doubles, launcher_chat's in-memory
+protocol, and write_e2e/fix_tests cleanup modules' finite, recorded agent/test
+children. Repeated rejection and restart spend at most the existing five-session
+budget per fixture. No real model, VM, display, bus, network, shared cache or
+new cleanup owner is introduced; compatible unit/cleanup classifications remain.
 
 Repair failure-context checks extend fix_tests with tiny pytest-private report,
 queue and command files plus a process-local artifact-reader double. No live

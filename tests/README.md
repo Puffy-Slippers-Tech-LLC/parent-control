@@ -586,7 +586,8 @@ A restarted launcher retains the task's cumulative
 session count and adds 5 to it for that process's task cap. Attaching to a
 running launcher does not renew the cap. If the task is still incomplete at
 that cap, the entire launcher exits with failure and prints a bold
-red warning as the final line after the summary and follow-up instructions.
+red warning as the final line of its worker summary, after the follow-up
+instructions and before the shared observer's final tasks overview recap.
 The next task starts with its own cap of 5.
 Zero and negative task limits run all remaining tasks. An oversized positive
 limit warns and finishes when the queue is exhausted. A task counts only after
@@ -1098,6 +1099,9 @@ primitives, output following and terminal display, and registers test owners
 started inside an E2E or ordinary plan agent session. The
 [adapter map](../docs/Execution-Plans.md#extension-boundary) distinguishes their
 shared components and retained execution engines.
+Their model workflows use the shared
+[response recovery contract](../docs/Execution-Plans.md#common-launcher-interface)
+for rejected agent handoffs, preserving acceptance guards and existing session caps.
 Cancellation or worker death cancels only those recorded test runs, validates
 their directory identities and waits for guarded cleanup before releasing the
 workflow lock. Already-running tests that the agent merely attaches to remain

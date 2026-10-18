@@ -840,13 +840,17 @@ def insert_prerequisite(root, no_dependencies='Baseline'):
 
 
 @pytest.mark.parametrize('no_dependencies', ['Baseline', '—', '-', ''])
-def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp_path, no_dependencies):
+@pytest.mark.parametrize('response_recovery', [False, True])
+def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(
+        tmp_path, no_dependencies, response_recovery):
     prepare(tmp_path)
     _, before = workflow.queue_state(tmp_path)
     state = dict(workflow.fresh_state('001'), task_sessions=3, live_attempts=2,
                  failed_attempts=2, model_tier=2, progress=reply()['progress'],
                  in_flight=True, stage_candidates=['partial.py'],
                  stage_baseline={'unrelated.py': 'original'}, progress_keys=['1'])
+    if response_recovery:
+        state.update(queue_before=before, result_recovery={'reason': 'preceding insertion was invalid'})
     insert_prerequisite(tmp_path, no_dependencies)
     selected = workflow.accept_result(tmp_path, state,
         reply('blocked', 'not_run', host_validated=False, handoff='Keep partial consumer work.'), before)
@@ -862,6 +866,7 @@ def test_prerequisite_repair_suspends_consumer_without_acceptance_or_staging(tmp
     assert consumer['stage_candidates'] == ['partial.py']
     assert consumer['stage_baseline'] == {'unrelated.py': 'original'}
     assert consumer['handoff'] == 'Keep partial consumer work.'
+    assert 'result_recovery' not in consumer and 'queue_before' not in consumer
     assert workflow.select_task_state('001', selected) == consumer
     assert workflow.queue_state(tmp_path)[1] == {'000a': False, '001': False, '002': False}
 

@@ -58,6 +58,9 @@ bounded prerequisite insertion before its consumer when new work is discovered.
 The ordinary-plan driver accepts only a contiguous new unchecked prerequisite
 block immediately before that unfinished consumer, with backward dependency
 links, unchanged existing completion/order/scope and completed owned cleanup.
+The consumer's Requires chain must include every new prerequisite, preserving
+its previous dependencies; this insertion is the sole exception to preserving
+that field during ordinary close-out.
 The structured `prerequisite_required` handoff suspends the consumer and resumes
 its retained work after those prerequisites pass, including across restarts.
 It grants no completion credit. Other structural edits or changed acceptance
@@ -117,6 +120,18 @@ execution still validate the plan. A fresh plan run automatically resumes unfini
 Git close-out and interrupted validation. It allows five more coordinator
 sessions for that task; attaching never renews this allowance. An exhausted
 session allowance stops with a retained handoff rather than skipping the task.
+Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
+[`launcher_runtime.py`](../tools/launcher_runtime.py). A successful agent session
+with missing/malformed JSON or a rejected handoff/acceptance/queue transition
+returns to its coordinator after owned cleanup. The latest rejected response and
+exact guard failure remain in the run allocation and corrective prompt. Recovery
+keeps the original task, queue and acceptance baseline and uses the existing
+session allowance; it grants no completion credit, promotion or extra sessions.
+Stop/cancellation remain effective between attempts. Repeated rejection ends at
+the normal session cap with a resumable checkpoint and diagnostic handoff.
+Provider refusals, failed agent processes, missing grants, ownership/cleanup
+failures and Git close-out failures retain their explicit stop/recovery policies;
+they are never converted into automatic response retries.
 If a completed structured response survived before its acceptance checkpoint,
 the ordinary-plan driver revalidates it against the retained task, targets,
 queue and cleanup requirements before resuming Git close-out. It completes owned

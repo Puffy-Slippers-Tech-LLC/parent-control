@@ -220,7 +220,7 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     assert fix_tests.follow(run, output) == expected
     calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
     agents = [call for call in calls if call['kind'] == 'agent']
-    assert len(agents) == 1
+    assert len(agents) == (5 if mode == 'agent-invalid' else 1)
     assert agents[0]['thread'] is None
     assert agents[0]['frame_directory'] is None
     assert all(call['frame_directory'] == str(run) for call in calls if call['kind'] == 'test')
@@ -232,6 +232,10 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     if mode == 'agent-invalid':
         assert usage[0]['event'] == 'missing_usage' and usage[0]['usage'] is None
         assert not any(row['event'] == 'verification' for row in usage)
+        assert all('controller rejected' in agent['prompt'] for agent in agents[1:])
+        assert all('model_reasoning_effort="low"' in agent['args'] for agent in agents)
+        assert (run / 'rejected-agent-result.json').read_text() == '[]'
+        assert json.loads((run / 'repair-stop.json').read_text())['sessions'] == 5
     executed = [call['category'] for call in calls if call['kind'] == 'test']
     assert executed == (['unit', 'unit', 'ui', 'system', 'e2e', 'all'] if expected == 0 else ['unit'])
     assert 'Traceback' not in output.getvalue()
@@ -246,7 +250,25 @@ def test_real_script_uses_fresh_agent_prompt_and_granular_rounds(checkout, mode,
     source = '\n'.join(f'if value == {number}: return True' for number in range(30))
     assert all(line not in rendered for line in source.splitlines())
     assert (run / 'agent-commands.log').read_text() == (
-        f'\nCommand source: cat example.py\n{source}\nExit: 0\n')
+        f'\nCommand source: cat example.py\n{source}\nExit: 0\n') * len(agents)
+
+
+def test_rejected_handoff_is_corrected_before_verification_without_promotion(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['invalid-status', 'test_fixed'], tests=['one-case', None])))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    invocations = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in invocations] == ['test', 'agent', 'agent', 'test']
+    agents = [call for call in invocations if call['kind'] == 'agent']
+    assert 'controller rejected' in agents[1]['prompt']
+    assert 'fixture result 1' in agents[1]['prompt']
+    assert all('model_reasoning_effort="low"' in call['args'] for call in agents)
+    usage = [json.loads(line) for line in (run / 'agent-usage.jsonl').read_text().splitlines()]
+    assert len([row for row in usage if row['event'] == 'verification']) == 1
+    assert not any(row['event'] == 'tier_transition' for row in usage)
 
 
 @pytest.mark.parametrize('mode', ['agent-blocked', 'agent-app-blocked', 'agent-blocked-twice'])

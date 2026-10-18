@@ -146,6 +146,7 @@ class AppSession:
         self.outgoing = bytearray()
         self.messages = []
         self.final = None
+        self.final_text = ''
         self.done = False
         self.completed = False
         self.interrupt_requested = False
@@ -186,6 +187,7 @@ class AppSession:
 
     def start_turn(self, text):
         self.final = None
+        self.final_text = ''
         self.completed = False
         self.turn_started_at = time.time()
         self.publish('running')
@@ -241,7 +243,7 @@ class AppSession:
                 self.renderer.message('Interrupted. Send a message to continue, or press Ctrl+C again to exit.')
             elif self.messages:
                 return
-            elif self.final is not None:
+            else:
                 # Serialize the final mailbox check and acceptance against
                 # send_input(), including input arriving after take_input().
                 with launcher.lock(self.run / 'chat-gate') as gate:
@@ -249,11 +251,15 @@ class AppSession:
                     inbox = self.run / 'chat-inbox.json'
                     if inbox.exists() and json.loads(inbox.read_text()):
                         return
-                    launcher.atomic(self.run / 'agent-result.json', self.final)
+                    if self.final is not None:
+                        launcher.atomic(self.run / 'agent-result.json', self.final)
+                    else:
+                        # A successful turn without a usable result belongs to
+                        # the shared response-recovery gate, not an idle chat
+                        # that needs developer input to make progress.
+                        (self.run / 'agent-result.json').write_text(self.final_text, encoding='utf-8')
                     self.publish_locked('finished')
                     self.done = True
-            else:
-                self.publish('waiting')
             self.completed = False
 
     def feed(self, data):
@@ -362,8 +368,9 @@ class AppSession:
                 value = json.loads(text)
             except ValueError:
                 value = None
-            if isinstance(value, dict) and value.get('task_id') == self.task and 'status' in value:
-                self.final = value
+            self.final_text = text
+            self.final = (value if isinstance(value, dict) and value.get('task_id') == self.task
+                          and 'status' in value else None)
             item = {'id': item['id'], 'type': 'agent_message', 'text': text}
         elif kind == 'commandExecution':
             item = {'id': item['id'], 'type': 'command_execution', 'command': item['command'],

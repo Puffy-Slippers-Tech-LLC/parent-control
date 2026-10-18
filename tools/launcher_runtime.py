@@ -15,6 +15,82 @@ class TaskLimitReached(Exception):
     """A bounded run finished its authorized work without a failure."""
 
 
+class SessionResultRejected(ValueError):
+    """A successful agent turn needs correction before the workflow can advance."""
+
+    def __init__(self, message, result=None):
+        super().__init__(message)
+        self.result = result
+
+
+def read_session_result(run):
+    try:
+        return json.loads((run / 'agent-result.json').read_text(encoding='utf-8'))
+    except (FileNotFoundError, ValueError) as error:
+        raise SessionResultRejected('agent response is missing or invalid JSON: ' + str(error)) from error
+
+
+def validate_session_result(result, validate):
+    """Only response validation is recoverable; transport/ownership failures escape."""
+    try:
+        return validate(result)
+    except ValueError as error:
+        raise SessionResultRejected(str(error), result) from error
+
+
+def result_rejection(error, response):
+    result = error.result if isinstance(error.result, dict) else {}
+    return dict(reason=str(error), response=str(response),
+                **{key: result[key][:16000] for key in ('summary', 'handoff')
+                   if isinstance(result.get(key), str)})
+
+
+def retain_result_rejection(run, error, *, label, checkpoint=None):
+    """Keep the latest rejected response in the existing bounded run allocation.
+
+    Callers finish owned cleanup before invoking this, keep their original task
+    and acceptance baseline, and spend their normal session budget on correction.
+    Never call this for provider refusals, execution failures or Git close-out.
+    A checkpointed workflow records recovery before retaining its source response;
+    interruption during retention can still use that exact source in the old run.
+    """
+    response = run / 'agent-result.json'
+    rejected = run / 'rejected-agent-result.json'
+    record = result_rejection(error, response if checkpoint is not None else rejected)
+    if checkpoint is not None:
+        checkpoint['result_recovery'] = record
+        launcher.atomic(run / 'checkpoint.json', checkpoint)
+    if response.exists():
+        temporary = rejected.with_suffix('.tmp')
+        temporary.write_bytes(response.read_bytes())
+        temporary.replace(rejected)
+    elif error.result is not None:
+        launcher.atomic(rejected, error.result)
+    else:
+        rejected.write_text('', encoding='utf-8')  # Missing output must not reuse an older response.
+    record['response'] = str(rejected)
+    launcher.atomic(run / 'result-rejection.json', record)
+    if checkpoint is not None:
+        launcher.atomic(run / 'checkpoint.json', checkpoint)
+    print(f'{label}: response rejected: {error}. Returning to the coordinator within '
+          'the existing session limit; no task accepted.', flush=True)
+    return record
+
+
+def result_recovery_instructions(recovery):
+    if not recovery:
+        return ''
+    return ('\nThe controller rejected the preceding response. Correct this handoff before '
+            'advancing; this session consumes the existing task/case session allowance.\n'
+            + json.dumps(recovery, ensure_ascii=False) + '\n'
+            'Inspect the retained response and current files. Preserve the original task, '
+            'queue baseline, acceptance targets, unrelated work and valid evidence. '
+            'Repair the response or authorized partial edits to satisfy the reported guard; '
+            'do not weaken acceptance, skip obligations, change permissions or claim completion '
+            'without evidence. Reconcile owned cleanup before new work. Return a corrected '
+            'structured result, or a concrete developer blocker when a decision is required.\n')
+
+
 def task_limit(value):
     return int(value) if value is not None and int(value) > 0 else None
 

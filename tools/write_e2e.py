@@ -15,7 +15,9 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import detached_launcher as launcher
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer as wait_for_developer
-from launcher_runtime import TaskBudget, add_options, task_limit, warn_remaining
+from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
+                              retain_result_rejection, result_recovery_instructions, task_limit,
+                              validate_session_result, warn_remaining)
 from launcher_git import git_output, worktree_snapshot, session_changes
 
 
@@ -204,7 +206,7 @@ def defer_to_prerequisite(root, state, *, recovery_run=None):
     current, _ = queue_state(root)
     pending = dict(state.get('suspended_tasks', {}))
     consumer = {key: value for key, value in state.items()
-                if key not in ('suspended_tasks', 'blocker', 'blocker_id', 'queue_before')}
+                if key not in ('suspended_tasks', 'blocker', 'blocker_id', 'queue_before', 'result_recovery')}
     consumer.update(phase='recover', in_flight=False)
     if recovery_run is not None:
         consumer['recovery_run'] = str(recovery_run)
@@ -899,7 +901,7 @@ def validate_completion_queue(state, after):
 
 
 def save_handoff(run, state, reason, *, display=True):
-    prompt = state['handoff']
+    prompt = state['handoff'] + result_recovery_instructions(state.get('result_recovery'))
     if state.get('pending_completion'):
         prompt = (f"Task {state['task_id']} passed acceptance and queue close-out; Git close-out remains. "
                   "Staging, its completion commit and/or git push remain. "
@@ -999,7 +1001,7 @@ def execute(root, run, owner, phase, live_attempts=0):
         raise launcher.Stopped()
     if status:
         raise ValueError(f'Codex session exited with status {status}; see retained output')
-    return json.loads((run / 'agent-result.json').read_text())
+    return read_session_result(run)
 
 
 def task_info_instructions(run, task):
@@ -1063,10 +1065,15 @@ def worker(root, run, owner, tasks, state_json):
             if (run / 'stop').exists():
                 reason = 'stopped at a session boundary'
                 break
-            task, before = queue_state(root)
+            if state.get('result_recovery'):
+                # A rejected response may have left a partial queue edit. Keep
+                # the original baseline until the coordinator satisfies it.
+                task, before = state['task_id'], state['queue_before']
+            else:
+                task, before = queue_state(root)
             if state.get('optimization_session'):
                 task = state['task_id']
-            elif state.get('completion_recovery'):
+            elif state.get('completion_recovery') and not state.get('result_recovery'):
                 before = validate_completion_queue(state, before)
                 # The pointer already names the next task. Keep the interrupted
                 # task and its original status baseline until acceptance is proven.
@@ -1094,6 +1101,7 @@ def worker(root, run, owner, tasks, state_json):
             state['task_sessions'] = state.get('task_sessions', 0) + 1
             state.setdefault('progress_keys', []).append(str(count))
             prompt = session_prompt(state)
+            prompt += result_recovery_instructions(state.get('result_recovery'))
             prompt += task_info_instructions(run, state['task_id'])
             (run / 'prompt.txt').write_text(prompt, encoding='utf-8')
             state.setdefault('stage_baseline', worktree_snapshot(root))
@@ -1112,13 +1120,21 @@ def worker(root, run, owner, tasks, state_json):
             print(f"\nwrite-e2e: session {count}; "
                   f"task {task}; {model} {effort}", flush=True)
             try:
-                result = execute(root, run, owner, state['phase'], state['live_attempts'])
-            finally:
-                candidates = set(state['stage_candidates'])
-                candidates.update(session_changes(root, state['worktree_before']))
-                state['stage_candidates'] = sorted(candidates)
-                launcher.atomic(run / 'checkpoint.json', state)
-            updated = accept_result(root, state, result, before)
+                try:
+                    result = execute(root, run, owner, state['phase'], state['live_attempts'])
+                finally:
+                    candidates = set(state['stage_candidates'])
+                    candidates.update(session_changes(root, state['worktree_before']))
+                    state['stage_candidates'] = sorted(candidates)
+                    launcher.atomic(run / 'checkpoint.json', state)
+                updated = validate_session_result(result, lambda result: accept_result(root, state, result, before))
+            except SessionResultRejected as error:
+                launcher.finish_nested(root, run)
+                state.update(phase='optimize' if state.get('optimization_session') else 'recover',
+                             in_flight=False)
+                retain_result_rejection(run, error, label='write-e2e', checkpoint=state)
+                continue
+            updated.pop('result_recovery', None)
             optimizing = bool(state.get('optimization_session'))
             final_stall = (not optimizing and result['status'] == 'stalled'
                            and model_tier(state) == len(MODEL_TIERS) - 1)
@@ -1180,13 +1196,17 @@ def worker(root, run, owner, tasks, state_json):
 
 
 def initial_state(root, directory, *, destination=None, defer_closeout=False):
-    task, _ = queue_state(root)
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
         # Progress keys name frames in one launcher, unlike cumulative task sessions.
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             saved.pop('progress_keys', None)
+        if state.get('result_recovery'):
+            used = state.get('task_sessions', 0)
+            return dict(state, recovery_run=str(previous), total_sessions=used,
+                        task_session_limit=used + MAX_TASK_SESSIONS)
+        task, _ = queue_state(root)
         resumed = resume_after_exclusion(root, state, previous)
         if resumed is not None:
             used = resumed.get('task_sessions', 0)
@@ -1258,7 +1278,7 @@ def initial_state(root, directory, *, destination=None, defer_closeout=False):
         if state.get('in_flight'):
             raise ValueError(f'interrupted task changed the queue; inspect the handoff in {previous}')
         return select_task_state(task, state)
-    return fresh_state(task)
+    return fresh_state(queue_state(root)[0])
 
 
 def select(root, argv):
@@ -1289,18 +1309,24 @@ def select(root, argv):
         if args.tasks is None:
             return
         limit = TaskBudget(run).set_limit(args.tasks)
-        warn_remaining(limit, sum(not done for done in queue_state(root)[1].values()) +
-                       TaskBudget(run).read().get('completed', 0), label='write-e2e')
+        try:
+            remaining = sum(not done for done in queue_state(root)[1].values())
+        except (OSError, ValueError):
+            pass  # Partial coordinator edits must not prevent attachment.
+        else:
+            warn_remaining(limit, remaining + TaskBudget(run).read().get('completed', 0),
+                           label='write-e2e')
         print(f"write-e2e: limits now tasks={limit if limit is not None else 'all'}", flush=True)
 
     def command(run, owner):
         args = parse()
         if args.tasks is None:
             args.tasks = 1
-        remaining = sum(not done for done in queue_state(root)[1].values())
+        state = initial_state(root, run.parent, defer_closeout=True)
+        before = state['queue_before'] if state.get('result_recovery') else queue_state(root)[1]
+        remaining = sum(not done for done in before.values())
         initial_limits.update(tasks=task_limit(args.tasks), started=0, completed=0, remaining=remaining)
         warn_remaining(task_limit(args.tasks), remaining, label='write-e2e')
-        state = initial_state(root, run.parent, defer_closeout=True)
         state['vm'] = binding
         previous = launcher.current_run(run.parent)
         if previous is not None and (previous / 'task-info.json').exists():

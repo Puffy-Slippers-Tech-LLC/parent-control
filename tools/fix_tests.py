@@ -26,7 +26,9 @@ from detached_launcher import (
 )
 import detached_launcher
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
-from launcher_runtime import TaskBudget, TaskLimitReached, add_options, warn_remaining
+from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReached, add_options,
+                              read_session_result, retain_result_rejection, result_recovery_instructions,
+                              validate_session_result, warn_remaining)
 
 
 DEFAULT_MODEL = 'gpt-6.1-sol'
@@ -563,6 +565,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         repair_id = previous['repair_id'] if previous else uuid.uuid4().hex
         attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
+        result_recovery = None
         target = dict(zip(('category', 'case', 'vm'), failure_key))
         category = target['category']
         initial = initial_model(model, effort or None, category=category)
@@ -628,7 +631,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                               'A diagnostic execution after the last session can retain evidence, '
                               'but cannot start another interpretation session in this run.\n',
                               app_issue=classification, developer_answers=developer_answers,
-                              blocker_summary=blocker_summary, category=category), encoding='utf-8')
+                              blocker_summary=blocker_summary, category=category)
+                + result_recovery_instructions(result_recovery), encoding='utf-8')
             # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
             case_sessions[failure_key] = sessions
@@ -640,8 +644,13 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             if status:
                 raise ValueError(f'repair agent exited with status {status}; '
                                  'inspect the output before restarting')
-            result = json.loads((run / 'agent-result.json').read_text())
-            validate_result(result)
+            try:
+                result = read_session_result(run)
+                validate_session_result(result, validate_result)
+            except SessionResultRejected as error:
+                result_recovery = retain_result_rejection(run, error, label='fix-tests')
+                continue
+            result_recovery = None
             case_results[failure_key] = result
             record_usage(run, dict(metadata, phase=phase, result=result['status']), event='result')
             if result['status'] == 'blocked':

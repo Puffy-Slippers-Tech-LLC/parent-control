@@ -72,6 +72,29 @@ def final(session):
                                            'text': json.dumps(reply())})
 
 
+@pytest.mark.parametrize('text', [None, 'plain prose', '[]', '{"status":"continue","task_id":"wrong"}'])
+def test_successful_turn_without_matching_result_reaches_workflow_recovery(conversation, text):
+    session, _, _ = conversation
+    ready(session)
+    if text is not None:
+        notify(session, 'item/completed', item={'id': 'final', 'type': 'agentMessage', 'text': text})
+    notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'completed'})
+    session.poll()
+    assert session.done and read_state(session.run)['status'] == 'finished'
+    assert (session.run / 'agent-result.json').read_text() == (text or '')
+
+
+@pytest.mark.parametrize('text', ['plain prose', '[]', '{"status":"continue","task_id":"wrong"}'])
+def test_malformed_last_response_cannot_reuse_earlier_structured_message(conversation, text):
+    session, _, _ = conversation
+    ready(session)
+    final(session)
+    notify(session, 'item/completed', item={'id': 'last', 'type': 'agentMessage', 'text': text})
+    notify(session, 'turn/completed', turn={'id': 'turn', 'status': 'completed'})
+    session.poll()
+    assert session.done and (session.run / 'agent-result.json').read_text() == text
+
+
 def test_active_message_steers_and_interrupt_keeps_same_session(conversation, tmp_path):
     session, output, cleanups = conversation
     ready(session)

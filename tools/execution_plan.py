@@ -199,6 +199,10 @@ class Plan:
         for original in saved:
             row = current[original[2]].copy()
             if original[2] == consumer:
+                dependencies = (tuple(item.strip() for item in original[4].split(','))
+                                if original[4] not in ('', '—', '-', 'Baseline') else ())
+                if not set(dependencies).issubset(by_id[consumer].requires):
+                    return None
                 row[4] = original[4]
             if row != original:
                 return None

@@ -25,7 +25,9 @@ from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
                           validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
-from launcher_runtime import TaskBudget, add_options, task_limit, warn_remaining
+from launcher_runtime import (SessionResultRejected, TaskBudget, add_options, read_session_result,
+                              retain_result_rejection, result_recovery_instructions, result_rejection, task_limit,
+                              validate_session_result, warn_remaining)
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,8 @@ handoff. At close-out, you may update this row's Estimate with timing/evidence;
 keep its Scope and Requires unchanged. For a newly discovered prerequisite,
 insert only explicit unchecked prerequisite rows immediately before this unfinished consumer, with valid briefs
 and backward Requires links, and move Next task to the first new prerequisite.
+Add those prerequisites to this consumer's Requires chain, preserving its existing
+dependencies. This is the only permitted Requires change during insertion.
 Preserve all existing rows' completion, relative order and scope. After owned
 cleanup return prerequisite_required; this suspends the consumer without any
 acceptance credit and resumes it after its declared prerequisites pass. Do not
@@ -145,6 +149,7 @@ Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
 Developer answer: {json.dumps(state.get('answer'))}
 {reconciliation_instructions(state)}
+{result_recovery_instructions(state.get('result_recovery'))}
 """
 
 
@@ -180,13 +185,27 @@ def initial_state(plan, spec, directory):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        # Older workers stopped on a rejected structured handoff. Recover only
+        # when the retained response reproduces that exact controller rejection;
+        # process/provider failures and arbitrary interrupted edits stay guarded.
+        if (state.get('in_flight') and state.get('reason') and not state.get('pending_completion')
+                and (previous / 'agent-result.json').is_file()
+                and not (previous / 'agent-error.json').exists()):
+            try:
+                result = read_session_result(previous)
+                validate_session_result(result, lambda result: validate_result(plan, state, result))
+            except SessionResultRejected as error:
+                # Legacy JSON decoding errors lacked the shared reader's context.
+                if state['reason'] in (str(error), str(error.__cause__)):
+                    state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
+                                 result_recovery=result_rejection(error, previous / 'agent-result.json'))
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             if saved.get('task') and saved.get('phase') != 'complete':
-                if not saved.get('git_reconciliation') and not saved.get('pull_intent'):
+                if not any(saved.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery')):
                     validate_task_metadata(plan, saved)
                 saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
         if state.get('phase') != 'complete':
-            if not state.get('git_reconciliation') and not state.get('pull_intent'):
+            if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery')):
                 try:
                     plan.validate_recovery(state)
                 except ValueError:
@@ -267,7 +286,7 @@ def closeout(plan, spec, run, state):
 
 
 def load_plan(root, path, state):
-    if state.get('git_reconciliation') or state.get('pull_intent'):
+    if state.get('git_reconciliation') or state.get('pull_intent') or state.get('result_recovery'):
         # The pull itself can leave conflicts in the master/queue. Retain their
         # validated identities so a restart can resolve them before parsing.
         master = local_path(root, path)
@@ -293,7 +312,7 @@ def execute(root, spec, run, owner):
         if error_path.exists():
             raise ValueError(json.loads(error_path.read_text())['message'])
         raise ValueError(f'agent session exited {status}; inspect retained output and handoff')
-    return json.loads((run / 'agent-result.json').read_text())
+    return read_session_result(run)
 
 
 def worker(root, run, owner, spec, state):
@@ -386,8 +405,15 @@ def worker(root, run, owner, spec, state):
             (run / 'nested-closed').unlink(missing_ok=True)
             publish_progress(run, state['task_id'], [f"Task {state['task_id']}: {state['title']}",
                 f"Session [{state['task_sessions']}]: {spec.model} {spec.effort}"])
-            result = execute(root, spec, run, owner)
-            validate_result(plan, state, result)
+            try:
+                result = execute(root, spec, run, owner)
+                validate_session_result(result, lambda result: validate_result(plan, state, result))
+            except SessionResultRejected as error:
+                launcher.finish_nested(root, run)
+                state.update(phase='recover', in_flight=False, plan_queue=plan.queue)
+                retain_result_rejection(run, error, label=spec.name, checkpoint=state)
+                continue
+            state.pop('result_recovery', None)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)
             if result['status'] == 'task_complete' and state.get('git_reconciliation'):
                 # The coordinator has reconciled and renewed acceptance. The
@@ -420,7 +446,8 @@ def worker(root, run, owner, spec, state):
             launcher.finish_nested(root, run)
             state['reason'] = reason
             launcher.atomic(run / 'checkpoint.json', state)
-            (run / 'handoff.txt').write_text(state.get('handoff', '') + '\n' + reason + '\n')
+            (run / 'handoff.txt').write_text(state.get('handoff', '') + '\n' + reason + '\n'
+                                           + result_recovery_instructions(state.get('result_recovery')))
             budget.close()
             print(f'{spec.name}: {reason}.', flush=True)
             launcher.atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
@@ -503,7 +530,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 session_command(root, spec)  # Dependency/transport preflight, no model session.
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
-                        and not initial.get('git_reconciliation') and not initial.get('pull_intent')):
+                        and not initial.get('git_reconciliation') and not initial.get('pull_intent')
+                        and not initial.get('result_recovery')):
                     raise validation_error
                 remaining = sum(not done for done in initial['queue_before'].values())
                 initial['handoff'] = (initial.get('handoff', '') + '\nReconcile interrupted close-out: ' + str(validation_error))

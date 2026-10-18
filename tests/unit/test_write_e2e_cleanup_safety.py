@@ -164,11 +164,13 @@ def test_task_explanation_is_reused_only_for_same_task_after_launcher_restart(ch
     spawned[-1].wait(timeout=20)
     assert launcher.follow(second, io.StringIO()) == 0
     if saved_task == '001':
-        assert json.loads((second / 'task-info.json').read_text()) == info
+        from launcher_chat import task_info
+        assert task_info(second, '001') == dict(info, status='Running')
         assert info['explanation'] in calls(root)[1]['prompt']
         assert 'Omit explanation unless' in calls(root)[1]['prompt']
     else:
-        assert not (second / 'task-info.json').exists()
+        from launcher_chat import task_info
+        assert 'explanation' not in task_info(second, '001')
         assert 'Include explanation:' in calls(root)[1]['prompt']
 
 
@@ -337,7 +339,7 @@ def test_first_session_success_closes_and_stages_without_another_session(
     from rich.text import Text
     assert ('Task 001 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 001: First \(\d+m\)$',
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
     invocation = calls(root)[0]
@@ -730,7 +732,7 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     rendered = Text.from_ansi(output.getvalue())
     assert re.search(
         r'Task 001 complete\.\n- Took 2 sessions\.\n'
-        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+$',
+        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+\n+✓ Task 001: First \(\d+m\)$',
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
     assert re.search(r'─+\nTask 001 complete\.', rendered.plain)
@@ -762,7 +764,9 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     staged = subprocess.run(['git', 'ls-files'], cwd=root, capture_output=True, text=True, check=True)
     assert workflow.PLAN in staged.stdout and workflow.QUEUE in staged.stdout
     from launcher_progress import read_progress
-    assert 'Session [2]' in Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain
+    assert json.loads((second / 'checkpoint.json').read_text())['task_sessions'] == 2
+    assert re.fullmatch(r'✓ Task 001: First \(\d+m\)',
+                        Text.from_ansi(read_progress(second)[-1]['lines'][-1]).plain)
     assert json.loads((second / 'result.json').read_text())['sessions'] == 1
 
 
@@ -900,8 +904,13 @@ def test_cumulative_sessions_restart_only_for_a_new_task(checkout, tmp_path_fact
         assert started
         output = io.StringIO()
         assert launcher.follow(run, output) == 0, output.getvalue()
+        state = json.loads((run / 'checkpoint.json').read_text())
+        assert state['task_sessions'] == int(expected)
         line = Text.from_ansi(read_progress(run)[-1]['lines'][-1]).plain
-        assert f'Session [{expected}]' in line
+        if state['phase'] == 'complete':
+            assert line.startswith('✓ Task ') and line.endswith('m)')
+        else:
+            assert f'Session [{expected}]' in line
     assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
         workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
 
@@ -998,7 +1007,8 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 001 complete.\n- Took 2 sessions.\n- Duration: ' in rendered
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Duration: ' in rendered
     assert rendered.count('Total launcher sessions:') == 1
-    assert re.search(r'- Duration: \d+ minutes\n- Total launcher sessions: 5\n─+\n?$', rendered)
+    assert re.search(r'- Duration: \d+ minutes\n- Total launcher sessions: 5\n─+\n+'
+                     r'✓ Task 001: First \(\d+m\)\n✓ Task 002: Second \(\d+m\)$', rendered)
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
     recap = rendered[rendered.index('Task 001 complete.'):]
@@ -1088,7 +1098,7 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(
     assert len(calls(root)) == 5
     assert ('Task 002 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n?$',
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 002: Second \(\d+m\)$',
                      Text.from_ansi(output.getvalue()).plain)
     assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
         'TA: Completed task 001', 'TA: Completed task 002']
@@ -1164,7 +1174,8 @@ def test_task_cap_stops_entire_launcher_with_final_red_warning(checkout, args):
     from rich.text import Text
     rendered = Text.from_ansi(output.getvalue())
     warning = 'Task 001 is not complete in 5 sessions. Launcher exited early.'
-    assert rendered.plain.rstrip().splitlines()[-1] == warning
+    assert rendered.plain.index(warning) < rendered.plain.rfind('Task 001: First')
+    assert Text.from_ansi((run / 'output').read_text()).plain.rstrip().splitlines()[-1] == warning
     assert rendered.plain.index('Next session prompt:') < rendered.plain.index(warning)
     style = rendered.get_style_at_offset(Console(), rendered.plain.index(warning))
     assert style.bold and style.color.get_truecolor().hex == '#800000'
@@ -1412,6 +1423,91 @@ def test_bad_agent_outcome_stops_without_advancing_or_reusing_a_reply(checkout, 
     assert len(calls(root)) == 1
     assert workflow.queue_state(root)[0] == '001'
     assert 'Next session prompt:' in (run / 'handoff.txt').read_text()
+
+
+@pytest.mark.parametrize('defect', ['wrong-task', 'missing-acceptance', 'partial-queue'])
+def test_successful_but_rejected_turn_recovers_after_owned_cleanup(checkout, defect):
+    root, _ = checkout
+    first = reply(task_id='wrong') if defect == 'wrong-task' else reply('task_complete', 'not_run')
+    writes = {workflow.PLAN: 'An interrupted pointer edit.\n'} if defect == 'partial-queue' else {}
+    # The second response repairs partial files but still claims no completion.
+    original_plan = (root / workflow.PLAN).read_text()
+    script(root, {'result': first, 'writes': writes},
+           {'result': reply(), 'writes': {workflow.PLAN: original_plan}, 'stop': True})
+    run, _ = select_vm(root, [])
+    output = io.StringIO()
+    assert launcher.follow(run, output) == 0, output.getvalue()
+    invocations = calls(root)
+    assert len(invocations) == 2
+    assert 'controller rejected' in invocations[1]['prompt']
+    assert (run / 'nested-closed').exists()
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['task_sessions'] == 2
+    assert state['model_tier'] == 0 and state['failed_attempts'] == 1
+    assert 'result_recovery' not in state
+    assert json.loads((run / 'result.json').read_text())['tasks'] == 0
+    assert workflow.queue_state(root)[0] == '001'
+    assert (run / 'rejected-agent-result.json').exists()
+
+
+def test_rejected_response_does_not_retry_after_owned_nested_cancellation(checkout):
+    root, _ = checkout
+    script(root, {'result': reply(task_id='wrong'), 'nested': True},
+           {'result': reply(), 'stop': True})
+    run, _ = select_vm(root, [])
+    assert launcher.follow(run, io.StringIO()) == 1
+    assert len(calls(root)) == 1 and (root / 'nested-cleaned').exists()
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['in_flight']
+    assert 'result_recovery' not in state
+    assert not (run / 'rejected-agent-result.json').exists()
+
+
+@pytest.mark.parametrize('damage', [workflow.PLAN, workflow.QUEUE])
+@pytest.mark.parametrize('action', ['restart', 'attach-limit'])
+def test_rejected_partial_metadata_keeps_public_restart_and_attachment_available(checkout, damage, action):
+    from launcher_runtime import TaskBudget
+    root, _ = checkout
+    original = (root / damage).read_text()
+    script(root, {'result': reply(task_id='wrong'), 'writes': {damage: 'Partial coordinator edit.\n'},
+                  'stop': action == 'restart'},
+           {'result': reply(), 'writes': {damage: original}, 'stop': True,
+            'wait': action == 'attach-limit'})
+    first, _ = select_vm(root, [])
+    if action == 'restart':
+        assert launcher.follow(first, io.StringIO()) == 0
+        second, started = select_vm(root, [])
+        assert started and second != first
+    else:
+        wait_for(root / 'agent-ready-2')
+        second, started = select_vm(root, ['--tasks', '0'])
+        assert not started and second == first
+        assert TaskBudget(second).read()['tasks'] is None
+        (root / 'release').touch()
+    assert launcher.follow(second, io.StringIO()) == 0
+    assert len(calls(root)) == 2 and 'controller rejected' in calls(root)[1]['prompt']
+    state = json.loads((second / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['task_sessions'] == 2
+    assert state['queue_before'] == {'001': False, '002': False}
+    assert json.loads((second / 'result.json').read_text())['tasks'] == 0
+    assert workflow.queue_state(root)[0] == '001'
+
+
+def test_rejected_responses_exhaust_existing_cap_and_resume_same_task(checkout):
+    root, _ = checkout
+    script(root, *[{'result': reply(task_id='wrong')} for _ in range(5)],
+           {'result': reply(), 'stop': True})
+    run, _ = select_vm(root, [])
+    assert launcher.follow(run, io.StringIO()) == 1
+    state = json.loads((run / 'checkpoint.json').read_text())
+    assert state['task_sessions'] == 5 and state['model_tier'] == 0
+    assert state['failed_attempts'] == 0 and state['result_recovery']
+    assert len(calls(root)) == 5
+    resumed, started = select_vm(root, [])
+    assert started and launcher.follow(resumed, io.StringIO()) == 0
+    assert len(calls(root)) == 6
+    assert 'controller rejected' in calls(root)[-1]['prompt']
+    assert json.loads((resumed / 'checkpoint.json').read_text())['task_sessions'] == 6
 
 
 @pytest.mark.parametrize('custom', [False, True])

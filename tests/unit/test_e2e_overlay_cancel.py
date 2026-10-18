@@ -32,9 +32,17 @@ ACTIVITY_STAGES = ('original-desktop', 'original-command', 'original-opened',
 def test_activity_declaration_matches_shared_leaves_and_has_caller_owned_names(route, child):
     from journey_blocks import native_activity_entry, native_usable_app
     entry = native_activity_entry('independent', route=route, child=child)
-    assert list(entry) == ['independent-' + stage for stage in native_usable_app(route, child=child)] + [
+    expected = native_usable_app(route, child=child)
+    if route == 'command':
+        # Retained work uses the separate activity fixture, not APP01's policy target.
+        expected['command'] = {
+            'child': 'ui:overlay-native-activity-launch',
+            'parent': 'ui:parent-native-activity-launch',
+            'other-child': 'ui:native-activity-launch',
+        }[child]
+    assert list(entry) == ['independent-' + stage for stage in expected] + [
         'independent-capture']
-    assert list(entry.values())[:-1] == list(native_usable_app(route, child=child).values())
+    assert list(entry.values())[:-1] == list(expected.values())
     assert entry['independent-capture'] == {
         'child': 'ui:overlay-native-activity', 'parent': 'ui:parent-native-activity',
         'other-child': 'ui:native-activity'}[child]

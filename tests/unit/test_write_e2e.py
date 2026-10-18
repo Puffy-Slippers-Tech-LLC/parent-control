@@ -22,7 +22,8 @@ def test_launcher_restart_preserves_task_error_and_original_timestamp(tmp_path, 
     workflow.launcher.atomic(previous / 'checkpoint.json', workflow.fresh_state('001'))
     retained = dict(task_id='001', explanation='Checks the child countdown.',
                     last_error='The countdown stopped.', last_error_at=1000.0,
-                    status='Testing fix, previous error point not reached yet')
+                    status='Testing fix, previous error point not reached yet',
+                    status_at=1060.0)
     workflow.launcher.atomic(previous / 'task-info.json', retained)
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
     monkeypatch.setattr(workflow, 'session_command', lambda *_: [])

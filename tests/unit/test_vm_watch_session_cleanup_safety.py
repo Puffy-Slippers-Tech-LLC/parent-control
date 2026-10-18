@@ -141,7 +141,9 @@ def test_boot_memory_report_keeps_viewing_without_ignoring_configuration():
 def test_maintenance_release_detaches_and_releases_controller_lock(lease_rig):
     import vm_control
     lease, _ = lease_rig
-    vm_control.operate(lease, 'start', [])
+    # SSH bootstrap is outside this simulated lease/watch ownership check.
+    with patch('vm_probe.prepare_maintenance_transport'):
+        vm_control.operate(lease, 'start', [])
     observer = Mock()
     lease.watch = observer
     lease.release()

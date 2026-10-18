@@ -19,19 +19,45 @@ from private_artifacts import EvidenceError
     ({'os_id': 'fedora', 'version': '44'}, 'package.rpm',
      ['rpm', '-qp', '--queryformat', '%{VERSION}']),
 ])
-def test_snapshot_attachment_reads_verified_platform_package(tmp_path, guest, filename, command):
+def test_snapshot_attachment_reads_verified_platform_package(tmp_path, guest, filename, command, monkeypatch):
+    import app_snapshot
+    from guest_inputs import Bundle
     from parent_setup_qualification import KioskEntryQualification
+    from tests.support.vm_runner import UUID, xml as domain_xml
+
     qualification = object.__new__(KioskEntryQualification)
     qualification.assets = tmp_path
+    qualification.directory = tmp_path
+    qualification.result = {}
     qualification.commands = SimpleNamespace(run=Mock(return_value=b'1.4\n'))
-    snapshot = SimpleNamespace(getXMLDesc=Mock(return_value='<domainsnapshot><memory snapshot="internal"/></domainsnapshot>'))
+    # Supply the frozen-input boundary and valid snapshot metadata without
+    # bypassing the real snapshot freshness and identity checks.
+    bundle = Mock()
+    staged = Mock(return_value=bundle)
+    monkeypatch.setattr(Bundle, 'from_staged', staged)
+    identity = json.dumps({'schema_version': 2, 'package_sha256': 'b' * 64,
+        'package_content_sha256': 'c' * 64, 'baseline_sha256': 'd' * 64,
+        'recipe_sha256': 'e' * 64})
+    expected_identity = Mock(return_value=identity)
+    monkeypatch.setattr(app_snapshot, 'input_identity', expected_identity)
+    monkeypatch.setattr(app_snapshot.time, 'time', lambda: 100000)
+    console = app_snapshot.system.isolated_xml(domain_xml(), UUID, 'a' * 32, graphics_type='vnc')
+    xml = ('<domainsnapshot><description>' + identity + '</description>'
+           '<memory snapshot="internal"/><state>running</state>'
+           '<creationTime>100000</creationTime>' + console + '</domainsnapshot>')
+    snapshot = SimpleNamespace(getXMLDesc=Mock(return_value=xml))
     domain = SimpleNamespace(snapshotLookupByName=Mock(return_value=snapshot))
     lease = SimpleNamespace(capture=SimpleNamespace(state={'guest': guest}),
-                            source=SimpleNamespace(domain=domain))
+                            source=SimpleNamespace(domain=domain), guard=Mock())
     qualification.attach_installed_snapshot(lease)
     assert qualification.commands.run.call_args.args[0] == (
         command + [str(tmp_path / filename)] + (['Version'] if filename.endswith('.deb') else []))
     domain.snapshotLookupByName.assert_called_once_with('onpc-v1.4', 0)
+    staged.assert_called_once_with(app_snapshot.system.ROOT, tmp_path / 'input')
+    expected_identity.assert_called_once_with(lease, tmp_path, bundle, qualification.commands)
+    lease.guard.assert_called_once_with(off=True)
+    assert qualification.result['installed_snapshot']['inputs'] == json.loads(identity)
+    assert lease.installed_xml == xml
     assert lease.online_pending is True
 
 

@@ -1,5 +1,4 @@
 """Native bundle contracts with isolated byte fixtures and native-tool doubles."""
-import copy
 import gzip
 import hashlib
 import io
@@ -78,7 +77,7 @@ def _cpio(name, data):
 @pytest.fixture(params=['deb', 'rpm'])
 def inputs(request, tmp_path, monkeypatch):
     package_format = request.param
-    pair = copy.deepcopy(native.PAIRS[package_format])
+    pair = native.pair_for_format(package_format)
     payloads = {label: b'\x7fELF' + label.encode() + b'x' * (80424 - 4 - len(label))
                 for label in ('old', 'new')}
     packages = {label: (label + ' native package').encode() for label in ('old', 'new')}

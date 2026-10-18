@@ -231,6 +231,11 @@ def test_stale_artifacts_refuse_before_connection_or_lease(tmp_path):
 def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, monkeypatch, mode):
     from contextlib import nullcontext
 
+    # The maintained bundle owns the transitive guest import closure. Freeze
+    # expected bytes before staging; a fixed helper list becomes stale whenever
+    # an entry point gains a dependency.
+    expected_helpers = smoke.installed_setup.inputs(smoke.ROOT)
+
     def stage(_source, destination, _commands):
         destination.mkdir()
         (destination / 'package.deb').write_bytes(b'fixed package input')
@@ -265,12 +270,11 @@ def test_native_approval_stages_complete_installed_payload_before_vm(tmp_path, m
     assert selection['scope'] == 'e2e-installed-setup'
     assert selection['selection'] == {'consumer': mode}
     inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
-    assert set(inventory) == {'package.deb', 'selected-inputs.json',
-                              'system_guest.py', 'e2e_dynamic_account.py', 'system_kiosk_confinement.py',
-                              'system_kiosk_feedback.py', 'system_wellbeing_qualification.py',
-                              'wellbeing_probe.py',
-                              'owned_commands.py', 'guest_install_recipe.py', 'guest/redact.py',
-                              'install-source/Makefile'}
+    assert set(inventory) == {'package.deb', 'selected-inputs.json', *expected_helpers.files}
+    assert set(selection['files']) == set(expected_helpers.files)
+    for name, data in expected_helpers.files.items():
+        assert (payload / name).read_bytes() == data
+        assert selection['files'][name]['source'] == expected_helpers.sources[name]
     for name, digest in inventory.items():
         assert smoke.runner.baseline.digest(payload / name) == digest
     for name, entry in selection['files'].items():

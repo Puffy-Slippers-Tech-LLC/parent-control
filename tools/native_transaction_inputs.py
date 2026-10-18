@@ -28,7 +28,7 @@ FEDORA_KEY_SHA256 = '93642aec521a1e5e96dd715f7ae0ec0850ebc9de09a94ce03cae5263f26
 FEDORA_FINGERPRINT = '36F612DCF27F7D1A48A835E4DBFCF71C6D9F90A6'
 PAIRS = {
     'deb': {
-        'pair_id': 'ubuntu26.04-bubblewrap', 'target': 'onpc-Ubuntu26.04',
+        'pair_id': 'ubuntu26.04-bubblewrap',
         'package': 'bubblewrap', 'architecture': 'amd64', 'executable': '/usr/bin/bwrap',
         'old': {'version': '0.11.1-1', 'size': 50622,
                 'build_id': '975168fbb14fa09c3dd20125151089641969f717',
@@ -42,7 +42,7 @@ PAIRS = {
                 'url': 'https://archive.ubuntu.com/ubuntu/pool/main/b/bubblewrap/bubblewrap_0.11.1-1ubuntu0.3_amd64.deb'},
     },
     'rpm': {
-        'pair_id': 'fedora44-xdg-dbus-proxy', 'target': 'onpc-Fedora44',
+        'pair_id': 'fedora44-xdg-dbus-proxy',
         'package': 'xdg-dbus-proxy', 'architecture': 'x86_64', 'executable': '/usr/bin/xdg-dbus-proxy',
         'old': {'version': '0:0.1.6-4.fc44',
                 'sha256': '2197bd5a209e07c1a63bab22b0d1b262861186f850baa876a4bbcc3f916e9dbc',
@@ -66,9 +66,23 @@ def pair_for_format(package_format):
     if not isinstance(package_format, str):
         raise NativeInputError('unsupported native package format')
     try:
-        return copy.deepcopy(PAIRS[package_format])
+        pair = copy.deepcopy(PAIRS[package_format])
     except KeyError as error:
         raise NativeInputError('unsupported native package format') from error
+    from tools.vm_selection import registry
+    try:
+        targets = [vm.name for vm in registry().values()
+                   if vm.package_format == package_format]
+    except ValueError as error:
+        raise NativeInputError('invalid native target configuration: ' + str(error)) from error
+    # Host preparation also works without a selected VM. Resolve its one exact
+    # target from configuration, never registry order or a deployed-name fallback.
+    # Keep this field in the selection so retained manifests and interrupted
+    # preparation still reject a changed target through their existing guards.
+    if len(targets) != 1:
+        raise NativeInputError('native inputs require exactly one configured target for ' + package_format)
+    pair['target'] = targets[0]
+    return pair
 
 
 def _canonical(value):

@@ -14,14 +14,24 @@ This queue owns engineering qualification, not a second customer E2E queue.
 Continue on the full development host with **GPT-6.1 Sol High**. Read this master,
 the first unchecked brief and its owning contracts; implement and qualify that
 task before advancing. Preserve the checked-in changes and existing results.
+Keep every coordinator and subagent on **GPT-6.1 Sol**, choosing effort by scope:
+Low for read-only monitoring, Medium for settled implementation and coverage
+maintenance, and High or above for diagnosis, security, ownership and independent
+correctness review. Follow the [delegation contract](../Execution-Plans.md#execution-and-delegation)
+for bounded assignments and disjoint write ownership.
 The source/installed target where the fix was developed has no VMs. No installed
 acceptance for these changes has run there. Do not install the product on the
 full development host; the maintained runners install it in registered guests.
 
 ```sh
-tools/execute-plan --plan 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md' --check
-tools/execute-plan --plan 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md' --tasks 1
+tools/install-coverage --check
+tools/install-coverage --tasks 0
 ```
+
+The dedicated launcher uses the shared ordinary-plan driver, registered VM
+selection and resumable checkpoints. Omit `--tasks` to run one task; use `--stop`
+to stop at the next safe session boundary. Existing generic-plan checkpoints
+remain available under this master's shared namespace.
 
 Follow [execution plans](../Execution-Plans.md), the
 [VM mandate](../Mandates/VM-Mandate.MD) and

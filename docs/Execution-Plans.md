@@ -275,6 +275,12 @@ The current adapters use these components according to their workflow:
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; leaves changes for review |
+| `install-coverage` | The same ordinary plan driver and shared lifecycle | [Core installation coverage](TestAutomation/Core-Installation-Coverage-Handoff.md), with registered VM selection and a GPT-6.1 Sol High coordinator; leaves changes for review |
+
+Run the core installation queue with `tools/install-coverage --tasks 0` to finish
+all remaining tasks, or omit `--tasks` for one task. Its `--check` and `--stop`
+use the common interface above. The dedicated wrapper and `execute-plan --plan`
+share the master's namespace and checkpoints; they cannot start competing owners.
 
 Run E2E plans through `write-e2e`; their task-specific acceptance metadata and
 close-out rules remain with the E2E contracts. `execute-plan --check` validates

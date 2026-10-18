@@ -5,6 +5,7 @@ from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import runpy
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,87 @@ from launcher_view import WorkflowView, plan_totals, view_for
 import plan_launcher as workflow
 from plan_launcher import execute as execute_session
 from tests.support.terminal_screen import Terminal
+
+
+@pytest.fixture
+def install_coverage(monkeypatch):
+    entry = Path(workflow.__file__).with_name('install-coverage')
+
+    def invoke(*args):
+        monkeypatch.setattr(sys, 'argv', [str(entry), *args])
+        # The public entry point adds its tools directory to the import path.
+        monkeypatch.syspath_prepend(str(entry.parent))
+        with pytest.raises(SystemExit) as result:
+            runpy.run_path(str(entry), run_name='__main__')
+        return result.value.code
+
+    return invoke
+
+
+def test_install_coverage_uses_shared_driver_and_review_only_policy(install_coverage, monkeypatch):
+    calls = []
+    monkeypatch.setattr(workflow, 'main', lambda spec: calls.append(spec) or 7)
+    assert install_coverage() == 7
+    assert calls == [workflow.PlanWorkflow(
+        name='install-coverage',
+        plan='docs/TestAutomation/Core-Installation-Coverage-Handoff.md',
+        model='gpt-6.1-sol', effort='high', vm=True,
+    )]
+    assert calls[0].commit_prefix is None and calls[0].push is False
+
+
+def test_install_coverage_default_check_has_no_execution_side_effects(
+        rig, install_coverage, monkeypatch, capsys):
+    import vm_selection
+
+    master = rig.root / 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md'
+    master.parent.mkdir()
+    for name in ('queue.md', '001.md', '002.md'):
+        shutil.copy2(rig.root / 'docs' / name, master.parent / name)
+    master.write_text('Task queue: [Queue](queue.md).\nNext task: **001 — First**.\n')
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('--check attempted VM selection, a model/process launch or Git changes')
+
+    monkeypatch.setattr(vm_selection, 'execution_selection', unexpected)
+    monkeypatch.setattr(workflow.launcher, 'select', unexpected)
+    monkeypatch.setattr(workflow.subprocess, 'Popen', unexpected)
+    monkeypatch.setattr(workflow, 'git_output', unexpected)
+    assert install_coverage('--check') == 0
+    assert json.loads(capsys.readouterr().out) == dict(
+        plan='docs/TestAutomation/Core-Installation-Coverage-Handoff.md',
+        queue='docs/TestAutomation/queue.md', next_task='001', remaining=2,
+        model='gpt-6.1-sol', effort='high',
+    )
+
+
+@pytest.mark.parametrize('action', ['limit', 'stop'])
+def test_install_coverage_shares_master_ownership_and_common_controls(
+        rig, install_coverage, monkeypatch, action):
+    import vm_selection
+
+    selections = []
+    monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
+    monkeypatch.setattr(vm_selection, 'execution_selection', lambda selector: selections.append(selector))
+    monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
+    monkeypatch.setattr(workflow.launcher, 'follow', lambda *_args, **_kwargs: 0)
+    if action == 'stop':
+        (rig.root / rig.plan.path).write_text('Interrupted master edit\n')
+
+    def select(root, name, command, **options):
+        assert root == rig.root and name == 'plans'
+        assert options['namespace'] == rig.plan.namespace
+        assert options['stop'] == (action == 'stop')
+        assert options['stop_marker'] == 'stop'
+        options['on_attach'](rig.run)
+        return rig.run, False
+
+    monkeypatch.setattr(workflow.launcher, 'select', select)
+    controls = ['--stop'] if action == 'stop' else ['--tasks', '0']
+    assert install_coverage('--plan', rig.plan.path, *controls) == 0
+    assert selections == ([] if action == 'stop' else [None])
+    assert TaskBudget(rig.run).read()['tasks'] == (1 if action == 'stop' else None)
 
 
 def prepare(root, count=2):

@@ -15,13 +15,13 @@ than building another one.
 
 ## Prerequisites and task boundary
 
-Requires: 002, 002a, 002b, 002c, 002d.
+Requires: 002, 002a, 002b, 002c.
 
 [002b](../Core-Installation-Coverage-Handoff.md#task-002b-qualified-fixture-integration)
 delivered consumer integration and focused host checks.
-[002c](002c-ubuntu-upgrade-history.md) and
-[002d](002d-fedora-upgrade-history.md) own the complete Ubuntu and Fedora
-histories, respectively. This row retains every original requirement below and
+[002c](002c-upgrade-histories.md) owns the complete Ubuntu and Fedora
+histories, scheduled in parallel with independent ownership and evidence.
+This row retains every original requirement below and
 accepts only both matching target results. It owns final evidence reconciliation
 and close-out, not another implementation pass or mandatory duplicate live run.
 Reuse those complete receipts only while their exact candidate, helpers, selected

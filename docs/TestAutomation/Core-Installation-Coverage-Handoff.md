@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **002c — [Run the complete Ubuntu upgrade history](Core-Installation-Tasks/002c-ubuntu-upgrade-history.md)**.
+Next task: **002c — [Run the complete Ubuntu and Fedora upgrade histories](Core-Installation-Tasks/002c-upgrade-histories.md)**.
 
 ## Purpose and continuation
 
@@ -40,6 +40,13 @@ and `onpc-Fedora44`; confirm their registry and accepted preparation on arrival.
 Auto baseline refresh is already authorized through the maintained route.
 Product installations, including guest installations, must continue through
 `make install` and the existing installation recipe.
+
+Shared work covers both targets in one task. Run independent Ubuntu/Fedora
+histories in parallel through maintained runner routes within the registry
+concurrency cap, with separate leases, inputs, reports and cleanup. Each VM's
+history remains ordered and indivisible. Split out a VM-specific prerequisite
+only when a concrete issue is unique to that VM; distro-specific package or
+schema expectations alone do not justify separate sequential tasks.
 
 ## Diagnosis and implemented changes
 
@@ -407,7 +414,7 @@ no `make build` is required. No installed qualification occurs in 002b.
 Both maintained host runs finished and released their owners; no worker or
 VM resource remains from this task. Only 002b was newly completed.
 
-For **002c/002d**, require the staged `system_previous_upgrade.py` SHA-256
+For **002c**, require the staged `system_previous_upgrade.py` SHA-256
 `8703b2d4e671598ad3f6dd43c04862231a62b175bee8a1faa8ca1bc0b7c62176`
 in each exact `input/selected-inputs.json`. Stage the final checkout's shared
 enforcement/trust helpers and payloads, and verify 002a's accepted trusted
@@ -421,23 +428,27 @@ these final upgrade inputs. Task 003 remains unchecked.
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
-Continue with 002c and 002d, which run one complete upgrade history per target
-using the final [002b consumer](#task-002b-qualified-fixture-integration).
+Continue with combined task 002c, which runs one complete upgrade history per
+target in parallel using the final
+[002b consumer](#task-002b-qualified-fixture-integration).
 Task 003 reconciles their matching evidence
 against every original requirement; it remains an installed, both-target gate.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
-Ubuntu/Fedora acceptance (004d/004e). The native package pairs and selector are
-still unqualified/unimplemented; the product earlier-release builder is not a
+Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
+package pairs and selector are still unqualified/unimplemented; the product
+earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual
 package-transaction acceptance.
 
 This planning revision executes and closes no task. Completed rows and historical
-evidence above are unchanged; added Requires edges preserve the original
-dependencies. Each live history remains indivisible, with no phase splicing or
-intermediate baseline restore. Final gates may reuse complete retained reports
+evidence above are unchanged. Task 002c absorbs former 002d, and 004d absorbs
+former 004e, retaining both targets' full scope and acceptance; final-gate
+dependencies now point to the combined tasks. Each live history remains
+indivisible, with no phase splicing or intermediate baseline restore. Final gates
+may reuse complete retained reports
 only when candidate, helpers, inputs, baselines, assertions and cleanup match;
 rerun any invalidated target history in full. Keep reports through final gate
 close-out using the existing retention/export route. The longer live estimates
@@ -476,11 +487,16 @@ The active and suspended 003 baselines are empty. Focused launcher, inventory,
 documentation and coverage checks passed, and all 34 local Markdown links passed.
 The bounded `--tasks 1` invocation stopped at its task limit before starting 002c.
 
-Resume with `tools/install-coverage --tasks 0` to start 002c. The current queue,
-002c pointer and suspended 003 handoff remain intact; this recovery executed no
-additional queue task or installed history and required no manual replan.
+That recovery left the then-current queue, 002c pointer and suspended 003 handoff
+intact; it executed no additional queue task or installed history and required no
+manual replan. The subsequent consolidation changes task structure and target
+declarations. Existing retained checkpoints predate this revision: preserve their
+evidence and unfinished handoffs, and resolve structural restart conflicts under
+the [shared checkpoint contract](../Execution-Plans.md#common-launcher-interface)
+before execution. This documentation edit does not migrate checkpoints or bypass
+their guards.
 
-Target upgrade diagnosis belongs to 002c/002d, and native package-pair feasibility
+Target upgrade diagnosis belongs to 002c, and native package-pair feasibility
 to 004a. These are execution work,
 not prerequisites for starting this plan. The retained-unlock investigation stays
 in the existing E2E work unless evidence establishes a dependency for one of this

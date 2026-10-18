@@ -20,7 +20,9 @@ transport/watch and lease owners under the
 Register planned `test_native_dependency_update_retained_session` with a new
 stable system ID only after checking the current inventory. Document the actual
 selector, phase ordering, verified input invocation and finite timeout in the
-installed runner owner and 004d/004e briefs. It is unimplemented at planning time.
+installed runner owner and [004d brief](004d-native-update-histories.md), including
+parallel target execution with the correct per-target inputs. It is unimplemented
+at planning time.
 Add no independent update/fault framework. Any product installation continues
 through the existing `make install` recipe.
 

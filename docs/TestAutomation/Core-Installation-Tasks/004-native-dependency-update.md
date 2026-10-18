@@ -13,15 +13,15 @@ fresh product installation establishes a different history.
 
 ## Prerequisites and task boundary
 
-Requires: 003, 004a, 004b, 004c, 004d, 004e.
+Requires: 003, 004a, 004b, 004c, 004d.
 
 [004a](004a-native-package-pairs.md) resolves package-pair feasibility and exact
 expected generation behavior; [004b](004b-native-transaction-inputs.md) owns
 verified inputs and preparation; [004c](004c-native-update-history.md) owns
 registration and host-verified history implementation.
-[004d](004d-ubuntu-native-update.md) and [004e](004e-fedora-native-update.md)
-qualify one complete history each. This final row retains all original
-requirements below and reconciles both matching installed receipts and owned
+[004d](004d-native-update-histories.md) qualifies one complete history per target
+in parallel, with independent ownership and evidence. This final row retains all
+original requirements below and reconciles both matching installed receipts and owned
 cleanup. It does not require duplicate runs when the retained candidate,
 helpers, inputs, baselines and assertions match; rerun an invalidated target's
 whole history. Host/review prerequisite passes alone cannot close this row.

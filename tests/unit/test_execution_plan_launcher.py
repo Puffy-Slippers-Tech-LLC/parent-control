@@ -1121,13 +1121,53 @@ def test_legacy_file_baseline_refuses_ambiguous_mode_or_type(git_plan, change):
     assert state['stage_baseline'] == baseline
 
 
+@pytest.mark.parametrize('pending', ['none', 'staged', 'unstaged', 'assume-unchanged', 'chmod'])
+def test_closeout_releases_clean_committed_file_without_baseline_version_lock(git_plan, pending):
+    f = git_plan
+    path = f.root / 'task.py'
+    path.write_text('captured earlier work\n')
+    baseline = workflow.worktree_snapshot(f.root)
+    # Another workflow has already committed the task, including a newer report.
+    path.write_text('reviewed current contents\n')
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Reviewed completed work')
+    if pending in ('staged', 'unstaged', 'assume-unchanged'):
+        path.write_text('pending work\n')
+        if pending == 'staged':
+            f.git('add', '--', 'task.py')
+            path.write_text('reviewed current contents\n')
+        elif pending == 'assume-unchanged':
+            f.git('update-index', '--assume-unchanged', '--', 'task.py')
+    elif pending == 'chmod':
+        f.git('config', 'core.filemode', 'false')
+        path.chmod(0o755)
+    state = dict(stage_baseline=baseline.copy(), replan_baseline=baseline.copy(),
+                 protected_staged=[], suspended_tasks={'002': dict(stage_baseline=baseline.copy())})
+    if pending == 'none':
+        state['protected_staged'] = ['task.py']
+        with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
+            launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        state['protected_staged'] = []
+        launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        assert state['stage_baseline'] == state['replan_baseline'] == {}
+        assert state['suspended_tasks']['002']['stage_baseline'] == {}
+    else:
+        with pytest.raises(ValueError, match='overlaps pre-existing work: task.py'):
+            launcher_git.validate_closeout_ownership(f.root, ['task.py'], state)
+        assert state['stage_baseline'] == baseline
+
+
 @pytest.mark.parametrize('pending', [False, True], ids=['inherited-baseline', 'accepted-restart'])
 def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan, monkeypatch, pending):
     f = git_plan
     (f.root / 'task.py').write_text('pre-existing work\n')
+    (f.root / 'report.md').write_text('earlier generated report\n')
     baseline = workflow.worktree_snapshot(f.root)
     f.git('add', '--', 'task.py')
     f.git('commit', '-qm', 'Reviewed pre-existing work')
+    (f.root / 'report.md').write_text('current generated report\n')
+    f.git('add', '--', 'report.md')
+    f.git('commit', '-qm', 'Reviewed refreshed report')
     # Like a reconciled plan, retain a baseline captured before another workflow
     # committed it. The task must not adopt unrelated dirty or staged changes.
     (f.root / 'unrelated.py').write_text('unrelated unstaged work\n')
@@ -1140,6 +1180,12 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
         complete(f.plan, state['task_id'])
         result = response(state)
         result['stage_paths'].append('task.py')
+        if state['task_id'] == '002':
+            # Task 001 must release other clean paths before this consumer edits
+            # them; the retained report version must not block the next task.
+            assert 'report.md' not in state['stage_baseline']
+            (f.root / 'report.md').write_text('next task report\n')
+            result['stage_paths'].append('report.md')
         return result
 
     def execute(root, spec, run, owner):
@@ -1161,6 +1207,11 @@ def test_committed_baseline_closes_and_pushes_before_unlimited_advance(git_plan,
         state = state_for(f.plan, stage_baseline=baseline, protected_staged=['shared.py'],
                           replan_baseline=baseline, suspended_tasks={'002': consumer})
         state['pending_completion'] = accepted(state)
+        # Accepted task edits can already be committed outside this controller.
+        # Restart must retire the stale baseline and close out without a session.
+        f.git('add', '--', 'task.py', 'docs/plan.md', 'docs/queue.md')
+        f.git('commit', '--only', '-qm', 'Reviewed completed task', '--',
+              'task.py', 'docs/plan.md', 'docs/queue.md')
         workflow.launcher.atomic(f.run / 'checkpoint.json', state)
         monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: f.run)
         state = workflow.initial_state(f.plan, spec, f.run.parent)
@@ -1998,6 +2049,7 @@ def test_task_limit_retains_last_accepted_summary_and_handoff(rig):
 def test_prerequisite_suspension_resumes_original_consumer_across_task_limited_runs(rig, monkeypatch):
     consumer_handoff = 'Consumer dependency discovered; preserve its partial implementation.'
     original_baseline = {'preexisting.txt': 'original private work'}
+    (rig.root / 'preexisting.txt').write_text('original private work')
     monkeypatch.setattr(workflow, 'worktree_snapshot', lambda _: original_baseline.copy())
     calls = []
     def execute(root, spec, run, owner):

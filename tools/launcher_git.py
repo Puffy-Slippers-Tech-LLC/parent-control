@@ -129,32 +129,26 @@ def stage_task(root, paths, *, required_paths=()):
     return paths
 
 
+def worktree_fingerprint(path):
+    if path.is_symlink():
+        return 'link:' + os.readlink(path)
+    if path.is_file():
+        digest = hashlib.sha256()
+        with path.open('rb') as source:
+            for block in iter(lambda: source.read(1024 * 1024), b''):
+                digest.update(block)
+        return 'file:' + digest.hexdigest()
+    return 'deleted'
+
+
 def worktree_snapshot(root):
     """Fingerprint unstaged and untracked files without including existing index work."""
     result = subprocess.run(
         ['git', 'ls-files', '--modified', '--deleted', '--others',
          '--exclude-standard', '-z'], cwd=root, env=launcher.environment(),
         capture_output=True, check=True)
-    snapshot = {}
-    for raw in result.stdout.split(b'\0'):
-        if not raw:
-            continue
-        name = os.fsdecode(raw)
-        if name.startswith('output/'):
-            continue
-        path = root / name
-        if path.is_symlink():
-            fingerprint = 'link:' + os.readlink(path)
-        elif path.is_file():
-            digest = hashlib.sha256()
-            with path.open('rb') as source:
-                for block in iter(lambda: source.read(1024 * 1024), b''):
-                    digest.update(block)
-            fingerprint = 'file:' + digest.hexdigest()
-        else:
-            fingerprint = 'deleted'
-        snapshot[name] = fingerprint
-    return snapshot
+    return {os.fsdecode(raw): worktree_fingerprint(root / os.fsdecode(raw))
+            for raw in result.stdout.split(b'\0') if raw and not raw.startswith(b'output/')}
 
 
 def session_changes(root, before):
@@ -167,8 +161,7 @@ def committed_fingerprint(root, path):
     """Match worktree_snapshot's representation against the current commit.
 
     Read blobs as bytes, including binary files and symlink targets. A retained
-    dirty baseline may have been committed by another workflow since capture;
-    only the exact original contents in HEAD release that ownership guard.
+    dirty baseline may have been committed by another workflow since capture.
     """
     entry = subprocess.run(['git', '--literal-pathspecs', 'ls-tree', '-z', 'HEAD', '--', path],
                            cwd=root, env=launcher.environment(), capture_output=True, check=True).stdout
@@ -197,26 +190,36 @@ def committed_fingerprint(root, path):
 
 
 def validate_closeout_ownership(root, paths, state):
-    """Exclude pre-existing work unless its captured contents are now committed."""
+    """Protect pending work without pinning clean files to an old baseline."""
     baseline = state['stage_baseline']
-    overlap = set(paths) & set(state['protected_staged'])
+    protected = set(state['protected_staged'])
+    overlap = set(paths) & protected
     released = {}
-    for path in set(paths) & set(baseline):
-        if path not in overlap:
-            if committed_fingerprint(root, path) == baseline[path]:
+    clean_paths = set()
+    for path in baseline:
+        if path not in protected:
+            committed = committed_fingerprint(root, path)
+            clean = (committed is not None
+                     and worktree_fingerprint(root / path) == committed
+                     and git_output(root, '--literal-pathspecs', 'diff', '--cached', '--quiet',
+                                    'HEAD', '--', path, check=False).returncode == 0)
+            if clean:
+                clean_paths.add(path)
+            if clean or (path in paths and committed == baseline[path]):
                 released[path] = baseline[path]
-            else:
+            elif path in paths:
                 overlap.add(path)
     if overlap:
         raise ValueError('close-out overlaps pre-existing work: ' + ', '.join(sorted(overlap)))
 
     def retire(saved):
-        # Retire only the proven fingerprint, including inherited copies. After
-        # this task commits new contents, HEAD will no longer match the old one.
+        # Release clean paths before the next task edits them, including inherited
+        # copies. For dirty paths, retire only the proven committed fingerprint.
         for field in ('stage_baseline', 'replan_baseline'):
             if field in saved:
                 saved[field] = {path: value for path, value in saved[field].items()
-                                if path not in released or released[path] != value}
+                                if path not in clean_paths
+                                and (path not in released or released[path] != value)}
         for consumer in saved.get('suspended_tasks', {}).values():
             retire(consumer)
 

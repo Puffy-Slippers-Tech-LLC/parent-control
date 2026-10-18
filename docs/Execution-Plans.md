@@ -306,6 +306,11 @@ Existing staged or unrelated work is excluded; conflicting ownership stops
 close-out with a retained checkpoint. A retained dirty-file baseline no longer
 protects a path when its exact captured contents are now committed in HEAD;
 new task edits on that path can close out normally, including after restart.
+An already clean path whose working contents, executable mode and index match
+HEAD is also released, even when its committed contents have advanced beyond
+the captured baseline. Retained checkpoints do not lock clean files to an older
+version. Release these clean paths from inherited and suspended baselines before
+the next task edits them.
 Uncommitted baseline contents and pre-existing staged paths remain protected.
 Content-only file fingerprints omit executable mode, so release also requires a regular
 working file with HEAD's executable mode; ambiguous deletion/type/mode changes

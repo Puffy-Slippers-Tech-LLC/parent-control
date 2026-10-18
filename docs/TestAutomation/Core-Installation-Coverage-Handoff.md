@@ -461,6 +461,14 @@ exact captured contents had already been committed. The shared
 such committed baseline contents, including inherited/suspended copies, while
 preserving uncommitted and staged work.
 
+Restart `485aee9d3cce41598d937606283aa0a0` exposed the remaining version lock:
+002b's changes were committed in `04cf58c5`, including a newer generated report,
+so the clean report no longer matched the captured baseline. Close-out now also
+releases paths whose working contents, executable mode and index match HEAD,
+without requiring the saved report version. It retires clean inherited and
+suspended baseline entries before later tasks edit them; pending work remains
+protected under the shared close-out contract.
+
 Resume with `tools/install-coverage --tasks 0`. The retained 002b completion must
 finish commit/push before the launcher starts 002c; unchanged accepted work needs
 no new coordinator session. This is ordinary close-out recovery, not another

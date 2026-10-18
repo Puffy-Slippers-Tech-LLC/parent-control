@@ -42,7 +42,8 @@ scheduling is appropriate. Cleanup and UI inventories gain no module.
 Committed-baseline close-out checks reuse pytest-private checkouts and bare
 remotes with finite, synchronously waited Git commands. They cover binary/link/
 deletion fingerprints, executable-mode ownership and two-task push/advance/restart
-behavior without an external network, model process or shared Git mutation; compatible overlap stays
+behavior, including newer clean commits and refusal of staged/unstaged or
+assume-unchanged work, without an external network, model process or shared Git mutation; compatible overlap stays
 appropriate.
 Installation and reliability plan adapters share those same private fixtures
 for default-plan validation, owner attachment, stop and task-limit checks;

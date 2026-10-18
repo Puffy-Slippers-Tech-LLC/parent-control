@@ -127,7 +127,7 @@ regressions, not general product acceptance or release qualification.
 
 | Existing owner | Relationship to this plan |
 | --- | --- |
-| [Core installation queue](TestAutomation/Core-Installation-Task-Queue.md) | Keep optional PAM, first-configuration/denied-kiosk recovery, earlier-package upgrades and live dependency transactions there. Task 005 adds only the exhausted retained-user trigger composition. |
+| [Core installation coverage](../tests/README.md#core-installation-and-runtime-compatibility) | Existing installed histories own optional PAM, first-configuration/denied-kiosk recovery, earlier-package upgrades and live dependency transactions. Task 005 adds only the exhausted retained-user trigger composition. |
 | [E2E queue](TestAutomation/E2E-Task-Queue.md) and [scenario inventory](../tests/e2e/scenarios.json) | Natural exhaustion/recovery, approved entry, countdown, long routines and suspend/wake retain their customer scope and status. Reuse necessary public operations without inheriting all their scenarios. |
 | [Usage-read obligation 143](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation), queued as task 172 | Tasks 002a/002 extend the same session owner with native contention/owner-loss conditions. Preserve that obligation's wider assertions and pending status. |
 | [Startup obligations](TestAutomation/E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits) | Startup-enforcement and broker-reconciliation tasks 169–170 keep their own fault matrices. |

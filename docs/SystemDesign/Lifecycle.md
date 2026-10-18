@@ -595,7 +595,7 @@ activation records for retry; earlier configuration failures leave the failed
 unit untouched. Both Ubuntu and Fedora use this shared completion step. The
 installed interruption/retry check also verifies exclusion from native trigger
 enumeration and a kiosk-scoped wildcard reload; both targets passed this history
-in [task 001 qualification](../TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification).
+in the [accepted installation receipts](../../tests/README.md#core-installation-and-runtime-compatibility).
 
 Successful configuration prints a green completion line. If this package has
 requested a reboot, the helper then prints

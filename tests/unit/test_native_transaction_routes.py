@@ -15,17 +15,6 @@ MODULE_PATH = ROOT / 'tools/build_test_artifacts.py'
 artifacts = load_module('onpc_test_native_artifact_routes', MODULE_PATH)
 
 
-def test_native_input_queue_and_unfinished_briefs_remain_valid():
-    from execution_plan import Plan
-
-    plan = Plan.load(ROOT, 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md')
-    tasks = plan.tasks()  # Validates pointer, ordering and backward dependencies.
-    for task in tasks:
-        if not task.complete:
-            task.acceptance_metadata()
-    assert next(task for task in tasks if task.id == '004b').requires == ('004a',)
-
-
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_native_builder_dispatches_exact_format_without_product_builds(
         tmp_path, monkeypatch, package_format):

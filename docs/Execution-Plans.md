@@ -325,7 +325,7 @@ operations or Git changes. The shared ordinary-plan driver first pulls the curre
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
 then stages the accepted task's explicit owned paths, commits them as
 `TA: Completed task ID`, and runs `git push` using the checkout's existing
-remote and branch configuration. Both `execute-plan` and `install-coverage`
+remote and branch configuration. Both `execute-plan` and `reliability-plan`
 inherit this policy. Only successful Git close-out counts the task against the
 run limit and permits selecting the next task. The controller owns task commits
 and pushes. If a pull changes HEAD, encounters merge conflicts or needs local
@@ -382,13 +382,7 @@ The current adapters use these components according to their workflow:
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
-| `install-coverage` | The same ordinary plan driver and shared lifecycle | [Core installation coverage](TestAutomation/Core-Installation-Coverage-Handoff.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 | `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
-
-Run the core installation queue with `tools/install-coverage --tasks 0` to finish
-all remaining tasks, or omit `--tasks` for one task. Its `--check` and `--stop`
-use the common interface above. The dedicated wrapper and `execute-plan --plan`
-share the master's namespace and checkpoints; they cannot start competing owners.
 
 Run `tools/reliability-plan --check` to validate its plan, or
 `tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to

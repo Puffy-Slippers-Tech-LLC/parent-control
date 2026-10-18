@@ -164,8 +164,8 @@ Each pytest phase and the old-package establishment command has a finite
 The pre-admission loader checkpoint has a 900-second timeout, covering the
 maintained boot-readiness wait and bounded loader verification after SSH returns.
 Registration and host doubles supply no installed transaction acceptance.
-The [004d qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification)
-records both complete passing target histories with exact input/helper bindings
+The [accepted native update receipts](../README.md#core-installation-and-runtime-compatibility)
+record both complete passing target histories with exact input/helper bindings
 and cleanup. Later candidates require matching evidence or a complete rerun.
 
 ## Running the current installed suite
@@ -284,7 +284,7 @@ the native module's executable mapping and retains its package/file receipts
 before testing confined close/delete/end callbacks. These witnesses extend
 existing cases 4 and 267. Their installed acceptance, including failed-manager
 recovery, passed on both targets under
-[task 001](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification).
+[the accepted installation receipts](../README.md#core-installation-and-runtime-compatibility).
 Faults belong to this engineering qualification and use an owned read-only
 integration directory plus an exact native policy-loader refusal. Mount identity,
 native empty-token authentication/account results and retained expiry are

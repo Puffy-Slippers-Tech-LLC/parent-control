@@ -2243,10 +2243,26 @@ decision; adding tests does not authorize widening product permissions.
 | Upgrade and live dependencies | Fresh installation, unchanged reinstall and actual earlier-package upgrade are separate histories. Record native dependency versions and qualify changed inputs; startup against freshly updated dependencies does not establish replacement while a session is retained. Use the existing upgrade interfaces and confinement replacement/reexec checks. |
 | Core customer results | Installation/service readiness is not proof of daily/grant arithmetic, hard/soft enforcement, lock/unlock, multi-session isolation or persistence. Keep their complete installed obligations in the existing E2E inventory/queue; pending journeys remain pending despite component/system passes. |
 
-The [core installation handoff](../docs/TestAutomation/Core-Installation-Coverage-Handoff.md)
-records the 2026-10-16 audit, implemented host checks and unfinished installed
-qualification. Follow its finite queue for that work; do not duplicate existing
-customer E2E tasks or treat this review as their completion.
+The core installation queue completed on 2026-10-18 and its temporary launcher,
+plan and briefs were retired. Accepted installed histories remain in the existing
+system cases; they do not complete pending customer E2E journeys.
+
+| Accepted history | Ubuntu report | Fedora report |
+| --- | --- | --- |
+| First configuration, case 4 | `20261018T001146Z-fde699d8` | `20261018T001146Z-106f25a9` |
+| Native confinement, case 267 | `20261018T001931Z-c3d8d88c` | `20261018T001931Z-3ecc56f3` |
+| Earlier-package upgrade, case 287 | `20261018T190013Z-06fb3398` | `20261018T190013Z-480dd9e4` |
+| Native dependency update, case 289 | `20261018T221414Z-71987d6a` | `20261018T221414Z-ffdaf92b` |
+
+Both native update phases passed on each target with matching input/helper
+bindings, complete cleanup and restored, powered-off VMs. The accepted pairs
+were Ubuntu bubblewrap `0.11.1-1` → `0.11.1-1ubuntu0.3` and Fedora
+xdg-dbus-proxy `0:0.1.6-4.fc44` → `0:0.1.9-1.fc44`.
+The cumulative 4,329-file evidence bundle is retained at
+`output/test-runs/host/exports/onpc-evidence-bundle-imeub3ps/evidence.zip`,
+SHA-256 `fdbf8cf7e9732308ceee22a720fdaf5df6d0d1b6c0f4b2d5e1916beacbe37df1`.
+These receipts describe historical acceptance; later candidates require matching
+evidence or the affected complete history again.
 
 ### Handling test failures
 

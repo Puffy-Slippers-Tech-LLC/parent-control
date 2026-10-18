@@ -25,9 +25,8 @@ from tests.support.terminal_screen import Terminal
 
 
 @pytest.fixture(params=[
-    ('install-coverage', 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md'),
     ('reliability-plan', 'docs/Reliability-Plan.md'),
-], ids=['install-coverage', 'reliability-plan'])
+], ids=['reliability-plan'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param
     entry = Path(workflow.__file__).with_name(name)

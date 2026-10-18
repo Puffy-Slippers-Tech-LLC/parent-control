@@ -298,7 +298,7 @@ private `/usr/libexec/oh-no-parent-control-kiosk-bwrap`, rather than the private
 wrapper at `/usr/bin/bwrap`; Fedora measures the direct proxy executable.
 Actual transaction scripts/triggers, retained mappings, stale-manager refusal,
 lease exclusion, reexec and fresh-boot recovery are qualified by the matching
-[004d installed receipts](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification).
+[installed update receipts](../README.md#core-installation-and-runtime-compatibility).
 Input verification alone supplies no installed transaction acceptance; changed
 helpers/inputs require the affected complete history again.
 
@@ -374,7 +374,7 @@ the existing redacted failure/reboot collector. Safe typed preflight reasons
 survive the guest command route without exporting private path/argument suffixes.
 These engineering checks alone grant no installed acceptance. Both complete
 case 289 histories with matching input/helper bindings passed in the
-[004d qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-004d-native-update-qualification).
+[accepted update receipts](../README.md#core-installation-and-runtime-compatibility).
 
 ## Resources
 
@@ -419,9 +419,8 @@ does not establish this coverage. Missing or altered rules refuse that history
 with baseline-refresh guidance. Tests never enable the profile to repair their
 own prerequisites. This input passed the complete native installation/retry/reboot
 and confinement histories on Ubuntu, with Fedora regression acceptance retained;
-see [task 001 qualification](../../docs/TestAutomation/Core-Installation-Coverage-Handoff.md#task-001-native-qualification)
-for the exact baselines, native versions and receipts. Other PAM variants remain
-separate unfinished work in that queue.
+see [accepted installation receipts](../README.md#core-installation-and-runtime-compatibility).
+Other PAM variants use the separate `system_pam_variants.py` histories.
 Preparation normalizes official Ubuntu archive URLs to HTTPS, verifies installed
 minimum qualified versions, accepts newer security/maintenance versions,
 generates missing SSH host keys, enables SSH and checks public-key

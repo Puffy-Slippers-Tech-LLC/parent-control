@@ -182,6 +182,8 @@ exactly one of the following. With no last error, it is always blue `Running`:
 | Testing fix, previous error point not reached yet | Yellow |
 | Testing fix, previous error point passed | Green |
 
+Blue status values and the elapsed age use explicit blue (`#0098ff`) so terminal
+palette settings cannot render them gray. The `Status:` label keeps its normal color.
 The status is followed by its age in parentheses, such as `Running (12m ago)` or
 `Investigating (1h 12m ago)`, using the shared minute/hour duration formatter.
 Its clock resets only when the status value changes and refreshes every minute

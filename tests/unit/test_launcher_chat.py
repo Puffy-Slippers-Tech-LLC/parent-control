@@ -540,7 +540,7 @@ def test_completed_overview_normalizes_legacy_rows_without_changing_owner_record
     assert terminal.getvalue() == before
 
 
-@pytest.mark.parametrize('status,color', zip(TASK_STATUSES, ('blue', 'blue', 'yellow', 'green')))
+@pytest.mark.parametrize('status,color', zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green')))
 def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monkeypatch, status, color):
     clock = [1000.0]
     monkeypatch.setattr('launcher_display.time.time', lambda: clock[0])
@@ -557,7 +557,7 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
     assert not empty.get_style_at_offset(display.console, len('Last Error: ')).bold
     assert empty.get_style_at_offset(display.console, len('Last Error: ')).color is None
     assert line('Status:').plain.rstrip() == 'Status: Running (0m ago)'
-    assert line('Status:').get_style_at_offset(display.console, len('Status: ')).color.name == 'blue'
+    assert line('Status:').get_style_at_offset(display.console, len('Status: ')).color.name == '#0098ff'
     for no_error in ('', '-', '  '):
         display.task_info.update(last_error=no_error, status=status)
         display.draw()
@@ -582,6 +582,9 @@ def test_current_task_panel_labels_error_clock_and_status_colors(tmp_path, monke
         style = error.get_style_at_offset(display.console, offset)
         assert style.color.name == 'red' and not style.bold
     status_row = line('Status:')
+    assert status_row.get_style_at_offset(display.console, 0).color is None
+    for offset in range(len('Status: ' + status), len(status_row.plain.rstrip())):
+        assert status_row.get_style_at_offset(display.console, offset).color.name == '#0098ff'
     for offset in range(len('Status: '), len('Status: ' + status)):
         style = status_row.get_style_at_offset(display.console, offset)
         assert style.color.name == color and not style.bold

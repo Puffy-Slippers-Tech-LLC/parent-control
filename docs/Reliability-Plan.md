@@ -1,0 +1,135 @@
+# Unattended VM reliability execution plan
+
+Task queue: [Ordered task queue](Reliability-Task-Queue.md).
+Next task: **001 — [Timer failure ordering and accounting safety](Reliability-Tasks/001-timer-ordering.md)**.
+
+## Outcome
+
+Improve the product and its unattended regressions for the machine state,
+event ordering and accumulated history exposed by the October 16–17 stability
+fixes, especially `5b15f17d`. Passing fresh-install tests on one default machine
+configuration does not establish recovery after contention, denied admission,
+exhaustion, retained-session activity or unrelated package installation.
+
+Each task must reproduce its finite missing condition, preserve the expected
+versus actual result, fix any demonstrated product root cause and retain a
+regression in the lowest effective maintained layer. Existing correct behavior
+needs evidence and coverage of the missing composition, not a speculative
+rewrite. The [specification](Specification.md) owns behavior; the
+[system design](System-Design.md) owns component and lifecycle boundaries.
+Behavior decisions and unexpected regressions follow
+[failure handling](../tests/README.md#handling-test-failures).
+
+All rows start unfinished. This plan itself supplies no test pass. Installed
+acceptance requires both `onpc-Ubuntu26.04` and `onpc-Fedora44`, with exact package,
+baseline and test-source identities. VM graphics evidence is limited to the
+renderer/device paths actually exercised; policy checks never establish an
+unexercised native mapping. Task 007 owns the finite VM capability boundary.
+
+## Run and resume
+
+```sh
+tools/reliability-plan --check
+tools/reliability-plan
+tools/reliability-plan --tasks 0
+tools/reliability-plan --stop
+```
+
+The thin [launcher](../tools/reliability-plan) uses the shared
+[execution-plan driver](Execution-Plans.md), GPT-6.1 Sol High, five coordinator
+sessions per task and the common task limits, attachment, cancellation,
+checkpoint recovery and per-task Git close-out. An explicit `--vm` uses registered
+selectors; the default uses the enabled queue. Narrowed diagnostics never remove
+a brief's required targets. The generic entry shares the same owner:
+
+```sh
+tools/execute-plan --plan 'docs/Reliability-Plan.md' --check
+```
+
+Use GPT-6.1 Sol Medium workers for settled disjoint implementation and High or
+above for concurrency, authorization and diagnosis; Low may monitor read-only
+results. Keep one editor for shared state and join workers before acceptance or
+cleanup. Do not start another workflow launcher inside a task coordinator.
+
+## Coverage ownership
+
+The queue schedules missing engineering conditions, not a second customer E2E
+catalogue. Extend canonical helpers and register each executable case once.
+Where an existing selector already covers an assertion, reuse it and document
+the exact added condition. Matching results may be consumed by the original
+owner after its applicability review; this launcher closes only its own row.
+
+| Existing owner | Relationship to this plan |
+| --- | --- |
+| [Core installation queue](TestAutomation/Core-Installation-Task-Queue.md) | Optional PAM variants, first-configuration recovery and trusted native fixtures already have acceptance. Earlier-package upgrade 003 and live dependency transaction 004 stay there; do not recreate those histories here. |
+| [E2E queue](TestAutomation/E2E-Task-Queue.md) and [scenario inventory](../tests/e2e/scenarios.json) | Customer natural exhaustion/recovery, approved entry, countdown and suspend/wake cases keep their existing order and acceptance. New engineering qualifications do not complete those journeys. |
+| [Usage-read obligation 143](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation), queued as task 172 | Task 002 extends the same session owner with timer contention/owner-loss compositions. Keep one canonical executable per condition; retain the original obligation's wider assertions and pending status. |
+| [Startup obligations](TestAutomation/E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits) | Startup-enforcement and broker-reconciliation tasks 169–170 stay under their existing owner. This plan does not duplicate their fault matrices. |
+| [UI/E2E allocation](TestAutomation/UI-and-E2E-Coverage.md) | Value/control matrices stay in host UI or unit coverage. Native services, actual policy effects and recovery require installed evidence. |
+
+Completed task briefs may be removed, so keep enduring findings, actual selector
+bindings and evidence in the queue and their existing design/test owners.
+Do not copy an existing owner's procedure or create a repository evidence archive.
+
+## Execution and acceptance
+
+Follow [test maintenance](../tests/README.md#coverage-maintenance-workflow),
+[shared support](../tests/support/README.md), the
+[VM mandate](Mandates/VM-Mandate.MD),
+[UI mandate](Mandates/UI-Automation-Mandate.MD) and
+[storage mandate](Mandates/Test-Storage-Mandate.md).
+Cases own finite inputs, order and independent assertions; shared helpers own
+transport, observation and cleanup. Baseline preparation owns reusable fixtures;
+deliberate scenario mutations remain attempt-owned. No private usage, grant,
+clock or Shell-state edits may manufacture a successful time/access result.
+Engineering faults must be explicit and separate from customer acceptance.
+
+For every installed brief, discover actual selectors first:
+
+```sh
+tools/run-tests system --list --area 'session'
+tools/run-tests system --list --area 'enforcement'
+```
+
+Names in unfinished briefs are planned and unimplemented until registered and
+listed. Add only the missing bounded case through the existing runner; an
+engineering graphical qualification must retain the same guards and evidence
+as its maintained owner. Follow [system acceptance](TestAutomation/E2E-Execution-Contracts.md#system-acceptance)
+for per-target verified artifacts, complete failure/recovery histories and
+independent unrelated-user controls. A fake D-Bus error establishes host behavior;
+it does not prove daemon reactivation, native contention or installed accounting.
+
+Preserve the first failure and observe each intermediate result before recovery
+can hide it. Retry only supported safe operations within original deadlines;
+never repeat uncertain credentials, approvals or other mutations. Confirm usable
+access/denial, original deadlines and retained work independently of success
+callbacks, authentication completion, process exit or painted frames.
+
+Review every added host module/resource under the
+[parallelism contract](../tests/README.md#host-test-parallelism-review).
+Run affected host checks before installed acceptance. Run `make build` after
+the final product/build-input edit; update all supported languages if product
+strings change. Apply the existing
+[bounded supporting-work contract](TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
+before adding a harness prerequisite: use a supported engineering route that
+preserves the required product result, rather than inheriting a deferred
+customer capability. A necessary finite prerequisite uses the shared driver,
+preserving the consumer's scope and dependencies. An unsupported required VM
+capability remains a concrete blocker, never a skipped passing branch.
+
+At close-out, retain package/baseline/source identities, exact selectors,
+expected/actual results, collection and owned-cleanup receipts for every required
+target. Plan their lifetime before starting installed acceptance: later tasks
+can rotate the three-run journals before task 012. Preserve required proof
+through the existing
+[cumulative qualification-bundle route](../tests/README.md#complete-qualification-evidence-bundles)
+before that rotation, carrying forward verified receipts and both targets'
+evidence within its existing limits. Reuse retained exports and verify the
+newest required bundles after later publication; never copy attempt roots or
+credentials. Task 012 may consume these verified receipts after their original
+reports rotate. Missing proof requires the affected history again, not a
+remembered pass. Refresh authoritative inventories and generated coverage when executable
+coverage changes; check Markdown links. Advance only the accepted row and the
+sole Next task pointer. Task 012 reconciles final-candidate evidence and any
+affected reruns; earlier passing revisions are not blanket evidence for later
+product changes.

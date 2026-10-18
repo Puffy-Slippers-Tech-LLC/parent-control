@@ -24,9 +24,13 @@ from plan_launcher import execute as execute_session
 from tests.support.terminal_screen import Terminal
 
 
-@pytest.fixture
-def install_coverage(monkeypatch):
-    entry = Path(workflow.__file__).with_name('install-coverage')
+@pytest.fixture(params=[
+    ('install-coverage', 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md'),
+    ('reliability-plan', 'docs/Reliability-Plan.md'),
+], ids=['install-coverage', 'reliability-plan'])
+def plan_adapter(monkeypatch, request):
+    name, plan = request.param
+    entry = Path(workflow.__file__).with_name(name)
 
     def invoke(*args):
         monkeypatch.setattr(sys, 'argv', [str(entry), *args])
@@ -36,31 +40,32 @@ def install_coverage(monkeypatch):
             runpy.run_path(str(entry), run_name='__main__')
         return result.value.code
 
-    return invoke
+    return invoke, workflow.PlanWorkflow(
+        name=name, plan=plan, model='gpt-6.1-sol', effort='high', vm=True)
 
 
-def test_install_coverage_inherits_shared_commit_and_push_policy(install_coverage, monkeypatch):
+def test_plan_adapter_inherits_shared_commit_and_push_policy(plan_adapter, monkeypatch):
+    invoke, spec = plan_adapter
     calls = []
     monkeypatch.setattr(workflow, 'main', lambda spec: calls.append(spec) or 7)
-    assert install_coverage() == 7
-    assert calls == [workflow.PlanWorkflow(
-        name='install-coverage',
-        plan='docs/TestAutomation/Core-Installation-Coverage-Handoff.md',
-        model='gpt-6.1-sol', effort='high', vm=True,
-    )]
+    assert invoke() == 7
+    assert calls == [spec]
     assert calls[0].commit_prefix == 'TA' and calls[0].push is True
     assert workflow.PlanWorkflow('execute-plan').commit_prefix == 'TA'
     assert workflow.PlanWorkflow('execute-plan').push is True
 
 
-def test_install_coverage_default_check_has_no_execution_side_effects(
-        rig, install_coverage, monkeypatch, capsys):
+def test_plan_adapter_default_check_has_no_execution_side_effects(
+        rig, plan_adapter, monkeypatch, capsys):
     import vm_selection
 
-    master = rig.root / 'docs/TestAutomation/Core-Installation-Coverage-Handoff.md'
-    master.parent.mkdir()
+    invoke, spec = plan_adapter
+    master = rig.root / spec.plan
+    master.parent.mkdir(parents=True, exist_ok=True)
     for name in ('queue.md', '001.md', '002.md'):
-        shutil.copy2(rig.root / 'docs' / name, master.parent / name)
+        source, destination = rig.root / 'docs' / name, master.parent / name
+        if source != destination:
+            shutil.copy2(source, destination)
     master.write_text('Task queue: [Queue](queue.md).\nNext task: **001 — First**.\n')
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
 
@@ -71,19 +76,20 @@ def test_install_coverage_default_check_has_no_execution_side_effects(
     monkeypatch.setattr(workflow.launcher, 'select', unexpected)
     monkeypatch.setattr(workflow.subprocess, 'Popen', unexpected)
     monkeypatch.setattr(workflow, 'git_output', unexpected)
-    assert install_coverage('--check') == 0
+    assert invoke('--check') == 0
     assert json.loads(capsys.readouterr().out) == dict(
-        plan='docs/TestAutomation/Core-Installation-Coverage-Handoff.md',
-        queue='docs/TestAutomation/queue.md', next_task='001', remaining=2,
+        plan=spec.plan, queue=str((master.parent / 'queue.md').relative_to(rig.root)),
+        next_task='001', remaining=2,
         model='gpt-6.1-sol', effort='high',
     )
 
 
 @pytest.mark.parametrize('action', ['limit', 'stop'])
-def test_install_coverage_shares_master_ownership_and_common_controls(
-        rig, install_coverage, monkeypatch, action):
+def test_plan_adapter_shares_master_ownership_and_common_controls(
+        rig, plan_adapter, monkeypatch, action):
     import vm_selection
 
+    invoke, _spec = plan_adapter
     selections = []
     monkeypatch.setattr(workflow, '__file__', str(rig.root / 'tools/plan_launcher.py'))
     monkeypatch.setattr(vm_selection, 'execution_selection', lambda selector: selections.append(selector))
@@ -102,7 +108,7 @@ def test_install_coverage_shares_master_ownership_and_common_controls(
 
     monkeypatch.setattr(workflow.launcher, 'select', select)
     controls = ['--stop'] if action == 'stop' else ['--tasks', '0']
-    assert install_coverage('--plan', rig.plan.path, *controls) == 0
+    assert invoke('--plan', rig.plan.path, *controls) == 0
     assert selections == ([] if action == 'stop' else [None])
     assert TaskBudget(rig.run).read()['tasks'] == (1 if action == 'stop' else None)
 

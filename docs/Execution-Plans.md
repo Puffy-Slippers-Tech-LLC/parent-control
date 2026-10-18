@@ -325,11 +325,19 @@ The current adapters use these components according to their workflow:
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 | `install-coverage` | The same ordinary plan driver and shared lifecycle | [Core installation coverage](TestAutomation/Core-Installation-Coverage-Handoff.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
+| `reliability-plan` | The same ordinary plan driver and shared lifecycle | [VM reliability](Reliability-Plan.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run the core installation queue with `tools/install-coverage --tasks 0` to finish
 all remaining tasks, or omit `--tasks` for one task. Its `--check` and `--stop`
 use the common interface above. The dedicated wrapper and `execute-plan --plan`
 share the master's namespace and checkpoints; they cannot start competing owners.
+
+Run `tools/reliability-plan --check` to validate its plan, or
+`tools/reliability-plan --tasks 0` to execute its remaining queue. It defaults to
+one task and supports the same `--vm`, attachment and `--stop` controls. The
+generic `execute-plan --plan 'docs/Reliability-Plan.md'` entry shares its owner
+and checkpoints. Installed briefs retain their explicit acceptance targets even
+when a diagnostic invocation narrows VM selection.
 
 Run E2E plans through `write-e2e`; their task-specific acceptance metadata and
 close-out rules remain with the E2E contracts. `execute-plan --check` validates

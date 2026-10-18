@@ -270,6 +270,10 @@ Aggregate aliases (no suite selectors)
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
   Add --upgrade-inputs to build pinned earlier-release/current inputs in a new retained bundle.
+  artifacts prepare --for-vm --native-inputs prepares the reviewed native dependency
+  pair in retained storage; it does not install packages or qualify the live history.
+  artifacts prepare --native-inputs --package-format deb|rpm prepares that finite
+  pair without a VM probe; installed-baseline compatibility still needs preflight.
   system --upgrade-inputs prepares that pair independently in each VM worker
   and supplies --artifacts/--previous-artifacts to the existing installed runner.
   It requires the VM's declared format to match its verified baseline; no format defaults.
@@ -597,6 +601,13 @@ def plan(root, category, argv):
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--upgrade-inputs']:
             from vm_selection import arguments
             return [python_file(root, 'tools/vm_artifacts.py', '--upgrade-inputs', *arguments())], False
+        if category == 'artifacts' and argv == ['prepare', '--for-vm', '--native-inputs']:
+            from vm_selection import arguments
+            return [python_file(root, 'tools/vm_artifacts.py', '--native-inputs', *arguments())], False
+        if (category == 'artifacts' and len(argv) == 4 and
+                argv[:3] == ['prepare', '--native-inputs', '--package-format'] and
+                argv[3] in ('deb', 'rpm')):
+            return [[*command, '--native-inputs', '--package-format', argv[3]]], False
         if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
                 len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
             from vm_selection import arguments
@@ -610,6 +621,8 @@ def plan(root, category, argv):
             return [[*command, '--package-format', 'deb', '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
             return [[*command, '--verify', '--output', artifact_path(argv[1])]], False
+        if category == 'artifacts' and action == 'verify-native' and len(argv) == 2:
+            return [[*command, '--verify-native-inputs', '--output', artifact_path(argv[1])]], False
         if category == 'artifacts' and action == 'compare' and len(argv) == 3:
             return [[*command, '--compare', *map(artifact_path, argv[1:])]], False
         raise ValueError('invalid artifact operation')
@@ -711,7 +724,10 @@ def _main(argv=None, *, detached=False, checkpoint=None):
         env = host.environment(root)
         if category in ('fixture-runtime', 'coverage'):
             env = host.test_environment(root)
-        if category in ('fixtures', 'artifacts') and (not args or args in (['build'], ['prepare'])):
+        if (category in ('fixtures', 'artifacts') and
+                (not args or args in (['build'], ['prepare']) or
+                 category == 'artifacts' and args[:3] ==
+                 ['prepare', '--native-inputs', '--package-format'])):
             from test_retention import allocate
             directory = allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-')
             commands[0] += ['--output', directory]

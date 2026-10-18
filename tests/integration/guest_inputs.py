@@ -17,7 +17,7 @@ import sys
 # Guest entry points use flat imports; reusable tests packages retain their
 # repository-relative package layout in the payload.
 SEARCH = ('tests/integration', 'tests/integration/guest', 'tests/system', '')
-EXTERNAL = frozenset(sys.stdlib_module_names) | {'pytest', 'gi', 'oh_no_parent_control'}
+EXTERNAL = frozenset(sys.stdlib_module_names) | {'pytest', 'gi', 'rpm', 'oh_no_parent_control'}
 
 
 class InputError(ValueError):

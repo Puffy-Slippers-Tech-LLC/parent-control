@@ -1384,6 +1384,100 @@ def stage_upgrade_assets(source, destination, commands):
     return manifest
 
 
+def stage_native_assets(source, destination, *, package_format,
+                        baseline_provenance_sha256, selected_inputs_sha256):
+    """Freeze the finite native pair inside an already owned attempt payload.
+
+    This does not install a package or repair the baseline. The history owner
+    must retain the returned binding and perform the separate guest preflight.
+    """
+    from tools.native_transaction_inputs import MANIFEST_NAME, stage
+    from provenance import snapshot
+    require(all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value)
+                for value in (baseline_provenance_sha256, selected_inputs_sha256)),
+            'assets:native-provenance-required')
+    destination = Path(destination)
+    snapshot(destination)
+    require(baseline.digest(destination / 'selected-inputs.json') == selected_inputs_sha256,
+            'assets:native-selection-mismatch')
+    binding_path = destination / 'native-transaction-binding.json'
+    intent_path = destination / '.native-transaction-binding-intent.json'
+    source_snapshot = snapshot(Path(source))
+    intent = {
+        'schema_version': 1, 'package_format': package_format,
+        'native_manifest_sha256': source_snapshot['files'].get(MANIFEST_NAME),
+        'baseline_provenance_sha256': baseline_provenance_sha256,
+        'selected_inputs_sha256': selected_inputs_sha256,
+    }
+    require(intent['native_manifest_sha256'] is not None, 'assets:native-manifest-required')
+    from tools.native_transaction_inputs import publish_record
+    if intent_path.exists():
+        require(json.loads(intent_path.read_bytes()) == intent, 'assets:native-intent-mismatch')
+    else:
+        require(not binding_path.exists() and not (destination / 'native-transaction').exists(),
+                'assets:native-unowned-staging')
+        publish_record(intent_path, intent)
+    # The staging owner rejects foreign partial trees and supports only its
+    # identity-recorded interrupted copy. The attempt's normal cleanup owns it.
+    native_directory = destination / 'native-transaction'
+    if not native_directory.exists():
+        native_directory.mkdir(mode=0o700)
+    manifest = stage(Path(source), native_directory,
+                     package_format=package_format)
+    require(snapshot(Path(source)) == source_snapshot and
+            baseline.digest(destination / 'native-transaction' / MANIFEST_NAME) ==
+            intent['native_manifest_sha256'], 'assets:native-source-changed')
+    if binding_path.exists():
+        return verify_native_assets(destination, package_format=package_format,
+            baseline_provenance_sha256=baseline_provenance_sha256,
+            selected_inputs_sha256=selected_inputs_sha256)
+    binding = {
+        'schema_version': 1,
+        'pair_id': manifest['pair_id'],
+        'package_format': manifest['package_format'],
+        'native_manifest_sha256': baseline.digest(
+            destination / 'native-transaction' / MANIFEST_NAME),
+        'baseline_provenance_sha256': baseline_provenance_sha256,
+        'selected_inputs_sha256': selected_inputs_sha256,
+    }
+    # Atomic publication follows the same private bundle record owner.
+    publish_record(binding_path, binding)
+    return verify_native_assets(destination, package_format=package_format,
+        baseline_provenance_sha256=baseline_provenance_sha256,
+        selected_inputs_sha256=selected_inputs_sha256)
+
+
+def verify_native_assets(destination, *, package_format,
+                         baseline_provenance_sha256, selected_inputs_sha256):
+    """Reverify frozen bytes and exact selection/baseline applicability, read-only."""
+    from tools.native_transaction_inputs import MANIFEST_NAME, verify
+    from provenance import snapshot
+    require(all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value)
+                for value in (baseline_provenance_sha256, selected_inputs_sha256)),
+            'assets:native-provenance-required')
+    destination = Path(destination)
+    before = snapshot(destination)
+    manifest = verify(destination / 'native-transaction', package_format=package_format)
+    expected = {
+        'schema_version': 1,
+        'pair_id': manifest['pair_id'],
+        'package_format': manifest['package_format'],
+        'native_manifest_sha256': baseline.digest(
+            destination / 'native-transaction' / MANIFEST_NAME),
+        'baseline_provenance_sha256': baseline_provenance_sha256,
+        'selected_inputs_sha256': selected_inputs_sha256,
+    }
+    require(baseline.digest(destination / 'selected-inputs.json') == selected_inputs_sha256,
+            'assets:native-selection-mismatch')
+    require(json.loads((destination / 'native-transaction-binding.json').read_bytes()) == expected,
+            'assets:native-binding-mismatch')
+    require(json.loads((destination / '.native-transaction-binding-intent.json').read_bytes()) ==
+            {key: value for key, value in expected.items() if key != 'pair_id'},
+            'assets:native-intent-mismatch')
+    require(snapshot(destination) == before, 'assets:native-staged-inputs-changed')
+    return expected
+
+
 def stage_selected_inputs(selection, destination):
     """Freeze and identify only the test/helper files needed by this selection."""
     selected_areas = {execution.area for execution in selection.executions}

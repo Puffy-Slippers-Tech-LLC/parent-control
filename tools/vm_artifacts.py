@@ -12,7 +12,10 @@ import test_retention
 from vm_selection import arguments, extract, selected
 
 
-def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False):
+def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False,
+            native_inputs=False):
+    if native_inputs and upgrade_inputs:
+        raise ValueError('native dependency and product upgrade inputs are separate operations')
     package_format = selected().require_package_format()
     helper = '/usr/local/libexec/onpc-test-runner'
     check(helper)
@@ -30,6 +33,11 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
               'existing inputs preserved', file=sys.stderr)
         return 2
     if candidate is not None:
+        if native_inputs:
+            from native_transaction_inputs import verify
+            verify(Path(candidate), package_format=package_format)
+            print('run-tests: output=' + str(candidate), flush=True)
+            return 0
         if upgrade_inputs:
             from build_test_artifacts import verify_upgrade
             receipt = verify_upgrade(Path(candidate))
@@ -54,7 +62,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         print('run-tests: output=' + str(output), flush=True)
     # The existing reuse cache is DEB-specific. RPM uses its maintained builder.
     return control.run(['/usr/bin/python3', '-B', str(root / 'tools/build_test_artifacts.py'),
-        *(['--upgrade-inputs'] if upgrade_inputs else ['--reuse'] if package_format == 'deb' else []),
+        *(['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
+          else ['--reuse'] if package_format == 'deb' else []),
         '--package-format', package_format, '--output', str(output)],
         cwd=root, env=environment)
 
@@ -65,11 +74,13 @@ def main(argv=None):
     parser.add_argument('--candidate')
     parser.add_argument('--output')
     parser.add_argument('--upgrade-inputs', action='store_true')
+    parser.add_argument('--native-inputs', action='store_true')
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     with Control().installed(pipe=False) as control:
         return prepare(root, control, test_launcher.environment(root),
-                       candidate=args.candidate, output=args.output, upgrade_inputs=args.upgrade_inputs)
+                       candidate=args.candidate, output=args.output, upgrade_inputs=args.upgrade_inputs,
+                       **({'native_inputs': True} if args.native_inputs else {}))
 
 
 if __name__ == '__main__':

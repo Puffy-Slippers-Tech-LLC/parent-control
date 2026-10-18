@@ -465,12 +465,26 @@ def main() -> int:
                         help='required for every build; no default package format')
     parser.add_argument('--upgrade-inputs', action='store_true',
                         help='build pinned genuine prior-release/current inputs for the selected format')
+    parser.add_argument('--native-inputs', action='store_true',
+                        help='prepare the reviewed finite native dependency pair, not product packages')
+    parser.add_argument('--verify-native-inputs', action='store_true',
+                        help='reverify a native dependency bundle without changing it')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
-    if not (arguments.verify or arguments.compare) and arguments.package_format is None:
+    if not (arguments.verify or arguments.compare or arguments.verify_native_inputs) and arguments.package_format is None:
         parser.error('--package-format deb|rpm is required when building')
     try:
-        if arguments.upgrade_inputs:
+        if arguments.native_inputs or arguments.verify_native_inputs:
+            from tools.native_transaction_inputs import prepare, verify as verify_native
+            if (arguments.output is None or arguments.verify or arguments.compare or
+                    arguments.reuse or arguments.upgrade_inputs or
+                    arguments.native_inputs and arguments.verify_native_inputs):
+                raise ArtifactError('native inputs require only --output and an explicit build format')
+            if arguments.verify_native_inputs:
+                verify_native(arguments.output, package_format=arguments.package_format)
+            else:
+                prepare(arguments.output, package_format=arguments.package_format)
+        elif arguments.upgrade_inputs:
             if arguments.output is None or arguments.verify or arguments.compare or arguments.reuse:
                 raise ArtifactError('--upgrade-inputs requires --output and --package-format')
             build_upgrade(arguments.output, package_format=arguments.package_format)

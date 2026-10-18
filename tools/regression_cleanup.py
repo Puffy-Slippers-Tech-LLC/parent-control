@@ -595,6 +595,9 @@ def buckets(nodeids):
 # test_retention keeps its existing compatible unit and cleanup classification.
 # Unpublished-input recovery adds only private journal/identity/refusal fixtures
 # and process-local command doubles; the same compatible classification applies.
+# Native-input completion-marker refusal uses the same private retained journal
+# and tiny files. It adds no cleanup resource or process; compatible in both
+# cleanup and unit inventories, with ordinary ownership/retention guards intact.
 # Oversized execution recovery uses tiny pytest-private journals, real local
 # locks and process-local VM-lease/reference doubles. No live VM, shared path
 # or new subprocess is used; retention remains compatible in both inventories.

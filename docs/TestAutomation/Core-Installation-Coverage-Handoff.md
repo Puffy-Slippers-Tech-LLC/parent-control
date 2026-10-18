@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **004b — [Implement verified native transaction inputs](Core-Installation-Tasks/004b-native-transaction-inputs.md)**.
+Next task: **004c — [Implement the retained-session transaction history](Core-Installation-Tasks/004c-native-update-history.md)**.
 
 ## Purpose and continuation
 
@@ -616,18 +616,94 @@ VM resource or disposable research artifact remains owned by this task.
 No package/product/build source or inventory changed, so no build, coverage
 refresh or VM cleanup is required. Only 004a is newly complete.
 
+## Task 004b verified native transaction inputs
+
+Accepted 2026-10-18 as **host**, with no declared acceptance targets or VM
+mutation. The maintained [native input contract](../../tests/integration/Environment.md#verified-finite-native-transaction-inputs)
+documents preparation, native verification, staging and read-only installed-set
+preflight. The builder's `--native-inputs` route selects only 004a's exact pair;
+`--upgrade-inputs` continues to build product releases. Native manifests retain
+signed metadata/key provenance, native verification receipts, package identities,
+dependency/control inventories and independently extracted executable hashes.
+
+Both real bundles passed cryptographic verification and native extraction through
+`tools/run-tests artifacts prepare --native-inputs --package-format deb|rpm`.
+Reports and allocations below are under `output/test-runs/host/`:
+
+| Format | Report / allocation | `native-inputs.json` SHA-256 |
+| --- | --- | --- |
+| DEB | `195629Z-9503c5f3` / `onpc-test-artifacts-37pxnos4` | `93e4ece7a3f98f1585ac8e3ef4d2d720c369f65abbbe4e74d6081ae1f6a7ce49` |
+| RPM | `195227Z-4115e54b` / `onpc-test-artifacts-i3cpzkuv` | `e4a951734c57373ee0be3cc998c73597b5d25e2b7fa9a7ebfd780d858dae8752` |
+
+Report directory names have the prefix `20261018T`; allocations are in
+`allocations/`. The manifest content bindings are respectively
+`41c152d5f3ef56bf7f1479b953f5dbecbbdfd028cc711ed2d15fdca7bd9d585f`
+and `5a04be92f737d041ea579a02fce67630c1ed0e65ec46c480333a0520669e2e30`.
+Ubuntu's measured `/usr/bin/bwrap` SHA-256 values are
+`8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b`
+(old) and `523da3e7399044be5163aee6f57a77a6bef7454376e28f0a0627920bae1b76b6`
+(new), both root:root 0755, 80,424 bytes, with the reviewed distinct build IDs.
+Fedora's extracted hashes, sizes and metadata match 004a's exact Koji records.
+The native RPM verifier accepts short/long key IDs and the full fingerprint only
+for the pinned Fedora key; native signature and payload digest checks remain
+mandatory. No system trust or installed package was changed.
+
+Focused host regressions passed **3,813/3,813**, report
+`output/test-runs/host/reports/20261018T194755Z-3d050467/report.md`.
+Final guest-import, complete-status-write, applicability and composition checks
+passed **1,012/1,012**, report
+`output/test-runs/host/reports/20261018T194952Z-8ce3c9dc/report.md`.
+Final plan, inventory, coverage and resource consistency passed **203/203**,
+report `output/test-runs/host/reports/20261018T195406Z-465da6fa/report.md`;
+all **68** local links in the five changed Markdown documents passed.
+The verified **69-file** retained bundle is
+`output/test-runs/host/exports/onpc-evidence-bundle-bjd5pdxn/evidence.zip`, SHA-256
+`76dc62716ad48dd1c5644303a7e8e972c73951cb43a91f776aebc02bde5cda8c`.
+It preserves both complete native inputs and the exact builder/host reports,
+including the final plan check; original report/allocation paths remain bundle
+member keys after ordinary source rotation. Inspection verified every byte after
+publication, and export cleanup completed. The bundle also retains the identical
+earlier DEB input manifest. Future live consumers must prepare/reverify inputs
+through the maintained routes; this evidence export is not a staging shortcut.
+These cover both formats, missing/tampered/same-byte/wrong-identity refusal,
+signature/key/index failures, safe staging, foreign/link ownership, interrupted
+copy and preparation retry, read-only native reprobes and baseline/selection
+binding. Durable applicability precedes copying, so interruption cannot rebind
+retained inputs to another baseline or helper selection. Published native
+manifests also refuse unpublished-input deletion through the retention owner.
+Baseline dependency reconciliation retains first/repeat/update/retry behavior;
+consumers do not install or repair reusable dependencies.
+
+All applicable unit and cleanup inventories were reviewed. New checks use
+private files, auto-closed descriptors and native-command doubles; the guest
+import check owns one bounded, waited Python child. There is no new live
+resource owner or UI inventory. Generated coverage was refreshed (**136** added
+host cases, no installed/E2E registration). These test/tooling changes affect
+neither package sources nor ordinary build-tool dependencies, so no `make build`
+is required. All workers joined and test/build scratch cleanup ended; retained
+bundles/reports remain under their normal owners. Only 004b is newly complete.
+
+The [004b brief](Core-Installation-Tasks/004b-native-transaction-inputs.md)
+remains as 004a's authoritative finite input review and the remaining history
+checkpoint reference. The [004c brief](Core-Installation-Tasks/004c-native-update-history.md)
+now links the implemented input APIs. Actual installed solver/trigger behavior,
+old-generation establishment, retained mappings and admission/reboot recovery
+remain unqualified until both complete 004d histories pass. No host result here
+substitutes for that installed acceptance.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
 Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
 complete. Task 004a's [finite input review](#task-004a-finite-native-input-review)
-is complete; continue with 004b's verified native transaction inputs.
+is complete, and 004b's [verified native inputs](#task-004b-verified-native-transaction-inputs)
+are implemented; continue with 004c's retained-session history.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
 Ubuntu/Fedora acceptance in combined task 004d, scheduled in parallel. The native
-package pairs are selected; their staging and installed transaction qualification
-remain pending, and the selector remains unimplemented. The product
+package pairs and verified staging are implemented; installed transaction
+qualification remains pending, and the selector remains unimplemented. The product
 earlier-release builder is not a
 native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual

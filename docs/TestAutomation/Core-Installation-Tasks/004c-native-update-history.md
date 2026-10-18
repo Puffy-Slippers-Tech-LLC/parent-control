@@ -9,6 +9,9 @@ Requires: 004b.
 Implement one finite history for both targets using 004b's verified inputs and
 the expectations resolved by 004a, preserving all
 [004 requirements](004-native-dependency-update.md). Read the affected complete
+input/staging/preflight APIs through the
+[verified native input contract](../../../tests/integration/Environment.md#verified-finite-native-transaction-inputs),
+then the affected complete
 `system_kiosk_confinement` inventory, `manager_boundary`, `verify_updates`,
 loader/admission and lifecycle functions and their callers, plus runner phase,
 selection, resume and evidence contracts. Reuse existing process identity,

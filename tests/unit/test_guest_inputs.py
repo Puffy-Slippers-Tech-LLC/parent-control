@@ -109,6 +109,17 @@ def test_real_setup_closure_imports_without_checkout_or_host_observer(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_native_preflight_freezes_without_copying_distribution_rpm_bindings(tmp_path):
+    frozen = Bundle(ROOT, [('tests/integration/native_transaction.py', 'native_transaction.py')])
+    assert set(frozen.files) == {'native_transaction.py'}
+    frozen.stage(tmp_path)
+    result = subprocess.run([sys.executable, '-I', '-B', '-c',
+        'import sys; sys.path.insert(0, sys.argv[1]); import native_transaction; '
+        'assert native_transaction.SCHEMA == 1', str(tmp_path)],
+        capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+
+
 def test_recipe_digest_tracks_its_dependencies_but_ignores_unrelated_helpers(tmp_path):
     write(tmp_path, 'entry.py', 'import recipe\nimport helper\n')
     write(tmp_path, 'recipe.py', 'import installation\n')

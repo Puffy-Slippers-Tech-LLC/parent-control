@@ -404,7 +404,10 @@ def category_run(root, category, argv, *, pipe=True):
         command.insert(command.index('--'), '--cov-report=xml:' + directory + '/coverage.xml')
         env['COVERAGE_FILE'] = directory + '/.coverage'
         print('run-tests: output=' + directory, flush=True)
-    if category in ('fixtures', 'artifacts') and (not argv or argv in (['build'], ['prepare'])):
+    if (category in ('fixtures', 'artifacts') and
+            (not argv or argv in (['build'], ['prepare']) or
+             category == 'artifacts' and argv[:3] ==
+             ['prepare', '--native-inputs', '--package-format'])):
         directory = test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-', dir='/tmp')
         commands[0] += ['--output', directory]
         print('run-tests: output=' + directory, flush=True)

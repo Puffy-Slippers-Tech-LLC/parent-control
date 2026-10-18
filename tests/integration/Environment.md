@@ -223,6 +223,82 @@ replacement. It does not authorize adopting an unknown file or bypassing the
 lease, provenance, ownership or product-free gates. The governing rule is the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline).
 
+### Verified finite native transaction inputs
+
+The native dependency input route is separate from released **product** upgrade
+inputs. Prepare a new retained bundle with
+`tools/run-tests artifacts prepare --for-vm --native-inputs --vm NAME`;
+reverify it with `tools/run-tests artifacts verify-native 'RETURNED-DIRECTORY'`.
+For host input preparation without a baseline probe, use
+`tools/run-tests artifacts prepare --native-inputs --package-format deb|rpm`;
+this still requires the later installed-baseline compatibility preflight.
+The existing baseline probe selects the declared DEB/RPM format without starting,
+restoring or changing the VM. Missing or stale baseline preparation refuses.
+`--upgrade-inputs` continues to mean earlier/current product packages.
+The [builder](../../tools/build_test_artifacts.py) also exposes
+`--native-inputs --package-format deb|rpm --output DIRECTORY` and
+`--verify-native-inputs --output DIRECTORY` for callers already owning a
+registered shared-storage allocation; direct building confers no retention.
+
+[`native_transaction_inputs.py`](../../tools/native_transaction_inputs.py)
+owns only the reviewed Ubuntu 26.04 `bubblewrap:amd64`
+`0.11.1-1` → `0.11.1-1ubuntu0.3` and Fedora 44
+`xdg-dbus-proxy.x86_64` `0:0.1.6-4.fc44` → `0:0.1.9-1.fc44` pairs.
+Its finite selection pins download locations, native identities, package hashes
+and measured executable identity. No alternate version or companion package is
+chosen. `native-inputs.json` schema 1 records that selection, both packages and
+their control/dependency inventories, measured ELF SHA-256/size/owner/mode,
+native verification receipts and the hashes of all retained input files.
+`binding_sha256` identifies its canonical content excluding that field itself.
+Ubuntu additionally records each measured GNU build ID and authenticates the
+retained Packages index through its signed InRelease and the locally trusted
+Ubuntu keyring. Fedora verifies native signatures and payload digests using the
+pinned Fedora 44 key in an isolated scratch database; system trust is unchanged.
+The retained metadata and key bytes remain part of the verified bundle.
+
+Matching published preparation repeats only verify. An interrupted preparation
+or copy can resume only its recorded directory and pending file identities;
+foreign files, links, hardlinks, writable or replaced inputs and source changes
+refuse. A changed finite declaration requires a new allocation rather than
+overwriting a published bundle. Scratch uses the shared storage owner; the
+retention session owns bundles, and the attempt owns its frozen copy and receipts.
+
+[`stage_native_assets()`](system_runner.py) freezes the verified pair in an
+owned attempt input directory and binds the native manifest to the exact
+`selected-inputs.json` digest and accepted baseline provenance. Its durable
+applicability intent precedes copying, so interrupted retry cannot adopt another
+selection or baseline. `verify_native_assets()` rechecks that binding and the
+native bundle without repair. These are callable input routes; the live native
+history selector and its command-line input composition remain pending task 004c.
+
+[`native_transaction.preflight()`](native_transaction.py) consumes a verified
+manifest and performs read-only checks against the actual installed package set.
+It retains exact providers/reverse-dependency inputs, offline single-package
+plans, package health/holds, matching external trigger owners/definitions and
+the man-db completion branch. Ubuntu simulates baseline → old, then old → new
+using an anonymous status view. Fedora tests each complete single-RPM replacement
+without resolving or downloading other packages. Unreviewed matching triggers,
+missing dependencies, extra changes and incompatible state refuse with baseline
+refresh guidance. Its receipt binds both native and selected input identities to
+baseline provenance; `verify_receipt()` repeats the native probes and checks the
+retained state. Neither API establishes an old generation or runs scripts.
+
+Reusable native packages/tools belong to the normal baseline dependency
+reconciler and preparation digest. The accepted baseline still receives its
+normal auto-mode updates. The later attempt explicitly owns any deliberate old
+transaction **before product admission**, ordinary trigger completion and
+configuration/reboot. Product installation stays on `make install`; recheck the
+old native identity afterward before retaining generation A. Never silently
+downgrade the baseline or repair dependencies in a consumer. Prevent automatic
+updates from racing the finite transaction through the prepared settings.
+On Ubuntu the measured input is the native `/usr/bin/bwrap` source copied to
+private `/usr/libexec/oh-no-parent-control-kiosk-bwrap`, rather than the private
+wrapper at `/usr/bin/bwrap`; Fedora measures the direct proxy executable.
+Actual transaction scripts/triggers, retained mappings, stale-manager refusal,
+lease exclusion, reexec and fresh-boot recovery remain **unqualified until task
+004d** passes both complete histories. Input verification supplies no installed
+transaction acceptance.
+
 ## Resources
 
 | Resource | Contract |

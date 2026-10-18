@@ -223,12 +223,13 @@ class Store:
                     if (info.st_dev, info.st_ino) != (record['device'], record['inode']):
                         raise ValueError('retention: recorded allocation was replaced')
                     check_tree(target, info.st_dev, regular_only=True)
-                    try:
-                        os.stat('artifact-manifest.json', dir_fd=target, follow_symlinks=False)
-                    except FileNotFoundError:
-                        pass
-                    else:
-                        raise ValueError('retention: published artifact input must be preserved')
+                    for manifest in ('artifact-manifest.json', 'native-inputs.json'):
+                        try:
+                            os.stat(manifest, dir_fd=target, follow_symlinks=False)
+                        except FileNotFoundError:
+                            pass
+                        else:
+                            raise ValueError('retention: published artifact input must be preserved')
                 finally:
                     os.close(target)
                 remove(record)

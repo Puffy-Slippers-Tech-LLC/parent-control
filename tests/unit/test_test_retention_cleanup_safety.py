@@ -827,7 +827,8 @@ def test_host_discard_leaves_vm_and_workflow_stores_untouched(tmp_path, monkeypa
     assert (tmp_path / 'workflow-result').exists() and (tmp_path / 'vm-result').exists()
 
 
-def test_unpublished_input_recovery_keeps_reports_and_reuses_the_named_path(tmp_path):
+@pytest.mark.parametrize('manifest', ['artifact-manifest.json', 'native-inputs.json'])
+def test_unpublished_input_recovery_keeps_reports_and_reuses_the_named_path(tmp_path, manifest):
     from tools import test_storage
     store = retention.Store(tmp_path / 'state')
     with store.session():
@@ -845,11 +846,11 @@ def test_unpublished_input_recovery_keeps_reports_and_reuses_the_named_path(tmp_
     assert test_storage.named_input_slot(partial) == partial
     with store.session():
         new = allocated(tmp_path, 'partial')
-        (new / 'artifact-manifest.json').write_text('completed bundle')
+        (new / manifest).write_text('completed bundle')
     assert test_storage.named_input_slot(partial) == new
     with pytest.raises(ValueError, match='published artifact'):
         store.discard_unpublished_input(partial)
-    assert (new / 'artifact-manifest.json').read_text() == 'completed bundle'
+    assert (new / manifest).read_text() == 'completed bundle'
 
 
 @pytest.mark.parametrize('fault', ['active', 'unfinished', 'marked', 'unknown',

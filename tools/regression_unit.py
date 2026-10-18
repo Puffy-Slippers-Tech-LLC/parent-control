@@ -964,6 +964,7 @@ from regression_ui import Bucket
 # in-memory guestfs work, with no live trust DB, VM, bus, socket or new owner.
 # Both compatible unit/cleanup classifications for baseline/enforcement hold.
 REVIEWED = frozenset("""
+native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures
 system_previous_upgrade
 system_pam_variants
@@ -1389,3 +1390,15 @@ def buckets(nodeids):
 # bounded ZIP fixtures, with no new shared resources or subprocesses.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
+# Native transaction input, preflight, route and staging checks use tiny private
+# pytest files, synthetic native metadata and command/retention doubles. They do
+# not access the installed package database, network, VM, shared trust/cache,
+# socket or display. Native archive fixtures and isolated verification children
+# (where used) finish within the owning test. Compatible unit overlap applies;
+# no cleanup/UI inventory gains a module or a live resource owner.
+# test_test_retention_cleanup_safety also preserves native completion manifests
+# using its existing private journal/files; both unit and cleanup reviews retain
+# compatible overlap and add no process or shared mutable resource.
+# Native guest import closure uses one bounded, waited isolated Python child;
+# preflight short-write coverage owns only an auto-closed anonymous descriptor.
+# Both stay within these modules' existing compatible private resource scope.

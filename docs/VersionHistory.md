@@ -6,8 +6,8 @@
 - **Parent App**: Face lifting:) Smoother app loading experience; Neat app list loading overlay with percentage progress.
 - **What's New**: Added metadata-driven What's new infra for parent and child app. Parent version offers everything (no mercy to to parents, Grr!); child version only offers carefully crafted content relevant and appropriate to them (we're responsible parents, aren't we all?)
 - **Request Time Form**: You can customize the preset times in preferences!
-- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son. Upon a glad nodding, he asked, daddy, it'd be cool to add seconds and days, only to be yelled at "out, before I kick you cute little butt, again!" by an annoyed Dad)
-- **Portal**: Well, stricly speaking, not a product feature, but these under the hood security things, even though less eye-catching than fancy UI features, are notortiously hard and expensive, and, totally worth it. Check out the ["Security" tab](https://tech.puffyslippers.com/oh-no-parent-control/security/).
+- **Request Time Form**: You can select between minutes and hours as custom value unit (feature asked by my son. Upon a glad nodding, he asked, daddy, it'd be cool to add seconds and days, before being yelled at "out, before I kick you cute little butt, again!")
+
 
 ### Bug Fixes
 - **Installation**: Fixed package-trigger errors after a denied kiosk login on Ubuntu and Fedora, and when a child's screen time is exhausted.
@@ -24,11 +24,11 @@
 - **Child App**: In Kiosk session, hitting enter in after typing custom value does not trigger auth dialog
 
 ### Non Product Changes
-- Increased e2e coverage to 46
+- Increased e2e coverage to 46. Fedora is covered, no double counting.
 
 ### Fedora Workstation 44 Readiness
+- **Manaul Testing:** Old daddy magically dug out an even older Surface Laptop, and miraculously installed Fedora 44 on it. At the end of the day, VMs don't replace the touch and feel on a real computer (remember the v1.1 bug fix?). 5 bug fixes later, it's working!
 - **Test Automation:** One big step closer - Fedora automation just got a promotion to 1st class citizen, its coverage is on par with Ubuntu. Fedora release is on the horizon!!!
-- **Manaul Testing:** Old daddy magically dug out an even older Surface Laptop, and miraculously installed Fedora 44 on it. At the end of the day, VMs don't replace the touch and feel on a real computer (remember the v1.1 bug fix?). First bug that never showed up on the VM, kiosk account requires password? Yikes...
 
 
 ## v1.3 - 2026-10-03

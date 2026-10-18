@@ -160,12 +160,16 @@ def test_task_explanation_is_reused_only_for_same_task_after_launcher_restart(ch
     assert launcher.follow(first, io.StringIO()) == 0
     info = {'task_id': saved_task, 'explanation': 'Checks what the child sees as each minute passes.'}
     launcher.atomic(first / 'task-info.json', info)
+    restarted_at = time.time()
     second, _ = select_vm(root, [])
     spawned[-1].wait(timeout=20)
     assert launcher.follow(second, io.StringIO()) == 0
     if saved_task == '001':
         from launcher_chat import task_info
-        assert task_info(second, '001') == dict(info, status='Running')
+        resumed_info = task_info(second, '001')
+        # Legacy saved information has no clock; the restarted session adds it.
+        assert restarted_at <= resumed_info['status_at'] <= time.time()
+        assert resumed_info == dict(info, status='Running', status_at=resumed_info['status_at'])
         assert info['explanation'] in calls(root)[1]['prompt']
         assert 'Omit explanation unless' in calls(root)[1]['prompt']
     else:

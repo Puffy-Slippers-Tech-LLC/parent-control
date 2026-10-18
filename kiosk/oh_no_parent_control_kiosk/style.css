@@ -102,7 +102,6 @@ button.oh-no-parent-control-hud-menu-item {
   border: 0;
   border-radius: 0;
   color: rgba(236, 236, 230, 0.94);
-  font-family: "Monocraft", "Ubuntu Mono", monospace;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0;
@@ -621,12 +620,15 @@ button.kiosk-whats-new-dismiss:active,
   color: #f4f4f4;
 }
 
-/* Release notes share the session's iron hardware and pixel typography. */
+/* Release notes retain the iron hardware and use the normal dialog font. */
 window.kiosk-whats-new-dialog {
   background: #0e171d;
   color: #edf0f7;
-  font-family: "Monocraft", "Ubuntu Mono", monospace;
   font-size: 15px;
+}
+window.kiosk-whats-new-dialog button {
+  font-family: inherit;
+  letter-spacing: 0;
 }
 .kiosk-whats-new-board {
   background-image: linear-gradient(to bottom, #142028, #0c1419);

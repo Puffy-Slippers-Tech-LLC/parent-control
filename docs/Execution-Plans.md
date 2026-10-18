@@ -120,6 +120,20 @@ execution still validate the plan. A fresh plan run automatically resumes unfini
 Git close-out and interrupted validation. It allows five more coordinator
 sessions for that task; attaching never renews this allowance. An exhausted
 session allowance stops with a retained handoff rather than skipping the task.
+For an explicitly requested manual replan, first commit the reviewed master,
+queue and unfinished briefs, preserving unrelated work. Use
+`tools/execute-plan --plan 'docs/Example.md' --reconcile RUN --check` to inspect
+the exact inactive retained run, then omit `--check` to adopt that queue.
+Dedicated ordinary-plan wrappers expose the same option. This route preserves
+the original checkpoint in its existing retained allocation and carries forward
+unfinished task handoffs and session counts. It executes no task, changes no
+Git content and grants no acceptance. Existing task order, scope and dependencies
+remain protected; added tasks must be unchecked. A previously accepted task may
+be acknowledged only when its matching passing result and cleanup are retained
+and its completion is already recorded in the committed queue. Pending Git
+transactions and active owners must finish first. Ordinary restart guards remain
+unchanged; this explicit operation is not an automatic structural override.
+
 Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
 [`launcher_runtime.py`](../tools/launcher_runtime.py). A successful agent session
 with missing/malformed JSON or a rejected handoff/acceptance/queue transition

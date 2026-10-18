@@ -42,6 +42,9 @@ scheduling is appropriate. Cleanup and UI inventories gain no module.
 Installation and reliability plan adapters share those same private fixtures
 for default-plan validation, owner attachment, stop and task-limit checks;
 neither adapter test selects a real VM or starts an agent or Git operation.
+Explicit replan checks reuse the existing pytest-private Git repositories and
+local bare remote fixture, private checkpoint/lock trees and synchronous owned
+cleanup. They add no external service, shared path or cleanup/UI inventory owner.
 Its detached adapter integration reuses the maintained private app-server double
 with a tiny relocated Git checkout and the shared storage/retention libraries.
 The public observer is bounded and reaped; its exact recorded worker is cancelled

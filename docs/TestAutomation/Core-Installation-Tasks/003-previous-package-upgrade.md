@@ -8,9 +8,24 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 Use a genuinely earlier supported product package, not the current candidate
 reinstalled. Qualify saved policy, migration/exclusion and admission retirement
 through native update and required reboot. Existing `--previous-artifacts`
-support installs and reboots the old package and verifies retirement/activation,
-but does not by itself establish preservation of meaningful prior child policy
-or an active grant/session. Extend that route rather than building another one.
+support installs and reboots the old package and verifies retirement/activation.
+Case 287 now adds prior child policy and an active grant; its fixture integration
+and final installed qualification remain unfinished. Extend that route rather
+than building another one.
+
+## Prerequisites and task boundary
+
+Requires: 002, 002a, 002b, 002c, 002d.
+
+[002b](002b-upgrade-fixture-integration.md) owns consumer integration and focused
+host checks. [002c](002c-ubuntu-upgrade-history.md) and
+[002d](002d-fedora-upgrade-history.md) own the complete Ubuntu and Fedora
+histories, respectively. This row retains every original requirement below and
+accepts only both matching target results. It owns final evidence reconciliation
+and close-out, not another implementation pass or mandatory duplicate live run.
+Reuse those complete receipts only while their exact candidate, helpers, selected
+inputs, baselines and assertions still match. Rerun an invalidated history in
+full; an older partial result cannot fill a missing phase.
 
 Customer update journeys remain pending under tasks 135a–140 in the
 [existing E2E queue](../E2E-Task-Queue.md). This engineering task grants no customer
@@ -24,7 +39,8 @@ Read the [master](../Core-Installation-Coverage-Handoff.md),
 [Kiosk Confinement](../../SystemDesign/Kiosk-Confinement.md),
 [installed runner](../../../tests/integration/README.md),
 [VM mandate](../../Mandates/VM-Mandate.MD) and affected test-support contracts.
-Inspect `system_runner.stage_upgrade_assets`/`installed_run`,
+Inspect `system_previous_upgrade.prepare`/`witness_enforcement`/
+`verify_updated`/`verify_reboot`, `system_runner.stage_upgrade_assets`/`installed_run`,
 `system_guest.install_previous`/`upgrade`/`verify_upgrade_admission_receipt`,
 `build_test_artifacts.verify_upgrade` and their existing host regressions.
 
@@ -32,9 +48,9 @@ Prepare verified prior DEB/RPM artifacts using maintained builders. Record the
 chosen source revision, package version, architecture and digests, and require
 that the old version differs from the candidate. Missing buildable earlier
 artifacts are a concrete blocker, never grounds to substitute a reinstall.
-Add a bounded pre-upgrade scenario checkpoint through the existing runner to
-establish non-default child allowance, hard/soft policy and an unexpired grant
-using supported product interfaces. Do not preseed those in the baseline.
+Preserve the implemented pre-upgrade checkpoint through the existing runner,
+which establishes non-default child allowance, hard/soft policy and an unexpired
+grant using supported product interfaces. Do not preseed those in the baseline.
 
 Registered selector: `test_previous_package_policy_preservation` (system ID 287).
 Its `previous-policy`, `installed` and `rebooted` phases are one owned history;

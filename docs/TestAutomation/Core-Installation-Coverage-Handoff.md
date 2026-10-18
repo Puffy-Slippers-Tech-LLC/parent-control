@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **003 — [Qualify a real earlier-package upgrade](Core-Installation-Tasks/003-previous-package-upgrade.md)**.
+Next task: **002b — [Integrate qualified fixtures into case 287](Core-Installation-Tasks/002b-upgrade-fixture-integration.md)**.
 
 ## Purpose and continuation
 
@@ -382,6 +382,47 @@ All 151 local links in the seven changed Markdown documents passed. Only 002a
 is checked; 003/004 retain their status, order, scope and dependencies.
 
 ## Coverage audit and remaining work
+
+The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
+Start with 002b: case 287's `system_previous_upgrade` still selects `command` /
+`whitespace` in setup, saved policy and enforcement; accepted 002a qualification
+does not automatically change that consumer. Tasks 002c and 002d then run one
+complete upgrade history per target. Task 003 reconciles their matching evidence
+against every original requirement; it remains an installed, both-target gate.
+
+For 004, package-pair feasibility (004a) precedes verified input/preparation
+support (004b), history implementation/registration (004c), and independent
+Ubuntu/Fedora acceptance (004d/004e). The native package pairs and selector are
+still unqualified/unimplemented; the product earlier-release builder is not a
+native dependency transaction builder. Task 004 retains the original installed
+both-target gate. Its existing synthetic replacement tests supply no actual
+package-transaction acceptance.
+
+This planning revision executes and closes no task. Completed rows and historical
+evidence above are unchanged; added Requires edges preserve the original
+dependencies. Each live history remains indivisible, with no phase splicing or
+intermediate baseline restore. Final gates may reuse complete retained reports
+only when candidate, helpers, inputs, baselines, assertions and cleanup match;
+rerun any invalidated target history in full. Keep reports through final gate
+close-out using the existing retention/export route. The longer live estimates
+cover required boots/cleanup; they do not combine implementation work.
+
+Task 002a's accepted implementation is recorded in commit `6e1ecfd3`. The
+retained launcher originally stopped before recording that commit and this queue
+decomposition.
+The explicit [manual replan route](../Execution-Plans.md#common-launcher-interface)
+reconciles that inactive checkpoint with the committed queue, preserving the
+accepted evidence and unfinished 003 handoff. This reconciliation executes no
+queue task, grants no new acceptance and does not renew session counts.
+
+Unresolved fixture integration belongs to 002b, target upgrade diagnosis to
+002c/002d, and native package-pair feasibility to 004a. These are execution work,
+not prerequisites for starting this plan. The retained-unlock investigation stays
+in the existing E2E work unless evidence establishes a dependency for one of this
+queue's acceptance histories. If a selected task discovers such a dependency,
+record the concrete failure and insert a bounded prerequisite through the
+ordinary plan workflow before resuming its consumer; preserve the original
+acceptance rather than requiring all unrelated investigations to finish first.
 
 | Boundary | Existing protection | Remaining installed qualification |
 | --- | --- | --- |

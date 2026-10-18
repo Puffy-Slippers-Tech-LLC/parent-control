@@ -7,10 +7,13 @@ shared. E2E and repair keep their specialized state machines on these primitives
 
 import argparse
 from dataclasses import asdict, dataclass
+import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -47,9 +50,8 @@ def task_record(task):
                 **task.acceptance_metadata())
 
 
-def validate_result(plan, state, result):
-    if Plan.load(plan.root, plan.path).queue != plan.queue:
-        raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
+def validate_result_payload(state, result):
+    """Use the same result shape and acceptance gates for close-out and recovery."""
     fields = {'status', 'task_id', 'summary', 'handoff', 'checks', 'cleanup_complete', 'stage_paths', 'blocker'}
     if (not isinstance(result, dict) or set(result) != fields
             or result['task_id'] != state['task_id']
@@ -66,19 +68,11 @@ def validate_result(plan, state, result):
                 or check['result'] not in ('passed', 'failed', 'not_run')
                 or any(not isinstance(check[key], str) for key in ('target', 'evidence'))):
             raise ValueError('invalid acceptance check')
-    validate_task_metadata(plan, state)
-    complete = result['status'] == 'task_complete'
     if result['status'] == 'blocked':
         validate_blocker(result['blocker'])
     elif result['blocker'] is not None:
         raise ValueError('only a blocked result may carry a developer question')
-    if result['status'] == 'prerequisite_required':
-        if state.get('git_reconciliation'):
-            raise ValueError('Git reconciliation must finish the retained task before selecting prerequisites')
-        if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
-            raise ValueError('prerequisite handoff needs a valid backward dependency insertion and owned cleanup')
-        return
-    if complete:
+    if result['status'] == 'task_complete':
         required = state['task']['acceptance']
         targets = state['task']['targets'] or ['']
         if (not result['cleanup_complete'] or not result['checks']
@@ -86,6 +80,21 @@ def validate_result(plan, state, result):
                 or any(not any(check['kind'] == required and check['target'] == target
                                for check in result['checks']) for target in targets)):
             raise ValueError('completion requires passing scoped acceptance evidence and owned cleanup')
+
+
+def validate_result(plan, state, result):
+    if Plan.load(plan.root, plan.path).queue != plan.queue:
+        raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
+    validate_result_payload(state, result)
+    validate_task_metadata(plan, state)
+    complete = result['status'] == 'task_complete'
+    if result['status'] == 'prerequisite_required':
+        if state.get('git_reconciliation'):
+            raise ValueError('Git reconciliation must finish the retained task before selecting prerequisites')
+        if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
+            raise ValueError('prerequisite handoff needs a valid backward dependency insertion and owned cleanup')
+        return
+    if complete:
         if not {plan.path, plan.queue}.issubset(result['stage_paths']):
             raise ValueError('completion must include master plan and queue close-out paths')
     plan.validate_transition(state['queue_before'], state['task_id'], complete=complete,
@@ -234,6 +243,142 @@ def initial_state(plan, spec, directory):
             state['recovery_run'] = str(previous)
             return state
     return {'phase': 'complete', 'task_sessions': 0, 'total_sessions': 0}
+
+
+def reconcile_plan(root, spec, identity, *, check=False):
+    """Explicitly adopt a committed replan, preserving the inactive checkpoint.
+
+    This administrative operation executes no task and grants no acceptance.
+    A checked row must already have been accepted and recorded in Git.
+    """
+    from test_storage import directory as storage_directory
+    if not isinstance(identity, str) or len(identity) != 32 or any(
+            character not in '0123456789abcdef' for character in identity):
+        raise ValueError('reconciliation needs the exact retained run ID')
+    directory = launcher.private_directory(storage_directory('plans', root=root)
+                                           / plan_namespace(spec.plan))
+    with launcher.lock(directory / 'gate') as gate, launcher.lock(directory / 'owner') as owner:
+        try:
+            fcntl.flock(gate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('plan reconciliation requires an inactive launcher') from None
+        run = launcher.current_run(directory)
+        if run is None or run.name != identity:
+            raise ValueError('retained run changed; inspect the current checkpoint')
+        plan = Plan.load(root, spec.plan)
+        tasks = plan.tasks()
+        for task in tasks:
+            if not task.complete:
+                task.acceptance_metadata()
+        paths = [plan.path, plan.queue, *[str(task.brief.relative_to(root))
+                                        for task in tasks if not task.complete]]
+        # Keep pre-existing planning edits out of future task close-out conflicts.
+        # Reconciliation itself never stages, commits or adopts unrelated files.
+        dirty = git_output(root, '--literal-pathspecs', 'status', '--porcelain',
+                           '--untracked-files=all', '--', *paths).stdout
+        if dirty:
+            raise ValueError('commit the reviewed plan, queue and unfinished briefs before reconciliation')
+        checkpoint = run / 'checkpoint.json'
+        info = checkpoint.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_nlink != 1 or info.st_size > 4 * 1024 * 1024):
+            raise ValueError('unsafe retained checkpoint; preserve the run')
+        raw = checkpoint.read_bytes()
+        state = json.loads(raw)
+        if type(state) is not dict or type(state.get('in_flight', False)) is not bool:
+            raise ValueError('retained checkpoint is malformed')
+        if state.get('reconciliation'):
+            resumed = initial_state(plan, spec, directory)
+            if resumed['phase'] != 'complete' or resumed.get('pending_completion'):
+                raise ValueError('reconciled checkpoint is not ready to select its next task')
+            if check:
+                session_command(root, spec)  # Construct only; no model/process launch.
+            return dict(run=identity, next_task=plan.next_task().id if plan.next_task() else None,
+                        reconciled=True, checked=check, resume_ready=True)
+        if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation', 'result_recovery')):
+            raise ValueError('finish the retained Git transaction before reconciling the queue')
+        if state.get('in_flight') or not (run / 'result.json').is_file():
+            raise ValueError('finish the retained session before reconciling the queue')
+        before, after = state['queue_before'], plan.state()
+        saved_rows = state.get('queue_structure')
+        if (type(before) is not dict or not before or any(type(value) is not bool for value in before.values())
+                or type(saved_rows) is not list
+                or any(type(row) is not list or len(row) < 6
+                       or any(type(value) is not str for value in row) for row in saved_rows)
+                or [row[2] for row in saved_rows] != list(before)):
+            raise ValueError('retained queue is malformed; preserve the checkpoint')
+        if [key for key in after if key in before] != list(before):
+            raise ValueError('reconciliation cannot remove or reorder existing tasks')
+        result = state.get('pending_completion')
+        changed = [key for key in before if before[key] != after[key]]
+        if changed:
+            if (changed != [state.get('task_id')] or not after[changed[0]]
+                    or result != read_session_result(run) or result.get('status') != 'task_complete'
+                    or result.get('task_id') != changed[0] or result.get('cleanup_complete') is not True):
+                raise ValueError('reconciliation cannot grant task completion')
+            validate_result_payload(state, result)
+            if not {plan.path, plan.queue}.issubset(result['stage_paths']):
+                raise ValueError('retained completion lacks its plan close-out paths')
+        elif result is not None:
+            raise ValueError('pending completion must be recorded in the committed queue first')
+        if any(after[key] for key in after if key not in before):
+            raise ValueError('new plan tasks must remain unchecked')
+        rows = {row[2]: row for row in plan.structure()}
+        for row in state['queue_structure']:
+            dependencies = set(row[4].split(', ')) - {'', '—', '-', 'Baseline'}
+            current_dependencies = set(rows[row[2]][4].split(', ')) - {'', '—', '-', 'Baseline'}
+            if row[5] != rows[row[2]][5] or not dependencies.issubset(current_dependencies):
+                raise ValueError('reconciliation must preserve existing scopes and dependencies')
+        if type(state.get('suspended_tasks', {})) is not dict:
+            raise ValueError('retained suspended tasks are malformed')
+        pending = dict(state.get('suspended_tasks', {}))
+        if state.get('task') and not after[state['task_id']]:
+            pending[state['task_id']] = state
+        baseline = worktree_snapshot(root)
+        staged = list(filter(None, git_output(root, 'diff', '--cached', '--name-only', '-z').stdout.split('\0')))
+        for key, saved in pending.items():
+            if (key not in after or after[key]):
+                raise ValueError('a suspended task cannot be completed by reconciliation')
+            task = next(task for task in tasks if task.id == key)
+            if (type(saved) is not dict or type(saved.get('task')) is not dict
+                    or key != saved.get('task_id') or key != saved['task'].get('task_id')
+                    or saved['task'].get('brief') != str(task.brief)
+                    or any(saved.get(field) for field in ('pending_completion', 'commit_intent',
+                        'pull_intent', 'git_reconciliation', 'result_recovery', 'suspended_tasks', 'blocker'))):
+                raise ValueError('suspended task needs its original identity and no pending transaction')
+            pending[key] = dict(saved, phase='recover', in_flight=False,
+                                queue_before=after, queue_structure=plan.structure(selected=key),
+                                stage_baseline=baseline, protected_staged=staged)
+            validate_task_metadata(plan, pending[key])
+        for saved in (state, *pending.values()):
+            if any(type(saved.get(field, 0)) is not int or saved.get(field, 0) < 0
+                   for field in ('total_sessions', 'task_sessions', 'session_limit')):
+                raise ValueError('retained session counts are malformed')
+        updated = dict(phase='complete', in_flight=False, task_id=None, task_sessions=0,
+                       total_sessions=state.get('total_sessions', 0),
+                       queue_before=after, queue_structure=plan.structure(),
+                       suspended_tasks=pending, replan_baseline=baseline, protected_staged=staged,
+                       handoff='Resume the first unchecked task in the reconciled plan. '
+                               'Unresolved work remains subject to each task\'s acceptance.\n'
+                               + state.get('handoff', ''),
+                       reconciliation=dict(source_run=identity, checkpoint_sha256=hashlib.sha256(raw).hexdigest(),
+                           head=git_output(root, 'rev-parse', '--verify', 'HEAD').stdout.strip()))
+        plan.validate_recovery(updated)
+        if not check:
+            launcher.finish_nested(root, run)
+            backup = run / ('checkpoint-before-reconcile-' + updated['reconciliation']['checkpoint_sha256'] + '.json')
+            archived = {'checkpoint_utf8': raw.decode('utf-8')}
+            if os.path.lexists(backup):
+                info = backup.lstat()
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1
+                        or json.loads(backup.read_bytes()) != archived):
+                    raise ValueError('reconciliation backup changed; preserve the checkpoint')
+            else:
+                launcher.atomic(backup, archived)
+            launcher.atomic(checkpoint, updated)
+        return dict(run=identity, next_task=plan.next_task().id if plan.next_task() else None,
+                    reconciled=not check, checked=check)
 
 
 def closeout(plan, spec, run, state):
@@ -463,6 +608,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                         help='checkout-relative master Markdown plan')
     parser.add_argument('--vm', help='registered selector; omitted: configured enabled queue for VM workflows')
     parser.add_argument('--check', action='store_true', help='validate plan, queue and unfinished briefs without execution')
+    parser.add_argument('--reconcile', metavar='RUN',
+                        help='adopt a reviewed committed replan for an inactive retained run; no task execution')
     add_options(parser)
     args = parser.parse_args(argv)
     run = None
@@ -481,6 +628,11 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         master = local_path(root, args.plan)
         path = str(master.relative_to(root.resolve()))
         spec = PlanWorkflow(**dict(asdict(spec), plan=path))
+        if args.reconcile:
+            if args.stop or args.tasks is not None or args.vm is not None:
+                raise ValueError('--reconcile cannot be combined with execution, stop or VM options')
+            print(json.dumps(reconcile_plan(root, spec, args.reconcile, check=args.check)))
+            return 0
         if args.check:
             plan = Plan.load(root, path)
             records = [task_record(task) for task in plan.tasks() if not task.complete]

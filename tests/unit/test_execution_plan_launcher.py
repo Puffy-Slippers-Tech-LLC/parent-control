@@ -1053,6 +1053,203 @@ def git_plan(tmp_path):
     return SimpleNamespace(root=root, plan=plan, remote=remote, peer=peer, run=run, git=git)
 
 
+@pytest.fixture
+def replan(git_plan):
+    from test_storage import directory
+
+    scene = git_plan
+    state = state_for(scene.plan, task_sessions=2, total_sessions=7)
+    state['pending_completion'] = response(state)
+    complete(scene.plan, '001')
+    state['suspended_tasks'] = {'002': state_for(scene.plan, task_sessions=3,
+        total_sessions=6, in_flight=True, handoff='Unresolved consumer work remains.')}
+    queue = scene.root / scene.plan.queue
+    queue.write_text(queue.read_text().replace('| [ ] | 002 |',
+        '| [ ] | pre | [Preparation](pre.md) | 001 | new prerequisite |\n| [ ] | 002 |'))
+    (scene.root / 'docs/pre.md').write_text('Acceptance: host\n')
+    (scene.root / scene.plan.path).write_text('Task queue: [Queue](queue.md).\nNext task: **pre — Preparation**.\n')
+    scene.git('add', '--', 'docs')
+    scene.git('commit', '-qm', 'Reviewed accepted work and replan')
+    namespace = workflow.launcher.private_directory(directory('plans', root=scene.root) / scene.plan.namespace)
+    scene.run = workflow.launcher.private_directory(namespace / ('a' * 32))
+    workflow.launcher.atomic(namespace / 'current.json', dict(run=scene.run.name))
+    workflow.launcher.atomic(scene.run / 'checkpoint.json', state)
+    workflow.launcher.atomic(scene.run / 'agent-result.json', state['pending_completion'])
+    workflow.launcher.atomic(scene.run / 'result.json', dict(status=1, tasks=0))
+    (scene.root / 'shared.py').write_text('unrelated staged work\n')
+    scene.git('add', '--', 'shared.py')
+    (scene.root / 'unrelated.py').write_text('unrelated unstaged work\n')
+    scene.spec = workflow.PlanWorkflow('fixture-plan', scene.plan.path, vm=True)
+    return scene
+
+
+def test_explicit_replan_preserves_evidence_unfinished_work_and_git_state(replan, monkeypatch):
+    scene = replan
+    raw = (scene.run / 'checkpoint.json').read_bytes()
+    head = scene.git('rev-parse', 'HEAD').stdout
+    index = scene.git('diff', '--cached').stdout
+    worktree = scene.git('diff').stdout
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('reconciliation attempted task execution, Git mutation or VM selection')
+    monkeypatch.setattr(workflow, 'session_command', lambda *_: ['unused-model-command'])
+    monkeypatch.setattr(workflow, 'stage_task', unexpected)
+    monkeypatch.setattr(workflow, 'finish_commit', unexpected)
+    monkeypatch.setattr(workflow, 'execute', unexpected)
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, check=True) == dict(
+        run=scene.run.name, next_task='pre', reconciled=False, checked=True)
+    assert (scene.run / 'checkpoint.json').read_bytes() == raw
+    assert not list(scene.run.glob('checkpoint-before-reconcile-*'))
+    result = workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)
+    assert result['reconciled'] and result['next_task'] == 'pre'
+    backup, = scene.run.glob('checkpoint-before-reconcile-*')
+    assert json.loads(backup.read_text())['checkpoint_utf8'].encode() == raw
+    updated = json.loads((scene.run / 'checkpoint.json').read_text())
+    assert updated['total_sessions'] == 7 and updated['task_id'] is None
+    assert updated['suspended_tasks']['002']['task_sessions'] == 3
+    assert updated['suspended_tasks']['002']['handoff'] == 'Unresolved consumer work remains.'
+    assert updated['queue_before'] == {'001': True, 'pre': False, '002': False}
+    assert 'pending_completion' not in updated
+    assert 'shared.py' in updated['protected_staged']
+    assert 'unrelated.py' in updated['replan_baseline']
+    assert scene.git('rev-parse', 'HEAD').stdout == head
+    assert scene.git('diff', '--cached').stdout == index
+    assert scene.git('diff').stdout == worktree
+    # The actual resume entry validates the reconciled state without a session.
+    resumed = workflow.initial_state(scene.plan, scene.spec, scene.run.parent)
+    assert resumed['queue_before'] == updated['queue_before']
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name, check=True)['reconciled']
+    assert len(list(scene.run.glob('checkpoint-before-reconcile-*'))) == 1
+
+
+@pytest.mark.parametrize('defect', [
+    'wrong-run', 'active', 'in-flight', 'commit-intent', 'pending-pull',
+    'cleanup', 'failed-check', 'missing-target', 'completed-consumer',
+    'new-completion', 'changed-scope', 'dropped-dependency', 'dirty-plan',
+    'blank-evidence', 'malformed-check', 'wrong-consumer-id', 'consumer-counter',
+    'consumer-transaction', 'stale-consumer-brief', 'backup-link',
+])
+def test_explicit_replan_refuses_unaccepted_or_unowned_changes(replan, defect):
+    scene = replan
+    checkpoint = scene.run / 'checkpoint.json'
+    state = json.loads(checkpoint.read_text())
+    identity = scene.run.name
+    queue = scene.root / scene.plan.queue
+    if defect == 'wrong-run': identity = 'b' * 32
+    if defect == 'in-flight': state['in_flight'] = True
+    if defect == 'commit-intent': state['commit_intent'] = {'parent': 'private-head'}
+    if defect == 'pending-pull': state['pull_intent'] = {'head': 'private-head'}
+    if defect == 'cleanup': state['pending_completion']['cleanup_complete'] = False
+    if defect == 'failed-check': state['pending_completion']['checks'][0]['result'] = 'failed'
+    if defect == 'missing-target': state['pending_completion']['checks'][0]['target'] = 'other'
+    if defect == 'blank-evidence': state['pending_completion']['checks'][0]['evidence'] = '   '
+    if defect == 'malformed-check': state['pending_completion']['checks'][0]['extra'] = True
+    if defect == 'wrong-consumer-id': state['suspended_tasks']['002']['task_id'] = '001'
+    if defect == 'consumer-counter': state['suspended_tasks']['002']['task_sessions'] = True
+    if defect == 'consumer-transaction': state['suspended_tasks']['002']['commit_intent'] = {'parent': 'head'}
+    if defect == 'stale-consumer-brief':
+        (scene.root / 'docs/002.md').rename(scene.root / 'docs/replacement.md')
+        queue.write_text(queue.read_text().replace('(002.md)', '(replacement.md)'))
+    if defect == 'completed-consumer': complete(scene.plan, '002')
+    if defect == 'new-completion': complete(scene.plan, 'pre')
+    if defect == 'changed-scope': queue.write_text(queue.read_text().replace('finite scope 002', 'weaker scope'))
+    if defect == 'dropped-dependency': state['queue_structure'][1][4] = '001'
+    if defect == 'dirty-plan': queue.write_text(queue.read_text() + '\nUncommitted planning edit\n')
+    if defect not in ('dirty-plan',):
+        scene.git('add', '--', 'docs')
+        scene.git('commit', '--allow-empty', '-qm', 'Private changed plan')
+    workflow.launcher.atomic(checkpoint, state)
+    workflow.launcher.atomic(scene.run / 'agent-result.json', state['pending_completion'])
+    raw = checkpoint.read_bytes()
+    if defect == 'backup-link':
+        digest = workflow.hashlib.sha256(raw).hexdigest()
+        (scene.run / ('checkpoint-before-reconcile-' + digest + '.json')).symlink_to(checkpoint)
+    with workflow.launcher.lock(scene.run.parent / 'owner') as owner:
+        if defect == 'active':
+            workflow.fcntl.flock(owner, workflow.fcntl.LOCK_EX | workflow.fcntl.LOCK_NB)
+        with pytest.raises(ValueError):
+            workflow.reconcile_plan(scene.root, scene.spec, identity)
+    assert checkpoint.read_bytes() == raw
+    assert len(list(scene.run.glob('checkpoint-before-reconcile-*'))) == (1 if defect == 'backup-link' else 0)
+
+
+def test_explicit_replan_retries_interrupted_checkpoint_publication(replan, monkeypatch):
+    scene = replan
+    checkpoint = scene.run / 'checkpoint.json'
+    raw = checkpoint.read_bytes()
+    atomic = workflow.launcher.atomic
+    def interrupted(path, value):
+        if path == checkpoint:
+            raise OSError('private interrupted publication')
+        atomic(path, value)
+    monkeypatch.setattr(workflow.launcher, 'atomic', interrupted)
+    with pytest.raises(OSError, match='interrupted publication'):
+        workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)
+    assert checkpoint.read_bytes() == raw
+    backup, = scene.run.glob('checkpoint-before-reconcile-*')
+    assert json.loads(backup.read_text())['checkpoint_utf8'].encode() == raw
+    monkeypatch.setattr(workflow.launcher, 'atomic', atomic)
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)['reconciled']
+    assert len(list(scene.run.glob('checkpoint-before-reconcile-*'))) == 1
+
+
+def test_explicit_replan_retries_interrupted_backup_publication(replan, monkeypatch):
+    scene = replan
+    checkpoint = scene.run / 'checkpoint.json'
+    raw = checkpoint.read_bytes()
+    atomic = workflow.launcher.atomic
+    def interrupted(path, value):
+        if path.name.startswith('checkpoint-before-reconcile-'):
+            path.with_suffix('.tmp').write_bytes(b'partial backup')
+            raise OSError('private interrupted backup')
+        atomic(path, value)
+    monkeypatch.setattr(workflow.launcher, 'atomic', interrupted)
+    with pytest.raises(OSError, match='interrupted backup'):
+        workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)
+    assert checkpoint.read_bytes() == raw
+    monkeypatch.setattr(workflow.launcher, 'atomic', atomic)
+    assert workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)['reconciled']
+    archive, = scene.run.glob('checkpoint-before-reconcile-*.json')
+    assert json.loads(archive.read_text())['checkpoint_utf8'].encode() == raw
+
+
+def test_reconciled_launcher_executes_first_prerequisite_then_resumes_consumer(replan, monkeypatch):
+    scene = replan
+    workflow.reconcile_plan(scene.root, scene.spec, scene.run.name)
+    calls = []
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        calls.append((state['task_id'], state['task_sessions']))
+        assert state['phase'] == 'implement' if state['task_id'] == 'pre' else state['phase'] == 'recover'
+        assert 'shared.py' in state['protected_staged']
+        complete(scene.plan, state['task_id'])
+        return response(state)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    original_index = scene.git('diff', '--cached').stdout
+    for identity in ('b' * 32, 'c' * 32):
+        state = workflow.initial_state(scene.plan, scene.spec, scene.run.parent)
+        run = workflow.launcher.private_directory(scene.run.parent / identity)
+        TaskBudget(run).initialize(1)
+        workflow.launcher.atomic(run.parent / 'current.json', dict(run=identity))
+        owner = os.open(run.parent / 'owner', os.O_RDWR)
+        assert workflow.worker(scene.root, run, owner, scene.spec, state) == 0
+        assert TaskBudget(run).read()['completed'] == 1
+        assert scene.git('diff', '--cached').stdout == original_index
+    assert calls == [('pre', 1), ('002', 4)]
+    assert scene.plan.next_task() is None
+
+
+def test_public_replan_check_does_not_select_vms_or_start_tasks(replan, monkeypatch, capsys):
+    import vm_selection
+    scene = replan
+    monkeypatch.setattr(workflow, '__file__', str(scene.root / 'tools/plan_launcher.py'))
+    def unexpected(*_args, **_kwargs):
+        pytest.fail('administrative replan attempted execution')
+    monkeypatch.setattr(vm_selection, 'execution_selection', unexpected)
+    monkeypatch.setattr(workflow.launcher, 'select', unexpected)
+    assert workflow.main(scene.spec, ['--reconcile', scene.run.name, '--check']) == 0
+    assert json.loads(capsys.readouterr().out)['next_task'] == 'pre'
+
+
 def peer_change(fixture, path, content):
     (fixture.peer / path).write_text(content)
     fixture.git('add', '--', path, cwd=fixture.peer)

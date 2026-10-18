@@ -19,8 +19,9 @@ Requires: 002, 002a, 002b, 002c.
 
 [002b](../Core-Installation-Coverage-Handoff.md#task-002b-qualified-fixture-integration)
 delivered consumer integration and focused host checks.
-[002c](002c-upgrade-histories.md) owns the complete Ubuntu and Fedora
-histories, scheduled in parallel with independent ownership and evidence.
+[002c](../Core-Installation-Coverage-Handoff.md#task-002c-complete-upgrade-histories)
+completed the Ubuntu and Fedora histories in parallel with independent ownership
+and evidence.
 This row retains every original requirement below and
 accepts only both matching target results. It owns final evidence reconciliation
 and close-out, not another implementation pass or mandatory duplicate live run.

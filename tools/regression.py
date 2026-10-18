@@ -755,6 +755,8 @@ class Run:
             # Reuse the dispatcher's public parser, then read only its
             # normalized selectors; do not implement another CLI parser.
             options, selector = vm_config.extract_selector(list(options))
+            from test_commands import vm_input_options
+            options, upgrade_inputs = vm_input_options('system', options)
             configured = vm_config.load(selector) if selector is not None else None
             if configured is not None and configured.name != target.name:
                 raise ValueError('vm-config: resume target differs from selection')
@@ -769,7 +771,7 @@ class Run:
                 selectors.get('--area'), selectors.get('--test'), inventories=inventories,
                 **({'recording_ids': selectors['--id']} if '--id' in selectors else {}),
                 qualification_failure='--qualification-failure' in normalized,
-                fresh_install='--previous-artifacts' in normalized,
+                fresh_install=upgrade_inputs or '--previous-artifacts' in normalized,
                 target_package_format=configured.require_package_format())
             return {execution.phase + '::' + execution.case_id
                     for execution in selection.executions}

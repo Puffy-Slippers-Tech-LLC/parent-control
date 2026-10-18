@@ -499,6 +499,20 @@ digest, package version and architecture and native strictly increasing version
 order. The focused selector refuses a missing prior input or a fabricated release.
 Ordinary current-package suites omit this optional history.
 
+For a parallel selection, shared runner infrastructure prepares and binds each
+VM's independent pair before invoking that same `--previous-artifacts` route:
+
+```sh
+tools/run-tests system --vm 'NAME,OTHER_NAME' --id 287 --upgrade-inputs
+```
+
+`system --upgrade-inputs` applies to any explicit system selection needing a
+real package update. It cannot accompany explicit artifact paths. Each worker
+requires its registry `package_format` and verifies that format against the
+pinned baseline before building; there is no DEB/RPM default or case-specific
+builder. Preparation failure prevents that worker's installation. Existing
+explicit current/previous input paths remain supported for one target.
+
 One baseline attempt installs and boots the old package, then runs
 `previous-policy`, `installed` and `rebooted` without restoration between them.
 Public broker calls save a 37-minute daily allowance, hard and soft app rules,

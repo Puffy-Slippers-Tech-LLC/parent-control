@@ -223,6 +223,12 @@ uses process-local package/probe doubles, private configuration and the existing
 finite queue threads. No real build, guest, cache, socket or new cleanup owner
 is added; test_regression_session only extends its private registry fixture.
 These modules retain their compatible classifications.
+Shared upgrade-pair preparation adds only in-process command/probe doubles in
+test_test_launchers; both target bindings, failed preparation and explicit-input
+conflicts add no real build, VM, cache, socket, process or cleanup owner. Existing
+unit compatibility remains valid; cleanup and UI inventories are unchanged.
+Recording-storage fixtures use synthetic labels with the same private
+journals/socket leases; their existing unit and cleanup classifications apply.
 Task 042's VM-specific named-input and snapshot/preflight regressions extend
 test_test_storage_cleanup_safety and test_desktop_session_cleanup_safety with
 tiny private files and process-local registry/package/lease doubles. Launcher

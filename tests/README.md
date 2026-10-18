@@ -790,8 +790,10 @@ callers omitting `vm_source`. The shared `tools/vm_artifacts.py` route selects
 an explicit `deb` or `rpm` builder from pinned baseline provenance before
 dispatch, and rechecks cached bundles against that format. A wrong cached
 format refuses without replacing evidence or entering the journey. Genuine
-v1.2 upgrade inputs remain DEB-only and explicitly refuse RPM qualification
-during preparation. The low-level builder API and CLI require a package format;
+upgrade pairs pin v1.2 for DEB and v1.3 for RPM through that same infrastructure.
+`system --upgrade-inputs` prepares the selected VM's pair before the existing
+explicit current/previous package route, including independent parallel workers.
+The low-level builder API and CLI require a package format;
 no DEB fallback is permitted. Host Debian reproducibility/cache routes supply
 `deb` explicitly. Launcher coverage discovers consumers independently and
 checks a new unlisted wrapper against both verified platform results.

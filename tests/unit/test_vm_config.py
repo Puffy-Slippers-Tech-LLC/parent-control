@@ -100,12 +100,13 @@ def test_display_name_preserves_case_and_hostname_is_lowercase(tmp_path):
     assert configured.baseline_directory.name == configured.name
 
 
-def test_configured_vm_names_have_no_literal_in_code_or_documentation():
-    # The configured display name belongs in config, not its consumers.
+def test_configured_vm_names_have_no_literal_in_executable_sources():
+    # Runtime consumers resolve names from config. Acceptance briefs/results
+    # must name their canonical targets; prose is not an executable fallback.
     names = list(vm_config.registry())
-    for directory in ('tools', 'tests', 'docs'):
+    for directory in ('tools', 'tests'):
         for path in (ROOT / directory).rglob('*'):
-            if path.is_file() and path.suffix in ('', '.py', '.md', '.MD', '.json', '.rules', '.sh'):
+            if path.is_file() and path.suffix in ('', '.py', '.json', '.rules', '.sh'):
                 contents = path.read_text()
                 assert not any(name in contents for name in names), str(path.relative_to(ROOT))
     for relative in ('setup.sh', 'Makefile'):

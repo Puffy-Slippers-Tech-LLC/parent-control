@@ -20,7 +20,7 @@ def write(recording, data=b'playable fixture'):
     recording.path.write_bytes(data)
 
 
-def publish(store, category='e2e', case_id=150, names=('onpc-Ubuntu26.04', 'onpc-Fedora44'), data=b'playable fixture'):
+def publish(store, category='e2e', case_id=150, names=('onpc-Alpha', 'onpc-Beta'), data=b'playable fixture'):
     with store.begin(category, case_id) as recording:
         write(recording, data)
         return recording.publish(names, validate=lambda path: path.read_bytes().startswith(b'playable'))
@@ -34,20 +34,20 @@ def test_shared_kind_and_latest_per_case_survive_vm_set_change(store, tmp_path):
     assert store.path == test_storage.directory('recordings', root=tmp_path)
     assert store.path == tmp_path / 'output/test-runs/recordings'
     previous = publish(store)
-    assert previous.name == 'e2e-150-Ubuntu26.04-Fedora44.webm'
+    assert previous.name == 'e2e-150-Alpha-Beta.webm'
     other_case = publish(store, case_id=151)
     other_category = publish(store, category='ui')
     unknown = store.path / 'e2e-150-unregistered.webm'
     unknown.write_bytes(b'keep unknown')
-    latest = publish(store, names=('onpc-Fedora44',), data=b'playable latest')
-    assert latest.name == 'e2e-150-Fedora44.webm'
+    latest = publish(store, names=('onpc-Beta',), data=b'playable latest')
+    assert latest.name == 'e2e-150-Beta.webm'
     assert latest.read_bytes() == b'playable latest'
     assert latest.stat().st_mode & 0o777 == 0o600
     assert not previous.exists()
     assert other_case.is_file() and other_category.is_file()
     assert unknown.read_bytes() == b'keep unknown'
     state = manifest(store)
-    assert state['provenance']['vm_names'] == ['onpc-Fedora44']
+    assert state['provenance']['vm_names'] == ['onpc-Beta']
     assert state['staging'] is state['pending'] is None
 
 
@@ -83,7 +83,7 @@ def test_same_filename_atomic_replace_and_no_time_or_size_rotation(store):
     with store.begin('e2e', 150) as recording:
         write(recording, b'playable replacement' * 1024)
         assert previous.read_bytes() == b'playable fixture'
-        latest = recording.publish(('onpc-Ubuntu26.04', 'onpc-Fedora44'), validate=lambda _: True)
+        latest = recording.publish(('onpc-Alpha', 'onpc-Beta'), validate=lambda _: True)
     assert previous == latest and latest.stat().st_ino != previous_identity
     assert latest.read_bytes() == b'playable replacement' * 1024
 
@@ -99,7 +99,7 @@ def test_failed_encoder_or_playability_check_preserves_previous(store, failure):
                 raise RuntimeError('encoder failed')
             if failure != 'empty':
                 write(recording, b'not playable')
-            recording.publish(['onpc-Fedora44'], validate=lambda _: failure == 'empty')
+            recording.publish(['onpc-Beta'], validate=lambda _: failure == 'empty')
     assert previous.read_bytes() == before
     assert not any(path.name.startswith('.e2e-150-') and path.suffix == '.webm'
                    for path in store.path.iterdir())
@@ -112,8 +112,8 @@ def test_same_case_lock_refuses_but_other_case_can_record(store):
         with store.begin('e2e', 151) as second:
             write(first)
             write(second)
-            second.publish(['onpc-Fedora44'], validate=lambda _: True)
-        first.publish(['onpc-Ubuntu26.04'], validate=lambda _: True)
+            second.publish(['onpc-Beta'], validate=lambda _: True)
+        first.publish(['onpc-Alpha'], validate=lambda _: True)
 
 
 def test_forwarded_encoder_descriptor_preserves_case_until_descendant_closes(store):
@@ -151,7 +151,7 @@ def test_publication_recovers_every_durable_boundary(store, monkeypatch, boundar
     previous = publish(store)
     recording = store.begin('e2e', 150)
     write(recording, b'playable newest')
-    names = ['onpc-Ubuntu26.04', 'onpc-Fedora44'] if same_name else ['onpc-Fedora44']
+    names = ['onpc-Alpha', 'onpc-Beta'] if same_name else ['onpc-Beta']
     if same_name and boundary == 'delete':
         recording.close()
         return
@@ -208,7 +208,7 @@ def test_stage_refusal_preserves_previous_and_replaced_entry(store, fault):
         path.write_bytes(b'replaced')
         path.chmod(0o600)
     with pytest.raises((ValueError, OSError)):
-        recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+        recording.publish(['onpc-Beta'], validate=lambda _: True)
     with pytest.raises((ValueError, OSError)):
         recording.close()
     assert previous.read_bytes() == b'playable fixture'
@@ -217,12 +217,12 @@ def test_stage_refusal_preserves_previous_and_replaced_entry(store, fault):
 
 def test_unknown_destination_is_not_overwritten_and_old_recording_survives(store):
     previous = publish(store)
-    unknown = store.path / 'e2e-150-Fedora44.webm'
+    unknown = store.path / 'e2e-150-Beta.webm'
     unknown.write_bytes(b'unknown')
     with pytest.raises(ValueError, match='unowned destination'):
         with store.begin('e2e', 150) as recording:
             write(recording)
-            recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+            recording.publish(['onpc-Beta'], validate=lambda _: True)
     assert previous.read_bytes() == b'playable fixture'
     assert unknown.read_bytes() == b'unknown'
 
@@ -232,13 +232,13 @@ def test_destination_appearing_after_preflight_is_never_overwritten(store, monke
     recording = store.begin('e2e', 150)
     write(recording)
     rename = recording._publish_rename
-    target = store.path / 'e2e-150-Fedora44.webm'
+    target = store.path / 'e2e-150-Beta.webm'
     def racing_rename(source, destination, **kwargs):
         target.write_bytes(b'unknown late arrival')
         return rename(source, destination, **kwargs)
     monkeypatch.setattr(recording, '_publish_rename', racing_rename)
     with pytest.raises(FileExistsError):
-        recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+        recording.publish(['onpc-Beta'], validate=lambda _: True)
     recording.close(abort=False)
     assert target.read_bytes() == b'unknown late arrival'
     assert previous.read_bytes() == b'playable fixture'
@@ -261,10 +261,10 @@ def test_superseded_recording_changed_identity_or_bytes_blocks_cleanup(store, fa
     else:
         os.link(previous, store.path / 'unowned-link')
     with pytest.raises((ValueError, OSError)):
-        recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+        recording.publish(['onpc-Beta'], validate=lambda _: True)
     recording.close(abort=False)
     assert previous.exists()
-    assert not (store.path / 'e2e-150-Fedora44.webm').exists()
+    assert not (store.path / 'e2e-150-Beta.webm').exists()
 
 
 def test_changed_candidate_after_intent_is_preserved_and_previous_retained(store, monkeypatch):
@@ -278,7 +278,7 @@ def test_changed_candidate_after_intent_is_preserved_and_previous_retained(store
     with monkeypatch.context() as fault:
         fault.setattr(recording, '_save', interrupted_save)
         with pytest.raises(KeyboardInterrupt):
-            recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+            recording.publish(['onpc-Beta'], validate=lambda _: True)
     stage = recording.path
     recording.close(abort=False)
     stage.write_bytes(b'changed after verification')
@@ -302,7 +302,7 @@ def test_replaced_management_entries_refuse_mutation(store, entry):
         path.write_text('unknown')
         path.chmod(0o600)
     with pytest.raises((ValueError, OSError)):
-        recording.publish(['onpc-Fedora44'], validate=lambda _: True)
+        recording.publish(['onpc-Beta'], validate=lambda _: True)
     recording.close(abort=False)
     assert (held / previous.name).exists() if entry == 'root' else previous.exists()
 
@@ -562,7 +562,7 @@ def test_legacy_directory_moves_intact_and_preserves_publication_identities(tmp_
     assert (target / previous.name).stat().st_ino == video_inode
     assert recording_control.endpoint(tmp_path) is None
     recording_control.Publication(tmp_path).close()
-    latest = publish(storage.Store(root=tmp_path), names=('onpc-Fedora44',), data=b'playable after move')
+    latest = publish(storage.Store(root=tmp_path), names=('onpc-Beta',), data=b'playable after move')
     assert latest.read_bytes() == b'playable after move'
     assert not (target / previous.name).exists()
 

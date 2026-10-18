@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **002c — [Run the complete Ubuntu and Fedora upgrade histories](Core-Installation-Tasks/002c-upgrade-histories.md)**.
+Next task: **003 — [Qualify a real earlier-package upgrade](Core-Installation-Tasks/003-previous-package-upgrade.md)**.
 
 ## Purpose and continuation
 
@@ -425,11 +425,98 @@ history and retain matching candidate, input, baseline and cleanup receipts.
 The earlier Ubuntu slice and case 288 qualification supply no acceptance for
 these final upgrade inputs. Task 003 remains unchecked.
 
+## Task 002c complete upgrade histories
+
+Accepted 2026-10-18. Case **287** passed **3/3 phases per target**, with no
+failures or skips, in parallel run `30838700ff2a4a0ca95371d73fdd254f`.
+Each target kept `previous-policy`, `installed` and `rebooted` in one baseline
+attempt, without an intermediate restore. Reports below are under
+`output/test-runs/host/reports/`; allocations are under
+`output/test-runs/privileged/allocations/`.
+
+| Target | Native version transition | Report / allocation | Baseline provenance SHA-256 |
+| --- | --- | --- | --- |
+| onpc-Ubuntu26.04 | `1.2+ppa1~ubuntu26.04.1` → `1.4+local1~ubuntu26.04.1`, amd64 | `20261018T190013Z-06fb3398` / `onpc-system-pn0m4z8t` | `4ff5d2668d9afe71cf6ff0bfc4ab3d25471776016ef5b309cdaebccc0fc481e7` |
+| onpc-Fedora44 | `0:1.3-0.1.dev.fc44` → `0:1.4-0.1.dev.fc44`, x86_64 | `20261018T190013Z-480dd9e4` / `onpc-system-8seskbd3` | `dce95ae3b2147179b3f30587faad9e3bfd418d3283fd100f4f8e7e72fdedbbde` |
+
+Each allocation retains `evidence/result.json`, all three phase JUnits under
+`guest-results/`, native rule witnesses and exact `input/selected-inputs.json`,
+`artifact-manifest.json` and `previous-inputs.json`. Both selected-input digests
+are `4e04c09c418daf69ccc743cdebcf3aac60232344f69d0cf5326c9b4b9aba1d5f`;
+the staged upgrade helper matches 002b's required
+`8703b2d4e671598ad3f6dd43c04862231a62b175bee8a1faa8ca1bc0b7c62176`.
+Shared enforcement/trust helpers and fixture payload hashes match the final
+checkout. Both histories verify the baseline-owned trusted variants' bytes,
+native configuration, provenance and loaded trust through the closed consumer
+verifier; they neither add trust nor reuse the historical baselines above.
+
+Candidate source revision is `9162f12d8d92ac78ecbc465280b2b0197f1c4320`, digest
+`3847aa39a5c73d6657056bc94e375e56c02c9cd0fa0ed30ec9e836725ee0df29`.
+Ubuntu's candidate/prior package SHA-256 values are
+`ce10b0b5e36cda0a31b0f822adff12edd7d7ef384e57fe9aabb6ec0e97911a26` /
+`49f675d9e28605eb38bd9d8a29797cdba9d4a67d5cb4320031a1c81e987c1d28`.
+Fedora's are
+`04f31135daa171782d89196c291b49888a9d04b9b3471b72427d484c8aebb50d` /
+`ad2b035946db68c6144d8b9b1bf67c034ddd098cbddd084273963abca2aafd93`.
+The prior packages retain 002a's exact pinned release source revisions/digests,
+native versions and architectures; the rebuilt RPM has its own recorded package
+digest. Native ordering verifies that each candidate is genuinely newer.
+
+All policy/request choices, real authenticated approval, identity preservation,
+kiosk shell transition, schema 3 → 4 / 4 → 4, exact reboot/removal refusal and
+public broker recovery assertions passed. Native hard denial, approved soft
+allowance and unrelated-user execution passed before update and after reboot.
+The exact grant duration remains **45,420 seconds**. Ubuntu preserves issuance /
+expiry `1792350289` / `1792395709`, with remaining seconds
+`45418.6455 → 45361.7088 → 45311.3446`; Fedora preserves
+`1792350228` / `1792395648`, with
+`45418.4276 → 45391.2529 → 45354.6684`.
+
+Both receipts independently pass product, infrastructure, collection and cleanup,
+record `cleanup_phase=complete`, and pass acquisition/restoration verification
+with zero failures. Public status probes confirm both VMs off. All workers have
+joined. Recording finalization completed successfully; the session's
+`recordings.json` binds `system-287-Ubuntu26.04-Fedora44.webm` to SHA-256
+`745b59220430d4c763b761438144978b27cac6c44c359b661bdcbed7115d818e`.
+The combined result is
+`output/test-runs/host/allocations/onpc-vm-queue-ru9nhntv/results.json`.
+
+Shared runner infrastructure now supports `system --upgrade-inputs` for any
+explicit system selection requiring an upgrade. Each VM worker prepares its own
+verified pair and passes the existing current/previous artifact route. Registry
+format and pinned baseline must agree; neither format defaults nor case-specific
+builders are used. Conflicting explicit paths refuse before allocation.
+Affected host checks passed **2,099/2,099**, preserved in the evidence bundle
+below under original member
+`output/test-runs/host/exports/onpc-artifact-export-pu2p08zh/report.md`.
+Final launcher/plan/inventory consistency passed **2,256/2,256** in
+`20261018T190834Z-63341d8e/report.md`, including all 1,705 launcher/resume checks;
+corrected configuration,
+recording-fixture and resource-inventory checks passed **355/355** in
+`20261018T190423Z-1e3a4ae6/report.md`.
+Mechanical host repairs preserve runtime name-resolution checks and use synthetic
+recording labels; acceptance documents may name their canonical targets.
+Resource review retains existing unit/cleanup compatibility and adds no owner.
+Generated coverage was refreshed. These test/tooling edits affect neither
+package sources nor build-tool dependencies, so no additional `make build`
+is required. Only 002c is newly complete; 003 remains the final evidence gate.
+
+The verified **788-file** retained bundle is
+`output/test-runs/host/exports/onpc-evidence-bundle-sol74eq8/evidence.zip`, SHA-256
+`ba828106aa6eeee91e4019f1e687857481f837b9e1a82a032052f2080758722f`.
+It preserves both target receipts/JUnits/native diagnostics/input manifests,
+host reports, queue results and exported recording/recording receipt. Bundle
+inspection verified all bytes and both passing target receipts after publication;
+export cleanup completed. Recording files first used the normal artifact export
+route because their original lifetime is separate from allocation retention.
+Preserve this bundle through 003 using the existing report-retention contract.
+All 147 local links in the five changed prose documents passed.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
-Continue with combined task 002c, which runs one complete upgrade history per
-target in parallel using the final
+Continue with task 003, reconciling the complete
+[002c target histories](#task-002c-complete-upgrade-histories) against the final
 [002b consumer](#task-002b-qualified-fixture-integration).
 Task 003 reconciles their matching evidence
 against every original requirement; it remains an installed, both-target gate.

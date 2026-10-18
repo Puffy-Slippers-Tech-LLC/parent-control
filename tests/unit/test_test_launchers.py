@@ -9,6 +9,7 @@ import runpy
 import subprocess
 import sys
 from unittest.mock import Mock
+from types import SimpleNamespace
 
 import pytest
 
@@ -258,6 +259,75 @@ def test_focused_system_preserves_explicit_artifact_input_without_building(monke
     execute.assert_called_once()
     assert execute.call_args.args[0][0] == '/usr/bin/pkexec'
     assert args == execute.call_args.args[0][-len(args) - len(VM_ARGS):-len(VM_ARGS)]
+
+
+@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
+@pytest.mark.parametrize('status', [0, 7, 130])
+def test_shared_upgrade_preparation_binds_each_vm_before_existing_system_dispatch(
+        monkeypatch, target, status):
+    import dev_privileges
+    import regression_process
+    import test_retention
+
+    monkeypatch.setenv('ONPC_TEST_VM', target)
+    output = str(ROOT / 'output/test-runs/host/allocations/onpc-upgrade-input')
+    monkeypatch.setattr(test_retention, 'allocate', Mock(return_value=output))
+    monkeypatch.setattr(test_retention, 'token', lambda: None)
+    authorize = Mock()
+    monkeypatch.setattr(dev_privileges, 'check', authorize)
+    execute = Mock(side_effect=[status, 0])
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    args = ['--id', '287', '--upgrade-inputs']
+    assert regression_process.category_run(ROOT, 'system', args, pipe=False) == status
+    assert execute.call_args_list[0].args[0] == commands.python_file(
+        ROOT, 'tools/vm_artifacts.py', '--upgrade-inputs', '--output', output,
+        '--vm', target)
+    if status:
+        assert execute.call_count == 1
+        authorize.assert_not_called()
+    else:
+        assert execute.call_args.args[0] == [
+            '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+            '/usr/local/libexec/onpc-test-runner', '--unattended', 'system',
+            '--id', '287', '--artifacts=' + output + '/current',
+            '--previous-artifacts=' + output + '/previous', '--vm', target]
+
+
+@pytest.mark.parametrize('category,args', [
+    ('system', ['--upgrade-inputs', '--upgrade-inputs']),
+    ('system', ['--upgrade-inputs', '--artifacts=/tmp/onpc-explicit']),
+    ('system', ['--upgrade-inputs', '--previous-artifacts', '/tmp/onpc-explicit']),
+    ('e2e', ['--upgrade-inputs']),
+    ('integration', ['check_e2e_package_upgrade', '--upgrade-inputs']),
+])
+def test_shared_upgrade_preparation_refuses_conflicts_before_allocation(monkeypatch, category, args):
+    import regression_process
+    import test_retention
+
+    allocate = Mock(side_effect=AssertionError('invalid request allocated inputs'))
+    monkeypatch.setattr(test_retention, 'allocate', allocate)
+    with pytest.raises(ValueError, match='upgrade inputs require'):
+        regression_process.category_run(ROOT, category, args, pipe=False)
+    allocate.assert_not_called()
+
+
+@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
+def test_upgrade_checkpoint_retains_the_complete_indivisible_history(monkeypatch, target):
+    import regression
+    import system_runner
+    from tests.support.vm_runner import INVENTORIES
+
+    monkeypatch.setenv('ONPC_TEST_VM', target)
+    inventories = {**INVENTORIES, 'package': (
+        *INVENTORIES['package'], 'test_previous_package_policy_preservation')}
+    monkeypatch.setattr(system_runner, 'collect_area_cases', lambda area: inventories[area])
+    options = ['--id', '287', '--upgrade-inputs']
+    checkpoint = SimpleNamespace(entry=lambda _: {'args': options}, passed=lambda _: set())
+    selected, passed = regression.Run.system_resume_cases(
+        SimpleNamespace(root=ROOT, checkpoint=checkpoint), options)
+    assert selected == {phase + '::test_previous_package_policy_preservation'
+                        for phase in ('previous-policy', 'installed', 'rebooted')}
+    assert not passed
 
 
 def test_dispatcher_still_requires_artifacts_for_actual_system_execution():

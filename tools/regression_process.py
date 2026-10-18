@@ -427,14 +427,17 @@ def category_run(root, category, argv, *, pipe=True):
                 return status
         if category in ('system', 'e2e') and '--list' not in argv and not test_commands.has_artifacts(commands[0]):
             from vm_selection import arguments as vm_arguments
+            _, upgrade = test_commands.vm_input_options(category, argv)
             directory = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
             print('run-tests: output=' + directory, flush=True)
             status = control.run(test_commands.python_file(
-                root, 'tools/vm_artifacts.py', '--output', directory,
+                root, 'tools/vm_artifacts.py', *(['--upgrade-inputs'] if upgrade else []),
+                '--output', directory,
                 *vm_arguments()), cwd=root, env=env)
             if status:
                 return status
-            commands, _ = test_commands.plan(root, category, [*argv, '--artifacts=' + directory])
+            commands, _ = test_commands.plan(root, category,
+                test_commands.prepared_vm_options(category, argv, directory))
         for command in commands:
             privileged = command[0] == '/usr/bin/pkexec'
             if privileged:

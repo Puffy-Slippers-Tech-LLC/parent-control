@@ -270,6 +270,10 @@ Aggregate aliases (no suite selectors)
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
   Add --upgrade-inputs to build pinned earlier-release/current inputs in a new retained bundle.
+  system --upgrade-inputs prepares that pair independently in each VM worker
+  and supplies --artifacts/--previous-artifacts to the existing installed runner.
+  It requires the VM's declared format to match its verified baseline; no format defaults.
+  Explicit artifact paths cannot be combined with system --upgrade-inputs.
   Add --output PATH to prepare a new named input without replacing existing data.
   artifacts build --output '/REPO/output/test-runs/host/allocations/onpc-NAME'
   builds into a new named directory
@@ -381,6 +385,29 @@ def has_artifacts(argv):
     return any(value == '--artifacts' or value.startswith('--artifacts=') for value in argv)
 
 
+def vm_input_options(category, argv):
+    """Keep package preparation in infrastructure, before privileged dispatch.
+
+    Each VM worker resolves its own format through vm_artifacts' pinned-baseline
+    probe. Explicit existing bundles and automatically built pairs are exclusive.
+    """
+    upgrade = '--upgrade-inputs' in argv
+    if upgrade and (category != 'system' or argv.count('--upgrade-inputs') != 1
+                    or any(value in ('--artifacts', '--previous-artifacts')
+                           or value.startswith(('--artifacts=', '--previous-artifacts='))
+                           for value in argv)):
+        raise ValueError('upgrade inputs require system and no explicit artifact paths')
+    return [value for value in argv if value != '--upgrade-inputs'], upgrade
+
+
+def prepared_vm_options(category, argv, directory):
+    options, upgrade = vm_input_options(category, argv)
+    if upgrade:
+        return [*options, '--artifacts=' + str(Path(directory) / 'current'),
+                '--previous-artifacts=' + str(Path(directory) / 'previous')]
+    return [*options, '--artifacts=' + str(directory)]
+
+
 def artifact_output(value):
     """Accept a new direct managed allocation; never replace inputs."""
     path = Path(value)
@@ -464,6 +491,7 @@ def plan(root, category, argv):
     if category in ('integration', 'system', 'e2e'):
         from vm_selection import extract_execution as extract
         argv, _ = extract(argv, required=False)
+        argv, _ = vm_input_options(category, argv)
     if category == 'publish':
         if argv:
             raise ValueError('publishing tests accept no arguments')
@@ -654,12 +682,14 @@ def _main(argv=None, *, detached=False, checkpoint=None):
                 directory = allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
-                    python_file(root, 'tools/vm_artifacts.py', '--output', directory,
+                    python_file(root, 'tools/vm_artifacts.py',
+                                *(['--upgrade-inputs'] if vm_input_options(category, options)[1] else []),
+                                '--output', directory,
                                 *vm_arguments()),
                     cwd=root, env=host.environment(root), check=False).returncode
                 if status:
                     return status if status > 0 else 128 - status
-                args = [*args, '--artifacts=' + directory]
+                args = prepared_vm_options(category, args, directory)
         if args[:1] == ['--unattended']:
             from regression_process import host_run, category_run
             if category in ('unit', 'component', 'ui'):

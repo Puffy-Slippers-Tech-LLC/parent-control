@@ -283,6 +283,8 @@ from regression_resources import HOST_WORKERS
 # Recording storage/control safety owns only pytest-private journals, leases,
 # and unique shared-library socket runtimes; no live VM, server or child process.
 # Its unit classification is compatible as well.
+# Synthetic recording labels replace deployed VM names without changing any
+# file, socket, lease or cleanup lifetime; both inventories remain compatible.
 REVIEWED = frozenset('''
 recording_storage
 e2e_natural_expiry

@@ -1,89 +1,84 @@
-# 008 — Kiosk startup and exit under inventory growth
+# 008 — Kiosk reliability with enlarged inventory
 
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
 [Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Estimate: 60–90 minutes.
-
-## Session boundary
-
-Deliver the paired ordinary/enlarged inventory measurements and independent
-functional/resource results. 008a cumulatively supplies 008c's locale-job
-contract and Request readiness, including the failure slice formerly in 009;
-008b supplies logout fallback.
-Session exception: all eight samples on each target must compare the same
-candidate and fixture profiles. Do not split cold/warm or ordinary/enlarged
-samples into independently accepted tasks or drop a failed intermediate result.
+Required tasks: 008a, 008b.
+Estimate: 30–60 minutes.
+Session exception: ordinary entry, supported profile activation and two retained
+enlarged-inventory cycles compare one candidate in a finite history per target.
 
 ## Purpose and route
 
-Required tasks: 006, 007, 008a, 008b.
+Target inventory-dependent preparation and warm-up/logout lifetime from
+`6987d0ce`, `925438ba` and `75f608f6`. The result is a usable station within
+existing deadlines, a correctly bound immediate request and clean exit/reentry.
+This task does not inherit the commits' performance-improvement objective.
+
 Read the [master](../Reliability-Plan.md),
 [frontend lifecycle](../SystemDesign/Frontends.md),
-[timing measurement contract](../../tests/e2e/README.md#kiosk-transition-timing),
-existing `vm_probe.py` timing functions, `KioskLogout`, agent-locale preparation,
-artwork loading and native namespace staging/cleanup.
+[directory-generation lifecycle](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
+[timing observation contract](../../tests/e2e/README.md#kiosk-transition-timing)
+and complete shared `vm_probe.py`, locale/logout and namespace cleanup call
+chains. 008a/008c supply deterministic pending-warm-up ordering and failure/retry;
+008b supplies fallback lifetime. Use the existing native startup fixture and
+record its actual renderer path; neither 006a's writable-directory mutation nor
+007b's GPU mapping proof is a prerequisite for this inventory-growth condition.
+Crash/export and unrelated customer scenarios are not prerequisites.
 
 Planned qualification (unimplemented): `check_e2e_kiosk_inventory_scaling`,
-extending the existing timing qualification/transport owner. Diagnostic probes
-alone supply measurements, not this task's installed functional acceptance.
+extending the existing transition qualification/transport owner.
 
-## Finite measurements and expected results
+## Finite history and expected results
 
-Compare the same verified candidate with ordinary inventory and 256 additional
-inert, root-owned sibling entries supplied through owned fixtures. For each
-profile take one explicit cold-boot sample and three warm entry/Request/Cancel
-samples: eight samples per target. Record the exact ordinary inventory identity
-and added-entry manifest. Within each sample observe a ready usable form,
-submit Request once, observe one correctly bound approval prompt, cancel that
-prompt without a password, confirm unchanged choices and grant/policy, then
-use station Cancel and independently observe usable GDM.
+Use one verified candidate. Run one ordinary-inventory entry/Request/Cancel
+cycle, then add 256 inert root-owned sibling entries through the shared owned
+fixture. Activate that changed inventory through the existing supported guest
+reboot/session preparation route before its first kiosk entry: confinement pins
+the manager's directory generation, so reusing the ordinary profile's live
+manager would test stale-generation refusal instead of inventory growth.
+Run two enlarged-profile entry/Request/Cancel cycles without resetting between
+them. Record both inventory manifests and an owned idle resource baseline per
+profile. The activation reboot is not a cold/warm benchmark matrix.
 
-Retain each raw entry-to-form, Request-to-observed-prompt and station
-Cancel-to-usable-greeter interval. Preserve the existing transport/observer
-overhead definitions, guest read costs, clock-offset bounds and the distinction
-between semantic observation and presented/painted witnesses. Compare ordinary
-versus enlarged inventory separately for cold and warm samples of this same
-candidate. No older-package comparison, percentile or trimmed ten-trial mean
-is implied. Existing operation deadlines and functional outcomes are the pass
-oracles; report latency deltas and unresolved measurement uncertainty without
-inventing a performance threshold or replacing usable results with paint.
+In each cycle, submit Request once at the first independently established form
+readiness. Observe the correctly bound native approval prompt, cancel without
+a password and confirm unchanged grant/policy and request choices. Then use
+station Cancel and independently observe usable GDM within existing deadlines.
+This complete transition is the minimum result for the warm-up/logout lesson;
+no approval, exhaustion or broader form-feature journey is required here.
 
-Submit each Request at the first independently established form readiness;
-do not deliberately wait for speculative locale warm-up to finish. Deterministic
-host callback/job tests from 008a cover Request during pending warm-up, required
-preparation ordering and stale-language refusal; incidental fast completion on
-a VM must not become a timing-race prerequisite or a claimed pending-warmup pass.
-Compare quiescent checkpoints after every sample: no extra hidden-session
-clients, preparation timers or duplicate staging mount trees may remain beyond
-the same roles' recorded idle baseline and explicit owned resources. Do not use
-global process counts as that oracle.
+Capture raw transition times and the failed stage if a deadline is missed,
+using existing observer/clock uncertainty definitions. Latency is diagnostic;
+there is no new percentile, speedup or relative-performance gate. Do not wait
+deliberately for speculative preparation; a fast VM completion does not prove
+the pending-warm-up race, which 008a/008c cover deterministically.
 
-Reproduce latency defects at the responsible stage and fix redundant work or
-protocol/lifecycle mistakes without weakening policy, durability, recipient
-checks or deadlines. Preserve bounded logout fallback when native services fail.
+At equivalent quiescent checkpoints after every cycle, compare owned timers,
+app/report children, namespace staging mounts and units against that profile's
+recorded baseline. A previous kiosk must not leave duplicate clients or staging
+behind.
+Global process counts are not an ownership oracle. Preserve each intermediate
+failure before another transition can hide it.
 
 ## Work sequence
 
-1. Verify one candidate and both exact inventory manifests before collecting
-   samples. Establish each profile's recorded idle resource baseline.
-2. Collect the ordinary profile's cold sample and three warm samples. In every
-   sample finish the declared ready-form, prompt/Cancel, unchanged-state and
-   usable-GDM observations before the next sample.
-3. Collect the enlarged profile's cold sample and three warm samples with the
-   same functional/resource observations. Retain every raw interval and failed
-   intermediate result; all eight samples remain one acceptance set per target.
-4. Compare cold pairs and warm groups, reporting latency deltas and uncertainty
-   under existing deadlines. Restore the owned inventory and finish cleanup.
+1. Verify candidate, ordinary manifest and baseline; complete the ordinary cycle.
+2. Apply the exact owned enlarged-inventory fixture, perform supported activation
+   and record its idle baseline. Complete its first cycle with independent
+   readiness, prompt, unchanged-state, exit and resource checks.
+3. Reenter without another reboot/reset and complete the second enlarged cycle
+   with the same checks. Retain each result and raw timing, not an average hiding
+   a failure.
+4. Restore only the owned inventory mutation and finish cleanup.
 
 ## Validation and close-out
 
-Run affected host rendering/cache, agent-locale/logout, namespace and timing
-ownership checks. Perform the finite qualification on both targets, retain raw
-samples, functional outcomes and complete cleanup. Document material remaining
-latency and its stage; an average improvement cannot conceal a failed transition.
-Build after product edits and retain actual selector bindings in existing owners.
-Reuse 008a/008b's host coverage; add only new defect regressions. The full paired
-measurement set must match final inputs after any product or fixture repair.
+Run affected host locale/logout, namespace/input/timing and cleanup guards.
+Execute all three cycles on both targets. Fix demonstrated redundant work or
+lifecycle defects without weakening policy, durability, recipient checks or
+deadlines. Rerun the complete affected history after changed inputs. Build after
+product edits; retain actual selector, functional/resource results and cleanup
+in existing owners. Close only 008.

@@ -9,16 +9,18 @@ Estimate: 15–30 minutes.
 
 Deliver non-authoritative selector fallback and subsequent normal persistence.
 009a supplies authoritative preference write/replace/flush failures. Agent-locale
-retry, supersession and late-reply ordering moved to 008c/008a, inherited through
-008. Together these preserve original 009's obligations with one owner each.
+retry, supersession and late-reply ordering belong to 008c/008a and are not
+prerequisites for this independent selector-store slice.
 
 ## Purpose and route
 
-Required tasks: 008, 009a.
+Required tasks: 009a.
 Read the [master](../Reliability-Plan.md),
 [state durability contract](../SystemDesign/State.md),
 [frontend state ownership](../SystemDesign/Frontends.md),
 the kiosk `selection_store.py`, its callers and complete relevant host tests.
+The motivating commits are `75f608f6` and `5414b496`: failed persistence must
+permit correct retry without treating a fallback/cache result as a durable save.
 
 Extend canonical selector/request-state host tests, including the relevant
 `test_request_time_estimate.py` callers; inspect exact ownership before adding a

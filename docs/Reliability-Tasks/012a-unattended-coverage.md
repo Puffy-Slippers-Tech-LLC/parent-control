@@ -4,7 +4,7 @@ Acceptance: host
 
 [Master](../Reliability-Plan.md) and
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
-Required tasks: 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011.
+Required tasks: 001, 002, 003, 004, 005, 006a, 006b, 007a, 007b, 007, 008, 009, 010, 011.
 Estimate: 15–30 minutes.
 
 ## Deliverable and route
@@ -13,10 +13,14 @@ Extract executable registration/traceability from 012. Read
 [test documentation ownership](../TestAutomation/README.md),
 [coverage maintenance](../../tests/README.md#coverage-maintenance-workflow),
 actual completed queue rows and canonical runner registrations. Include every
-extracted condition, not just original numeric IDs.
+active extracted condition, not just numeric parent IDs. Respect the queue's
+scheduling exclusions; do not restore removed work as a registration gap.
 
-Map each delivered condition to one executable owner, actual listed selector and
-regression layer in the existing inventories/design/test owners. Verify new
+Map each delivered condition to its motivating commit/lesson, previously missed
+machine state or order, independent result, executable owner, actual listed
+selector and regression layer in the existing inventories/design/test owners.
+For native incidents, distinguish deterministic coverage from installed proof
+and explicitly retain any unexercised dependency/device path. Verify new
 cases participate in established unattended selections and resource/fixture
 classifications are complete. Correct registration gaps, duplicate bindings and
 stale planned names at their owner. Preserve customer E2E, obligation 143 and

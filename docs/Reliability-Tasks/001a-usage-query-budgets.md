@@ -13,7 +13,12 @@ Complete only the missing helper retry/error histories from original task 001.
 Read the complete usage-query helper, its broker adapter and callers through the
 [screen-time design](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities),
 then `tests/unit/test_usage_query_retry.py` and `test_adapters.py`.
-Retain the existing `5b15f17d` assertions and fake monotonic clock adapters.
+Retain `5b15f17d`'s budgets, `9162f12d`'s corrected daemon error names and existing
+fake monotonic clock adapters. First map current tests; the historical agreement
+between code and a made-up Busy name must not become another assumed contract.
+The helper accepts only the registered `Parent.Error.Busy` domain. A real Gio
+error with an invented name is not dependency-contract evidence; native
+contention is qualified separately by the 002 family.
 
 Exercise Busy → owner loss → timeout/success and mixed terminal failures.
 All failures share original attempt indices and the 25-second total budget;

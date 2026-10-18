@@ -29,4 +29,4 @@ Run exact affected unit/UI logout and ownership/cleanup files through
 counts, original deadline and final owned resources. Follow the host resource
 review for any changed lifetime. Fix demonstrated lifecycle defects, build as
 required and retain actual runner evidence/cleanup. Close only 008b; usable GDM
-and sample-by-sample native resource observations still belong to 008.
+and cycle-by-cycle native resource observations still belong to 008.

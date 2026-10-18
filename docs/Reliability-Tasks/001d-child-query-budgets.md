@@ -15,6 +15,9 @@ Extract the estimate-read retry engine from 001b. Read the
 `tests/child/timer_query.test.mjs` and the existing Gio classification checks.
 This row owns `queryEstimatedTimes()` budgets and terminal outcomes; 001b owns
 native query/replay cancellation and 001c owns controller lifecycle composition.
+Preserve `9162f12d`'s registered Child/Parent Busy domains and nonretry identity
+errors. Compare current tests before adding cases; construction by real Gio does
+not prove that the daemon emits a chosen name. The 002 family owns native proof.
 
 ## Work sequence
 

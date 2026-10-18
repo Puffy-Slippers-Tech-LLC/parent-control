@@ -17,8 +17,10 @@ collection and validated download form one causal history per installed target.
 
 ## Purpose and route
 
-Required tasks: 002, 004, 007, 009, 010a, 010b.
-Read the [master](../Reliability-Plan.md),
+Required tasks: 007, 010a, 010b.
+Target `4e08dcdb`'s pre-form crash evidence and `5414b496`'s failure isolation,
+not general report-editor or feedback-delivery acceptance. Read the
+[master](../Reliability-Plan.md),
 [diagnostic contract](../SystemDesign/Logging-and-Feedback.md), child error and
 process-exit handlers, dependency collectors, catalogue validators and existing
 `check_e2e_diagnostic_export.py`/host export tests. Reuse the canonical report

@@ -17,7 +17,7 @@ and retained-work result; the whole history remains required on both targets.
 
 ## Purpose and route
 
-Required tasks: 003, 004a.
+Required tasks: 004a.
 Read the [master](../Reliability-Plan.md), the
 [unlock continuation contract](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement),
 `child/sessionUnlock.js`, `sessionDiagnostics.js`, extension lifecycle callers
@@ -26,8 +26,12 @@ approved-return and natural-expiry helpers and public credential guards.
 
 Planned qualification (unimplemented):
 `check_e2e_exhausted_retained_unlock_recovery` under the existing retained-unlock
-owner. It adds the stale-native-state boundary; existing customer approved-entry
-and exhaustion cases retain their own scope and queue positions.
+owner. It reproduces `f0e4dc77`'s stale-native-state boundary; existing customer
+approved-entry and exhaustion cases retain their own scope and queue positions.
+
+The complete exhaustion/approval/return is necessary to retain the native state
+that caused the incident. It does not require 003's separate combined-accounting
+history or general approved-entry acceptance.
 
 ## Finite history and expected results
 

@@ -19,8 +19,10 @@ without reimplementing either retry engine or the cancellation matrix.
 Follow the [master](../Reliability-Plan.md) and
 [screen-time design](../SystemDesign/Screen-Time.md). Read the complete timer
 controller in `resumeEstimateRefresh.js`, its `TimerUsage` adapter, callers
-and existing tests before editing. Existing `5b15f17d` regressions remain the
-baseline; add missing histories rather than restating their implementation.
+and existing tests before editing. Existing `5b15f17d` and `9162f12d` regressions
+remain the baseline, including corrected daemon Busy names; add missing histories
+rather than restating their implementation. This slice targets repeated
+resume-stage failure hidden by successful independent estimate reads.
 
 Use the existing fake clocks and explicit error/callback adapters in
 `tests/child/resume_estimate_refresh.test.mjs` and relevant adapter tests.

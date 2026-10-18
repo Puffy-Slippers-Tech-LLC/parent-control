@@ -6,14 +6,15 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Master](../Reliability-Plan.md),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract) and
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Required tasks: 002, 004, 009, 010a.
+Required tasks: 002, 010a.
 Estimate: 45–75 minutes.
 Session exception: reporter lifetime, native failure/recovery, fresh collection
 and downloaded archive must retain one causal history per target.
 
 ## Deliverable and route
 
-Extract the child-reporter/timer export branch from 010. Read the
+Reproduce `5414b496`/`5b15f17d`'s original-cause retention boundary using one real
+timer fault. This does not consume unlock or preference-failure journeys. Read the
 [diagnostic contract](../SystemDesign/Logging-and-Feedback.md), child handlers,
 dependency collectors, catalogue validators and canonical
 `check_e2e_diagnostic_export.py`/host export tests. Reuse 002a/002's shared native

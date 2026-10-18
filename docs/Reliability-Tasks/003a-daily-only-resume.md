@@ -6,14 +6,16 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Master](../Reliability-Plan.md),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract) and
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Required tasks: 001, 002.
+Required tasks: 001.
 Estimate: 45–75 minutes.
 Session exception: active/inactive accounting through natural exhaustion is one
 complete renewed-session history per target.
 
 ## Deliverable and route
 
-Extract the daily-only attempt from original 003. Read
+Reproduce the cached-deadline/activity gap behind `d4df2187` and `5b15f17d` with
+a daily-only allowance. This history needs actual native accounting, not the
+unrelated contention fixture from 002. Read
 [screen-time accounting](../SystemDesign/Screen-Time.md), exact TIME01–TIME04
 bindings in [building blocks](../TestAutomation/E2E-Building-Blocks.md) and shared
 countdown/session helpers. Extend `countdown_qualification.py`, immutable

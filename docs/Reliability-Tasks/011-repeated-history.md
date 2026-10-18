@@ -1,92 +1,72 @@
-# 011 — Bounded repeated histories under guest load
+# 011 — Repeated retained-session recovery
 
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
 [Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Estimate: 60–90 minutes.
-
-## Session boundary
-
-Compose the complete three-cycle loaded history using qualified operations.
-011a supplies bounded workload admission, cap observation and owned cleanup.
-Session exception: accumulated use, retained authority and resource lifetime
-must survive three cycles without resets within each target's single attempt.
-The 20-minute bound applies to each history; preparation and two-target
-qualification/cleanup also contribute to the estimate.
+Required tasks: 003a, 004.
+Estimate: 45–75 minutes.
+Session exception: the second exhaustion/approval/return must reuse the first
+cycle's real session and history; resetting would remove the accumulated state.
+Bound each target's history to 12 minutes, preserving existing operation deadlines.
 
 ## Purpose and route
 
-Required tasks: 003, 004, 005, 008, 010, 011a.
-Read the [master](../Reliability-Plan.md), relevant canonical session/accounting,
-retained-work and kiosk helpers delivered above, and the
-[shared support contract](../../tests/support/README.md).
-Keep this engineering stress composition separate from the existing customer
-long-routine and suspend/wake cases. It cannot close their rows.
+Close the accumulated-state gap behind `5b15f17d` and `f0e4dc77`: a successful
+first recovery must not leave stale admission authority, accounting state or
+callbacks that break the next one. Compose two repetitions of the qualified
+retained-session recovery from 004, using 003a's daily-accounting observations.
+
+Read the [master](../Reliability-Plan.md), complete canonical accounting,
+retained-work, approval/credential and cleanup helpers, and
+[shared support](../../tests/support/README.md). Reuse those operations; cases
+own only finite data, order and assertions. Synthetic load/workload qualification,
+overlay variants, package transactions and diagnostic-export journeys are not
+part of this history. Existing long-routine/suspend cases keep their own scope.
 
 Planned qualification (unimplemented): `check_e2e_repeated_reliability_history`.
-Cases supply finite data/order/assertions; extend shared mechanics rather than
-copying input, credential or cleanup code into this case.
 
-## Three-cycle history and expected results
+## Finite history and expected results
 
-Keep two children, independent saved policy and recognizable retained work in
-one attempt. Use the existing Riley/Jordan fixture identities: Riley is the
-exercised child and Jordan the retained isolation control. Publicly prepare a
-two-minute daily-only profile for Riley and four minutes for Jordan, with
-observed zero initial grants and adequate starting balances. Run exactly three
-Riley cycles: usable work → 20-second locked inactivity → normal return →
-natural exhaustion → real kiosk approval of an additional 300 seconds → one
-authorized retained return. Observe zero-time denial before each approval.
+Use Riley as the exercised child and Jordan as the independent retained-work
+control, keeping their recognizable work and saved policies in one attempt.
+Publicly configure Riley's two-minute daily-only profile with observed zero
+initial grant and enough starting daily balance. Jordan's public allowance must
+cover the bounded history; its balances follow its own observed real activity.
 
-In cycle two only, after normal return and while the desktop is usable, obtain
-one additional 60 seconds through the child overlay before proceeding to
-natural exhaustion. This is the overlay binding; an exhausted locked desktop
-cannot open that form. Preserve the resulting original grant deadline and
-wait for its actual exhaustion before the kiosk approval. Every submission is
-single-use with its own freshly verified recipient and independent result.
-Compare both children's time, policy and original work before continuing;
-Jordan's grant/daily arithmetic follows its own real activity. Never restore a
-snapshot, clear usage or reset policy between cycles. No open-ended soak or
-random retry.
+Run exactly two Riley cycles: use the current entitlement to natural exhaustion,
+observe native lock/zero-time denial, obtain one real kiosk approval of 120
+additional seconds, then submit the child's credential once to the freshly
+verified native challenge and observe the original usable desktop/work.
+Record the actual original grant deadline. Cycle two must exhaust cycle one's
+grant before its new approval; a second credential must not rescue either
+return. No private usage/clock edits or state reset may manufacture exhaustion.
 
-Cycle two adds a guest-owned workload overlapping active countdown for at most
-45 seconds, using 011a's qualified interface: one CPU worker capped at 25% of one
-virtual CPU and one writer creating a single file of at most 64 MiB in
-attempt-owned scratch. The owned
-guest scope has a 128 MiB memory limit and at most four tasks. Admit it through
-the maintained process/scope interface, collect its precise identity and
-independently verify its resource limits. No host stress, global disk fill or
-unbounded child allocation. Stop/reap only that owned workload.
-
-Require deadline progress without extra time, usable authorized return, enforced
-zero-time denial, unaffected other-child work and bounded resource lifetime.
-Compare owned timers/signals, app/report children, namespace staging mounts and
-unit state at equivalent quiescent checkpoints after every cycle. Retain the
-first failed intermediate assertion; final recovery cannot turn an incomplete
-history into a pass. Bound the whole history to 20 minutes without extending
-any existing operation deadline.
+Observe accounting, independent Jordan policy/work and owned resource state
+after each cycle, before another transition can conceal a failure. No unearned
+time, premature lock while usable time remains, stale authority reuse or
+additional child/report callbacks may accumulate. Compare equivalent checkpoints
+with the same recorded timer/signal/process/unit/mount baseline. Do not restore
+snapshots, clear usage or reset policies between cycles.
 
 ## Work sequence
 
-1. Verify qualified operations/workload inputs and establish the declared public
-   two-child profiles, zero grants, starting margins and recognizable work.
-2. Complete cycle one through natural exhaustion, real approval and the one
-   authorized retained return. Observe every declared time/work/resource result.
-3. Complete cycle two in order, adding its usable-desktop overlay extension and
-   bounded workload overlap. Preserve the actual grant deadline through exhaustion.
-4. Complete cycle three without resetting policy, usage, retained work or VM
-   state. Keep each cycle's independent second-child and quiescent comparisons.
-5. Verify the full bounded history and cleanup receipts. A failed intermediate
-   result stays failed even if a later cycle recovers.
+1. Verify qualified operations, native session identities, public profiles,
+   starting margins, retained work and owned resource baseline.
+2. Finish cycle one through natural exhaustion, approval and one authenticated
+   usable return; record every independent balance/work/resource result.
+3. Preserve that session and wait through its actual grant deadline. Complete
+   cycle two's exhaustion, approval and single authenticated return; compare the
+   same results before cleanup.
+4. Retain first failures and complete owned cleanup. A successful later return
+   cannot turn a failed intermediate assertion into a pass.
 
 ## Validation and close-out
 
-Run host composition, cancellation, resource admission and cleanup guards before
-the complete three-cycle attempt on both targets. Verify 011a's exact workload
-binding and baseline inputs before entry; do not implement a new stress harness
-inside this composition. Fix demonstrated leaks, races or
-state/accounting defects and rerun the complete affected history after final
-edits. Retain each intermediate result and complete cleanup, build as required
-and register this qualification exactly once.
+Run affected host composition, accounting, authority and cleanup guards, then
+the complete two-cycle history on both targets. Add no new stress harness.
+Repair demonstrated leaks/races/accounting defects and rerun the complete
+affected history after final edits. Retain intermediate results, candidate
+identities and cleanup; build as required and register once in the existing
+qualification owner. Close only 011.

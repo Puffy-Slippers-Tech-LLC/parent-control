@@ -6,14 +6,16 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Master](../Reliability-Plan.md),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract) and
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Required tasks: 005.
+Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
 Session exception: native refusal, exact restoration and fresh successful entry
 must complete on each target in one owned fault/recovery history.
 
 ## Deliverable and route
 
-Extract the required-executable-ancestor branch from 006. Read the
+Keep one adjacent safety control for `83d502b3`: tolerating an unrelated writable
+sibling must not allow a required executable's writable ancestor. No package
+transaction or retained-child approval journey is needed. Read the
 [directory-view contract](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
 `tools/kiosk_confinement.py`, native preparation callers and relevant complete
 `system_kiosk_confinement.py` functions. Planned selector (unimplemented):
@@ -45,4 +47,5 @@ recorded identities and maintained restoration; reusable inputs belong in
 baseline preparation. Retain refusal stage, kernel/security mode, positive
 recovery and ordinary-user controls plus cleanup receipts. Repair demonstrated
 shared causes, build as required and update existing confinement owners. Close
-only 006b; pinned-alias mismatches remain in 006.
+only 006b. General pinned-alias mismatch qualification stays with the existing
+confinement owner and is excluded from this plan.

@@ -6,14 +6,16 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Master](../Reliability-Plan.md),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract) and
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
-Required tasks: 005.
+Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
 Session exception: private-view isolation must survive a host replacement in
 the retained kiosk and recover on each installed target.
 
 ## Deliverable and route
 
-Extract unrelated writable siblings and post-preparation replacement from 006.
+Reproduce `83d502b3`'s installed-package directory condition and verify that its
+mask remains safe after a host-side replacement. No package transaction or
+retained-child approval journey is needed for these filesystem fixtures.
 Read the [directory-view contract](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
 `tools/kiosk_confinement.py`, native preparation/binding callers and complete
 relevant `system_kiosk_confinement.py` functions. Extend canonical variants and

@@ -47,4 +47,4 @@ explicit timeouts and resource classification appropriate to each owner. Assert
 job/submission counts, refusal before readiness, correct later authorization and
 closed-owner cleanup. Fix demonstrated lifecycle defects, retain runner evidence
 and follow master build/cleanup rules. Close only 008a. It supplies neither a
-native pending-warm-up witness nor the installed timing samples required by 008.
+native pending-warm-up witness nor the three installed functional cycles in 008.

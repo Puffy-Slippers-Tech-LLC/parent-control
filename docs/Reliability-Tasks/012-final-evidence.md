@@ -17,18 +17,19 @@ prerequisite before new independent repair work; missing proof stays unfinished.
 
 ## Purpose and route
 
-Required tasks: 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012a.
+Required tasks: 001, 002, 003, 004, 005, 006a, 006b, 007a, 007b, 007, 008, 009, 010, 011, 012a.
 Read the [master](../Reliability-Plan.md), actual completed queue evidence,
 [test documentation ownership](../TestAutomation/README.md),
-[coverage maintenance](../../tests/README.md#coverage-maintenance-workflow) and
-the [core installation audit](../TestAutomation/Core-Installation-Coverage-Handoff.md#coverage-audit-and-remaining-work).
+[coverage maintenance](../../tests/README.md#coverage-maintenance-workflow).
 This task reconciles evidence; it cannot substitute a prose review for an
-earlier task's required installed result.
+earlier task's required installed result. Its completion establishes the active
+incident regressions only, not general product acceptance or release readiness.
 
 ## Work sequence
 
 1. Record the candidate identities for this reconciliation and enumerate every
-   original/extracted condition using 012a's maintained owner/selector mappings.
+   active original/extracted condition using 012a's incident/owner/selector
+   mappings. Keep scheduling exclusions outside the required rerun set.
 2. Locate retained proof or verified cumulative bundles for each condition and
    target. Compare package, test-source, baseline, scope and cleanup identities;
    classify evidence as applicable, invalidated or missing before scheduling runs.
@@ -42,8 +43,8 @@ earlier task's required installed result.
 ## Deliverable and validation
 
 Consume 012a's maintained owner/selector mappings and repeat commands, rechecking
-applicability to final inputs. Include every extracted row as well as original
-IDs; numeric parent-row summaries alone cannot establish their results. Check
+applicability to final inputs. Include every active extracted row as well as
+original IDs; parent-row summaries alone cannot establish their results. Check
 that each condition maps to actual retained proof in its proper layer.
 
 Compare final product, test and baseline identities against each task's accepted

@@ -1,4 +1,4 @@
-# 007a — Renderer role permission matrix
+# 007a — Renderer mapping permission regression
 
 Acceptance: host
 
@@ -9,24 +9,22 @@ Estimate: 15–30 minutes.
 
 ## Deliverable and route
 
-Extract the generated policy matrix from 007. Read the
-[renderer role contract](../SystemDesign/Kiosk-Confinement.md#roles-services-and-dialogs),
-`tools/kiosk_confinement_policy.py`, complete role-policy generation call chains
-and canonical policy regression tests before editing.
+Check only the policy change behind `4e08dcdb` and its adjacent safety controls.
+Read the [renderer contract](../SystemDesign/Kiosk-Confinement.md#roles-services-and-dialogs),
+`tools/kiosk_confinement_policy.py`, the complete affected generation call chain
+and canonical policy tests. Map existing assertions before adding coverage.
 
-Regress the complete generated role-permission matrix. Only the
-compositor/service, request-app and notification-provider roles receive the
-narrow character-device mapping permission for Fedora `dri_device_t`. Assert
-all excluded roles, no new executable transition and no general device mapping
-permission. Preserve existing platform isolation rules and native positive/
-negative control definitions. Add missing assertions without duplicating a full
-policy fixture or changing permissions just to enable a test renderer.
+The compositor/service, request-app and notification-provider roles alone
+receive the narrow character-device mapping permission for Fedora
+`dri_device_t`. Check those required grants, exclusion of other roles from this
+permission, and absence of a new executable transition or general device-map
+grant. Do not expand this into a complete role/permission matrix or native
+notification feature qualification. Preserve existing broader policy tests.
 
 ## Acceptance and close-out
 
 Run exact affected policy unit selections through `tools/run-tests unit` with
-explicit timeouts. Assert both required grants and every excluded role/permission
-against actual generated policy. Fix demonstrated policy-generation defects,
-review resource changes, build after product/build-input edits and retain actual
-passing evidence in existing owners. Close only 007a. Host policy results
-establish neither native mapping nor usable renderer roles; 007b owns those.
+explicit timeouts. Assert against actual generated policy, fix demonstrated
+generation defects and retain passing evidence. Review resources and build
+after product/build-input edits. Close only 007a. Generated policy does not
+establish actual device mapping or usable startup; 007b owns that incident path.

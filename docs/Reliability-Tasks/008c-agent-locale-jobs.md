@@ -37,4 +37,4 @@ Assert callback errors/success, applied environment and owned cleanup independen
 of logs. Preserve recipient-independent locale mechanics and privacy canaries;
 do not add a new queue or preparation path. Follow master build/resource/evidence
 rules and close only 008c. Request authorization still requires 008a; installed
-startup/exit timing and functional samples still require 008.
+startup/exit under enlarged inventory still requires 008's three functional cycles.

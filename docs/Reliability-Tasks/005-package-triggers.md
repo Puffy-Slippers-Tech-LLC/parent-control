@@ -21,8 +21,10 @@ Read the [master](../Reliability-Plan.md),
 [administrative bridge contract](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement),
 [package lifecycle](../SystemDesign/Lifecycle.md), `tools/session_limit_check.py`,
 its host tests and the installed session/first-configuration owners.
-Core-installation task 001 already qualified failed kiosk-manager reset and
-trigger enumeration; do not recreate it as a new standalone deliverable.
+This is the native retained-user/package-trigger gap from `f0e4dc77`, with the
+denied-kiosk precursor fixed in `0690f1de`. Core-installation task 001 already
+qualified failed kiosk-manager reset and trigger enumeration; do not recreate
+it as a new standalone deliverable.
 
 Planned selector (unimplemented):
 `test_exhausted_user_package_trigger_transport`, extending the canonical package

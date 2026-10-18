@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **003 — [Qualify a real earlier-package upgrade](Core-Installation-Tasks/003-previous-package-upgrade.md)**.
+Next task: **004a — [Select finite native dependency package pairs](Core-Installation-Tasks/004a-native-package-pairs.md)**.
 
 ## Purpose and continuation
 
@@ -237,7 +237,8 @@ or live distro dependency-maintenance obligations.
 
 ## Task 003 retained work and fixture prerequisite
 
-Task **003 remains unchecked**. System case **287** registers one continuous
+Historical suspension, superseded by [final acceptance](#task-003-final-upgrade-acceptance).
+Task **003 remained unchecked**. System case **287** registers one continuous
 `previous-policy` / `installed` / `rebooted` history through the existing
 `--previous-artifacts` route. Public methods establish a 37-minute daily limit,
 hard/soft app choices, custom request choices and a real Polkit-approved fixed
@@ -512,14 +513,71 @@ route because their original lifetime is separate from allocation retention.
 Preserve this bundle through 003 using the existing report-retention contract.
 All 147 local links in the five changed prose documents passed.
 
+## Task 003 final upgrade acceptance
+
+Accepted 2026-10-18 on **onpc-Ubuntu26.04** and **onpc-Fedora44** using the
+complete installed [002c histories](#task-002c-complete-upgrade-histories).
+The maintained bundle reader reverified all **788 files**, ZIP SHA-256
+`ba828106aa6eeee91e4019f1e687857481f837b9e1a82a032052f2080758722f`, in
+`output/test-runs/host/exports/onpc-evidence-bundle-sol74eq8/evidence.zip`.
+Original paths below remain bundle member keys after ordinary source rotation.
+
+| Target | Report / allocation | Installed acceptance |
+| --- | --- | --- |
+| onpc-Ubuntu26.04 | `20261018T190013Z-06fb3398` / `onpc-system-pn0m4z8t` | Case 287: all three phases passed, zero failures/skips; v1.2 → v1.4, schema 3 → 4 |
+| onpc-Fedora44 | `20261018T190013Z-480dd9e4` / `onpc-system-8seskbd3` | Case 287: all three phases passed, zero failures/skips; v1.3 → v1.4, schema 4 → 4 |
+
+Each allocation's `evidence/result.json`, three `guest-results/*.xml` files,
+`input/selected-inputs.json`, `input/previous-inputs.json` and
+`guest-results/attempt-previous-policy/{previous-install,update-activation}.json`
+were independently reconciled. The old payload was installed and booted before
+policy setup; native package ordering and exact source/package identities match
+002c. Both activation receipts explicitly record `same_version_reinstall=false`.
+Both pinned earlier releases lack admission protocol 1; the candidate establishes
+that protocol, requires reboot and refuses removal before old-worker retirement.
+Public policy calls return the exact reboot-required refusal without changing
+rules, then work after a genuinely different boot.
+
+Both histories retain the 37-minute allowance, permanent hard and conditional
+soft rules, custom 23-minute request choice and real authenticated twelve-hour
+approval. Under [grant arithmetic](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities),
+the exact duration is **45,420 seconds**. Each retains its issuance/expiry and
+decreasing balance recorded in 002c; public time status agrees after reboot.
+Saved/native policy, child/parent/unrelated-user identities and homes survive;
+only the declared kiosk shell changes from bash to nologin. Native launches
+prove strict soft denial before approval, hard denial and approved soft allowance
+before update and after reboot, with unrelated-user positive controls.
+
+All **36 staged file entries** (33 distinct checkout sources), including the
+qualified trust verifier and upgrade helper, match current SHA-256 values.
+All **353 package source inputs** are unchanged from the recorded candidate.
+Each history verifies its own final baseline's exact trusted fixture provenance,
+bytes, native configuration and loaded trust; the old untrusted inputs remain
+unchanged. No history is spliced, and no input or assertion is invalidated, so
+the brief permits reuse without another live run. Focused ownership, provenance
+and history regressions passed **1,027/1,027**, report
+`output/test-runs/host/reports/20261018T191447Z-d9a984b3/report.md`.
+Final documentation, inventory, composition and execution-plan checks passed
+**551/551** in
+`output/test-runs/host/reports/20261018T191609Z-f3c3a2c5/report.md`.
+All 29 local links in the two changed Markdown documents passed; queue review
+confirmed every other row unchanged and 004a as the first unchecked task.
+
+Both installed receipts independently pass product, infrastructure, collection
+and cleanup, with `cleanup_phase=complete` and zero baseline-verification failures.
+Fresh public status probes confirm both guests off. The combined queue result
+and finalized recording receipt remain in the same verified bundle. Final
+`tools/cleanup-e2e --vm 'onpc-Ubuntu26.04,onpc-Fedora44'` completed serial recovery
+for both targets and host storage, retaining evidence. No subagent or live
+attempt remains. Only documentation changes in this final gate; package
+sources, inventory and collection are unchanged, so no build or coverage refresh
+is required. Only 003 is newly complete; customer E2E tasks remain unchanged.
+
 ## Coverage audit and remaining work
 
 The remaining work is decomposed in the [queue](Core-Installation-Task-Queue.md).
-Continue with task 003, reconciling the complete
-[002c target histories](#task-002c-complete-upgrade-histories) against the final
-[002b consumer](#task-002b-qualified-fixture-integration).
-Task 003 reconciles their matching evidence
-against every original requirement; it remains an installed, both-target gate.
+Task 003's [both-target installed gate](#task-003-final-upgrade-acceptance) is
+complete. Continue with task 004a's finite native dependency package pairs.
 
 For 004, package-pair feasibility (004a) precedes verified input/preparation
 support (004b), history implementation/registration (004c), and independent
@@ -530,8 +588,8 @@ native dependency transaction builder. Task 004 retains the original installed
 both-target gate. Its existing synthetic replacement tests supply no actual
 package-transaction acceptance.
 
-This planning revision executes and closes no task. Completed rows and historical
-evidence above are unchanged. Task 002c absorbs former 002d, and 004d absorbs
+The earlier planning revision itself executed and closed no task. Historical
+evidence above is preserved. Task 002c absorbs former 002d, and 004d absorbs
 former 004e, retaining both targets' full scope and acceptance; final-gate
 dependencies now point to the combined tasks. Each live history remains
 indivisible, with no phase splicing or intermediate baseline restore. Final gates
@@ -604,7 +662,7 @@ acceptance rather than requiring all unrelated investigations to finish first.
 | --- | --- | --- |
 | Optional PAM | Parser/control-flow, ownership, include and restoration checks; real-helper composition; tasks 001–002's accepted LXC, plain, Fedora SSSD and local-override native histories | Finite task 002 PAM variants are qualified on both targets. |
 | Failed configuration | OS gates, unsafe paths, migration schema/retry, service failures, backend/trust checks, task 001's native interruption/recovery and task 002's pending-vendor refusal/policy-preserving retry | Finite task 002 environment histories are qualified; future changes still need matching native evidence. |
-| Earlier product versions | Maintained released-source DEB/RPM inputs, case 288's qualified trusted witnesses and case 287's saved-policy/grant upgrade history; retained earlier diagnosis above | Task 003 requires both complete matching upgrade histories using the qualified witnesses. Same-version reinstall is a different result. |
+| Earlier product versions | Maintained released-source DEB/RPM inputs, case 288's qualified trusted witnesses and case 287's saved-policy/grant upgrade history; retained earlier diagnosis above | Task 003 passed both complete matching upgrade histories with qualified witnesses, retirement/refusal and cleanup. Same-version reinstall is a different result; customer update journeys remain pending. |
 | Live native dependencies | Native version receipts, synthetic executable replacement, retained mappings and reexec checks | Task 004 qualifies an actual distro package maintenance transaction while an owned session is retained; baseline updates before fresh installation do not establish this. |
 | Core customer behavior and startup faults | Component/system checks and some complete installed journeys already exist | Daily/grant enforcement, hard/soft transitions, natural lock/recovery, persistence and multi-session cases still have pending obligations in the existing E2E queue. Registered selectors are not passing evidence. |
 

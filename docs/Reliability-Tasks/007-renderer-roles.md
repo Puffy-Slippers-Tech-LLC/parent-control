@@ -10,8 +10,9 @@ Estimate: 30–60 minutes.
 ## Session boundary
 
 Deliver abnormal app shutdown, bounded usable-GDM return and fresh kiosk entry.
-007a supplies the host role matrix; 007b supplies all three functional renderers
-and native isolation with actual capability limits. Session exception: crash,
+007a supplies the host role matrix; 007b cumulatively supplies all three functional
+renderers and native isolation, including 007c's notification provider, with
+actual capability limits. Session exception: crash,
 shutdown and reentry must remain one owned installed history on each target.
 
 ## Purpose and route
@@ -44,6 +45,17 @@ GPU or passthrough capability. A missing capability needed for these required
 VM results remains a blocker under the master's bounded supporting-work route.
 Never label an unexercised mapping passing or change product permissions solely
 to make qualification possible.
+
+## Work sequence
+
+1. Recheck cumulative renderer qualification against the actual candidate/path;
+   start a fresh usable kiosk and record the exact app identity and role census.
+2. Induce abnormal shutdown only for that recorded app and preserve the native
+   crash outcome before reentry.
+3. Independently observe bounded return to usable GDM, then freshly enter a
+   usable confined kiosk on the same qualified binding.
+4. Compare the role/resource census and complete owned cleanup. Full crash
+   evidence export remains the separate result in 010.
 
 ## Validation and close-out
 

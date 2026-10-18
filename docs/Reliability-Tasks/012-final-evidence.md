@@ -25,6 +25,20 @@ the [core installation audit](../TestAutomation/Core-Installation-Coverage-Hando
 This task reconciles evidence; it cannot substitute a prose review for an
 earlier task's required installed result.
 
+## Work sequence
+
+1. Record the candidate identities for this reconciliation and enumerate every
+   original/extracted condition using 012a's maintained owner/selector mappings.
+2. Locate retained proof or verified cumulative bundles for each condition and
+   target. Compare package, test-source, baseline, scope and cleanup identities;
+   classify evidence as applicable, invalidated or missing before scheduling runs.
+3. Reuse applicable proof and execute only the affected host checks and complete
+   installed histories. Insert a bounded prerequisite for independent new repair
+   work; do not absorb an unbounded fix set into this final review.
+4. Recheck proof retention and applicability after the last edit/run, update the
+   existing qualified-scope owners and close only when every required result and
+   cleanup is satisfied. Keep concrete gaps unfinished.
+
 ## Deliverable and validation
 
 Consume 012a's maintained owner/selector mappings and repeat commands, rechecking

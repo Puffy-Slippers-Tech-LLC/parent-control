@@ -46,6 +46,18 @@ bind the positive bridge to its real unit/process.
 No manager restart, cleared usage or grant may conceal the zero-time boundary.
 After one real approval, normal child entry and unchanged policy must work.
 
+## Work sequence
+
+1. Establish zero usable time with the child's manager and locked desktop still
+   alive. Record those identities and the second user's retained work.
+2. Perform the one maintained same-version package transaction. Bind its actual
+   user-unit trigger and positive administrative bridge to native unit/process
+   evidence before changing the child's time state.
+3. Observe the ordinary zero-time restrictions and kiosk admission boundary;
+   no restart, usage clearing or grant may repair this intermediate result.
+4. Obtain the real approval, verify normal child entry and unchanged policy,
+   recheck the other user's work and complete owned cleanup.
+
 ## Validation and close-out
 
 Run affected bridge/PAM/package host regressions and, only if their inputs

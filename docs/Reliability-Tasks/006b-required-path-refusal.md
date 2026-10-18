@@ -27,6 +27,16 @@ preparation/admission, usable kiosk and enforcing execution. Independently
 observe unaffected ordinary-user contents/access. Do not weaken required bind
 trust to reuse the unrelated-sibling masking behavior.
 
+## Work sequence
+
+1. Verify the required ancestor's identity, original metadata and ordinary-user
+   controls; record the exact owned mutation before applying it.
+2. Make that ancestor group-writable and retain independent preparation refusal
+   before any restoration can hide the failing stage.
+3. Restore the original metadata exactly, then prove fresh preparation,
+   usable native entry and enforcing execution.
+4. Recheck ordinary-user contents/access and complete owned cleanup.
+
 ## Acceptance and close-out
 
 Run affected host trust/refusal and mutation-cleanup checks, then the complete

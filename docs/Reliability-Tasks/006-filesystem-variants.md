@@ -42,6 +42,15 @@ Preserve required native binds and strict group/world-write rules, including
 root-group inputs. Verify admission, enforcing execution and isolation rather
 than accepting a generated manifest or policy string as native proof.
 
+## Work sequence
+
+1. Verify the required input's pinned alias/target identity, original metadata
+   and ordinary-user control before the one owned mismatch.
+2. Apply the mismatch and retain independent preparation refusal; distinguish
+   it from the existing legitimate trusted-package-change control.
+3. Restore the exact owned mutation and prove fresh usable enforcing entry.
+4. Recheck private-view and ordinary-user witnesses, then finish owned cleanup.
+
 ## Validation and close-out
 
 Run affected host trust/layout/refusal and fixture-cleanup checks, then the

@@ -64,6 +64,19 @@ Reproduce latency defects at the responsible stage and fix redundant work or
 protocol/lifecycle mistakes without weakening policy, durability, recipient
 checks or deadlines. Preserve bounded logout fallback when native services fail.
 
+## Work sequence
+
+1. Verify one candidate and both exact inventory manifests before collecting
+   samples. Establish each profile's recorded idle resource baseline.
+2. Collect the ordinary profile's cold sample and three warm samples. In every
+   sample finish the declared ready-form, prompt/Cancel, unchanged-state and
+   usable-GDM observations before the next sample.
+3. Collect the enlarged profile's cold sample and three warm samples with the
+   same functional/resource observations. Retain every raw interval and failed
+   intermediate result; all eight samples remain one acceptance set per target.
+4. Compare cold pairs and warm groups, reporting latency deltas and uncertainty
+   under existing deadlines. Restore the owned inventory and finish cleanup.
+
 ## Validation and close-out
 
 Run affected host rendering/cache, agent-locale/logout, namespace and timing

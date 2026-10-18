@@ -3,15 +3,16 @@
 Acceptance: host
 
 [Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
-Required tasks: 001a, 001b.
+Required tasks: 001a, 001b, 001c.
 Estimate: 15–30 minutes.
 
 ## Session boundary
 
-Deliver the resume controller's operation-specific incidents and cancellation.
+Deliver the resume controller's operation-specific incident recovery.
 001a supplies broker-query budgets; 001b supplies child-query budgets and query
-cancellation. Reuse those regressions; this row's cumulative scope still includes
-them, but does not reimplement either retry engine.
+cancellation; 001c supplies controller query/replay cancellation across lifecycle
+changes. Reuse those regressions; this row's cumulative scope includes them
+without reimplementing either retry engine or the cancellation matrix.
 
 ## Purpose and implementation
 
@@ -27,10 +28,11 @@ Cover these finite compositions where not already present:
 
 1. Three same-stage resume failures separated by successful idle/estimate reads;
    successful recovery of the relevant operation rearms one future incident.
-2. Inactivity/resume/disable/close while query or replay is pending, including
-   cancellation immediately before dispatch and reply after cancellation.
-3. No native deadline, a finite active deadline and a permanent refusal require
+2. No native deadline, a finite active deadline and a permanent refusal require
    their distinct reporting/recovery behavior; unknown Busy names stay errors.
+
+Use 001c's maintained cancellation operations when composing these histories;
+rerun an affected lifecycle branch if this slice changes its inputs or behavior.
 
 Fix demonstrated product defects at their owning boundary. Do not expand the
 transient allowlist, replay usage during continuous activity, reset a failing

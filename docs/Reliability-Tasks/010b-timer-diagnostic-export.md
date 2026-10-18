@@ -33,6 +33,17 @@ private canaries for messages, usernames, paths, remote names and arguments.
 Retain only approved fixed fields/provenance and accurately bounded collection
 completeness. Reuse canonical archive validation in later consumers.
 
+## Work sequence
+
+1. Verify the native fault/export bindings and open the child reporter before
+   the one reviewed timer failure in a fresh attempt.
+2. Retain repeated failure and original category evidence, then recover native
+   timer reads without replacing the already-open reporter history.
+3. Perform a fresh normal collection and actual download. Validate the archive
+   through the maintained reader, including causal evidence and privacy canaries.
+4. Preserve bounded collection-completeness and owned cleanup receipts. Later
+   success or duplicate-window suppression cannot erase the original cause.
+
 ## Acceptance and close-out
 
 Run affected catalogue/Gio/export/privacy and reporter-lifetime host checks, then

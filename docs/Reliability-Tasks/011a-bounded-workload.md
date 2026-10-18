@@ -34,6 +34,20 @@ and reaped, and compare quiescent process/unit/scratch state. Reject missing or
 ambiguous ownership, unavailable caps and oversized inputs before load. No host
 stress, global disk fill, unbounded allocation or global process-name signals.
 
+## Work sequence
+
+1. Locate or extend the supported shared scope interface. Bind admission,
+   immutable cap observations, exact identities and cleanup to the existing
+   allocator; declare reusable inputs in baseline preparation.
+2. Verify deterministic admission/input/timeout/ownership guards at host scope,
+   including refusal before load when required limits or identity are unavailable.
+3. Qualify normal completion on each target, independently observing the declared
+   CPU, memory, task and file bounds and the quiescent resource result.
+4. In a fresh finite branch, interrupt after admission. Prove only recorded owned
+   identities stop/reap and scratch/unit state returns to its recorded baseline.
+5. Retain both branches' cap and cleanup receipts and register the shared callable
+   for 011. Both outcomes are required to qualify this one workload operation.
+
 ## Acceptance and close-out
 
 Run host admission/input/timeout/ownership/cleanup guards and applicable resource

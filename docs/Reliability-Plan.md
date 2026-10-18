@@ -43,12 +43,21 @@ both VM targets, its complete native result and cleanup. There is no separate
 implementation/verification queue. Prerequisites supply maintained callables and
 matching evidence, never a predecessor's saved VM state or temporary brief.
 
-Busy and owner loss, daily-only and combined accounting, filesystem trust
-variants, renderer function and crash recovery, and the two diagnostic exports
-now have separate acceptance boundaries. Preference durability and selector
-fallback are separate host tasks; agent-locale failure ordering belongs once in
-008a alongside Request readiness. Task 011a supplies and qualifies the bounded
-guest workload interface that the repeated history previously assumed existed.
+The further audit separates controller cancellation (001c) from operation-specific
+incident recovery (001), Busy recovery within budget (002b) from Busy exhaustion
+(002a), owner reactivation within budget (002c) from owner-loss exhaustion (002),
+and notification-provider qualification (007c) from compositor/request-app
+qualification (007b). Each extracted installed row owns a fresh complete fault
+or functional history on both targets; release/restoration and cleanup stay with
+that row. The compositor and GTK app remain paired because their independent
+functional result is one usable confined request form.
+
+Daily-only and combined accounting, filesystem trust variants, renderer function
+and crash recovery, and the two diagnostic exports retain separate acceptance
+boundaries. Preference durability and selector fallback are separate host tasks;
+agent-locale failure ordering belongs once in 008a alongside Request readiness.
+Task 011a supplies and qualifies the bounded guest workload interface that the
+repeated history previously assumed existed.
 
 Keep natural exhaustion/approval/single-authentication return in 004, the real
 package trigger history in 005, all eight paired inventory samples in 008 and
@@ -57,6 +66,14 @@ exceptions and larger estimates. These estimates include ordinary preparation,
 acceptance on both targets and cleanup; they are not reduced operation deadlines.
 If an extracted capability still contains independent work beyond its estimate,
 split it through the existing prerequisite route before implementing it.
+
+The longer briefs now give numbered work sequences with observable results at
+each stage. These stages guide one task through implementation and its complete
+acceptance; they are not separately completed rows. Keep each refusal/restoration,
+crash/reentry and diagnostic-export history together. Task 011a's normal and
+interrupted outcomes jointly qualify the same owned workload safety boundary.
+Task 012 compares retained evidence first, then runs only invalidated histories;
+new independent repair work still needs its own bounded prerequisite.
 
 The explicit replan changes unfinished briefs and adds prerequisites. A retained
 launcher checkpoint is not automatically reconciled by `--check`; use the

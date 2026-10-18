@@ -58,6 +58,17 @@ and observe the native lock. Retain the other child's independent state/work.
 Compose one delayed boundary from task 002 without replacing the real accounting
 oracle with injected usage. Each intermediate result is mandatory.
 
+## Work sequence
+
+1. Verify renewed-session inputs and both children's work; obtain the one
+   declared approval and record its actual grant deadline before measuring.
+2. Complete the first active/inactive interval, including the one declared
+   delayed native-read boundary. Compare both balances before proceeding.
+3. Complete the second interval and prove the daily-dominant endpoint using
+   native activity and balance brackets, without another grant.
+4. Continue to natural exhaustion, observe native lock and independent
+   second-child state/work, then complete owned cleanup.
+
 ## Validation and close-out
 
 Extend shared mechanics before cases and validate their ownership/input/timeout

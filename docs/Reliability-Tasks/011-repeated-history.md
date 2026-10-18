@@ -68,6 +68,19 @@ first failed intermediate assertion; final recovery cannot turn an incomplete
 history into a pass. Bound the whole history to 20 minutes without extending
 any existing operation deadline.
 
+## Work sequence
+
+1. Verify qualified operations/workload inputs and establish the declared public
+   two-child profiles, zero grants, starting margins and recognizable work.
+2. Complete cycle one through natural exhaustion, real approval and the one
+   authorized retained return. Observe every declared time/work/resource result.
+3. Complete cycle two in order, adding its usable-desktop overlay extension and
+   bounded workload overlap. Preserve the actual grant deadline through exhaustion.
+4. Complete cycle three without resetting policy, usage, retained work or VM
+   state. Keep each cycle's independent second-child and quiescent comparisons.
+5. Verify the full bounded history and cleanup receipts. A failed intermediate
+   result stays failed even if a later cycle recovers.
+
 ## Validation and close-out
 
 Run host composition, cancellation, resource admission and cleanup guards before

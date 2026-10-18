@@ -36,6 +36,17 @@ Complete natural exhaustion and observe native lock. Independently retain the
 second child's state/work. Do not erase usage, change clocks or substitute tick
 progression for accounting. Combined grants and delayed native reads remain in 003.
 
+## Work sequence
+
+1. Verify the renewed session, public daily-only profile, zero grant, starting
+   balance and recognizable work for both children before measuring activity.
+2. Complete the first active/inactive interval and compare its native activity,
+   balance and monotonic read brackets before starting the second interval.
+3. Complete the second interval with the same independent comparisons; retain
+   any early lock or unearned increase as a failure.
+4. Continue to natural exhaustion, observe native lock and the second child's
+   preserved state/work, then complete owned cleanup.
+
 ## Acceptance and close-out
 
 Validate shared comparison/input/ownership guards at host scope, then the

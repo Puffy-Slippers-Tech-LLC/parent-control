@@ -42,6 +42,17 @@ approved fixed fields and provenance. A placeholder reporter exception is not
 the original failure, communication completion is not process success, and a
 healthy later event cannot erase the failing stage's incident.
 
+## Work sequence
+
+1. Verify the qualified crash mechanism and begin a fresh kiosk attempt with
+   recorded renderer/security provenance and exact process ownership.
+2. Exercise the owned abnormal exit with no surviving kiosk app; retain the
+   original exit/signal evidence before successful reentry.
+3. Reenter, freshly collect through the broker and download an actual archive.
+   Validate retained crash cause, source completeness and privacy canaries.
+4. Retain the independent archive result and finish owned cleanup. A reporter
+   placeholder or successful restart cannot replace original crash evidence.
+
 ## Validation and close-out
 
 Run affected catalogue, Gio, export, process-lifetime and privacy tests first.

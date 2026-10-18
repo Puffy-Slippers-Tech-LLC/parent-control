@@ -48,6 +48,17 @@ observe actual lock state rather than claiming asynchronous callbacks cancelled.
 Demonstrate a fresh normal lock still requires its own authorized return and
 that grant expiry still enforces without affecting the other child.
 
+## Work sequence
+
+1. Verify the renewed daily-only session and both children's retained work;
+   allow natural exhaustion to produce the actual locked desktop.
+2. Obtain the one declared kiosk approval and record the original deadline.
+   Verify the native challenge before submitting the child's credential once.
+3. Independently observe the original usable desktop and unchanged work within
+   the return deadline; preserve failure if another authentication is needed.
+4. Perform the fresh normal lock/authorized return, then observe grant-expiry
+   enforcement and unrelated-child controls. Complete owned cleanup.
+
 ## Validation and close-out
 
 Run affected host/GJS authority, cancellation and diagnostic tests first, then

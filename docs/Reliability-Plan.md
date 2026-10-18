@@ -1,7 +1,7 @@
 # Unattended VM reliability execution plan
 
 Task queue: [Ordered task queue](Reliability-Task-Queue.md).
-Next task: **001 — [Timer failure ordering and accounting safety](Reliability-Tasks/001-timer-ordering.md)**.
+Next task: **001a — [Broker usage-query retry budgets](Reliability-Tasks/001a-usage-query-budgets.md)**.
 
 ## Outcome
 
@@ -24,7 +24,45 @@ All rows start unfinished. This plan itself supplies no test pass. Installed
 acceptance requires both `onpc-Ubuntu26.04` and `onpc-Fedora44`, with exact package,
 baseline and test-source identities. VM graphics evidence is limited to the
 renderer/device paths actually exercised; policy checks never establish an
-unexercised native mapping. Task 007 owns the finite VM capability boundary.
+unexercised native mapping. Task 007b owns renderer qualification; task 007
+owns crash/reentry on those qualified paths.
+
+## Task boundaries after audit
+
+The original tasks bundled independent error engines, storage authorities and
+native fault branches into 30–60 minute estimates. The queue now extracts those
+deliverables before their consumers. Original IDs and queue Scope cells retain
+their cumulative obligations; each original brief's **Session boundary** names
+the remaining slice and extracted task IDs. The ordered queue is authoritative;
+suffixes identify extracted work, not numeric execution order. All rows remain
+unchecked, and this audit grants no implementation or acceptance credit.
+
+Host tasks deliver deterministic product regressions at their actual ownership
+boundary. Each installed task still owns implementation, affected host checks,
+both VM targets, its complete native result and cleanup. There is no separate
+implementation/verification queue. Prerequisites supply maintained callables and
+matching evidence, never a predecessor's saved VM state or temporary brief.
+
+Busy and owner loss, daily-only and combined accounting, filesystem trust
+variants, renderer function and crash recovery, and the two diagnostic exports
+now have separate acceptance boundaries. Preference durability and selector
+fallback are separate host tasks; agent-locale failure ordering belongs once in
+008a alongside Request readiness. Task 011a supplies and qualifies the bounded
+guest workload interface that the repeated history previously assumed existed.
+
+Keep natural exhaustion/approval/single-authentication return in 004, the real
+package trigger history in 005, all eight paired inventory samples in 008 and
+all three uninterrupted loaded cycles in 011. Their briefs explain session
+exceptions and larger estimates. These estimates include ordinary preparation,
+acceptance on both targets and cleanup; they are not reduced operation deadlines.
+If an extracted capability still contains independent work beyond its estimate,
+split it through the existing prerequisite route before implementing it.
+
+The explicit replan changes unfinished briefs and adds prerequisites. A retained
+launcher checkpoint is not automatically reconciled by `--check`; use the
+[manual replan route](Execution-Plans.md#common-launcher-interface) before
+resuming an incompatible inactive run. Do not edit checkpoint records or reset
+evidence. This documentation audit does not run that reconciliation or a task.
 
 ## Run and resume
 
@@ -63,7 +101,7 @@ owner after its applicability review; this launcher closes only its own row.
 | --- | --- |
 | [Core installation queue](TestAutomation/Core-Installation-Task-Queue.md) | Optional PAM variants, first-configuration recovery and trusted native fixtures already have acceptance. Earlier-package upgrade 003 and live dependency transaction 004 stay there; do not recreate those histories here. |
 | [E2E queue](TestAutomation/E2E-Task-Queue.md) and [scenario inventory](../tests/e2e/scenarios.json) | Customer natural exhaustion/recovery, approved entry, countdown and suspend/wake cases keep their existing order and acceptance. New engineering qualifications do not complete those journeys. |
-| [Usage-read obligation 143](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation), queued as task 172 | Task 002 extends the same session owner with timer contention/owner-loss compositions. Keep one canonical executable per condition; retain the original obligation's wider assertions and pending status. |
+| [Usage-read obligation 143](TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation), queued as task 172 | Tasks 002a/002 extend the same session owner with timer contention/owner-loss compositions. Keep one canonical executable per condition; retain the original obligation's wider assertions and pending status. |
 | [Startup obligations](TestAutomation/E2E-Scenario-Recipes.md#coverage-ownership-and-remaining-limits) | Startup-enforcement and broker-reconciliation tasks 169–170 stay under their existing owner. This plan does not duplicate their fault matrices. |
 | [UI/E2E allocation](TestAutomation/UI-and-E2E-Coverage.md) | Value/control matrices stay in host UI or unit coverage. Native services, actual policy effects and recovery require installed evidence. |
 

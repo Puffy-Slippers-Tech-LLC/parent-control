@@ -2,34 +2,38 @@
 
 Acceptance: host
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
+Estimate: 15–30 minutes.
+
+## Session boundary
+
+Deliver non-authoritative selector fallback and subsequent normal persistence.
+009a supplies authoritative preference write/replace/flush failures. Agent-locale
+retry, supersession and late-reply ordering moved to 008a, inherited through
+008. Together these preserve original 009's obligations with one owner each.
+
 ## Purpose and route
 
-Required tasks: 008.
+Required tasks: 008, 009a.
 Read the [master](../Reliability-Plan.md),
 [state durability contract](../SystemDesign/State.md),
 [frontend state ownership](../SystemDesign/Frontends.md),
-`broker/oh_no_parent_control/preferences.py`, kiosk `selection_store.py`,
-agent-locale callbacks and complete relevant existing host tests.
+the kiosk `selection_store.py`, its callers and complete relevant host tests.
 
-Extend canonical `test_preferences.py` and `test_request_time_estimate.py` owners;
-use launcher-configured private filesystem fixtures, real writer/merge logic
-and explicit narrow syscall/job doubles. No host disk exhaustion, permission
-changes to shared paths or additional database is needed.
+Extend canonical selector/request-state host tests, including the relevant
+`test_request_time_estimate.py` callers; inspect exact ownership before adding a
+case. Use launcher-configured private filesystem fixtures and real store logic.
+No host disk exhaustion, permission changes to shared paths or additional
+database is needed.
 
 ## Finite failures and expected results
 
-Cover temporary write refusal, replacement failure and directory-flush failure,
-each followed by an identical request retry and a changed-value retry. Assert
-confirmed saved values survive, unconfirmed writes are never acknowledged as
-durable, and a failed flush invalidates the successful-file-identity shortcut.
-Reopen the store to distinguish in-process cache success from persistence.
-
 For non-authoritative selector files, pair malformed JSON and unwritable storage
 with the documented in-memory fallback, reviewed failure stage and later normal
-save; do not reset product policy or overwrite unrelated state. For agent
-preparation, cover failed speculative warm-up, required retry, superseding
-language and close/late-reply order. A completed restart for the wrong request
-must not authorize submission.
+save; do not reset product policy or overwrite unrelated state. Reopen the store
+after normal save to distinguish fallback/cache from actual persistence. Keep
+selected defaults validated against current user lists and retain unrelated
+stored choices. This slice cannot acknowledge an authoritative preference write.
 
 Reuse already-covered cases and add missing failure/retry compositions. Fix
 demonstrated product defects while retaining atomic writes, writer locking,

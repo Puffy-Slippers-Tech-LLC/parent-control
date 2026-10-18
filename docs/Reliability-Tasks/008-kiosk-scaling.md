@@ -3,9 +3,22 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
+Estimate: 60–90 minutes.
+
+## Session boundary
+
+Deliver the paired ordinary/enlarged inventory measurements and independent
+functional/resource results. 008a supplies locale/Request ordering, including
+the agent-locale failure slice formerly in 009; 008b supplies logout fallback.
+Session exception: all eight samples on each target must compare the same
+candidate and fixture profiles. Do not split cold/warm or ordinary/enlarged
+samples into independently accepted tasks or drop a failed intermediate result.
+
 ## Purpose and route
 
-Required tasks: 006, 007.
+Required tasks: 006, 007, 008a, 008b.
 Read the [master](../Reliability-Plan.md),
 [frontend lifecycle](../SystemDesign/Frontends.md),
 [timing measurement contract](../../tests/e2e/README.md#kiosk-transition-timing),
@@ -39,7 +52,7 @@ inventing a performance threshold or replacing usable results with paint.
 
 Submit each Request at the first independently established form readiness;
 do not deliberately wait for speculative locale warm-up to finish. Deterministic
-host callback/job tests cover Request during pending warm-up, required
+host callback/job tests from 008a cover Request during pending warm-up, required
 preparation ordering and stale-language refusal; incidental fast completion on
 a VM must not become a timing-race prerequisite or a claimed pending-warmup pass.
 Compare quiescent checkpoints after every sample: no extra hidden-session
@@ -58,3 +71,5 @@ ownership checks. Perform the finite qualification on both targets, retain raw
 samples, functional outcomes and complete cleanup. Document material remaining
 latency and its stage; an average improvement cannot conceal a failed transition.
 Build after product edits and retain actual selector bindings in existing owners.
+Reuse 008a/008b's host coverage; add only new defect regressions. The full paired
+measurement set must match final inputs after any product or fixture repair.

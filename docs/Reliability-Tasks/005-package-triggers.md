@@ -3,9 +3,20 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
+Estimate: 45–75 minutes.
+
+## Session boundary
+
+Deliver the native package/user-trigger history while the exhausted user's
+manager and desktop remain alive. 005a supplies deterministic bridge identity
+controls. Session exception: package trigger, zero-time admission and approved
+recovery must be observed within each target's same retained-user history.
+
 ## Purpose and route
 
-Required tasks: 004.
+Required tasks: 004, 005a.
 Read the [master](../Reliability-Plan.md),
 [administrative bridge contract](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement),
 [package lifecycle](../SystemDesign/Lifecycle.md), `tools/session_limit_check.py`,
@@ -30,8 +41,8 @@ a successful configuration script alone cannot establish the trigger result.
 The root system manager's verified transient `systemd-stdio-bridge --user --quiet`
 may reach that user's bus. Ordinary terminal/SSH/GDM time restrictions and kiosk
 admission remain enforced; names, environment or forged arguments grant no
-exemption. Required negative identity/command controls belong in existing host
-tests; native evidence must bind the positive bridge to its real unit/process.
+exemption. Reuse 005a's negative identity/command controls; native evidence must
+bind the positive bridge to its real unit/process.
 No manager restart, cleared usage or grant may conceal the zero-time boundary.
 After one real approval, normal child entry and unchanged policy must work.
 

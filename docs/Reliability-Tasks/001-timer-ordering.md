@@ -2,26 +2,34 @@
 
 Acceptance: host
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
+Required tasks: 001a, 001b.
+Estimate: 15–30 minutes.
+
+## Session boundary
+
+Deliver the resume controller's operation-specific incidents and cancellation.
+001a supplies broker-query budgets; 001b supplies child-query budgets and query
+cancellation. Reuse those regressions; this row's cumulative scope still includes
+them, but does not reimplement either retry engine.
+
 ## Purpose and implementation
 
 Follow the [master](../Reliability-Plan.md) and
 [screen-time design](../SystemDesign/Screen-Time.md). Read the complete timer
-helper, `TimerUsage`, `timerQuery.js`, `resumeEstimateRefresh.js`, their callers
+controller in `resumeEstimateRefresh.js`, its `TimerUsage` adapter, callers
 and existing tests before editing. Existing `5b15f17d` regressions remain the
 baseline; add missing histories rather than restating their implementation.
 
 Use the existing fake clocks and explicit error/callback adapters in
-`tests/unit/test_usage_query_retry.py`, `test_adapters.py`,
-`tests/child/timer_query.test.mjs` and `resume_estimate_refresh.test.mjs`.
+`tests/child/resume_estimate_refresh.test.mjs` and relevant adapter tests.
 Cover these finite compositions where not already present:
 
-1. Busy → owner loss → timeout/success, and mixed terminal failures sharing the
-   original budget; delayed wake after budget expiry dispatches no new call.
-2. Three same-stage resume failures separated by successful idle/estimate reads;
+1. Three same-stage resume failures separated by successful idle/estimate reads;
    successful recovery of the relevant operation rearms one future incident.
-3. Inactivity/resume/disable/close while query or replay is pending, including
+2. Inactivity/resume/disable/close while query or replay is pending, including
    cancellation immediately before dispatch and reply after cancellation.
-4. No native deadline, a finite active deadline and a permanent refusal require
+3. No native deadline, a finite active deadline and a permanent refusal require
    their distinct reporting/recovery behavior; unknown Busy names stay errors.
 
 Fix demonstrated product defects at their owning boundary. Do not expand the

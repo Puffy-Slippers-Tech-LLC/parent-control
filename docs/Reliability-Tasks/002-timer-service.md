@@ -3,9 +3,20 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
+Estimate: 45–75 minutes.
+
+## Session boundary
+
+Deliver native owner-loss/reactivation recovery and exhaustion. Task 002a
+supplies the separate Busy histories and shared native-fault ownership mechanics.
+Session exception: the real fault, bounded exhaustion, service restoration and
+accounting checks form complete histories on two installed targets.
+
 ## Purpose and route
 
-Required tasks: 001.
+Required tasks: 001, 002a.
 Follow the [master](../Reliability-Plan.md),
 [screen-time design](../SystemDesign/Screen-Time.md),
 [installed runner](../../tests/integration/README.md) and the retained
@@ -15,18 +26,17 @@ Extend `system_session_expiry.py` and its registered session owner, reusing
 identity, real authorization, native usage and recovery helpers. Read complete
 call chains before choosing the smallest shared fixture extension.
 
-Planned selectors (unimplemented): `test_timer_contention_recovery` and
-`test_timer_owner_loss_recovery`, area `session`. Register canonical cases once;
+Planned selector (unimplemented): `test_timer_owner_loss_recovery`, area
+`session`. Register canonical cases once;
 reuse existing exact coverage and retain obligation 143's separate status.
 
 ## Finite history and expected results
 
-For the same nonzero recorded-use history, exercise (a) an actual competing
-supported timer-database client that produces the reviewed Busy condition and
-(b) daemon idle-owner loss/reactivation at a read boundary. Cover temporary
-recovery and bounded exhaustion separately: four finite branches, Busy/recovery,
-Busy/exhaustion, owner-loss/recovery and owner-loss/exhaustion. State the exact
-native trigger, release/restoration point and original operation deadline in
+For a nonzero recorded-use history, exercise daemon idle-owner loss/reactivation
+at a read boundary. Cover temporary recovery and bounded exhaustion separately:
+owner-loss/recovery and owner-loss/exhaustion. Together with 002a these retain
+all four original branches, without borrowing a predecessor's live session.
+State the exact native trigger, release/restoration point and original operation deadline in
 the registered case before running it. Verify the condition actually occurred
 using owned native evidence; a mocked reply is not this acceptance.
 Avoid direct edits to usage data. Any necessary fault mechanism belongs in the
@@ -36,13 +46,13 @@ Observe the broker helper and child's estimate/resume paths independently.
 Reads must recover within their existing total budgets; exhausted reads retain
 verified estimates/report unavailability, never zero usage or a new grant.
 While active, no late usage replay may extend the deadline. Restore the real
-service/contending client and retry the original supported operation; observe
+service and retry the original supported operation; observe
 correct balances, continued enforcement and unaffected second-child state.
 
 ## Validation and close-out
 
 First run affected host fault/ownership tests, then discover registered selectors
-and execute both complete fault/recovery histories on both targets under the
+and execute both owner-loss branches on both targets under the
 master's system-acceptance route. Preserve the first failure, native cause,
 terminal category, bounded timing, restored service and cleanup receipts.
 Fix root causes without loosening identity or error classification. Build after

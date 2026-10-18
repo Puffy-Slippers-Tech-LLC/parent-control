@@ -3,9 +3,21 @@
 Acceptance: reconciliation
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
+Estimate: 30–90 minutes.
+
+## Session boundary
+
+Reconcile final-candidate evidence and rerun only invalidated acceptance.
+012a supplies executable registration, unattended selection and resource
+classification reconciliation. Session exception: the affected rerun set is
+determined by actual final identities, and complete installed histories cannot
+be shortened to fit a review estimate. Re-estimate and insert a bounded
+prerequisite before new independent repair work; missing proof stays unfinished.
+
 ## Purpose and route
 
-Required tasks: 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011.
+Required tasks: 001, 002, 003, 004, 005, 006, 007, 008, 009, 010, 011, 012a.
 Read the [master](../Reliability-Plan.md), actual completed queue evidence,
 [test documentation ownership](../TestAutomation/README.md),
 [coverage maintenance](../../tests/README.md#coverage-maintenance-workflow) and
@@ -15,12 +27,10 @@ earlier task's required installed result.
 
 ## Deliverable and validation
 
-Map every delivered reliability condition to one executable owner, actual listed
-selector, regression layer and retained result. Verify new cases participate in
-the established unattended suite inventories and that shared fixture/resource
-classifications are complete. Record compact repeat commands using existing
-`tools/run-tests` and integration routes; do not create a second test runner or
-claim planned names are implemented.
+Consume 012a's maintained owner/selector mappings and repeat commands, rechecking
+applicability to final inputs. Include every extracted row as well as original
+IDs; numeric parent-row summaries alone cannot establish their results. Check
+that each condition maps to actual retained proof in its proper layer.
 
 Compare final product, test and baseline identities against each task's accepted
 receipts on both targets, using the master's verified cumulative bundles when

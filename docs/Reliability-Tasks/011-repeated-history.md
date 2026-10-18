@@ -3,9 +3,22 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
+Estimate: 60–90 minutes.
+
+## Session boundary
+
+Compose the complete three-cycle loaded history using qualified operations.
+011a supplies bounded workload admission, cap observation and owned cleanup.
+Session exception: accumulated use, retained authority and resource lifetime
+must survive three cycles without resets within each target's single attempt.
+The 20-minute bound applies to each history; preparation and two-target
+qualification/cleanup also contribute to the estimate.
+
 ## Purpose and route
 
-Required tasks: 003, 004, 005, 008, 010.
+Required tasks: 003, 004, 005, 008, 010, 011a.
 Read the [master](../Reliability-Plan.md), relevant canonical session/accounting,
 retained-work and kiosk helpers delivered above, and the
 [shared support contract](../../tests/support/README.md).
@@ -39,8 +52,9 @@ snapshot, clear usage or reset policy between cycles. No open-ended soak or
 random retry.
 
 Cycle two adds a guest-owned workload overlapping active countdown for at most
-45 seconds: one CPU worker capped at 25% of one virtual CPU and one writer
-creating a single file of at most 64 MiB in attempt-owned scratch. The owned
+45 seconds, using 011a's qualified interface: one CPU worker capped at 25% of one
+virtual CPU and one writer creating a single file of at most 64 MiB in
+attempt-owned scratch. The owned
 guest scope has a 128 MiB memory limit and at most four tasks. Admit it through
 the maintained process/scope interface, collect its precise identity and
 independently verify its resource limits. No host stress, global disk fill or
@@ -57,9 +71,9 @@ any existing operation deadline.
 ## Validation and close-out
 
 Run host composition, cancellation, resource admission and cleanup guards before
-the complete three-cycle attempt on both targets. Missing reusable workload
-prerequisites use baseline preparation; insert a bounded prerequisite if the
-maintained resource interface is absent. Fix demonstrated leaks, races or
+the complete three-cycle attempt on both targets. Verify 011a's exact workload
+binding and baseline inputs before entry; do not implement a new stress harness
+inside this composition. Fix demonstrated leaks, races or
 state/accounting defects and rerun the complete affected history after final
 edits. Retain each intermediate result and complete cleanup, build as required
 and register this qualification exactly once.

@@ -3,9 +3,20 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04, onpc-Fedora44
 
+[Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
+Estimate: 45–75 minutes.
+
+## Session boundary
+
+Deliver the complete installed exhaustion/approval/single-authentication return.
+004a supplies deterministic authority-ordering regressions. Session exception:
+splitting exhaustion from approval or return would lose the stale native state
+and retained-work result; the whole history remains required on both targets.
+
 ## Purpose and route
 
-Required tasks: 003.
+Required tasks: 003, 004a.
 Read the [master](../Reliability-Plan.md), the
 [unlock continuation contract](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement),
 `child/sessionUnlock.js`, `sessionDiagnostics.js`, extension lifecycle callers
@@ -29,10 +40,10 @@ bounded return deadline; a second authentication must not rescue the test.
 A native restriction without a challenge is a behavior mismatch to investigate,
 not permission to manufacture a password prompt.
 
-Positive estimates/grants alone must never unlock. Retain/extend only missing
-host authority-ordering coverage for owner replacement, Lock/suspend, direct
-relock, late idle/timeout callbacks and renewed exhaustion. The original trusted
-Unlock may continue once within its monotonic lifetime; after native handoff,
+Positive estimates/grants alone must never unlock. Reuse 004a's host
+authority-ordering coverage, extending it only for a newly demonstrated defect.
+The original trusted Unlock may continue once within its monotonic lifetime;
+after native handoff,
 observe actual lock state rather than claiming asynchronous callbacks cancelled.
 Demonstrate a fresh normal lock still requires its own authorized return and
 that grant expiry still enforces without affecting the other child.

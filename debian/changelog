@@ -2,7 +2,7 @@ oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
 
   New Features
   * Language Dialog: You can search for a language by its English name as well
-    as its localized name
+    as its localized name.
   * Remaing Time Reminders: Added default critical reminders in child session.
     Reminders can show in full-screen apps and can be customized, or
     completely removed, in child preferences.
@@ -61,7 +61,7 @@ oh-no-parent-control (1.4+local1~ubuntu26.04.1) resolute; urgency=medium
     promotion to 1st class citizen, its coverage is on par with Ubuntu. Fedora
     release is on the horizon!!!
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Sun, 18 Oct 2026 23:15:15 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Sun, 18 Oct 2026 23:35:17 +0000
 
 oh-no-parent-control (1.3+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

@@ -1,6 +1,6 @@
 ## v1.4 -
 ### New Features
-- **Language Dialog**: You can search for a language by its English name as well as its localized name
+- **Language Dialog**: You can search for a language by its English name as well as its localized name.
 - **Remaing Time Reminders**: Added default critical reminders in child session. Reminders can show in full-screen apps and can be customized, or completely removed, in child preferences.
 - **Parent App**: Revoke dialog shows list of running soft blocked apps that will be terminated.
 - **Parent App**: Face lifting:) Smoother app loading experience; Neat app list loading overlay with percentage progress.

@@ -20,7 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
-from launcher_git import finish_commit, git_output, stage_task, worktree_snapshot
+from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
+                          pull_before_commit, reconciliation_instructions, stage_task,
+                          validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_progress
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
 from launcher_runtime import TaskBudget, add_options, task_limit, warn_remaining
@@ -32,8 +34,8 @@ class PlanWorkflow:
     plan: str | None = None
     model: str = 'gpt-6.1-sol'
     effort: str = 'high'
-    commit_prefix: str | None = None
-    push: bool = False
+    commit_prefix: str | None = 'TA'
+    push: bool = True
     vm: bool = False
     max_sessions: int = 5
 
@@ -44,6 +46,8 @@ def task_record(task):
 
 
 def validate_result(plan, state, result):
+    if Plan.load(plan.root, plan.path).queue != plan.queue:
+        raise ValueError('master plan queue changed since its checkpoint; reconcile the retained handoff')
     fields = {'status', 'task_id', 'summary', 'handoff', 'checks', 'cleanup_complete', 'stage_paths', 'blocker'}
     if (not isinstance(result, dict) or set(result) != fields
             or result['task_id'] != state['task_id']
@@ -67,6 +71,8 @@ def validate_result(plan, state, result):
     elif result['blocker'] is not None:
         raise ValueError('only a blocked result may carry a developer question')
     if result['status'] == 'prerequisite_required':
+        if state.get('git_reconciliation'):
+            raise ValueError('Git reconciliation must finish the retained task before selecting prerequisites')
         if not result['cleanup_complete'] or plan.prerequisite_repair(state) is None:
             raise ValueError('prerequisite handoff needs a valid backward dependency insertion and owned cleanup')
         return
@@ -138,13 +144,15 @@ passed/failed/not_run result and exact retained evidence or review findings.
 Never report task_complete unless every required check passed and cleanup ended.
 Previous handoff/recovery: {state.get('handoff', 'No prior session.')}
 Developer answer: {json.dumps(state.get('answer'))}
+{reconciliation_instructions(state)}
 """
 
 
 def validate_task_metadata(plan, state):
     """A fresh session must not silently reuse weaker saved acceptance targets."""
     brief = Path(state['task']['brief'])
-    if not brief.exists() and (state.get('in_flight') or state.get('pending_completion')):
+    if not brief.exists() and (state.get('in_flight') or state.get('pending_completion')
+                               or state.get('git_reconciliation')):
         return  # Recovery may restore a brief removed during partial close-out.
     brief = local_file(plan.root, str(brief.relative_to(plan.root)))
     current = task_record(Task(state['task_id'], False, state['title'], brief, ()))
@@ -174,15 +182,17 @@ def initial_state(plan, spec, directory):
         state = json.loads((previous / 'checkpoint.json').read_text())
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             if saved.get('task') and saved.get('phase') != 'complete':
-                validate_task_metadata(plan, saved)
+                if not saved.get('git_reconciliation') and not saved.get('pull_intent'):
+                    validate_task_metadata(plan, saved)
                 saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
         if state.get('phase') != 'complete':
-            try:
-                plan.validate_recovery(state)
-            except ValueError:
-                if plan.prerequisite_repair(state) is None:
-                    raise
-                state = defer_to_prerequisite(plan, state)
+            if not state.get('git_reconciliation') and not state.get('pull_intent'):
+                try:
+                    plan.validate_recovery(state)
+                except ValueError:
+                    if plan.prerequisite_repair(state) is None:
+                        raise
+                    state = defer_to_prerequisite(plan, state)
             if state.get('in_flight') and not state.get('pending_completion'):
                 result_path = previous / 'agent-result.json'
                 if result_path.is_file():
@@ -209,7 +219,8 @@ def initial_state(plan, spec, directory):
 
 def closeout(plan, spec, run, state):
     result = state['pending_completion']
-    validate_result(plan, state, result)
+    if not state.get('pull_intent'):
+        validate_result(plan, state, result)
     if spec.commit_prefix:
         paths = state.get('commit_intent', {}).get('paths')
         if paths is None:
@@ -217,16 +228,53 @@ def closeout(plan, spec, run, state):
             overlap = set(paths) & (set(state['stage_baseline']) | set(state['protected_staged']))
             if overlap:
                 raise ValueError('close-out overlaps pre-existing work: ' + ', '.join(sorted(overlap)))
+        state['plan_queue'] = plan.queue
+        try:
+            pull_before_commit(plan.root, run, state, git=git_output)
+        except GitReconciliationRequired as error:
+            identity = state.get('pull_intent', {})
+            state.update(phase='recover', in_flight=False,
+                         git_reconciliation=dict(reason=str(error), accepted_result=result,
+                                                 **{key: identity[key] for key in ('branch', 'upstream')
+                                                    if key in identity}),
+                         handoff=str(error) + '\n' + result['handoff'])
+            state.pop('pending_completion', None)
+            state.pop('pull_intent', None)
+            launcher.atomic(run / 'checkpoint.json', state)
+            return False
+        # A pull may have changed plan metadata. Reapply every guard before
+        # staging, even when Git reports an already-up-to-date branch.
+        validate_result(plan, state, result)
+        if state.get('commit_intent') is None:
             paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue))
-        finish_commit(plan.root, run, state, paths, f"{spec.commit_prefix}: Completed task {state['task_id']}")
+        committed = finish_commit(plan.root, run, state, paths,
+                                  f"{spec.commit_prefix}: Completed task {state['task_id']}")
         if spec.push:
+            if state.get('pull_intent') is not None:
+                _, head = validate_pull_identity(plan.root, state, git=git_output)
+                if committed is not None and head != committed:
+                    raise ValueError('HEAD changed after completion commit; inspect retained checkpoint before push')
             pushed = git_output(plan.root, 'push', check=False)
             if pushed.returncode:
                 raise ValueError('completion push failed: ' + pushed.stderr.strip())
     state.update(phase='complete', in_flight=False, summary=result['summary'], handoff=result['handoff'])
     state.pop('pending_completion', None)
     state.pop('commit_intent', None)
+    state.pop('pull_intent', None)
+    state.pop('git_reconciliation', None)
     launcher.atomic(run / 'checkpoint.json', state)
+    return True
+
+
+def load_plan(root, path, state):
+    if state.get('git_reconciliation') or state.get('pull_intent'):
+        # The pull itself can leave conflicts in the master/queue. Retain their
+        # validated identities so a restart can resolve them before parsing.
+        master = local_path(root, path)
+        queue = local_path(root, state['plan_queue'])
+        return Plan(root.resolve(), str(master.relative_to(root.resolve())),
+                    str(queue.relative_to(root.resolve())))
+    return Plan.load(root, path)
 
 
 def execute(root, spec, run, owner):
@@ -254,16 +302,16 @@ def worker(root, run, owner, spec, state):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: (run / 'cancel').touch(mode=0o600))
-    plan = Plan.load(root, spec.plan)
+    plan = load_plan(root, spec.plan, state)
     budget = TaskBudget(run)
     status, reason = 0, 'queue complete'
     try:
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if state.get('pending_completion'):
-            closeout(plan, spec, run, state)
-            budget.complete()
-            print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
+            if closeout(plan, spec, run, state):
+                budget.complete()
+                print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
         while True:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
@@ -320,6 +368,8 @@ def worker(root, run, owner, spec, state):
             if state['task_sessions'] >= state['session_limit']:
                 status, reason = 1, 'task session limit reached; resume with a fresh run'
                 break
+            if state.get('git_reconciliation'):
+                validate_pull_identity(root, state, git=git_output)
             state.setdefault('started_at', time.time())
             state['task_sessions'] += 1
             state['total_sessions'] += 1
@@ -339,15 +389,19 @@ def worker(root, run, owner, spec, state):
             result = execute(root, spec, run, owner)
             validate_result(plan, state, result)
             state.update(summary=result['summary'], handoff=result['handoff'], in_flight=False)
+            if result['status'] == 'task_complete' and state.get('git_reconciliation'):
+                # The coordinator has reconciled and renewed acceptance. The
+                # next close-out must pull again before making a fresh commit.
+                state.pop('pull_intent', None)
             if result['status'] == 'task_complete':
                 state['pending_completion'] = result
                 launcher.atomic(run / 'checkpoint.json', state)
-                closeout(plan, spec, run, state)
-                budget.complete()
-                duration = clock_duration(time.time() - state['started_at'])
-                publish_progress(run, 'complete-' + state['task_id'],
-                    [f"\033[32m✓ Task {state['task_id']}: {state['title']} ({duration})\033[0m"],
-                    replaces=[state['task_id']])
+                if closeout(plan, spec, run, state):
+                    budget.complete()
+                    duration = clock_duration(time.time() - state['started_at'])
+                    publish_progress(run, 'complete-' + state['task_id'],
+                        [f"\033[32m✓ Task {state['task_id']}: {state['title']} ({duration})\033[0m"],
+                        replaces=[state['task_id']])
             elif result['status'] == 'blocked':
                 state.update(phase='blocked', blocker=result['blocker'], blocker_id=uuid.uuid4().hex)
             elif result['status'] == 'prerequisite_required':
@@ -431,7 +485,10 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
             nonlocal initial_remaining
-            plan = Plan.load(root, path)
+            previous = launcher.current_run(selected.parent)
+            saved = (json.loads((previous / 'checkpoint.json').read_text())
+                     if previous is not None and (previous / 'checkpoint.json').exists() else {})
+            plan = load_plan(root, path, saved)
             validation_error = None
             try:
                 records = [task_record(task) for task in plan.tasks() if not task.complete]
@@ -445,7 +502,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if records or initial.get('phase') != 'complete':
                 session_command(root, spec)  # Dependency/transport preflight, no model session.
             if validation_error is not None:
-                if not initial.get('in_flight') and not initial.get('pending_completion'):
+                if (not initial.get('in_flight') and not initial.get('pending_completion')
+                        and not initial.get('git_reconciliation') and not initial.get('pull_intent')):
                     raise validation_error
                 remaining = sum(not done for done in initial['queue_before'].values())
                 initial['handoff'] = (initial.get('handoff', '') + '\nReconcile interrupted close-out: ' + str(validation_error))

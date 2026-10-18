@@ -43,8 +43,15 @@ Its detached adapter integration reuses the maintained private app-server double
 with a tiny relocated Git checkout and the shared storage/retention libraries.
 The public observer is bounded and reaped; its exact recorded worker is cancelled
 through the shared owner/run contract and awaited before fixture teardown. It
-adds no model inference, VM, network, commit/publication or new cleanup mechanic;
+adds no model inference, VM, external network, publication or new cleanup mechanic;
 the same compatible unit classification applies.
+Per-task Git close-out coverage now commits and pushes only between that private
+checkout and a pytest-private bare remote, using bounded, waited Git children.
+Pull/conflict regressions also use a tiny pytest-private peer checkout, with
+bounded waited Git children and no external network. Failure/restart checks use
+process-local pull/staging/commit/push doubles. No external
+service, shared Git state, VM, bus, display or new cleanup owner is acquired;
+the compatible unit and existing cleanup/UI classifications remain appropriate.
 
 Fullscreen reminder qualification extends the existing overlay reminder facade,
 journey and registration modules with private API/transport/recorder values and

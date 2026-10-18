@@ -249,9 +249,32 @@ Pipes receive the same final recap as plain text and retain the same owner/resul
 semantics.
 
 `--check` validates a plan and every unfinished brief without model sessions, VM
-operations or Git changes. Generic `execute-plan` leaves changes for review.
-E2E retains its own Git and optimization workflow. Existing staged or unrelated
-work is excluded; conflicting ownership stops close-out with a retained checkpoint.
+operations or Git changes. The shared ordinary-plan driver first pulls the current
+branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
+then stages the accepted task's explicit owned paths, commits them as
+`TA: Completed task ID`, and runs `git push` using the checkout's existing
+remote and branch configuration. Both `execute-plan` and `install-coverage`
+inherit this policy. Only successful Git close-out counts the task against the
+run limit and permits selecting the next task. The controller owns task commits
+and pushes. If a pull changes HEAD, encounters merge conflicts or needs local
+edits reconciled, the same task returns to its coordinator before any completion
+commit. Resolve conflicts, complete any upstream merge, preserve unrelated work
+and original staging, and re-run acceptance whose inputs changed. The coordinator
+may use bounded Git reconciliation commands for that handoff; it never creates
+the task completion commit or pushes. A subsequent close-out pulls again.
+Existing staged or unrelated work is excluded; conflicting ownership stops
+close-out with a retained checkpoint. Pull transport/configuration, staging,
+commit or push failures retain the accepted result; a fresh run retries close-out
+without repeating unaffected acceptance
+or creating a duplicate completion commit. Missing upstream configuration or
+credentials is a close-out failure; the launcher never changes Git configuration.
+Commit recovery checks the retained branch and upstream before pushing. A legacy
+pending commit without that identity requires explicit Git reconciliation.
+E2E retains its own Git and optimization workflow.
+Already-running backends keep their original policy; attaching does not reload
+code or defaults. Stop at a session boundary and start a fresh run to load a
+changed policy. Tasks completed by an older review-only backend are not
+retroactively committed by restart; preserve their changes for explicit close-out.
 
 ## Extension boundary
 
@@ -265,7 +288,7 @@ single state machine containing every task type's acceptance branches.
 | [`launcher_runtime.py`](../tools/launcher_runtime.py) | Common options, locked task budget and live limit changes | Worker defines an accepted task boundary and default budget |
 | [`detached_launcher.py`](../tools/detached_launcher.py) | Owner locks, detached sessions, supervised transport, nested-test cleanup, following | Worker command, validated namespace, lifecycle callbacks |
 | [`launcher_view.py`](../tools/launcher_view.py) / [`launcher_display.py`](../tools/launcher_display.py) | Synchronized overview/totals and execution/status column widths and input routing | `WorkflowView`: progress and plan-total projections, question support and optional composer |
-| [`launcher_git.py`](../tools/launcher_git.py) | Literal file paths, worktree fingerprints and commit-intent recovery | Required close-out files and commit message; workflow owns push policy |
+| [`launcher_git.py`](../tools/launcher_git.py) | Upstream pull/reconciliation handoff, literal file paths, worktree fingerprints and commit-intent recovery | Ordinary-plan pull policy, required close-out files and commit message; workflow owns push policy |
 
 The current adapters use these components according to their workflow:
 
@@ -274,8 +297,8 @@ The current adapters use these components according to their workflow:
 | `write-e2e` | Task options/budgets, detached supervision, display, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
-| `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; leaves changes for review |
-| `install-coverage` | The same ordinary plan driver and shared lifecycle | [Core installation coverage](TestAutomation/Core-Installation-Coverage-Handoff.md), with registered VM selection and a GPT-6.1 Sol High coordinator; leaves changes for review |
+| `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
+| `install-coverage` | The same ordinary plan driver and shared lifecycle | [Core installation coverage](TestAutomation/Core-Installation-Coverage-Handoff.md), with registered VM selection and a GPT-6.1 Sol High coordinator; shared per-task commit and push |
 
 Run the core installation queue with `tools/install-coverage --tasks 0` to finish
 all remaining tasks, or omit `--tasks` for one task. Its `--check` and `--stop`

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import launcher_git
 from execution_plan import Plan, local_file
 from launcher_display import TaskDisplay
 from launcher_runtime import TaskBudget, task_limit, task_progress, warn_remaining
@@ -38,7 +39,7 @@ def install_coverage(monkeypatch):
     return invoke
 
 
-def test_install_coverage_uses_shared_driver_and_review_only_policy(install_coverage, monkeypatch):
+def test_install_coverage_inherits_shared_commit_and_push_policy(install_coverage, monkeypatch):
     calls = []
     monkeypatch.setattr(workflow, 'main', lambda spec: calls.append(spec) or 7)
     assert install_coverage() == 7
@@ -47,7 +48,9 @@ def test_install_coverage_uses_shared_driver_and_review_only_policy(install_cove
         plan='docs/TestAutomation/Core-Installation-Coverage-Handoff.md',
         model='gpt-6.1-sol', effort='high', vm=True,
     )]
-    assert calls[0].commit_prefix is None and calls[0].push is False
+    assert calls[0].commit_prefix == 'TA' and calls[0].push is True
+    assert workflow.PlanWorkflow('execute-plan').commit_prefix == 'TA'
+    assert workflow.PlanWorkflow('execute-plan').push is True
 
 
 def test_install_coverage_default_check_has_no_execution_side_effects(
@@ -157,6 +160,9 @@ def rig(tmp_path, monkeypatch):
     monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda root, selected: cleanups.append(selected))
     monkeypatch.setattr(workflow, 'worktree_snapshot', lambda _: {})
     monkeypatch.setattr(workflow, 'git_output', lambda *_args, **_kwargs: SimpleNamespace(stdout='', stderr='', returncode=0))
+    monkeypatch.setattr(workflow, 'stage_task', lambda root, paths, **kwargs: paths)
+    monkeypatch.setattr(workflow, 'finish_commit', lambda *_args: None)
+    monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: None)
     spec = workflow.PlanWorkflow('fixture-plan', plan.path, effort='xhigh')
     calls = []
 
@@ -768,6 +774,62 @@ def test_closeout_stages_only_claimed_files(rig, monkeypatch):
     assert 'unrelated.py' not in staged
 
 
+@pytest.mark.parametrize('failure', ['pull', 'stage', 'commit', 'push'])
+def test_default_git_failure_retains_acceptance_and_retries_before_next_task(rig, monkeypatch, failure):
+    events = []
+    failing = [True]
+
+    def operation(name):
+        events.append(name)
+        assert TaskBudget(rig.run).read()['completed'] == 0
+        if name == failure and failing[0] and name != 'push':
+            raise ValueError(f'completion {name} failed: private failure')
+
+    def stage(root, paths, **kwargs):
+        operation('stage')
+        assert kwargs['required_paths'] == (rig.plan.path, rig.plan.queue)
+        return paths
+
+    def pull(*args, **kwargs):
+        operation('pull')
+
+    def commit(root, run, state, paths, message):
+        operation('commit')
+        assert message == 'TA: Completed task 001'
+
+    def git(root, *args, **kwargs):
+        if args == ('push',):
+            operation('push')
+            if failure == 'push' and failing[0]:
+                return SimpleNamespace(stdout='', stderr='private failure', returncode=1)
+        return SimpleNamespace(stdout='', stderr='', returncode=0)
+
+    monkeypatch.setattr(workflow, 'stage_task', stage)
+    monkeypatch.setattr(workflow, 'finish_commit', commit)
+    monkeypatch.setattr(workflow, 'pull_before_commit', pull)
+    monkeypatch.setattr(workflow, 'git_output', git)
+    TaskBudget(rig.run).initialize(0)
+    assert rig.worker() == 1
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert saved['pending_completion']['status'] == 'task_complete'
+    assert saved['phase'] != 'complete'
+    assert rig.calls == [('001', 1, 'xhigh')]
+    assert TaskBudget(rig.run).read()['completed'] == 0
+    assert f'completion {failure} failed' in (rig.run / 'handoff.txt').read_text()
+
+    # A fresh run closes the accepted task without another agent session.
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    recovered = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    failing[0] = False
+    events.clear()
+    TaskBudget(rig.run).initialize(1)
+    assert rig.worker(recovered) == 0
+    assert events == ['pull', 'stage', 'commit', 'push']
+    assert rig.calls == [('001', 1, 'xhigh')]
+    assert TaskBudget(rig.run).read()['completed'] == 1
+    assert rig.plan.next_task().id == '002'
+
+
 @pytest.mark.parametrize('protected', ['stage_baseline', 'protected_staged'])
 def test_closeout_refuses_preexisting_claimed_changes(rig, monkeypatch, protected):
     state = state_for(rig.plan)
@@ -775,8 +837,227 @@ def test_closeout_refuses_preexisting_claimed_changes(rig, monkeypatch, protecte
     state['pending_completion'] = response(state)
     complete(rig.plan, '001')
     monkeypatch.setattr(workflow, 'stage_task', lambda *_args, **_kwargs: pytest.fail('must not stage protected work'))
+    monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_args, **_kwargs: pytest.fail('must not pull over protected work'))
     with pytest.raises(ValueError, match='overlaps pre-existing work'):
         workflow.closeout(rig.plan, replace(rig.spec, commit_prefix='Fixture'), rig.run, state)
+
+
+@pytest.fixture
+def git_plan(tmp_path):
+    root = tmp_path / 'checkout'
+    plan = prepare(root)
+
+    def git(*args, cwd=root, check=True):
+        return subprocess.run(['git', *args], cwd=cwd, check=check, capture_output=True,
+                              text=True, timeout=10, env=dict(os.environ, LC_ALL='C'))
+
+    git('init', '-q')
+    git('config', 'user.name', 'Launcher test')
+    git('config', 'user.email', 'launcher@example.invalid')
+    (root / '.git/info/exclude').write_text('run/\n')
+    (root / 'task.py').write_text('initial task\n')
+    (root / 'shared.py').write_text('initial shared\n')
+    (root / 'unrelated.py').write_text('initial unrelated\n')
+    git('add', '--', 'docs', 'task.py', 'shared.py', 'unrelated.py')
+    git('commit', '-qm', 'Private baseline')
+    remote = tmp_path / 'remote.git'
+    git('init', '--bare', '-q', str(remote))
+    git('remote', 'add', 'origin', str(remote))
+    git('push', '-qu', 'origin', 'HEAD')
+    peer = tmp_path / 'peer'
+    git('clone', '-q', str(remote), str(peer))
+    git('config', 'user.name', 'Peer test', cwd=peer)
+    git('config', 'user.email', 'peer@example.invalid', cwd=peer)
+    run = root / 'run'
+    run.mkdir()
+    return SimpleNamespace(root=root, plan=plan, remote=remote, peer=peer, run=run, git=git)
+
+
+def peer_change(fixture, path, content):
+    (fixture.peer / path).write_text(content)
+    fixture.git('add', '--', path, cwd=fixture.peer)
+    fixture.git('commit', '-qm', 'Upstream change', cwd=fixture.peer)
+    fixture.git('push', '-q', cwd=fixture.peer)
+
+
+def test_pull_preserves_unrelated_index_worktree_and_untracked_work(git_plan):
+    f = git_plan
+    f.git('config', 'merge.autoStash', 'true')
+    (f.root / 'unrelated.py').write_text('staged unrelated\n')
+    f.git('add', '--', 'unrelated.py')
+    (f.root / 'unrelated.py').write_text('unstaged unrelated too\n')
+    (f.root / 'untracked.txt').write_text('private untracked\n')
+    (f.root / 'task.py').write_text('task work\n')
+    before = launcher_git.worktree_snapshot(f.root)
+    index = f.git('ls-files', '--stage', '-z').stdout
+    launcher_git.pull_before_commit(f.root, f.run, {})
+    assert launcher_git.worktree_snapshot(f.root) == before
+    assert f.git('ls-files', '--stage', '-z').stdout == index
+    assert f.git('stash', 'list').stdout == ''
+
+
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_changed_upstream_requires_revalidation_even_after_interrupted_pull(git_plan, interrupted):
+    f = git_plan
+    peer_change(f, 'shared.py', 'new upstream\n')
+    state = {}
+
+    def git(root, *args, **kwargs):
+        result = launcher_git.git_output(root, *args, **kwargs)
+        if interrupted and args[0] == 'pull':
+            raise OSError('private interruption after pull')
+        return result
+
+    with pytest.raises(OSError if interrupted else launcher_git.GitReconciliationRequired):
+        launcher_git.pull_before_commit(f.root, f.run, state, git=git)
+    saved = json.loads((f.run / 'checkpoint.json').read_text())
+    assert saved['pull_intent']['head'] != f.git('rev-parse', 'HEAD').stdout.strip()
+    with pytest.raises(launcher_git.GitReconciliationRequired, match='HEAD'):
+        launcher_git.pull_before_commit(f.root, f.run, saved)
+    assert f.git('log', '-1', '--format=%s').stdout.strip() == 'Upstream change'
+
+
+def test_dirty_overlap_requests_scoped_reconciliation_without_autostash(git_plan):
+    f = git_plan
+    f.git('config', 'merge.autoStash', 'true')
+    (f.root / 'task.py').write_text('local task work\n')
+    (f.root / 'unrelated.py').write_text('unrelated staged work\n')
+    f.git('add', '--', 'unrelated.py')
+    peer_change(f, 'task.py', 'upstream task work\n')
+    index = f.git('ls-files', '--stage', '-z').stdout
+    before = launcher_git.worktree_snapshot(f.root)
+    head = f.git('rev-parse', 'HEAD').stdout
+    with pytest.raises(launcher_git.GitReconciliationRequired, match='scoped reconciliation'):
+        launcher_git.pull_before_commit(f.root, f.run, {})
+    assert f.git('rev-parse', 'HEAD').stdout == head
+    assert launcher_git.worktree_snapshot(f.root) == before
+    assert f.git('ls-files', '--stage', '-z').stdout == index
+    assert f.git('stash', 'list').stdout == ''
+
+
+@pytest.mark.parametrize('change', ['branch', 'upstream', 'missing-identity'])
+def test_pending_commit_recovery_preserves_branch_and_upstream_identity(git_plan, change):
+    f = git_plan
+    state = {}
+    launcher_git.pull_before_commit(f.root, f.run, state)
+    (f.root / 'task.py').write_text('accepted task\n')
+    paths = launcher_git.stage_task(f.root, ['task.py'])
+    launcher_git.finish_commit(f.root, f.run, state, paths, 'TA: Completed task 001')
+    assert 'commit_intent' in state
+    if change == 'branch':
+        upstream = state['pull_intent']['upstream']
+        f.git('switch', '-qc', 'other-branch')
+        f.git('branch', '--set-upstream-to', upstream)
+    elif change == 'upstream':
+        branch = state['pull_intent']['branch']
+        f.git('remote', 'add', 'other-origin', str(f.remote))
+        f.git('fetch', '-q', 'other-origin')
+        f.git('branch', '--set-upstream-to', f'other-origin/{branch}')
+    else:
+        state.pop('pull_intent')
+    with pytest.raises(ValueError, match='branch or upstream changed|no retained branch/upstream identity'):
+        launcher_git.pull_before_commit(f.root, f.run, state)
+    assert f.git('rev-parse', 'HEAD', cwd=f.remote).stdout != f.git('rev-parse', 'HEAD').stdout
+
+
+def test_unfinished_merge_without_unmerged_paths_requests_coordinator(git_plan):
+    f = git_plan
+    (f.root / 'task.py').write_text('local committed history\n')
+    f.git('add', '--', 'task.py')
+    f.git('commit', '-qm', 'Local history')
+    peer_change(f, 'shared.py', 'upstream shared history\n')
+    f.git('fetch', '-q')
+    f.git('merge', '--no-ff', '--no-commit', '@{upstream}')
+    assert f.git('diff', '--name-only', '--diff-filter=U').stdout == ''
+    with pytest.raises(launcher_git.GitReconciliationRequired, match='reconciliation'):
+        launcher_git.pull_before_commit(f.root, f.run, {})
+    assert f.git('rev-parse', '--verify', 'MERGE_HEAD').returncode == 0
+    assert f.git('log', '-1', '--format=%s').stdout.strip() == 'Local history'
+
+
+def test_reconciled_master_cannot_rebind_retained_queue(rig):
+    state = state_for(rig.plan, git_reconciliation=dict(reason='Resolve queue merge.'))
+    complete(rig.plan, '001')
+    shutil.copy2(rig.root / rig.plan.queue, rig.root / 'docs/other-queue.md')
+    master = rig.root / rig.plan.path
+    master.write_text(master.read_text().replace('(queue.md)', '(other-queue.md)'))
+    with pytest.raises(ValueError, match='master plan queue changed'):
+        workflow.validate_result(rig.plan, state, response(state))
+
+
+def test_git_reconciliation_cannot_suspend_task_for_another_prerequisite(rig):
+    state = state_for(rig.plan, git_reconciliation=dict(reason='Resolve upstream changes.'))
+    with pytest.raises(ValueError, match='Git reconciliation'):
+        workflow.validate_result(rig.plan, state, response(state, 'prerequisite_required'))
+
+
+@pytest.mark.parametrize('mode', ['fast-forward', 'merge-conflict'])
+def test_upstream_reconciliation_resolves_and_revalidates_before_commit_and_push(git_plan, monkeypatch, mode):
+    f = git_plan
+    if mode == 'merge-conflict':
+        f.git('config', 'pull.ff', 'only')
+        (f.root / 'shared.py').write_text('local shared history\n')
+        f.git('add', '--', 'shared.py')
+        f.git('commit', '-qm', 'Local shared history')
+    peer_change(f, 'shared.py', 'upstream shared history\n')
+    state = state_for(f.plan, task_sessions=1, total_sessions=1)
+    (f.root / 'task.py').write_text('completed task\n')
+    complete(f.plan, '001')
+    state['pending_completion'] = response(state)
+    state['pending_completion']['stage_paths'].append('task.py')
+    TaskBudget(f.run).initialize(1)
+    calls = []
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: None)
+    monkeypatch.setattr(workflow.signal, 'signal', lambda *_: None)
+
+    def reconcile(root, spec, run, owner):
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        calls.append(saved['task_id'])
+        assert saved['git_reconciliation']['accepted_result']['status'] == 'task_complete'
+        assert TaskBudget(run).read()['completed'] == 0
+        prompt = (run / 'prompt.txt').read_text()
+        assert 'Re-run acceptance' in prompt and 'Do not stash unrelated work' in prompt
+        if mode == 'merge-conflict':
+            assert f.git('diff', '--name-only', '--diff-filter=U').stdout.strip() == 'shared.py'
+            (root / 'shared.py').write_text('local and upstream shared history\n')
+            f.git('add', '--', 'shared.py')
+            f.git('commit', '--no-edit')
+        result = response(saved)
+        result['checks'][0]['evidence'] = 'Revalidated the merged candidate and owned cleanup.'
+        result['stage_paths'].append('task.py')
+        return result
+
+    monkeypatch.setattr(workflow, 'execute', reconcile)
+    owner = os.open(f.run / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(f.root, f.run, owner, workflow.PlanWorkflow('fixture', f.plan.path), state) == 0
+    assert calls == ['001']
+    assert TaskBudget(f.run).read()['completed'] == 1
+    assert f.git('log', '-1', '--format=%s').stdout.strip() == 'TA: Completed task 001'
+    assert f.git('rev-parse', 'HEAD', cwd=f.remote).stdout == f.git('rev-parse', 'HEAD').stdout
+    assert f.git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').stdout.splitlines() == [
+        'docs/plan.md', 'docs/queue.md', 'task.py']
+    assert f.plan.next_task().id == '002'
+
+
+def test_conflicted_queue_restarts_from_retained_identity_then_rechecks_guards(rig, monkeypatch):
+    state = state_for(rig.plan, phase='recover', plan_queue=rig.plan.queue,
+                      git_reconciliation=dict(reason='Resolve upstream queue conflicts.'))
+    (rig.root / rig.plan.path).write_text('<<<<<<< HEAD\n=======\n>>>>>>> upstream\n')
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    plan = workflow.load_plan(rig.root, rig.plan.path, state)
+    recovered = workflow.initial_state(plan, rig.spec, rig.root)
+    assert recovered['git_reconciliation'] == state['git_reconciliation']
+
+    def resolve(root, spec, run, owner):
+        complete(rig.plan, '001')
+        return response(recovered)
+
+    monkeypatch.setattr(workflow, 'execute', resolve)
+    assert rig.worker(recovered) == 0
+    assert TaskBudget(rig.run).read()['completed'] == 1
 
 
 @pytest.mark.parametrize('mode', ['none', 'question'])
@@ -992,7 +1273,15 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     integration.mkdir(parents=True)
     shutil.copy2(source.parent / 'tests/integration/vm_config.py', integration / 'vm_config.py')
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True, timeout=10)
+    subprocess.run(['git', 'config', 'user.name', 'Launcher test'], cwd=tmp_path, check=True, timeout=10)
+    subprocess.run(['git', 'config', 'user.email', 'launcher@example.invalid'], cwd=tmp_path, check=True, timeout=10)
+    remote = tmp_path / 'remote.git'
+    subprocess.run(['git', 'init', '--bare', '-q', str(remote)], check=True, timeout=10)
     (tmp_path / '.git/info/exclude').write_text('output/\nbin/\nscript.json\ncalls.jsonl\nagent-ready-*\n')
+    subprocess.run(['git', 'add', '--', 'docs', 'tools', 'tests'], cwd=tmp_path, check=True, timeout=10)
+    subprocess.run(['git', 'commit', '-qm', 'Private baseline'], cwd=tmp_path, check=True, timeout=10)
+    subprocess.run(['git', 'remote', 'add', 'origin', str(remote)], cwd=tmp_path, check=True, timeout=10)
+    subprocess.run(['git', 'push', '-qu', 'origin', 'HEAD'], cwd=tmp_path, check=True, timeout=10)
     private_bin = tmp_path / 'bin'
     private_bin.mkdir()
     codex = private_bin / 'codex'
@@ -1062,8 +1351,14 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     assert Plan.load(tmp_path, plan.path).next_task() is None
     with launcher.lock(namespace / 'owner') as owner:
         assert not launcher.busy(owner)
-    assert subprocess.run(['git', 'rev-parse', '--verify', 'HEAD'], cwd=tmp_path,
-                          capture_output=True, timeout=10).returncode != 0
+    commits = subprocess.run(['git', 'log', '-2', '--format=%s'], cwd=tmp_path,
+                             capture_output=True, text=True, check=True, timeout=10).stdout.splitlines()
+    assert commits == ['TA: Completed task 002', 'TA: Completed task 001']
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=tmp_path,
+                          capture_output=True, text=True, check=True, timeout=10).stdout
+    pushed = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=remote,
+                            capture_output=True, text=True, check=True, timeout=10).stdout
+    assert pushed == head
     assert subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=tmp_path,
                           capture_output=True, text=True, check=True, timeout=10).stdout == ''
     if limit > 2:

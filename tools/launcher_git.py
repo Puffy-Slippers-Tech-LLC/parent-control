@@ -1,11 +1,102 @@
 """Shared literal-path Git close-out and identity-checked commit recovery."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
 
 import detached_launcher as launcher
+
+
+class GitReconciliationRequired(ValueError):
+    """The current task needs a coordinator after pulling upstream changes."""
+
+
+def reconciliation_instructions(state):
+    if not state.get('git_reconciliation'):
+        return ''
+    accepted = state['git_reconciliation'].get('accepted_result', {})
+    evidence = {key: accepted[key] for key in ('checks', 'cleanup_complete', 'stage_paths', 'handoff')
+                if key in accepted}
+    return f"""
+Git reconciliation takes priority before completing this same task:
+{state['git_reconciliation']['reason']}
+The retained task already passed acceptance before this pull. Inspect the
+upstream changes, reconcile them with the task and resolve merge conflicts.
+Retained acceptance evidence and close-out scope:
+{json.dumps(evidence, indent=2)}
+Preserve unrelated staged, unstaged and untracked work; never discard changes,
+force-push, rewrite published history or choose ours/theirs wholesale.
+For this reconciliation only, you may use the necessary Git inspection, fetch,
+pull, path-scoped staging/stash and merge-completion commands. Complete an
+upstream merge commit if necessary, but leave the task completion commit and push
+to the controller. Use the current branch and its configured upstream without
+changing Git configuration. Disable automatic stashing on pulls. Record any
+temporary stash identity and restore it, including its original index state,
+before reporting completion. Do not stash unrelated work.
+Recheck the retained task's scope, queue, targets and cleanup. Re-run acceptance
+whose inputs changed; reuse only unaffected evidence. Restore the task's unchecked
+row, brief and pointer if returning an incomplete result. Never select another
+task or weaken acceptance to finish this reconciliation.
+"""
+
+
+def validate_pull_identity(root, state, *, git=None):
+    """Retain the branch and upstream through merge, commit and push recovery."""
+    git = git or git_output
+    branch = git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD', check=False)
+    upstream = git(root, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}', check=False)
+    head = git(root, 'rev-parse', '--verify', 'HEAD', check=False)
+    if branch.returncode or upstream.returncode or head.returncode:
+        raise ValueError('completion pull needs a current branch, HEAD and configured upstream; '
+                         + (branch.stderr + upstream.stderr + head.stderr).strip())
+    identity = dict(branch=branch.stdout.strip(), upstream=upstream.stdout.strip())
+    reconciliation = state.get('git_reconciliation', {})
+    if any(key in reconciliation and reconciliation[key] != value for key, value in identity.items()):
+        raise ValueError('branch or upstream changed during Git reconciliation; inspect retained checkpoint')
+    intent = state.get('pull_intent')
+    if intent is not None and any(intent[key] != value for key, value in identity.items()):
+        raise ValueError('branch or upstream changed during completion pull; inspect retained checkpoint')
+    return identity, head.stdout.strip()
+
+
+def pull_before_commit(root, run, state, *, git=None):
+    """Pull before a new commit; checkpoint updates needing fresh acceptance.
+
+    No autostash: a dirty-file refusal leaves caller and concurrent work in
+    place for a scoped coordinator reconciliation. Never pull during recovery
+    of an existing commit intent, whose exact immediate parent must be retained.
+    """
+    git = git or git_output
+    identity, head = validate_pull_identity(root, state, git=git)
+    intent = state.get('pull_intent')
+    if state.get('commit_intent') is not None:
+        if intent is None:
+            raise ValueError('pending completion commit has no retained branch/upstream identity; '
+                             'inspect its checkpoint before manual Git close-out')
+        return
+    if intent is None:
+        intent = state['pull_intent'] = dict(identity, head=head)
+        launcher.atomic(run / 'checkpoint.json', state)
+    if head != intent['head']:
+        raise GitReconciliationRequired('Upstream pull changed HEAD; reconcile and revalidate the accepted task.')
+    # Explicitly override merge.autoStash; preserving unrelated index work is
+    # more important than silently moving the entire dirty checkout to a stash.
+    pulled = git(root, 'pull', '--no-rebase', '--ff', '--no-edit', '--no-autostash', check=False)
+    conflicts = git(root, 'diff', '--name-only', '--diff-filter=U', '-z').stdout
+    merge = git(root, 'rev-parse', '--verify', 'MERGE_HEAD', check=False)
+    after = git(root, 'rev-parse', '--verify', 'HEAD').stdout.strip()
+    validate_pull_identity(root, state, git=git)
+    if conflicts or (merge.returncode == 0 and merge.stdout.strip()) or after != intent['head']:
+        raise GitReconciliationRequired('Upstream pull requires reconciliation and renewed acceptance.\n'
+                                        + pulled.stderr.strip())
+    if pulled.returncode:
+        diagnostic = pulled.stderr.strip()
+        if ('would be overwritten by merge' in diagnostic
+                or 'Please commit your changes or stash them' in diagnostic):
+            raise GitReconciliationRequired('Pull needs scoped reconciliation of local task edits.\n' + diagnostic)
+        raise ValueError('completion pull failed: ' + diagnostic)
 
 
 def stage_task(root, paths, *, required_paths=()):
@@ -72,7 +163,7 @@ def session_changes(root, before):
 
 
 def git_output(root, *arguments, check=True):
-    return subprocess.run(['git', *arguments], cwd=root, env=launcher.environment(),
+    return subprocess.run(['git', *arguments], cwd=root, env=dict(launcher.environment(), LC_ALL='C'),
                           capture_output=True, text=True, check=check)
 
 

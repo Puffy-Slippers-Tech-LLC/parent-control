@@ -469,11 +469,16 @@ without requiring the saved report version. It retires clean inherited and
 suspended baseline entries before later tasks edit them; pending work remains
 protected under the shared close-out contract.
 
-Resume with `tools/install-coverage --tasks 0`. The retained 002b completion must
-finish commit/push before the launcher starts 002c; unchanged accepted work needs
-no new coordinator session. This is ordinary close-out recovery, not another
-manual replan. Keep the current queue, 002c pointer and suspended 003 handoff;
-no additional queue task or installed history was executed by this launcher fix.
+Recovery run `19cc86722dd043bc9c755b682d66cf0b` successfully completed 002b's
+retained close-out and pushed `ae115644` (`TA: Completed task 002b`). Its result
+records status 0 and one recovered task; no coordinator session was needed.
+The active and suspended 003 baselines are empty. Focused launcher, inventory,
+documentation and coverage checks passed, and all 34 local Markdown links passed.
+The bounded `--tasks 1` invocation stopped at its task limit before starting 002c.
+
+Resume with `tools/install-coverage --tasks 0` to start 002c. The current queue,
+002c pointer and suspended 003 handoff remain intact; this recovery executed no
+additional queue task or installed history and required no manual replan.
 
 Target upgrade diagnosis belongs to 002c/002d, and native package-pair feasibility
 to 004a. These are execution work,

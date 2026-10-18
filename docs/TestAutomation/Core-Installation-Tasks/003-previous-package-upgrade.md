@@ -64,16 +64,18 @@ cleanup. Retain both target receipts and cleanup. Run `make build` after product
 edits, refresh generated inventory/links, close only this engineering row and
 advance the master. Do not close customer E2E tasks from this evidence.
 
-## Suspended for fixture prerequisite 002a
+## Qualified fixture prerequisite 002a
 
-Complete [002a](002a-trusted-native-upgrade-fixtures.md) before resuming this
+[002a is qualified](../Core-Installation-Coverage-Handoff.md#task-002a-trusted-native-fixture-qualification)
+on both targets. Select its baseline-owned `trusted-hard` and `trusted-soft`
+variants through the existing closed enforcement interfaces when resuming this
 consumer. The [master's retained work](../Core-Installation-Coverage-Handoff.md#task-003-retained-work-and-fixture-prerequisite)
 records the implementation, exact prior inputs, Ubuntu's earlier 3/3 slice,
 Fedora's repeated failure/compiled policy and completed cleanup. Fedora's old
 default policy denies the current untrusted native fixture for the unrelated
-user. Add a genuinely trusted native positive-control input through maintained
-baseline preparation; preserve every existing native allow/deny assertion.
-This is an input-preparation prerequisite, not acceptance or a current-candidate
-product defect. Requalify both full histories after the final fixture/baseline
+user. Preserve every policy, grant, unrelated-user and admission-retirement
+assertion when selecting the qualified inputs. This input qualification grants
+no upgrade acceptance and establishes no current-candidate product defect.
+Requalify both full histories after the final fixture/baseline
 change; retained earlier phases cannot substitute for that work. Keep this row
 unchecked until every original installed requirement and cleanup passes.

@@ -935,7 +935,12 @@ from regression_ui import Bucket
 # Earlier-package history checks use tiny pytest-private checkpoints and
 # in-process account/clock/transport doubles. Existing runner staging reads
 # immutable source files; no host bus, service, VM, cache or child is added.
+# Trusted fixture qualification uses only private pytest files and process-local
+# native/authentication doubles. Baseline trust reconciliation tests remain
+# in-memory guestfs work, with no live trust DB, VM, bus, socket or new owner.
+# Both compatible unit/cleanup classifications for baseline/enforcement hold.
 REVIEWED = frozenset("""
+system_trusted_fixtures
 system_previous_upgrade
 system_pam_variants
 vm_recording

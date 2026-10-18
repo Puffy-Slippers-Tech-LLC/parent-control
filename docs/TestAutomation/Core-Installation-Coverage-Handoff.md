@@ -1,7 +1,7 @@
 # Core installation coverage handoff
 
 Task queue: [Ordered task queue](Core-Installation-Task-Queue.md).
-Next task: **002a — [Prepare trusted native upgrade fixtures](Core-Installation-Tasks/002a-trusted-native-upgrade-fixtures.md)**.
+Next task: **003 — [Qualify a real earlier-package upgrade](Core-Installation-Tasks/003-previous-package-upgrade.md)**.
 
 ## Purpose and continuation
 
@@ -295,11 +295,91 @@ Both VM receipts retain collection/infrastructure/cleanup passed,
 result passed, Fedora's did not. Recording finalization ended and both public
 status probes report powered off. All workers joined. Ubuntu's witness predates
 only the later diagnostic rule-snapshot addition; it grants no task completion
-or evidence for the new fixture input. Preserve these results, complete
-[002a](Core-Installation-Tasks/002a-trusted-native-upgrade-fixtures.md), then rerun
+or evidence for the new fixture input. Preserve these results and use the
+[qualified 002a inputs](#task-002a-trusted-native-fixture-qualification), then rerun
 each complete 003 history with the final matching inputs and baselines. Do not
 splice phases or remove the failing native control. This suspension closes no
 customer E2E task and grants no task 003 acceptance credit.
+
+Handoff recovery corrected 003's Requires to `002, 002a`: the inserted fixture
+prerequisite is now explicitly in its dependency chain, retaining the original
+dependency. All existing completion states, relative order and scopes remain
+unchanged. The retained target receipts above were reread: both record cleanup
+complete, successful collection/infrastructure and independent baseline checks
+without failures. The public recovery route then reconciled both VM/storage
+owners successfully, preserving evidence; public status probes confirmed both
+guests powered off. The prerequisite was unexecuted at that recovery; its later
+qualification below leaves both complete 003 histories with final inputs required.
+Recovery validation passed **465/465** documentation and plan-launcher checks in
+`output/test-runs/host/reports/20261018T021657Z-c6d5ade8/report.md`, including the
+rejected-unlinked-prerequisite correction and backward-dependency guards. All
+35 local links in the four task documents passed; final host recovery completed
+after the checks released their owner. This recovery changes documentation only.
+
+## Task 002a trusted native fixture qualification
+
+Accepted on 2026-10-17 (local time). System case **288**,
+`test_trusted_native_upgrade_fixtures`, passed **1/1 execution per target with
+zero failures and skips**. Each independent history installed and booted the
+exact pinned earlier package, verified native file trust and unrestricted
+execution for both fixed roles, then proved child-only hard/strict-soft denial,
+real authenticated soft approval and unrelated-user execution. The candidate
+upgrade was never installed. Task 003 remains unchecked and must select these
+qualified variants and run both complete upgrade histories.
+
+The baseline owns distinct `trusted-hard` / `trusted-soft` payloads and exact
+native file-trust entries. It preserves the original untrusted payloads and
+their absence from native trust. Preparation safely enables the recognized
+file backend before publication, refusing unrelated inactive entries. Durable
+records bind payloads, native package/tools, enabled configuration, native
+service-group metadata and preparation source; retries cover interrupted writes,
+publication and native tmpfiles ownership normalization. Consumers only verify.
+No distribution execution rule or product behavior was changed. The enduring
+contract is in the [installed environment](../../tests/integration/Environment.md#reusable-preparation-ownership).
+
+Reports are under `output/test-runs/host/reports/`; allocations are under
+`output/test-runs/privileged/allocations/`. Each allocation retains
+`evidence/result.json`, `guest-results/trusted-fixtures.xml`, native rule/command
+evidence and `input/selected-inputs.json`.
+
+| Target | Pinned earlier package / source revision | Report / allocation | Native fapolicyd |
+| --- | --- | --- | --- |
+| onpc-Ubuntu26.04 | `1.2+ppa1~ubuntu26.04.1`, amd64 / `81ffa5c37abeefdc922825bc27b5933b3eff3ba6` | `20261018T032241Z-e981d98b` / `onpc-system-nd46dfaw` | `1.3.6-1` |
+| onpc-Fedora44 | `0:1.3-0.1.dev.fc44`, x86_64 / `188be907c46b1cd0dabae06ac898c43e75beb05e` | `20261018T032652Z-80c4c1e1` / `onpc-system-2finpn0d` | `0:2.0.1-1.fc44` |
+
+Earlier package SHA-256 values are respectively
+`49f675d9e28605eb38bd9d8a29797cdba9d4a67d5cb4320031a1c81e987c1d28`
+and `df0b69f9ca4d8a59a5a1475afff4f5b078cd2f1d0efb49c7fcff5fc81ee29a97`.
+Both receipts bind selected inputs
+`53c52a57a593f53964c1022874f233cf1e7e77bfd3f5123e72c936f6ac1abacb`
+and preparation script
+`42d09a01a044ff574e74f2643ad833add5570095738e6e8597eb66f841014fb6`.
+The staged qualification helper and native schema match the final checkout.
+Native tool/configuration/payload digests remain in each passing JUnit.
+Baseline provenance is respectively
+`911f00330b638bfdeeaa826a841d1ad46e61502758f7a48a0566d5e0f7796adc`
+and `7deb579a3e327db7ec2e416131df7d5bc0e4993feac5b3db73bb5a7d7f4fc12f`.
+The verified candidate pair uses revision
+`5414b496ca5fe97a51ed7523d0c32978b398d859`, source digest
+`68e24deca024e35c36444fcb4217642eeb7a9cfa3276d55e0e12799fe75c4b05`;
+its identity supplies input provenance, not upgrade acceptance.
+
+Both results record product, infrastructure, collection and cleanup passed,
+`cleanup_phase=complete` and independent baseline verification without failures.
+Recording finalization ended; public status probes confirm both guests off.
+All workers joined before acceptance. Affected host checks passed **3,272/3,272**;
+the final native-group/backend/retry/verifier selection passed **624/624**.
+Their retained reports are respectively
+`output/test-runs/host/exports/onpc-artifact-export-t9ii5pqi/report.md` and
+`output/test-runs/host/exports/onpc-artifact-export-1t15i008/report.md`.
+Resource inventories were reviewed; the checks retain private fixtures and
+existing lifecycle owners. Generated coverage was refreshed after the final
+source change. These edits affect tests/tooling only, so no additional product
+`make build` was required. Documentation/plan consistency passed **465/465**;
+its retained report is
+`output/test-runs/host/exports/onpc-artifact-export-wy3hxyuw/report.md`.
+All 151 local links in the seven changed Markdown documents passed. Only 002a
+is checked; 003/004 retain their status, order, scope and dependencies.
 
 ## Coverage audit and remaining work
 
@@ -307,7 +387,7 @@ customer E2E task and grants no task 003 acceptance credit.
 | --- | --- | --- |
 | Optional PAM | Parser/control-flow, ownership, include and restoration checks; real-helper composition; tasks 001–002's accepted LXC, plain, Fedora SSSD and local-override native histories | Finite task 002 PAM variants are qualified on both targets. |
 | Failed configuration | OS gates, unsafe paths, migration schema/retry, service failures, backend/trust checks, task 001's native interruption/recovery and task 002's pending-vendor refusal/policy-preserving retry | Finite task 002 environment histories are qualified; future changes still need matching native evidence. |
-| Earlier product versions | Maintained released-source DEB/RPM inputs and case 287's saved-policy/grant upgrade history; retained Ubuntu slice and Fedora fixture diagnosis above | Prerequisite 002a supplies trusted native witnesses; task 003 then requires both complete matching target histories. Same-version reinstall is a different result. |
+| Earlier product versions | Maintained released-source DEB/RPM inputs, case 288's qualified trusted witnesses and case 287's saved-policy/grant upgrade history; retained earlier diagnosis above | Task 003 requires both complete matching upgrade histories using the qualified witnesses. Same-version reinstall is a different result. |
 | Live native dependencies | Native version receipts, synthetic executable replacement, retained mappings and reexec checks | Task 004 qualifies an actual distro package maintenance transaction while an owned session is retained; baseline updates before fresh installation do not establish this. |
 | Core customer behavior and startup faults | Component/system checks and some complete installed journeys already exist | Daily/grant enforcement, hard/soft transitions, natural lock/recovery, persistence and multi-session cases still have pending obligations in the existing E2E queue. Registered selectors are not passing evidence. |
 

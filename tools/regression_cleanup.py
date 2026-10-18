@@ -5,6 +5,10 @@ explicitly owned children/descriptors. test_environment disables shared caches
 and aggregate retention registration. Keep future modules exclusive until their
 fixtures and external resources have been reviewed; never omit their cases.
 """
+# Trusted-native baseline reconciliation uses the existing in-memory guestfs
+# doubles and private records; enforcement adds closed one-shot variants only.
+# No live trust DB, VM, bus, socket or process owner is added; both existing
+# unit and cleanup compatible classifications remain applicable.
 # write_e2e_cleanup_safety's app-server double retains the existing private
 # pipes, recorded child/nested-test owners and waited cleanup. No live model,
 # VM, shared cache or new lifetime is introduced; compatible in both inventories.

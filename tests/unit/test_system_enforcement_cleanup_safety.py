@@ -201,7 +201,7 @@ def test_native_probe_guest_refusal_precedes_bus_import_and_files(
 
 
 @pytest.mark.parametrize('boundary', ['guard', 'identity'])
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention'])
+@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention', 'trusted-hard', 'trusted-soft'])
 def test_refused_boundary_prevents_exec(monkeypatch, capsys, boundary, variant):
     guard, identity, execute = Mock(), Mock(), Mock()
     (guard if boundary == 'guard' else identity).side_effect = enforcement.guest.GuestError('refused')
@@ -216,7 +216,7 @@ def test_refused_boundary_prevents_exec(monkeypatch, capsys, boundary, variant):
         identity.assert_not_called()
 
 
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention'])
+@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention', 'trusted-hard', 'trusted-soft'])
 def test_success_replaces_same_process_with_one_shot_target(monkeypatch, capsys, variant):
     class Replaced(BaseException):
         pass
@@ -238,7 +238,7 @@ def test_success_replaces_same_process_with_one_shot_target(monkeypatch, capsys,
     assert capsys.readouterr().out.encode() == enforcement.IDENTITY
 
 
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'retention'])
+@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'retention', 'trusted-hard', 'trusted-soft'])
 def test_guest_refusal_prevents_fixture_files(monkeypatch, tmp_path, variant):
     monkeypatch.setattr(enforcement, 'TARGET', tmp_path / 'native/fixture')
     monkeypatch.setattr(enforcement, 'DESKTOP', tmp_path / 'fixture.desktop')

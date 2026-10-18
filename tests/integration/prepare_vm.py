@@ -49,6 +49,7 @@ SCRIPT_FILES = (
     "tests/integration/baseline_fixtures.py",
     "tests/integration/baseline_console.py",
     "tests/fixtures/baseline_assets.py",
+    "tests/fixtures/native_trust.py",
     "tests/fixtures/native_assets.py",
     "tests/fixtures/build_test_applications.py",
     "tests/fixtures/onpc_test_application.c",

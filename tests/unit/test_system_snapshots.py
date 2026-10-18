@@ -38,6 +38,16 @@ def test_previous_policy_history_never_restores_between_old_package_and_final_re
     assert selected.phases == ('previous-policy', 'installed', 'rebooted')
 
 
+def test_trusted_fixture_qualification_uses_one_product_free_baseline_attempt():
+    inventories = {**INVENTORIES, 'package': (*INVENTORIES['package'],
+                                            system.TRUSTED_FIXTURES_CASE)}
+    selected = system.resolve_selection('package', system.TRUSTED_FIXTURES_CASE,
+                                        inventories=inventories, fresh_install=True)
+    assert selected.phases == ('trusted-fixtures',)
+    assert snapshots.attempts(selected, fresh_install=True) == [(selected, False)]
+    assert snapshots.attempts(selected) == [(selected, False)]
+
+
 @pytest.mark.parametrize('area', [None, 'package'])
 def test_pam_broad_selection_partitions_each_variant_into_its_own_baseline_history(
         pam_inventories, area):

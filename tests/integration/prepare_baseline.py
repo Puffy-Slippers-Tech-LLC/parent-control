@@ -43,6 +43,7 @@ if __name__ == '__main__':
 import prepare_vm as guest_contract
 from watch_activity import observed
 from baseline_messages import SNAPSHOT, help_message, mode_message
+from tests.fixtures.native_trust import ForeignTrustMetadataError
 
 
 URI = guest_contract.vm_config.URI
@@ -535,7 +536,7 @@ def inspect_guest(guestfs, disk, script_digest):
                     "guest:residue:package")
         from baseline_fixtures import verify as verify_fixtures
         from baseline_console import verify as verify_console
-        verify_fixtures(g)
+        verify_fixtures(g, script_digest)
         verify_console(g)
         for category, paths in guest_contract.RESIDUE_PATHS.items():
             require(not any(g.exists(path) or g.is_symlink(path) for path in paths), f"guest:residue:{category}")
@@ -1357,7 +1358,8 @@ def main(argv=None):
               file=sys.stderr)
         return 1
     except (Exception, KeyboardInterrupt) as error:
-        category = str(error) if isinstance(error, CaptureError) else "operation:failed-or-interrupted"
+        category = (str(error) if isinstance(error, (CaptureError, ForeignTrustMetadataError))
+                    else "operation:failed-or-interrupted")
         if not isinstance(error, (CaptureError, KeyboardInterrupt)):
             # Report code locations, never exception text, source lines or locals:
             # guestfs/command errors can contain guest data or staged secrets.

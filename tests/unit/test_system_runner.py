@@ -257,6 +257,156 @@ def previous_policy_inventories():
     return {**INVENTORIES, 'package': (*INVENTORIES['package'], runner.PREVIOUS_POLICY_CASE)}
 
 
+@pytest.fixture
+def trusted_fixture_inventories():
+    return {**INVENTORIES, 'package': (*INVENTORIES['package'], runner.PREVIOUS_POLICY_CASE,
+                                      runner.TRUSTED_FIXTURES_CASE)}
+
+
+def test_trusted_fixture_selection_is_only_the_explicit_old_package_qualification(
+        trusted_fixture_inventories):
+    case = runner.TRUSTED_FIXTURES_CASE
+    selected = runner.resolve_selection('package', case, inventories=trusted_fixture_inventories,
+                                        fresh_install=True)
+    numeric = runner.resolve_selection(recording_ids='288', inventories=trusted_fixture_inventories,
+                                       fresh_install=True)
+    assert selected.phases == ('trusted-fixtures',)
+    assert numeric.executions == selected.executions == (
+        runner.CaseExecution('trusted-fixtures', 'package', case, False),)
+    assert {'genuine-earlier-package', 'previous-install-and-reboot',
+            'trusted-native-baseline-fixtures', 'fixture-passwords'} <= set(selected.prerequisites)
+    assert runner.pytest_command(RUN, 'trusted-fixtures', selected)[-1] == (
+        runner.PAYLOAD + '/test_install_smoke.py::' + case)
+    for fresh in (False, True):
+        for area in (None, 'package'):
+            ordinary = runner.resolve_selection(area, inventories=trusted_fixture_inventories,
+                                                fresh_install=fresh)
+            assert all(item.case_id != case for item in ordinary.executions)
+    for completed in (set(), {'trusted-fixtures::' + case}):
+        assert runner.resume_selection(selected, completed, fresh_install=True) == selected
+    with pytest.raises(runner.Error, match='trusted-fixtures-requires-isolated-history'):
+        runner.resolve_selection(recording_ids='288,287', inventories=trusted_fixture_inventories,
+                                 fresh_install=True)
+
+
+@pytest.mark.parametrize('selectors', [
+    ['--area', 'package', '--test', 'test_trusted_native_upgrade_fixtures'], ['--id', '288'],
+])
+def test_trusted_fixture_cli_requires_previous_inputs_before_host_or_vm_operations(
+        monkeypatch, capsys, trusted_fixture_inventories, selectors):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: trusted_fixture_inventories[name])
+    with patch.object(runner.tempfile, 'mkdtemp') as allocate, \
+            patch.object(runner, 'Lease') as lease:
+        assert runner.main(['--vm', vm_name(), '--check-tools', *selectors]) == 1
+    assert 'selection:trusted-fixtures-requires-previous-artifacts' in capsys.readouterr().err
+    allocate.assert_not_called()
+    lease.assert_not_called()
+
+
+def test_trusted_fixture_pytest_deadline_and_progress_use_only_its_registered_case(
+        monkeypatch, trusted_fixture_inventories):
+    import system_progress
+    selected = runner.resolve_selection('package', runner.TRUSTED_FIXTURES_CASE,
+                                        inventories=trusted_fixture_inventories, fresh_install=True)
+    progress = Mock()
+    monkeypatch.setattr(system_progress, 'Progress', progress)
+    vm = Mock()
+    prior = vm.commands.progress
+    runner.run_pytest(vm, RUN, 'trusted-fixtures', selected)
+    vm.call.assert_called_once_with(runner.pytest_command(RUN, 'trusted-fixtures', selected),
+                                    timeout=2400)
+    assert progress.call_args.args == ('trusted-fixtures', selected.executions)
+    progress.return_value.close.assert_called_once_with()
+    assert vm.commands.progress is prior
+
+
+@pytest.mark.parametrize('phase', ['trusted-fixtures', 'installed', 'rebooted'])
+def test_trusted_fixture_collected_case_dispatches_only_qualification(monkeypatch, phase):
+    qualify = Mock()
+    monkeypatch.setitem(sys.modules, 'system_trusted_fixtures', SimpleNamespace(qualify=qualify))
+    case = load_module('private_trusted_fixture_case',
+                       runner.ROOT / 'tests/system/test_install_smoke.py')
+    monkeypatch.setenv('ONPC_SYSTEM_PHASE', phase)
+    record = Mock()
+    if phase == 'trusted-fixtures':
+        case.test_trusted_native_upgrade_fixtures(record)
+        qualify.assert_called_once_with(record)
+    else:
+        with pytest.raises(guest.GuestError, match='trusted-fixtures:test-phase'):
+            case.test_trusted_native_upgrade_fixtures(record)
+        qualify.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', [None, 'install-previous', 'old-reboot', 'trusted-fixtures'])
+def test_trusted_fixture_controller_installs_and_boots_only_previous_package(
+        tmp_path, monkeypatch, trusted_fixture_inventories, failure):
+    selected = runner.resolve_selection('package', runner.TRUSTED_FIXTURES_CASE,
+                                        inventories=trusted_fixture_inventories, fresh_install=True)
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'input/previous-package.rpm').write_bytes(b'pinned previous package')
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    events = []
+    def step(name):
+        events.append(name)
+        if failure == name:
+            vm.commands.last_returncode = 1
+            raise runner.CommandError('qualification-failed')
+    def execute(command, **options):
+        for name in ('install-previous', 'install', 'upgrade'):
+            if command == runner.guest_command(RUN, name):
+                step(name)
+    def qualify(owned, token, phase, selection):
+        assert owned is vm and token == RUN and selection == selected
+        step(phase)
+    vm.call.side_effect = execute
+    vm.reboot.side_effect = lambda: step('old-reboot')
+    monkeypatch.setattr(runner, 'run_pytest', qualify)
+    write_junit_results(tmp_path, selected)
+    ledger = runner.RunLedger()
+    if failure:
+        with pytest.raises(runner.CommandError):
+            runner.installed_run(vm, lease, tmp_path, selected, ledger)
+    else:
+        assert runner.installed_run(vm, lease, tmp_path, selected, ledger) == {
+            'trusted-fixtures': (('package', runner.TRUSTED_FIXTURES_CASE),)}
+        assert ledger.outcomes['product']['outcome'] == 'passed'
+    expected = ['install-previous', 'old-reboot', 'trusted-fixtures']
+    assert events == (expected[:expected.index(failure) + 1] if failure else expected)
+    lease.prepare.assert_not_called()
+    lease.restore.assert_not_called()
+    captures = [call.args[0] for call in vm.call.call_args_list
+                if call.args[0] in (runner.guest_command(RUN, 'collect', 'installed'),
+                                    runner.guest_command(RUN, 'collect', 'failed'),
+                                    runner.guest_command(RUN, 'collect', 'passed'))]
+    assert captures == ([runner.guest_command(RUN, 'collect', 'installed')]
+                        if failure != 'install-previous' else []) + [
+                            runner.guest_command(RUN, 'collect', 'failed' if failure else 'passed')]
+    assert vm.call.call_args.args[0] == runner.guest_command(
+        RUN, 'collect', 'failed' if failure else 'passed')
+    if failure == 'trusted-fixtures':
+        assert ledger.outcomes['product']['category'] == 'pytest:failed:trusted-fixtures'
+
+
+@pytest.mark.parametrize('invalid', ['missing-previous', 'installed-snapshot', 'candidate-phase'])
+def test_trusted_fixture_controller_refuses_incompatible_starting_state(
+        tmp_path, trusted_fixture_inventories, invalid):
+    from dataclasses import replace
+    selected = runner.resolve_selection('package', runner.TRUSTED_FIXTURES_CASE,
+                                        inventories=trusted_fixture_inventories, fresh_install=True)
+    if invalid != 'missing-previous':
+        (tmp_path / 'input').mkdir()
+        (tmp_path / 'input/previous-package.deb').write_bytes(b'pinned previous package')
+    if invalid == 'candidate-phase':
+        selected = replace(selected, phases=(*selected.phases, 'installed'))
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    with pytest.raises(runner.Error, match='trusted-fixtures-requires-isolated-old-package'):
+        runner.installed_run(vm, lease, tmp_path, selected,
+                             already_installed=invalid == 'installed-snapshot')
+    vm.reboot.assert_not_called()
+    assert vm.call.call_args_list == [((runner.guest_command(RUN, 'collect', 'failed'),),
+                                      {'timeout': 180})]
+
+
 def test_previous_policy_selection_stages_complete_history_and_replays_partial_results(
         tmp_path, previous_policy_inventories):
     case = runner.PREVIOUS_POLICY_CASE
@@ -1370,9 +1520,9 @@ def test_selected_input_digest_is_stable_and_selector_sensitive(tmp_path):
         'system_removal.py', 'system_removal_faults.py',
         'system_removal_identity.py', 'system_removal_ownership.py',
         'system_enforcement.py', 'system_session_expiry.py', 'system_caller.py',
-        'baseline_assets.py', 'native_assets.py', 'tests/__init__.py',
+        'baseline_assets.py', 'native_assets.py', 'native_trust.py', 'system_trusted_fixtures.py', 'tests/__init__.py',
         'tests/fixtures/__init__.py', 'tests/fixtures/native_assets.py',
-        'tests/fixtures/baseline_assets.py',
+        'tests/fixtures/baseline_assets.py', 'tests/fixtures/native_trust.py',
     }
 
 

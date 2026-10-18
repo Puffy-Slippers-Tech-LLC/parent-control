@@ -49,6 +49,8 @@ FIRST_CONFIGURE_CASE = 'test_first_configuration_interruption_retry'
 FIRST_CONFIGURE_PHASES = ('first-configure', 'first-configure-rebooted')
 PREVIOUS_POLICY_CASE = 'test_previous_package_policy_preservation'
 PREVIOUS_POLICY_PHASES = ('previous-policy', 'installed', 'rebooted')
+TRUSTED_FIXTURES_CASE = 'test_trusted_native_upgrade_fixtures'
+TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
 
 
 @dataclass(frozen=True)
@@ -104,7 +106,7 @@ REMOVAL_FAMILIES = {
 ROLLBACK_PHASES = (*REMOVAL_HISTORIES[1].prerequisites, *REMOVAL_HISTORIES[1].phases)
 PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
                    for phase, semantic in zip(history.prerequisites, ('installed', 'rebooted'))}
-PHASE_ORDER = ('previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
+PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
                'authorization', 'enforcement', 'session')
@@ -118,6 +120,7 @@ AREA_SOURCES = {
 COMMON_SELECTED_INPUTS = (
     ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
     ('tests/fixtures/native_assets.py', 'native_assets.py'),
+    ('tests/fixtures/native_trust.py', 'native_trust.py'),
     ('tests/integration/system_guest.py', 'system_guest.py'),
     ('tests/integration/guest_test_dependencies.py', 'guest_test_dependencies.py'),
     ('tests/integration/owned_commands.py', 'owned_commands.py'),
@@ -143,6 +146,7 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
     'common/oh_no_parent_control_ui/application_ui_client.py', 'data/app.json',
 )
 PHASE_DEPENDENCIES = {
+    TRUSTED_FIXTURES_PHASE: (),
     'previous-policy': (),
     'installed': (),
     'rebooted': ('installed',),
@@ -160,6 +164,8 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    TRUSTED_FIXTURES_PHASE: ('genuine-earlier-package', 'previous-install-and-reboot',
+                            'trusted-native-baseline-fixtures', 'fixture-passwords'),
     'previous-policy': ('genuine-earlier-package', 'previous-install-and-reboot',
                         'saved-child-policy-and-authenticated-grant', 'fixture-passwords'),
     'installed': ('accepted-baseline', 'exclusive-vm-lease', 'offline-bootstrap', 'package-install'),
@@ -373,6 +379,7 @@ def case_phases(area, case_id):
     if area in ('authorization', 'enforcement', 'session'):
         return (area,)
     package = {
+        TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
         PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
         **{history.case_id: history.phases for history in PAM_HISTORIES},
         FIRST_CONFIGURE_CASE: FIRST_CONFIGURE_PHASES,
@@ -441,6 +448,14 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         chosen = {name: tuple(case for case in cases if (name, case) in selected)
                   for name, cases in chosen.items()}
         chosen = {name: cases for name, cases in chosen.items() if cases}
+    # Qualification is an explicit, isolated old-package history. In particular,
+    # --previous-artifacts alone must not add it to an upgrade suite.
+    if test != TRUSTED_FIXTURES_CASE and not identities and 'package' in chosen:
+        chosen['package'] = tuple(case for case in chosen['package']
+                                  if case != TRUSTED_FIXTURES_CASE)
+    trusted_fixtures = TRUSTED_FIXTURES_CASE in chosen.get('package', ())
+    require(not trusted_fixtures or chosen == {'package': (TRUSTED_FIXTURES_CASE,)},
+            'selection:trusted-fixtures-requires-isolated-history')
     # This optional history needs explicit earlier-package inputs. Ordinary
     # current-package suites keep their independent baseline histories.
     if not fresh_install and test is None and not identities and 'package' in chosen:
@@ -457,7 +472,7 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
     terminal_phases = {phase for name, cases in chosen.items() for case in cases
                        for phase in case_phases(name, case)}
     dependencies = {phase for item in terminal_phases for phase in PHASE_DEPENDENCIES[item]}
-    if fresh_install:
+    if fresh_install and not trusted_fixtures:
         dependencies.update(('installed', 'rebooted'))
     phases = tuple(phase for phase in PHASE_ORDER if phase in terminal_phases or
                    phase in dependencies)
@@ -1782,7 +1797,7 @@ def run_pytest(vm, run, phase, selection):
     vm.commands.progress = Progress(phase, phase_executions(selection, phase), watch=watch_progress)
     try:
         return vm.call(pytest_command(run, phase, selection),
-                       timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy') or any(phase in history.phases
+                       timeout=2400 if phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE) or any(phase in history.phases
                                            for history in REMOVAL_HISTORIES) else 900)
     finally:
         vm.commands.progress.close()
@@ -1803,6 +1818,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
         has_previous = any(path.exists() for path in previous)
         previous_policy = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+        trusted_fixtures = any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)
+        require(not trusted_fixtures or (has_previous and not already_installed and
+                selection.phases == (TRUSTED_FIXTURES_PHASE,) and
+                selection.executions == (CaseExecution(TRUSTED_FIXTURES_PHASE, 'package',
+                                                       TRUSTED_FIXTURES_CASE, False),)),
+                'selection:trusted-fixtures-requires-isolated-old-package')
         require(not previous_policy or (has_previous and not already_installed and
                 selection.phases == PREVIOUS_POLICY_PHASES),
                 'selection:previous-policy-requires-isolated-upgrade')
@@ -1832,6 +1853,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'install-previous'), timeout=2400)
+            if trusted_fixtures:
+                # Preserve the verified old installation before its required
+                # boot can lose transport. Qualification still runs only after
+                # that boot, with the same installation and baseline attempt.
+                with ledger.measure('collection'):
+                    vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
+                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
             lease.save('previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
@@ -1849,7 +1877,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('collection'):
                     vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
                     vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-        if not already_installed and not first_configure and pam_history is None:
+        if not already_installed and not first_configure and pam_history is None and not trusted_fixtures:
             lease.save('package-install')
             with ledger.measure('install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
@@ -1896,7 +1924,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                 for phase in history.phases)
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
-        for phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
+        for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
                       'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
@@ -2078,7 +2106,7 @@ def main(argv=None):
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
-                        help='verified prior package to install and reboot before upgrading')
+                        help='verified prior package to install and reboot before upgrade or fixture qualification')
     parser.add_argument('--area')
     parser.add_argument('--test')
     parser.add_argument('--id', help='comma-separated persistent numeric system case IDs')
@@ -2126,6 +2154,9 @@ def main(argv=None):
         require(not any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
                 or args.previous_artifacts is not None,
                 'selection:previous-policy-requires-previous-artifacts')
+        require(not any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)
+                or args.previous_artifacts is not None,
+                'selection:trusted-fixtures-requires-previous-artifacts')
         require(Path.cwd() == ROOT == baseline.guest_contract.CHECKOUT, 'guard:checkout')
         if args.completed_cases is not None:
             from tools.test_checkpoint import completed_cases
@@ -2154,7 +2185,8 @@ def main(argv=None):
         with ledger.measure('preparation'):
             manifest = stage_assets(assets, directory / 'input', commands)
             if previous_assets is not None:
-                genuine = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+                genuine = any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
+                              for item in selection.executions)
                 stage_previous_assets(previous_assets,
                     directory / 'input/previous' if genuine else directory / 'previous',
                     commands, manifest, genuine=genuine)

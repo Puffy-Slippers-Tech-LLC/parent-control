@@ -191,11 +191,11 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         payload = build_payload()
         with mounted(guestfs, capture) as g:
             declared = reconcile(g, payload)
-            from baseline_fixtures import RECORD
+            from baseline_fixtures import RECORD, TRUST_RECORD, TRUST_FILE, BACKEND_RECORD, BACKEND_CONFIG
             # Offline-created files and their enclosing fixture directories need
             # the distribution's standard contexts before enforcing SELinux boots.
             paths = sorted(set(declared) | {str(Path(path).parent) for path in declared})
-            label_preparation(g, [RECORD, *paths])
+            label_preparation(g, [RECORD, TRUST_RECORD, TRUST_FILE, BACKEND_RECORD, BACKEND_CONFIG, *paths])
 
 
 def configure_clipboard(root):

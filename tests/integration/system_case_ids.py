@@ -594,6 +594,8 @@ CASES = (
                  'PAM environment installation [pending-vendor]'),
     CaseIdentity(287, 'package', 'test_previous_package_policy_preservation',
                  'Previous package policy preservation'),
+    CaseIdentity(288, 'package', 'test_trusted_native_upgrade_fixtures',
+                 'Trusted native upgrade fixtures'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

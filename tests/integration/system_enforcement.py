@@ -29,6 +29,7 @@ PATTERN_DESKTOP = Path('/usr/share/applications') / PATTERN_DESKTOP_ID
 RETENTION_TARGET = Path('/opt/onpc-test-fixtures-retention/native-fixture')
 RETENTION_DESKTOP_ID = 'com.puffyslippers.ONPCTest.Retention.desktop'
 RETENTION_DESKTOP = Path('/usr/share/applications') / RETENTION_DESKTOP_ID
+TRUSTED_VARIANTS = ('trusted-hard', 'trusted-soft')
 RULES = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
 COMPILED_RULES = Path('/etc/fapolicyd/compiled.rules')
 FAPOLICYD = Path('/usr/sbin/fapolicyd')
@@ -82,7 +83,12 @@ def verify_fixture_files(declaration, identities, *, root=Path('/')):
         if isinstance(content, bytes):
             guest.require(path.read_bytes() == content, 'enforcement:baseline-launcher')
         else:
-            guest.require(content == 'mechanical' and guest.sha(path) == guest.sha(source),
+            guest.require(content in ('mechanical', *TRUSTED_VARIANTS),
+                          'enforcement:fixture-source')
+            source = guest.PAYLOAD / 'fixtures/mechanical' / (
+                'onpc-test-application' if content == 'mechanical' else 'identity-' + content)
+            guest.require(source.is_file() and not source.is_symlink(), 'enforcement:fixture-missing')
+            guest.require(guest.sha(path) == guest.sha(source),
                           'enforcement:baseline-fixture-digest; run tools/prepare-vm')
 
 
@@ -161,6 +167,14 @@ def native_paths(variant):
         'pattern-unrelated': (PATTERN_TARGET.with_name('Unrelated.AppImage'),
                               PATTERN_DESKTOP, PATTERN_DESKTOP_ID),
     }
+    try:
+        from baseline_assets import TRUSTED_NATIVE
+    except ImportError:
+        from tests.fixtures.baseline_assets import TRUSTED_NATIVE
+    paths.update({name: (Path(target), Path('/usr/share/applications') /
+                        ('com.puffyslippers.ONPCTest.' + suffix + '.desktop'),
+                        'com.puffyslippers.ONPCTest.' + suffix + '.desktop')
+                  for name, (target, suffix) in TRUSTED_NATIVE.items()})
     guest.require(isinstance(variant, str) and variant in paths,
                   'enforcement:fixture-variant')
     return paths[variant]
@@ -170,18 +184,22 @@ def provision_native(variant='command'):
     """Verify fixed native witnesses; installation belongs to prepare-vm."""
     guest.guard()
     target, desktop, _ = native_paths(variant)
-    guest.require(variant in ('command', 'whitespace', 'pattern', 'retention'),
+    guest.require(variant in ('command', 'whitespace', 'pattern', 'retention', *TRUSTED_VARIANTS),
                   'enforcement:fixture-variant')
     guest.enable_diagnostics()
+    name = 'ONPC Trusted Native Fixture' if variant in TRUSTED_VARIANTS else 'ONPC Native Fixture'
     declaration = {
-        str(target): ('mechanical', 0o755, 'system'),
-        str(desktop): (('[Desktop Entry]\nType=Application\nName=ONPC Native Fixture\n'
+        str(target): (variant if variant in TRUSTED_VARIANTS else 'mechanical', 0o755, 'system'),
+        str(desktop): ((f'[Desktop Entry]\nType=Application\nName={name}\n'
                        f'Exec="{target}"\nTerminal=false\n').encode(), 0o644, 'system'),
     }
     if variant == 'pattern':
         unrelated, _, _ = native_paths('pattern-unrelated')
         declaration[str(unrelated)] = ('mechanical', 0o755, 'system')
     verify_fixture_files(declaration, {})
+    if variant in TRUSTED_VARIANTS:
+        from system_trusted_fixtures import verify_trust
+        verify_trust()
     accounts = {role: pwd.getpwnam(name).pw_uid for role, name in (
         ('child', 'onpc-child-riley'), ('other', 'onpc-child-jordan'),
         ('parent', 'onpc-parent-jamie'))}

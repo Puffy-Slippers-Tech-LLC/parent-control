@@ -42,6 +42,13 @@ def test_previous_package_policy_preservation(record_testsuite_property):
         phase](record_testsuite_property)
 
 
+def test_trusted_native_upgrade_fixtures(record_testsuite_property):
+    from system_trusted_fixtures import qualify
+    guest.require(os.environ['ONPC_SYSTEM_PHASE'] == 'trusted-fixtures',
+                  'trusted-fixtures:test-phase')
+    qualify(record_testsuite_property)
+
+
 def test_first_configuration_interruption_retry(record_testsuite_property):
     from system_first_configure import exercise, verify_reboot
     {'first-configure': exercise, 'first-configure-rebooted': verify_reboot}[

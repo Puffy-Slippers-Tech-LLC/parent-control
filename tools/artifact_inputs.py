@@ -16,11 +16,12 @@ SCHEMA = 1
 FIXTURE_SOURCES = (
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py', 'tests/fixtures/gui_runtime.py',
+    'tests/fixtures/native_assets.py',
     'tests/fixtures/gui_application.py', 'tests/fixtures/onpc_test_application.c',
     'common/oh_no_parent_control_ui/gtk_automation.py',
 )
 FIXTURE_IMPORTS = ('tests/__init__.py', 'tests/fixtures/__init__.py',
-                   'tests/fixtures/gui_runtime.py')
+                   'tests/fixtures/gui_runtime.py', 'tests/fixtures/native_assets.py')
 PACKAGE_TOOLS = ('make', 'cc', 'dpkg-buildpackage', 'dpkg-deb', 'dpkg-architecture',
                  'glib-compile-schemas', 'git')
 FIXTURE_TOOLS = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd')

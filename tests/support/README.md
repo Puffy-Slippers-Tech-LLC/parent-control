@@ -159,6 +159,19 @@ source-bound inputs and preserves valid existing bundles. Host launcher checks
 cover matching consumer/preparation bindings, failed preparation before VM
 dispatch and reuse without replacing inputs.
 
+Native upgrade input qualification uses the baseline-owned `trusted-hard` and
+`trusted-soft` variants through `system_enforcement`'s closed fixture/probe
+interfaces. `system_trusted_fixtures.verify_trust` validates preparation and
+fixture-record binding, exact payload/metadata, native package/tool provenance
+and the enabled native backend's configuration/receipt, fixed native service
+group, exact trust-fragment metadata and loaded file-trust rows without
+mutation. Original untrusted variants remain
+separate. Its host regressions use private pytest records and process-local
+command/authentication doubles; they create no native trust database, VM, bus,
+display or subprocess. Existing enforcement readiness and directly owned
+one-shot execution guards remain unchanged. The new host module is compatible
+unit work; enforcement's existing unit/cleanup classifications remain applicable.
+
 `journey_blocks.allowance_selection`, `onpc_allowance_selection::select` and
 `gui_blocks.select_allowance` share one Parent allowance block.
 `AccessibleUI.select_allowance` selects the canonical offered duration or

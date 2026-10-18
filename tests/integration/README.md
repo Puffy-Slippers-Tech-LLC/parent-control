@@ -519,6 +519,23 @@ replays the entire unfinished history; earlier phase passes cannot be spliced
 into another restored guest. This engineering case supplies no customer GUI
 update-journey acceptance.
 
+`package` → `test_trusted_native_upgrade_fixtures` (ID **288**) separately
+qualifies the trusted inputs for an earlier-release history. It uses the same
+verified current/previous artifact pair and an isolated product-free baseline
+attempt. The runner installs and boots only the pinned earlier package, then
+runs `trusted-fixtures`; the candidate is never installed in this qualification.
+Both fixed children first execute the independently named trusted hard/soft
+fixtures without restriction. Public old-broker policy operations then require
+child-only hard denial, strict soft denial and real authenticated soft approval,
+with unrelated-child execution at every stage. Source and compiled rules are
+retained. The fixture receipt, native package/tool identities, exact file-trust
+database rows and unchanged original untrusted bytes/trust state must match
+the prepared baseline. Placement and trust admission belong exclusively to
+[`tools/prepare-vm`](Environment.md#reusable-preparation-ownership).
+The selector is explicit and isolated; ordinary current-package or upgrade
+selections do not add it. Its passing result qualifies inputs, without granting
+candidate-upgrade or customer GUI acceptance.
+
 `test_native_whitespace_policy_is_uid_scoped` runs the same transitions and
 other-child assertions using a fixed executable filename containing a space.
 Its quoted desktop entry must resolve to that exact target. Each deny stage

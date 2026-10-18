@@ -999,7 +999,8 @@ def guest_fixture(*, os_id='ubuntu'):
         f"{item.username}:x:{1000+i}:{1000+i}:{item.display_name}:/home/{item.username}:/bin/bash"
         for i, item in enumerate(guest.IDENTITIES)).encode()
     files["/etc/group"] = ("adm:x:4:onpc-parent-jamie,onpc-parent-casey\n"
-                           "sudo:x:27:onpc-parent-jamie,onpc-parent-casey\n").encode()
+                           "sudo:x:27:onpc-parent-jamie,onpc-parent-casey\n"
+                           "fapolicyd:x:987:\n").encode()
     g = Mock()
     g.inspect_os.return_value = ["/dev/sda2"]
     g.inspect_get_distro.return_value = "ubuntu"
@@ -1029,6 +1030,51 @@ def guest_fixture(*, os_id='ubuntu'):
             metadata.setdefault(str(parent), {'st_mode': stat.S_IFDIR | 0o755,
                                               'st_uid': 0, 'st_gid': 0, 'st_nlink': 1})
     files[baseline_fixtures.RECORD] = json.dumps(record).encode()
+    trusted_files = {path: record['files'][path] | {'size': len(files[path])}
+                     for path, _ in baseline_fixtures.assets.TRUSTED_NATIVE.values()}
+    trust_bytes = ''.join(f'{path} {spec["size"]} {spec["sha256"]}\n'
+                          for path, spec in trusted_files.items()).encode()
+    files[baseline_fixtures.TRUST_FILE] = trust_bytes
+    metadata[baseline_fixtures.TRUST_FILE] = {
+        'st_mode': stat.S_IFREG | 0o600, 'st_uid': 0, 'st_gid': 987, 'st_nlink': 1}
+    native = {'os_id': os_id, 'package': 'fapolicyd', 'service_gid': 987,
+              'version': '1.3.3-1build1' if os_id == 'ubuntu' else '0:1.3.4-2.fc44'}
+    native_tools = baseline_fixtures.native_tool_paths(os_id)
+    for key, path in (('daemon_sha256', native_tools['daemon']),
+                      ('cli_sha256', native_tools['cli'])):
+        files[path] = ('native package ' + path).encode()
+        native[key] = hashlib.sha256(files[path]).hexdigest()
+        metadata[path] = {'st_mode': stat.S_IFREG | 0o755, 'st_uid': 0,
+                          'st_gid': 0, 'st_nlink': 1}
+    metadata[str(Path(native_tools['daemon']).parent)] = {
+        'st_mode': stat.S_IFDIR | 0o755, 'st_uid': 0, 'st_gid': 0, 'st_nlink': 1}
+    if os_id == 'fedora':
+        metadata['/usr/sbin'] = {'st_mode': stat.S_IFLNK | 0o777, 'st_uid': 0,
+                                 'st_gid': 0, 'st_nlink': 1}
+    for parent in Path(baseline_fixtures.TRUST_FILE).parents:
+        metadata.setdefault(str(parent), {'st_mode': stat.S_IFDIR | 0o755,
+                                          'st_uid': 0, 'st_gid': 0, 'st_nlink': 1})
+    config = (b'# native configuration\ntrust = debdb,file\nintegrity = none\n' if os_id == 'ubuntu' else
+              b'# native configuration\ntrust = rpmdb,file\nintegrity = none\n')
+    files[baseline_fixtures.BACKEND_CONFIG] = config
+    metadata[baseline_fixtures.BACKEND_CONFIG] = {
+        'st_mode': stat.S_IFREG | 0o644, 'st_uid': 0, 'st_gid': 0, 'st_nlink': 1}
+    backend_record = {'purpose': baseline_fixtures.BACKEND_PURPOSE, 'os_id': os_id,
+                      'before_hex': config.hex(), 'after_hex': config.hex(),
+                      'metadata': {'mode': 0o644, 'uid': 0, 'gid': 0}, 'complete': True}
+    files[baseline_fixtures.BACKEND_RECORD] = json.dumps(backend_record).encode()
+    backend = {'config_sha256': hashlib.sha256(config).hexdigest(),
+               'record_sha256': hashlib.sha256(files[baseline_fixtures.BACKEND_RECORD]).hexdigest(),
+               'mode': 0o644, 'uid': 0, 'gid': 0,
+               'sources': baseline_fixtures.file_backend_sources(config, os_id)}
+    provenance = {'purpose': baseline_fixtures.TRUST_PURPOSE, 'backend': backend,
+                  'trust_file_metadata': {'mode': 0o600, 'uid': 0, 'gid': 987},
+                  'preparation_script_sha256': SCRIPT_DIGEST,
+                  'fixture_record_sha256': hashlib.sha256(files[baseline_fixtures.RECORD]).hexdigest(),
+                  'files': trusted_files, 'native': native,
+                  'trust_file_sha256': hashlib.sha256(trust_bytes).hexdigest()}
+    files[baseline_fixtures.TRUST_RECORD] = json.dumps({
+        'purpose': baseline_fixtures.TRUST_PURPOSE, 'complete': provenance, 'pending': None}).encode()
     files['/etc/login.defs'] = b'LOGIN_TIMEOUT 600\n'
     metadata['/etc/login.defs'] = {'st_mode': stat.S_IFREG | 0o644, 'st_uid': 0,
                                  'st_gid': 0, 'st_nlink': 1, 'st_dev': 1, 'st_ino': 1}
@@ -1037,15 +1083,35 @@ def guest_fixture(*, os_id='ubuntu'):
     g.lstatns.side_effect = lambda path: metadata.get(path, g.lstatns.return_value)
     g.lstatns.return_value['st_nlink'] = 1
     g.realpath.side_effect = lambda path: (
-        baseline_console.GETTY_TARGET if path == baseline_console.GETTY_LINK else path)
-    g.checksum.side_effect = lambda algorithm, path: hashlib.sha256(files[path]).hexdigest()
+        baseline_console.GETTY_TARGET if path == baseline_console.GETTY_LINK else
+        '/usr/bin' + path[len('/usr/sbin'):] if os_id == 'fedora' and
+        (path == '/usr/sbin' or path.startswith('/usr/sbin/')) else path)
+    g.checksum.side_effect = lambda algorithm, path: hashlib.new(algorithm, files[path]).hexdigest()
     g.filesize.side_effect = lambda path: len(files[path])
     g.is_file.side_effect = lambda path: path in files
     g.is_dir.side_effect = lambda path: path == str(Path(baseline_console.GETTY_LINK).parent)
     g.is_symlink.side_effect = lambda path: path == baseline_console.GETTY_LINK
+    g.find.side_effect = lambda root: sorted(path[len(root) + 1:] for path in files
+                                            if path.startswith(root + '/'))
     from tests.support.chinese_assets import populate
     populate(files, metadata)
-    g.command.return_value = 'UTF-8\n'
+    def command(argv):
+        if argv[:2] == ['dpkg-query', '-S']:
+            return 'fapolicyd: ' + argv[2] + '\n'
+        if argv[:2] == ['dpkg-query', '--control-show']:
+            return ''.join(hashlib.md5(files[path]).hexdigest() + '  ' + path.lstrip('/') + '\n'
+                           for path in native_tools.values())
+        if argv[:2] == ['dpkg-query', '-W']:
+            return 'fapolicyd 1.3.3-1build1\n'
+        if argv[:2] == ['rpm', '-qf']:
+            return 'fapolicyd'
+        if argv[:2] == ['rpm', '-q']:
+            if argv[3].startswith('%{FILEDIGESTALGO}'):
+                return '8\n' + ''.join(path + '\t' + hashlib.sha256(files[path]).hexdigest() + '\n'
+                                       for path in native_tools.values())
+            return 'fapolicyd 0:1.3.4-2.fc44\n'
+        return 'UTF-8\n'
+    g.command.side_effect = command
     return SimpleNamespace(g=g, files=files, marker=marker, module=SimpleNamespace(GuestFS=Mock(return_value=g)))
 
 
@@ -1111,9 +1177,11 @@ def test_fedora_offline_acceptance_checks_release_tools_roles_and_product_residu
                for domain in ('Linux-PAM', 'gnome-shell')}
     g.exists.side_effect = lambda path: path not in removed and (path in metadata or original_exists(path))
     language, _, _ = language_guest('fedora')
-    g.command.side_effect = language.command.side_effect
+    native_command = g.command.side_effect
+    g.command.side_effect = lambda argv: (native_command(argv) if argv[0] == 'rpm'
+                                         else language.command.side_effect(argv))
     files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
-    files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\n'
+    files['/etc/group'] = b'wheel:x:10:onpc-parent-jamie,onpc-parent-casey\nfapolicyd:x:987:\n'
     marker = guest.marker_document(guest.GuestIdentity(guest.HOSTNAME, 'a' * 32, '44', 'kvm', 'fedora'),
                                    fixture.marker['accounts'], SCRIPT_DIGEST)
     files[str(guest.MARKER)] = host.encode(marker)
@@ -1437,6 +1505,37 @@ def test_missing_tool_diagnostic_has_no_vm_connection_or_writes(monkeypatch, cap
     assert host.main(["--vm", vm_name(), "--check-tools"]) == 1
     assert "run ./setup.sh" in capsys.readouterr().err
     connect.assert_not_called()
+
+
+@pytest.mark.parametrize('safe', [False, True, 'owned'])
+def test_preparation_preserves_only_constrained_foreign_trust_metadata_diagnostic(monkeypatch, capsys, safe):
+    monkeypatch.setattr('test_account_password.read_password', lambda: 'fixture-password')
+    monkeypatch.setattr(host.guest_contract, 'CHECKOUT', ROOT)
+    monkeypatch.setattr(host.shutil, 'which', lambda name: '/usr/bin/' + name)
+    monkeypatch.setattr(host.importlib, 'import_module', Mock())
+    monkeypatch.setattr(host.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(host.os, 'getegid', lambda: 0)
+    if safe == 'owned':
+        from tests.fixtures.native_trust import OwnedTrustMetadataError
+        error = OwnedTrustMetadataError(metadata={
+            'st_uid': 0, 'st_gid': 42, 'st_nlink': 1, 'st_mode': stat.S_IFREG | 0o600}, canonical=True)
+    elif safe:
+        error = host.ForeignTrustMetadataError(legacy=True, metadata={
+            'st_uid': 0, 'st_gid': 42, 'st_nlink': 2, 'st_mode': stat.S_IFREG | 0o644}, canonical=True)
+    else:
+        error = ValueError('private-person fixture-password foreign trust payload')
+    monkeypatch.setattr(host, 'start_event_dispatch', Mock(side_effect=error))
+    assert host.main(['--vm', vm_name(), '--mode', 'auto', '--y']) == 1
+    output = capsys.readouterr().err
+    if safe == 'owned':
+        assert ('baseline:fixtures-owned-trust-metadata;sourcekind=owned-fragment;root_owner=1;'
+                'root_group=0;canonical=1;regular=1;singlylinked=1;mode=0600') in output
+    elif safe:
+        assert ('baseline:fixtures-foreign-trust-metadata;sourcekind=legacy;root_owner=1;'
+                'root_group=0;canonical=1;regular=1;singlylinked=0;mode=0644') in output
+    else:
+        assert 'operation:failed-or-interrupted' in output
+    assert 'fixture-password' not in output and 'private-person' not in output
 
 
 

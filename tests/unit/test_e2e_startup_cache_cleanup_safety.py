@@ -154,7 +154,8 @@ def test_overlapping_runtime_roots_hash_dependency_once(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('change,parts', [
-    ('product', {'package'}), ('fixture', {'fixtures'}), ('builder', {'package', 'fixtures'}),
+    ('product', {'package'}), ('fixture', {'fixtures'}), ('native-assets', {'fixtures'}),
+    ('native-assets-bytecode', {'fixtures'}), ('builder', {'package', 'fixtures'}),
     ('builder-bytecode', {'package'}), ('revision', {'package'}),
     ('runtime', {'package', 'fixtures'}), ('unrelated-bytecode', set()),
     ('fixture-readme', set()), ('cleanup-code', set()), ('scenario', set()),
@@ -181,6 +182,8 @@ def test_artifact_key_covers_inputs_and_metadata(tmp_path, monkeypatch, change, 
         product.write_text('changed')
     elif change == 'fixture':
         (tmp_path / 'tests/fixtures/onpc_test_application.c').write_text('changed')
+    elif change == 'native-assets':
+        (tmp_path / 'tests/fixtures/native_assets.py').write_text('changed')
     elif change == 'builder':
         (tmp_path / 'tools/build_test_artifacts.py').write_text('changed')
     elif change == 'builder-bytecode':
@@ -198,6 +201,7 @@ def test_artifact_key_covers_inputs_and_metadata(tmp_path, monkeypatch, change, 
             'retention-code': 'tools/test_retention.py',
             'scenario': 'tests/e2e/scenarios.json',
             'fixture-bytecode': cache_from_source('tests/fixtures/gui_runtime.py'),
+            'native-assets-bytecode': cache_from_source('tests/fixtures/native_assets.py'),
             'copied-bytecode': cache_from_source('tests/fixtures/gui_application.py'),
             'other-interpreter': 'tools/__pycache__/package_inputs.cpython-999.pyc',
         }[change]

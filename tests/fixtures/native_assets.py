@@ -10,6 +10,10 @@ ASSETS = (
     ('N', 'PrismLauncher.AppImage', 'ONPC Nonmatching Fixture', 'Unrelated native catalogue fixture', 'precise'),
 )
 GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
+TRUSTED_NATIVE = {
+    'trusted-hard': ('/opt/onpc-test-fixtures-trusted-hard/native-fixture', 'TrustedHard'),
+    'trusted-soft': ('/opt/onpc-test-fixtures-trusted-soft/native-fixture', 'TrustedSoft'),
+}
 
 
 def desktop_id(role):

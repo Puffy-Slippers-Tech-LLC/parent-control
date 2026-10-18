@@ -775,6 +775,7 @@ def test_fedora_dependencies_install_retry_verify_and_never_use_apt(tmp_path, mo
 ])
 def test_fedora_package_inventory_refuses_old_missing_or_prerelease_tools(versions, accepted):
     versions = {'python3-gobject': '3.50.0', 'gtk4': '4.18.0', 'spice-vdagent': '0.23.0',
+                'fapolicyd': '2.0.0',
                 **dict.fromkeys(prepare.guest_tools.FEDORA_CHINESE_PACKAGES, '1'),
                 **prepare.guest_tools.FEDORA_REMOTE_VERSIONS, **versions}
     if accepted:

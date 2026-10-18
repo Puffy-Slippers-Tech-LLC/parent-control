@@ -21,6 +21,7 @@ def attempts(selection, *, fresh_install=False):
                    for history in system.REMOVAL_HISTORIES[1:]]
     groups.insert(1, (system.FIRST_CONFIGURE_PHASES, False))
     groups[2:2] = [(history.phases, False) for history in system.PAM_HISTORIES]
+    groups.append(((system.TRUSTED_FIXTURES_PHASE,), False))
     result = []
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)

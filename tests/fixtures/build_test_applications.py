@@ -28,7 +28,7 @@ from typing import Mapping
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from tests.fixtures.native_assets import ASSETS as NATIVE_ASSETS, desktop_id, desktop_entry
+from tests.fixtures.native_assets import ASSETS as NATIVE_ASSETS, TRUSTED_NATIVE, desktop_id, desktop_entry
 SOURCE = Path(__file__).with_name("onpc_test_application.c")
 GUI_SOURCE = Path(__file__).with_name("gui_application.py")
 GTK_AUTOMATION_SOURCE = ROOT / "common/oh_no_parent_control_ui/gtk_automation.py"
@@ -363,6 +363,8 @@ def build(output: Path) -> None:
     _log("build", "started")
     native = _compile_native(output)
     _compile_native(output, headless=True)
+    for identity in TRUSTED_NATIVE:
+        _compile_native(output, headless=True, identity=identity)
     _build_native_layout(output, native)
     game = _compile_native(output, kind='game')
     target = output / 'image-root' / INSTALL_PREFIX / 'Applications/onpc-test-game'

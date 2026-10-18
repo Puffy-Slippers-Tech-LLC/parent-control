@@ -2,9 +2,9 @@
 from pathlib import Path
 
 try:
-    from native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id
+    from native_assets import ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, desktop_entry, desktop_id
 except ImportError:
-    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, desktop_entry, desktop_id
+    from tests.fixtures.native_assets import ASSETS, GUI_FILES, PREFIX, TRUSTED_NATIVE, desktop_entry, desktop_id
 
 MECHANICAL = '/opt/onpc-baseline-assets/onpc-test-application'
 NATIVE = {
@@ -39,6 +39,11 @@ def native_files(accounts):
         files[target] = ('mechanical', 0o755, 'system')
         path = '/usr/share/applications/com.puffyslippers.ONPCTest.' + suffix + '.desktop'
         files[path] = (('[Desktop Entry]\nType=Application\nName=ONPC Native Fixture\n'
+                        f'Exec="{target}"\nTerminal=false\n').encode(), 0o644, 'system')
+    for identity, (target, suffix) in TRUSTED_NATIVE.items():
+        files[target] = (identity, 0o755, 'system')
+        path = '/usr/share/applications/com.puffyslippers.ONPCTest.' + suffix + '.desktop'
+        files[path] = (('[Desktop Entry]\nType=Application\nName=ONPC Trusted Native Fixture\n'
                         f'Exec="{target}"\nTerminal=false\n').encode(), 0o644, 'system')
     files[str(Path(NATIVE['pattern'][0]).with_name('Unrelated.AppImage'))] = (
         'mechanical', 0o755, 'system')

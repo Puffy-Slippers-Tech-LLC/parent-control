@@ -87,6 +87,14 @@ class TestApplicationFixtures(unittest.TestCase):
             one_shot = subprocess.run([str(output / 'mechanical/onpc-test-application')],
                 check=True, text=True, capture_output=True, timeout=5)
             self.assertEqual(one_shot.stdout, 'ONPC_TEST_APPLICATION_READY\n')
+            trusted = [output / 'mechanical' / ('identity-' + identity)
+                       for identity in fixtures.TRUSTED_NATIVE]
+            self.assertEqual(len({path.read_bytes() for path in trusted} |
+                                 {(output / 'mechanical/onpc-test-application').read_bytes()}), 3)
+            for path in trusted:
+                result = subprocess.run([str(path)], check=True, text=True,
+                                        capture_output=True, timeout=5)
+                self.assertEqual(result.stdout, 'ONPC_TEST_APPLICATION_READY\n')
             self.assertTrue(
                 (output / "image-root/usr/share/applications/"
                  "com.puffyslippers.ONPCTest.System.desktop").is_file()

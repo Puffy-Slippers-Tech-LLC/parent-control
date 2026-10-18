@@ -14,6 +14,7 @@ def inputs(root):
         # Guest enforcement helpers use these maintained flat fixture aliases.
         ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
         ('tests/fixtures/native_assets.py', 'native_assets.py'),
+        ('tests/fixtures/native_trust.py', 'native_trust.py'),
         *[(relative, Path(relative).name) for relative in (
         'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py',
         'tests/integration/system_kiosk_confinement.py',

@@ -160,6 +160,7 @@ Snap, Flatpak and game fixtures as well as current declarations.
 | Serial getty and the 600-second console login window | [baseline_console.py](baseline_console.py); attempts only verify |
 | A/H/S/N GUI binaries, shared Python/GTK runtime and four child launchers | [baseline_assets.py](../fixtures/baseline_assets.py), installed by [baseline_fixtures.py](baseline_fixtures.py) |
 | Static native enforcement binaries and catalogue precedence/path witnesses | The same finite baseline declaration; engineering checks only verify |
+| Trusted hard/soft native witnesses | `baseline_assets.TRUSTED_NATIVE`, the same fixture reconciler and `native_trust` provenance schema; two distinct payloads admitted through exact native file-trust entries, alongside unchanged untrusted variants |
 | Product package and installed app snapshot | Existing product-installation lifecycle; the baseline stays product-free |
 | Private SSH identity, worker transport and evidence | Per-attempt ownership and cleanup |
 | Synthetic attachment/copy/rename/save-error inputs, future binaries and launcher removal | Deliberate scenario mutations at their declared checkpoints; preserve independent-entry and cleanup checks |
@@ -174,6 +175,33 @@ retries have explicit regressions. Accounts/settings preserve unrelated state.
 All declaration, builder and runtime sources participate in the baseline digest,
 invalidating stale baselines and their derived app snapshots. Independent offline
 inspection verifies fixtures and console configuration before capture.
+Trusted native fixtures additionally bind their exact payload identities, native
+package/tool identities and generated trust-fragment digest to the preparation
+source and fixture record. First placement uses `fapolicyd-cli --file add` for
+each fixed executable; owned updates use its scoped `--file update` operation.
+Preparation atomically publishes only that finite trust fragment.
+Durable intent permits interrupted retry without adopting foreign fragments.
+Before publication, preparation enables the native file backend only in a
+recognized distribution configuration and refuses unrelated inactive trust
+entries. A separate durable receipt preserves the exact original/reconciled
+configuration and metadata; interrupted activation is reconciled before trust
+publication. The native configuration check must pass. The completed fixture
+receipt binds this enabled configuration and its backend receipt as well.
+No directory trust or execution-policy allow rule is added. Running consumers
+verify the receipt, exact bytes/metadata and loaded native trust database; they
+refuse stale or substituted state rather than repairing it during a test.
+The guest dependency inventory declares the distribution's `fapolicyd` package
+on both platforms, so its native trust tools are available on clean baselines.
+Native vendor trust sources are inspected without adopting or rewriting them;
+their root-owned, nonwritable service-group metadata is valid. [Native tmpfiles](https://raw.githubusercontent.com/linux-application-whitelisting/fapolicyd/main/init/fapolicyd-tmpfiles.conf)
+recursively sets `/etc/fapolicyd` to the fixed `fapolicyd` group while preserving
+file modes. The owned trust fragment therefore uses root ownership, mode 0600
+and that exact native group from first publication; provenance binds its
+metadata and the service group independently. Reconciliation of a legacy
+root-group fragment requires its exact recorded bytes and all other identity
+guards. Other owned fixture outputs retain exact root:root ownership.
+Conflicting entries for either new
+trusted target or the existing untrusted controls refuse before placement.
 The folder-renamer overrides use the supported [XDG autostart precedence](https://specifications.freedesktop.org/autostart/latest/)
 and [systemd empty-unit mask](https://github.com/systemd/systemd/blob/main/man/systemd.unit.xml).
 They preserve existing folder contents and mappings, account/session languages
@@ -226,7 +254,7 @@ Host setup is orchestrated only by `setup.sh`; its scoped dependency module is
 prerequisite failure, not permission for a test to install host packages.
 The shared [guest tool inventory](guest_test_dependencies.py) is installed by
 the host's `tools/prepare-vm` during its controlled guest boot.
-Dependencies are OpenSSH server, pytest, `spice-vdagent`, OpenLDAP server/client
+Dependencies are OpenSSH server, pytest, `spice-vdagent`, `fapolicyd`, OpenLDAP server/client
 and SSSD LDAP/NSS packages, including their package-manager-resolved dependencies.
 Ubuntu additionally declares `libpam-cgfs` so native LXC session callbacks are
 present during installation and confined manager teardown. The package's default

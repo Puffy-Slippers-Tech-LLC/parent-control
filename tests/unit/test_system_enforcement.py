@@ -174,7 +174,7 @@ def test_backend_identity_read_failure_does_not_publish_partial_evidence(monkeyp
     (True, enforcement.IDENTITY + enforcement.READY, 0),
     (False, enforcement.IDENTITY + enforcement.DENIED, 77),
 ])
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention'])
+@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention', 'trusted-hard', 'trusted-soft'])
 def test_launch_witness_requires_identity_payload_and_exit(monkeypatch, allowed, raw, code, variant):
     commands = Mock(last_returncode=code)
     commands.run.return_value = raw
@@ -464,7 +464,7 @@ def test_rule_evidence_requires_both_source_and_compiled_state(monkeypatch, tmp_
 
 
 @pytest.mark.parametrize('number', [errno.EPERM, errno.EACCES, errno.ENOENT, errno.ENOEXEC])
-@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention'])
+@pytest.mark.parametrize('variant', ['command', 'whitespace', 'pattern', 'pattern-future', 'pattern-unrelated', 'retention', 'trusted-hard', 'trusted-soft'])
 def test_only_permission_errors_can_be_denial_witnesses(monkeypatch, capsys, number, variant):
     monkeypatch.setattr(enforcement.guest, 'guard', Mock())
     monkeypatch.setattr(enforcement, 'drop_identity', Mock())

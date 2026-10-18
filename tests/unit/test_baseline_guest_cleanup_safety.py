@@ -367,13 +367,17 @@ def test_replaced_running_instance_is_never_stopped(preparation):
     p.capture.source.shutdown.assert_not_called()
 
 
-def test_timeout_requests_shutdown_only_for_the_spawned_instance(preparation, monkeypatch):
+def test_timeout_preserves_the_recorded_pre_ssh_instance_for_service_owned_shutdown(preparation, monkeypatch):
     p = preparation
     p.capture.source.snapshot.return_value = ({}, False)
     monkeypatch.setattr(guest.time, 'monotonic', Mock(side_effect=[0, 7501]))
     with pytest.raises(host.CaptureError, match='preparation-timeout'):
         guest.prepare(p.capture, Mock(), 'fixture-password')
-    p.capture.source.shutdown.assert_called_once_with(p.capture.revalidate, requested=False)
+    p.capture.source.domain.create.assert_called_once_with()
+    p.capture.source.domain.ID.assert_called_with()
+    p.capture.source.shutdown.assert_not_called()
+    p.capture.source.domain.destroyFlags.assert_not_called()
+    assert 'SuccessAction=poweroff' in guest.SERVICE and 'FailureAction=poweroff' in guest.SERVICE
 
 
 def test_capture_prepares_before_hashing_inspection_and_snapshot_and_retries(rig):
@@ -419,7 +423,10 @@ def test_fedora_staging_labels_owned_paths_without_weakening_selinux(preparation
     assert p.g.feature_available.call_args_list == [call(['selinuxrelabel'])] * 2
     policy = '/etc/selinux/targeted/contexts/files/file_contexts'
     groups = [[guest.STAGE, guest.UNIT, guest.LINK],
-              ['/var/lib/onpc-baseline-fixtures.json', '/opt/onpc-baseline-assets',
+              ['/var/lib/onpc-baseline-fixtures.json', '/var/lib/onpc-baseline-native-trust.json',
+               '/etc/fapolicyd/trust.d/onpc-baseline-native.trust',
+               '/var/lib/onpc-baseline-native-backend.json', '/etc/fapolicyd/fapolicyd.conf',
+               '/opt/onpc-baseline-assets',
                '/opt/onpc-baseline-assets/test']]
     if appliance_support:
         assert p.g.setfiles.call_args_list == [call(policy, paths) for paths in groups]

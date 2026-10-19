@@ -203,10 +203,11 @@ Neither classification record includes the entry name or full path.
 
 The native PAM caller adds a separate `onpc.pam kiosk native-view` record for
 private-view failures. The existing `execution-boundary` and `cleanup=failed`
-records retain their format and meaning. Cause production is separate from the
-collector projection owned by task 002 of the
-[entry plan](../Kiosk-Prompt.md); the new record alone does not establish that
-feedback contains its cause.
+records retain their format and meaning. The collector projects validated cause
+records as `kiosk.admission-journal` with `source=native-view`, keeping primary
+denial and independent cleanup failure separate. Producer coverage and host
+archive composition do not establish installed recovery acceptance under the
+[entry plan](../Kiosk-Prompt.md).
 
 The producer schema is fixed, with no optional or arbitrary text fields:
 
@@ -241,10 +242,15 @@ Before a feedback snapshot, the independent
 PAM, login-helper and preparation records. It runs even without a surviving
 kiosk manager, valid kiosk configuration or normal policy readiness. A separate
 five-second budget covers one bounded journal read of the last 24 hours across
-retained boots, at most 200 matching entries and 20 exported markers. Denials
-and unavailable/error outcomes take priority over later successes when clipping;
-retained markers keep source chronology. This does not recover unavailable or
-already-rotated journal history.
+retained boots, at most 200 matching entries and 20 exported markers. Clipping
+keeps the first denial and the newest witness for each causal phase: passwordless
+authentication, routing stage, routing recovery, each preparation role, each
+native role's primary/cleanup cause, directory refusal, PAM refusal and armed
+boundary. These closed categories reserve at most 16 witnesses plus the original
+denial. Remaining slots prefer distinct causes, then repeated failures over
+successes. Retained markers keep source chronology; a successful recovery does
+not erase the original denial. This does not correlate whole attempts, recover
+unavailable or already-rotated journal history, or enlarge the query bounds.
 
 `kiosk.admission-journal` records source UTC time, producer category, manager/gate
 role where known, stage, outcome, closed reason, session/transport/recovery
@@ -258,6 +264,8 @@ unavailable with retained, recognized, rejected and dropped counts. Complete
 describes this bounded read only; rejected records, a full tail or marker clipping
 make the observation partial.
 
+Native causes require a session callback and a record role matching the native
+PAM service-derived role, with the exact closed producer schema above.
 Projection requires root journal credentials, reviewed native executable paths,
 or the reviewed Python/helper executable, identifier and unit provenance.
 Unknown/spoofed messages and fields are not exported. Journal account/process/

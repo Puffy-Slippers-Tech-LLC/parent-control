@@ -298,6 +298,324 @@ ADMISSION_DIRECTORY = ('onpc.kiosk confinement directory-entry action=denied '
                        'access=owner-change scope=required area=bin count=1')
 
 
+def _native_admission_journal(message, role, **overrides):
+    service = 'systemd-user' if role == 'manager' else 'gdm-password'
+    provenance = ({'_EXE': '/usr/lib/systemd/systemd-executor', '_COMM': '(systemd)',
+                   'SYSLOG_IDENTIFIER': '(systemd)', '_SYSTEMD_UNIT': 'user@123456.service'}
+                  if role == 'manager' else {})
+    provenance.update(overrides)
+    return _admission_journal(
+        f'pam_oh_no_parent_control({service}:session): {message}', 'pam', **provenance)
+
+
+def _admission_archive(tmp_path, records):
+    from oh_no_parent_control.logs import BrokerFileHandler
+    writer = DailyLogWriter(tmp_path / 'logs')
+    handler = BrokerFileHandler(writer)
+    for record in records:
+        assert not record.args and not record.exc_info
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        logs, _ = read_report(archive)
+        exported = [row for rows in logs.values() for row in rows
+                    if row['event'].startswith('kiosk.admission-')]
+        text = ''.join(archive.read(name).decode() for name in archive.namelist())
+    return exported, text
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('stage,reason,error', [
+    ('namespace', 'namespace', 1), ('staging', 'metadata', 13),
+    ('manifest', 'manifest', -1), ('structure', 'identity', -1),
+    ('source', 'metadata', 4095), ('bind', 'mount', 13),
+    ('attach', 'mount', 1), ('readonly', 'readonly', 30), ('detach', 'detach', 16),
+])
+def test_native_view_primary_and_independent_cleanup_survive_feedback_archive(
+        tmp_path, monkeypatch, caplog, role, stage, reason, error):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    caplog.set_level(logging.INFO)
+    rows = [
+        _native_admission_journal(
+            f'onpc.pam kiosk native-view outcome=denied role={role} '
+            f'stage={stage} reason={reason} errno={error}', role),
+        _native_admission_journal(
+            f'onpc.pam kiosk native-view outcome=cleanup-failed role={role} '
+            'stage=detach reason=identity errno=-1', role,
+            __REALTIME_TIMESTAMP='1792266284591440'),
+        _native_admission_journal(
+            'onpc.pam kiosk execution-boundary outcome=denied stage=bind', role,
+            __REALTIME_TIMESTAMP='1792266285591440'),
+    ]
+    monkeypatch.setattr(dependency, '_run_bounded', lambda *_args: subprocess.CompletedProcess(
+        [], 0, '\n'.join(rows), 'private@example.test /home/private-child'))
+    dependency.collect_kiosk_admission_diagnostics()
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    expected = dict(source='native-view', role=role, stage=stage, outcome='denied',
+                    reason=reason, session='unknown', transport='unknown', recovery='none',
+                    status=-256, errno=error, line=0, count=0,
+                    occurred_at='2026-10-17T19:44:43.591+00:00')
+    assert values[0]['event'] == values[1]['event'] == 'kiosk.admission-journal'
+    assert values[0]['fields'] == expected
+    assert values[1]['fields'] == {**expected, 'outcome': 'cleanup-failed', 'stage': 'detach',
+                                  'reason': 'identity', 'errno': -1,
+                                  'occurred_at': '2026-10-17T19:44:44.591+00:00'}
+    assert values[2]['fields']['source'] == 'pam'
+    assert values[2]['fields']['outcome'] == 'denied'
+    assert values[2]['fields']['stage'] == 'bind'
+    assert values[-1]['fields'] == dict(outcome='complete', count=3, recognized_count=3,
+                                       rejected_count=0, dropped_count=0)
+    exported, text = _admission_archive(tmp_path, caplog.records)
+    assert [(row['event'], row['fields']) for row in exported] == [
+        (row['event'], row['fields']) for row in values]
+    for secret in ('private', '123456', '60579', '/usr/', 'pam_oh_no_parent_control('):
+        assert secret not in text and secret not in caplog.text
+    with pytest.raises(ValueError):
+        event('kiosk.admission-journal', {**expected, 'path': '/home/private-child'})
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('fault', [
+    {'_UID': '123456'}, {'_UID': 0}, {'_EXE': '/home/private/pam'},
+    {'_EXE': '/usr/bin/python3.14'}, {'_TRANSPORT': 'audit'},
+    {'__REALTIME_TIMESTAMP': 'private-time'},
+    {'replace': ('role={role}', 'role=other')},
+    {'replace': ('role={role}', 'role={other}')},
+    {'replace': ('outcome=denied', 'outcome=armed')},
+    {'replace': ('stage=manifest', 'stage=private-stage')},
+    {'replace': ('reason=manifest', 'reason=private-reason')},
+    {'replace': ('errno=-1', 'errno=-2')}, {'replace': ('errno=-1', 'errno=0')},
+    {'replace': ('errno=-1', 'errno=4096')}, {'replace': ('errno=-1', 'errno=999999999')},
+    {'replace': ('errno=-1', 'errno=private-errno')},
+    {'replace': (' errno=-1', '')}, {'suffix': ' path=/home/private-child'},
+    {'suffix': ' errno=13'}, {'suffix': '\nprivate@example.test'},
+    {'wrapper': 'other'}, {'wrapper': 'none'}, {'wrapper': 'service'},
+    {'wrapper': 'account'},
+])
+def test_native_view_rejects_spoofing_unknown_fields_and_invalid_errno_in_archive(
+        tmp_path, monkeypatch, caplog, role, fault):
+    import json
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+
+    caplog.set_level(logging.INFO)
+    message = (f'onpc.pam kiosk native-view outcome=denied role={role} '
+               'stage=manifest reason=manifest errno=-1')
+    if 'replace' in fault:
+        old, new = fault['replace']
+        message = message.replace(old.format(role=role), new.format(
+            other='gate' if role == 'manager' else 'manager'))
+    message += fault.get('suffix', '')
+    item = json.loads(_native_admission_journal(message, role))
+    if fault.get('wrapper') == 'other':
+        item['MESSAGE'] = item['MESSAGE'].replace(
+            'systemd-user' if role == 'manager' else 'gdm-password',
+            'gdm-password' if role == 'manager' else 'systemd-user')
+    elif fault.get('wrapper') == 'none':
+        item['MESSAGE'] = message
+    elif fault.get('wrapper') == 'service':
+        item['MESSAGE'] = item['MESSAGE'].replace(':session)', ':private)')
+    elif fault.get('wrapper') == 'account':
+        item['MESSAGE'] = item['MESSAGE'].replace(':session)', ':account)')
+    item.update({key: value for key, value in fault.items()
+                 if key not in ('replace', 'suffix', 'wrapper')})
+    monkeypatch.setattr(dependency, '_run_bounded', lambda *_args: subprocess.CompletedProcess(
+        [], 0, json.dumps(item), 'private@example.test'))
+    dependency.collect_kiosk_admission_diagnostics()
+    exported, text = _admission_archive(tmp_path, caplog.records)
+    assert len(exported) == 1 and exported[0]['event'] == 'kiosk.admission-observation'
+    assert exported[0]['fields'] == dict(outcome='partial', count=0, recognized_count=0,
+                                        rejected_count=1, dropped_count=0)
+    for secret in ('private', '123456', '60579', '/usr/', 'native-view'):
+        assert secret not in text and secret not in caplog.text
+
+
+def test_repeated_admission_denials_retain_causal_context_and_recovery_in_archive(
+        tmp_path, monkeypatch, caplog):
+    import json
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+
+    caplog.set_level(logging.INFO)
+    rows = []
+    # Five realistic retries: authentication/routing succeeded before four
+    # preparation/native/PAM denials. Twenty denials must not hide that context.
+    for attempt in range(5):
+        rows.extend([
+            _admission_journal('pam_unix(gdm-password:auth): user [oh-no-parent-control] '
+                               'has blank password; authenticated without it', 'authentication'),
+            _admission_journal('onpc.pam kiosk routing stage=account outcome=allowed '
+                               'session=dedicated type=wayland recovery=none reason=none', 'routing',
+                               _SYSTEMD_UNIT=f'session-{attempt + 6}.scope'),
+            _admission_journal(ADMISSION_FAILURE),
+            _native_admission_journal('onpc.pam kiosk native-view outcome=denied '
+                                      'role=manager stage=bind reason=mount errno=13', 'manager'),
+            _native_admission_journal('onpc.pam kiosk execution-boundary '
+                                      'outcome=denied stage=bind', 'manager'),
+            _native_admission_journal('onpc.pam kiosk execution-boundary '
+                                      'outcome=denied stage=prepare', 'gate'),
+        ])
+    rows.append(_native_admission_journal('onpc.pam kiosk execution-boundary '
+                                         'outcome=armed stage=armed', 'gate',
+                                         _BOOT_ID='private-current-boot'))
+    for index, row in enumerate(rows):
+        item = json.loads(row)
+        item['__REALTIME_TIMESTAMP'] = str(1792266283591440 + index * 1000000)
+        rows[index] = json.dumps(item)
+    assert len(rows) == 31 and sum('outcome=denied' in row for row in rows) == 20
+    commands = []
+
+    def run(command, timeout):
+        commands.append(command)
+        assert 0 < timeout <= 3
+        return subprocess.CompletedProcess([], 0, '\n'.join(rows), 'private@example.test')
+
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    dependency.collect_kiosk_admission_diagnostics()
+    exported, text = _admission_archive(tmp_path, caplog.records)
+    markers = [row['fields'] for row in exported if row['event'] == 'kiosk.admission-journal']
+    assert len(markers) == 20
+    assert exported[-1]['fields'] == dict(outcome='partial', count=20, recognized_count=31,
+                                         rejected_count=0, dropped_count=11)
+    times = [row['occurred_at'] for row in markers]
+    assert times == sorted(times) and len(set(times)) == 20
+    # Latest distinct causal types survive; source timestamps prevent storage
+    # duplicate suppression from turning this into a synthetic two-event test.
+    expected = [
+        (24, 'authentication', 'passwordless-authenticated', 'allowed', 'authentication'),
+        (25, 'routing', 'none', 'allowed', 'account'),
+        (26, 'preparation', 'unsafe-directory-entry', 'denied', 'directory-layout'),
+        (27, 'native-view', 'mount', 'denied', 'bind'),
+        (28, 'pam', 'none', 'denied', 'bind'),
+        (29, 'pam', 'none', 'denied', 'prepare'),
+        (30, 'pam', 'none', 'armed', 'armed'),
+    ]
+    for index, source, reason, outcome, stage in expected:
+        stamp = datetime.fromtimestamp(
+            (1792266283591440 + index * 1000000) / 1000000, timezone.utc).isoformat(
+                timespec='milliseconds')
+        assert any(row['occurred_at'] == stamp and row['source'] == source
+                   and row['reason'] == reason and row['outcome'] == outcome
+                   and row['stage'] == stage for row in markers)
+    native = next(row for row in markers if row['source'] == 'native-view')
+    assert native['errno'] == 13 and native['role'] == 'manager'
+    assert all(row['line'] == 238 for row in markers if row['source'] == 'preparation')
+    assert len(commands) == 1 and '--lines=200' in commands[0]
+    assert '--since=-24hours' in commands[0] and '_UID=0' in commands[0]
+    assert not any(part.startswith('--boot') for part in commands[0])
+    for secret in ('private', '123456', '60579', '/usr/', 'pam_unix', 'gdm-password]'):
+        assert secret not in text and secret not in caplog.text
+
+
+def test_saturated_admission_phases_preserve_original_denial_and_recovery_in_archive(
+        tmp_path, monkeypatch, caplog):
+    import json
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+
+    caplog.set_level(logging.INFO)
+    rows, expected = [], []
+
+    def append(row, **fields):
+        item = json.loads(row)
+        stamp = 1792266283591440 + len(rows) * 1000000
+        item['__REALTIME_TIMESTAMP'] = str(stamp)
+        rows.append(json.dumps(item))
+        if fields:
+            expected.append({**fields, 'occurred_at': datetime.fromtimestamp(
+                stamp / 1000000, timezone.utc).isoformat(timespec='milliseconds')})
+
+    # Preserve the original cause even when newer manager causes supersede it.
+    append(_native_admission_journal('onpc.pam kiosk native-view outcome=denied '
+                                    'role=manager stage=manifest reason=manifest errno=-1', 'manager'),
+           source='native-view', role='manager', stage='manifest', reason='manifest',
+           outcome='denied', errno=-1)
+    append(_admission_journal('pam_unix(gdm-password:auth): user [oh-no-parent-control] '
+                             'has blank password; authenticated without it', 'authentication'),
+           source='authentication', reason='passwordless-authenticated', outcome='allowed')
+    for stage in ('account', 'session', 'confinement', 'service'):
+        append(_admission_journal(f'onpc.pam kiosk routing stage={stage} outcome=allowed '
+                                 'session=dedicated type=wayland recovery=none reason=none', 'routing',
+                                 _SYSTEMD_UNIT='session-6.scope'),
+               source='routing', stage=stage, outcome='allowed', recovery='none')
+    for role in ('manager', 'gate', 'other'):
+        provenance = ({'_SYSTEMD_UNIT': 'session-6.scope',
+                       'SYSLOG_IDENTIFIER': 'gdm-session-worker'} if role == 'gate' else {})
+        append(_admission_journal(ADMISSION_FAILURE.replace('role=manager', f'role={role}'),
+                                  **provenance),
+               source='preparation', role=role, stage='directory-layout',
+               outcome='denied', reason='unsafe-directory-entry', line=238)
+    for role in ('manager', 'gate'):
+        append(_native_admission_journal(f'onpc.pam kiosk native-view outcome=denied role={role} '
+                                        'stage=bind reason=mount errno=13', role),
+               source='native-view', role=role, outcome='denied', stage='bind', reason='mount', errno=13)
+        append(_native_admission_journal(
+            f'onpc.pam kiosk native-view outcome=cleanup-failed role={role} '
+            'stage=detach reason=identity errno=-1', role),
+            source='native-view', role=role, outcome='cleanup-failed',
+            stage='detach', reason='identity', errno=-1)
+    append(_admission_journal(ADMISSION_DIRECTORY),
+           action='denied', role='manager', reason='non-root-owner', scope='required', count=1)
+    # Saturate distinct generic signatures and then repeat them. None may crowd
+    # out the 16 closed phase witnesses or the independent original denial.
+    for _attempt in range(8):
+        for stage in ('identity', 'admission', 'lock', 'runtime', 'prepare',
+                      'bind', 'environment', 'ambient', 'mac'):
+            append(_native_admission_journal(
+                f'onpc.pam kiosk execution-boundary outcome=denied stage={stage}', 'gate'))
+    expected.append(dict(source='pam', role='gate', outcome='denied', stage='mac',
+                         occurred_at=datetime.fromtimestamp(
+                             int(json.loads(rows[-1])['__REALTIME_TIMESTAMP']) / 1000000,
+                             timezone.utc).isoformat(timespec='milliseconds')))
+    for recovery, outcome, reason in (('failed', 'unavailable', 'verification'),
+                                      ('restored', 'denied', 'identity')):
+        append(_admission_journal('onpc.pam kiosk routing stage=session '
+                                 f'outcome={outcome} session=other type=wayland '
+                                 f'recovery={recovery} reason={reason}', 'routing',
+                                 _SYSTEMD_UNIT='session-7.scope'),
+               source='routing', outcome=outcome, recovery=recovery, reason=reason)
+    append(_native_admission_journal('onpc.pam kiosk execution-boundary '
+                                    'outcome=armed stage=armed', 'gate',
+                                    _BOOT_ID='private-current-boot'),
+           source='pam', role='gate', outcome='armed', stage='armed')
+    assert 20 < len(rows) < 200
+    # Sixteen newest phase witnesses, plus the original denial and the older
+    # failed recovery: both recovery outcomes retain their actual failed result.
+    assert len(expected) == 18
+    commands = []
+
+    def run(command, timeout):
+        commands.append(command)
+        assert 0 < timeout <= 3
+        return subprocess.CompletedProcess([], 0, '\n'.join(rows), 'private@example.test')
+
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    dependency.collect_kiosk_admission_diagnostics()
+    exported, text = _admission_archive(tmp_path, caplog.records)
+    markers = [row['fields'] for row in exported if row['event'] != 'kiosk.admission-observation']
+    assert len(expected) <= len(markers) <= 20
+    assert exported[-1]['fields'] == dict(outcome='partial', count=len(markers),
+                                         recognized_count=len(rows), rejected_count=0,
+                                         dropped_count=len(rows) - len(markers))
+    for anchor in expected:
+        assert any(all(row.get(key) == value for key, value in anchor.items()) for row in markers)
+    times = [row['occurred_at'] for row in markers]
+    assert times == sorted(times) and len(set(times)) == len(markers)
+    assert markers[0]['reason'] == 'manifest' and markers[0]['outcome'] == 'denied'
+    assert markers[-1]['outcome'] == 'armed'
+    assert len(commands) == 1 and '--lines=200' in commands[0]
+    assert '--since=-24hours' in commands[0] and '_UID=0' in commands[0]
+    assert not any(part.startswith('--boot') for part in commands[0])
+    for secret in ('private', '123456', '60579', '/usr/', 'pam_unix', 'gdm-password]'):
+        assert secret not in text and secret not in caplog.text
+
+
 def test_kiosk_admission_failure_survives_reboot_recovery_and_feedback_archive(
         tmp_path, monkeypatch, caplog):
     import logging

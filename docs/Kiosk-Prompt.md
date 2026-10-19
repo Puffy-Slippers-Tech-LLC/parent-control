@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **002 — [Complete customer diagnostic projection](Kiosk-Prompt-Tasks/002-generic-host-fix.md)**.
+Next task: **003a — [Qualify Ubuntu sibling isolation](Kiosk-Prompt-Tasks/003a-sibling-ubuntu.md)**.
 
 ## Outcome
 
@@ -602,7 +602,8 @@ acceptance. Only 002a closes; 002b is next, and all other rows retain their scop
 dependencies, order and status.
 
 After queue/pointer/brief close-out, the maintained four-module documentation
-consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T075636Z-75f99911/report.md).
+consistency selection passed all 313 cases in `20261019T075636Z-75f99911`
+(subsequently retired under normal retention during 002).
 Changed Markdown links and whitespace checks passed. Expired predecessor report
 links above are recorded as historical run identifiers rather than fresh receipts.
 
@@ -622,7 +623,8 @@ Original source review found only `execution-boundary outcome=denied stage=bind`
 at this boundary; no pre-fix fixture execution is claimed. The final maintained
 selection, `tools/run-tests unit` with `tests/unit/test_kiosk_confinement.py`,
 `tests/unit/test_kiosk_login.py` and `tests/unit/test_regression_unit.py`,
-[passed all 1,339 cases](../output/test-runs/host/reports/20261019T080357Z-d7eecb05/report.md):
+passed all 1,339 cases in `20261019T080357Z-d7eecb05`
+(subsequently retired under normal retention during 002):
 1,238 confinement, 74 PAM and 27 partition/resource checks. Its 37 added cases
 cover all nine stages and seven reasons, independent inode/mount/namespace
 witnesses, errno bounds, silent success, cleanup causes and both complete PAM
@@ -646,9 +648,73 @@ credit. Only 002b closes; every other queue row retains its status, order and sc
 
 After queue/pointer/brief close-out, the maintained four-module documentation
 consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T080606Z-b923ca49/report.md).
-Changed Markdown links and whitespace checks passed. Both final acceptance
-reports remain retained; predecessor receipt retirement above preserves its
-historical result and does not remove any current 002b evidence.
+Changed Markdown links and whitespace checks passed. The native report later
+retired under normal retention during 002; its unchanged inputs passed the fresh
+cumulative 002 selection below. The documentation report remains retained.
+Report retirement preserves the accepted historical result.
+
+### Customer diagnostic projection — 002
+
+Host acceptance passed on 2026-10-19 UTC. Feedback now projects the exact
+`onpc.pam kiosk native-view` schema through the existing admission event,
+catalogue, storage and archive validators. Native executable, PAM session/service
+and record role must agree. Primary denial and independent cleanup failure remain
+separate; only closed stages/reasons and errno -1 or 1–4095 enter the report.
+The legacy boundary marker remains unchanged. No admission code changed.
+
+The 20-record history now retains the original denial and newest bounded phase
+witnesses before distinct causes and repeats, under the unchanged 24-hour,
+200-entry, byte and five-second query limits. The permanent 31-record/five-retry
+archive regression retains authentication, routing, preparation/native causes and
+later armed recovery with distinct source times and realistic manager/gate
+provenance. An 89-record archive case retains all 16 phase witnesses, the original
+denial and both routing recovery outcomes despite 72 generic denials. Eighteen
+both-role native archive combinations cover every stage, independent cleanup and
+legacy evidence; 48 rejected-input cases cover provenance, callback/role mismatch,
+unknown records/fields and errno limits without exporting private text.
+Existing failure/budget/clipping and reboot-history archive controls still pass.
+The historical probe and source review established the original gaps; this
+session claims no new pre-fix execution.
+
+The [affected host report](../output/test-runs/host/reports/20261019T081141Z-f0874cf2/report.md)
+passed all 2,117 unit cases and the selected Node command (six assertions).
+Exact selection: `tools/run-tests unit` with
+`tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py`,
+`tests/unit/test_diagnostics.py`, `tests/unit/test_service_contract.py`,
+`tests/unit/test_logs.py`, `tests/unit/test_diagnostic_privacy.py`,
+`tests/unit/test_diagnostic_report.py`, `tests/unit/test_diagnostic_export.py`,
+`tests/unit/test_regression_unit.py`, then `child-node`
+`tests/child/diagnostic_events.test.mjs`. Native compiler/probe deadlines remain
+30/5 seconds. Independent High review confirmed 002a/002b's complete required/
+ambient and native producer boundaries; their source and fixture hashes match
+the accepted identities above. Fresh complete confinement/PAM checks preserve
+required refusals, both-role publication, omission/masking and logging-failure
+behavior. No producer pass substitutes for the new collector/archive assertions.
+
+Tested SHA-256: collector
+`5a9058496cc12be1939895c36489ca413b5ec687ab01be8644955677763a892d`, catalogue
+`6c189f93dd206b04107e3b879618d70bd845e667869179374cb49231659ee8e9`, diagnostic
+fixtures `4ae139d93fa3e6cac139b0a2df2e26e84aba397ffc244358a4168aa6cc7ddd9e`.
+`make build` passed both formats after the final packaged edit: DEB SHA-256
+`730c1e671d463459c17cff746ab47e1c708b2eb076bcb62e95b88ea94b16051b`;
+RPM SHA-256 `0d605cb1faacdbd8b5237fd622a4cfb538eaa81eb4c10eccabd33ba94256265f`.
+The additive catalogue ships with all validators; broker activation is
+process restart and frontend readers load on their next launch.
+
+Both workers completed before acceptance. Resource review retains compatible
+private journal doubles and `tmp_path` archives with no new cleanup/UI resource.
+Runner-owned cleanup and `tools/cleanup-e2e --host-only` finished; no installation,
+VM, persistent process or runtime restoration remains. The pre-existing proof
+document edit is preserved. This host brief declares no Targets and grants no
+installed credit; 003/004/010 retain their installed obligations. Only 002 closes,
+and every other queue row keeps its status, order, scope and dependencies.
+
+After queue/pointer/brief close-out, the maintained
+[four-module documentation selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
+[passed all 313 cases](../output/test-runs/host/reports/20261019T081327Z-ef31eea8/report.md).
+The current 002 acceptance and documentation reports remain retained. Older
+retired receipts above keep their historical run identifiers. Changed-document
+links and the final whitespace check passed.
 
 ### Remaining execution and acceptance
 

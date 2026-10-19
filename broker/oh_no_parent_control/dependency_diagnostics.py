@@ -317,6 +317,18 @@ def _admission_marker(item):
             return None
         fields['role'] = 'gate' if wrapper[1] == 'gdm-password' else 'manager'
         message = wrapper[3]
+        cause = re.fullmatch(
+            r'onpc.pam kiosk native-view outcome=(denied|cleanup-failed) role=(manager|gate) '
+            r'stage=(namespace|staging|manifest|structure|source|bind|attach|readonly|detach) '
+            r'reason=(manifest|metadata|identity|namespace|mount|readonly|detach) '
+            r'errno=(-1|[1-9][0-9]{0,3})', message)
+        if cause:
+            if (wrapper[2] != 'session' or cause[2] != fields['role']
+                    or int(cause[5]) > 4095):
+                return None
+            fields.update(source='native-view', outcome=cause[1], stage=cause[3],
+                          reason=cause[4], errno=int(cause[5]))
+            return 'kiosk.admission-journal', fields
         match = re.fullmatch(
             r'onpc.pam kiosk confinement stage=(account|session) outcome=(allowed|denied) status=([0-9]{1,3})',
             message)
@@ -405,10 +417,60 @@ def _admission_marker(item):
     return None
 
 
+def _admission_context(event_id, fields):
+    """Bounded phase witnesses; repeated generic denials cannot consume them."""
+    source, outcome = fields.get('source'), fields.get('outcome')
+    if source == 'authentication':
+        return ('authentication',)
+    if source == 'routing':
+        return ('recovery',) if fields['recovery'] != 'none' else ('routing', fields['stage'])
+    if source == 'preparation' and outcome == 'denied':
+        return ('preparation', fields['role'])
+    if source == 'native-view':
+        return ('native-view', fields['role'], outcome)
+    if event_id == 'kiosk.admission-directory' and fields['action'] == 'denied':
+        return ('directory-refusal',)
+    if source == 'pam':
+        return ('armed',) if outcome == 'armed' else ('pam-refusal',) if outcome != 'allowed' else None
+    return None
+
+
+def _admission_history(selected):
+    """Keep the original denial and newest phase witnesses within 20 records.
+
+    Closed producer categories yield at most 16 phase witnesses. Fill remaining
+    slots with distinct causes before repeated records, preferring failures.
+    Raw journal identities never participate in selection or leave the parser.
+    """
+    keep, contexts, causes = {}, set(), set()
+    first_failure = next((row for row in selected if row[0]), None)
+    if first_failure:
+        keep[first_failure[1]] = first_failure
+    newest = sorted(selected, key=lambda row: (row[0], row[1]), reverse=True)
+    # Context witnesses follow source order, independently of failure priority.
+    for row in reversed(selected):
+        context = _admission_context(row[2], row[3])
+        if context is not None and context not in contexts:
+            contexts.add(context)
+            keep[row[1]] = row
+    for row in newest:
+        signature = (row[2], tuple((key, value) for key, value in row[3].items()
+                                  if key not in ('occurred_at', 'count', 'line')))
+        if signature not in causes:
+            causes.add(signature)
+            if len(keep) < 20:
+                keep[row[1]] = row
+    for row in newest:
+        if len(keep) == 20:
+            break
+        keep[row[1]] = row
+    return sorted(keep.values(), key=lambda row: row[1])
+
+
 def collect_kiosk_admission_diagnostics():
     """Independent five-second read, including when kiosk configuration is unavailable.
 
-    Keep failures ahead of later success when the 20-marker cap trims history.
+    Preserve causal phase witnesses before repeats when the 20-marker cap trims history.
     Neither a successful routing check nor passwordless auth attests admission.
     """
     try:
@@ -440,8 +502,7 @@ def collect_kiosk_admission_diagnostics():
                 selected.append((failure, index, event_id, fields))
             except (ValueError, TypeError, OverflowError, OSError):
                 rejected += 1
-        retained = sorted(sorted(selected, key=lambda row: (row[0], row[1]), reverse=True)[:20],
-                          key=lambda row: row[1])
+        retained = _admission_history(selected)
         for _failure, _index, event_id, fields in retained:
             KIOSK_LOG.warning(event_id, **fields)
         KIOSK_LOG.info('kiosk.admission-observation',

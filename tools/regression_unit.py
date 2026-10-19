@@ -274,6 +274,10 @@ use private files; system_first_configure's new witnesses use process-local
 package/profile doubles. Their existing compatible classifications also apply.
 Dependency-collection cases in diagnostics and service_contract mock all service
 and journal commands and use the existing private event/report/rule files.
+Admission native-cause and clipped-history archive cases use bounded in-memory
+journal doubles and tmp_path log trees, including all 16 closed phase witnesses.
+They add no child, shared cache, bus, display or cleanup owner; diagnostics keeps
+its compatible unit classification and cleanup/UI inventories remain unchanged.
 Pipe-limit cases launch one isolated Python child each, retain its Popen identity,
 and reap it on completion, overflow or timeout; only private pipes are used,
 with at most 512 KiB of generated output and no host service, bus or shared cache.

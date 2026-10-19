@@ -702,6 +702,9 @@ def test_plain_output_accumulates_without_cursor_escapes():
 def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path, height, reason, observer):
     import detached_launcher
 
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '09:07')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 5000)
+    monkeypatch.setattr('launcher_display.owner_clock', lambda run: {'started_monotonic': 680})
     terminal.resize(80, height)
     terminal.write('original shell prompt> ')
     (tmp_path / 'output').write_text('earliest output\n' + 'old output\n' * 2100
@@ -743,7 +746,9 @@ def test_observer_preserves_output_on_every_exit(terminal, monkeypatch, tmp_path
     assert 'earliest output\n' in restored
     assert restored.count('old output\n') == 2100
     assert 'controller header' in restored and 'session status' in restored
-    assert restored.endswith('agent transcript\nunfinished output\n\ncontroller header\n')
+    from launcher_render import clean
+    assert clean(restored).endswith('agent transcript\nunfinished output\n\ncontroller header\n'
+                                    'Ended: 09:07\nDuration: 1h 12m\n')
     assert '\033[2J' not in restored and '\033[H' not in restored
     assert '[Running] test details' not in restored
     assert '─' not in restored
@@ -809,10 +814,14 @@ def test_pipe_does_not_replay_saved_log(tmp_path):
 
 @pytest.mark.parametrize('input_mode', ['chat', 'question', 'none'])
 @pytest.mark.parametrize('interactive', [True, False])
-def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, input_mode, interactive):
+def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, monkeypatch, input_mode, interactive):
+    from rich.text import Text
     from launcher_display import TaskDisplay
     from launcher_render import clean
 
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '12:07')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 5000)
+    monkeypatch.setattr('launcher_display.owner_clock', lambda run: {'started_monotonic': 680})
     log = tmp_path / 'output'
     log.write_text('saved transcript\nfinal agent reply without newline')
     stream = Terminal(200, 12) if interactive else io.StringIO()
@@ -836,7 +845,7 @@ def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, input
     expected = 'Tasks: 8/8\n' + ''.join(
         f'✓ Task {index}: Finished work {index} '
         f'({"12m" if index < 8 else "duration unavailable"})\n'
-        for index in range(1, 9))
+        for index in range(1, 9)) + 'Ended: 12:07\nDuration: 1h 12m\n'
     plain = clean(restored)
     assert plain.endswith('\n' + expected)
     assert plain.index('final agent reply without newline') < plain.rindex('Tasks: 8/8')
@@ -844,6 +853,11 @@ def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, input
         assert 'saved transcript' in restored
         assert '\033[1m' in restored[restored.rindex('Tasks:') - 10:]
         assert '\033[32' in restored
+        for label in ('Ended:', 'Duration:'):
+            line = next(line for line in restored.splitlines() if label in line)
+            text = Text.from_ansi(line)
+            assert text.get_style_at_offset(display.console, 0).bold
+            assert not text.get_style_at_offset(display.console, len(label) + 1).bold
     else:
         assert 'saved transcript' not in restored
         assert '\033' not in restored
@@ -851,9 +865,11 @@ def test_task_overview_is_last_output_including_hidden_summaries(tmp_path, input
     assert stream.getvalue() == output
 
 
-def test_chat_exit_recap_excludes_current_session_and_lower_panes(tmp_path):
+def test_chat_exit_recap_excludes_current_session_and_lower_panes(tmp_path, monkeypatch):
     from launcher_display import TaskDisplay
 
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '01:07')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 5000)
     stream = io.StringIO()
     with TaskDisplay(stream, run=tmp_path) as display:
         display.update([
@@ -863,7 +879,21 @@ def test_chat_exit_recap_excludes_current_session_and_lower_panes(tmp_path):
         ], ['nested details'])
         display.write('last agent message\n')
     recap = stream.getvalue().split('last agent message\n', 1)[1]
-    assert recap == '\nTasks: 2/3\nTask 1: Suspended work\n'
+    assert recap == '\nTasks: 2/3\nTask 1: Suspended work\nEnded: 01:07\nDuration: 0m\n'
+
+
+@pytest.mark.parametrize('elapsed, expected', [(720, '12m'), (3600, '1h 0m'), (4320, '1h 12m')])
+def test_exit_timing_without_task_summaries(tmp_path, monkeypatch, elapsed, expected):
+    from launcher_display import TaskDisplay
+
+    clock = [100.0]
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: clock[0])
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '12:01')
+    stream = io.StringIO()
+    display = TaskDisplay(stream, run=tmp_path)
+    clock[0] += elapsed
+    display.close()
+    assert stream.getvalue() == f'\nEnded: 12:01\nDuration: {expected}\n'
 
 
 def test_blocker_menu_defaults_to_recommendation_and_preserves_editing_across_redraws(terminal):

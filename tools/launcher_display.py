@@ -90,6 +90,7 @@ class PanelSelection:
 class TaskDisplay(LauncherDisplay):
     def __init__(self, stream, *, run, input_mode='chat', totals=None, **kwargs):
         super().__init__(stream, **kwargs)
+        self.observed_monotonic = time.monotonic()
         self.owner_clock = owner_clock(run)
         self.run = run
         self.input_mode = input_mode
@@ -236,10 +237,8 @@ class TaskDisplay(LauncherDisplay):
         self.recap_printed = True
         pinned, history = self.overview()
         lines = pinned + history
-        if not lines:
-            return
         # The saved transcript is replayed first. Leave the complete overview
-        # last in shell scrollback, even when its live pane was scrolled/clipped.
+        # and exit timing last, even when the live pane was scrolled/clipped.
         self.stream.write('\n')
         for line in lines:
             if self.tty:
@@ -250,6 +249,15 @@ class TaskDisplay(LauncherDisplay):
                 self.console.print(text, soft_wrap=True)
             else:
                 self.stream.write(clean(line) + '\n')
+        origin = self.owner_clock.get('started_monotonic', self.observed_monotonic)
+        for label, value in (('Ended:', time.strftime('%I:%M')),
+                             ('Duration:', clock_duration(time.monotonic() - origin))):
+            if self.tty:
+                text = Text(f'{label} {value}')
+                text.stylize('bold', 0, len(label))
+                self.console.print(text, soft_wrap=True)
+            else:
+                self.stream.write(f'{label} {value}\n')
         self.stream.flush()
 
     def update_question(self, question, send):

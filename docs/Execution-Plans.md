@@ -322,10 +322,23 @@ question. Page Up/Page Down remain available for keyboard pane scrolling in eith
 The live panes keep bounded history; the retained run log remains the complete
 output source. On exit, the launcher restores the shell and input/cursor modes,
 then appends the saved run log to native terminal scrollback for later copying
-and browsing. Its last output is the full top-left tasks overview: the pinned
-counter and task summaries in their displayed order, including entries hidden by
-pane scrolling or terminal size. This recap follows the log replay and retains
+and browsing. Its final recap starts with the full top-left tasks overview:
+the pinned counter and task summaries in their displayed order, including entries
+hidden by pane scrolling or terminal size. This recap follows the log replay and retains
 the overview's completion checkmarks, durations, colors and bold task labels.
+On every exit, regardless of the reason, append these two lines after the
+summaries, including when no task summary is available:
+
+- **Ended:** `hh:mm`, using local time with a two-digit 12-hour clock.
+- **Duration:** elapsed time, such as `1h 12m`, using the shared
+  [`clock_duration`](../tools/launcher_display.py) formatter and the backend's
+  start clock used by `Total Duration`. Older backends without that clock use
+  elapsed time since observer attachment.
+
+Only the `Ended:` and `Duration:` labels are bold terminal text; their values
+use normal weight. Cancellation, exceptions and handled termination signals
+retain this footer after terminal restoration; uncatchable termination cannot
+run exit cleanup.
 Pipes receive the same final recap as plain text and retain the same owner/result
 semantics.
 

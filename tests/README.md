@@ -1092,8 +1092,8 @@ modes, then replays the saved run log, including an unfinished final line, into
 native scrollback. This includes cancellation, exceptions and
 default termination signals (HUP, TERM and QUIT); SIGKILL cannot run terminal
 cleanup. Existing shell history is preserved. Full output remains in the existing run log,
-subject to its storage limits. The full top-left overview is appended last under
-the shared [exit recap contract](../docs/Execution-Plans.md#common-launcher-interface),
+subject to its storage limits. The full top-left overview and exit timing are
+appended under the shared [exit recap contract](../docs/Execution-Plans.md#common-launcher-interface),
 including summaries outside the visible pane; pipes receive the same plain-text
 recap. `run-tests` preserves its detailed dashboards when observed
 through a workflow launcher, below that workflow's controller summary.

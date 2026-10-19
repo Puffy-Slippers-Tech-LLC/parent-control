@@ -11,12 +11,12 @@ queue; completed rows now link to their retained acceptance:
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [x] | 006f | [Finish manager lifetime composition witnesses](../Kiosk-Prompt.md#manager-lifetime-composition--006f) | 006e | Complete only the manager-identity and exit/reexec rows of the original finite composition table | Host passed: 593 checks, 138 paired transactions; exact map and owned cleanup retained |
-| [ ] | 006g | [Finish writer and host-source composition witnesses](006g-source-composition.md) | 006f | Complete only concurrent-writer and original-host-after-attachment witnesses from the original table | 20–30 min; reuse existing composed controls |
+| [x] | 006g | [Finish writer and host-source composition witnesses](../Kiosk-Prompt.md#writer-and-host-source-composition--006g) | 006f | Complete only concurrent-writer and original-host-after-attachment witnesses from the original table | Host passed: 672 checks, 19 added controls; exact map and owned cleanup retained |
 | [ ] | 006h | [Finish receipt, publication and closure witnesses](006h-publication-composition.md) | 006g | Complete only source/invocation receipt, publication-cut and owned-closure witnesses from the original table | 20–30 min; reuse existing composed controls |
 
 006's Requires now includes 006f, 006g and 006h, preserving every original
-dependency and Scope. The master now points to 006g after
-[006f's host acceptance](../Kiosk-Prompt.md#manager-lifetime-composition--006f).
+dependency and Scope. The master now points to 006h after
+[006g's host acceptance](../Kiosk-Prompt.md#writer-and-host-source-composition--006g).
 The insertion itself granted no acceptance credit. After all three pass,
 resume 006 by auditing every original table row and exact input applicability,
 then finish cumulative host checks and the final build. Keep this consumer

@@ -28,6 +28,13 @@ static int independently_wrong_usr=-1;
 static unsigned invocation_attached, task_scans;
 static unsigned changed_start_reads, field_fault_reads, closure_checks;
 static unsigned crypto_references;
+static int sequential_child;
+#define writer_checks (clone_state[4])
+#define replacement_checks (clone_state[5])
+#define host_lookup_checks (clone_state[6])
+static void composition_clone(void);
+static void composition_attachment(void);
+static void composition_before_attachment(int target);
 static void *retained_crypto;
 static void check_closure_resources(void);
 static const char *fault_phase, *fault_kind;
@@ -256,6 +263,7 @@ static int retained_open_tree(int dir,const char *path,unsigned flags) {
         if(clone_seen==1 && !strcmp(mode,"same-fd-reexec"))manager_command('d');
         if(clone_seen==1 && !strcmp(mode,"foreign-reexec"))manager_command('f');
         if(clone_seen==1)activate_fault("clone");
+        if(clone_seen==1)composition_clone();
         if(clone_seen==1 && !strcmp(mode,"exit-after-clone")) {
             manager_command('x');struct pollfd lifetime={.fd=manager_pidfd,.events=POLLIN};
             require(poll(&lifetime,1,5000)==1 && (lifetime.revents&POLLIN),"owned-manager-exit-observed-before-final-proof");
@@ -269,16 +277,12 @@ static int retained_open_tree(int dir,const char *path,unsigned flags) {
     return result;
 }
 static int retained_move_mount(int from,const char *source,int to,const char *target,unsigned flags) {
+    if(gate_phase)composition_before_attachment(to);
     int result=move_mount(from,source,to,target,flags);
     if(gate_phase && !result) {
         char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
         ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n>0){actual[n]=0;snprintf(expected,sizeof(expected),"%s/host/usr",base);
-            if(!strcmp(actual,expected)){invocation_attached++;activate_fault("final");}}
-    }
-    if(gate_phase && !result && !strcmp(mode,"post-attach-required-drift")) {
-        char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
-        ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n>0){actual[n]=0;snprintf(expected,sizeof(expected),"%s/host/usr",base);
-            if(!strcmp(actual,expected)){require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"original-host-drift-after-private-attachment");post_attach_drift++;}}
+            if(!strcmp(actual,expected)){invocation_attached++;activate_fault("final");composition_attachment();}}
     }
     return result;
 }
@@ -334,6 +338,83 @@ static long retained_syscall(long number,...) {
 
 
 MAIN = r'''
+static void replace_named_lock(const char *name) {
+    char path[PATH_MAX],saved[PATH_MAX];struct stat old,new;
+    snprintf(path,sizeof(path),"%s/%s",base,name);snprintf(saved,sizeof(saved),"%s/%s.displaced",base,name);
+    require(lstat(path,&old)==0 && rename(path,saved)==0,"owned-lock-displaced-at-barrier");
+    int fd=open(path,O_RDWR|O_CREAT|O_EXCL|O_CLOEXEC,0600);
+    require(fd>=0 && write(fd,"foreign-lock",12)==12 && fstat(fd,&new)==0 && close(fd)==0 &&
+        (old.st_dev!=new.st_dev || old.st_ino!=new.st_ino),"independent-replaced-lock-identity");replacement_checks++;
+}
+static void composition_clone(void) {
+    if(!strcmp(mode,"selection-lock-replaced"))replace_named_lock("lock");
+    if(!strcmp(mode,"selection-lease-replaced"))replace_named_lock("lease");
+    if(strcmp(mode,"retained-concurrent-writers"))return;
+    char path[PATH_MAX];snprintf(path,sizeof(path),"%s/lock",base);int lock=open(path,O_RDWR|O_CLOEXEC);
+    snprintf(path,sizeof(path),"%s/lease",base);int lease=open(path,O_RDWR|O_CLOEXEC);
+    require(lock>=0 && lease>=0,"independent-writer-open-descriptions");
+    struct kiosk_admission_transaction *owner=(void *)pam_data[1];
+    struct kiosk_retained_startup other;kiosk_retained_startup_init(&other);uint64_t deadline=owner->retained.common.deadline;
+    require(kiosk_retained_startup_until(&other,NULL,lock,lease,deadline)!=0 &&
+        other.common.stage && !strcmp(other.common.stage,"identity") && !other.common.child.started &&
+        other.common.deadline==deadline && !other.common.armed && kiosk_retained_close(&other)==0 && other.common.closed,
+        "competing-native-admission-refuses-before-publication");writer_checks++;
+    require(flock(lock,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),"configuration-writer-barrier");writer_checks++;
+    require(flock(lease,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),"loader-removal-writer-barrier");writer_checks++;
+    require(close(lock)==0 && close(lease)==0,"independent-writer-descriptors-closed");
+}
+static struct kiosk_host_proof alias_proof;
+static const struct kiosk_host_spec alias_specs[]={
+    {.path="/var/usr-absolute",.kind=S_IFLNK},
+    {.path="/var/usr-lexical",.kind=S_IFLNK},
+    {.path="/var/outside-required",.kind=S_IFREG},
+};
+static void composition_before_attachment(int target) {
+    if(strcmp(mode,"post-attach-required-drift") && strcmp(mode,"host-lookup-aliases") && strcmp(mode,"post-attach-root-drift"))return;
+    char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",target);
+    ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n<=0)return;actual[n]=0;
+    snprintf(expected,sizeof(expected),"%s/host/usr",base);if(strcmp(actual,expected))return;
+    struct kiosk_admission_transaction *owner=(void *)pam_data[1];struct kiosk_fresh_startup *s=&owner->retained.common;
+    struct kiosk_host_roots independent={.root=-1,.usr=-1};struct stat a,b;
+    snprintf(expected,sizeof(expected),"%s/host",base);independent.root=open(expected,O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    independent.usr=openat(independent.root,"usr",O_PATH|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    require(independent.root>=0 && independent.usr>=0 && fstat(independent.root,&a)==0 && fstat(s->roots.root,&b)==0 &&
+        a.st_dev==b.st_dev && a.st_ino==b.st_ino && fstat(independent.usr,&a)==0 && fstat(s->roots.usr,&b)==0 &&
+        a.st_dev==b.st_dev && a.st_ino==b.st_ino,"independently-opened-original-root-and-usr-match-production-authorities");
+    require(kiosk_host_proof_capture_until(&alias_proof,&independent,alias_specs,3,s->deadline)==0 &&
+        alias_proof.deadline==s->deadline,"independent-pre-attachment-original-host-alias-capture-under-original-deadline");
+    kiosk_host_roots_close(&independent);
+}
+static void composition_attachment(void) {
+    if(!strcmp(mode,"attached-lock-replaced"))replace_named_lock("lock");
+    if(!strcmp(mode,"attached-lease-replaced"))replace_named_lock("lease");
+    if(strcmp(mode,"post-attach-required-drift") && strcmp(mode,"host-lookup-aliases") &&
+        strcmp(mode,"post-attach-root-drift"))return;
+    struct kiosk_admission_transaction *owner=(void *)pam_data[1];
+    struct kiosk_host_roots *roots=&owner->retained.common.roots;
+    struct stat original,private,anchor;
+    int host=openat(roots->usr,"bin/native",O_RDONLY|O_CLOEXEC);
+    int crossed=openat(roots->root,"usr/bin/native",O_RDONLY|O_CLOEXEC);
+    require(host>=0 && crossed>=0 && fstat(host,&original)==0 && fstat(crossed,&private)==0 &&
+        fstat(original_source,&anchor)==0 && original.st_dev==anchor.st_dev && original.st_ino==anchor.st_ino &&
+        (original.st_dev!=private.st_dev || original.st_ino!=private.st_ino),"separate-original-usr-versus-root-crossing-private-overlay");
+    char private_before;require(pread(crossed,&private_before,1,100)==1,"independent-private-byte-before-original-host-write");
+    require(kiosk_host_proof_recheck(&alias_proof,alias_specs,3)==0,"absolute-and-lexical-aliases-use-original-usr-after-attachment");
+    if(!strcmp(mode,"post-attach-root-drift")) {
+        int fd=openat(roots->root,"var/outside-required",O_WRONLY|O_CLOEXEC);
+        require(fd>=0 && write(fd,"X",1)==1 && fsync(fd)==0 && close(fd)==0,"original-outside-usr-root-drift");
+        /* An attested state input supplies the production final-host refusal. */
+        fd=openat(roots->root,"var/lib/oh-no-parent-control/kiosk-confinement.json",O_WRONLY|O_CLOEXEC);
+        require(fd>=0 && write(fd,"X",1)==1 && fsync(fd)==0 && close(fd)==0,"original-host-state-drift-after-attachment");
+    } else if(!strcmp(mode,"post-attach-required-drift")) {
+        require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"independent-original-required-drift");post_attach_drift++;
+    }
+    if(strcmp(mode,"host-lookup-aliases"))require(kiosk_host_proof_recheck(&alias_proof,alias_specs,3)!=0,"original-host-alias-proof-refuses-stable-private-bytes");
+    char expected,actual;require(pread(crossed,&actual,1,100)==1 && actual==private_before && pread(host,&expected,1,100)==1 &&
+        (!strcmp(mode,"post-attach-required-drift")?actual!=expected:actual==expected),"private-required-bytes-independent-of-original-host-drift");
+    require(close(host)==0 && close(crossed)==0,"independent-lookup-descriptors-closed");
+    kiosk_host_proof_close(&alias_proof);host_lookup_checks++;
+}
 static void check_closure_resources(void) {
     struct kiosk_admission_transaction *owner=(void *)pam_data[1];require(owner!=NULL,"closure-PAM-owner");
     struct kiosk_retained_startup *gate=&owner->retained;struct kiosk_fresh_startup *s=&gate->common;
@@ -402,7 +483,11 @@ static void release_pam(void) {for(int slot=1;slot>=0;slot--)if(pam_data[slot]){
 static const char *expected_stage(const char *name) {
     if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"same-reexec") ||
         !strcmp(name,"same-fd-reexec") || !strcmp(name,"exit-after-decision") ||
-        !strcmp(name,"stable-two-tasks") || !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero"))return "armed";
+        !strcmp(name,"stable-two-tasks") || !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero") ||
+        !strcmp(name,"retained-concurrent-writers") || !strcmp(name,"sequential-healthy") || !strcmp(name,"host-lookup-aliases"))return "armed";
+    if(!strncmp(name,"selection-",10))return "selection";
+    if(!strncmp(name,"attached-",9))return "final-lock";
+    if(!strcmp(name,"post-attach-root-drift"))return "final-host";
     if(!strncmp(name,"capabilities-",13))return "final-lock";
     if(fault_phase) {
         if(!strcmp(fault_kind,"same-reexec") || !strcmp(fault_kind,"fd-reexec"))return "armed";
@@ -470,7 +555,7 @@ static void actual_nested(void) {
 int main(int argc,char **argv) {
     if(argc==5 && !strcmp(argv[1],"manager-loop")){base=argv[2];manager_loop(atoi(argv[3]),atoi(argv[4]),1);return 0;}
     require(argc==3,"arguments");base=argv[2];mode="healthy";namespaces();
-    clone_state=mmap(NULL,4*sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
+    clone_state=mmap(NULL,7*sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested",base);
     require(mount("tmpfs",path,"tmpfs",0,"size=1m,mode=0755")==0,"private-recursive-source");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested/leaf",base);
@@ -543,6 +628,23 @@ int main(int argc,char **argv) {
             "real-wrong-detached-clone-before-namespace-entry");
     }
     observe_tree(held_manager,".",manager_before,&manager_count,0);observe_tree(held_records,".",records_before,&record_count,0);
+    if(!strcmp(mode,"sequential-healthy")) {
+        pid_t parent=getpid(),first=fork();require(first>=0,"owned-first-sequential-admission-fork");
+        if(!first) {
+            if(prctl(PR_SET_PDEATHSIG,SIGKILL) || getppid()!=parent)_exit(127);
+            sequential_child=1;
+        }
+        else {
+            int status;require(waitpid(first,&status,0)==first && WIFEXITED(status) && WEXITSTATUS(status)==0,
+                "first-production-PAM-handle-admission-and-owned-cleanup-complete");
+            unsigned manager_rows=0,record_rows=0;
+            observe_tree(held_manager,".",manager_before,&manager_rows,1);observe_tree(held_records,".",records_before,&record_rows,1);
+            require(manager_rows==manager_count && record_rows==record_count,"first-sequential-admission-preserves-original-manager-and-record-domains");
+            identity_snapshot(independent_proc,&identity_after);identity_unchanged(&identity_before,&identity_after);
+            memset(clone_state,0,7*sizeof(*clone_state));
+        }
+    }
+    int lookup_mode=!strcmp(mode,"post-attach-required-drift") || !strcmp(mode,"host-lookup-aliases") || !strcmp(mode,"post-attach-root-drift");
     require(kiosk_admission(NULL,"oh-no-parent-control-kiosk")==PAM_SUCCESS,"owned-gate-admission");unsigned baseline=descriptors();
     final_fd_baseline=(int)baseline;
     for(int caller=0;caller<4096;caller++)caller_fds[caller]=fstat(caller,&caller_objects[caller])==0;
@@ -574,7 +676,10 @@ int main(int argc,char **argv) {
         require(clone_seen>0 && manager_acquisitions==1 && owner->retained.manager.unit.pid==(uint32_t)manager_pid,"fault-after-clone-keeps-original-manager");
     }
     if(!strcmp(mode,"post-attach-required-drift"))require(post_attach_drift==1,"late-original-host-fault-injected-once");
-    char summary[PATH_MAX];snprintf(summary,sizeof(summary),"%s/transaction-witness.json",base);FILE *witness=fopen(summary,"wx");
+    if(lookup_mode)require(host_lookup_checks==1 && invocation_attached==1,"one-original-host-lookup-control-after-attachment");
+    if(!strcmp(mode,"retained-concurrent-writers"))require(writer_checks==3 && invocation_attached==1,"all-independent-writer-barriers-preserve-healthy-admission");
+    if(strstr(mode,"-replaced"))require(replacement_checks==1,"one-exact-named-lock-substitution");
+    char summary[PATH_MAX];snprintf(summary,sizeof(summary),"%s/%s",base,sequential_child?"sequential-first-witness.json":"transaction-witness.json");FILE *witness=fopen(summary,"wx");
     require(witness && fprintf(witness,"{\"stage\":\"%s\",\"deadline\":%llu,\"helper_deadline\":%llu,\"clone_count\":%d,\"manager_acquisitions\":%u}\n",
         transaction->stage,(unsigned long long)transaction->deadline,(unsigned long long)transaction->child.deadline_ns,clone_seen,manager_acquisitions)>0 && fclose(witness)==0,"finite-transaction-witness");
     require(descriptors()==baseline,"exact-caller-descriptor-balance");
@@ -606,9 +711,13 @@ int main(int argc,char **argv) {
     }
     if(!strcmp(mode,"cleanup-failure"))require(cleanup_failures>0,"cleanup-failure-injected-at-owned-detach");
     if(!strcmp(mode,"deadline"))require(clone_seen>0,"original-deadline-expired-after-clone");
-    if(strcmp(mode,"exit-after-clone") && !manager_exited)manager_command('x');int status;require(waitpid(manager_pid,&status,0)==manager_pid && WIFEXITED(status) && WEXITSTATUS(status)==0,"owned-manager-reaped");
+    if(!sequential_child) {
+        if(strcmp(mode,"exit-after-clone") && !manager_exited)manager_command('x');int status;
+        require(waitpid(manager_pid,&status,0)==manager_pid && WIFEXITED(status) && WEXITSTATUS(status)==0,"owned-manager-reaped");
+    }
     if(independently_wrong_usr>=0)close(independently_wrong_usr);
-    close(manager_ready);close(manager_release);close(manager_pidfd);close(held_manager_namespace);close(independent_proc);close(original_source);puts("verified");return 0;
+    close(manager_ready);close(manager_release);close(manager_pidfd);close(held_manager_namespace);close(independent_proc);close(original_source);
+    if(sequential_child)_exit(0);puts("verified");return 0;
 }
 '''
 
@@ -689,6 +798,9 @@ def retained_scene(fresh_scene):
         target.write_bytes(binary.read_bytes())
         target.chmod(0o755)
     (directory / 'mode').write_text('healthy')
+    (directory / 'host/var/usr-absolute').symlink_to('/usr/bin/native')
+    (directory / 'host/var/usr-lexical').symlink_to('../usr/bin/../bin/native')
+    fresh._put(directory / 'host/var/outside-required', b'original-root-required', 0o644)
     return directory, binary
 
 
@@ -706,6 +818,8 @@ fresh_scene = fresh.fresh_scene
     'capabilities-inherited', 'capabilities-zero', 'capabilities-get-before', 'capabilities-set',
     'capabilities-ambient', 'capabilities-get-after', 'capabilities-inheritable-drift',
     'capabilities-effective-drift', 'capabilities-permitted-drift',
+    'retained-concurrent-writers', 'sequential-healthy', 'selection-lock-replaced', 'selection-lease-replaced',
+    'attached-lock-replaced', 'attached-lease-replaced', 'host-lookup-aliases', 'post-attach-root-drift',
 ] + [f'{phase}-{kind}' for phase in ('acquire', 'clone', 'final') for kind in (
     'exit', 'mainpid', 'invocation', 'cgroup', 'root', 'namespace', 'label',
     'uid', 'gid', 'groups', 'capabilities', 'executable', 'tasks',
@@ -731,9 +845,20 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     witness = json.loads((directory / 'transaction-witness.json').read_text())
     helper_started = json.loads((directory / 'helper-started').read_text())
     assert helper_started['deadline'] == witness['helper_deadline'] == witness['deadline'] * 1000
+    if mode == 'sequential-healthy':
+        first = json.loads((directory / 'sequential-first-witness.json').read_text())
+        assert first['stage'] == witness['stage'] == 'armed'
+        assert first['manager_acquisitions'] == witness['manager_acquisitions'] == 1
+        assert first['helper_deadline'] == first['deadline'] * 1000
     if mode == 'helper-timeout':
         assert (directory / 'timeout-waiting').read_text() == 'waiting'
-    assert (directory / 'lock').read_bytes() == (directory / 'lease').read_bytes() == b'owned-lock'
+    for name in ('lock', 'lease'):
+        if mode.endswith(f'{name}-replaced'):
+            assert (directory / name).read_bytes() == b'foreign-lock'
+            assert (directory / f'{name}.displaced').read_bytes() == b'owned-lock'
+            assert (directory / name).stat().st_ino != (directory / f'{name}.displaced').stat().st_ino
+        else:
+            assert (directory / name).read_bytes() == b'owned-lock'
     generations = [p for p in (directory / 'runtime').iterdir() if len(p.name) == 64]
     assert len(generations) == 1
     assert not any(p.name.startswith('.runtime-') for p in (directory / 'runtime').iterdir())

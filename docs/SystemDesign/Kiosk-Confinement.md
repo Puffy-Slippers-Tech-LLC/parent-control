@@ -867,7 +867,9 @@ completed generations and their four-generation budget survive until reboot.
 006a/006b families above remain unchanged. The following are witness obligations
 for **006**. [006f's finite host map](../Kiosk-Prompt.md#manager-lifetime-composition--006f)
 records the registered manager-identity and exit/reexec controls and their exact
-input/acceptance limits; it does not close 006's cumulative table. Use barriers
+input/acceptance limits. [006g's writer/host-source map](../Kiosk-Prompt.md#writer-and-host-source-composition--006g)
+records the concurrent-writer and original-host-after-attachment controls.
+Neither slice closes 006's cumulative table. Use barriers
 and independently opened descriptors/real native fixtures, not timing sleeps or
 only producer/parser agreement. Keep tests inside existing resource owners.
 

@@ -1106,6 +1106,12 @@ from regression_ui import Bucket
 # Reexec/exit use the existing owned manager and barriers, including after setup
 # closure; no additional process, shared service/cache or cleanup/UI owner is
 # acquired. The compatible unit classification and bounded resource class hold.
+# Writer/source composition adds phase-local probes of independently reopened
+# private lock files, original-root/alias proof descriptors and finite host-file
+# mutations in those same trees. Sequential retained admission adds one waited
+# child with its own mount namespace; the parent alone owns and retires the
+# original manager. No shared lock, service, cache, UI or cleanup owner is added;
+# the existing bounded probe/compile resource class and compatible overlap hold.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

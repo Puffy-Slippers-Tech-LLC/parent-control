@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006g — [Finish writer and host-source composition witnesses](Kiosk-Prompt-Tasks/006g-source-composition.md)**.
+Next task: **006h — [Finish receipt, publication and closure witnesses](Kiosk-Prompt-Tasks/006h-publication-composition.md)**.
 
 ## Outcome
 
@@ -29,8 +29,9 @@ are complete. [Ubuntu's complete bootstrap history](#ubuntu-native-bootstrap--00
 also passed for its recorded inputs. [Fedora's complete bootstrap history](#fedora-native-bootstrap--006e3)
 now passed. [006e's both-target acceptance reconciliation](#bootstrap-permission-reconciliation--006e)
 also passed with a fresh complete Ubuntu history on final inputs.
-[006f's manager lifetime witnesses](#manager-lifetime-composition--006f) passed
-their host acceptance. Continue with 006g/006h before resuming
+[006f's manager lifetime witnesses](#manager-lifetime-composition--006f) and
+[006g's writer/host-source witnesses](#writer-and-host-source-composition--006g)
+passed their host acceptance. Continue with 006h before resuming
 [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
 The current Ubuntu development boot has AppArmor and no SELinux kernel; existing
 native fixtures double policy/label/bus boundaries. They cannot establish the
@@ -470,6 +471,88 @@ point to the carried-forward records; original hashes/counts remain history.
 006g is next. No new task was created; all other queue statuses, order, Scope
 and Requires remain as they were at this task's entry.
 
+### Writer and host-source composition — 006g
+
+Host acceptance passed on 2026-10-19 UTC: **672/672** checks in
+`20261019T233743Z-1fe5757a`: 75 fresh controls, 146 paired cases, 50 standalone
+manager controls, 60 host-root controls, 28 resource/inventory checks and 313
+documentation checks. The exact maintained `tools/run-tests unit` selection used
+`-q` and these nine modules:
+
+```text
+tests/unit/test_kiosk_fresh_startup.py
+tests/unit/test_kiosk_retained_startup.py
+tests/unit/test_kiosk_manager_admission.py
+tests/unit/test_kiosk_host_proof.py
+tests/unit/test_regression_unit.py
+tests/unit/test_e2e_plan.py
+tests/unit/test_e2e_inventory.py
+tests/unit/test_coverage_generation.py
+tests/unit/test_e2e_case_composition.py
+```
+
+Source-input SHA-256 (informational):
+`f8d6af642c75310aad649475e1f885a2ddbe47bf1c3d7691104e0519e55074ef`.
+The two fixture SHA-256 values, unchanged through acceptance, are respectively
+`665b0e16b6e1ed72a4d65cb71921a3e0722ba8a5136f414fad641276dfb17d4e`
+and `11f2558f4f04af33da0f6dbe767fdbf1ac45c4307cebce835233f3d8e14dd73c`.
+Only these tests, the resource-review comment and documentation changed from
+accepted 006f. The complete diff from accepted 006e (`f0ed00de`), excluding
+exactly documentation, tests and `tools/regression_unit.py`, is empty. The
+package-source map and build-tool dependencies are unaffected; no new build or
+installed acceptance was required. The exact 006e bootstrap inputs remain
+applicable; this slice grants no new installed-history credit.
+
+This completes only the concurrent-writer and current-host-after-attachment rows
+of the [finite composition table](SystemDesign/Kiosk-Confinement.md#planned-retained-view-admission-proof).
+Selector prefixes are `tests/unit/test_kiosk_fresh_startup.py::test_complete_native_fresh_manager_transaction`
+and `tests/unit/test_kiosk_retained_startup.py::test_exact_pam_fresh_then_retained_transaction`.
+
+| Assertion | Exact parameters and independent observations |
+| --- | --- |
+| Cooperating writers | Fresh `writer-{measurement,bind,final}-{admission,configuration,loader}` separately exercises each writer at completed measurement, first bind and ready-before-final-proof barriers; existing `concurrent-writers` and paired `retained-concurrent-writers` cover all three together. Independent open descriptions prove native competing admission refuses at `identity` before helper/publication, configuration's exclusive preparation lock refuses, and loader/removal's exclusive admission lease refuses. Configuration/removal checks are real lock probes, not execution of their public workflows. |
+| Sequential healthy admission | Paired `sequential-healthy` runs two complete production PAM gate transactions against the same manager and records, in separate private namespaces/handles. Independent identity/tree snapshots survive both; each admission acquires the original manager once, keeps its own original helper deadline and adds no generation. The first child is explicitly waited and protected against parent death. |
+| Replaced lock/lease | Fresh `selection-`, `ready-`, `premac-` with `lock-replaced`/`lease-replaced` require exact `copy-ticket`, `final-proof`, `lock` refusal. Paired `selection-` and `attached-` with the same suffixes require `selection` and `final-lock`. Old inode/foreign replacement and completed manager/record bytes survive cleanup. |
+| Unlocked required unpack | Fresh `measurement-required-drift`, `bind-required-drift`, `post-attach-required-drift` require exact `authority`, `publication`, `final-proof` refusal. Independent copy bytes remain original at bind/final; completed publication survives a final refusal, and foreign prior generations remain untouched. |
+| Original host roots and aliases | Paired `host-lookup-aliases`, `post-attach-required-drift`, `post-attach-root-drift` independently open original `/` and `/usr`, match their production identities, and prove `/`-only lookup crosses the actual overmount into a different private inode. Absolute and relative lexical aliases use the native walker under the production deadline. Original host drift refuses while private bytes stay stable; actual PAM refusal must reach `final-host`, including an attested state input outside `/usr`. Supporting alias proof is distinct from that actual coordinator result. |
+
+All paired cases retain complete independent manager/record snapshots, borrowed
+FD identities, one original deadline per transaction, child reap and owned
+invocation detach. PAM/account/bus/credential/label/MAC doubles and root-name
+translation remain explicit host-fixture limits. These tests establish no
+installed form history. Independent GPT-6.1 Sol High review completed; its
+sequential-child lifetime finding was repaired with the existing parent-death
+guard pattern. All three subagents finished before final acceptance.
+
+The first focused fresh selection, `-k 'writer or drift or replaced'`, passed
+**27/27** in `20261019T233437Z-e4cf83ae`. The first paired selection,
+`-k 'writer or sequential or replaced or aliases or drift'`, passed 12/15 in
+`20261019T233529Z-0a60362a`: all three alias controls stopped at fixture capture,
+before the intended product decision. The new outside-root fixture inherited
+mode `0664`, independently confirmed through the maintained artifact reader;
+strict trust correctly refused it. Explicit `0644` fixture creation preserves
+every assertion. The three exact failing parameters passed **3/3** in
+`20261019T233722Z-bdf2d495`, before the complete 672-case acceptance above.
+
+Resource review covers unit, cleanup and UI inventories. New state stays in the
+existing pytest-private trees; only transient descriptors and one waited,
+parent-death-protected sequential child are added. No shared lock/cache/service,
+host namespace, VM or cleanup inventory owner is acquired. Runner/fixture cleanup
+finished. Only 006g closes; 006h and 006 retain all their original obligations,
+including 006's complete matrix audit, cumulative host checks and final build.
+
+After queue/pointer/brief close-out, the same four documentation modules passed
+**313/313** in `20261019T234357Z-2ab04ec9`. Changed-document links and whitespace
+checks passed. The verified
+[5,750-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-nkluxmex/evidence.zip)
+retains all 5,698 prior records, the 27-case focused pass, all three first
+fixture failures, their exact three-case repair pass, final 672-case acceptance
+and post-close-out documentation checks. SHA-256:
+`024f40c62f725ae505479dccf3f20e003ae0676c7e0661d7a7d0674b611e910e`.
+Export verification and owned retirement cleanup completed. No installation,
+VM operation, live policy change, staging or commit occurred. The controller
+owns Git close-out; 006h is next.
+
 ## Smaller execution slices
 
 The 2026-10-19 developer-requested breakdown preserves every existing row's
@@ -489,7 +572,7 @@ without editing a running controller's checkpoint or starting a second launcher.
 
 | Consumer when selected | Prepared prerequisite block | Consumer retains |
 | --- | --- | --- |
-| 006 | [006f manager lifetime](#manager-lifetime-composition--006f), [006g writers and host sources](Kiosk-Prompt-Tasks/006g-source-composition.md), [006h publication and closure](Kiosk-Prompt-Tasks/006h-publication-composition.md) | Full composition-table audit, exact bootstrap receipt applicability, cumulative host checks and final build |
+| 006 | [006f manager lifetime](#manager-lifetime-composition--006f), [006g writers and host sources](#writer-and-host-source-composition--006g), [006h publication and closure](Kiosk-Prompt-Tasks/006h-publication-composition.md) | Full composition-table audit, exact bootstrap receipt applicability, cumulative host checks and final build |
 | 007a | [007a1 canonical histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md), [007a2 Ubuntu ambient](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md), [007a3 Ubuntu required drift](Kiosk-Prompt-Tasks/007a3-required-ubuntu.md) | Complete Ubuntu retained-view and refusal/recovery acceptance, using only applicable full receipts |
 | 007 | [0071 Fedora ambient](Kiosk-Prompt-Tasks/0071-ambient-fedora.md), [0072 Fedora required drift](Kiosk-Prompt-Tasks/0072-required-fedora.md) | Complete Fedora acceptance and both-target receipt reconciliation |
 | 009a | [009a1 canonical authentication history](Kiosk-Prompt-Tasks/009a1-auth-history-host.md) | Entire effective-policy/refusal/restoration/ordinary-account/public-reentry history on Ubuntu |
@@ -503,10 +586,11 @@ Keep each installed mutation/refusal/restoration/reentry history intact. A later
 input change invalidates only the exact affected assertions under their owner;
 record or repeat those complete histories before consumer acceptance.
 
-Historical host-bundle links below point to the current cumulative archive after
-normal export retention. Their historical counts and hashes describe the original
-exports; all those original records remain carried forward. The latest bootstrap
-checkpoint records the current archive's own count and hash.
+Historical host-bundle links below identify their retained archive or its
+carried-forward contents after normal export retention. Their historical counts
+and hashes describe the original exports; all those original records remain
+carried forward. The latest composition checkpoint above records the newest
+archive's own count and hash.
 
 ## Symptom boundary and stop condition
 

@@ -245,16 +245,43 @@ static uint64_t transaction_deadline;
 static struct stat caller_objects[4096];
 static unsigned char caller_fds[4096];
 static unsigned selinux_order;
-static unsigned fault_hits, contention_checks;
+static unsigned fault_hits, contention_checks, writer_barriers;
 static void contend(void);
+static void writer_barrier(const char *phase) {
+    char prefix[64];snprintf(prefix,sizeof(prefix),"writer-%s-",phase);
+    if(strncmp(mode,prefix,strlen(prefix)) || writer_barriers) return;
+    writer_barriers++;contend();
+}
 static int ready_expected(void) {
     return !strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"concurrent-writers") ||
+        !strncmp(mode,"writer-",7) ||
         !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline") ||
         !strcmp(mode,"environment-failure") || !strcmp(mode,"post-attach-required-drift") ||
         !strncmp(mode,"ready-",6) || !strncmp(mode,"premac-",7) || !strcmp(mode,"generation-three");
 }
 static void require(int ok, const char *stage) {
     if (!ok) { fprintf(stderr,"fresh-witness:%s:%s\n",stage,strerror(errno)); exit(2); }
+}
+static void unpack_required(void) {
+    char before[19],after[19];
+    require(pread(original_source,before,sizeof(before),0)==(ssize_t)sizeof(before) &&
+        !memcmp(before,"\177ELF/usr/bin/native",sizeof(before)),"independent-original-required-before-unpack");
+    /* Distribution unpack does not acquire either cooperating-writer lock. */
+    require(pwrite(original_source,"X",1,4)==1 && fsync(original_source)==0 &&
+        pread(original_source,after,sizeof(after),0)==(ssize_t)sizeof(after) && after[4]=='X' &&
+        memcmp(before,after,sizeof(before)),"unlocked-original-required-unpack");fault_hits++;
+}
+static ssize_t fixture_recvmsg(int channel,struct msghdr *message,int flags) {
+    ssize_t result=recvmsg(channel,message,flags);int saved=errno;
+    if(result>0 && message->msg_iovlen==1 && message->msg_iov[0].iov_len>=9 &&
+        !memcmp(message->msg_iov[0].iov_base,"ONPCPRE2",8) &&
+        ((unsigned char *)message->msg_iov[0].iov_base)[8]==1) {
+        /* A real completed measurement is waiting for native authority checks;
+         * the preparation child cannot select or publish until its reply. */
+        writer_barrier("measurement");
+        if(!strcmp(mode,"measurement-required-drift") && !fault_hits) unpack_required();
+    }
+    errno=saved;return result;
 }
 /* Only the capability API boundary is doubled for these finite controls.
  * Ordinary complete transactions below still use the real caller syscalls. */
@@ -349,6 +376,24 @@ static int fixture_statx(int fd,const char *p,int flags,unsigned mask,struct sta
 }
 static int fixture_mount(const char *source,const char *target,const char *type,unsigned long flags,const void *data) {
     if(!strcmp(mode,"bind-cut") && (flags&MS_BIND) && !fault_hits++) {errno=EIO;return -1;}
+    if(flags&MS_BIND) {
+        writer_barrier("bind");
+        if(!strcmp(mode,"bind-required-drift") && !fault_hits) {
+            char named[PATH_MAX];ssize_t length=readlink(source,named,sizeof(named)-1);
+            if(length>0) {
+                named[length]=0;const char *leaf=strrchr(named,'/');
+                if(leaf && !strcmp(leaf+1,"native-0")) {
+                    char bytes[19];int fd=open(source,O_RDONLY|O_CLOEXEC);
+                    require(fd>=0 && pread(fd,bytes,sizeof(bytes),0)==(ssize_t)sizeof(bytes) &&
+                        !memcmp(bytes,"\177ELF/usr/bin/native",sizeof(bytes)),"independent-bind-copy-before-unpack");
+                    unpack_required();memset(bytes,0,sizeof(bytes));
+                    require(pread(fd,bytes,sizeof(bytes),0)==(ssize_t)sizeof(bytes) &&
+                        !memcmp(bytes,"\177ELF/usr/bin/native",sizeof(bytes)) && close(fd)==0,
+                        "independent-bind-copy-survives-original-host-unpack");
+                }
+            }
+        }
+    }
     char out[PATH_MAX]; return mount(source,!strcmp(target,"/")?target:map(target,out),type,flags,data);
 }
 static int fixture_umount(const char *target,int flags) {
@@ -499,11 +544,12 @@ static int fixture_rename(int a,const char *from,int b,const char *to,unsigned f
             char source[PATH_MAX],bytes[32]={0};snprintf(source,sizeof(source),"%s/host/usr/bin/native",base);
             int selected=open(source,O_RDONLY|O_CLOEXEC);
             require(selected>=0 && read(selected,bytes,sizeof(bytes))==19 && !memcmp(bytes,"\177ELF/usr/bin/native",19),"private-copy-before-host-drift");close(selected);
-            require(pwrite(original_source,"X",1,4)==1 && fsync(original_source)==0,"late-original-host-required-drift");
+            unpack_required();
             selected=open(source,O_RDONLY|O_CLOEXEC);memset(bytes,0,sizeof(bytes));
             require(selected>=0 && read(selected,bytes,sizeof(bytes))==19 && !memcmp(bytes,"\177ELF/usr/bin/native",19),"private-copy-survives-original-host-drift");close(selected);
         }
         int r=renameat2(a,from,b,to,flags);if(!r)ready_commits++;
+        if(!r) writer_barrier("final");
         if(!r && (!strcmp(mode,"ready-lock-replaced") || !strcmp(mode,"ready-lease-replaced"))) {
             const char *name=!strcmp(mode,"ready-lock-replaced")?"lock":"lease";
             char path[PATH_MAX],saved[PATH_MAX];snprintf(path,sizeof(path),"%s/%s",base,name);
@@ -597,6 +643,7 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #define fsync fixture_fsync
 #define open_tree fixture_open_tree
 #define move_mount fixture_move_mount
+#define recvmsg fixture_recvmsg
 #include "kiosk_confinement.h"
 #include "kiosk_fresh_startup.h"
 #undef open
@@ -620,20 +667,32 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #undef fsync
 #undef open_tree
 #undef move_mount
+#undef recvmsg
 static void contend(void) {
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/lock",base);
     int lock=open(path,O_RDWR|O_CLOEXEC);snprintf(path,sizeof(path),"%s/lease",base);
     int lease=open(path,O_RDWR|O_CLOEXEC);
     require(lock>=0 && lease>=0,"independent-competing-lock-open");
-    unsigned before=descriptors();struct kiosk_fresh_startup other;kiosk_fresh_startup_init(&other);
-    require(kiosk_fresh_startup_until(&other,NULL,lock,lease,transaction_deadline)!=0 &&
-        other.stage && !strcmp(other.stage,"identity") && !other.child.started && !other.ready &&
-        !other.armed && kiosk_fresh_close(&other)==0 && descriptors()==before,
-        "competing-full-admission-refuses-before-helper-or-publication");contention_checks++;
-    require(flock(lock,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
-        "configuration-writer-refused-by-original-preparation-lock");contention_checks++;
-    require(flock(lease,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
-        "loader-removal-writer-refused-by-original-admission-lease");contention_checks++;
+    unsigned before=descriptors();int all=!strcmp(mode,"concurrent-writers");
+    if(all || strstr(mode,"-admission")) {
+        struct kiosk_fresh_startup other;kiosk_fresh_startup_init(&other);
+        require(kiosk_fresh_startup_until(&other,NULL,lock,lease,transaction_deadline)!=0 &&
+            other.deadline==transaction_deadline && other.stage && !strcmp(other.stage,"identity") &&
+            !other.child.started && !other.ready && !other.armed &&
+            kiosk_fresh_close(&other)==0 && descriptors()==before,
+            "competing-full-admission-refuses-before-helper-or-publication");contention_checks++;
+    }
+    /* These are real independent open-description lock probes at the writer
+     * barriers, not execution of public configuration or removal workflows. */
+    if(all || strstr(mode,"-configuration")) {
+        require(flock(lock,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
+            "configuration-writer-refused-by-original-preparation-lock");contention_checks++;
+    }
+    if(all || strstr(mode,"-loader")) {
+        require(flock(lease,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
+            "loader-removal-writer-refused-by-original-admission-lease");contention_checks++;
+    }
+    require(descriptors()==before,"competing-writer-preserves-descriptors");
     require(close(lock)==0 && close(lease)==0,"competing-descriptors-close");
 }
 static void mapfile(const char *path,const char *text) {
@@ -749,11 +808,31 @@ int main(int argc,char **argv) {
         kiosk_fresh_startup_until(&startup,NULL,lock,lease,deadline+1000000)!=0 && startup.deadline==deadline,
         "original-deadline-and-single-attempt");
     int positive=!strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") ||
-        !strcmp(mode,"concurrent-writers") || !strcmp(mode,"generation-three");
+        !strcmp(mode,"concurrent-writers") || !strncmp(mode,"writer-",7) || !strcmp(mode,"generation-three");
     if((result==0)!=positive) fprintf(stderr,"fresh-result mode=%s result=%d stage=%s child-started=%d reaped=%d phase=%u pidfd=%d channel=%d\n",mode,result,startup.stage?startup.stage:"-",
         startup.child.started,startup.child.reaped,startup.child.phase,startup.child.pidfd,startup.child.channel);
     require((result==0)==positive,"complete-transaction-result");
     if(!strcmp(mode,"concurrent-writers")) require(contention_checks==3,"all-competing-production-writers-observed");
+    if(!strncmp(mode,"writer-",7)) require(writer_barriers==1 && contention_checks==1,
+        "exact-independent-writer-at-requested-composition-barrier");
+    if(!strcmp(mode,"measurement-required-drift")) require(fault_hits==1 && startup.stage &&
+        !strcmp(startup.stage,"authority") && !startup.ticket_adopted && !startup.ready,
+        "measurement-unpack-refuses-at-independent-host-authority");
+    if(!strcmp(mode,"bind-required-drift")) require(fault_hits==1 && startup.stage &&
+        !strcmp(startup.stage,"publication") && startup.realized.bound && !startup.ready && !ready_commits,
+        "bind-unpack-refuses-at-original-host-prepublication-proof");
+    if(!strcmp(mode,"post-attach-required-drift")) require(fault_hits==1 && startup.stage &&
+        !strcmp(startup.stage,"final-proof") && startup.ready && ready_commits==1,
+        "final-unpack-refuses-after-preserving-completed-publication");
+    if(!strcmp(mode,"selection-lock-replaced") || !strcmp(mode,"selection-lease-replaced"))
+        require(startup.stage && !strcmp(startup.stage,"copy-ticket") && !startup.ready && !ready_commits,
+            "selection-replaced-lock-refuses-before-scratch-adoption-or-publication");
+    if(!strcmp(mode,"ready-lock-replaced") || !strcmp(mode,"ready-lease-replaced"))
+        require(startup.stage && !strcmp(startup.stage,"final-proof") && startup.ready && ready_commits==1,
+            "ready-replaced-lock-refuses-before-environment-or-MAC");
+    if(!strcmp(mode,"premac-lock-replaced") || !strcmp(mode,"premac-lease-replaced"))
+        require(startup.stage && !strcmp(startup.stage,"lock") && startup.ready && ready_commits==1,
+            "premac-replaced-lock-refuses-after-setup-closure-before-MAC");
     if(strstr(mode,"-cut") && strcmp(mode,"publication-cut")) require(fault_hits>0,"requested-failure-boundary-observed");
     if(!positive) require(!startup.armed && startup.failure.stage && (mac_calls==0)==
         (strcmp(mode,"mac-failure") && strcmp(mode,"mac-readback") && strcmp(mode,"mac-deadline")),
@@ -878,9 +957,12 @@ def fresh_scene(tmp_path):
 @pytest.mark.parametrize('mode', [
     'healthy', 'ambient-narrow', 'helper-exit', 'helper-result-exit', 'helper-timeout', 'helper-order',
     'helper-identity', 'result-malformed', 'ticket-parent', 'ticket-malformed', 'copy-replacement', 'source-replacement',
-    'required-drift', 'post-attach-required-drift', 'publication-cut',
+    'required-drift', 'measurement-required-drift', 'bind-required-drift', 'post-attach-required-drift', 'publication-cut',
     'publication-partial', 'expired', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
     'concurrent-writers', 'selection-lock-replaced', 'selection-lease-replaced',
+    'writer-measurement-admission', 'writer-measurement-configuration', 'writer-measurement-loader',
+    'writer-bind-admission', 'writer-bind-configuration', 'writer-bind-loader',
+    'writer-final-admission', 'writer-final-configuration', 'writer-final-loader',
     'ready-lock-replaced', 'ready-lease-replaced', 'premac-lock-replaced', 'premac-lease-replaced',
     'material-fsync-cut', 'view-fsync-cut', 'pins-fsync-cut', 'pending-fsync-cut',
     'generation-rename-cut', 'generation-durability-cut', 'ready-durability-cut',
@@ -893,8 +975,13 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
     (directory / 'mode').write_text(mode)
     borrowed = {name: (directory / name).stat() for name in ('lock', 'lease')}
     retained_generations = {}
-    if mode in ('generation-three', 'generation-four'):
-        for index in range(3 if mode == 'generation-three' else 4):
+    prior_count = 3 if mode == 'generation-three' else 4 if mode == 'generation-four' else 0
+    if (mode.startswith('writer-') or mode == 'concurrent-writers' or
+            mode in ('measurement-required-drift', 'bind-required-drift', 'post-attach-required-drift') or
+            mode.endswith(('-lock-replaced', '-lease-replaced'))):
+        prior_count = 1
+    if prior_count:
+        for index in range(prior_count):
             generation = directory / 'runtime' / f'{index:064x}'
             generation.mkdir(mode=0o700)
             _put(generation / 'foreign-record', b'previous-generation', 0o600)
@@ -945,7 +1032,7 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         assert (actual.st_dev, actual.st_ino) == (member_identity.st_dev, member_identity.st_ino)
     generations = [path for path in (directory / 'runtime').iterdir()
                    if len(path.name) == 64 and path.name not in retained_generations]
-    if mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
+    if mode.startswith('writer-') or mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
                 'post-attach-required-drift', 'concurrent-writers', 'ready-lock-replaced', 'ready-lease-replaced',
                 'premac-lock-replaced', 'premac-lease-replaced', 'ready-durability-cut', 'generation-three',
                 'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift'):

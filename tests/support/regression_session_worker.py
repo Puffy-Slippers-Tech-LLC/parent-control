@@ -31,7 +31,10 @@ def run(argv, *, detached=False, checkpoint=None):
     assert detached
     root = Path(sys.argv[1])
     (root / 'started').write_text(argv[0])
-    (root / 'arguments').write_text(' '.join(argv))
+    # Readers use existence as readiness; publish only after the write closes.
+    arguments = root / 'arguments.tmp'
+    arguments.write_text(' '.join(argv))
+    arguments.replace(root / 'arguments')
     if argv[0] == 'traceability':
         # Exercise the actual non-aggregate dispatcher and owned subprocess
         # controller, using a harmless child instead of project tests.

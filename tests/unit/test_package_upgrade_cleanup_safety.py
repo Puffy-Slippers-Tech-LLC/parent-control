@@ -61,10 +61,15 @@ def boundary(monkeypatch, version=None, boot=BEFORE):
 
 def test_selector_and_automatic_asset_preparation(monkeypatch):
     import tools.test_commands as launchers
+    import test_storage
     launch = Mock(return_value=0)
     monkeypatch.setattr(selector, 'smoke', launch)
     assert selector.main() == 0
     launch.assert_called_once_with(assets=selector.ASSETS, provision_credentials=True, package_upgrade=True)
+    # The wrapper freezes ASSETS at import; keep the later launcher lookup
+    # independent of source edits made while the unit suite is running.
+    named = Mock(return_value=selector.ASSETS)
+    monkeypatch.setattr(test_storage, 'named_input', named)
     monkeypatch.setattr(launchers.os.path, 'lexists', lambda _: False)
     allocate = Mock(return_value=str(selector.ASSETS))
     monkeypatch.setattr(launchers, 'allocate_artifact_output', allocate)
@@ -72,6 +77,7 @@ def test_selector_and_automatic_asset_preparation(monkeypatch):
     from vm_selection import arguments
     assert result[3:] == ['--upgrade-inputs', '--output', str(selector.ASSETS), *arguments()]
     assert 'tools/vm_artifacts.py' in result[2]
+    named.assert_called_once_with(upgrade_source=True)
     allocate.assert_called_once_with(str(selector.ASSETS))
 
 

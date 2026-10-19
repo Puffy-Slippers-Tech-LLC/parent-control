@@ -7,7 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 import accessible_ui as public
-import check_e2e_kiosk_language_restoration as selector
 import check_graphical_smoke as smoke
 import kiosk_language_restoration as recipe
 from kiosk_language import CHOOSER, FORM, TEXT_IDS
@@ -18,6 +17,7 @@ from tests.support.e2e_kiosk import accounts_form, WORKER
 from tests.support.e2e_recording import session
 from tests.support.e2e_evidence import attempt
 from tests.support.perl import run_perl
+from tests.support.modules import load_module
 from ui_observations import UiObservations, OPERATION_LABELS
 
 
@@ -164,6 +164,10 @@ def test_registration_inputs_shared_fragment_and_worker_distribution(monkeypatch
     from vm_selection import arguments
     from parent_setup_qualification import KioskLanguageRestorationQualification, KioskEntryQualification
     from journey_blocks import language_selection
+    # ASSETS is source-bound at import time. Load it under this case's VM
+    # fixture, rather than compare a collection-time digest with current inputs.
+    selector = load_module('test_kiosk_language_restoration_selector',
+        Path(__file__).resolve().parents[1] / 'integration/check_e2e_kiosk_language_restoration.py')
     launch = Mock(return_value=0)
     monkeypatch.setattr(selector, 'smoke', launch)
     assert selector.main() == 0

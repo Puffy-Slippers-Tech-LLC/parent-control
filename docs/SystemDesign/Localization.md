@@ -677,6 +677,13 @@ to attach; `--stop` cancels only the owned session and awaits cleanup. Ctrl+C
 detaches the observer. Operational artifacts use the shared `sync-whatsnew`
 storage category.
 
+The top-right task counter shows saved complete languages / pending languages /
+total non-English languages for the latest release. Helper completion and
+coordinator review do not advance it: every record for a language must be saved
+and pass the catalogue checks. Since writes follow whole-batch validation, the
+default run advances in batches of 24, 24 and 13 languages. Observers refresh
+these counts from the catalogues, including after reattachment.
+
 Before release, run `make check-whats-new-translations`, equivalent to `--check`.
 Until the first translation run, it correctly reports pending translations;
 infrastructure setup does not claim translation delivery. Development builds

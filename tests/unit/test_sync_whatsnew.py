@@ -5,6 +5,7 @@ Codex, workflow ownership and model discovery use process-local doubles.
 """
 
 import fcntl
+import io
 import json
 import os
 from pathlib import Path
@@ -91,6 +92,27 @@ def test_launcher_totals_count_languages_across_all_latest_release_records(repos
     assert whatsnew_totals(repository) == (2, 0, 2)
     source(repository, [('1.11', 'Parent', 'New release notes')])
     assert whatsnew_totals(repository) == (0, 2, 2)
+
+
+def test_display_refresh_counts_only_saved_languages_without_new_agent_output(repository):
+    from launcher_view import WorkflowView, whatsnew_totals
+
+    release = catalogs.prepare(repository)
+    work = catalogs.pending(repository, release)
+    run = repository / 'observer'
+    run.mkdir()
+    display = WorkflowView(totals=lambda: whatsnew_totals(repository)).display(io.StringIO(), run)
+    display.refresh_chat()
+    assert display.task_totals == (0, 2, 2)
+    translated = response(work)
+    display.refresh_chat()
+    assert display.task_totals == (0, 2, 2)  # Returned text is not a saved batch.
+    sync.apply_response(repository, release, work, translated, originals(repository, release, work))
+    display.refresh_chat()
+    assert display.task_totals == (2, 0, 2)
+    reattached = WorkflowView(totals=lambda: whatsnew_totals(repository)).display(io.StringIO(), run)
+    reattached.refresh_chat()
+    assert reattached.task_totals == (2, 0, 2)
 
 
 def test_launcher_totals_refuse_malformed_catalogue_without_crashing_observer(repository):

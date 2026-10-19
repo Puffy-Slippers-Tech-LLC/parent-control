@@ -442,7 +442,7 @@ int main(int argc, char **argv) {
         if (!measured || response.count || before != descriptors()) return 92;
         puts("refused no-leak"); return 0;
     }
-    if (measured || response.count != 2 || identity(originals[0], response.fds[0], 1) ||
+    if (measured || response.count != 3 || identity(originals[0], response.fds[0], 1) ||
         identity(originals[1], response.fds[1], 1)) return 93;
     unsigned char material[32], view[32];
     memcpy(material, response.input.packet + 24, 32);
@@ -485,7 +485,7 @@ int main(int argc, char **argv) {
 
 
 @contextmanager
-def duplex_objects(tmp_path):
+def duplex_objects(tmp_path, account=b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n1000\n1001\n', sealed=True):
     names = ('material_receipt', 'configuration', 'target_root', 'result_receipt',
              'copy_directory', 'source_view_receipt', 'source_usr', 'source_slots')
     paths, fds = [], []
@@ -498,7 +498,17 @@ def duplex_objects(tmp_path):
                 path.mkdir(mode=0o700)
             paths.append(path)
             fds.append(os.open(path, os.O_RDONLY | os.O_CLOEXEC))
-        yield paths, dict(zip(names, fds))
+        writer = os.memfd_create('account', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+        fds.append(writer)
+        os.write(writer, account)
+        if sealed:
+            fcntl.fcntl(writer, fcntl.F_ADD_SEALS, fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW |
+                        fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL)
+        account_fd = os.open('/proc/self/fd/' + str(writer), os.O_RDONLY | os.O_CLOEXEC)
+        objects = dict(zip(names, fds))
+        fds.append(account_fd)
+        objects['account'] = account_fd
+        yield paths, objects
     finally:
         for fd in fds:
             os.close(fd)
@@ -525,7 +535,8 @@ def test_one_duplex_exchange_matches_independently_opened_native_objects(native_
         try:
             exchange = channel_input.PreparationExchange(right, role=role, deadline_ns=deadline)
             exchange.send_measurement(backend='apparmor', material=MATERIAL,
-                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'])
+                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'],
+                                      account=fds['account'])
             with exchange.receive_selection() as selection:
                 assert selection.view == (bytes(32) if role == 'manager' else VIEW)
                 assert tuple(selection.descriptors) == channel_input.PHASE_SLOTS[2, role]
@@ -556,7 +567,7 @@ def test_native_measurement_refusal_closes_received_descriptors(native_exchange,
     with duplex_objects(tmp_path) as (paths, fds):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         deadline = time.monotonic_ns() + 3_000_000_000
-        descriptors = [fds['material_receipt'], fds['configuration']]
+        descriptors = [fds['material_receipt'], fds['configuration'], fds['account']]
         packet = bytearray(phase_packet(1, 'manager', descriptors, deadline))
         offsets = dict(version=7, phase=8, role=9, backend=10, reserved=12,
                        deadline=23, view=56, identity=96 + 15)
@@ -591,6 +602,40 @@ def test_native_measurement_refusal_closes_received_descriptors(native_exchange,
             right.close()
 
 
+@pytest.mark.parametrize('account,sealed', [
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t1\n1000\n', False),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t0\t1000\t1\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t0\t2\n0\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n0\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t01000\t1000\t1\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t4294967295\t1000\t1\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t0\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t129\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n1000\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n1001\n1000\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t1\n1001\n', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t1\n1000', True),
+    (b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t1\n1000\nextra', True),
+])
+def test_native_measurement_rejects_invalid_or_mutable_account_without_leaks(
+        native_exchange, tmp_path, account, sealed):
+    with duplex_objects(tmp_path, account, sealed) as (paths, fds):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        try:
+            deadline = time.monotonic_ns() + 3_000_000_000
+            descriptors = [fds[name] for name in channel_input.PHASE_SLOTS[1, 'manager']]
+            send(left, phase_packet(1, 'manager', descriptors, deadline), descriptors)
+            completed = subprocess.run([str(native_exchange), str(right.fileno()), '1', str(deadline),
+                                        'refuse', *(str(path) for path in paths)],
+                                       timeout=5, capture_output=True,
+                                       pass_fds=(right.fileno(), *test_storage.scratch_descriptors()))
+            assert completed.returncode == 0, (completed.returncode, completed.stdout, completed.stderr)
+            assert completed.stdout == b'refused no-leak\n'
+        finally:
+            left.close()
+            right.close()
+
+
 @pytest.mark.parametrize('role', ['manager', 'gate'])
 @pytest.mark.parametrize('fault', ['material', 'view', 'phase', 'deadline', 'slots', 'truncated'])
 def test_python_selection_refusal_closes_received_descriptors(tmp_path, role, fault):
@@ -600,9 +645,10 @@ def test_python_selection_refusal_closes_received_descriptors(tmp_path, role, fa
             deadline = time.monotonic_ns() + 2_000_000_000
             exchange = channel_input.PreparationExchange(right, role=role, deadline_ns=deadline)
             exchange.send_measurement(backend='apparmor', material=MATERIAL,
-                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'])
+                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'],
+                                      account=fds['account'])
             # Consume measurement rights so only selection ownership is counted.
-            packet, rights, _flags, _address = left.recvmsg(channel_input.MAX_BYTES, socket.CMSG_SPACE(8))
+            packet, rights, _flags, _address = left.recvmsg(channel_input.MAX_BYTES, socket.CMSG_SPACE(12))
             for _level, _kind, data in rights:
                 for fd in array.array('i', data):
                     os.close(fd)
@@ -650,7 +696,8 @@ def test_native_result_requires_exact_selected_bindings(native_exchange, tmp_pat
         try:
             exchange = channel_input.PreparationExchange(right, role=role, deadline_ns=deadline)
             exchange.send_measurement(backend='apparmor', material=MATERIAL,
-                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'])
+                                      material_receipt=fds['material_receipt'], configuration=fds['configuration'],
+                                      account=fds['account'])
             with exchange.receive_selection() as selection:
                 view = selection.view
             descriptors = [fds[name] for name in channel_input.PHASE_SLOTS[3, role]]

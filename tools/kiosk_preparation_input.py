@@ -37,15 +37,15 @@ SLOTS = {
 # uses these three packets, in order, with the very same absolute deadline.
 PHASE_MAGIC = b'ONPCPRE2'
 PHASE_SLOTS = {
-    (1, 'manager'): ('material_receipt', 'configuration'),
-    (1, 'gate'): ('material_receipt', 'configuration'),
+    (1, 'manager'): ('material_receipt', 'configuration', 'account'),
+    (1, 'gate'): ('material_receipt', 'configuration', 'account'),
     (2, 'manager'): ('target_root',),
     (2, 'gate'): ('source_view_receipt', 'source_usr', 'source_slots', 'target_root'),
     (3, 'manager'): ('result_receipt', 'copy_directory'),
     (3, 'gate'): ('result_receipt',),
 }
 REGULAR_SLOTS = frozenset(('material_receipt', 'configuration', 'source_view_receipt',
-                           'source_slots', 'result_receipt'))
+                           'source_slots', 'result_receipt', 'account'))
 
 
 def _before(deadline_ns):
@@ -217,12 +217,12 @@ class PreparationExchange:
         self.channel, self.role, self.deadline_ns = channel, role, deadline_ns
         self._phase = 1
 
-    def send_measurement(self, *, backend, material, material_receipt, configuration):
+    def send_measurement(self, *, backend, material, material_receipt, configuration, account):
         if self._phase != 1:
             raise ValueError('preparation-phase')
         self._phase = -1
         _send_phase(self.channel, 1, self.role, backend, material, bytes(32),
-                    (material_receipt, configuration), self.deadline_ns)
+                    (material_receipt, configuration, account), self.deadline_ns)
         self.backend, self.material = backend, material
         self._phase = 2
 

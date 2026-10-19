@@ -1086,6 +1086,11 @@ from regression_ui import Bucket
 # namespaces. Its recursive mounts and descriptors die with each waited probe;
 # policy/PAM observations are local doubles. It opens no live bus, display,
 # service, VM or shared cache and adds no cleanup/UI inventory owner.
+# Retained-record checks use private source/copy trees, sealed records and a
+# bounded waited native probe in its own user namespace. Retained startup adds
+# a waited private manager and gate with private mount namespaces and barrier
+# pipes. The system bus, PAM identity and enforcing MAC are fixture boundaries;
+# no live host service, UI, VM, shared cache or cleanup inventory is used.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof
@@ -1093,7 +1098,7 @@ kiosk_initial_realization kiosk_view_receipt kiosk_preparation_channel
 kiosk_material_authority kiosk_preparation_child
 kiosk_preparation_service kiosk_preparation_entry
 kiosk_preparation_plan kiosk_native_realization kiosk_policy_authority kiosk_view_publication
-kiosk_fresh_startup
+kiosk_fresh_startup kiosk_retained_record kiosk_retained_startup
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

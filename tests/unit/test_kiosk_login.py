@@ -698,14 +698,18 @@ def native_boundary_callback(tmp_path_factory):
     header = (ROOT / 'tools/kiosk_confinement.h').read_text()
     declarations = header[header.index('/* The namespace, filesystem and every mount below it belong'):].split(
         '\nstruct kiosk_record {', 1)[0]
-    callback = 'static int\nkiosk_confinement' + header.split(
-        'static int\nkiosk_confinement', 1)[1]
+    # Exercise the actual PAM-owned transaction and callback. Only the composed
+    # startup/recovery/close mechanics are doubled below; the ownership transfer,
+    # repeated-call guard, lock close and diagnostic propagation are production.
+    callback = '#define KIOSK_TRANSACTION_DATA' + header.split(
+        '#define KIOSK_TRANSACTION_DATA', 1)[1]
     source = directory / 'callback.c'
     source.write_text(r'''
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -719,8 +723,10 @@ def native_boundary_callback(tmp_path_factory):
 #define KIOSK_CONFINEMENT_LOCK "private-lock-canary"
 #define KIOSK_CONFINEMENT_RUNTIME "private-runtime-canary"
 static const char *fixture_service, *fixture_fault;
-static int discard;
+static int discard, cleanup_calls;
 static unsigned log_attempts;
+static void *transaction_data;
+static void (*transaction_cleanup)(pam_handle_t *, void *, int);
 static void fixture_log(pam_handle_t *handle, int priority, const char *format, ...) {
     (void) handle; (void) priority;
     log_attempts++;
@@ -761,14 +767,6 @@ static int fixture_flock(int fd, int operation) {
     if (fd != 7 || operation != (LOCK_EX | LOCK_NB)) exit(2);
     puts("lock-held"); return 0;
 }
-static int fixture_mkdir(const char *path, mode_t mode) {
-    if (strcmp(path, KIOSK_CONFINEMENT_RUNTIME) != 0 || mode != 0700) exit(2);
-    return 0;
-}
-static int fixture_lstat(const char *path, struct stat *info) {
-    if (strcmp(path, KIOSK_CONFINEMENT_RUNTIME) != 0) exit(2);
-    memset(info, 0, sizeof(*info)); info->st_mode = S_IFDIR | 0700; return 0;
-}
 static int setup_kiosk_view(struct kiosk_view *view) {
     memset(view, 0, sizeof(*view)); view->root = -1; puts("setup");
     if (strcmp(fixture_fault, "namespace") == 0) {
@@ -792,7 +790,10 @@ static int bind_kiosk_executables(char *backend, size_t size, const char *role, 
 static int cleanup_kiosk_view(struct kiosk_view *view, int keep_clone) {
     if (keep_clone) exit(2);
     puts("cleanup");
-    if (strcmp(fixture_fault, "cleanup") == 0) {
+    /* Preserve the first cleanup failure as diagnostic evidence. The PAM
+     * transaction's explicit recovery then resolves this same private owner
+     * before lock close; no second admission or replacement owner is created. */
+    if (strcmp(fixture_fault, "cleanup") == 0 && cleanup_calls++ == 0) {
         kiosk_failure(&view->cleanup_failure, "detach", "detach", EBUSY); return -1;
     }
     return 0;
@@ -811,22 +812,88 @@ static int apply_kiosk_mac(const char *backend, const char *role) {
     puts("mac"); return 0;
 }
 static int fixture_close(int fd) { if (fd != 7) exit(2); puts("lock-close"); return 0; }
+static int fixture_get_data(const pam_handle_t *handle, const char *name, const void **data) {
+    (void) handle;
+    if (strcmp(name, "oh-no-parent-control.kiosk-transaction")) exit(2);
+    *data = transaction_data;
+    return transaction_data ? PAM_SUCCESS : PAM_NO_MODULE_DATA;
+}
+static int fixture_set_data(pam_handle_t *handle, const char *name, void *data,
+    void (*cleanup)(pam_handle_t *, void *, int)) {
+    (void) handle;
+    if (strcmp(name, "oh-no-parent-control.kiosk-transaction") || transaction_data || !data || !cleanup) exit(2);
+    transaction_data = data; transaction_cleanup = cleanup;
+    return PAM_SUCCESS;
+}
+static int kiosk_pin_now(uint64_t *now) { *now = 1000000U; return 0; }
+struct kiosk_fresh_startup {
+    struct kiosk_view view;
+    struct kiosk_failure failure, cleanup_failure;
+    int armed;
+    uint64_t deadline;
+    const char *stage;
+};
+struct kiosk_retained_startup { struct kiosk_fresh_startup common; };
+static void kiosk_retained_startup_init(struct kiosk_retained_startup *gate) {
+    memset(gate, 0, sizeof(*gate)); gate->common.view.root = -1;
+}
+static int fixture_startup(struct kiosk_fresh_startup *s, pam_handle_t *handle,
+    int lock, int admission, uint64_t deadline, const char *role) {
+    if (lock != 7 || admission != 8 || deadline != 61000000U) exit(2);
+    s->deadline = deadline; s->stage = "runtime";
+    if (setup_kiosk_view(&s->view)) goto refused;
+    if (prepare_kiosk_confinement(role, lock, admission)) exit(2);
+    s->stage = "realization";
+    char backend[32];
+    if (bind_kiosk_executables(backend, sizeof(backend), role, &s->view)) goto refused;
+    if (!strcmp(role, "manager") && fixture_environment(handle,
+        "SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:") != PAM_SUCCESS) exit(2);
+    if (fixture_prctl(PR_CAP_AMBIENT) || kiosk_lock_identity(lock, KIOSK_CONFINEMENT_LOCK, 0) ||
+        apply_kiosk_mac(backend, role)) exit(2);
+    s->armed = 1; s->stage = "armed";
+    return 0;
+refused:
+    s->failure = s->view.failure;
+    (void) cleanup_kiosk_view(&s->view, 0);
+    s->cleanup_failure = s->view.cleanup_failure;
+    return -1;
+}
+static int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_handle_t *handle,
+    int lock, int admission, uint64_t deadline) {
+    return fixture_startup(s, handle, lock, admission, deadline, "manager");
+}
+static int kiosk_retained_startup_until(struct kiosk_retained_startup *gate, pam_handle_t *handle,
+    int lock, int admission, uint64_t deadline) {
+    return fixture_startup(&gate->common, handle, lock, admission, deadline, "gate");
+}
+static int kiosk_fresh_recover_until(struct kiosk_fresh_startup *s, uint64_t deadline) {
+    if (deadline != 6000000U || s->deadline != 61000000U) exit(2);
+    return cleanup_kiosk_view(&s->view, 0);
+}
+static int kiosk_retained_recover_until(struct kiosk_retained_startup *gate, uint64_t deadline) {
+    return kiosk_fresh_recover_until(&gate->common, deadline);
+}
+static int kiosk_fresh_close(struct kiosk_fresh_startup *s) { (void) s; return 0; }
+static int kiosk_retained_close(struct kiosk_retained_startup *gate) {
+    return kiosk_fresh_close(&gate->common);
+}
 #define pam_get_user fixture_user
 #define pam_get_item fixture_item
-#define pam_putenv fixture_environment
+#define pam_get_data fixture_get_data
+#define pam_set_data fixture_set_data
 #define geteuid() 0
 #define open fixture_open
 #define fstat fixture_fstat
 #define flock fixture_flock
-#define mkdir fixture_mkdir
-#define lstat fixture_lstat
-#define prctl fixture_prctl
 #define close fixture_close
 ''' + callback + r'''
 int main(int argc, char **argv) {
     if (argc != 4) return 2;
     fixture_service = argv[1]; fixture_fault = argv[2]; discard = strcmp(argv[3], "discard") == 0;
     int result = kiosk_confinement(NULL);
+    if (!transaction_data || !transaction_cleanup) return 2;
+    transaction_cleanup(NULL, transaction_data, result);
+    transaction_data = NULL;
     printf("result:%d\nlog-attempts:%u\n", result, log_attempts);
     return 0;
 }
@@ -871,7 +938,7 @@ def test_native_boundary_pam_result_survives_diagnostic_failure(native_boundary_
             expected.append(f'onpc.pam kiosk native-view outcome=cleanup-failed role={role} '
                             'stage=detach reason=detach errno=16')
         assert native == expected
-        outer_stage = 'runtime' if fault == 'namespace' else 'bind'
+        outer_stage = 'runtime' if fault == 'namespace' else 'realization'
         assert f'onpc.pam kiosk execution-boundary outcome=denied stage={outer_stage}' in captured
     assert 'private-account-canary' not in '\n'.join(native)
     assert 'private-lock-canary' not in '\n'.join(native)

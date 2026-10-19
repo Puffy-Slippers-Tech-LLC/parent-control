@@ -119,7 +119,7 @@ attestation = ' '.join(hashlib.sha256(x).hexdigest() for x in (config_bytes, pol
 def measure(role, deadline_ns):
     service._before(deadline_ns)
     snapshot = c.required_material(config_bytes, policy_bytes, attestation)
-    return snapshot, config_bytes
+    return snapshot, config_bytes, b'ONPC-KIOSK-ACCOUNT\t1\t4242\t4242\t1\n4242\n'
 service.measure = measure
 mode = (base / 'mode').read_text()
 if mode == 'helper-exit':
@@ -130,10 +130,10 @@ if mode == 'helper-timeout':
 if mode in ('helper-order', 'helper-identity'):
     import array
     deadline = int(sys.argv[4])
-    snapshot, configuration = measure('manager', deadline)
+    snapshot, configuration, account = measure('manager', deadline)
     with service._record(service.receipt.material_canonical(snapshot['record']), deadline) as material_fd, \
-            service._record(configuration, deadline) as config_fd:
-        fds = [material_fd, config_fd]
+            service._record(configuration, deadline) as config_fd, service._record(account, deadline) as account_fd:
+        fds = [material_fd, config_fd, account_fd]
         packet = bytearray(channel_input._phase_packet(1, 'manager', 'apparmor',
                            bytes.fromhex(snapshot['digest']), bytes(32), fds, deadline))
         # Change exactly one checked property of an otherwise valid transfer.
@@ -337,7 +337,16 @@ static int selinux_enabled(void) {return !strcmp(mode,"selinux-disabled")?0:1;}
 static int apparmor_fixture_backend(void) {return 0;}
 static int selinux_enforcing(void) {return !strcmp(mode,"selinux-permissive")?0:1;}
 static int selinux_setexec(const char *context) {
+    if(strstr(mode,"selinux-gate")) {
+        require(context && !strcmp(context,"system_u:system_r:onpc_kiosk_gate_t:s0") && selinux_order++==0,
+            "SELinux-gate-pending-context");
+        return !strcmp(mode,"selinux-gate-transition")?-1:0;
+    }
     require(!context && selinux_order++==0,"SELinux-clear-pending-before-current");return 0;
+}
+static int selinux_getexec(char **context) {
+    require(strstr(mode,"selinux-gate") && selinux_order++==1,"SELinux-gate-pending-readback");
+    *context=strdup(!strcmp(mode,"selinux-gate-readback")?"system_u:system_r:wrong_t:s0":"system_u:system_r:onpc_kiosk_gate_t:s0");return 0;
 }
 static int selinux_setcurrent(const char *context) {
     require(!strcmp(context,"system_u:system_r:onpc_kiosk_manager_pam_t:s0") && selinux_order++==1,"SELinux-manager-PAM-domain");
@@ -361,9 +370,11 @@ static void *fixture_dlsym(void *handle,const char *symbol) {
     }
     if(handle==(void *)2) {
         if(!strcmp(mode,"selinux-symbol") && !strcmp(symbol,"getcon_raw")) return NULL;
+        if(!strcmp(mode,"selinux-gate-symbol") && !strcmp(symbol,"getexeccon_raw")) return NULL;
         if(!strcmp(symbol,"is_selinux_enabled")) return (void *)selinux_enabled;
         if(!strcmp(symbol,"security_getenforce")) return (void *)selinux_enforcing;
         if(!strcmp(symbol,"setexeccon_raw")) return (void *)selinux_setexec;
+        if(!strcmp(symbol,"getexeccon_raw")) return (void *)selinux_getexec;
         if(!strcmp(symbol,"setcon_raw")) return (void *)selinux_setcurrent;
         if(!strcmp(symbol,"getcon_raw")) return (void *)selinux_getcurrent;
         if(!strcmp(symbol,"freecon")) return (void *)free;
@@ -513,10 +524,12 @@ int main(int argc,char **argv) {
     require(argc==3,"arguments");mode=argv[1];base=argv[2];
     if(!strncmp(mode,"selinux-",8)) {
         unsigned before=descriptors();struct kiosk_fresh_mac mac;
-        int result=kiosk_fresh_mac_preload(&mac,"selinux");
+        int gate=strstr(mode,"selinux-gate")!=NULL;
+        int result=gate?kiosk_gate_mac_preload(&mac,"selinux"):kiosk_fresh_mac_preload(&mac,"selinux");
         if(!result) result=kiosk_fresh_mac_apply(&mac);
-        require((result==0)==!strcmp(mode,"selinux-healthy"),"SELinux-final-transition-result");
+        require((result==0)==(!strcmp(mode,"selinux-healthy") || !strcmp(mode,"selinux-gate-healthy")),"SELinux-final-transition-result");
         if(!strcmp(mode,"selinux-healthy")) require(selinux_order==3,"SELinux-all-security-observations");
+        if(!strcmp(mode,"selinux-gate-healthy")) require(selinux_order==2,"SELinux-gate-only-pending-context");
         if(mac.library) fixture_dlclose(mac.library);
         require(descriptors()==before,"SELinux-preload-descriptor-balance");puts("mac verified");return 0;
     }
@@ -728,7 +741,9 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
 
 
 @pytest.mark.parametrize('mode', ['selinux-healthy', 'selinux-disabled', 'selinux-permissive',
-                                'selinux-symbol', 'selinux-transition', 'selinux-readback'])
+                                'selinux-symbol', 'selinux-transition', 'selinux-readback',
+                                'selinux-gate-healthy', 'selinux-gate-symbol',
+                                'selinux-gate-transition', 'selinux-gate-readback'])
 def test_native_fresh_selinux_security_transition(fresh_scene, mode):
     directory, binary = fresh_scene
     completed = subprocess.run([str(binary), mode, str(directory)],

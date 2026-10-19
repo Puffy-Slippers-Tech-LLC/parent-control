@@ -7,6 +7,7 @@ unsent responses retain Python's ordinary identity-owned scratch cleanup.
 """
 from contextlib import contextmanager
 import fcntl
+import grp
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ from kiosk_preparation_input import PreparationExchange
 
 
 MAX_BYTES = receipt.MAX_BYTES
+MAX_ACCOUNT_GROUPS = 128
 
 
 def _before(deadline_ns):
@@ -137,17 +139,40 @@ def _record(data, deadline_ns):
             os.close(writer)
 
 
-def measure(role, deadline_ns):
-    """Use the established owned-account, attestation and enforcement checks."""
+def _account(deadline_ns):
+    """Resolve NSS only in this bounded child; export one finite canonical set."""
     _before(deadline_ns)
-    if os.geteuid() != 0 or role not in ('manager', 'gate'):
-        raise ValueError('invalid-caller')
     account = pwd.getpwnam(confinement.ACCOUNT)
     marker = confinement.trusted('/var/lib/oh-no-parent-control/package-created-kiosk-uid')
     info = marker.stat()
     if (account.pw_uid == 0 or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or
             marker.read_text().strip() != str(account.pw_uid)):
         raise ValueError('unowned-account')
+    groups = sorted(set(os.getgrouplist(confinement.ACCOUNT, account.pw_gid)))
+    _before(deadline_ns)
+    if (not 0 < account.pw_uid < 2**32 - 1 or not 0 < account.pw_gid < 2**32 - 1 or
+            not 0 < len(groups) <= MAX_ACCOUNT_GROUPS or account.pw_gid not in groups or
+            any(type(group) is not int or not 0 < group < 2**32 - 1 for group in groups)):
+        raise ValueError('preparation-account')
+    # Match provisioning's ADMIN_GROUPS contract, plus the root group. Resolve
+    # only this already bounded set through NSS under the original child alarm;
+    # unknown/error results refuse rather than produce a partial identity.
+    for group in groups:
+        _before(deadline_ns)
+        entry = grp.getgrgid(group)
+        _before(deadline_ns)
+        if entry.gr_gid != group or entry.gr_name in ('root', 'sudo', 'adm', 'wheel'):
+            raise ValueError('preparation-account')
+    return (f'ONPC-KIOSK-ACCOUNT\t1\t{account.pw_uid}\t{account.pw_gid}\t{len(groups)}\n' +
+            ''.join(f'{group}\n' for group in groups)).encode('ascii')
+
+
+def measure(role, deadline_ns):
+    """Use the established owned-account, attestation and enforcement checks."""
+    _before(deadline_ns)
+    if os.geteuid() != 0 or role not in ('manager', 'gate'):
+        raise ValueError('invalid-caller')
+    identity = _account(deadline_ns)
     attestation = subprocess.run(
         ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
         env=confinement.ENV, check=True, capture_output=True, text=True,
@@ -170,7 +195,7 @@ def measure(role, deadline_ns):
         os.close(fd)
     snapshot = confinement.required_material(config_bytes, policy_bytes, attestation.stdout)
     _before(deadline_ns)
-    return snapshot, config_bytes
+    return snapshot, config_bytes, identity
 
 
 def _view(fd, deadline_ns):
@@ -314,13 +339,14 @@ def _label(fd, backend):
 def serve(channel, *, role, deadline_ns):
     """Consume one native-owned transaction; never renew its absolute deadline."""
     with _deadline(deadline_ns):
-        snapshot, configuration = measure(role, deadline_ns)
+        snapshot, configuration, account = measure(role, deadline_ns)
         material = receipt.material_canonical(snapshot['record'])
         exchange = PreparationExchange(channel, role=role, deadline_ns=deadline_ns)
-        with _record(material, deadline_ns) as material_fd, _record(configuration, deadline_ns) as config_fd:
+        with _record(material, deadline_ns) as material_fd, _record(configuration, deadline_ns) as config_fd, \
+                _record(account, deadline_ns) as account_fd:
             exchange.send_measurement(backend=snapshot['record']['backend'],
                 material=bytes.fromhex(snapshot['digest']), material_receipt=material_fd,
-                configuration=config_fd)
+                configuration=config_fd, account=account_fd)
         with exchange.receive_selection() as selection:
             if (selection.backend != snapshot['record']['backend'] or
                     selection.material.hex() != snapshot['digest']):

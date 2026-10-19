@@ -3869,7 +3869,7 @@ def native_preserved_identity(tmp_path_factory):
     directory = tmp_path_factory.mktemp('kiosk-preserved-identity')
     header = (ROOT / 'tools/kiosk_confinement.h').read_text()
     function = header.split('static int\npreserved_kiosk_identity', 1)[1].split(
-        '\nstatic int\nbind_kiosk_executables', 1)[0]
+        '\nstatic inline int\nbind_kiosk_executables', 1)[0]
     source = directory / 'identity.c'
     source.write_text('#define _GNU_SOURCE\n#include <sys/stat.h>\n#include <stdio.h>\n#include <string.h>\n'
         'static int\npreserved_kiosk_identity' + function + '\n'
@@ -3961,7 +3961,7 @@ def native_mount_binding(tmp_path_factory):
     directory = tmp_path_factory.mktemp('kiosk-mount-binding')
     header = (ROOT / 'tools/kiosk_confinement.h').read_text()
     functions = header[header.index('/* The namespace, filesystem and every mount below it belong'):].split(
-        '\nstatic int\napply_kiosk_mac', 1)[0]
+        '\nstatic inline int\napply_kiosk_mac', 1)[0]
     functions = functions.replace(
         'fstat(child, &info) != 0 || !kiosk_trusted_stat(&info, kiosk_kind(proof->v[1])))\n            goto done;',
         'fstat(child, &info) != 0 || !kiosk_trusted_stat(&info, kiosk_kind(proof->v[1]))) {\n'
@@ -3978,8 +3978,8 @@ def native_mount_binding(tmp_path_factory):
     functions = functions.replace('return -1;', 'return fixture_refuse(__func__, __LINE__);')
     functions = ('#line ' + str(header[:header.index('/* The namespace, filesystem and every mount below it belong')].count('\n') + 1)
                  + ' "kiosk_confinement.h"\n' + functions)
-    preparation = ('static int\nprepare_kiosk_confinement' + header.split(
-        'static int\nprepare_kiosk_confinement', 1)[1].split(
+    preparation = ('static inline int\nprepare_kiosk_confinement' + header.split(
+        'static inline int\nprepare_kiosk_confinement', 1)[1].split(
         '/* The namespace, filesystem and every mount below it belong', 1)[0])
     source = directory / 'binding.c'
     source.write_text(r'''

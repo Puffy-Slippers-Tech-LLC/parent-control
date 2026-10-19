@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006d — [Connect retained kiosk reuse](Kiosk-Prompt-Tasks/006d-retained-reuse.md)**.
+Next task: **006 — [Integrate retained-view native admission](Kiosk-Prompt-Tasks/006-generation-implementation.md)**.
 
 ## Outcome
 
@@ -22,9 +22,10 @@ security refusal to suppress GDM's fallback presentation.
 ## Current integration handoff
 
 Task 006 made substantive progress in five sessions and remains unfinished.
-The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) passed host
-acceptance. Continue with [retained reuse and paired production dispatch](Kiosk-Prompt-Tasks/006d-retained-reuse.md)
-(006d), then [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
+The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) and
+[retained reuse and paired production dispatch](#retained-kiosk-reuse--006d)
+(006d) passed their host acceptance. Continue with
+[006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
 The original 006 Scope and all installed obligations remain required. Its
 existing components are preserved in unfinished checkpoint commit `2f728697`;
 component progress and this replan grant no task completion. Continue from the
@@ -1228,7 +1229,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -1285,7 +1286,7 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip),
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip),
 whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
@@ -1386,7 +1387,7 @@ unregistered build outputs are outside the test-bundle selection contract.
 After queue/pointer/brief close-out, the four documentation modules listed above
 passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
 (five documents, 267 links), as did whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
 retains **645 files**, including every available original 006/006a/006b checkpoint
 receipt, all this task's intermediate test failures, the final affected pass and
 the post-close-out documentation pass.
@@ -1396,6 +1397,115 @@ hashes and counts remain historical and grant no new acceptance.
 Runner, build and export cleanup finished. No installation, VM or live-policy
 change occurred. Only 006c closes; 006's original scope, saved handoff and
 unfinished status remain intact.
+
+### Retained kiosk reuse — 006d
+
+Host acceptance passed on 2026-10-19 UTC. Both roles now enter their complete
+native transactions through the actual production `kiosk_confinement()` PAM
+caller. `kiosk_retained_startup.h` acquires one stable manager, selects its
+completed generation through `kiosk_retained_record.h`, verifies M/V/pins/copies/
+ready, boot, marker, exact flat membership and actual recursive sources, then
+realizes a private invocation I. The ambient vector comes from V and independently
+attested required closure. Original source slots and origins survive narrowing;
+no replacement manager, ambient host reopen or completed-record mutation occurs.
+The final decision repeats original-host/policy/lock and same-manager proofs,
+closes setup descriptors and applies the role's MAC transition. The original
+absolute deadline covers measurement, acquisition, preparation and final proof.
+PAM retains unresolved cleanup ownership and its lock rather than losing them.
+
+The existing bounded helper now supplies a sealed account snapshot, avoiding
+unbounded native NSS lookup and binding manager credentials to independently
+checked account identity. Zero/privileged groups and invalid or timed-out group
+lookups refuse. SELinux gate handling sets and independently reads back the
+pending executable context; manager handling retains its current-domain check.
+
+Real composition exposed that legacy recursive bind cannot consume a detached
+clone directly. The coordinator uses the existing move-attachment owner to stage
+that clone privately. Detaching consumed staging can remove its subordinate
+mounts despite a held root FD, so the final source proof uses the originally
+acquired manager `/usr` and pinned mountinfo, alongside independent strict actual-I
+topology and V-to-I inode/provenance checks. It never reacquires the manager.
+Source-slot JSON also now preserves admitted quote, backslash and Unicode names
+with the receiver's canonical ASCII encoding, bounded before each write.
+
+The final affected selection passed **3,220/3,220** in
+`20261019T193522Z-56f9e8f4`, source-input digest
+`5883eec3819aecc64f5d4d1037a0d61561fe0aceda76433ddd30d9e681359269`.
+Its exact `tools/run-tests unit` selection with `-q` was all 24 module selectors
+listed in 006c above, plus these seven:
+
+```text
+tests/unit/test_kiosk_retained_startup.py
+tests/unit/test_kiosk_retained_record.py
+tests/unit/test_kiosk_manager_admission.py
+tests/unit/test_kiosk_login.py
+tests/unit/test_kiosk_material_selection.py
+tests/unit/test_kiosk_retained_projection.py
+tests/unit/test_package_activation.py
+```
+
+The new fixture's **21 full paired transactions** create a fresh manager and
+enter retained admission through exact production dispatch. Real native helper,
+publication, recursive mounts, proc/task/starttime/executable/namespace/pidfds
+and reexec support independent observations of source and record preservation,
+nested mount identity/bytes/read-only enforcement, original deadlines, borrowed
+FD preservation, setup closure and child reap. Positive controls cover healthy
+reuse, invocation-only ambient narrowing and same-executable reexec. Refusals
+cover required drift (including after attachment), absent/stale/forged records,
+missing/foreign copies, inactive/changed manager or unit invocation, namespace or
+foreign executable changes, exit after clone, helper/result rejection, deadline
+and transient detach failure. There are also **45 retained-record controls**,
+**21 fresh transactions** and **10 SELinux API controls** in this selection.
+
+PAM/account credentials, labels/MAC enforcement and system-bus properties use
+finite doubles; fixture original-host/proc1 names are translated. These are
+host composition proofs, not actual loaded-policy bootstrap or installed
+customer-history acceptance. The design records those exact limits. Independent
+GPT-6.1 Sol High review covered source/record authority and the staging/final
+proof correction. All three subagents finished before final acceptance. New
+tests use pytest-private files, bounded owned children and private namespaces;
+applicable scheduling/resource and documentation inventories passed.
+
+`make build` passed DEB and RPM after the final packaged edit; its owned scratch
+cleanup finished. Package-source SHA-256:
+`5b9df3f3211ffe4b0bcd53a92a6cb6a40ad53eb443149149f178e95973eae249`.
+DEB SHA-256: `ca8480c04d37fe2aa3f0dea36fd72046b887f4c40b18846a992addc4f8a1d9b0`;
+RPM SHA-256: `b73f06049423b7eae031081b67301ec9f34466cda4ce8b8afec0723f66188b86`.
+Retained coordinator/header SHA-256 respectively:
+`521f83c52ce57e289a0c561d4089764f3ae858e75b4d93e2bac983fe43428bc4` and
+`6966252d3a481980933df7e2c5b330e53771950e106e4d1d52cdcf08fe4924ad`.
+Local package outputs and `output/rpm/build.log` are build evidence outside the
+registered test-bundle selection.
+
+Preserved development failures include `20261019T191725Z-9aa1418e`,
+`20261019T191828Z-bbc4ed28` (detached-clone recursive-bind failure),
+`20261019T192010Z-5e409bd1` (post-detach source-proof refusal), and the four
+test-first filename failures in `20261019T193247Z-5f2d431b`. Assertions stayed
+unchanged through their repairs. More detailed temporary diagnostics and an
+intermediate fixture namespace-lifetime failure rotated before export and are
+not retained evidence. Final retained reports supersede intermediate pass counts.
+
+After queue/pointer/brief close-out, the same four documentation modules listed
+in 006c passed **313/313** in `20261019T193722Z-ad511616`. Changed-document links
+passed (four documents, 257 links after adding the bundle reference), as did
+whitespace review.
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+retains **701 files**: all 669 carried-forward records, the four filename
+reproductions, final affected acceptance and post-close-out documentation checks.
+SHA-256: `f51c3f4637591345a4af04d93f2016f71ee809302272f9fa553a7f3c3f017c72`.
+Export verification and owned cleanup completed. Historical links point to the
+same carried-forward contents; their original counts and hashes stay historical.
+
+Only 006d closes. Task 006 retains every row of the design's finite composition
+table: acquisition/post-clone/final manager/task/credential/namespace controls;
+both reexec paths and before/after-decision exit; competing lifecycle writers and
+lock replacement; complete required-source/receipt/topology controls; and every
+publication/cleanup/MAC cut. Both actual backend bootstrap-policy checks,
+cumulative final-candidate host checks and build remain required there. The
+focused passes here may be reused only for unchanged inputs and exact assertions.
+Installed public histories remain 007a/007. No installation, VM or live-policy
+change occurred. Runner/fixture/build cleanup completed; Git close-out remains
+with the controller.
 
 ### Remaining execution and acceptance
 

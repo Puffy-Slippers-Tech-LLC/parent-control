@@ -349,23 +349,24 @@ completeness, publication and metadata-race host controls belong to 002a.
 
 ### Planned retained material and immutable pins
 
-This is the **005a material design with 005's admission proof review**, pending
-implementation/qualification at 006a–007 in the
-[entry queue](../Kiosk-Prompt-Queue.md). The current implementation still hashes
-the whole layout and prepares new bindings from host names. This section grants
-no host or installed acceptance and does not change the phase-local contract
-above until the complete replacement passes its own checks.
+This is the **005a material design with 005's admission proof review**. The native
+fresh and retained coordinators implement the material/source split described
+here; the [entry queue](../Kiosk-Prompt-Queue.md) owns their finite host evidence,
+remaining combined matrix and installed qualification. The historical heading
+is retained for incoming links. Neither this design nor component checks supply
+installed acceptance.
 
-Unwired [006a primitives and host evidence](../Kiosk-Prompt.md#owned-immutable-view-primitives--006a)
+[006a primitives and host evidence](../Kiosk-Prompt.md#owned-immutable-view-primitives--006a)
 now exist in `RuntimeCopyPublication` / `verify_runtime_copies()` and native
 `kiosk_pin_acquire()` / `kiosk_pin_attach()` / `kiosk_pin_finish()` /
 `kiosk_pin_publish()` / `kiosk_pin_release()`. Callers must independently select
 the finite runtime specs and pin receipt provenance; supporting disk copies or
 ready records alone grant no admission authority. Preparation selection has
 [006b host evidence](../Kiosk-Prompt.md#retained-material-selection--006b); full
-native composition remains 006, followed by installed qualification at 007a/007.
+fresh and retained composition is allocated to 006c/006d, cumulative host
+qualification to 006 and installed qualification to 007a/007.
 
-Preparation now also has unwired `required_material()` /
+Preparation uses `required_material()` /
 `verify_required_material()` / `select_retained_material()` operations.
 The generated attested config binds the exact `runtime_inputs` membership.
 Material measurement includes the current attested pair, native substitutions,
@@ -376,9 +377,10 @@ source descriptors plus inode provenance, returning stable source indices and
 fresh eight-field assertions. It opens no ambient host source, and eligible
 ambient failures narrow only the fresh invocation layout, including at its last
 source observation. It never acquires a clone, adopts a ready record, publishes
-or attaches a view. **006** still owns the native receipt parser, manager proof,
-one-clone descriptor acquisition with bounded local opens, final binding checks
-and activation; the existing `prepare()` route remains fail-closed and unchanged.
+or attaches a view. The native coordinators own receipt parsing, manager proof,
+one-clone acquisition, final binding and MAC. Production PAM uses those paired
+transactions; the older `prepare()` route is retained for compatibility tests
+and supplies no fallback.
 
 **Two identities.** Define a versioned, canonically encoded material record
 `M` containing the exact attested config/policy digest pair, backend, configured
@@ -563,6 +565,15 @@ make an in-flight source change pass.
 The invocation tree attaches recursively read-only at `/usr`; labels and native
 roles remain visible at their existing final paths. Detach only invocation-owned
 staging mounts, then close all setup/source/clone/receipt descriptors before MAC.
+The acquired detached clone is first attached to an identity-checked private
+staging parent because Linux refuses recursive legacy binds from a detached
+mount. Preparation receives a separate empty invocation parent. Lazy detachment
+of that source staging tree removes subordinate mount lookups even while its
+root descriptor survives; do not use that consumed root as a later complete
+source tree. Final source verification instead uses the same originally pinned
+manager `/usr` and proc mountinfo, while strict actual `I` coverage and `V`-to-`I`
+derivation bind its required inodes to the rehashed original manager sources.
+There is no manager refresh or host ambient source lookup at that boundary.
 The new `/usr` owns its references after descriptor closure; the original manager
 retains its own references throughout. Closing an unattached detached clone
 releases it. A later entry takes a fresh verified pin; it never trusts a saved
@@ -635,105 +646,67 @@ supplies new generation-stage or immutable-pin acceptance.
 
 ### Planned retained-view admission proof
 
-This is **005's reviewed composition**. Its retained-manager/gate dispatch remains
-unimplemented; the staged fresh-manager transaction is described below. It
-qualifies only the retained-view change above. Current `manager_generation()` checks the leader's
-four UIDs, marker and label through a pidfd, then closes it before native binding;
-it does not prove a retained mount source or the complete admission interval.
-The stronger engineering `manager_boundary()` is an observation recipe, not a
-production guard. Neither route supplies acceptance for this planned mechanism.
+This is **005's reviewed composition**, now dispatched by the production
+`kiosk_confinement()` caller through the
+[fresh-manager](../../tools/kiosk_fresh_startup.h) and
+[retained-gate](../../tools/kiosk_retained_startup.h) coordinators. Each attempt
+owns one original deadline, preparation lock and bounded helper, independent
+[material](../../tools/kiosk_material_authority.h),
+[policy](../../tools/kiosk_policy_authority.h) and
+[original-host](../../tools/kiosk_host_proof.h) authority, actual
+[realization](../../tools/kiosk_native_realization.h), descriptor closure and
+preloaded MAC. Non-kiosk callbacks and the PAM-handle admission lease remain
+with their original owners. No legacy format or dispatch fallback is selected.
+The old `manager_generation()` and engineering `manager_boundary()` observations
+are not the new admission proof.
 
-Task 006 now has unwired native [manager](../../tools/kiosk_manager_admission.h)
-and [original-host](../../tools/kiosk_host_proof.h) guards, plus the bounded
-`RetainedSourceProjection` adapter and provenance-only ambient acquisition policy.
-Their finite host fixtures do not compose the receipt, binding, ready and MAC
-transaction below. The [active implementation brief](../Kiosk-Prompt-Tasks/006-generation-implementation.md#in-progress-implementation-checkpoint)
-records the remaining integration boundaries. Live admission still uses the
-legacy digest/binding route; its lock inode checks now repeat before MAC.
-
-The staged [fresh-startup coordinator](../../tools/kiosk_fresh_startup.h) now
-composes one preparation child, independent policy/material/host authority,
-verified copies and runtime ticket, actual recursive binding, M/V/pins/ready,
-final proofs, setup-descriptor closure and preloaded MAC. Its native fixture
-calls that complete transaction; live manager/gate dispatch stays paired on the
-legacy route until 006d. After creating the private namespace and before any
-helper or overlay, it independently matches original root/runtime inodes before
-adopting namespace-local descriptors. No host source is refreshed after attachment.
-The channel permits a zero mount ID only for a read-only, close-on-exec,
-unlinked regular record with all four immutable seals; directories and named
-sources retain positive mount identity. Runtime manifests retain their existing
-domain/length framing and full-file hash; channel results remain bare canonical
-JSON. Ambiguous scratch retains its owner, and completed records survive a
-post-ready refusal. These host controls supply no live retained-manager,
-loaded-policy bootstrap or installed acceptance; 006d, 006 and 007a/007 retain
-those obligations.
-
-Additional unwired 006 APIs now provide the closed
-[receipt encoding/parser](../../tools/kiosk_view_receipt.h), its
-[Python producer](../../tools/kiosk_view_receipt.py), initial complete
-runtime/payload layout and supporting-copy intent, and the checked
-[native descriptor channel](../../tools/kiosk_preparation_channel.h) /
-[preparation receiver](../../tools/kiosk_preparation_input.py).
-Canonical receipt slots remain distinct from class-local copy indices. Selection
-now carries the original V slot map, including masks and absences, across local
-omissions. Initial preparation creates and verifies independent native copies
-alongside supporting copies in identity-owned scratch; combined completed
-publication remains unwired. Native
-must construct expected material/source/link/topology authority independently;
-parsing and mutually matching helper records do not provide it. Acquisition's
-`kiosk_pin_acquire_policy_until()` carries the original deadline through clone,
-coverage/topology walks and worker failure handling. Explicit later recovery
-can finish reaping its recorded worker, without renewing admission or providing
-acceptance. Attachment, completion and ready publication also have explicit
-`_until` APIs; composed callers must use the same original deadline there.
-
-The unwired [semantic material decoder](../../tools/kiosk_material_authority.h)
-derives required classes/content/alias closure from independently attested
-configuration. Its host verifier additionally checks original source sizes,
-native ELF and execution modes through the original lookup roots. The separate
-`kiosk_material_verify_routes_until()` checks all optional-route absences and
-complete declared library lexical/canonical membership against those same roots
-and deadline, including a required directory proof for an empty optional glob.
-Unrecorded ancestry of an absent optional route grants no source authority and
-does not become an ambient trust prerequisite.
-
-The [preparation-child owner](../../tools/kiosk_preparation_child.h), duplex
+The [child owner](../../tools/kiosk_preparation_child.h),
 [channel](../../tools/kiosk_preparation_channel.h) and
-[service](../../tools/kiosk_preparation_service.py) now implement measurement,
-native selection and intended-result transfer through one fixed-role child.
-The `--native-channel` entry explicitly loads checked installed support source
-bytes, without import-search changes or bytecode caches. Its fixed anonymous
-socket and exact lock/lease descriptors become close-on-exec before loading.
-All phases carry the original deadline; the dedicated helper additionally bounds
-legacy walks with its single original-budget alarm. Initial results transfer
-the exact incomplete-copy ticket and directory; native must receive the result,
-reap the helper successfully and independently verify the named copies before
-binding or publication. Retained results preserve all original V slots and build
-fresh descriptor-relative parents from the selected clone. Neither result is
-V/I or ready. The production PAM caller still uses the legacy route; complete
-retained-transaction integration and combined witnesses remain unfinished.
-The staged initial coordinator supplies no live dispatch or installed
-proof.
+[service](../../tools/kiosk_preparation_service.py) transfer measurement, native
+selection and intended result through that one child. Measurement also includes
+a sealed finite NSS account snapshot; native matches its UID to the independently
+pinned owned marker. Root and administrative groups refuse. NSS runs only in
+the bounded child, under the original alarm/deadline. The fixed native entry
+checks installed support source bytes and exact inherited lock/lease descriptors;
+it changes neither import search nor bytecode caches. Anonymous zero-mount-ID
+records require read-only CLOEXEC descriptors, zero links and all four immutable
+seals; directories and named sources retain positive mount identity.
 
-Further unwired native owners now check
-[preparation intent](../../tools/kiosk_preparation_plan.h),
-[actual realization](../../tools/kiosk_native_realization.h),
-[policy authority](../../tools/kiosk_policy_authority.h) and
-[completion records](../../tools/kiosk_view_publication.h). Intent verification
-derives source classes and required coverage from semantic material, checks
-independent copies and keeps the original slot domain. Realization checks fresh
-parents, descriptor sources, actual binds and nested mounts, then creates V/I
-from the observed outcomes. Its separately checked private marker is excluded
-from the receipt hash to avoid self-reference; native pin inventory includes
-that marker and private masks. Policy authority captures the original attested
-pair and repeats enforcement without executing a process after attachment.
-Completion records provide exact flat membership, no-replace publication,
-boot/source/marker binding and retryable ownership-based incomplete cleanup.
-The retained caller must still compose these owners with live manager acquisition,
-checked completed-record selection, one helper, final proofs, descriptor closure
-and MAC. A parsed ready record or a completed-pin flag supplies no independent
-mount or manager authority. The combined transaction and bootstrap qualification
-remain 006; the production PAM caller still uses the legacy route.
+The fresh coordinator verifies current material/routes and independently named
+copies before combining M/V/pins/copies/ready publication. Runtime manifests keep
+their domain/length framing and full-file hash; channel results remain canonical
+JSON. Successful child reap precedes scratch acceptance. Ambiguous scratch and
+unresolved child identities retain their cleanup owner; completed records survive
+a post-ready refusal. Original root/runtime inodes are checked before adopting
+namespace-local lookup descriptors, before any helper or overlay. Host sources
+are never refreshed after attachment.
+
+The retained coordinator acquires the actual unit/leader/task/executable/root/
+namespace proof through the [manager owner](../../tools/kiosk_manager_admission.h).
+Its [completed-record owner](../../tools/kiosk_retained_record.h) selects only the
+marker-named V, binds boot/root/marker/original attachment and M/V/pins/ready,
+checks exact flat membership and independently verifies supporting/native copies
+against current M and V. A ready parser supplies syntax only. The native-derived
+ambient vector cannot relax a required path or ancestor. Recursive acquisition,
+private source staging, one checked preparation result and actual fresh-parent
+binding produce invocation-only I, preserving V's slots and origins. No manager
+record is changed and no completed-generation slot is consumed.
+
+After identity-owned staging detach, final original-host/routes/policy checks,
+strict actual invocation coverage and the same pinned manager's source/topology
+proof precede setup-FD closure and MAC. The original manager pidfd/proc/bus stay
+open through a last same-manager check and then close before MAC. Explicit failed
+recovery has its own bounded cleanup budget, never new admission authority.
+An unresolved cleanup keeps the exact PAM-owned state and preparation lock and
+denies; it never signals a manager or sweeps ambiguous files.
+
+Finite host fixtures exercise these native transactions with real private mount
+trees and a real copied/reexecuted fixture manager. Account/PAM/system-bus/MAC
+observations remain fixture boundaries. The [active 006 brief](../Kiosk-Prompt-Tasks/006-generation-implementation.md)
+still owns the complete cross-phase race/publication/reexec matrix, both actual
+bootstrap-policy checks and cumulative host acceptance. 007a/007 retain actual
+public installed histories. Production dispatch, component counts and source
+review provide no substitute for those remaining obligations.
 
 **Authority and ordered acquisition.** Keep one native owner in the actual PAM
 caller. Its acquisition, helper, binding and final checks share a bounded

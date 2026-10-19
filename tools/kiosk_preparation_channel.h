@@ -1,6 +1,6 @@
 #ifndef ONPC_KIOSK_PREPARATION_CHANNEL_H
 #define ONPC_KIOSK_PREPARATION_CHANNEL_H
-/* Unwired parent-side transport; never call in a post-fork PAM child.
+/* Parent-side transport; never call in a post-fork PAM child.
  * Native must independently acquire/verify every object, receipt, source clone,
  * trust/label/content and required closure before capture. This transport proves
  * descriptor identity, not recursive clone coverage or receipt semantics.
@@ -28,6 +28,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -202,7 +203,7 @@ static inline int kiosk_preparation_send(int channel, const struct kiosk_prepara
 
 /* Closed v2 exchange: measure(1), select(2), intended result(3).
  * Role: manager(1), gate(2). Backend: apparmor(1), selinux(2).
- * Phase 1: material receipt, configuration (regular files).
+ * Phase 1: material receipt, configuration, sealed account record (regular files).
  * Phase 2 manager: fresh target directory.
  * Phase 2 gate: original V receipt, verified /usr clone, source-slot file,
  *               fresh target directory.
@@ -212,7 +213,7 @@ static inline int kiosk_preparation_send(int channel, const struct kiosk_prepara
 static unsigned kiosk_preparation_phase_count(unsigned phase, unsigned role)
 {
     if (role < 1 || role > 2) return 0;
-    if (phase == 1) return 2;
+    if (phase == 1) return 3;
     if (phase == 2) return role == 1 ? 1 : 4;
     if (phase == 3) return role == 1 ? 2 : 1;
     return 0;
@@ -273,6 +274,80 @@ struct kiosk_preparation_response {
     int fds[KIOSK_PREPARATION_MAX_FDS];
     unsigned count;
 };
+
+/* Closed canonical account snapshot from the one bounded NSS helper. Native
+ * independently checks the package-owned UID marker before using this identity.
+ * Primary GID is included in the sorted, unique supplementary set. No NSS or
+ * account-path lookup occurs here; pread preserves the borrowed offset. The
+ * ASCII record is ONPC-KIOSK-ACCOUNT TAB 1 TAB UID TAB GID TAB COUNT LF,
+ * followed by COUNT canonical decimal GIDs, each terminated by LF. */
+#define KIOSK_PREPARATION_ACCOUNT_GROUPS 128
+struct kiosk_preparation_account {
+    uid_t uid;
+    gid_t gid, groups[KIOSK_PREPARATION_ACCOUNT_GROUPS];
+    unsigned count;
+};
+
+static int kiosk_preparation_account_number(const char **cursor, const char *end,
+    char delimiter, uint32_t *value)
+{
+    const char *p = *cursor, *start = p;
+    uint64_t number = 0;
+    while (p < end && *p >= '0' && *p <= '9') {
+        number = number * 10U + (unsigned) (*p++ - '0');
+        if (number >= UINT32_MAX) return -1;
+    }
+    if (p == start || (p - start > 1 && *start == '0') || p == end || *p != delimiter) return -1;
+    *value = (uint32_t) number; *cursor = p + 1;
+    return 0;
+}
+
+static int kiosk_preparation_account_read(int fd, uint64_t deadline_ns,
+    struct kiosk_preparation_account *account)
+{
+    char bytes[64 + 11 * KIOSK_PREPARATION_ACCOUNT_GROUPS];
+    const char prefix[] = "ONPC-KIOSK-ACCOUNT\t1\t";
+    struct kiosk_preparation_account checked = {0};
+    struct stat info;
+    unsigned char before[96], after[96];
+    int required = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL;
+    int seals = fcntl(fd, F_GET_SEALS);
+    if (!account || kiosk_preparation_before(deadline_ns) ||
+        kiosk_preparation_identity(fd, before, 1) || fstat(fd, &info) || info.st_nlink != 0 ||
+        info.st_size <= 0 || info.st_size > (off_t) sizeof(bytes) ||
+        seals < 0 || (seals & required) != required) return -1;
+    size_t size = (size_t) info.st_size;
+    /* One tiny sealed memfd record fits the fixed buffer. Require a complete
+     * read, never a prefix; a fixed syscall bound also remains transparent to
+     * the package compiler's fortified object-size analysis after inlining. */
+    for (;;) {
+        if (kiosk_preparation_before(deadline_ns)) return -1;
+        ssize_t n = pread(fd, bytes, sizeof(bytes), 0);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0 || (size_t)n != size) return -1;
+        break;
+    }
+    if (size < sizeof(prefix) - 1 || memcmp(bytes, prefix, sizeof(prefix) - 1)) return -1;
+    const char *p = bytes + sizeof(prefix) - 1, *end = bytes + size;
+    uint32_t uid, gid, count, group;
+    if (kiosk_preparation_account_number(&p, end, '\t', &uid) || !uid ||
+        kiosk_preparation_account_number(&p, end, '\t', &gid) || !gid ||
+        kiosk_preparation_account_number(&p, end, '\n', &count) ||
+        !count || count > KIOSK_PREPARATION_ACCOUNT_GROUPS ||
+        (uint64_t) (uid_t) uid != uid || (uint64_t) (gid_t) gid != gid) return -1;
+    checked.uid = (uid_t) uid; checked.gid = (gid_t) gid; checked.count = count;
+    int primary = 0;
+    for (unsigned i = 0; i < count; i++) {
+        if (kiosk_preparation_account_number(&p, end, '\n', &group) || !group ||
+            (uint64_t) (gid_t) group != group || (i && group <= checked.groups[i - 1])) return -1;
+        checked.groups[i] = (gid_t) group;
+        if (group == gid) primary = 1;
+    }
+    if (p != end || !primary || kiosk_preparation_identity(fd, after, 1) ||
+        memcmp(before, after, sizeof(before)) || kiosk_preparation_before(deadline_ns)) return -1;
+    *account = checked;
+    return 0;
+}
 
 static void kiosk_preparation_response_init(struct kiosk_preparation_response *response)
 {
@@ -355,6 +430,10 @@ static int kiosk_preparation_receive_phase(int channel, unsigned phase, unsigned
             received.input.packet + 24, received.input.packet + 56, received.fds, received.count, deadline_ns) ||
         memcmp(received.input.packet, checked.packet, checked.bytes)) goto done;
     received.input = checked;
+    if (phase == 1) {
+        struct kiosk_preparation_account account;
+        if (kiosk_preparation_account_read(received.fds[2], deadline_ns, &account)) goto done;
+    }
     *response = received; kiosk_preparation_response_init(&received);
     result = 0;
 done:

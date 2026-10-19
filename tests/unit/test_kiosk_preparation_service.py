@@ -39,6 +39,76 @@ def deadline():
     return time.monotonic_ns() + 10_000_000_000
 
 
+@pytest.mark.parametrize('fault', [None, 'limit', 'marker', 'root', 'primary-root-id',
+                                 'supplementary-root-id', 'missing-primary', 'excess',
+                                 'invalid-group', 'expired', 'unknown-group', 'group-error',
+                                 'membership-error', 'group-deadline', 'group-identity',
+                                 *('primary-' + name for name in ('root', 'sudo', 'adm', 'wheel')),
+                                 *('supplementary-' + name for name in ('root', 'sudo', 'adm', 'wheel'))])
+def test_owned_account_snapshot_is_nss_checked_finite_and_canonical(private_store, monkeypatch, fault):
+    service = load_service(private_store.helper, monkeypatch)
+    marker = private_store.store / 'uid-marker'
+    marker.write_text('1001\n' if fault == 'marker' else '1000\n')
+    marker.chmod(0o600)
+    monkeypatch.setattr(service.confinement, 'trusted', lambda path: marker)
+    monkeypatch.setattr(service.pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=0 if fault == 'root' else 1000, pw_gid=0 if fault == 'primary-root-id' else 1000))
+    groups = ([1001] if fault == 'missing-primary' else
+              list(range(1000, 1129)) if fault == 'excess' else
+              list(range(1000, 1128)) if fault == 'limit' else
+              [0, 1000] if fault in ('primary-root-id', 'supplementary-root-id') else
+              [1000, 2**32 - 1] if fault == 'invalid-group' else [1001, 1000, 1001])
+    calls, group_calls = [], []
+    original_before = service._before
+    group_expired = False
+
+    def before(budget):
+        if group_expired:
+            raise TimeoutError('preparation-deadline')
+        return original_before(budget)
+
+    def lookup(name, primary):
+        calls.append((name, primary))
+        if fault == 'membership-error':
+            raise OSError('NSS membership unavailable')
+        return groups
+
+    def group_lookup(gid):
+        nonlocal group_expired
+        group_calls.append(gid)
+        if gid == 1001:
+            if fault == 'unknown-group':
+                raise KeyError(gid)
+            if fault == 'group-error':
+                raise OSError('NSS group unavailable')
+            if fault == 'group-deadline':
+                group_expired = True
+        name = 'ordinary-' + str(gid)
+        if fault and fault.startswith('primary-') and gid == 1000:
+            name = fault.removeprefix('primary-')
+        if fault and fault.startswith('supplementary-') and gid == 1001:
+            name = fault.removeprefix('supplementary-')
+        return SimpleNamespace(gr_name=name, gr_gid=gid + (fault == 'group-identity'))
+
+    monkeypatch.setattr(service.os, 'getgrouplist', lookup)
+    monkeypatch.setattr(service.grp, 'getgrgid', group_lookup)
+    monkeypatch.setattr(service, '_before', before)
+    if fault not in (None, 'limit'):
+        expected = (KeyError if fault == 'unknown-group' else
+                    OSError if fault in ('group-error', 'membership-error') else
+                    TimeoutError if fault in ('expired', 'group-deadline') else ValueError)
+        with pytest.raises(expected):
+            service._account(time.monotonic_ns() - 1 if fault == 'expired' else deadline())
+        assert len(group_calls) <= service.MAX_ACCOUNT_GROUPS
+        return
+    expected_groups = sorted(set(groups))
+    expected = (f'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t{len(expected_groups)}\n' +
+                ''.join(f'{gid}\n' for gid in expected_groups)).encode('ascii')
+    assert service._account(deadline()) == expected
+    assert calls == [(service.confinement.ACCOUNT, 1000)]
+    assert group_calls == expected_groups
+
+
 def test_result_record_is_sealed_readonly_and_descriptor_owned(private_store, monkeypatch):
     service = load_service(private_store.helper, monkeypatch)
     before = len(os.listdir('/proc/self/fd'))
@@ -206,6 +276,8 @@ def test_manager_response_transfers_only_successfully_sent_copy_ticket(material_
         def send_measurement(self, **kwargs):
             assert service._read(kwargs['material_receipt'], deadline()) == receipt.material_canonical(
                 snapshot['record'])
+            assert service._read(kwargs['account'], deadline()) == account
+            assert fcntl.fcntl(kwargs['account'], fcntl.F_GET_SEALS) & fcntl.F_SEAL_WRITE
 
         def receive_selection(self):
             return nullcontext(SimpleNamespace(backend='apparmor', view=bytes(32),
@@ -219,7 +291,8 @@ def test_manager_response_transfers_only_successfully_sent_copy_ticket(material_
 
     monkeypatch.setattr(service, 'PreparationExchange', Exchange)
     configuration = (scene.payload / 'config.json').read_bytes()
-    monkeypatch.setattr(service, 'measure', lambda role, deadline_ns: (snapshot, configuration))
+    account = b'ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t1\n1000\n'
+    monkeypatch.setattr(service, 'measure', lambda role, deadline_ns: (snapshot, configuration, account))
     monkeypatch.setattr(helper, 'RUNTIME', scene.fixture.store)
     budget = deadline()
     try:

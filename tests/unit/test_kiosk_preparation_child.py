@@ -30,6 +30,7 @@ def preparation_driver(tmp_path_factory):
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include "kiosk_preparation_channel.h"
 struct report { uint64_t deadline, lock, lease; int isolated, explicit; };
@@ -50,11 +51,18 @@ int main(int argc, char **argv) {
     if (recv(3, &command, 1, 0) != 1) return 93;
     if (command == 'H') for (;;) pause();
     if (command == 'P' || command == 'M') {
+        int writer = memfd_create("account", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+        const char account[] = "ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n1000\n1001\n";
+        if (writer < 0 || write(writer, account, sizeof(account) - 1) != sizeof(account) - 1 ||
+            fcntl(writer, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL)) return 94;
+        char name[64]; snprintf(name, sizeof(name), "/proc/self/fd/%d", writer);
         int fds[] = {open("/proc/self/fd/4", O_RDONLY | O_CLOEXEC),
-                     open("/proc/self/fd/5", O_RDONLY | O_CLOEXEC)};
+                     open("/proc/self/fd/5", O_RDONLY | O_CLOEXEC),
+                     open(name, O_RDONLY | O_CLOEXEC)};
+        close(writer);
         unsigned char material[32] = {1}, view[32] = {0};
         struct kiosk_preparation_input measurement;
-        if (kiosk_preparation_capture_phase(&measurement, 1, 1, 1, material, view, fds, 2, r.deadline) ||
+        if (kiosk_preparation_capture_phase(&measurement, 1, 1, 1, material, view, fds, 3, r.deadline) ||
             kiosk_preparation_send_phase(3, &measurement, fds, r.deadline)) return 94;
         struct kiosk_preparation_response selection; kiosk_preparation_response_init(&selection);
         if (kiosk_preparation_receive_phase(3, 2, 1, 1, material, view, r.deadline, &selection))
@@ -64,7 +72,7 @@ int main(int argc, char **argv) {
         if (kiosk_preparation_capture_phase(&intended, 3, 1, 1, material, view, result, 2, r.deadline) ||
             kiosk_preparation_send_phase(3, &intended, result, r.deadline)) return 96;
         kiosk_preparation_response_close(&selection);
-        close(fds[0]); close(fds[1]);
+        close(fds[0]); close(fds[1]); close(fds[2]);
     }
     return strcmp(argv[2], "gate") == 0 ? 13 : 0;
 }
@@ -137,7 +145,9 @@ int main(int argc, char **argv) {
         struct kiosk_preparation_response response; kiosk_preparation_response_init(&response);
         unsigned char material[32] = {1}, view[32] = {0};
         if (kiosk_preparation_child_result(&child, 1, 1, material, view, &response) == 0 ||
-            kiosk_preparation_child_measurement(&child, 1, &response) || response.count != 2 ||
+            kiosk_preparation_child_measurement(&child, 1, &response) || response.count != 3 ||
+            child.account.uid != 1000 || child.account.gid != 1000 || child.account.count != 2 ||
+            child.account.groups[0] != 1000 || child.account.groups[1] != 1001 ||
             kiosk_preparation_child_measurement(&child, 1, &response) == 0) return 102;
         kiosk_preparation_response_close(&response);
         char *directory = strdup(argv[1]); if (!directory) return 103;

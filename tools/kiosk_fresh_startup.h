@@ -1,5 +1,4 @@
-/* Complete initial-manager transaction.  Deliberately not dispatched by PAM
- * until the retained gate is composed too. Include after kiosk_confinement.h.
+/* Complete initial-manager transaction. Include after kiosk_confinement.h.
  * Every authority here is independently observed; helper records are intent.
  */
 #ifndef ONPC_KIOSK_FRESH_STARTUP_H
@@ -26,10 +25,11 @@
 
 struct kiosk_fresh_mac {
     void *library;
-    int selinux;
+    int selinux, gate;
     int (*change_profile)(const char *), (*aa_getcon)(char **, char **);
     int (*enabled)(void), (*enforcing)(void);
     int (*setexec)(const char *), (*setcurrent)(const char *), (*getcurrent)(char **);
+    int (*getexec)(char **);
     void (*freecon)(char *);
 };
 
@@ -51,6 +51,7 @@ struct kiosk_fresh_startup {
     int ticket_adopted, transferred_scratch, ready, recovered, closed;
     void *crypto;
     uint64_t deadline;
+    uid_t uid;
     char *material_bytes, *config_bytes, *inventory_bytes;
     size_t material_size, config_size, inventory_size;
     char material[65], generation[65], inventory[65], acquisition[65], boot[37];
@@ -96,18 +97,33 @@ static inline int kiosk_fresh_mac_preload(struct kiosk_fresh_mac *m, const char 
     return m->enabled && m->enforcing && m->setexec && m->setcurrent && m->getcurrent && m->freecon ? 0 : -1;
 }
 
+static inline int kiosk_gate_mac_preload(struct kiosk_fresh_mac *m, const char *backend)
+{
+    if (kiosk_fresh_mac_preload(m, backend)) return -1;
+    m->gate = 1;
+    if (m->selinux) {
+        m->getexec = (int (*)(char **))KIOSK_FRESH_DLSYM(m->library, "getexeccon_raw");
+        if (!m->getexec) return -1;
+    }
+    return 0;
+}
+
 static inline int kiosk_fresh_mac_apply(struct kiosk_fresh_mac *m)
 {
     char *label = NULL, *mode = NULL; int result = -1;
     if (!m->library) return -1;
     if (!m->selinux) {
-        if (!m->change_profile("onpc-kiosk-manager") && m->aa_getcon(&label, &mode) >= 0 &&
-            label && mode && !strcmp(label, "onpc-kiosk-manager") && !strcmp(mode, "enforce")) result = 0;
+        const char *profile = m->gate ? "onpc-kiosk-gate" : "onpc-kiosk-manager";
+        if (!m->change_profile(profile) && m->aa_getcon(&label, &mode) >= 0 &&
+            label && mode && !strcmp(label, profile) && !strcmp(mode, "enforce")) result = 0;
         free(label);
     } else {
-        const char context[] = "system_u:system_r:onpc_kiosk_manager_pam_t:s0";
-        if (m->enabled() == 1 && m->enforcing() == 1 && !m->setexec(NULL) &&
-            !m->setcurrent(context) && !m->getcurrent(&label) && label && !strcmp(label, context)) result = 0;
+        const char *context = m->gate ? "system_u:system_r:onpc_kiosk_gate_t:s0" :
+            "system_u:system_r:onpc_kiosk_manager_pam_t:s0";
+        if (m->enabled() == 1 && m->enforcing() == 1 &&
+            (m->gate ? m->getexec && !m->setexec(context) && !m->getexec(&label) :
+                !m->setexec(NULL) && !m->setcurrent(context) && !m->getcurrent(&label)) &&
+            label && !strcmp(label, context)) result = 0;
         if (label) m->freecon(label);
     }
     return result;
@@ -179,6 +195,7 @@ static inline int kiosk_fresh_account_until(struct kiosk_fresh_startup *s)
         const struct kiosk_host_row *row = kiosk_material_host_row(&s->account, KIOSK_FRESH_ACCOUNT);
         valid = row && kiosk_host_same(&row->info, &before);
     }
+    if (valid) s->uid = (uid_t)uid;
     free(record); return valid ? 0 : -1;
 }
 
@@ -451,6 +468,7 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     if (kiosk_fresh_locks(lock, lease) || kiosk_preparation_launch(&s->child, "manager", lock, lease, deadline)) goto done;
     s->stage = "measurement";
     if (kiosk_preparation_child_measurement(&s->child, 1, &s->measurement) ||
+        s->child.account.uid != s->uid ||
         kiosk_publication_read(s->measurement.fds[0], &s->material_bytes, &s->material_size, deadline) ||
         kiosk_publication_read(s->measurement.fds[1], &s->config_bytes, &s->config_size, deadline)) goto done;
     s->stage = "authority";

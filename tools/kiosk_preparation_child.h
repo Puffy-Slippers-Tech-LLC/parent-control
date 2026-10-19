@@ -25,6 +25,7 @@ struct kiosk_preparation_child {
     unsigned role, phase, backend;
     unsigned char material[32], view[32];
     uint64_t deadline_ns;
+    struct kiosk_preparation_account account;
 };
 
 static void kiosk_preparation_child_init(struct kiosk_preparation_child *child)
@@ -128,6 +129,10 @@ static int kiosk_preparation_child_measurement(struct kiosk_preparation_child *c
     child->phase = 0;
     if (kiosk_preparation_receive_phase(child->channel, 1, role, 0, NULL, NULL,
             child->deadline_ns, response)) return -1;
+    if (kiosk_preparation_account_read(response->fds[2], child->deadline_ns, &child->account)) {
+        kiosk_preparation_response_close(response);
+        return -1;
+    }
     child->backend = response->input.packet[10];
     memcpy(child->material, response->input.packet + 24, 32);
     child->phase = 2;

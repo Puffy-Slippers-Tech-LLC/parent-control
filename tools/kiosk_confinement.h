@@ -117,7 +117,7 @@ kiosk_admission_fd(pam_handle_t *pamh)
         ? *(const int *) data : -1;
 }
 
-static int
+static inline int
 prepare_kiosk_confinement(const char *role, int lock_fd, int admission_fd)
 {
     char *const args[] = {(char *) KIOSK_CONFINEMENT_PREPARE, (char *) role, NULL};
@@ -301,7 +301,7 @@ kiosk_parent(int root, const char *relative, char name[PATH_MAX])
     char buffer[PATH_MAX], *part, *next;
     struct stat info;
     int current, child;
-    if (!kiosk_path(relative, 0) || (current = dup(root)) < 0)
+    if (!kiosk_path(relative, 0) || (current = fcntl(root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0)
         return -1;
     strcpy(buffer, relative);
     part = buffer;
@@ -348,9 +348,8 @@ kiosk_absolute_parent(const char *path, char name[PATH_MAX])
 #include <sys/syscall.h>
 #include <time.h>
 
-/* Retained-source primitives only. Admission deliberately does not call these
- * until manager proof, native receipt parsing and final validation compose in
- * 006. Callers supply independently checked receipt provenance, including every
+/* Retained-source primitives. The production coordinator supplies independently
+ * checked manager, receipt and final-proof authority, including every
  * skeleton ancestor and mounted source; these records never authorize a host
  * pathname or establish manager liveness. Inode/type/mount coverage here is
  * additional to the role-specific content, capability and label checks. */
@@ -1552,7 +1551,7 @@ setup_kiosk_view(struct kiosk_view *view)
         (info.st_mode & 07777) != 0700 ||
         kiosk_mount_id(KIOSK_CONFINEMENT_RUNTIME, &parent_id) != 0 ||
         kiosk_mount_id(KIOSK_CONFINEMENT_VIEW, &existing) != 0 || existing != parent_id ||
-        (scan = dup(view->root)) < 0 || (directory = fdopendir(scan)) == NULL)
+        (scan = fcntl(view->root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0 || (directory = fdopendir(scan)) == NULL)
         goto done;
     scan = -1; /* fdopendir owns the descriptor after success. */
     errno = 0;
@@ -1958,7 +1957,7 @@ kiosk_tree_entries(struct kiosk_protocol *protocol, int tree, const char *relati
 {
     char path[PATH_MAX], name[PATH_MAX];
     int parent = relative[0] ? kiosk_parent(tree, relative, name) : -1;
-    int fd = relative[0] ? (parent < 0 ? -1 : openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) : dup(tree);
+    int fd = relative[0] ? (parent < 0 ? -1 : openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) : fcntl(tree, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
     if (parent >= 0)
         close(parent);
     DIR *directory = fd < 0 ? NULL : fdopendir(fd);
@@ -2237,7 +2236,7 @@ preserved_kiosk_identity(const struct stat *info, const char *assertion)
         ? 0 : -1;
 }
 
-static int
+static inline int
 bind_kiosk_executables(char *backend, size_t size, const char *role, struct kiosk_view *view)
 {
     struct kiosk_protocol protocol = {0};
@@ -2467,7 +2466,7 @@ done:
     return result;
 }
 
-static int
+static inline int
 apply_kiosk_mac(const char *backend, const char *role)
 {
     char context[128];
@@ -2536,17 +2535,56 @@ apply_kiosk_mac(const char *backend, const char *role)
     return result;
 }
 
-/* 006c composes the complete fresh transaction for the native fixture. Live
- * manager/gate dispatch remains paired on the existing path until 006d. */
+/* Both production roles use the same native authority and original deadline. */
 #include "kiosk_fresh_startup.h"
+#include "kiosk_retained_startup.h"
+
+#define KIOSK_TRANSACTION_DATA "oh-no-parent-control.kiosk-transaction"
+struct kiosk_admission_transaction {
+    struct kiosk_retained_startup retained;
+    int lock, gate, closed;
+};
+
+static int
+kiosk_transaction_close(struct kiosk_admission_transaction *t)
+{
+    struct kiosk_fresh_startup *s = &t->retained.common;
+    uint64_t now;
+    if (t->closed) return 0;
+    if (!s->armed) {
+        if (kiosk_pin_now(&now) || now > UINT64_MAX - 5000000U ||
+            (t->gate ? kiosk_retained_recover_until(&t->retained, now + 5000000U) :
+                kiosk_fresh_recover_until(s, now + 5000000U))) return -1;
+    }
+    if (t->gate ? kiosk_retained_close(&t->retained) : kiosk_fresh_close(s)) return -1;
+    if (t->lock >= 0) close(t->lock);
+    t->lock = -1; t->closed = 1;
+    return 0;
+}
+
+static void
+release_kiosk_transaction(pam_handle_t *pamh, void *data, int status)
+{
+    struct kiosk_admission_transaction *t = data;
+    (void)status;
+    if (!t) return;
+    if (kiosk_transaction_close(t)) {
+        /* Preserve the exact unresolved owner and lock until executor exit.
+         * Dropping its pidfd or sweeping ambiguous scratch is not recovery. */
+        pam_syslog(pamh, LOG_ERR, "onpc.pam kiosk execution-boundary cleanup=failed");
+        return;
+    }
+    free(t);
+}
 
 static int
 kiosk_confinement(pam_handle_t *pamh)
 {
     const char *username = NULL, *service = NULL, *role = NULL, *stage = "identity";
     struct stat info;
-    char backend[32];
-    struct kiosk_view view = {.root = -1};
+    const void *existing = NULL;
+    struct kiosk_admission_transaction *transaction = NULL;
+    uint64_t now, deadline;
     int fd = -1, result = PAM_SESSION_ERR;
     if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || username == NULL)
         return PAM_USER_UNKNOWN;
@@ -2564,6 +2602,14 @@ kiosk_confinement(pam_handle_t *pamh)
         role = "gate";
     else
         goto done;
+    /* Repeated callbacks cannot allocate another generation or adopt a new
+     * manager in this PAM handle, including after a failed attempt. */
+    int previous = pam_get_data(pamh, KIOSK_TRANSACTION_DATA, &existing);
+    if ((previous != PAM_NO_MODULE_DATA && previous != PAM_SUCCESS) || existing)
+        goto done;
+    if (kiosk_pin_now(&now) || now > UINT64_MAX - 60000000U)
+        goto done;
+    deadline = now + 60000000U;
     stage = "lock";
     fd = open(KIOSK_CONFINEMENT_LOCK, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (fd < 0 || fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != 0 ||
@@ -2571,58 +2617,32 @@ kiosk_confinement(pam_handle_t *pamh)
         flock(fd, LOCK_EX | LOCK_NB) != 0 ||
         kiosk_lock_identity(fd, KIOSK_CONFINEMENT_LOCK, 0) != 0)
         goto done;
-    /* Create the shared tree in the actual PAM caller's SELinux domain.
-     * Fedora may transition the preparation interpreter to unconfined_t;
-     * letting that subprocess create this directory loses the named runtime
-     * type transition shared by systemd and GDM. The lock serializes creation.
-     * Never repair a foreign directory or follow a pre-existing symlink. */
-    stage = "runtime";
-    if ((mkdir(KIOSK_CONFINEMENT_RUNTIME, 0700) != 0 && errno != EEXIST) ||
-        lstat(KIOSK_CONFINEMENT_RUNTIME, &info) != 0 || !S_ISDIR(info.st_mode) ||
-        info.st_uid != 0 || (info.st_mode & 07777) != 0700)
-        goto done;
-    /* Preparation inherits this invocation's private, bounded filesystem.
-     * Shared generations remain unchanged by all realization and fallback. */
-    if (setup_kiosk_view(&view) != 0)
-        goto done;
-    stage = "prepare";
-    if (prepare_kiosk_confinement(role, fd, kiosk_admission_fd(pamh)) != 0)
-        goto done;
-    stage = "bind";
-    if (bind_kiosk_executables(backend, sizeof(backend), role, &view) != 0)
-        goto done;
-    /* No subprocesses after setting the boundary: pending SELinux context is
-     * reserved for the caller's real executable, not a verification helper. */
-    stage = "environment";
-    if (strcmp(role, "manager") == 0 &&
-        pam_putenv(pamh, "SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:") != PAM_SUCCESS)
-        goto done;
-    /* pam_systemd may grant CAP_WAKE_ALARM to regular login accounts. The
-     * kiosk needs no ambient capabilities. Clear them before AppArmor masks
-     * capget: systemd reads PAM's ambient set and otherwise tries to raise a
-     * capability its new profile no longer permits. */
-    stage = "ambient";
-    if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
-        goto done;
-    stage = "lock";
-    if (kiosk_lock_identity(fd, KIOSK_CONFINEMENT_LOCK, 0) != 0 ||
-        kiosk_admission(pamh, username) != PAM_SUCCESS)
-        goto done;
-    stage = "mac";
-    if (apply_kiosk_mac(backend, role) != 0)
-        goto done;
-    result = PAM_SUCCESS;
-    stage = "armed";
-done:
-    if (result != PAM_SUCCESS && cleanup_kiosk_view(&view, 0) != 0)
+    transaction = calloc(1, sizeof(*transaction));
+    if (!transaction) goto done;
+    kiosk_retained_startup_init(&transaction->retained);
+    transaction->lock = fd; transaction->gate = !strcmp(role, "gate");
+    if (pam_set_data(pamh, KIOSK_TRANSACTION_DATA, transaction, release_kiosk_transaction) != PAM_SUCCESS) {
+        transaction->lock = -1; free(transaction); transaction = NULL; goto done;
+    }
+    fd = -1; /* The PAM-owned transaction retains unresolved cleanup and lock. */
+    int admitted = transaction->gate ? kiosk_retained_startup_until(&transaction->retained, pamh,
+            transaction->lock, kiosk_admission_fd(pamh), deadline) :
+        kiosk_fresh_startup_until(&transaction->retained.common, pamh,
+            transaction->lock, kiosk_admission_fd(pamh), deadline);
+    struct kiosk_fresh_startup *s = &transaction->retained.common;
+    stage = s->stage;
+    if (!admitted) result = PAM_SUCCESS;
+    if (kiosk_transaction_close(transaction)) {
+        result = PAM_SESSION_ERR; stage = "cleanup";
+        kiosk_failure(&s->cleanup_failure, "recovery", "unresolved", -1);
         pam_syslog(pamh, LOG_ERR, "onpc.pam kiosk execution-boundary cleanup=failed");
-    for (unsigned i = 0; i < view.count; i++)
-        free(view.mounts[i].path);
-    free(view.mounts);
+    }
+    s->view.failure = s->failure;
+    s->view.cleanup_failure = s->cleanup_failure;
+    kiosk_native_diagnostic(pamh, &s->view, role);
+done:
     if (fd >= 0)
         close(fd);
-    if (role != NULL)
-        kiosk_native_diagnostic(pamh, &view, role);
     pam_syslog(pamh, result == PAM_SUCCESS ? LOG_INFO : LOG_ERR,
                "onpc.pam kiosk execution-boundary outcome=%s stage=%s",
                result == PAM_SUCCESS ? "armed" : "denied", stage);

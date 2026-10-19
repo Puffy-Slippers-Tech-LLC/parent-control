@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import re
+import secrets
 
 
 PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
@@ -26,6 +27,7 @@ PROTOCOL_VERSION = 1
 MAX_ROWS = 32768
 MAX_MANIFEST = 64 * 1024 * 1024
 MAX_PATH = 4096
+MAX_COPY_BYTES = 512 * 1024 * 1024
 RUNTIME_CONTEXT = b'system_u:object_r:onpc_kiosk_runtime_t:s0'
 PREPARATION_STAGES = frozenset((
     'identity', 'attestation', 'payload', 'enforcement', 'executable-inventory',
@@ -748,6 +750,769 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
     if len(data) > MAX_MANIFEST:
         raise ValueError('binding-protocol-limit')
     return data
+
+
+# The retained-material primitives below are deliberately not called by
+# prepare(). Selection and the native M/V/ready transaction belong to 006b/006.
+# In particular, a published disk copy is never a retained mount source.
+RUNTIME_COPY_FORMAT = 1
+RUNTIME_ROLES = frozenset(('script', 'module', 'asset', 'wellbeing', 'unit', 'session-data'))
+RUNTIME_KIOSK_MODULES = (
+    '__init__ agent_locale chrome duration_controls floating_islands preference_dialog '
+    'preset_dialog lava lava_artwork lightning main model request_content selection_store '
+    'session_logout snowflakes thunder notifications whats_new whats_new_dialog').split()
+RUNTIME_COMMON_MODULES = (
+    '__init__ about accessibility gtk_automation app_policy diagnostic_events diagnostic_bundle '
+    'diagnostic_privacy diagnostic_report diagnostics system_info duration errors feedback '
+    'feedback_transport rich_text_editor user_icon languages localization message messages '
+    'translation_widgets reboot application_ui application_ui_client whats_new release_markdown').split()
+RUNTIME_LOCALES = (
+    'ar be bg bn ca cs da de el en eo es et eu fa fi fr fur gl he hi hr hu id is it ja '
+    'ka kk ko lt lv ml mr ms nb ne nl nn oc pa pl pt pt_BR ro ru sk sl sr sr_Latn '
+    'sv ta te th tr ug uk ur uz vi zh_Hans zh_Hant').split()
+# Packaging compiles every historical PO domain. The package-map regression
+# requires deliberate updates when that finite production membership changes.
+RUNTIME_RELEASE_CATALOGS = {'1.4': tuple(name for name in RUNTIME_LOCALES if name != 'en')}
+
+
+def runtime_input_specs(distribution):
+    """Exact production membership; keep aligned with Makefile's public payload.
+
+    Only these two product trees are enumerated. In particular, this never
+    recursively inventories Python/GI, distribution units or extension siblings.
+    A future attested configuration must bind this membership before selection.
+    """
+    if distribution not in ('ubuntu', 'fedora'):
+        raise ValueError('runtime-distribution')
+    specs = {}
+
+    def add(path, role, kind='file', link=None):
+        specs[path] = dict(kind=kind, role=role)
+        if link is not None:
+            specs[path]['link'] = link
+
+    def tree(root, members, role):
+        add(root, role, 'directory')
+        for name in members:
+            relative = Path(name)
+            for parent in reversed(relative.parents):
+                if parent != Path('.'):
+                    add(root + '/' + str(parent), role, 'directory')
+            add(root + '/' + name, role)
+
+    add('/usr/bin/oh-no-parent-control', 'script')
+    add('/usr/bin/gnome-service-client', 'script')
+    kiosk = '/usr/lib/oh-no-parent-control/kiosk'
+    tree(kiosk, ['oh_no_parent_control_kiosk/' + name + '.py' for name in RUNTIME_KIOSK_MODULES] +
+         ['oh_no_parent_control_kiosk/' + name for name in (
+             'style.css', 'kiosk-background-still.png', 'kiosk-background-scenery-clear.png',
+             'request-options.json', 'lava-heat.bin', 'fonts/Monocraft.ttf', 'fonts/OFL.txt')], 'module')
+    common = '/usr/lib/oh-no-parent-control/common'
+    tree(common, ['__init__.py'] +
+         ['oh_no_parent_control_ui/' + name + '.py' for name in RUNTIME_COMMON_MODULES] +
+         ['oh_no_parent_control_ui/' + name for name in (
+             'diagnostic_catalog.json', 'diagnostic_timezones.json', 'languages.json',
+             'feedback.css', 'rich_editor/application_ui.js', 'rich_editor/quill.js',
+             'rich_editor/quill.snow.css', 'rich_editor/quill.js.LICENSE.txt',
+             'rich_editor/LICENSE')], 'module')
+    catalogs = ['oh_no_parent_control_ui/locale/' + name +
+                '/LC_MESSAGES/oh-no-parent-control.mo' for name in RUNTIME_LOCALES]
+    catalogs += ['oh_no_parent_control_ui/locale/' + language +
+                 '/LC_MESSAGES/oh-no-parent-control-whats-new-' + release + '.mo'
+                 for release, languages in RUNTIME_RELEASE_CATALOGS.items() for language in languages]
+    tree(common, catalogs, 'module')
+    for path, spec in specs.items():
+        if path.startswith((kiosk + '/', common + '/')) and spec['kind'] == 'file' and not path.endswith(
+                ('.py', '.js')):
+            spec['role'] = 'asset'
+    extension = '/usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/'
+    for name in ('wellbeingService.js', 'wellbeingLogic.mjs', 'schemas/gschemas.compiled'):
+        add(extension + name, 'wellbeing')
+    units = ['org.gnome.Kiosk@wayland.service.d/90-kiosk-confinement.conf']
+    units += (['dbus-broker.service.d/90-kiosk-confinement.conf'] if distribution == 'fedora' else
+              [name + '.d/90-kiosk-confinement.conf' for name in (
+                  'dbus.service', 'oh-no-parent-control-wellbeing.service', 'wireplumber.service')])
+    tree(str(PAYLOAD / 'user-units'), units, 'unit')
+    if distribution == 'ubuntu':
+        for name in ('snapd.session-agent.service', 'snapd.session-agent.socket',
+                     'snap.snapd-desktop-integration.snapd-desktop-integration.service',
+                     'snap.prompting-client.daemon.service',
+                     'snap.firmware-updater.firmware-notifier.service',
+                     'snap.firmware-updater.firmware-notifier.timer'):
+            add(str(PAYLOAD / 'user-units' / name), 'unit', 'link', '/dev/null')
+        tree(str(PAYLOAD / 'session-data'),
+             ['dbus-1/services/' + name + '.service' for name in (
+                 'io.snapcraft.Settings', 'io.snapcraft.Launcher')], 'session-data')
+    return specs
+
+
+def runtime_canonical(value):
+    """One length-delimited, domain-separated encoding, without inode hashes."""
+    data = json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True,
+                      allow_nan=False).encode('ascii')
+    if len(data) > MAX_MANIFEST:
+        raise ValueError('runtime-manifest-limit')
+    return b'ONPC-KIOSK-RUNTIME\0' + len(data).to_bytes(8, 'big') + data
+
+
+def runtime_identity(info):
+    return tuple(file_identity(info))
+
+
+def runtime_walk_identity(info):
+    # Directory sibling changes do not replace the selected path or alter its
+    # trust. Exact named payload-directory membership is measured separately;
+    # files retain all eight transaction-local source assertion fields.
+    if stat.S_ISDIR(info.st_mode):
+        return info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid
+    return runtime_identity(info)
+
+
+def runtime_mount_id(fd):
+    rows = Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines()
+    identities = [line.split()[1] for line in rows if line.startswith('mnt_id:')]
+    if len(identities) != 1 or not identities[0].isdecimal():
+        raise ValueError('runtime-mount-identity')
+    return identities[0]
+
+
+def runtime_members(fd, *, limit=MAX_ROWS):
+    names = set()
+    with os.scandir(fd) as entries:
+        for entry in entries:
+            names.add(entry.name)
+            if len(names) > limit:
+                raise ValueError('runtime-membership-limit')
+    return names
+
+
+def runtime_owned_stat(info, kind, *, private=False):
+    expected = {'file': stat.S_ISREG, 'directory': stat.S_ISDIR, 'link': stat.S_ISLNK}[kind]
+    if (not expected(info.st_mode) or info.st_uid != 0 or info.st_gid != 0 or
+            kind != 'link' and info.st_mode & 0o7022 or
+            kind == 'file' and info.st_nlink != 1 or
+            private and stat.S_IMODE(info.st_mode) != (0o700 if kind == 'directory' else 0o600)):
+        raise ValueError('runtime-untrusted-object')
+
+
+def runtime_open(path, *, directory=False):
+    """Open every lexical component beneath /, refusing symlink ancestry.
+
+    Return a CLOEXEC descriptor after rechecking every named/opened identity.
+    No ambient link is followed, even for an intermediate source component.
+    """
+    path = protocol_text(str(path), absolute=True)
+    current = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    held = []
+    try:
+        runtime_owned_stat(os.fstat(current), 'directory')
+        parts = path.split('/')[1:]
+        for index, component in enumerate(parts):
+            is_directory = index < len(parts) - 1 or directory
+            before = os.stat(component, dir_fd=current, follow_symlinks=False)
+            runtime_owned_stat(before, 'directory' if is_directory else 'file')
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+            if is_directory:
+                flags |= os.O_DIRECTORY
+            child = os.open(component, flags, dir_fd=current)
+            held.append((current, component, runtime_walk_identity(before)))
+            current = child
+            if runtime_walk_identity(os.fstat(current)) != runtime_walk_identity(before):
+                raise ValueError('runtime-source-changed')
+        for parent, component, identity in held:
+            if runtime_walk_identity(os.stat(component, dir_fd=parent, follow_symlinks=False)) != identity:
+                raise ValueError('runtime-source-changed')
+        result, current = current, -1
+        return result
+    finally:
+        if current >= 0:
+            os.close(current)
+        for parent, _, _ in held:
+            os.close(parent)
+
+
+def runtime_file_label(fd, backend, *, expected=None, write=False):
+    if backend not in ('apparmor', 'selinux'):
+        raise ValueError('unknown-backend')
+    if backend == 'apparmor':
+        if expected is not None:
+            raise ValueError('runtime-label-changed')
+        return None
+    if write:
+        if not isinstance(expected, str) or not expected:
+            raise ValueError('runtime-label-changed')
+        os.setxattr(fd, 'security.selinux', expected.encode('ascii') + b'\0')
+    value = os.getxattr(fd, 'security.selinux').rstrip(b'\0').decode('ascii')
+    # Copies retain the source's ordinary script/data label. The native
+    # substitution labels are never granted to new runtime inputs.
+    if (not re.fullmatch(r'[A-Za-z0-9_:.,\-]+', value) or
+            re.search(r':onpc_kiosk_[a-z_]+_exec_t:', value) or
+            expected is not None and value != expected):
+        raise ValueError('runtime-label-changed')
+    return value
+
+
+def runtime_policy_label(path, mode):
+    """Read the installed file-context policy for one declared source path."""
+    library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+    library.selabel_open.argtypes = [ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+    library.selabel_open.restype = ctypes.c_void_p
+    library.selabel_lookup_raw.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_char_p),
+                                           ctypes.c_char_p, ctypes.c_int]
+    library.selabel_close.argtypes = [ctypes.c_void_p]
+    library.freecon.argtypes = [ctypes.c_void_p]
+    handle = library.selabel_open(0, None, 0)  # SELABEL_CTX_FILE, default policy.
+    if not handle:
+        raise OSError(ctypes.get_errno(), 'runtime-label-policy-unavailable')
+    context = ctypes.c_char_p()
+    try:
+        if library.selabel_lookup_raw(handle, ctypes.byref(context), os.fsencode(path), mode) != 0:
+            raise OSError(ctypes.get_errno(), 'runtime-label-policy-unavailable')
+        return context.value.decode('ascii')
+    finally:
+        if context:
+            library.freecon(context)
+        library.selabel_close(handle)
+
+
+def runtime_specs_valid(specs):
+    if not isinstance(specs, dict) or not specs or len(specs) > MAX_ROWS:
+        raise ValueError('runtime-membership')
+    for path, spec in specs.items():
+        protocol_text(path, absolute=True)
+        if not path.startswith('/usr/') or not isinstance(spec, dict):
+            raise ValueError('runtime-membership')
+        kind = spec.get('kind')
+        if (kind not in ('directory', 'file', 'link') or spec.get('role') not in RUNTIME_ROLES or
+                set(spec) != ({'kind', 'role', 'link'} if kind == 'link' else {'kind', 'role'})):
+            raise ValueError('runtime-membership')
+        if kind == 'link':
+            target = protocol_text(spec['link'])
+            if target == '/dev/null' and spec['role'] == 'unit':
+                continue
+            # Only explicit links to another declared member are allowed.
+            # No arbitrary host target is opened or copied.
+            if target.startswith('/') or any(part in ('', '.', '..') for part in target.split('/')):
+                raise ValueError('runtime-link-escape')
+            if str(Path(path).parent / target) not in specs:
+                raise ValueError('runtime-link-escape')
+
+
+def runtime_cache_directory(fd, modules, *, limit=MAX_ROWS):
+    """The sole production exclusion: validated CPython bytecode caches."""
+    runtime_owned_stat(os.fstat(fd), 'directory')
+    names = runtime_members(fd, limit=limit)
+    for name in names:
+        match = re.fullmatch(r'([A-Za-z_][A-Za-z0-9_]*)\.cpython-[0-9]+(?:\.opt-[0-9]+)?\.pyc', name)
+        if match is None or match[1] not in modules:
+            raise ValueError('runtime-membership')
+        runtime_owned_stat(os.stat(name, dir_fd=fd, follow_symlinks=False), 'file')
+    return len(names)
+
+
+def runtime_read_digest(fd, size, *, target=-1):
+    """Bound actual reads/writes even when a concurrent writer grows a source."""
+    digest, remaining = hashlib.sha256(), size
+    while True:
+        data = os.read(fd, min(1024 * 1024, remaining + 1))
+        if len(data) > remaining:
+            raise ValueError('runtime-source-changed')
+        if not data:
+            if remaining:
+                raise ValueError('runtime-source-changed')
+            return digest.hexdigest()
+        remaining -= len(data)
+        digest.update(data)
+        if target >= 0:
+            pending = memoryview(data)
+            while pending:
+                written = os.write(target, pending)
+                if written <= 0:
+                    raise OSError('runtime-copy-write-failed')
+                pending = pending[written:]
+
+
+def runtime_records_valid(records, backend, *, used_rows=0, used_bytes=0):
+    if (backend not in ('apparmor', 'selinux') or not isinstance(records, list) or
+            type(used_rows) is not int or type(used_bytes) is not int or
+            used_rows < 0 or used_bytes < 0 or used_rows + len(records) > MAX_ROWS):
+        raise ValueError('runtime-budget')
+    total, paths = used_bytes, []
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError('runtime-record-schema')
+        kind = record.get('kind')
+        fields = {'path', 'kind', 'role'}
+        fields |= ({'sha256', 'size', 'mode', 'label'} if kind == 'file' else
+                   {'link'} if kind == 'link' else set())
+        if set(record) != fields:
+            raise ValueError('runtime-record-schema')
+        paths.append(record['path'])
+        if kind == 'file':
+            if (type(record['size']) is not int or record['size'] < 0 or
+                    type(record['mode']) is not int or
+                    record['mode'] != (0o755 if record['role'] == 'script' else 0o644) or
+                    not isinstance(record['sha256'], str) or
+                    not re.fullmatch(r'[0-9a-f]{64}', record['sha256']) or
+                    backend == 'apparmor' and record['label'] is not None or
+                    backend == 'selinux' and (not isinstance(record['label'], str) or
+                        not re.fullmatch(r'[A-Za-z0-9_:.,\-]+', record['label']) or
+                        re.search(r':onpc_kiosk_[a-z_]+_exec_t:', record['label']))):
+                raise ValueError('runtime-record-schema')
+            total += record['size']
+    if total > MAX_COPY_BYTES or total < 0:
+        raise ValueError('runtime-budget')
+    if paths != sorted(set(paths)):
+        raise ValueError('runtime-membership')
+    specs = {record['path']: {key: record[key] for key in ('kind', 'role', 'link')
+                             if key in record} for record in records}
+    runtime_specs_valid(specs)
+    return specs
+
+
+def measure_runtime_inputs(specs, backend, *, used_rows=0, used_bytes=0):
+    """Measure finite named payloads; assertions are transaction-local only."""
+    runtime_specs_valid(specs)
+    if (type(used_rows) is not int or type(used_bytes) is not int or
+            used_rows < 0 or used_bytes < 0 or used_rows + len(specs) > MAX_ROWS or
+            used_bytes > MAX_COPY_BYTES):
+        raise ValueError('runtime-budget')
+    records, assertions, consumed, scanned = [], {}, used_bytes, used_rows + len(specs)
+    for path, spec in sorted(specs.items()):
+        record = dict(path=path, **spec)
+        if spec['kind'] == 'link':
+            parent = runtime_open(Path(path).parent, directory=True)
+            try:
+                before = os.stat(Path(path).name, dir_fd=parent, follow_symlinks=False)
+                runtime_owned_stat(before, 'link')
+                if os.readlink(Path(path).name, dir_fd=parent) != spec['link']:
+                    raise ValueError('runtime-source-changed')
+                after = os.stat(Path(path).name, dir_fd=parent, follow_symlinks=False)
+                if runtime_identity(before) != runtime_identity(after):
+                    raise ValueError('runtime-source-changed')
+                assertions[path] = runtime_identity(after)
+            finally:
+                os.close(parent)
+        else:
+            fd = runtime_open(path, directory=spec['kind'] == 'directory')
+            try:
+                before = os.fstat(fd)
+                if spec['kind'] == 'directory':
+                    wanted = {Path(name).name for name in specs if str(Path(name).parent) == path}
+                    modules = {Path(name).stem for name in specs if str(Path(name).parent) == path and
+                               specs[name]['kind'] == 'file' and name.endswith('.py')}
+                    actual = runtime_members(fd)
+                    if '__pycache__' in actual and spec['role'] == 'module' and modules:
+                        cache = os.open('__pycache__', os.O_RDONLY | os.O_DIRECTORY |
+                                        os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                        try:
+                            scanned += 1 + runtime_cache_directory(cache, modules,
+                                                                    limit=MAX_ROWS - scanned)
+                            if scanned > MAX_ROWS:
+                                raise ValueError('runtime-budget')
+                        finally:
+                            os.close(cache)
+                        actual.remove('__pycache__')
+                    if actual != wanted:
+                        raise ValueError('runtime-membership')
+                else:
+                    if 'security.capability' in os.listxattr(fd):
+                        raise ValueError('runtime-privilege')
+                    consumed += before.st_size
+                    if consumed > MAX_COPY_BYTES:
+                        raise ValueError('runtime-budget')
+                    record['sha256'] = runtime_read_digest(fd, before.st_size)
+                    expected_label = (runtime_policy_label(path, before.st_mode)
+                                      if backend == 'selinux' else None)
+                    record.update(size=before.st_size, mode=stat.S_IMODE(before.st_mode),
+                                  label=runtime_file_label(fd, backend, expected=expected_label))
+                after = os.fstat(fd)
+                if runtime_identity(before) != runtime_identity(after):
+                    raise ValueError('runtime-source-changed')
+                assertions[path] = runtime_identity(after)
+            finally:
+                os.close(fd)
+        records.append(record)
+    # A changed required path is refused even when its replacement has the same
+    # bytes. A new transaction can establish same-byte compatibility separately.
+    check_runtime_assertions(specs, assertions)
+    runtime_records_valid(records, backend, used_rows=used_rows, used_bytes=used_bytes)
+    runtime_canonical(records)
+    return records, assertions
+
+
+def check_runtime_assertions(specs, assertions):
+    if set(specs) != set(assertions):
+        raise ValueError('runtime-source-identity')
+    for path, spec in specs.items():
+        parent = runtime_open(Path(path).parent, directory=True)
+        try:
+            info = os.stat(Path(path).name, dir_fd=parent, follow_symlinks=False)
+            runtime_owned_stat(info, spec['kind'])
+            if runtime_identity(info) != tuple(assertions[path]):
+                raise ValueError('runtime-source-changed')
+        finally:
+            os.close(parent)
+
+
+class RuntimeCopyPublication:
+    """Identity-owned scratch and atomic, no-replace supporting-copy publication.
+
+    The native caller must hold its preparation lock and admission lease. This
+    object grants no admission/ready authority and performs no directory sweep.
+    Keep its ticket with the owner if interruption recovery will be needed.
+    """
+
+    def __init__(self, root, backend, expected_specs):
+        runtime_specs_valid(expected_specs)
+        self.specs = json.loads(json.dumps(expected_specs, sort_keys=True))
+        self.root, self.backend = Path(root), backend
+        self.parent = runtime_open(root, directory=True)
+        self.fd = -1
+        self.name = None
+        self.owned = {}
+        self.published = False
+        try:
+            runtime_owned_stat(os.fstat(self.parent), 'directory', private=True)
+            runtime_file_label(self.parent, backend, expected=(RUNTIME_CONTEXT.decode()
+                                                              if backend == 'selinux' else None))
+            self.parent_identity = runtime_identity(os.fstat(self.parent))[:2]
+            self.mount = runtime_mount_id(self.parent)
+            self.name = '.runtime-' + secrets.token_hex(16)
+            os.mkdir(self.name, mode=0o700, dir_fd=self.parent)
+            self.identity = runtime_identity(os.stat(self.name, dir_fd=self.parent,
+                                                     follow_symlinks=False))[:2]
+            self.fd = os.open(self.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                              os.O_CLOEXEC, dir_fd=self.parent)
+            if runtime_identity(os.fstat(self.fd))[:2] != self.identity:
+                raise ValueError('runtime-publication-replaced')
+            runtime_owned_stat(os.fstat(self.fd), 'directory', private=True)
+            runtime_file_label(self.fd, backend, expected=(RUNTIME_CONTEXT.decode()
+                                                          if backend == 'selinux' else None),
+                               write=backend == 'selinux')
+        except BaseException as error:
+            if hasattr(self, 'identity'):
+                error.runtime_scratch_ticket = self.ticket()
+                try:
+                    reclaim_runtime_scratch(self.root, self.ticket())
+                except BaseException as cleanup_error:
+                    error.add_note('runtime-scratch-cleanup-failed: ' + type(cleanup_error).__name__)
+            self.close()
+            raise
+
+    def ticket(self):
+        return dict(format=RUNTIME_COPY_FORMAT, name=self.name, root=list(self.identity),
+                    parent=list(self.parent_identity), members={name: list(identity)
+                                                               for name, identity in self.owned.items()})
+
+    def _check_root(self):
+        named = runtime_open(self.root, directory=True)
+        try:
+            parent_identity = runtime_identity(os.fstat(named))[:2]
+            parent_mount = runtime_mount_id(named)
+        finally:
+            os.close(named)
+        named = os.open(self.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                        os.O_CLOEXEC, dir_fd=self.parent)
+        try:
+            scratch_identity = runtime_identity(os.fstat(named))[:2]
+            scratch_mount = runtime_mount_id(named)
+            runtime_owned_stat(os.fstat(named), 'directory', private=True)
+        finally:
+            os.close(named)
+        if (runtime_identity(os.fstat(self.parent))[:2] != self.parent_identity or
+                parent_identity != self.parent_identity or
+                parent_mount != self.mount or scratch_mount != self.mount or
+                scratch_identity != self.identity or
+                runtime_mount_id(self.parent) != self.mount or runtime_mount_id(self.fd) != self.mount or
+                runtime_identity(os.fstat(self.fd))[:2] != self.identity or
+                runtime_identity(os.stat(self.name, dir_fd=self.parent,
+                                         follow_symlinks=False))[:2] != self.identity):
+            raise ValueError('runtime-publication-replaced')
+        runtime_owned_stat(os.fstat(self.parent), 'directory', private=True)
+        runtime_owned_stat(os.fstat(self.fd), 'directory', private=True)
+
+    def _new_file(self, name):
+        self._check_root()
+        fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW |
+                     os.O_CLOEXEC, 0o600, dir_fd=self.fd)
+        try:
+            self.owned[name] = runtime_identity(os.fstat(fd))[:2]
+            return fd
+        except BaseException as error:
+            # The new name remains unknown unless its inode was recorded. Do
+            # not invent ownership to remove it, but never leak its descriptor.
+            error.runtime_scratch_ticket = self.ticket()
+            os.close(fd)
+            raise
+
+    def copy(self, records, assertions, *, used_rows=0, used_bytes=0):
+        # Only remeasured exact records are accepted. A forged producer record
+        # cannot choose a path outside the independently selected finite set.
+        specs = runtime_records_valid(records, self.backend, used_rows=used_rows, used_bytes=used_bytes)
+        if specs != self.specs:
+            raise ValueError('runtime-membership')
+        measured, current = measure_runtime_inputs(specs, self.backend, used_rows=used_rows,
+                                                   used_bytes=used_bytes)
+        if measured != records or current != assertions:
+            raise ValueError('runtime-source-changed')
+        copies = []
+        for index, record in enumerate(records):
+            if record['kind'] != 'file':
+                continue
+            source = runtime_open(record['path'])
+            target = -1
+            try:
+                if runtime_identity(os.fstat(source)) != tuple(assertions[record['path']]):
+                    raise ValueError('runtime-source-changed')
+                name = str(index)
+                target = self._new_file(name)
+                if runtime_read_digest(source, record['size'], target=target) != record['sha256']:
+                    raise ValueError('runtime-source-changed')
+                os.fchmod(target, record['mode'])
+                runtime_file_label(target, self.backend, expected=record['label'],
+                                   write=self.backend == 'selinux')
+                os.fsync(target)
+                info = os.fstat(target)
+                runtime_owned_stat(info, 'file')
+                if (runtime_identity(info)[:2] == runtime_identity(os.fstat(source))[:2] or
+                        runtime_identity(os.fstat(source)) != tuple(assertions[record['path']])):
+                    raise ValueError('runtime-source-changed')
+                os.lseek(target, 0, os.SEEK_SET)
+                if runtime_read_digest(target, record['size']) != record['sha256']:
+                    raise ValueError('runtime-copy-changed')
+                copies.append(dict(index=index, name=name, identity=list(runtime_identity(info))))
+            finally:
+                os.close(source)
+                if target >= 0:
+                    os.close(target)
+        check_runtime_assertions(specs, assertions)
+        manifest = dict(format=RUNTIME_COPY_FORMAT, backend=self.backend, records=records, copies=copies)
+        data = runtime_canonical(manifest)
+        record_fd = self._new_file('runtime.json')
+        try:
+            with os.fdopen(os.dup(record_fd), 'wb') as stream:
+                stream.write(data)
+                stream.flush()
+            runtime_file_label(record_fd, self.backend,
+                               expected=RUNTIME_CONTEXT.decode() if self.backend == 'selinux' else None,
+                               write=self.backend == 'selinux')
+            os.fsync(record_fd)
+            manifest_identity = list(runtime_identity(os.fstat(record_fd)))
+        finally:
+            os.close(record_fd)
+        os.fsync(self.fd)
+        receipt = dict(format=RUNTIME_COPY_FORMAT, backend=self.backend, root=list(self.identity),
+                       mount=self.mount,
+                       manifest=hashlib.sha256(data).hexdigest(), manifest_identity=manifest_identity,
+                       records=records, copies=copies)
+        verify_runtime_copies(self.fd, receipt, self.backend, self.specs,
+                              used_rows=used_rows, used_bytes=used_bytes)
+        return receipt
+
+    def publish(self, name, receipt):
+        if not isinstance(name, str) or not re.fullmatch(r'[0-9a-f]{64}', name):
+            raise ValueError('runtime-publication-name')
+        self._check_root()
+        verify_runtime_copies(self.fd, receipt, self.backend, self.specs)
+        if sum(bool(re.fullmatch(r'[0-9a-f]{64}', item)) for item in runtime_members(self.parent)) >= 4:
+            raise ValueError('generation-limit-reboot-required')
+        # renameat2 NOREPLACE is atomic even against an empty foreign directory;
+        # ordinary rename() would silently replace that directory.
+        library = ctypes.CDLL(None, use_errno=True)
+        rename = library.renameat2
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        if rename(self.parent, os.fsencode(self.name), self.parent, name.encode('ascii'), 1) != 0:
+            raise OSError(ctypes.get_errno(), 'runtime-publication-failed')
+        self.name, self.published = name, True
+        os.fsync(self.parent)
+        self._check_root()
+        verify_runtime_copies(self.fd, receipt, self.backend, self.specs)
+        return receipt
+
+    def abort(self):
+        if self.published:
+            raise ValueError('runtime-completed-publication')
+        self._check_root()
+        reclaim_runtime_scratch(self.root, self.ticket())
+
+    def close(self):
+        for attribute in ('fd', 'parent'):
+            fd = getattr(self, attribute, -1)
+            if fd >= 0:
+                os.close(fd)
+                setattr(self, attribute, -1)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, error, traceback):
+        try:
+            if not self.published:
+                try:
+                    self.abort()
+                except BaseException as cleanup_error:
+                    if error is None:
+                        raise
+                    error.runtime_scratch_ticket = self.ticket()
+                    error.add_note('runtime-scratch-cleanup-failed: ' + type(cleanup_error).__name__)
+        finally:
+            self.close()
+        return False
+
+
+def verify_runtime_copies(fd, receipt, backend, expected_specs, *, used_rows=0, used_bytes=0):
+    """Validate an independently retained receipt, never adopt a disk manifest."""
+    if (not isinstance(receipt, dict) or set(receipt) != {
+            'format', 'backend', 'root', 'mount', 'manifest', 'manifest_identity', 'records', 'copies'} or
+            type(receipt['format']) is not int or receipt['format'] != RUNTIME_COPY_FORMAT or
+            receipt['backend'] != backend or
+            not isinstance(receipt['root'], list) or len(receipt['root']) != 2 or
+            any(type(value) is not int or not 0 <= value <= 2**64 - 1 for value in receipt['root']) or
+            not isinstance(receipt['mount'], str) or not receipt['mount'].isdecimal() or
+            not isinstance(receipt['manifest'], str) or
+            not re.fullmatch(r'[0-9a-f]{64}', receipt['manifest']) or
+            not isinstance(receipt['manifest_identity'], list) or len(receipt['manifest_identity']) != 8 or
+            any(type(value) is not int or not 0 <= value <= 2**64 - 1
+                for value in receipt['manifest_identity']) or
+            list(runtime_identity(os.fstat(fd))[:2]) != receipt['root'] or
+            runtime_mount_id(fd) != receipt['mount']):
+        raise ValueError('runtime-copy-identity')
+    runtime_owned_stat(os.fstat(fd), 'directory', private=True)
+    runtime_file_label(fd, backend,
+                       expected=RUNTIME_CONTEXT.decode() if backend == 'selinux' else None)
+    records, copies = receipt['records'], receipt['copies']
+    specs = runtime_records_valid(records, backend, used_rows=used_rows, used_bytes=used_bytes)
+    runtime_specs_valid(expected_specs)
+    if specs != expected_specs:
+        raise ValueError('runtime-membership')
+    if not isinstance(copies, list):
+        raise ValueError('runtime-record-schema')
+    if len(records) != len(specs) or len(copies) != sum(record['kind'] == 'file' for record in records):
+        raise ValueError('runtime-membership')
+    expected = {str(index) for index, record in enumerate(records) if record['kind'] == 'file'}
+    if runtime_members(fd, limit=MAX_ROWS + 1) != expected | {'runtime.json'}:
+        raise ValueError('runtime-membership')
+    manifest = dict(format=RUNTIME_COPY_FORMAT, backend=backend, records=records, copies=copies)
+    data = runtime_canonical(manifest)
+    if hashlib.sha256(data).hexdigest() != receipt['manifest']:
+        raise ValueError('runtime-copy-identity')
+    runtime_owned_stat(os.stat('runtime.json', dir_fd=fd, follow_symlinks=False), 'file', private=True)
+    record_fd = os.open('runtime.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                        os.O_NONBLOCK, dir_fd=fd)
+    try:
+        runtime_owned_stat(os.fstat(record_fd), 'file', private=True)
+        if (list(runtime_identity(os.fstat(record_fd))) != receipt['manifest_identity'] or
+                runtime_mount_id(record_fd) != receipt['mount']):
+            raise ValueError('runtime-copy-identity')
+        runtime_file_label(record_fd, backend,
+                           expected=RUNTIME_CONTEXT.decode() if backend == 'selinux' else None)
+        with os.fdopen(os.dup(record_fd), 'rb') as stream:
+            if stream.read(MAX_MANIFEST + 32) != data:
+                raise ValueError('runtime-copy-changed')
+    finally:
+        os.close(record_fd)
+    seen = set()
+    for copy in copies:
+        if (not isinstance(copy, dict) or set(copy) != {'index', 'name', 'identity'} or
+                not isinstance(copy['identity'], list) or len(copy['identity']) != 8 or
+                any(type(value) is not int or not 0 <= value <= 2**64 - 1 for value in copy['identity']) or
+                type(copy['index']) is not int or
+                not 0 <= copy['index'] < len(records) or copy['name'] != str(copy['index']) or
+                copy['name'] in seen or copy['name'] not in expected):
+            raise ValueError('runtime-copy-identity')
+        seen.add(copy['name'])
+        record = records[copy['index']]
+        runtime_owned_stat(os.stat(copy['name'], dir_fd=fd, follow_symlinks=False), 'file')
+        source = os.open(copy['name'], os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                         os.O_NONBLOCK, dir_fd=fd)
+        try:
+            before = os.fstat(source)
+            runtime_owned_stat(before, 'file')
+            if (list(runtime_identity(before)) != copy['identity'] or
+                    runtime_mount_id(source) != receipt['mount'] or
+                    stat.S_IMODE(before.st_mode) != record['mode'] or before.st_size != record['size'] or
+                    'security.capability' in os.listxattr(source)):
+                raise ValueError('runtime-copy-identity')
+            runtime_file_label(source, backend, expected=record['label'])
+            if runtime_read_digest(source, record['size']) != record['sha256']:
+                raise ValueError('runtime-copy-changed')
+            if runtime_identity(os.fstat(source)) != runtime_identity(before):
+                raise ValueError('runtime-copy-identity')
+            if runtime_identity(os.stat(copy['name'], dir_fd=fd,
+                                        follow_symlinks=False)) != runtime_identity(before):
+                raise ValueError('runtime-copy-identity')
+        finally:
+            os.close(source)
+    if seen != expected:
+        raise ValueError('runtime-membership')
+
+
+def reclaim_runtime_scratch(root, ticket):
+    """Remove only a named, identity-recorded incomplete flat copy attempt.
+
+    Caller owns the exclusive preparation lock and has reaped its helper. All
+    validation precedes deletion; foreign, mounted, hardlinked and unknown state
+    remains intact. There is deliberately no prefix sweep or recursive rmtree.
+    """
+    if (not isinstance(ticket, dict) or set(ticket) != {'format', 'name', 'root', 'parent', 'members'} or
+            type(ticket['format']) is not int or ticket['format'] != RUNTIME_COPY_FORMAT or
+            any(not isinstance(ticket[key], list) or len(ticket[key]) != 2 or
+                any(type(value) is not int or not 0 <= value <= 2**64 - 1 for value in ticket[key])
+                for key in ('root', 'parent')) or
+            not re.fullmatch(r'\.runtime-[0-9a-f]{32}', ticket['name']) or
+            not isinstance(ticket['members'], dict) or len(ticket['members']) > MAX_ROWS + 1):
+        raise ValueError('runtime-recovery-ticket')
+    for name, identity in ticket['members'].items():
+        if (not re.fullmatch(r'(?:0|[1-9][0-9]*|runtime\.json)', name) or
+                not isinstance(identity, list) or len(identity) != 2 or
+                any(type(value) is not int or value < 0 for value in identity)):
+            raise ValueError('runtime-recovery-ticket')
+    parent = runtime_open(root, directory=True)
+    fd = -1
+    try:
+        runtime_owned_stat(os.fstat(parent), 'directory', private=True)
+        if list(runtime_identity(os.fstat(parent))[:2]) != ticket['parent']:
+            raise ValueError('runtime-publication-replaced')
+        fd = os.open(ticket['name'], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                     os.O_CLOEXEC, dir_fd=parent)
+        runtime_owned_stat(os.fstat(fd), 'directory', private=True)
+        if list(runtime_identity(os.fstat(fd))[:2]) != ticket['root']:
+            raise ValueError('runtime-publication-replaced')
+        # A same-device/inode bind mount still has another kernel mount ID.
+        parent_mount = runtime_mount_id(parent)
+        if (runtime_mount_id(fd) != parent_mount or
+                runtime_members(fd, limit=MAX_ROWS + 1) != set(ticket['members'])):
+            raise ValueError('runtime-recovery-membership')
+        for name, identity in ticket['members'].items():
+            runtime_owned_stat(os.stat(name, dir_fd=fd, follow_symlinks=False), 'file')
+            child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                            os.O_NONBLOCK, dir_fd=fd)
+            try:
+                runtime_owned_stat(os.fstat(child), 'file')
+                if (list(runtime_identity(os.fstat(child))[:2]) != identity or
+                        runtime_mount_id(child) != parent_mount):
+                    raise ValueError('runtime-publication-replaced')
+            finally:
+                os.close(child)
+        # Recheck every named object immediately before its owned unlink.
+        for name, identity in ticket['members'].items():
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            runtime_owned_stat(info, 'file')
+            if list(runtime_identity(info)[:2]) != identity:
+                raise ValueError('runtime-publication-replaced')
+            os.unlink(name, dir_fd=fd)
+        info = os.stat(ticket['name'], dir_fd=parent, follow_symlinks=False)
+        runtime_owned_stat(info, 'directory', private=True)
+        if list(runtime_identity(info)[:2]) != ticket['root']:
+            raise ValueError('runtime-publication-replaced')
+        os.rmdir(ticket['name'], dir_fd=parent)
+        os.fsync(parent)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(parent)
 
 
 def manager_generation(uid, digest, backend):

@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006a — [Implement owned immutable-view primitives](Kiosk-Prompt-Tasks/006a-pin-primitives.md)**.
+Next task: **006b — [Implement retained-material selection](Kiosk-Prompt-Tasks/006b-material-selection.md)**.
 
 ## Outcome
 
@@ -837,8 +837,10 @@ contained both final results, complete phase JUnit, public entry/exit and fixtur
 cleanup receipts, frozen input/package manifests, the original Fedora failure,
 host negative/final reports and 003a's historical evidence. Bundle SHA-256:
 `e2720ed1c6dfc2b73b87b777644f9c4bd8714037309228da1ed64c400d8a7220`.
-That export retired under normal retention during 004; all constituent receipts
-remain in [004's verified cumulative bundle](#fedora-late-refusal-and-candidate-reconciliation--004).
+That export retired under normal retention during 004; its constituent receipts
+were carried into [004's cumulative bundle](#fedora-late-refusal-and-candidate-reconciliation--004),
+which subsequently retired during 006a. The availability limit below applies to
+any later reuse of those historical receipts.
 Final allocations are `onpc-system-oj79lbh3` (Fedora) and
 `onpc-system-8knwkc34` (Ubuntu). Fixture removal, diagnostic/preparation session
 release, runner baseline restoration and serial
@@ -899,11 +901,14 @@ The prior input-directory retirement stopped `20261019T092326Z-031ee095` before
 VM work; maintained artifact preparation rebuilt verified inputs automatically.
 All final product, infrastructure, collection and cleanup outcomes passed.
 
-The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-obgg9ean/evidence.zip)
-retains the original failure, final result/JUnit/public refusal/recovery and
+The verified cumulative bundle at close-out,
+`onpc-evidence-bundle-obgg9ean/evidence.zip`, contained the original failure,
+final result/JUnit/public refusal/recovery and
 cleanup receipts, exact frozen input/package manifests, complete host report,
 diagnostic samples and predecessor installed receipts. Bundle SHA-256:
 `24529f4d2267b8c42de9cb03358e9b5fa86d97f813d9d6753e4529c4cc3b7f87`.
+This export subsequently retired during 006a; its identity is historical, and
+the receipt-availability limit in 006a below applies to later reuse.
 Final allocation: `onpc-system-kqo_t8br`. Installed DEB SHA-256:
 `1bcd2efeffec52fd1bac27e14db23991737a74780baeb74665f7d3e1391c4080`;
 package-source digest:
@@ -999,11 +1004,14 @@ DEB SHA-256:
 Only test helpers, their regression and documentation changed; no packaged source
 or build dependency changed, so no separate `make build` is required.
 
-The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-a161sv3w/evidence.zip)
-retains both final results, complete phase JUnit, public refusal/recovery and
+The verified cumulative bundle at close-out,
+`onpc-evidence-bundle-a161sv3w/evidence.zip`, contained both final results,
+complete phase JUnit, public refusal/recovery and
 cleanup receipts, frozen input/package manifests, the original failure/error log,
 affected host report and predecessor receipts. Bundle SHA-256:
 `51268136679d7bdcc3653e0fdca307b2f7e7f1364a15232477363d34479f8575`.
+This export subsequently retired during 006a; its identity is historical, and
+the receipt-availability limit in 006a below applies to later reuse.
 Final allocations: `onpc-system-yg6gu6qf` (Fedora) and
 `onpc-system-dks99oc9` (Ubuntu). The diagnostic helper SHA-256 is
 `2db892875ff62f3a050cd8c8309e23fd7773a7acf131673e9d6045d4db0eece0`;
@@ -1021,9 +1029,9 @@ to Reliability 006b without completing that row.
 
 After queue/pointer/brief close-out, the maintained four documentation modules
 passed all 313 cases in
-[20261019T094725Z-f86c5193](../output/test-runs/host/reports/20261019T094725Z-f86c5193/report.md).
-Changed-document links and whitespace passed. Retired historical export/report
-links retain their original identities and point to the cumulative retained proof.
+`20261019T094725Z-f86c5193` (subsequently retired by report retention).
+Changed-document links and whitespace passed. Historical export/report identities
+remain recorded; 006a below records the later cumulative-bundle retirement.
 
 ### Material identity and immutable-pin design — 005a
 
@@ -1064,7 +1072,7 @@ or installed acceptance for the planned mechanism. Only 005a closes.
 
 After queue/pointer/brief close-out, the maintained four-module documentation
 consistency selection passed all **313/313** cases in
-[20261019T095550Z-158c6599](../output/test-runs/host/reports/20261019T095550Z-158c6599/report.md).
+`20261019T095550Z-158c6599` (subsequently retired by report retention).
 Runner-owned cleanup finished. Changed-document links and whitespace passed;
 all other queue rows retain their original status, order, Scope and Requires.
 
@@ -1111,10 +1119,89 @@ host or installed pass for the planned mechanism. Only 005 closes.
 
 After queue/pointer/brief close-out, the maintained four-module documentation
 consistency selection passed **313/313** cases in
-[20261019T100407Z-50c667fb](../output/test-runs/host/reports/20261019T100407Z-50c667fb/report.md).
+`20261019T100407Z-50c667fb` (subsequently retired by report retention).
 Runner-owned cleanup finished. Links for all nine changed Markdown documents
 and whitespace checks passed; every other queue row retains its original
 status, order, Scope and Requires.
+
+### Owned immutable-view primitives — 006a
+
+Host acceptance passed on 2026-10-19 UTC. The deliberately unwired primitives in
+[preparation](../tools/kiosk_confinement.py) and the
+[native owner](../tools/kiosk_confinement.h) provide finite runtime membership,
+independent copies, source-local assertions, exact receipt/mount verification,
+atomic no-replace publication and ticket-owned incomplete recovery. Directory
+walks retain inode/trust checks without making unrelated sibling timestamps
+authoritative; measured files retain all eight assertion fields. Source SELinux
+labels must match the installed file-context policy and copies preserve them.
+The shared row/manifest/copy and four-generation ceilings remain in force.
+
+Native acquisition uses the reviewed bounded namespace-entry child, atomic pidfd
+ownership and one checked descriptor transfer. Failed reaping retains its pidfd
+and blocks reuse until owned recovery succeeds. Actual staging clearance and
+read-only attachment precede native ready publication. The original manager's
+mount references are never cleanup targets. The kernel's direct foreign-namespace
+clone refusal was reproduced before this correction; the permanent lifetime
+witness preserves that namespace boundary rather than substituting a local source.
+
+The exact six-module host selection passed **1,461/1,461** cases in
+[20261019T102801Z-85589297](../output/test-runs/host/reports/20261019T102801Z-85589297/report.md),
+including all **33 native** and **50 storage** witnesses, existing confinement/PAM
+callers and both scheduling inventories. Real mounted witnesses prove original
+copied bytes, an unlinked vendor inode and directory contents survive staging
+detach, source-owner exit, host replacement and a new attachment after clone-FD
+closure. Missing recursion, foreign mounts/targets, wrong identity/ownership,
+syscall failures, before/after-ready crashes, partial publication, copy growth,
+tampering and cleanup recovery refuse independently. The namespace fixtures use
+real kernel mounts; positive SELinux policy/xattr observations use explicit host
+doubles and do not qualify actual PAM/MAC bootstrap access.
+
+Development failures included missing fixture headers, unsafe fixture-created
+permissions and directory timestamp sensitivity. Their original diagnostics and
+the foreign-namespace refusal were retained before report rotation; assertions
+were preserved. Independent GPT-6.1 Sol High review accepted the final ownership
+and publication boundaries. Every worker finished before the final acceptance
+run. Resource review covers private files, anonymous sockets, bounded native
+children/namespaces, descriptors and compilers; unit classification was updated,
+with no new cleanup/UI inventory owner. Runner and build cleanup finished. No
+product installation, VM, service or shared mount changed; the pre-existing
+proof-document edit remains untouched.
+
+After queue/pointer/brief close-out, all **313/313** maintained documentation
+consistency checks passed in
+[20261019T103152Z-c98572c1](../output/test-runs/host/reports/20261019T103152Z-c98572c1/report.md).
+The [verified cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-gm3h4vqz/evidence.zip)
+retains the original development failures, the final affected host report and
+the documentation report (65 files). Bundle SHA-256:
+`a7a5b3cc93999cc295124124736dd28015ddf496e91802c5753676d6987ad9b1`.
+Export verification and owned cleanup completed. This bundle contains 006a host
+evidence only; it does not replace the retired installed bundles below.
+
+`make build` passed for both package formats after the final packaged edit.
+Package-source digest:
+`df3404d2c0dd671185d38f6e71f9738a3a5dd7c2373975127fcd26b76b859971`.
+DEB SHA-256:
+`8a415b3aa65d8b142b3f2abbe050aacb205a7db899cd4bff33893131a34fed6a`;
+RPM SHA-256:
+`13932af6f05f0ad3619d5a7a96e9c81c16110b3fe8416f843b9a01f72ef2290c`.
+Native source SHA-256:
+`93f067692c28723005ea3c56e3500ee1f7deb1d4d5349abbb7744775f4f21cb8`;
+preparation source SHA-256:
+`09f5142bc62fe45ac789697b0f8d6d207e3dae17c625afd614828f257de572ee`.
+
+Only 006a closes. Selection/attested membership and material identity remain
+006b; full source/invocation receipt parsing, manager proof, transaction-deadline
+composition, source role/content/link verification and actual bootstrap/MAC
+permissions remain 006, with installed acceptance at 007a/007. Current admission
+does not call these primitives and has no new mutable-source fallback.
+
+Receipt availability: separate diagnostic exports in this task consumed the
+three-export window and retired the older 004a/004 cumulative bundles without
+carrying them forward. Their recorded results, source/package identities and
+hashes above remain historical; this host task supplies no replacement installed
+receipt. The existing 011a evidence audit must establish available matching
+receipts or allocate fresh affected histories before any reuse. No earlier row
+is requalified or given new acceptance credit by this close-out.
 
 ### Remaining execution and acceptance
 

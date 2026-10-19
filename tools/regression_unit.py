@@ -1028,7 +1028,14 @@ from regression_ui import Bucket
 # file and in-process pipe/clock doubles; the compatible classification holds.
 # The native setup-barrier checks stat tiny unopened pytest-private FIFOs;
 # they acquire no worker or live pipe reader and retain compatible isolation.
+# Immutable-view primitives use pytest-private copy/receipt trees and owned FDs.
+# Native probes compile in private scratch and run as bounded, waited children
+# in their own user/mount namespaces with private propagation. Native clone
+# workers use anonymous descriptor sockets and are bounded and reaped. They acquire no
+# host mount, service, bus, display, VM, network or shared cache; compatible unit
+# overlap is safe. Neither module participates in cleanup or UI inventories.
 REVIEWED = frozenset("""
+kiosk_pin_native kiosk_pin_storage
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

@@ -356,6 +356,14 @@ the whole layout and prepares new bindings from host names. This section grants
 no host or installed acceptance and does not change the phase-local contract
 above until the complete replacement passes its own checks.
 
+Unwired [006a primitives and host evidence](../Kiosk-Prompt.md#owned-immutable-view-primitives--006a)
+now exist in `RuntimeCopyPublication` / `verify_runtime_copies()` and native
+`kiosk_pin_acquire()` / `kiosk_pin_attach()` / `kiosk_pin_finish()` /
+`kiosk_pin_publish()` / `kiosk_pin_release()`. Callers must independently select
+the finite runtime specs and pin receipt provenance; supporting disk copies or
+ready records alone grant no admission authority. Selection and full native
+composition remain 006b/006, followed by installed qualification at 007a/007.
+
 **Two identities.** Define a versioned, canonically encoded material record
 `M` containing the exact attested config/policy digest pair, backend, configured
 native roles and source/destination substitutions, selected optional alternatives,
@@ -470,6 +478,22 @@ to admit after losing the manager. The admission proof below defines acquisition
 identity rechecks and the exit/reexec boundary.
 Failure of the public API or its existing trusted-caller permission denies;
 there is no legacy pathname fallback or new payload mount authority.
+
+An attached source in another mount namespace cannot be cloned directly by the
+caller: the kernel's [source-namespace check](https://code.googlesource.com/linux/torvalds/linux/+/f24ba334afafc70c3149e9db9c0cf8ecc6d52a09/fs/namespace.c)
+rejects that operation. Native acquisition uses one bounded, non-exec child to
+enter the already pinned source mount namespace with
+[setns](https://man7.org/linux/man-pages/man2/setns.2.html), clone the already
+checked `/usr` descriptor and return exactly one close-on-exec descriptor through
+an anonymous descriptor socket. The parent never changes its namespace, root or
+working directory. It owns the worker deadline, identity-safe termination/reaping,
+strict message validation and repeated source, namespace and clone checks.
+The child uses only syscall wrappers and stack storage after creation; it does
+not parse receipts, allocate, log, execute preparation or modify source dentries.
+The existing trusted caller must have the required namespace-entry permissions,
+including `CAP_SYS_ADMIN` and `CAP_SYS_CHROOT`; the host namespace fixture does
+not qualify actual PAM permissions on either MAC backend. Native composition and
+installed qualification retain that obligation. No payload capability is added.
 
 Use only these closed source classes:
 

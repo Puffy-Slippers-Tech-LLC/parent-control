@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <stdint.h>
 #include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <sys/xattr.h>
 
 #ifndef KIOSK_CONFINEMENT_PREPARE
@@ -311,6 +312,617 @@ kiosk_absolute_parent(const char *path, char name[PATH_MAX])
     return parent;
 }
 
+#include <sys/statvfs.h>
+#include <sys/socket.h>
+#include <sys/prctl.h>
+#include <poll.h>
+#include <linux/sched.h>
+#include <sys/syscall.h>
+#include <time.h>
+
+/* Retained-source primitives only. Admission deliberately does not call these
+ * until manager proof, native receipt parsing and final validation compose in
+ * 006. Callers supply independently checked receipt provenance, including every
+ * skeleton ancestor and mounted source; these records never authorize a host
+ * pathname or establish manager liveness. Inode/type/mount coverage here is
+ * additional to the role-specific content, capability and label checks. */
+struct kiosk_pin_entry {
+    const char *relative;
+    dev_t device;
+    ino_t inode;
+    mode_t mode;
+    uid_t uid;
+    gid_t gid;
+    unsigned parent, mountpoint;
+};
+
+struct kiosk_source_pin {
+    /* Initialize all three descriptor fields to -1. A refused worker cleanup
+     * retains its pidfd here until release proves reaping; no scratch recovery
+     * or publication is permitted while that owned child remains unresolved. */
+    int fd, parent, worker;
+    char name[PATH_MAX];
+    dev_t namespace_device;
+    ino_t namespace_inode;
+    unsigned long long attached_id;
+    int attached, verified, complete, published;
+};
+
+struct kiosk_pin_target {
+    dev_t parent_device, device;
+    ino_t parent_inode, inode;
+    unsigned long long parent_mount, mount;
+};
+
+struct kiosk_pin_namespace {
+    int fd;
+    dev_t device;
+    ino_t inode;
+};
+
+static int
+kiosk_pin_reap_worker(int pidfd, struct kiosk_failure *failure)
+{
+    struct timespec start, now;
+    if (syscall(SYS_pidfd_send_signal, pidfd, SIGKILL, NULL, 0) != 0 && errno != ESRCH) {
+        kiosk_failure(failure, "pin", "clone-cleanup", errno);
+        return -1;
+    }
+    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {
+        kiosk_failure(failure, "pin", "clone-cleanup", errno);
+        return -1;
+    }
+    for (;;) {
+        siginfo_t observed = {0};
+        int waited = waitid(P_PIDFD, (id_t) pidfd, &observed, WEXITED | WNOHANG | __WCLONE);
+        if ((waited == 0 && observed.si_pid != 0) || (waited < 0 && errno == ECHILD)) return 0;
+        if (waited < 0 && errno != EINTR) { kiosk_failure(failure, "pin", "clone-cleanup", errno); return -1; }
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 || now.tv_sec - start.tv_sec >= 5) {
+            kiosk_failure(failure, "pin", "clone-cleanup", ETIMEDOUT); return -1;
+        }
+        struct timespec pause = {.tv_nsec = 1000000}; nanosleep(&pause, NULL);
+    }
+}
+
+/* An ordinary attached source must belong to open_tree's calling namespace.
+ * Use a bounded native child to enter the already-proven source namespace;
+ * the PAM caller's namespace/root/cwd never change. The child performs only
+ * syscall wrappers and stack operations after fork, including on failure: PAM
+ * may be multithreaded, so no allocator, stdio, parser, logger or exec is legal
+ * there. Parent owns all source/topology/receipt validation before and after.
+ * Existing trusted bootstrap permission is mandatory; setns denial is final.
+ */
+static int
+kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source,
+                       int *pending_worker, struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    struct stat initial, current, source_info;
+    struct statfs filesystem;
+    struct timespec start, now;
+    int ns = -1, sockets[2] = {-1, -1}, clone = -1, result = -1, received = -1, child_pidfd = -1;
+    pid_t child = -1, caller = getpid();
+    int reaped = 0;
+    if (source == NULL || source->fd < 0 || fstat(source->fd, &source_info) != 0 ||
+        source_info.st_dev != source->device || source_info.st_ino != source->inode ||
+        fstatfs(source->fd, &filesystem) != 0 || filesystem.f_type != 0x6e736673 ||
+        (fcntl(source->fd, F_GETFL) & O_PATH) ||
+        (ns = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC)) < 0 || fstat(ns, &initial) != 0)
+        goto done;
+    if (source->device == initial.st_dev && source->inode == initial.st_ino) {
+        clone = open_tree(checked_usr, "", OPEN_TREE_CLONE | AT_RECURSIVE | AT_EMPTY_PATH | OPEN_TREE_CLOEXEC);
+        if (clone < 0) kiosk_failure(failure, "pin", "clone", errno);
+        int current_ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+        int unchanged = current_ns >= 0 && fstat(current_ns, &current) == 0 &&
+            current.st_dev == initial.st_dev && current.st_ino == initial.st_ino &&
+            fstat(source->fd, &source_info) == 0 && source_info.st_dev == source->device && source_info.st_ino == source->inode;
+        if (current_ns >= 0) close(current_ns);
+        if (!unchanged) goto done;
+        result = clone;
+        clone = -1;
+        goto done;
+    }
+    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0 || socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets) != 0)
+        goto done;
+    /* Atomically obtain identity before the child can exit or another PAM
+     * thread can reap it. No numeric-PID signalling fallback is permitted.
+     * A private clone child avoids ordinary SIGCHLD reapers; pidfd identity
+     * still protects against an unrelated __WALL reaper. */
+    struct clone_args arguments = {.flags = CLONE_PIDFD | CLONE_CLEAR_SIGHAND, .pidfd = (uintptr_t) &child_pidfd};
+    child = (pid_t) syscall(SYS_clone3, &arguments, sizeof(arguments));
+    if (child == 0) {
+        int error = 0, local = -1, observed = -1;
+        struct stat info;
+        close(sockets[0]);
+        if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 || getppid() != caller)
+            _exit(1);
+        if (setns(source->fd, CLONE_NEWNS) != 0) error = errno;
+        if (!error) {
+            observed = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+            if (observed < 0 || fstat(observed, &info) != 0) error = errno;
+            else if (info.st_dev != source->device || info.st_ino != source->inode) error = ESTALE;
+            if (observed >= 0) close(observed);
+        }
+        if (!error) {
+            local = open_tree(checked_usr, "", OPEN_TREE_CLONE | AT_RECURSIVE | AT_EMPTY_PATH | OPEN_TREE_CLOEXEC);
+            if (local < 0) error = errno;
+        }
+        char control[CMSG_SPACE(sizeof(local))] = {0};
+        struct iovec io = {.iov_base = &error, .iov_len = sizeof(error)};
+        struct msghdr message = {.msg_iov = &io, .msg_iovlen = 1};
+        if (local >= 0) {
+            message.msg_control = control;
+            message.msg_controllen = sizeof(control);
+            struct cmsghdr *cmsg = CMSG_FIRSTHDR(&message);
+            cmsg->cmsg_level = SOL_SOCKET; cmsg->cmsg_type = SCM_RIGHTS;
+            cmsg->cmsg_len = CMSG_LEN(sizeof(local));
+            /* Avoid libc memcpy after fork: the ancillary payload is one int. */
+            *(int *) CMSG_DATA(cmsg) = local;
+        }
+        ssize_t sent = sendmsg(sockets[1], &message, MSG_NOSIGNAL);
+        if (local >= 0) close(local);
+        close(sockets[1]);
+        _exit(sent == (ssize_t) sizeof(error) ? 0 : 1);
+    }
+    if (child < 0)
+        goto done;
+    close(sockets[1]); sockets[1] = -1;
+    for (;;) {
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+            goto done;
+        long elapsed = (now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000;
+        if (elapsed >= 5000) { kiosk_failure(failure, "pin", "clone-timeout", ETIMEDOUT); goto done; }
+        struct pollfd channel = {.fd = sockets[0], .events = POLLIN};
+        int ready = poll(&channel, 1, (int) (5000 - elapsed));
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready <= 0) { kiosk_failure(failure, "pin", "clone-timeout", ready == 0 ? ETIMEDOUT : errno); goto done; }
+        break;
+    }
+    int error = -1;
+    char control[CMSG_SPACE(sizeof(int))] = {0};
+    struct iovec io = {.iov_base = &error, .iov_len = sizeof(error)};
+    struct msghdr message = {.msg_iov = &io, .msg_iovlen = 1, .msg_control = control, .msg_controllen = sizeof(control)};
+    ssize_t bytes = recvmsg(sockets[0], &message, MSG_CMSG_CLOEXEC | MSG_DONTWAIT);
+    unsigned descriptors = 0;
+    int ancillary_valid = 1;
+    for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&message); cmsg != NULL; cmsg = CMSG_NXTHDR(&message, cmsg)) {
+        if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS || cmsg->cmsg_len < CMSG_LEN(0)) {
+            ancillary_valid = 0;
+            continue;
+        }
+        size_t length = cmsg->cmsg_len - CMSG_LEN(0);
+        if (length % sizeof(int) != 0) ancillary_valid = 0;
+        int *fds = (int *) CMSG_DATA(cmsg);
+        for (size_t i = 0; i < length / sizeof(int); i++) {
+            descriptors++;
+            if (received < 0) received = fds[i];
+            else close(fds[i]);
+        }
+    }
+    if (bytes != (ssize_t) sizeof(error) || (message.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) || !ancillary_valid ||
+        (error == 0 ? descriptors != 1 : descriptors != 0))
+        goto done;
+    if (error != 0) { kiosk_failure(failure, "pin", "clone-worker", error); goto done; }
+    /* Reap this exact private child with the same absolute deadline; never
+     * trust a successful message alone or adopt another thread's reaping. */
+    siginfo_t exit_info = {0};
+    for (;;) {
+        int waited = waitid(P_PIDFD, (id_t) child_pidfd, &exit_info, WEXITED | WNOHANG | __WCLONE);
+        if (waited == 0 && exit_info.si_pid != 0) { reaped = 1; break; }
+        if (waited < 0 && errno != EINTR) { if (errno == ECHILD) reaped = 1; goto done; }
+        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 || now.tv_sec - start.tv_sec >= 5)
+            goto done;
+        struct timespec pause = {.tv_nsec = 1000000}; nanosleep(&pause, NULL);
+    }
+    if (exit_info.si_code != CLD_EXITED || exit_info.si_status != 0 ||
+        fstat(source->fd, &source_info) != 0 || source_info.st_dev != source->device || source_info.st_ino != source->inode)
+        goto done;
+    int current_ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+    int unchanged = current_ns >= 0 && fstat(current_ns, &current) == 0 &&
+        current.st_dev == initial.st_dev && current.st_ino == initial.st_ino;
+    if (current_ns >= 0) close(current_ns);
+    int descriptor_flags = fcntl(received, F_GETFD);
+    if (!unchanged || descriptor_flags < 0 || !(descriptor_flags & FD_CLOEXEC))
+        goto done;
+    result = received; received = -1;
+done:
+    if (child > 0 && child_pidfd >= 0 && !reaped) {
+        /* Only the atomically acquired child pidfd is signalled. Source
+         * manager and reused numeric PIDs are never recovery targets. */
+        if (kiosk_pin_reap_worker(child_pidfd, cleanup_failure) != 0) {
+            *pending_worker = child_pidfd;
+            child_pidfd = -1;
+        }
+    }
+    if (sockets[0] >= 0) close(sockets[0]);
+    if (sockets[1] >= 0) close(sockets[1]);
+    if (received >= 0) close(received);
+    if (clone >= 0) close(clone);
+    if (ns >= 0) close(ns);
+    if (child_pidfd >= 0) close(child_pidfd);
+    if (result < 0) kiosk_failure(failure, "pin", "clone", -1);
+    return result;
+}
+
+struct kiosk_pin_mount_row {
+    unsigned long long id, parent;
+    char *path;
+    int readonly, within;
+};
+
+static int
+kiosk_pin_decode_mountpath(char *encoded)
+{
+    size_t n = strlen(encoded), out = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (encoded[i] == '\\') {
+            if (i + 3 >= n || (strncmp(encoded + i, "\\040", 4) != 0 &&
+                strncmp(encoded + i, "\\011", 4) != 0 && strncmp(encoded + i, "\\012", 4) != 0 &&
+                strncmp(encoded + i, "\\134", 4) != 0))
+                return -1;
+            encoded[out++] = (char) ((encoded[i + 1] - '0') * 64 +
+                (encoded[i + 2] - '0') * 8 + encoded[i + 3] - '0');
+            i += 3;
+        } else encoded[out++] = encoded[i];
+    }
+    encoded[out] = '\0';
+    return kiosk_path(encoded, 1) ? 0 : -1;
+}
+
+static int
+kiosk_pin_mount_compare(const void *a, const void *b)
+{
+    const struct kiosk_pin_mount_row *left = a, *right = b;
+    return left->id < right->id ? -1 : left->id != right->id;
+}
+
+/* mountinfo must be opened natively through the checked manager proc object;
+ * a helper-generated text file is never topology evidence. Detached trees have
+ * no mountinfo pathname: source topology is checked around recursive cloning,
+ * and the actual clone topology is checked again upon private attachment. */
+static int
+kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path,
+                   const struct kiosk_pin_entry *entries, unsigned entry_count,
+                   struct kiosk_failure *failure)
+{
+    struct statfs filesystem;
+    struct kiosk_pin_mount_row *rows = NULL;
+    FILE *stream = NULL;
+    char *line = NULL;
+    size_t capacity = 0, bytes = 0;
+    unsigned count = 0, expected = 0, observed = 0;
+    unsigned *chain = NULL;
+    int result = -1, fd = -1;
+    if (!kiosk_path(root_path, 1) || entries == NULL || !entry_count || entry_count > KIOSK_VIEW_ROWS ||
+        fstatfs(mountinfo, &filesystem) != 0 || filesystem.f_type != 0x9fa0 ||
+        (fd = fcntl(mountinfo, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0 || lseek(fd, 0, SEEK_SET) != 0 ||
+        (stream = fdopen(fd, "r")) == NULL)
+        goto done;
+    fd = -1;
+    rows = calloc(KIOSK_VIEW_ROWS, sizeof(*rows));
+    if (rows == NULL)
+        goto done;
+    ssize_t length;
+    while ((length = getline(&line, &capacity, stream)) >= 0) {
+        char encoded[PATH_MAX], options[256], tail;
+        struct kiosk_pin_mount_row *row;
+        if (count == KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX ||
+            line[length - 1] != '\n' || (bytes += (size_t) length) > KIOSK_VIEW_BYTES ||
+            memchr(line, '\0', (size_t) length) != NULL || strstr(line, " - ") == NULL)
+            goto done;
+        row = &rows[count];
+        if (sscanf(line, "%llu %llu %*s %*s %4095s %255s%c", &row->id, &row->parent,
+                   encoded, options, &tail) != 5 || row->id == 0 || row->parent == row->id || tail != ' ')
+            goto done;
+        if (kiosk_pin_decode_mountpath(encoded) != 0 || (row->path = strdup(encoded)) == NULL)
+            goto done;
+        row->readonly = strcmp(options, "ro") == 0 || strncmp(options, "ro,", 3) == 0;
+        count++;
+    }
+    if (ferror(stream) || count == 0)
+        goto done;
+    qsort(rows, count, sizeof(*rows), kiosk_pin_mount_compare);
+    for (unsigned i = 1; i < count; i++)
+        if (rows[i - 1].id == rows[i].id)
+            goto done;
+    struct kiosk_pin_mount_row key = {.id = root};
+    struct kiosk_pin_mount_row *root_row = bsearch(&key, rows, count, sizeof(*rows), kiosk_pin_mount_compare);
+    if (root_row == NULL || strcmp(root_row->path, root_path) != 0 ||
+        (chain = calloc(count, sizeof(*chain))) == NULL)
+        goto done;
+    root_row->within = 1;
+    for (unsigned i = 0; i < entry_count; i++)
+        expected += entries[i].mountpoint != 0;
+    for (unsigned i = 0; i < count; i++) {
+        struct kiosk_pin_mount_row *row = &rows[i], *ancestor = row;
+        unsigned depth = 0;
+        while (ancestor != NULL && ancestor->within == 0) {
+            ancestor->within = 3;
+            chain[depth++] = (unsigned) (ancestor - rows);
+            key.id = ancestor->parent;
+            ancestor = bsearch(&key, rows, count, sizeof(*rows), kiosk_pin_mount_compare);
+        }
+        if (ancestor != NULL && ancestor->within == 3)
+            goto done;
+        int within = ancestor == NULL ? 2 : ancestor->within;
+        for (unsigned j = 0; j < depth; j++) rows[chain[j]].within = within;
+        if (row->within != 1)
+            continue;
+        if (!row->readonly)
+            goto done;
+        const char *relative = row->path + strlen(root_path);
+        if (row->id == root)
+            relative = "";
+        else if (!kiosk_below(row->path, root_path))
+            goto done;
+        else relative++;
+        unsigned low = 0, high = entry_count;
+        while (low < high) {
+            unsigned mid = low + (high - low) / 2;
+            if (strcmp(entries[mid].relative, relative) < 0) low = mid + 1;
+            else high = mid;
+        }
+        if (low == entry_count || strcmp(entries[low].relative, relative) != 0 || !entries[low].mountpoint)
+            goto done;
+        observed++;
+    }
+    if (observed != expected)
+        goto done;
+    result = 0;
+done:
+    if (stream != NULL) fclose(stream);
+    if (fd >= 0) close(fd);
+    free(line);
+    free(chain);
+    if (rows != NULL) {
+        for (unsigned i = 0; i < count; i++) free(rows[i].path);
+        free(rows);
+    }
+    if (result != 0) kiosk_failure(failure, "pin", "topology", -1);
+    return result;
+}
+
+static int
+kiosk_pin_fd_mount(int fd, unsigned long long *id)
+{
+    struct statx info;
+    if (statx(fd, "", AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW, STATX_MNT_ID, &info) != 0 ||
+        !(info.stx_mask & STATX_MNT_ID))
+        return -1;
+    *id = info.stx_mnt_id;
+    return 0;
+}
+
+static int
+kiosk_pin_attached_topology(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                            struct kiosk_failure *failure)
+{
+    char descriptor[64], path[PATH_MAX];
+    unsigned long long id;
+    snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", root);
+    ssize_t length = readlink(descriptor, path, sizeof(path) - 1);
+    if (length <= 0 || length >= (ssize_t) sizeof(path) - 1 || kiosk_pin_fd_mount(root, &id) != 0)
+        return -1;
+    path[length] = '\0';
+    int mountinfo = open("/proc/self/mountinfo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    int result = mountinfo < 0 ? -1 : kiosk_pin_topology(mountinfo, id, path, entries, count, failure);
+    if (mountinfo >= 0) close(mountinfo);
+    return result;
+}
+
+static int
+kiosk_pin_same_stat(const struct stat *a, const struct stat *b)
+{
+    return a->st_dev == b->st_dev && a->st_ino == b->st_ino &&
+        a->st_size == b->st_size && a->st_mode == b->st_mode &&
+        a->st_uid == b->st_uid && a->st_gid == b->st_gid &&
+        a->st_mtim.tv_sec == b->st_mtim.tv_sec && a->st_mtim.tv_nsec == b->st_mtim.tv_nsec &&
+        a->st_ctim.tv_sec == b->st_ctim.tv_sec && a->st_ctim.tv_nsec == b->st_ctim.tv_nsec;
+}
+
+static int
+kiosk_pin_open(int root, const char *relative)
+{
+    char name[PATH_MAX];
+    if (relative[0] == '\0')
+        return fcntl(root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+    int parent = kiosk_parent(root, relative, name);
+    int fd = parent < 0 ? -1 : openat(parent, name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+    if (parent >= 0)
+        close(parent);
+    return fd;
+}
+
+/* A mount boundary is checked independently of inode equality: a bind may
+ * contain the same inode as its covered placeholder. Parent closure means a
+ * missing recursive submount cannot be mistaken for an ordinary source. Mount
+ * IDs are local observations and never receipt/hash inputs. */
+static int
+kiosk_pin_coverage(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                   int readonly, struct kiosk_failure *failure)
+{
+    unsigned long long *ids = NULL;
+    int result = -1;
+    if (entries == NULL || count == 0 || count > KIOSK_VIEW_ROWS ||
+        entries[0].relative == NULL || entries[0].relative[0] != '\0' ||
+        entries[0].parent != 0 || entries[0].mountpoint != 1 || !S_ISDIR(entries[0].mode) ||
+        (ids = calloc(count, sizeof(*ids))) == NULL)
+        goto done;
+    for (unsigned i = 0; i < count; i++) {
+        const struct kiosk_pin_entry *entry = &entries[i];
+        struct stat info;
+        struct statfs filesystem;
+        if (entry->relative == NULL || entry->mountpoint > 1 || entry->uid != 0 ||
+            (entry->mode & 022) || (!S_ISREG(entry->mode) && !S_ISDIR(entry->mode)))
+            goto done;
+        if (i != 0) {
+            if (!kiosk_path(entry->relative, 0) || entry->parent >= i ||
+                !S_ISDIR(entries[entry->parent].mode))
+                goto done;
+            const char *slash = strrchr(entry->relative, '/');
+            size_t length = slash == NULL ? 0 : (size_t) (slash - entry->relative);
+            const char *parent = entries[entry->parent].relative;
+            if (strlen(parent) != length || strncmp(parent, entry->relative, length) != 0)
+                goto done;
+            if (strcmp(entries[i - 1].relative, entry->relative) >= 0)
+                goto done;
+        }
+        int fd = kiosk_pin_open(root, entry->relative);
+        int valid = fd >= 0 && fstat(fd, &info) == 0 &&
+            info.st_dev == entry->device && info.st_ino == entry->inode &&
+            info.st_mode == entry->mode && info.st_uid == entry->uid && info.st_gid == entry->gid &&
+            (!S_ISREG(info.st_mode) || info.st_nlink <= 1) &&
+            kiosk_pin_fd_mount(fd, &ids[i]) == 0 &&
+            (!readonly || (fstatfs(fd, &filesystem) == 0 && (filesystem.f_flags & ST_RDONLY)));
+        if (fd >= 0)
+            close(fd);
+        if (!valid || (i != 0 &&
+            ((ids[i] != ids[entry->parent]) != (entry->mountpoint != 0))))
+            goto done;
+    }
+    result = 0;
+done:
+    free(ids);
+    if (result != 0)
+        kiosk_failure(failure, "pin", readonly ? "readonly" : "coverage", -1);
+    return result;
+}
+
+static inline int
+kiosk_pin_acquire(struct kiosk_source_pin *pin, int checked_usr, int mountinfo, const char *mount_path,
+                  const struct kiosk_pin_namespace *source_namespace,
+                  const struct kiosk_pin_entry *entries, unsigned count,
+                  struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    struct stat before, after;
+    unsigned long long source_id, current_id, clone_id;
+    int clone = -1;
+    if (pin->fd != -1 || pin->parent != -1 || pin->worker != -1 || pin->attached || pin->verified || pin->complete ||
+        fstat(checked_usr, &before) != 0 || !kiosk_trusted_stat(&before, S_IFDIR) ||
+        kiosk_pin_fd_mount(checked_usr, &source_id) != 0 ||
+        kiosk_pin_coverage(checked_usr, entries, count, 1, failure) != 0 ||
+        kiosk_pin_topology(mountinfo, source_id, mount_path, entries, count, failure) != 0)
+        goto denied;
+    clone = kiosk_pin_clone_worker(checked_usr, source_namespace, &pin->worker, failure, cleanup_failure);
+    if (kiosk_os_failure(failure, "pin", "clone", clone < 0))
+        goto denied;
+    if (fstat(checked_usr, &after) != 0 || !kiosk_pin_same_stat(&before, &after) ||
+        kiosk_pin_fd_mount(checked_usr, &current_id) != 0 || source_id != current_id ||
+        kiosk_pin_fd_mount(clone, &clone_id) != 0 || clone_id == source_id ||
+        kiosk_pin_coverage(clone, entries, count, 1, failure) != 0 ||
+        kiosk_pin_coverage(checked_usr, entries, count, 1, failure) != 0 ||
+        kiosk_pin_topology(mountinfo, source_id, mount_path, entries, count, failure) != 0)
+        goto denied;
+    pin->fd = clone;
+    return 0;
+denied:
+    if (clone >= 0)
+        close(clone); /* An unattached open_tree clone releases all references. */
+    kiosk_failure(failure, "pin", "identity", -1);
+    return -1;
+}
+
+/* Only an independently owned fresh invocation target is legal here. Native
+ * composition must check that ownership before calling; no source dentry is
+ * ever modified. Parent/name are retained for identity-owned failure cleanup. */
+static inline int
+kiosk_pin_attach(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+                 const struct kiosk_pin_target *expected,
+                 const struct kiosk_pin_entry *entries, unsigned count,
+                 struct kiosk_failure *failure)
+{
+    struct stat info, parent_info, namespace_info;
+    struct mount_attr readonly = {.attr_set = MOUNT_ATTR_RDONLY};
+    unsigned long long previous;
+    int target = -1, attached = -1, ns = -1, result = -1;
+    if (pin->fd < 0 || pin->parent != -1 || pin->attached || expected == NULL || !kiosk_path(name, 0) ||
+        strchr(name, '/') != NULL || kiosk_pin_coverage(pin->fd, entries, count, 1, failure) != 0)
+        goto done;
+    ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+    target = openat(owned_parent, name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    unsigned long long parent_id;
+    if (ns < 0 || fstat(ns, &namespace_info) != 0 || target < 0 ||
+        fstat(owned_parent, &parent_info) != 0 || !kiosk_trusted_stat(&parent_info, S_IFDIR) ||
+        parent_info.st_dev != expected->parent_device || parent_info.st_ino != expected->parent_inode ||
+        kiosk_pin_fd_mount(owned_parent, &parent_id) != 0 || parent_id != expected->parent_mount ||
+        fstat(target, &info) != 0 || !kiosk_trusted_stat(&info, S_IFDIR) ||
+        info.st_dev != expected->device || info.st_ino != expected->inode ||
+        kiosk_pin_fd_mount(target, &previous) != 0 || previous != expected->mount ||
+        (pin->parent = fcntl(owned_parent, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0)
+        goto done;
+    strcpy(pin->name, name);
+    pin->namespace_device = namespace_info.st_dev;
+    pin->namespace_inode = namespace_info.st_ino;
+    /* Record the detached clone ID before move_mount so even an immediate
+     * post-attach inspection failure leaves identity-owned cleanup authority. */
+    if (kiosk_pin_fd_mount(pin->fd, &pin->attached_id) != 0 || pin->attached_id == previous)
+        goto done;
+    if (kiosk_os_failure(failure, "pin", "attach",
+        move_mount(pin->fd, "", target, "", MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH) != 0))
+        goto done;
+    pin->attached = 1;
+    attached = openat(pin->parent, pin->name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    unsigned long long actual;
+    if (attached < 0 || kiosk_pin_fd_mount(attached, &actual) != 0 || actual != pin->attached_id ||
+        kiosk_os_failure(failure, "pin", "readonly",
+            mount_setattr(attached, "", AT_EMPTY_PATH | AT_RECURSIVE, &readonly, sizeof(readonly)) != 0) ||
+        kiosk_pin_coverage(attached, entries, count, 1, failure) != 0 ||
+        kiosk_pin_attached_topology(attached, entries, count, failure) != 0)
+        goto done;
+    pin->verified = 1;
+    result = 0;
+done:
+    if (target >= 0) close(target);
+    if (attached >= 0) close(attached);
+    if (ns >= 0) close(ns);
+    if (result != 0) kiosk_failure(failure, "pin", "identity", -1);
+    return result;
+}
+
+/* keep_attachment is valid only after the caller's attach/read-only/staging
+ * detach/publication transaction succeeds. Closing setup descriptors then
+ * leaves the attached tree owning its mount references. Failure cleanup never
+ * detaches a foreign namespace, parent or replacement mount. */
+static inline int
+kiosk_pin_release(struct kiosk_source_pin *pin, int keep_attachment, struct kiosk_failure *failure)
+{
+    int result = 0;
+    if (keep_attachment && (!pin->attached || !pin->verified || !pin->complete || !pin->published || pin->worker >= 0)) {
+        kiosk_failure(failure, "pin", "incomplete", -1);
+        return -1;
+    }
+    if (pin->worker >= 0) {
+        if (kiosk_pin_reap_worker(pin->worker, failure) != 0)
+            result = -1;
+        else { close(pin->worker); pin->worker = -1; }
+    }
+    if (pin->attached && !keep_attachment) {
+        struct stat info;
+        unsigned long long id;
+        char path[PATH_MAX + 64];
+        int ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+        int fd = pin->parent < 0 ? -1 : openat(pin->parent, pin->name,
+            O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        if (ns < 0 || fstat(ns, &info) != 0 || info.st_dev != pin->namespace_device ||
+            info.st_ino != pin->namespace_inode || fd < 0 ||
+            kiosk_pin_fd_mount(fd, &id) != 0 || id != pin->attached_id ||
+            snprintf(path, sizeof(path), "/proc/self/fd/%d/%s", pin->parent, pin->name) >= (int) sizeof(path)) {
+            kiosk_failure(failure, "pin", "detach-identity", -1);
+            result = -1;
+        } else if (kiosk_os_failure(failure, "pin", "detach", umount2(path, MNT_DETACH) != 0)) {
+            result = -1;
+        } else {
+            pin->attached = 0;
+            pin->verified = pin->complete = pin->published = 0;
+        }
+        if (fd >= 0) close(fd);
+        if (ns >= 0) close(ns);
+    }
+    if (pin->fd >= 0) { close(pin->fd); pin->fd = -1; }
+    /* Retain parent identity on a refused detach so an owned retry is possible. */
+    if (result == 0 && pin->parent >= 0) { close(pin->parent); pin->parent = -1; }
+    return result;
+}
+
 static int
 kiosk_detach_owned(const char *path, unsigned long long expected, struct kiosk_failure *failure)
 {
@@ -324,6 +936,218 @@ kiosk_detach_owned(const char *path, unsigned long long expected, struct kiosk_f
     if (kiosk_os_failure(failure, "detach", "detach", umount2(path, MNT_DETACH) != 0))
         return -1;
     return 0;
+}
+
+/* Complete only a verified attachment after every native identity-recorded
+ * staging alias is detached. This is the native publication boundary; the
+ * eventual receipt publisher must require it and still verify its own selected
+ * record/marker identities. It grants no manager/admission proof. */
+static int
+kiosk_pin_stage_absent(const struct kiosk_owned_mount *stage)
+{
+    struct statx info;
+    if (statx(AT_FDCWD, stage->path, AT_SYMLINK_NOFOLLOW, STATX_MNT_ID, &info) != 0)
+        return errno == ENOENT;
+    return (info.stx_mask & STATX_MNT_ID) && info.stx_mnt_id != stage->id;
+}
+
+static int
+kiosk_pin_path_compare(const void *a, const void *b)
+{
+    return strcmp(*(const char *const *) a, *(const char *const *) b);
+}
+
+/* An absent original ID is insufficient: a foreign replacement mount or a
+ * surviving alias below that path must also deny completion, without detaching
+ * it. Compare actual native mountinfo against all detached staging roots. */
+static int
+kiosk_pin_staging_clear(const struct kiosk_owned_mount *stages, unsigned count)
+{
+    char **paths = calloc(count, sizeof(*paths));
+    FILE *stream = fopen("/proc/self/mountinfo", "re");
+    char *line = NULL;
+    size_t capacity = 0, bytes = 0;
+    unsigned roots = 0, rows = 0;
+    int result = -1;
+    if (paths == NULL || stream == NULL)
+        goto done;
+    for (unsigned i = 0; i < count; i++)
+        if (!stages[i].live) paths[roots++] = stages[i].path;
+    qsort(paths, roots, sizeof(*paths), kiosk_pin_path_compare);
+    ssize_t length;
+    while ((length = getline(&line, &capacity, stream)) >= 0) {
+        char path[PATH_MAX];
+        if (++rows > KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX || line[length - 1] != '\n' ||
+            (bytes += (size_t) length) > KIOSK_VIEW_BYTES || memchr(line, '\0', (size_t) length) != NULL ||
+            strstr(line, " - ") == NULL || sscanf(line, "%*s %*s %*s %*s %4095s", path) != 1 ||
+            kiosk_pin_decode_mountpath(path) != 0)
+            goto done;
+        for (;;) {
+            char *key = path;
+            if (bsearch(&key, paths, roots, sizeof(*paths), kiosk_pin_path_compare) != NULL)
+                goto done;
+            char *slash = strrchr(path, '/');
+            if (slash == path) break;
+            *slash = '\0';
+        }
+    }
+    if (ferror(stream))
+        goto done;
+    result = 0;
+done:
+    free(paths);
+    free(line);
+    if (stream != NULL) fclose(stream);
+    return result;
+}
+
+static inline int
+kiosk_pin_finish(struct kiosk_source_pin *pin, struct kiosk_owned_mount *stages, unsigned count,
+                 const struct kiosk_pin_entry *entries, unsigned entry_count,
+                 struct kiosk_failure *failure)
+{
+    struct stat info;
+    int ns = -1, attached = -1, result = -1;
+    unsigned long long id;
+    if (!pin->attached || !pin->verified || pin->complete || pin->fd < 0 || pin->parent < 0 ||
+        stages == NULL || count == 0 || count > KIOSK_VIEW_ROWS)
+        goto done;
+    ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+    if (ns < 0 || fstat(ns, &info) != 0 || info.st_dev != pin->namespace_device ||
+        info.st_ino != pin->namespace_inode)
+        goto done;
+    /* Validate the complete cleanup inventory before the first mutation. */
+    for (unsigned i = 0; i < count; i++)
+        if (stages[i].path == NULL || !kiosk_path(stages[i].path, 1) ||
+            stages[i].id == 0 || stages[i].id == pin->attached_id ||
+            (stages[i].live ? (kiosk_mount_id(stages[i].path, &id) != 0 || id != stages[i].id) :
+             !kiosk_pin_stage_absent(&stages[i])))
+            goto done;
+    if (kiosk_pin_staging_clear(stages, count) != 0)
+        goto done;
+    for (unsigned i = count; i > 0; i--)
+        if (stages[i - 1].live) {
+            if (kiosk_detach_owned(stages[i - 1].path, stages[i - 1].id, failure) != 0)
+                goto done;
+            stages[i - 1].live = 0;
+        }
+    for (unsigned i = 0; i < count; i++)
+        if (stages[i].live || !kiosk_pin_stage_absent(&stages[i]))
+            goto done;
+    if (kiosk_pin_staging_clear(stages, count) != 0)
+        goto done;
+    attached = openat(pin->parent, pin->name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (attached < 0 || kiosk_pin_fd_mount(attached, &id) != 0 || id != pin->attached_id ||
+        kiosk_pin_coverage(attached, entries, entry_count, 1, failure) != 0 ||
+        kiosk_pin_attached_topology(attached, entries, entry_count, failure) != 0)
+        goto done;
+    pin->complete = 1;
+    result = 0;
+done:
+    if (ns >= 0) close(ns);
+    if (attached >= 0) close(attached);
+    if (result != 0) kiosk_failure(failure, "pin", "incomplete", -1);
+    return result;
+}
+
+/* Atomic, no-replace publication of a native completion witness. The opaque
+ * receipt hash is the future closed V/I protocol's selected identity; this
+ * primitive cannot select/parse that protocol or admit a manager. A leftover
+ * pending or ready file is never reused. After ready, 006 still requires the
+ * independently verified live view, policy and final MAC before admission. */
+static inline int
+kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+                  const struct kiosk_pin_target *expected, const char *receipt,
+                  const struct kiosk_pin_entry *entries, unsigned count,
+                  int selinux, struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    struct stat parent_info, root_info, named, pending_info, attached_info, namespace_info;
+    unsigned long long id;
+    int root = -1, pending = -1, attached = -1, ns = -1, result = -1, created = 0, renamed = 0;
+    char record[512];
+    if (!pin->complete || !pin->verified || !pin->attached || pin->published || expected == NULL ||
+        receipt == NULL || strlen(receipt) != 64 || !kiosk_path(name, 0) || strchr(name, '/') != NULL)
+        goto done;
+    for (unsigned i = 0; i < 64; i++)
+        if (!((receipt[i] >= '0' && receipt[i] <= '9') || (receipt[i] >= 'a' && receipt[i] <= 'f')))
+            goto done;
+    ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
+    root = openat(owned_parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    attached = openat(pin->parent, pin->name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (ns < 0 || fstat(ns, &namespace_info) != 0 || namespace_info.st_dev != pin->namespace_device ||
+        namespace_info.st_ino != pin->namespace_inode || root < 0 || attached < 0 ||
+        fstat(owned_parent, &parent_info) != 0 || !kiosk_trusted_stat(&parent_info, S_IFDIR) ||
+        parent_info.st_dev != expected->parent_device || parent_info.st_ino != expected->parent_inode ||
+        kiosk_pin_fd_mount(owned_parent, &id) != 0 || id != expected->parent_mount ||
+        fstat(root, &root_info) != 0 || !kiosk_trusted_stat(&root_info, S_IFDIR) ||
+        (root_info.st_mode & 07777) != 0700 || root_info.st_dev != expected->device ||
+        root_info.st_ino != expected->inode || kiosk_pin_fd_mount(root, &id) != 0 || id != expected->mount ||
+        kiosk_label(root, NULL, 0, selinux) != 0 ||
+        kiosk_pin_fd_mount(attached, &id) != 0 || id != pin->attached_id ||
+        fstat(attached, &attached_info) != 0 ||
+        kiosk_pin_coverage(attached, entries, count, 1, failure) != 0 ||
+        kiosk_pin_attached_topology(attached, entries, count, failure) != 0)
+        goto done;
+    int scan = fcntl(root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+    DIR *directory = scan < 0 ? NULL : fdopendir(scan);
+    if (directory == NULL) { if (scan >= 0) close(scan); goto done; }
+    struct dirent *entry;
+    int empty = 1;
+    errno = 0;
+    while ((entry = readdir(directory)) != NULL)
+        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) empty = 0;
+    int valid = errno == 0 && empty;
+    closedir(directory);
+    if (!valid)
+        goto done;
+    pending = openat(root, "ready.pending", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (pending < 0)
+        goto done;
+    created = 1;
+    if (fchmod(pending, 0600) != 0 || fstat(pending, &pending_info) != 0 ||
+        !kiosk_trusted_stat(&pending_info, S_IFREG) || (pending_info.st_mode & 07777) != 0600 ||
+        pending_info.st_nlink != 1 || kiosk_label(pending, NULL, 0, selinux) != 0)
+        goto done;
+    int length = snprintf(record, sizeof(record),
+        "ONPC-PIN-READY 1\nreceipt %s\nsource %llu %llu\nattachment %llu\npublisher %lu\n",
+        receipt, (unsigned long long) attached_info.st_dev, (unsigned long long) attached_info.st_ino,
+        pin->attached_id, (unsigned long) getpid());
+    if (length <= 0 || length >= (int) sizeof(record))
+        goto done;
+    size_t offset = 0;
+    while (offset < (size_t) length) {
+        ssize_t written = write(pending, record + offset, (size_t) length - offset);
+        if (written < 0 && errno == EINTR) continue;
+        if (written <= 0) goto done;
+        offset += (size_t) written;
+    }
+    if (fsync(pending) != 0 || fstatat(root, "ready.pending", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+        named.st_dev != pending_info.st_dev || named.st_ino != pending_info.st_ino || named.st_nlink != 1 ||
+        fstatat(owned_parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino ||
+        renameat2(root, "ready.pending", root, "ready", RENAME_NOREPLACE) != 0)
+        goto done;
+    renamed = 1;
+    if (fsync(root) != 0 || fstatat(root, "ready", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+        named.st_dev != pending_info.st_dev || named.st_ino != pending_info.st_ino || named.st_nlink != 1 ||
+        named.st_size != length || (named.st_mode & 07777) != 0600 || named.st_uid != 0 ||
+        kiosk_label(pending, NULL, 0, selinux) != 0 || kiosk_label(root, NULL, 0, selinux) != 0 ||
+        fstatat(owned_parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino)
+        goto done;
+    pin->published = 1;
+    result = 0;
+done:
+    if (result != 0 && created && !renamed && pending >= 0 &&
+        fstat(pending, &pending_info) == 0 && fstatat(root, "ready.pending", &named, AT_SYMLINK_NOFOLLOW) == 0 &&
+        named.st_dev == pending_info.st_dev && named.st_ino == pending_info.st_ino && named.st_nlink == 1)
+        (void) kiosk_os_failure(cleanup_failure, "pin", "publication-cleanup", unlinkat(root, "ready.pending", 0) != 0);
+    if (pending >= 0) close(pending);
+    if (root >= 0) close(root);
+    if (attached >= 0) close(attached);
+    if (ns >= 0) close(ns);
+    if (result != 0) kiosk_failure(failure, "pin", "publication", -1);
+    return result;
 }
 
 static int

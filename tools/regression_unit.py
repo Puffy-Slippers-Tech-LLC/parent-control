@@ -1101,6 +1101,11 @@ from regression_ui import Bucket
 # identity-recorded publication faults and one pipe-held, joined manager thread.
 # All lock contention, record replacements and recursive-clone faults remain
 # inside those private trees/namespaces; no host policy or shared lock is used.
+# Manager lifetime composition adds original proc/task snapshots, per-field
+# credential/namespace doubles and removal of that same joined private thread.
+# Reexec/exit use the existing owned manager and barriers, including after setup
+# closure; no additional process, shared service/cache or cleanup/UI owner is
+# acquired. The compatible unit classification and bounded resource class hold.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

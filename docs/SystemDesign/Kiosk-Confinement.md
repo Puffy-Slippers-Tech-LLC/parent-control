@@ -864,8 +864,10 @@ Only proven owned incomplete scratch is recoverable under the existing lock;
 completed generations and their four-generation budget survive until reboot.
 
 **Finite composition witnesses.** The 005a ambient/required transition table and
-006a/006b families above remain unchanged. The following are planned witness
-families for **006**, not registered selectors or current passes. Use barriers
+006a/006b families above remain unchanged. The following are witness obligations
+for **006**. [006f's finite host map](../Kiosk-Prompt.md#manager-lifetime-composition--006f)
+records the registered manager-identity and exit/reexec controls and their exact
+input/acceptance limits; it does not close 006's cumulative table. Use barriers
 and independently opened descriptors/real native fixtures, not timing sleeps or
 only producer/parser agreement. Keep tests inside existing resource owners.
 

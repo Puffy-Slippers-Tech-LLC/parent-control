@@ -24,7 +24,7 @@ import time
 
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call
-from system_enforcement import DESKTOP_ID, TARGET, observe_launch, provision_native
+from system_enforcement import native_paths, observe_launch, provision_native
 
 PRODUCT = 'oh-no-parent-control'
 EXTENSION = 'oh-no-parent-control@tech.puffyslippers.com'
@@ -260,7 +260,8 @@ def verify_removed(state, *, purged=False, record=None):
                             'NameHasOwner', 's', guest.BUS]) == 'b false',
                   'removal:broker-still-owns-bus')
     for role in ('child', 'other'):
-        observe_launch(state['accounts'][role], True)
+        observe_launch(state['accounts'][role], True,
+                       variant=state.get('native_variant', 'command'))
     if guest.package_path().suffix == '.rpm':
         guest.run(['authselect', 'check'])
         guest.require(guest.run(['authselect', 'current', '--raw']) == state['authselect'],
@@ -268,13 +269,14 @@ def verify_removed(state, *, purged=False, record=None):
         guest.require(guest.run(['getenforce']) == 'Enforcing', 'removal:selinux-not-enforcing')
 
 
-def configure_restrictions(accounts):
+def configure_restrictions(accounts, *, variant='command'):
     """Make policy, one-time access and shared choices observably nondefault."""
     parent, child = accounts['parent'], accounts['child']
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 60)))
     preferences = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
-    preferences['apps'] = {DESKTOP_ID: {'state': 'permanent', 'targets': [str(TARGET)],
-                                      'patterns': [], 'user_saved_match_rule': False}}
+    target, _, desktop_id = native_paths(variant)
+    preferences['apps'] = {desktop_id: {'state': 'permanent', 'targets': [str(target)],
+                                       'patterns': [], 'user_saved_match_rule': False}}
     preferences['request'].update(last_selected_duration='custom', last_custom_minutes=23,
                                   allow_soft_blocked_apps=True, kiosk_muted=False,
                                   child_muted=False)
@@ -282,8 +284,33 @@ def configure_restrictions(accounts):
     from system_session_expiry import grant
     grant(child, 600)
     guest.require(EXTENSION in extension_lists(child)[0], 'removal:extension-not-configured')
-    observe_launch(child, False)
-    observe_launch(accounts['other'], True)
+    observe_launch(child, False, variant=variant)
+    observe_launch(accounts['other'], True, variant=variant)
+
+
+def restriction_failure_diagnostics():
+    """Identify preserved native policy without changing the failed launch."""
+    previous_returncode = guest.commands.last_returncode
+    probes = (
+        ('rules', ['fapolicyd-cli', '--list']),
+        ('provenance', ['cat',
+                        '/var/lib/oh-no-parent-control/fedora-execution-policy.json']),
+        ('reason', ['dnf5', '--quiet', '--cacheonly', '--disable-repo=*', 'repoquery',
+                    '--installed', '--queryformat', '%{name}|%{reason}', 'fapolicyd']),
+    )
+    try:
+        for name, arguments in probes:
+            try:
+                # Output stays in the attempt's existing private command logs.
+                # Diagnostic failure must never replace the original assertion.
+                guest.commands.run(arguments, check=False, timeout=10, merge_stderr=True)
+                outcome = 'collected' if guest.commands.last_returncode == 0 else 'failed'
+            except Exception:
+                outcome = 'unavailable'
+            print(f'onpc-system: stage=removal-restriction-{name} outcome={outcome}',
+                  flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
 
 
 def original_policy_diagnostics(record, stage):
@@ -604,7 +631,11 @@ def aborted_cleanup_rollback_retry(record):
     guest.guard()
     guest.enable_diagnostics()
     from system_kiosk_admission import probe, verify_gates
-    accounts = provision_native()
+    # Existing Fedora policy denies the untrusted mechanical control even
+    # before product restrictions. Use the prepared, verified trusted witness
+    # so this history measures product rollback while preserving native policy.
+    variant = 'trusted-hard' if guest.package_path().suffix == '.rpm' else 'command'
+    accounts = provision_native(variant)
     parent, child = accounts['parent'], accounts['child']
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
@@ -612,16 +643,24 @@ def aborted_cleanup_rollback_retry(record):
     other, other_policy = account_digest(accounts['other']), account_digest(
         accounts['other'], include_preferences=False)
     other_extensions = extension_lists(accounts['other'])
-    for role in ('child', 'parent', 'other'):
-        observe_launch(accounts[role], True)
+    try:
+        for role in ('child', 'parent', 'other'):
+            observe_launch(accounts[role], True, variant=variant)
+    except guest.GuestError:
+        # Preserve the unrestricted-launch assertion. Capture native rules and
+        # their provenance before any rollback policy or fault is configured.
+        if guest.package_path().suffix == '.rpm':
+            restriction_failure_diagnostics()
+        raise
     verify_gates(record)
     probe('login', 'other', 0, 'rollback.other-before', record)
-    configure_restrictions(accounts)
+    configure_restrictions(accounts, variant=variant)
     kiosk = pwd.getpwnam(PRODUCT)
     wait_kiosk_inactive(kiosk)
     guest.retain_identity_for_redaction(kiosk.pw_uid)
     fedora = guest.package_path().suffix == '.rpm'
     state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'native_variant': variant,
              'other_extensions': other_extensions, 'defaults': defaults,
              'preferences': preference_digest(child), 'boot': boot(),
              'pam_services': json.loads((guest.PAYLOAD / 'before.json').read_text())['pam_services'],
@@ -705,14 +744,14 @@ def aborted_cleanup_rollback_retry(record):
                       (home.st_dev, home.st_ino, home.st_uid, home.st_gid, home.st_mode),
                       'rollback:identity-or-pam-changed')
         verify_loaded_confinement()
-        observe_launch(child, False)
+        observe_launch(child, False, variant=variant)
         for role in ('parent', 'other'):
             identity, digest, lists = ordinary[role]
             guest.require(pwd.getpwuid(accounts[role]) == identity and
                           account_digest(accounts[role]) == digest and
                           extension_lists(accounts[role]) == lists,
                           'rollback:ordinary-account-changed')
-            observe_launch(accounts[role], True)
+            observe_launch(accounts[role], True, variant=variant)
         probe('login', 'ordinary', 0, 'rollback.ordinary-guarded', record)
         probe('login', 'other', 0, 'rollback.other-guarded', record)
         probe('gdm-password', 'kiosk', 6, 'rollback.kiosk-guarded', record)
@@ -760,6 +799,7 @@ def rollback_rearmed_rebooted(record):
     guest.enable_diagnostics()
     from system_kiosk_admission import probe, verify_gates
     state = json.loads(state_path().read_text())
+    variant = state.get('native_variant', 'command')
     rearm = state['rollback_rearm']
     guest.require(boot() != rearm['boot'] and guest.reboot_cleared(),
                   'rollback:rearm-reboot-not-observed')
@@ -774,7 +814,7 @@ def rollback_rearmed_rebooted(record):
                   rearm['kiosk_identity'] and
                   [home.st_ino, home.st_uid, home.st_gid, home.st_mode] == rearm['kiosk_home'],
                   'rollback:reboot-changed-kiosk-identity')
-    observe_launch(child, False)
+    observe_launch(child, False, variant=variant)
     for role, before in rearm['ordinary'].items():
         identity = pwd.getpwuid(before['uid'])
         guest.require([identity.pw_name, identity.pw_uid, identity.pw_gid,
@@ -782,7 +822,7 @@ def rollback_rearmed_rebooted(record):
                       account_digest(before['uid']) == before['policy'] and
                       extension_lists(before['uid']) == before['extensions'],
                       'rollback:reboot-changed-ordinary-account')
-        observe_launch(before['uid'], True)
+        observe_launch(before['uid'], True, variant=variant)
     verify_loaded_confinement()
     verify_gates(record)
     probe('login', 'other', 0, 'rollback.other-rebooted', record)
@@ -794,7 +834,7 @@ def rollback_rearmed_rebooted(record):
     verify_removed(state, record=record)
     probe('login', 'ordinary', 0, 'rollback.ordinary-removed', record)
     probe('login', 'other', 0, 'rollback.other-removed', record)
-    observe_launch(parent, True)
+    observe_launch(parent, True, variant=variant)
     record('onpc.rollback.retry-finalized', 'native-remove-succeeded; owned-account-deleted; exact-original-PAM-restored')
 
 
@@ -889,7 +929,7 @@ def verify_surviving_identity(state, recovery, record=None, *, home_conflict=Fal
                       account_digest(before['uid']) == before['policy'] and
                       extension_lists(before['uid']) == before['extensions'],
                       'finalization:ordinary-account-changed')
-        observe_launch(before['uid'], True)
+        observe_launch(before['uid'], True, variant=state.get('native_variant', 'command'))
     verify_other_account(state)
     guest.require(preference_digest(state['accounts']['child']) == state['preferences'],
                   'finalization:preferences-changed')
@@ -941,12 +981,12 @@ def verify_durable_interval(state, recovery, saved, record, *, conflict=None):
            'owned-account-and-recovery-records-retained; native-account-and-session-denied; ordinary-users-allowed; product-MAC-unloaded')
 
 
-def focused_recovery_start(record, variant, state_key):
+def focused_recovery_start(record, variant, state_key, *, native_variant='command'):
     """Shared fresh controls and independent removal oracle for focused histories."""
     guest.guard()
     guest.enable_diagnostics()
     from system_kiosk_admission import durable_probe, verify_gates
-    accounts = provision_native()
+    accounts = provision_native(native_variant)
     parent, child = accounts['parent'], accounts['child']
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
@@ -954,19 +994,28 @@ def focused_recovery_start(record, variant, state_key):
     other = account_digest(accounts['other'])
     other_policy = account_digest(accounts['other'], include_preferences=False)
     other_extensions = extension_lists(accounts['other'])
-    for role in ('child', 'parent', 'other'):
-        observe_launch(accounts[role], True)
+    try:
+        for role in ('child', 'parent', 'other'):
+            observe_launch(accounts[role], True, variant=native_variant)
+    except guest.GuestError:
+        # Capture the preserved native rules and their provenance before this
+        # history writes policy or installs a removal fault. Keep the failed
+        # launch and its assertion unchanged.
+        if guest.package_path().suffix == '.rpm':
+            restriction_failure_diagnostics()
+        raise
     verify_gates(record)
     for service in ('gdm-password', 'systemd-user'):
         for role in ('ordinary', 'other'):
             durable_probe(service, role, 'account', 0, service + '.' + role + '.before', record)
-    configure_restrictions(accounts)
+    configure_restrictions(accounts, variant=native_variant)
     kiosk = pwd.getpwnam(PRODUCT)
     wait_kiosk_inactive(kiosk)
     guest.retain_identity_for_redaction(kiosk.pw_uid)
     home = Path(kiosk.pw_dir).lstat()
     fedora = guest.package_path().suffix == '.rpm'
     state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'native_variant': native_variant,
              'other_extensions': other_extensions, 'defaults': defaults,
              'preferences': preference_digest(child), 'boot': boot(),
              'pam_services': json.loads((guest.PAYLOAD / 'before.json').read_text())['pam_services'],
@@ -1005,8 +1054,12 @@ def interrupted_finalization_retry(record, variant):
     guest.require(variant in FINALIZATION_VARIANTS, 'finalization:variant')
     from system_kiosk_admission import probe, verify_gates
     from system_removal_faults import interruption_fault
+    # Preserved Fedora policy denies the untrusted mechanical fixture even
+    # without product restrictions. Verify the prepared trusted witness instead,
+    # and keep that same executable through restriction, rollback and removal.
+    native_variant = 'trusted-hard' if guest.package_path().suffix == '.rpm' else 'command'
     state, recovery, saved, before, generated = focused_recovery_start(
-        record, variant, 'finalization_retry')
+        record, variant, 'finalization_retry', native_variant=native_variant)
     child = state['accounts']['child']
     policy, extensions = recovery['policy'], recovery['extensions']
     fedora = guest.package_path().suffix == '.rpm'
@@ -1045,7 +1098,7 @@ def interrupted_finalization_retry(record, variant):
                            if name not in ('removing', 'previous_pam')} == saved,
                           'finalization:confinement-recovery-record-changed')
             verify_loaded_confinement()
-            observe_launch(child, False)
+            observe_launch(child, False, variant=native_variant)
             for role in ('ordinary', 'other'):
                 probe('login', role, 0, 'finalization.restored.' + role, record)
             record('onpc.finalization.restored-before-fault-release',
@@ -1109,7 +1162,8 @@ def recovery_retry_rebooted(record, variant, state_key, variants, label):
                       label + ':reboot-changed-enforcement')
         verify_loaded_confinement()
         verify_gates(record)
-        observe_launch(state['accounts']['child'], False)
+        observe_launch(state['accounts']['child'], False,
+                       variant=state.get('native_variant', 'command'))
         wait_kiosk_inactive(pwd.getpwnam(PRODUCT))
         guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
                    'check-remove'], timeout=30)
@@ -1117,7 +1171,8 @@ def recovery_retry_rebooted(record, variant, state_key, variants, label):
     verify_removed(state, record=record)
     for role in ('ordinary', 'other'):
         probe('login', role, 0, label + '.completed.' + role, record)
-    observe_launch(state['accounts']['parent'], True)
+    observe_launch(state['accounts']['parent'], True,
+                   variant=state.get('native_variant', 'command'))
     record('onpc.' + label + '.retry-finalized',
            'new-boot; native-remove-succeeded; owned-account-and-home-deleted; exact-original-PAM-and-disposition-restored')
 
@@ -1562,7 +1617,11 @@ def remove(record):
     guest.guard()
     guest.enable_diagnostics()
     purge_path_diagnostics(record, 'before-removal')
-    accounts = provision_native()
+    # Removal must clear product restrictions while preserving native policy.
+    # Fedora may already deny untrusted files, so use the baseline's trusted
+    # witness rather than treating that independent denial as product policy.
+    variant = 'trusted-hard' if guest.package_path().suffix == '.rpm' else 'command'
+    accounts = provision_native(variant)
     parent, child = accounts['parent'], accounts['child']
     other = account_digest(accounts['other'])
     other_policy = account_digest(accounts['other'], include_preferences=False)
@@ -1570,9 +1629,16 @@ def remove(record):
     defaults = json.loads(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0])
     guest.require(defaults['parent_control_enabled'] is False and defaults['apps'] == {},
                   'removal:nonfresh-start')
-    configure_restrictions(accounts)
+    try:
+        for role in ('child', 'other'):
+            observe_launch(accounts[role], True, variant=variant)
+        configure_restrictions(accounts, variant=variant)
+    except guest.GuestError:
+        if guest.package_path().suffix == '.rpm':
+            restriction_failure_diagnostics()
+        raise
     verify_active_kiosk_refusal(record, accounts)
-    verify_inflight_admission_refusal(record, accounts)
+    verify_inflight_admission_refusal(record, accounts, variant=variant)
     fedora = guest.package_path().suffix == '.rpm'
     hook = foreign_integration_refusals(record, accounts, other, fedora=fedora)
     config = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())
@@ -1581,6 +1647,7 @@ def remove(record):
                   'removal:kiosk-identity')
     guest.retain_identity_for_redaction(kiosk.pw_uid)
     state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
+             'native_variant': variant,
              'preferences': preference_digest(child),
              'defaults': defaults,
              'other_extensions': other_extensions,
@@ -1682,7 +1749,7 @@ def verify_loaded_confinement():
                       'removal:vendor-domain-not-enforcing')
 
 
-def verify_inflight_admission_refusal(record, accounts):
+def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
     """Refuse native erase while real root PAM owns a pre-credential admission."""
     guest.guard()
     from system_kiosk_admission import held_account, probe, verify_gates
@@ -1690,7 +1757,7 @@ def verify_inflight_admission_refusal(record, accounts):
     account = pwd.getpwnam(PRODUCT)
     wait_kiosk_inactive(account)
     verify_gates(record)
-    observe_launch(accounts['other'], True)
+    observe_launch(accounts['other'], True, variant=variant)
     guest.run(['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration',
                'check-remove'], timeout=30)
     before = admission_removal_state()
@@ -1735,8 +1802,8 @@ def verify_inflight_admission_refusal(record, accounts):
                           'removal:inflight-refusal-changed-policy')
             # Exercise both an allowed ordinary launch and the existing child
             # denial while the same root handle is still alive.
-            observe_launch(accounts['other'], True)
-            observe_launch(accounts['child'], False)
+            observe_launch(accounts['other'], True, variant=variant)
+            observe_launch(accounts['child'], False, variant=variant)
             probe('login', 'ordinary', 0, 'held-removal.ordinary-after', record)
             guest.require(not exited(pidfd) and process_identity(process) == identity,
                           'removal:admission-holder-changed')
@@ -1881,7 +1948,7 @@ def reinstalled_rebooted(record):
     record('onpc.removal.reinstall', 'payload-verified; readiness-passed; preferences-retained; grant-cleared')
     # Exercise the package-delivered action while its payload is installed;
     # the action owns native package removal and its subsequent guarded purge.
-    configure_restrictions(state['accounts'])
+    configure_restrictions(state['accounts'], variant=state.get('native_variant', 'command'))
     state['purged_boot'] = boot()
     save_state(state)
     purge_path_diagnostics(record, 'before-purge')

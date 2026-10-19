@@ -1197,6 +1197,88 @@ def census_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_confinement.py')
 
 
+@pytest.mark.parametrize('fault', [None, 'collision', 'link', 'wrong-copy',
+                                  'changed-fragment', 'body-failure'])
+def test_copied_probe_trust_preserves_foreign_inputs_and_cleans_owned_entries(
+        census_model, tmp_path, monkeypatch, fault):
+    import system_enforcement
+    helper = census_model
+    directory = tmp_path / 'onpc-confinement-input-private'
+    directory.mkdir()
+    copied = directory / 'copied-systemctl'
+    copied.write_bytes(b'copied native executable')
+    copied.chmod(0o755)
+    trust_directory = tmp_path / 'trust.d'
+    trust_directory.mkdir()
+    fragment = trust_directory / ('onpc-system-' + directory.name + '-' + copied.name + '.trust')
+    monkeypatch.setattr(helper, 'PROBE_TRUST_DIRECTORY', trust_directory)
+    monkeypatch.setattr(helper.guest, 'guard', lambda: None)
+    digest = hashlib.sha256(copied.read_bytes()).hexdigest()
+    monkeypatch.setattr(helper.guest, 'sha', lambda path: (
+        'wrong' if fault == 'wrong-copy' and path == Path('/usr/bin/systemctl') else digest))
+    native_lstat = Path.lstat
+
+    def metadata(path, *args, **kwargs):
+        info = native_lstat(path, *args, **kwargs)
+        if path in trust_directory.parents or path in (trust_directory, fragment):
+            return SimpleNamespace(st_uid=0, st_mode=info.st_mode & ~0o022,
+                st_nlink=info.st_nlink, st_dev=info.st_dev, st_ino=info.st_ino,
+                st_size=info.st_size)
+        return info
+
+    monkeypatch.setattr(Path, 'lstat', metadata)
+    waits = []
+    monkeypatch.setattr(system_enforcement, 'TrustRefreshDiagnostic', lambda: 'diagnostic')
+    monkeypatch.setattr(system_enforcement, 'TrustRefreshCompletion', lambda: SimpleNamespace(
+        wait=lambda deadline, diagnostic: waits.append(diagnostic)))
+    calls = []
+
+    def run(command):
+        calls.append(command)
+        if command[:3] == ['fapolicyd-cli', '--file', 'add']:
+            with fragment.open('x') as stream:
+                stream.write(f'{copied} {copied.stat().st_size} {digest}\n')
+        return ''
+
+    monkeypatch.setattr(helper.guest, 'run', run)
+    if fault == 'collision':
+        fragment.write_text('foreign trust entries')
+    elif fault == 'link':
+        fragment.symlink_to(tmp_path / 'foreign')
+    reason = {'collision': 'trust-collision', 'link': 'trust-collision',
+              'wrong-copy': 'probe-copy-digest', 'changed-fragment': 'trust-fragment-changed'}
+
+    def exercise():
+        with helper.trusted_probe_copy(copied, 'selinux'):
+            assert fragment.exists()
+            assert waits == ['diagnostic']
+            if fault == 'changed-fragment':
+                fragment.write_text('foreign replacement entries')
+            elif fault == 'body-failure':
+                raise RuntimeError('original assertion failure')
+
+    if fault in reason:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-input:' + reason[fault]):
+            exercise()
+    elif fault == 'body-failure':
+        with pytest.raises(RuntimeError, match='original assertion failure'):
+            exercise()
+    else:
+        exercise()
+    if fault in ('collision', 'link', 'wrong-copy'):
+        assert calls == []
+    elif fault == 'changed-fragment':
+        assert fragment.read_text() == 'foreign replacement entries'
+        assert waits == ['diagnostic']
+    else:
+        assert not fragment.exists()
+        assert waits == ['diagnostic', 'diagnostic']
+        assert calls == [
+            ['fapolicyd-cli', '--file', 'add', str(copied), '--trust-file', fragment.name],
+            ['restorecon', str(fragment)], ['fapolicyd-cli', '--update'],
+            ['fapolicyd-cli', '--update']]
+
+
 @pytest.mark.parametrize('fault', [None, 'inode', 'owner', 'bytes', 'mode'])
 def test_required_ancestor_restoration_preserves_foreign_inputs(census_model, tmp_path, monkeypatch, fault):
     import system_native_update

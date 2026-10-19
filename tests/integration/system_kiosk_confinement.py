@@ -28,6 +28,7 @@ MANAGER_SID = 'system_u:system_r:onpc_kiosk_manager_t:s0'
 SIBLING_PARENT = Path('/usr/share')
 REQUIRED_ANCESTOR = Path('/usr/lib/systemd')
 REQUIRED_EXECUTABLE = REQUIRED_ANCESTOR / 'systemd'
+PROBE_TRUST_DIRECTORY = Path('/etc/fapolicyd/trust.d')
 
 
 def required_ancestor_checkpoint():
@@ -1631,6 +1632,69 @@ def require_bwrap_denial(status, output, info, token, backend, target, before, s
     wait_for(observed, 'kiosk-bwrap:kernel-denial-not-observed')
 
 
+@contextmanager
+def trusted_probe_copy(path, backend):
+    """Admit only this attempt's copied ELF to the independent Fedora policy.
+
+    The MAC probes still require their exact enforcing kernel denial. Stock
+    fapolicyd can otherwise reject the unconfined positive control first.
+    No rule, directory allowance, daemon mode or executable label changes.
+    """
+    guest.require(backend in ('apparmor', 'selinux'), 'kiosk-input:backend')
+    if backend != 'selinux':
+        yield
+        return
+    guest.guard()
+    from system_enforcement import TrustRefreshCompletion, TrustRefreshDiagnostic
+
+    def refresh():
+        diagnostic = TrustRefreshDiagnostic()
+        completion = TrustRefreshCompletion()
+        guest.run(['fapolicyd-cli', '--update'])
+        completion.wait(time.monotonic() + 120, diagnostic)
+
+    for parent in (PROBE_TRUST_DIRECTORY, *PROBE_TRUST_DIRECTORY.parents):
+        info = parent.lstat()
+        guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and
+                      not info.st_mode & 0o022, 'kiosk-input:unsafe-trust-parent')
+    source = path.lstat()
+    guest.require(stat.S_ISREG(source.st_mode) and source.st_nlink == 1 and
+                  path.resolve(strict=True) == path, 'kiosk-input:unsafe-probe-copy')
+    expected = [str(path), str(source.st_size), guest.sha(path)]
+    original = {'copied-systemctl': '/usr/bin/systemctl',
+                'bwrap-canary': '/usr/bin/xdg-dbus-proxy'}.get(path.name)
+    guest.require(original is not None and expected[2] == guest.sha(Path(original)),
+                  'kiosk-input:probe-copy-digest')
+    fragment = PROBE_TRUST_DIRECTORY / ('onpc-system-' + path.parent.name + '-' + path.name + '.trust')
+    guest.require(not fragment.exists() and not fragment.is_symlink(),
+                  'kiosk-input:trust-collision')
+    guest.run(['fapolicyd-cli', '--file', 'add', str(path), '--trust-file', fragment.name])
+    info = fragment.lstat()
+    guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and
+                  info.st_nlink == 1 and not info.st_mode & 0o022,
+                  'kiosk-input:unsafe-trust-fragment')
+    contents = fragment.read_bytes()
+    rows = [line.split() for line in contents.decode().splitlines()
+            if line.strip() and not line.startswith('#')]
+    guest.require(rows == [expected], 'kiosk-input:unexpected-trust-entries')
+    try:
+        guest.run(['restorecon', str(fragment)])
+        refresh()
+        current = path.lstat()
+        guest.require((current.st_dev, current.st_ino, current.st_size) ==
+                      (source.st_dev, source.st_ino, source.st_size) and
+                      guest.sha(path) == expected[2], 'kiosk-input:probe-copy-changed')
+        yield
+    finally:
+        current = fragment.lstat()
+        guest.require((current.st_dev, current.st_ino) == (info.st_dev, info.st_ino) and
+                      current.st_uid == 0 and stat.S_ISREG(current.st_mode) and
+                      current.st_nlink == 1 and not current.st_mode & 0o022 and
+                      fragment.read_bytes() == contents, 'kiosk-input:trust-fragment-changed')
+        fragment.unlink()
+        refresh()
+
+
 def verify_bwrap_inputs(account, directory, record):
     """User bytes cannot acquire a pinned executable's authority through a bind."""
     config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
@@ -1645,6 +1709,7 @@ def verify_bwrap_inputs(account, directory, record):
     copied.chmod(0o755)
     os.chown(copied, account.pw_uid, account.pw_gid)
     with ExitStack() as resources:
+        resources.enter_context(trusted_probe_copy(copied, backend))
         def descriptor(path, flags):
             fd = os.open(path, flags | os.O_CLOEXEC)
             resources.callback(os.close, fd)
@@ -1813,10 +1878,13 @@ def verify_user_inputs(account, backend, record):
         alias.symlink_to('/usr/bin/python3')
         os.lchown(alias, account.pw_uid, account.pw_gid)
         for index, command in enumerate(([str(copied), '--version'], [str(alias), '-c', 'pass'])):
-            user_command(account, command)
-            record('onpc.kiosk.writable-input-positive.' + str(index), True)
-            require_service_denial(account, backend, f'onpc-confinement-writable-{index}.service',
-                                   command, record)
+            with ExitStack() as resources:
+                if index == 0:
+                    resources.enter_context(trusted_probe_copy(copied, backend))
+                user_command(account, command)
+                record('onpc.kiosk.writable-input-positive.' + str(index), True)
+                require_service_denial(account, backend, f'onpc-confinement-writable-{index}.service',
+                                       command, record)
         verify_bwrap_inputs(account, directory, record)
     unit_directory = runtime / 'systemd/user'
     created = []

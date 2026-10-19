@@ -450,12 +450,16 @@ def test_removed_pam_requires_original_bytes_mode_and_disposition(
         removal.verify_removed(state, purged=purged)
 
 
-def test_removed_pam_retains_independent_restoration_evidence(removed_machine):
-    state, _, _, _ = removed_machine
+@pytest.mark.parametrize('variant', ['command', 'trusted-hard'])
+def test_removed_pam_retains_independent_restoration_evidence(removed_machine, variant):
+    state, _, _, launch = removed_machine
+    state['native_variant'] = variant
     record = Mock()
     removal.verify_removed(state, record=record)
     record.assert_called_once_with('onpc.removal.pam-restored',
                                    json.dumps(state['pam_services'], sort_keys=True))
+    assert launch.call_args_list == [mock_call(1004, True, variant=variant),
+                                    mock_call(1005, True, variant=variant)]
 
 
 @pytest.mark.parametrize('fault,category', [
@@ -522,7 +526,8 @@ def test_removed_machine_rejects_residue_and_health_mismatches(removed_machine, 
         notice.parent.mkdir(parents=True)
         notice.write_text('retained conffile')
         removal.verify_removed(state)
-        assert launch.call_args_list == [((1004, True), {}), ((1005, True), {})]
+        assert launch.call_args_list == [mock_call(1004, True, variant='command'),
+                                        mock_call(1005, True, variant='command')]
 
 
 def test_pam_comments_and_inactive_backups_are_preserved(removed_machine):
@@ -935,7 +940,8 @@ def test_loaded_confinement_checks_installed_policy_and_vendor_domain(
     ('enforcement-before', 'confinement-not-enforcing'),
     ('enforcement-after', 'confinement-not-enforcing'),
 ])
-def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, fault, category):
+@pytest.mark.parametrize('variant', ['command', 'trusted-hard'])
+def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, fault, category, variant):
     import system_kiosk_admission as admission
     import system_kiosk_confinement as confinement
     events = []
@@ -1007,7 +1013,8 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
         if fault == 'payload':
             raise removal.guest.GuestError('removal:package-file-digests')
     monkeypatch.setattr(removal.guest, 'verify_package_files', payload)
-    def launch(uid, allowed):
+    def launch(uid, allowed, **options):
+        assert options == {'variant': variant}
         assert (uid, allowed) in ((1005, True), (1004, False))
         assert held is removed
         events.append(('launch', uid, allowed))
@@ -1029,11 +1036,13 @@ def test_inflight_removal_refusal_preserves_holder_and_enforcement(monkeypatch, 
     record = Mock()
     if fault:
         with pytest.raises(removal.guest.GuestError, match='^removal:' + category + '$'):
-            removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005})
+            removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005},
+                                                     variant=variant)
         assert events[-2:] == ['close', 'failed-release']
         record.assert_not_called()
     else:
-        removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005})
+        removal.verify_inflight_admission_refusal(record, {'child': 1004, 'other': 1005},
+                                                 variant=variant)
         assert events == ['inactive', 'gates', ('launch', 1005, True), 'preflight',
                           'hold', 'inactive', 'enforcing', 'remove', 'enforcing', 'payload',
                           ('launch', 1005, True), ('launch', 1004, False), 'probe',
@@ -1250,7 +1259,9 @@ def test_policy_diagnostics_use_bounded_native_reads_and_keep_probe_failures(mon
 
 
 @pytest.mark.parametrize('fault', [None, 'boot', 'policy', 'home', 'ordinary', 'preflight'])
-def test_rollback_reboot_requires_preserved_state_before_native_finalization(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('variant', ['command', 'trusted-hard'])
+def test_rollback_reboot_requires_preserved_state_before_native_finalization(
+        tmp_path, monkeypatch, fault, variant):
     import system_kiosk_admission as admission
     home = tmp_path / 'home'
     home.mkdir()
@@ -1260,6 +1271,7 @@ def test_rollback_reboot_requires_preserved_state_before_native_finalization(tmp
     parent = SimpleNamespace(pw_name='parent', pw_uid=41002, pw_gid=41002,
                              pw_dir='/home/parent', pw_shell='/bin/bash')
     state = {'accounts': {'child': 41001, 'parent': 41002}, 'kiosk_name': 'oh-no-parent-control',
+             'native_variant': variant,
              'rollback_rearm': {
                  'boot': 'old', 'policy': 'child-policy', 'extensions': ['child-extension'],
                  'kiosk_identity': [kiosk.pw_uid, kiosk.pw_gid, kiosk.pw_dir, kiosk.pw_shell],
@@ -1308,6 +1320,10 @@ def test_rollback_reboot_requires_preserved_state_before_native_finalization(tmp
         removal.rollback_rearmed_rebooted(record)
         commands.run.assert_called_once_with(['native-remove'], timeout=1800, merge_stderr=True)
         verify.assert_called_once_with(state, record=record)
+        assert removal.observe_launch.call_args_list == [
+            mock_call(41001, False, variant=variant),
+            mock_call(41002, True, variant=variant),
+            mock_call(41002, True, variant=variant)]
         assert [call.args[0] for call in record.call_args_list] == [
             'onpc.rollback.rearm-reboot', 'onpc.rollback.retry-finalized']
 
@@ -1429,8 +1445,11 @@ def finalization_machine(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('fault', [None, 'kiosk-uid', 'home-inode', 'ordinary-identity',
                                  'ordinary-policy', 'ordinary-extension', 'other-policy', 'preferences'])
-def test_surviving_identity_requires_home_and_all_retained_account_state(finalization_machine, monkeypatch, fault):
+@pytest.mark.parametrize('native_variant', ['command', 'trusted-hard'])
+def test_surviving_identity_requires_home_and_all_retained_account_state(
+        finalization_machine, monkeypatch, fault, native_variant):
     machine = finalization_machine
+    machine.state['native_variant'] = native_variant
     if fault == 'kiosk-uid':
         machine.kiosk.pw_uid += 1
     elif fault == 'home-inode':
@@ -1450,7 +1469,9 @@ def test_surviving_identity_requires_home_and_all_retained_account_state(finaliz
             removal.verify_surviving_identity(machine.state, machine.recovery)
     else:
         removal.verify_surviving_identity(machine.state, machine.recovery)
-        assert machine.launch.call_args_list == [mock_call(41002, True), mock_call(41003, True)]
+        assert machine.launch.call_args_list == [
+            mock_call(41002, True, variant=native_variant),
+            mock_call(41003, True, variant=native_variant)]
 
 
 def test_identity_mismatch_retains_only_field_comparisons_and_device_numbers(finalization_machine):
@@ -1480,7 +1501,8 @@ def test_surviving_home_accepts_reboot_device_renumbering(finalization_machine):
     assert comparison['saved_home_device'] != comparison['home_device']
     assert comparison['home_fields'] == dict.fromkeys(
         ('filesystem', 'uuid', 'subvolume', 'inode', 'uid', 'gid', 'mode'), True)
-    assert machine.launch.call_args_list == [mock_call(41002, True), mock_call(41003, True)]
+    assert machine.launch.call_args_list == [mock_call(41002, True, variant='command'),
+                                            mock_call(41003, True, variant='command')]
 
 
 @pytest.mark.parametrize('field,replacement', [
@@ -1649,8 +1671,11 @@ def finalization_reboot(finalization_machine, monkeypatch):
 
 
 @pytest.mark.parametrize('completed', [False, True])
-def test_finalization_reboot_finishes_only_pending_native_removal(finalization_reboot, completed):
+@pytest.mark.parametrize('native_variant', ['command', 'trusted-hard'])
+def test_finalization_reboot_finishes_only_pending_native_removal(
+        finalization_reboot, completed, native_variant):
     machine = finalization_reboot
+    machine.state['native_variant'] = native_variant
     machine.state['finalization_retry']['completed'] = completed
     machine.state_file.write_text(json.dumps(machine.state))
     record = Mock()
@@ -1666,6 +1691,12 @@ def test_finalization_reboot_finishes_only_pending_native_removal(finalization_r
     assert machine.probe.call_args_list == [
         mock_call('login', role, 0, 'finalization.completed.' + role, record)
         for role in ('ordinary', 'other')]
+    expected_launches = [] if completed else [
+        mock_call(41002, True, variant=native_variant),
+        mock_call(41003, True, variant=native_variant),
+        mock_call(41001, False, variant=native_variant)]
+    assert machine.launch.call_args_list == [
+        *expected_launches, mock_call(41002, True, variant=native_variant)]
     assert record.call_args.args[0] == 'onpc.finalization.retry-finalized'
 
 
@@ -1726,7 +1757,8 @@ def interrupted_finalization(finalization_machine, monkeypatch, tmp_path):
     (payload / 'before.json').write_text(json.dumps({'pam_services': {'original': 'bytes'}}))
     (payload / 'installed-files.json').write_text(json.dumps([{'path': machine.state['payload'][0]}]))
     monkeypatch.setattr(removal.guest, 'PAYLOAD', payload)
-    monkeypatch.setattr(removal, 'provision_native', lambda: machine.state['accounts'])
+    machine.provision = Mock(return_value=machine.state['accounts'])
+    monkeypatch.setattr(removal, 'provision_native', machine.provision)
     monkeypatch.setattr(removal, 'call', Mock(return_value=[json.dumps({
         'parent_control_enabled': False, 'apps': {}})]))
     monkeypatch.setattr(removal, 'accepted', lambda result: result)
@@ -1763,6 +1795,30 @@ def interrupted_finalization(finalization_machine, monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_finalization_initial_launch_failure_collects_policy_without_starting_removal(
+        interrupted_finalization, monkeypatch, package_format):
+    machine = interrupted_finalization
+    monkeypatch.setattr(removal.guest, 'package_path', lambda: Path('package.' + package_format))
+    failure = removal.guest.GuestError('enforcement:expected-allow')
+    machine.launch.side_effect = failure
+    diagnostics = Mock()
+    monkeypatch.setattr(removal, 'restriction_failure_diagnostics', diagnostics)
+    with pytest.raises(removal.guest.GuestError) as caught:
+        removal.interrupted_finalization_retry(Mock(), 'denial-publication')
+    assert caught.value is failure
+    assert diagnostics.call_count == (1 if package_format == 'rpm' else 0)
+    native_variant = 'trusted-hard' if package_format == 'rpm' else 'command'
+    machine.provision.assert_called_once_with(native_variant)
+    machine.launch.assert_called_once_with(machine.state['accounts']['child'], True,
+                                           variant=native_variant)
+    removal.configure_restrictions.assert_not_called()
+    machine.transaction.assert_not_called()
+    machine.fault.verify_triggered.assert_not_called()
+    machine.save.assert_not_called()
+    removal.guest.install_package.assert_not_called()
+
+
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 @pytest.mark.parametrize('variant', removal.FINALIZATION_VARIANTS)
 def test_interrupted_finalization_selects_only_supported_native_recovery(interrupted_finalization, monkeypatch, package_format, variant):
     machine = interrupted_finalization
@@ -1774,6 +1830,18 @@ def test_interrupted_finalization_selects_only_supported_native_recovery(interru
     machine.fault.verify_triggered.assert_called_once_with()
     assert machine.transaction.call_args.args[2] == removal.removal_denials(machine.saved)['gdm-password']
     state = machine.save.call_args.args[0]
+    native_variant = 'trusted-hard' if package_format == 'rpm' else 'command'
+    machine.provision.assert_called_once_with(native_variant)
+    removal.configure_restrictions.assert_called_once_with(state['accounts'], variant=native_variant)
+    assert state['native_variant'] == native_variant
+    assert machine.launch.call_args_list[:3] == [
+        mock_call(state['accounts'][role], True, variant=native_variant)
+        for role in ('child', 'parent', 'other')]
+    assert all(item.kwargs == {'variant': native_variant}
+               for item in machine.launch.call_args_list)
+    if variant != 'account-finalization':
+        assert mock_call(state['accounts']['child'], False, variant=native_variant) in (
+            machine.launch.call_args_list)
     assert state['finalization_retry']['variant'] == variant
     assert state['finalization_retry']['boot'] == 'old'
     assert state['finalization_retry']['kiosk_home'] == machine.recovery['kiosk_home']

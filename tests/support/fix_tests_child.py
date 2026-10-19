@@ -147,6 +147,10 @@ def main():
         script = json.loads((root / 'script.json').read_text())
         status = script['agents'][count]
         blocked = status == 'blocked'
+        for update in script.get('panel_updates', []):
+            print(json.dumps({'type': 'item.completed', 'item': {
+                'id': 'panel', 'type': 'agent_message',
+                'text': 'LAUNCHER_STATUS ' + json.dumps(update)}}), flush=True)
         if 'replace_checkpoint' in script:
             sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
             from test_checkpoint import Checkpoint

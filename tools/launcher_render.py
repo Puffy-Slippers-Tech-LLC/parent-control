@@ -614,7 +614,7 @@ class TranscriptWriter:
 
 class AgentRenderer:
     def __init__(self, stream, *, width=100, command_log=None, hide_task_completion=False,
-                 on_usage=None, on_description=None):
+                 on_usage=None, on_description=None, on_message=None):
         self.width = width
         # Retained presentation must keep its palette even when the supervisor
         # inherits NO_COLOR from a noninteractive caller.
@@ -635,6 +635,7 @@ class AgentRenderer:
         self.task_completion_message = False
         self.on_usage = on_usage
         self.on_description = on_description
+        self.on_message = on_message
 
     def message(self, text, title='Agent', style='default'):
         self.block(title, SessionMarkdown(clean(text)), style)
@@ -855,6 +856,10 @@ class AgentRenderer:
         if category == 'agent_message':
             if complete:
                 text = item['text']
+                if self.on_message is not None:
+                    text = self.on_message(text)
+                    if not text:
+                        return
                 # The result file still owns orchestration. This only presents
                 # the same structured final message in a readable form.
                 try:

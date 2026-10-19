@@ -813,6 +813,9 @@ from regression_ui import Bucket
 # synthetic pytest child. Repair-loop checks reuse the recorded process doubles;
 # they add no shared owner, VM, display, socket or expensive fixture. Both unit
 # and cleanup classifications of fix_tests_cleanup_safety remain compatible.
+# Repair panel checks reuse those recorded, waited process doubles and small
+# private metadata files; terminal/clock/parser doubles stay process-local.
+# No new shared resource or cleanup lifetime; existing overlap remains valid.
 # Resume counter/selector checks use the same private reports, checkpoint trees,
 # waited pytest children and scheduler doubles; compatible isolation is unchanged.
 # Oversized-ID recovery uses private checkpoint JSON and bounded synthetic pytest

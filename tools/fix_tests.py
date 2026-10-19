@@ -410,6 +410,7 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
         options = execution_arguments() if execution_binding() is not None else ['--host-only']
         command = [str(root / 'tools/cleanup-e2e'), *options]
     else:
+        from launcher_chat import read_state
         command = repair_command(root, model, effort, run)
         metadata = dict(json.loads(test_args), phase=category, model=model,
                         effort=effort, speed='standard')
@@ -421,7 +422,8 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
             reported = True
             record_usage(run, metadata, usage)
 
-        status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage)
+        status = detached_launcher.supervise(root, run, owner, kind, command, on_usage=on_usage,
+                                              task=read_state(run).get('task_id'))
         if not reported:
             record_usage(run, metadata, event='missing_usage')
         record_usage(run, dict(metadata, exit_status=status), event='session_end')
@@ -440,6 +442,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     checkpoint = None
     resuming = resume == 'true'
     pending = None
+    verifying_fix = False
+    active_task = None
     budget = TaskBudget(run)
 
     def task_started():
@@ -457,8 +461,20 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             checkpoint.save()
 
     def progress(category, status, *, model=None, effort=None):
+        nonlocal active_task
         publish_repair_status(run, round_number, category, categories, status,
                               model=model, effort=effort)
+        key = read_progress(run)[-1]['key']
+        active_task = f'{round_number}:{category}'
+        update_task_info(run, active_task, {})
+        atomic(run / 'chat-state.json', {'task_id': active_task, 'progress_key': key})
+
+    def panel(value):
+        if active_task is not None:
+            update_task_info(run, active_task, value)
+
+    def failed(category):
+        panel({'last_error': f'The {category} checks did not pass.'})
 
     def verification_started(completed):
         # A repair requires another whole clean pass. Persist the new pass's
@@ -497,7 +513,9 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         return status
 
     def test(category, *, resume=False, retry_case='', fresh=False):
-        nonlocal pending
+        nonlocal pending, verifying_fix
+        checking_fix = verifying_fix
+        verifying_fix = False
         resume = not fresh and (resume or (resuming and (category == pending or
                             (category == 'all' and pending is not None and round_number > 1))))
         pending = category
@@ -523,6 +541,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         while True:
             atomic(run / 'test-controller.json', [])
             progress(category, 'Running tests')
+            info = task_info(run, active_task)
+            checking_fix = checking_fix or info.get('status') == 'Testing fix, previous error point passed'
+            if checking_fix:
+                panel({'status': 'Testing fix, previous error point not reached yet'})
             status_line = category_status(category, categories)
             print(f'\nfix-tests: running {category}', flush=True)
             options = [*inventory.get(category, {}).get('args', []), *(['--resume'] if resume else []),
@@ -532,6 +554,8 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             previous = repair_progress(run, read_progress(run))
             publish_progress(run, previous[-1]['key'], previous[-1]['lines'])
             if status == 0:
+                if checking_fix:
+                    panel({'status': 'Testing fix, previous error point passed'})
                 if checkpoint is not None:
                     for kind in categories if category == 'all' else (category,):
                         if checkpoint.entry(kind) is not None:
@@ -565,14 +589,19 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 if recovery_status:
                     if status_line is not None:
                         print(status_line, flush=True)
-                    return handoff(run, root=root)
+                    failure = handoff(run, root=root)
+                    failed(category)
+                    return failure
                 recovered = True
                 continue
             if status_line is not None:
                 print(status_line, flush=True)
-            return handoff(run, root=root)
+            failure = handoff(run, root=root)
+            failed(category)
+            return failure
 
     def repair(prompt, *, failure_key, previous=None):
+        nonlocal verifying_fix
         diagnostic = previous is not None and previous.get('status') == 'diagnostic_ready'
         classification = ((('diagnostic evidence: ' if diagnostic else 'verification_failed: ')
                            + previous['summary']) if previous else None)
@@ -635,7 +664,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             check_budget()
             sessions = case_sessions.get(failure_key, 0) + 1
             agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
-            progress('', 'fixing errors', model=agent_model, effort=agent_effort)
+            progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
+            # Aggregate failures can enter a leaf repair before its own test.
+            task = active_task
+            if not task_info(run, task).get('last_error'):
+                failed(category)
             phase = 'repair review' if classification else 'classify and repair'
             print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                   f'case session {sessions}/{MAX_REPAIR_SESSIONS}', flush=True)
@@ -646,6 +679,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                               'but cannot start another interpretation session in this run.\n',
                               app_issue=classification, developer_answers=developer_answers,
                               blocker_summary=blocker_summary, category=category)
+                + task_info_instructions(run, task)
+                + '\nThe launcher owns verification and its testing statuses. Report your '
+                  'investigation/fixing status through LAUNCHER_STATUS; finish with the required '
+                  'repair result so the launcher can run the original checks.\n'
                 + result_recovery_instructions(result_recovery), encoding='utf-8')
             # An agent crash cannot reuse an earlier reply.
             (run / 'agent-result.json').write_text('')
@@ -691,6 +728,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                                  'Retained case handoff: repair-stop.json. ' + result['summary'])
             if result['status'] not in ('fixed', 'test_fixed', 'diagnostic_ready'):
                 raise ValueError('unexpected repair result: ' + result['summary'])
+            verifying_fix = result['status'] != 'diagnostic_ready'
             return dict(repair_id=repair_id, attempt=attempt, sessions=sessions,
                         failure=target, status=result['status'], summary=result['summary'])
 
@@ -714,6 +752,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     try:
         try:
             from launcher_render import AgentRenderer  # Check before expensive tests.
+            from launcher_chat import task_info, task_info_instructions, update_task_info
         except ImportError as error:
             raise ValueError('agent rendering requires the setup-provided python3-rich package') from error
         repair_command(root, model, effort or DEFAULT_EFFORT)  # Fail before running expensive tests.
@@ -761,6 +800,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         print('\nfix-tests: stopped; owned operation cleanup finished.', flush=True)
         status = 130
     except (OSError, ValueError, subprocess.SubprocessError) as error:
+        panel({'last_error': str(error)})
         print(f'\nfix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         previous = repair_progress(run, read_progress(run))

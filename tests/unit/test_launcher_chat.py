@@ -417,16 +417,23 @@ def test_status_clock_resets_only_on_status_changes_and_survives_task_suspension
     assert task_info(tmp_path, '001')['status'] == TASK_STATUSES[1]
 
 
+@pytest.mark.parametrize('transport', ['app', 'jsonl'])
 @pytest.mark.parametrize('value', [
     {'status': 'Running session 1.'}, {'last_error_at': 0}, {'status_at': 0},
     {'last_error': ''}, {'last_error': '-'}, {'last_error': 42}, {'status': '\033[31m'},
 ])
-def test_invalid_panel_updates_preserve_the_previous_task_information(conversation, tmp_path, value):
+def test_invalid_panel_updates_preserve_the_previous_task_information(conversation, tmp_path, value, transport):
     session, output, _ = conversation
     session.renderer.on_description = launcher.descriptive_output(tmp_path)
     session.status_update(json.dumps({'last_error': 'The countdown stopped.'}))
     before = (tmp_path / 'task-info.json').read_text()
-    session.status_update(json.dumps(value))
+    if transport == 'app':
+        session.status_update(json.dumps(value))
+    else:
+        from launcher_chat import task_message
+        session.renderer.on_message = lambda text: task_message(tmp_path, session.task, text)
+        session.renderer.event({'type': 'item.completed', 'item': {
+            'type': 'agent_message', 'text': 'LAUNCHER_STATUS ' + json.dumps(value)}})
     assert (tmp_path / 'task-info.json').read_text() == before
     assert 'LAUNCHER_STATUS' in output.getvalue()
     record = json.loads((tmp_path / 'descriptive-output.json').read_text())

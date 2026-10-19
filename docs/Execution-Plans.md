@@ -234,6 +234,15 @@ Plan/E2E coordinators report a short `last_error` once per new occurrence and
 update `status` through `LAUNCHER_STATUS` commentary. The launcher supplies the
 error timestamp; repeated old failures must not reset it. Testing statuses require
 evidence about the previous error point, not merely starting an unrelated test.
+
+`fix-tests` uses the same metadata, validation and panel clocks, scoped to each
+round/category. Its controller records each failed run once; repair agents update
+their explanation and investigation/fixing status through the same commentary
+protocol. Before corrective verification the controller sets the yellow testing
+status, and a passing selected run sets green while retaining the last error and
+its age. Diagnostic execution alone grants no verified-fix status. Moving to a
+different category or round selects its own metadata and clocks.
+
 Before launching the test or retry that verifies a fix at the previous error point,
 the coordinator sends `Testing fix, previous error point not reached yet` in a
 separate `LAUNCHER_STATUS` commentary before the verification tool call. Keep

@@ -92,6 +92,36 @@ def task_info_instructions(run, task):
             "preserve the original task and acceptance requirements.\n")
 
 
+def status_update(run, task, text):
+    """Validate panel metadata identically for app-server and JSONL agents."""
+    value = json.loads(text)
+    if not isinstance(value, dict) or set(value) - {'explanation', 'status', 'last_error'}:
+        raise ValueError('invalid task update')
+    if any(not isinstance(v, str) or not v.strip() or len(v) > 2000 for v in value.values()):
+        raise ValueError('invalid task update')
+    value = {k: clean(v).strip() for k, v in value.items()}
+    if any(not v for v in value.values()) or ('status' in value and value['status'] not in TASK_STATUSES):
+        raise ValueError('invalid task update')
+    if value.get('last_error') == '-':
+        raise ValueError('last error must describe a new occurrence')
+    if 'last_error' in value:
+        value.setdefault('status', TASK_STATUSES[0])
+    update_task_info(run, task, value)
+
+
+def task_message(run, task, text):
+    """Consume valid status commentary, preserving following prose or invalid input."""
+    if text.startswith(STATUS_PREFIX):
+        payload = text[len(STATUS_PREFIX):].lstrip()
+        try:
+            _, end = json.JSONDecoder().raw_decode(payload)
+            status_update(run, task, payload[:end])
+        except (ValueError, TypeError):
+            return text
+        return payload[end:].lstrip()
+    return text
+
+
 def read_state(run):
     try:
         return json.loads((run / 'chat-state.json').read_text())
@@ -363,18 +393,9 @@ class AppSession:
         if kind == 'agentMessage':
             if not complete:
                 return
-            text = item['text']
-            if text.startswith(STATUS_PREFIX):
-                payload = text[len(STATUS_PREFIX):].lstrip()
-                try:
-                    _, end = json.JSONDecoder().raw_decode(payload)
-                except ValueError:
-                    self.status_update(payload)
-                    return
-                self.status_update(payload[:end])
-                text = payload[end:].lstrip()
-                if not text:
-                    return
+            text = task_message(self.run, self.task, item['text'])
+            if not text:
+                return
             try:
                 value = json.loads(text)
             except ValueError:
@@ -406,19 +427,7 @@ class AppSession:
 
     def status_update(self, text):
         try:
-            value = json.loads(text)
-            if not isinstance(value, dict) or set(value) - {'explanation', 'status', 'last_error'}:
-                raise ValueError('invalid task update')
-            if any(not isinstance(v, str) or not v.strip() or len(v) > 2000 for v in value.values()):
-                raise ValueError('invalid task update')
-            value = {k: clean(v).strip() for k, v in value.items()}
-            if any(not v for v in value.values()) or ('status' in value and value['status'] not in TASK_STATUSES):
-                raise ValueError('invalid task update')
-            if value.get('last_error') == '-':
-                raise ValueError('last error must describe a new occurrence')
-            if 'last_error' in value:
-                value.setdefault('status', TASK_STATUSES[0])
-            update_task_info(self.run, self.task, value)
+            status_update(self.run, self.task, text)
         except (ValueError, TypeError):
             # Rejected metadata is still an agent message. Use the shared
             # renderer so its prose reaches both transcript panes.

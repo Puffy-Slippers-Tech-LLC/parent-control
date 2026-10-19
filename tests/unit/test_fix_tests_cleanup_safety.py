@@ -81,6 +81,70 @@ def test_worker_round_count_and_top_frame(checkout, rounds):
                for number in range(1, rounds + 1))
 
 
+@pytest.mark.parametrize('next_category', [False, True])
+def test_repair_panel_uses_shared_metadata_clocks_and_resets_for_next_category(
+        checkout, monkeypatch, next_category):
+    from launcher_chat import read_state, task_info
+    from launcher_display import TaskDisplay
+    from launcher_progress import read_progress
+    from tests.support.terminal_screen import Terminal
+
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['failed-case', None, None], wait_test=1,
+        panel_updates=[{'explanation': 'Checks that repairs preserve the expected results.',
+                        'status': 'Root cause identified, fixing'}])))
+    run, _ = fix_tests.select(root, categories=('unit', 'ui') if next_category else ('unit',))
+    wait_for(root / 'test-ready')
+    before = task_info(run, '1:unit')
+    assert before['last_error'] == 'The unit checks did not pass.'
+    assert before['status'] == 'Testing fix, previous error point not reached yet'
+    assert 'LAUNCHER_STATUS' not in (run / 'output').read_text()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert 'LAUNCHER_STATUS' in next(call['prompt'] for call in calls if call['kind'] == 'agent')
+
+    # Both clocks refresh without output and reconnect from owner metadata.
+    now = max(before['last_error_at'], before['status_at']) + 72 * 60
+    monkeypatch.setattr('launcher_display.time.time', lambda: now)
+    for minute in range(2):
+        terminal = Terminal(400, 55)
+        display = TaskDisplay(terminal, run=run, input_mode='question',
+                              terminal_size=lambda: terminal.size)
+        display.refresh_chat()
+        display.update(read_progress(run), [])
+        text = terminal.visible()
+        assert f'Last Error: The unit checks did not pass. (1h {12 + minute}m ago)' in text
+        assert f'Status: Testing fix, previous error point not reached yet (1h {12 + minute}m ago)' in text
+        now += 60
+
+    (root / 'release').touch()
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    after = task_info(run, '1:unit')
+    assert after['last_error_at'] == before['last_error_at']
+    assert after['status'] == 'Testing fix, previous error point passed'
+    assert after['status_at'] >= before['status_at']
+    if next_category:
+        assert read_state(run)['task_id'] == '1:ui'
+        assert task_info(run, '1:ui')['status'] == 'Running'
+        assert 'last_error' not in task_info(run, '1:ui')
+
+
+def test_diagnostic_execution_does_not_claim_a_verified_fix(checkout):
+    from launcher_chat import task_info
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['diagnostic_ready', 'test_fixed'],
+        tests=['failed-case', None, None], wait_test=1)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    wait_for(root / 'test-ready')
+    assert task_info(run, '1:unit')['status'] == 'Investigating'
+    (root / 'release').touch()
+    assert fix_tests.follow(run, io.StringIO()) == 0
+    assert task_info(run, '1:unit')['status'] == 'Testing fix, previous error point passed'
+
+
 def test_resume_after_cancellation_keeps_passed_category_and_fresh_run_resets(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')

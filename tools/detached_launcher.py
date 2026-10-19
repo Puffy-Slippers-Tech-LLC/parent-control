@@ -175,7 +175,7 @@ def descriptive_output(run):
 
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
-              on_usage=None, interactive=False):
+              on_usage=None, interactive=False, task=None):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -202,9 +202,12 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     renderer = None
     if kind == 'agent':
         from launcher_render import AgentRenderer
+        from launcher_chat import task_message
         renderer = AgentRenderer(sys.stdout, command_log=run / 'agent-commands.log',
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
-                                 on_description=descriptive_output(run))
+                                 on_description=descriptive_output(run),
+                                 on_message=(lambda text: task_message(run, task, text))
+                                 if task is not None and not interactive else None)
     conversation = None
     if interactive:
         from launcher_chat import AppSession, app_command

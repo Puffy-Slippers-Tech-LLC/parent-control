@@ -1051,6 +1051,13 @@ progress output. The shared [panel contract](../docs/Execution-Plans.md#common-l
 owns the bold explanation/error/status labels, separators, task-local error age
 and colored status values. These updates are presentation only, never
 acceptance evidence.
+
+`fix-tests` populates those same fields during testing and repair: both a reported
+Last Error and Status show `(duration ago)`, refreshing without new output and
+surviving observer reconnection. Each round/category keeps its own metadata;
+repair retries retain the error clock, and corrective verification changes status
+before testing and after a passing selected run.
+
 The bottom-left composer accepts typing during work. Enter sends; Shift+Enter
 inserts a newline in terminals supporting modified-key reporting, which the
 display enables while attached. Alt+Enter and Ctrl+J also insert a newline;

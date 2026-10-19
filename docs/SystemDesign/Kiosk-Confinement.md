@@ -131,6 +131,211 @@ Preparation admits at most four generations per boot, 32,768 directory entries
 and 512 MiB of executable/library input per generation. Only owned incomplete
 preparations are reclaimed under the exclusive lock.
 
+### Planned post-layout ambient binding
+
+This is the **002aa design**, pending implementation and host acceptance at
+[002ab](../Kiosk-Prompt-Tasks/002ab-ambient-binding-host.md). Current native code
+still refuses every missing or unsafe bind source. The design covers one
+preparation's published layout through native attachment; it does not select a
+previous admission's material. The complete layout remains in the generation
+digest, and `manager_generation()` keeps its exact comparison. Material identity,
+retained source pins and ambient changes **between** preparations remain with
+005a–007 in the [entry queue](../Kiosk-Prompt-Queue.md).
+
+**Invocation-local skeleton.** Do not unlink a shared generation placeholder or
+retry preparation to recover an ambient bind. While holding the existing
+admission lease and exclusive preparation lock, the native PAM caller validates
+the service-derived `manager` or `gate` role, creates its private mount namespace
+and makes propagation recursively private **before** starting preparation.
+It validates one fixed, empty, root-owned mode-0700 staging directory,
+`/run/oh-no-parent-control-confinement/native-view`, without following links or
+adopting an existing mount. It mounts a new, bounded tmpfs there and records the
+namespace, mount identity and opened root descriptor. Each invocation gets a
+different filesystem even though the mountpoint spelling is fixed. The ordinary
+host directory remains empty; no persistent per-login directory is allocated.
+
+Preparation inherits that namespace and the existing locks. It still creates or
+verifies the shared generation, its copied executables, `records.json`, exact
+tree and generation marker as today. It then uses `make_tree()` to construct a
+second skeleton under `native-view/tree`, from that same reviewed layout, and
+verifies it before publication. Only this private skeleton receives native
+subordinate mounts or ambient placeholder removals. The private manifest is
+atomically published inside the same tmpfs; the native caller consumes that
+opened file, never a stale shared `bindings` file. Preparation must refuse a
+missing, foreign or non-tmpfs invocation root rather than create a disk-backed
+fallback. Direct preparation fixtures must explicitly model this new precondition.
+
+SELinux labeling is part of creation, not inferred from the shared runtime's
+label. Native mount setup uses fixed `fscontext=system_u:object_r:tmpfs_t:s0`
+and `rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0`, verifies successful
+installation of those options and reads back the root's raw inode label before
+starting the helper. Filesystem and root-inode labels are separate under the
+[public mount contract](https://github.com/util-linux/util-linux/blob/master/sys-utils/mount.8.adoc).
+After creation, preparation and native consumption verify the skeleton, links
+and manifest have the expected runtime inode labels, including explicit
+per-inode labeling where creation transitions require it. Bind mounts retain
+their source labels, including the independently copied native roles and vendor
+privilege helper. Use per-inode labels; do not apply a filesystem-wide context
+override that hides bound executable labels. Do not add `noexec` or `nosuid`
+semantics that change the existing native/helper routes. AppArmor still sees the
+same final `/usr` paths. The policy generator's comment describing a host-backed
+skeleton must be reconciled with the tmpfs backing; existing bootstrap tmpfs
+filesystem permissions must be checked for the actual remount/unmount operations.
+Any necessary permission belongs only to the existing trusted pre-boundary
+callers or finite bootstrap roles, never a new kiosk payload mount capability.
+Labeling or permission failure denies entry. Host doubles cannot qualify these
+kernel operations; affected Ubuntu/Fedora entry and helper/bootstrap observations
+remain required under 003/004 and final-input allocation at 011a.
+
+**Closed publication protocol.** Replace the unversioned source/target list with
+a versioned, bounded record stream. The header declares protocol version, backend,
+caller role and the unchanged 64-hex generation digest. The role must match the
+native service-derived role. Native verifies the selected shared-generation
+directory and its marker against the declared digest; it does not already know
+that digest. Backend and configured inventory are authoritative outputs of
+successful attested preparation, not independently discovered native inputs.
+Unknown versions, backend/role values or missing fields refuse.
+The preparation producer derives trust roles from attested configuration and the
+measured native/preserved inventories, never from a filename, optional assertion,
+permission failure or a caller-supplied ambient flag. The stream carries:
+
+- Protected-root records: the producer's configured/measured required
+  destinations, native-copy source mapping, reserved roots and lexical alias
+  roots, with their closed roles. Native uses these as the authoritative roots
+  for independent proof-chain and binding-coverage checks. Producer checks against
+  the actual configuration/inventory must catch an omitted configured root;
+  parsing the same stream cannot independently rediscover such an omission.
+- Skeleton records: relative target, closed node kind (`tree`, `file`, `link`,
+  `directory`, `empty-directory`) and exact link text where applicable.
+- Required proof records: original required native/privileged destinations,
+  reserved roots, covered ancestors and lexical aliases with every intermediate
+  symlink target/ancestor, expected node type and link text. These remain required
+  even when they have no bind record. Native descriptor-based validation of these
+  proofs is mandatory; copied executable sources are additionally checked at their
+  shared-generation locations. 002ab supplies this protocol and native checking;
+  002a still owns its independently reproduced complete classification/alias
+  closure and missing-destination regressions. Neither task receives the other's
+  acceptance credit.
+- Bind records: explicit `required` or `ambient`, expected `file` or `directory`,
+  source, relative target and preserved identity or an explicit absent-assertion
+  marker. Required inventories, generation marker, reserved/covered roots and
+  alias dependencies cannot receive `ambient`. Privileged helpers always require
+  their full existing eight-field identity; an ambient assertion is invalid.
+- One terminal attach record: the invocation tree onto exactly `/usr`. It is
+  always required and must be last. No later record is accepted.
+
+The producer rejects contradictory or duplicate paths, incomplete required
+coverage and required/ambient overlap before publication. The native parser
+rejects contradictory/duplicate records, missing closure or binding coverage for
+declared protected roots and required/ambient overlap independently, and validates
+all structural records before source fallback or attachment. Bind sources must
+be canonical absolute paths below `/usr/` or the selected shared generation.
+Targets must be canonical relative paths anchored to the recorded invocation
+root: no empty/dot/dot-dot components,
+embedded NUL, extra fields, truncated lines or path-prefix approximations.
+Targets and their parents are opened component by component without following
+links; bind targets cannot be link nodes. Skeleton symlinks are copied as link
+text, never followed to construct or remove a target. Required host alias proofs
+explicitly follow only their validated, bounded chain, including targets outside
+`/usr` where the existing inventory allows them. Cycles or incomplete proofs deny.
+Unrepresentable names remain omitted or refused by scope under 002a's publication
+rules, never coerced to another name. No old-format fallback grants an exception.
+
+**Source decision and descriptor lifetime.** First validate the complete protocol,
+required proofs and every target's independent ownership, type and ancestry.
+Only an explicitly ambient bind's **final source node** can receive the following
+fallback. A source ancestor/proof failure is strict, including one encountered
+while opening an ambient source. Separate source and target errors; a failed
+target lookup/stat/unlink is never evidence of an unsafe source.
+
+| Final source observation after publication | Ambient file result | Ambient directory result | Required result |
+| --- | --- | --- | --- |
+| Missing (`ENOENT` at the final component), including removal after opening | Remove private file placeholder | Keep private directory empty | Refuse |
+| Final-source open/stat reports `EACCES`, `EPERM`, `EIO` or `ESTALE` after trusted ancestry was established | Remove private file placeholder | Keep private directory empty | Refuse |
+| Non-root owner, group/world write bits, wrong expected type (including a substituted link/special node) | Remove private file placeholder | Keep private directory empty | Refuse |
+| Path no longer names the checked inode, or checked metadata becomes unsafe before/after bind | Remove private file placeholder after owned detach if needed | Keep private directory empty after owned detach if needed | Refuse |
+| Resource exhaustion, invalid descriptor, malformed path/proof, any other source error, target failure or any mount failure | Refuse | Refuse | Refuse |
+
+Use no-follow `O_PATH` source descriptors after checked ancestry; do not open a
+FIFO/device for I/O. Hold source, target and needed parent descriptors until
+mount and rechecks finish. Bind through those descriptors. Recheck source type,
+UID and write restrictions immediately before and after bind, check that the
+validated pathname still identifies that descriptor's device/inode and is not
+unlinked, and revalidate required ancestry/proofs before final attachment.
+For preserved helpers retain **every** identity field before and after mounting.
+A disappearance/reappearance or substitution never causes a reopen-and-retry
+against a different inode in this invocation. If an ambient source fails after
+a successful subordinate mount, detach that exact owned mount successfully
+before omission/masking; detach failure refuses. A failed mount always refuses,
+even if a later source check would have permitted omission.
+
+Remove a rejected file with descriptor-relative, no-follow unlink only after
+matching its private placeholder identity and confirming no mount remains there.
+A rejected directory stays the original empty mode-0755 private directory;
+never change its kind to match a replacement source. Do not bind any rejected
+source or copy its data. Once a record is omitted/masked, do not reconsider it
+if its host name reappears. Safe accepted directories keep the existing shallow
+bind semantics: this phase does not recursively measure their contents or freeze
+future host writes. Descriptor pins and finite rechecks do not establish the
+between-admission immutable-material guarantees reserved to 005a–007.
+
+**Attachment, bounds and cleanup.** Recursively clone the completed invocation
+tree onto `/usr`, make that clone recursively read-only, then detach only the
+recorded subordinate staging mounts and finally the invocation's tmpfs staging
+root. Close all setup/source/target/manifest descriptors before MAC. The `/usr`
+clone retains its own mount references and private dentries; detaching the staging
+root removes its writable alias without deleting those dentries. The kernel
+releases that filesystem when its last namespace/mount reference disappears.
+Never recursively delete the skeleton after attachment. No shared generation,
+record, digest, marker, mode, link or placeholder is modified by realization.
+
+Keep four completed shared generations, 32,768 layout nodes, 512 MiB copied input
+and the 60-second preparation-child deadline, with its owned kill/reap behavior.
+Bound private tmpfs storage at 512 MiB and 32,776 inodes, and the manifest at
+64 MiB, 32,768 protected-root rows, 32,768 skeleton rows, 32,768 proof rows and
+32,768 bind rows plus header and terminal record. Paths/link text are bounded by
+`PATH_MAX`; assertions use
+the existing finite numeric schema with overflow rejection. Bound alias walks
+and reject exhaustion rather than truncate proof. Exceeding any bound, running
+out of storage or failing an allocation denies; no larger disk fallback exists.
+These are ceilings, not a scaling increase or a promise every ceiling-sized
+combination fits. Preparation, parser and fixture limits must agree.
+
+Keep mount identities and reverse-order cleanup state in the native invocation.
+On preparation timeout/failure, partial publication, bind failure or later
+pre-MAC failure, wait for owned children, close descriptors and detach only its
+recorded mounts (including its `/usr` clone if attached), then its tmpfs root.
+A cleanup mismatch/failure remains denial and must be reported, never adopted
+or recursively erased. Process/namespace exit releases surviving private mount
+references; do not return successful admission with unfinished detach. A caller
+crash leaves no persistent private payload to sweep. Preserve an unexpected
+shared mountpoint identity or nonempty directory and refuse it. Diagnostics use
+closed categories without paths and cannot change admission if logging fails;
+002b retains detailed native cause production.
+
+**Finite implementation acceptance allocation (002ab).** The following selectors
+are **planned and unimplemented** until registered in
+`tests/unit/test_kiosk_confinement.py`. Reuse `native_mount_binding` and
+`preserved_password_preparation`, with complete affected callers and their
+resource rationale in `tools/regression_unit.py`; do not add a parallel harness.
+
+| Planned selector | Required independent assertions |
+| --- | --- |
+| `test_post_layout_source_drift` | Both caller roles; ambient and required files/directories independently vanish, become non-root-owned, group/world-writable or wrong-type after publication. Observe native consumption; rejected files absent, directories empty, rejected source never mounted; required equivalent refuses. |
+| `test_post_layout_descriptor_drift` | Disappearance/reappearance, rename/type substitution and owner/mode change between checked open, pre-bind and post-bind rechecks; no reopen retry, no rejected mount left behind; required and preserved controls refuse. Use real private file changes at descriptor boundaries in addition to metadata doubles. |
+| `test_post_layout_protocol_and_targets` | Missing/unknown caller or source role, old/malformed/duplicate/contradictory/truncated/over-limit records, omitted required proofs, alias/reserved-root drift and unsafe target/ancestor/link all refuse, even paired with a missing ambient source. Source-only fallback must be distinguished from target/stat failures. |
+| `test_post_layout_published_roles_and_reuse` | Actual manager and gate `prepare()` outputs reach native parser. Snapshot shared records/tree/digest/copies/marker before native ambient omission; they remain identical afterward. Fresh preparation with restored identical inputs reuses them, and gate passes the same digest to `manager_generation()`; a genuinely different digest still refuses. Changed later layout is not falsely declared compatible. |
+| `test_post_layout_owned_cleanup_and_bounds` | Private namespace/tmpfs and label setup, atomic publication, helper failure/timeout, partial bind, attach/read-only/detach failures, storage/row limits and post-attach failure; only owned mounts/descriptors/children are released, foreign state survives, no shared-tree mutation or writable staging alias survives success. Logging failure leaves admission unchanged. |
+
+Retain the existing detach-order selector's 11 independent controls, the eight
+preserved-identity field controls and real post-measurement file-change controls.
+Host namespace/mount/label doubles are engineering evidence only. 002ab must
+retain exact selectors, failing-then-passing reports, fixture/source identities,
+explicit child timeouts and runner cleanup, review affected unit resource
+classification, run the maintained documentation consistency selection and build
+after its final packaged edit. No installed acceptance is earned here or at
+002ab; 003/004/007 and 011a retain their full affected-target obligations.
+
 ## Roles, services and dialogs
 
 The [generated role policy](../../tools/kiosk_confinement_policy.py) separates

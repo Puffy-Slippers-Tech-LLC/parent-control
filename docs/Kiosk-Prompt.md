@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **002a — [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md)**.
+Next task: **002ab — [Implement safe post-layout ambient binding](Kiosk-Prompt-Tasks/002ab-ambient-binding-host.md)**.
 
 ## Outcome
 
@@ -184,9 +184,10 @@ restoration remains. Markdown links passed before queue close-out; the maintaine
 four-module documentation consistency selection recorded 313/313 in run
 `20261019T063757Z-1fe129b7`. That original report subsequently rotated under the
 runner's three-run retention policy during 001. The same selection passed again
-for 001's final documentation in
-[its retained report](../output/test-runs/host/reports/20261019T065201Z-bbb76ba6/report.md);
-this is fresh documentation validation, not a recovered original receipt.
+for 001's final documentation in run `20261019T065201Z-bbb76ba6`, whose report
+also rotated during 002a handoff correction. The fresh matching selection is
+retained in [002a's correction report](#classification-prerequisite-discovery--002a);
+this is documentation validation, not a recovered original receipt.
 Only documentation changed, so no package build or installed check was required.
 
 ### Preparation and native admission audit — 001b
@@ -297,8 +298,11 @@ were checked. Both read-only workers finished before acceptance. No product,
 VM, fixture or persistent process was created or changed, so no runtime
 restoration remains. Only documentation changed; no package build or installed
 check is required by this review brief. Changed Markdown links passed, and the
-required four-module documentation consistency selection passed 313/313 in
-[the retained runner report](../output/test-runs/host/reports/20261019T064419Z-1aad8930/report.md).
+required four-module documentation consistency selection passed 313/313 in run
+`20261019T064419Z-1aad8930`. That original report subsequently rotated under
+the runner's three-run retention policy during 002a discovery. The same selection
+is included in the fresh discovery validation below; it does not recover the
+original receipt or repeat the completed source review.
 
 ### Session, readiness and diagnostic reconciliation — 001
 
@@ -396,13 +400,93 @@ and no later row is completed by this review.
 export path and combined 001a/001b with an independent read-only startup,
 readiness, runtime-root and selector review. The reviewer finished before
 acceptance. The four-module documentation consistency selection passed 313/313
-again after queue close-out in
-[the retained runner report](../output/test-runs/host/reports/20261019T065201Z-bbb76ba6/report.md).
+again after queue close-out in run `20261019T065201Z-bbb76ba6`. That report
+subsequently rotated under normal retention during 002a handoff correction;
+the fresh matching selection is retained below. This does not repeat the source
+review or recover the original receipt.
 Changed Markdown links and whitespace checks passed. No product, VM, fixture or
 persistent process was created or changed; runner-owned cleanup finished and
 there is no runtime restoration remaining. Only documentation changed, outside
 `PACKAGE_SOURCE_FILES` and build-tool dependencies; this review brief has no
 Targets and requires no package build or installed check.
+
+### Classification prerequisite discovery — 002a
+
+002a remains unfinished, with no acceptance credit. Coordinator and independent
+read-only review confirmed that `directory_layout()` observes sources before
+`prepare()` publishes pathname bindings and exits. The native
+`bind_kiosk_executables()` has no required/ambient distinction: a later source
+open, metadata or trust failure aborts entry. Another Python recheck cannot
+close that interval. The existing native refusal/detach selector passed all
+11 controls in run `20261019T065448Z-a85e1232`. That report rotated under normal
+retention during 002aa; its recorded historical pass is not fresh native evidence.
+Those expected refusals preserve safety; they do not prove ambient availability,
+disappearance handling or the remaining classification/publication repairs.
+
+The brief's explicit independent-mechanism condition therefore applies.
+002aa/002ab precede 002a to design and implement only the preparation-to-bind
+ambient lifetime boundary. Simply skipping an ambient file bind leaves an
+empty file rather than omission; unlinking its target mutates the shared tree
+checked by `verify_tree()`. Retrying full preparation can change the layout
+digest and fail manager matching. The prerequisites must settle these cases
+without bypassing required checks or moving the between-admission material/pin
+work from 005a–007. All original 002a obligations remain required on resumption,
+including fresh reproduction of the alias and publication defects before repair.
+
+No product or test source was edited during discovery. The private-fixture run
+finished, its runner-owned cleanup ended, and the read-only reviewer finished
+before handoff. No VM, installation or persistent process was created. The
+pre-existing proof-document edit is preserved. Only plan documentation changed;
+no build or installed acceptance is supplied or required for this insertion.
+The four-module documentation consistency selection and shared plan-launcher
+regressions passed 551/551 in run `20261019T065643Z-b3e25743`. That discovery
+report rotated under normal retention during 002aa. Its historical result is
+preserved here; 002aa's fresh documentation selection below does not repeat the
+shared launcher regressions.
+This validates supporting contracts, not 002a's unexecuted acceptance. The
+prerequisite block preserves all existing completion, order and scope, and adds
+only its backward dependencies to 002a's existing Requires chain.
+
+Handoff correction retained each prerequisite's single acceptance declaration
+(`review` for 002aa, `host` for 002ab), renaming only the duplicate prose labels.
+All required results and validation remain unchanged. The four-module
+documentation consistency selection passed 313/313 in
+[the correction report](../output/test-runs/host/reports/20261019T065936Z-69697932/report.md).
+Markdown links and whitespace checks passed; runner-owned cleanup finished.
+This correction executes neither prerequisite nor 002a acceptance.
+
+### Post-layout ambient binding design — 002aa
+
+Review acceptance passed on 2026-10-19 UTC. The enduring
+[phase-local design](SystemDesign/Kiosk-Confinement.md#planned-post-layout-ambient-binding)
+uses an invocation-private tmpfs skeleton and manifest, explicit producer-derived
+required/ambient roles and required alias/root proofs. Native descriptor rechecks
+separate eligible final-source omissions/masks from strict target, protocol,
+mount, read-only and detach failures. The shared tree and full layout digest stay
+unchanged; exact manager matching and 005a–007's retained-material work remain.
+The owner allocates five finite, still-unimplemented selector families to 002ab,
+including actual manager/gate publication-to-native consumption, independent
+required drift, subsequent preparation/reuse and identity-owned cleanup.
+
+The coordinator read the complete named Python/native functions, fixtures and
+callers, with their unit-resource rationale. Independent GPT-6.1 Sol High review
+accepted the final design after clarifying the producer-authoritative inventory,
+native structural/proof checks and generation-marker comparison, plus SELinux
+filesystem versus inode labels and their creation order. The reviewer finished
+before acceptance with no resources owned. The maintained four-module
+documentation consistency selection passed 313/313 in
+[the design validation report](../output/test-runs/host/reports/20261019T070750Z-93b75ae5/report.md).
+The same 313/313 selection passed after queue/pointer/brief close-out in
+[the close-out validation report](../output/test-runs/host/reports/20261019T070859Z-59031128/report.md).
+Expired historical report links above retain their run identities and evidence
+limits. Changed Markdown links and whitespace checks passed.
+
+Only documentation changed; no product, installation, VM or persistent process
+was created. Runner-owned cleanup finished, and no runtime restoration remains.
+The pre-existing proof/master/queue work is preserved. No package input or build
+dependency changed, so no build is needed. This review brief declares no Targets
+and earns no native or installed credit. Only 002aa closes; 002ab and every
+later row keep their acceptance obligations.
 
 ### Remaining execution and acceptance
 

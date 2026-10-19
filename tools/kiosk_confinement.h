@@ -332,7 +332,7 @@ cleanup_kiosk_view(struct kiosk_view *view, int keep_clone)
     int result = 0;
     if (view->mounted || view->cloned) {
         struct stat namespace_info;
-        int ns = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+        int ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
         int matches = ns >= 0 && fstat(ns, &namespace_info) == 0 &&
             namespace_info.st_dev == view->namespace_device && namespace_info.st_ino == view->namespace_inode;
         if (ns >= 0)
@@ -454,14 +454,16 @@ setup_kiosk_view(struct kiosk_view *view)
     } else if (access("/sys/fs/selinux/enforce", F_OK) == 0 || errno != ENOENT)
         goto done;
     stage = "namespace"; reason = "namespace";
-    ns = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+    /* These descriptors witness namespace identity only. O_PATH permits the
+     * fstat checks without requesting nsfs read access from the PAM caller. */
+    ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
     if (kiosk_os_failure(&view->failure, stage, reason, ns < 0) ||
         kiosk_os_failure(&view->failure, stage, reason, fstat(ns, &before) != 0) ||
         kiosk_os_failure(&view->failure, stage, reason, unshare(CLONE_NEWNS) != 0) ||
         kiosk_os_failure(&view->failure, stage, "mount",
                          mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0))
         goto done;
-    fresh = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+    fresh = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
     if (kiosk_os_failure(&view->failure, stage, reason, fresh < 0) ||
         kiosk_os_failure(&view->failure, stage, reason, fstat(fresh, &after) != 0) ||
         (before.st_dev == after.st_dev && before.st_ino == after.st_ino))

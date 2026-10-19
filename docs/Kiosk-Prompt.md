@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **003 — [Qualify Fedora sibling isolation](Kiosk-Prompt-Tasks/003-sibling-isolation.md)**.
+Next task: **004a — [Qualify Ubuntu late refusal and recovery](Kiosk-Prompt-Tasks/004a-late-denial-ubuntu.md)**.
 
 ## Outcome
 
@@ -500,9 +500,9 @@ generation bytes/tree/digest and exact manager matching remain unchanged.
 
 Before repair, `test_post_layout_source_drift` reached the existing native source
 checks: all 20 ambient variants failed availability and all 20 independent
-required controls passed in `20261019T071142Z-bc17fb2a`. The
-[retained failure report](../output/test-runs/host/exports/onpc-artifact-export-npn5sztx/report.md)
-contains that original stream and assertion evidence. The five registered
+required controls passed in `20261019T071142Z-bc17fb2a`. Its exported failure
+report subsequently retired under normal retention during 003; this identifier
+preserves the historical failure, not a recovered receipt. The five registered
 `test_post_layout_*` families plus preserved identity and detach controls cover
 341 cases, including both actual manager/gate publications, real descriptor-time
 substitution, subsequent preparation/reuse, bounds, labels and owned child cleanup.
@@ -564,8 +564,9 @@ no ambient contents are read and diagnostic failure leaves admission unchanged.
 Before repair, all five permanent reproduction cases failed in
 `20261019T074857Z-fc49bc5b`: three late alias ancestry/target ownership changes
 did not refuse, and both caller roles raised `UnicodeEncodeError` during actual
-publication. The [exported failure report](../output/test-runs/host/exports/onpc-artifact-export-p1vmuvzh/report.md)
-retains their assertions and original failures. Subsequent fixture repairs made
+publication. Its exported failure report subsequently retired under normal
+retention during 003; the run identifier preserves the historical failures.
+Subsequent fixture repairs made
 the private generation marker explicitly 0644 and mapped current Python's direct
 `Path.exists()` queries to the private tree; these preserve those original failures
 and expectations. Existing executable-parent/copy-limit fixtures now supply their
@@ -773,10 +774,82 @@ closes; Fedora 003 and Reliability 006a retain their original acceptance scope.
 
 After queue/pointer/brief close-out, the maintained four documentation modules
 and unit partition/resource checks passed all 340 cases in
-[20261019T082827Z-a4e09239](../output/test-runs/host/reports/20261019T082827Z-a4e09239/report.md).
+`20261019T082827Z-a4e09239` (subsequently retired under normal retention during 003).
 Changed-document links and whitespace passed.
 Expired older links above retain their historical run identifiers; no earlier
 task is reopened or granted fresh acceptance. The 003a bundle remains retained.
+
+### Fedora sibling isolation and candidate reconciliation — 003
+
+Installed acceptance passed on `onpc-Fedora44` on 2026-10-19 UTC, with a fresh
+`onpc-Ubuntu26.04` rerun after the shared native fix. Both used registered case
+**290**, `enforcement / test_kiosk_writable_sibling_isolation`, in one maintained
+two-target selection. Fedora report `20261019T085656Z-ac264187` took 2.5 minutes;
+Ubuntu report `20261019T085656Z-ce7a9f55` took 1.5 minutes. All product,
+infrastructure, collection and cleanup outcomes passed on both targets.
+
+The original Fedora attempt `20261019T083355Z-ced15908` reached successful blank
+authentication and routing, then refused at native namespace setup with errno 13;
+no product assertion ran. Owned maintenance reproduced entry failure. The audit
+identified `xdm_t` denied `read` on the namespace's `nsfs_t` file while SELinux
+remained enforcing. The three identity-only namespace opens now use `O_PATH`
+with `O_CLOEXEC`, retaining descriptor, namespace-change and exact cleanup checks.
+No MAC permission changed. The independent native fixture now refuses read opens:
+the original code failed 13 of 22 focused controls in `20261019T084557Z-af392122`.
+The final confinement/PAM/partition selection passed all 1,355 checks in
+`20261019T084637Z-732eb4b9`, including namespace-mismatch and foreign-mount refusals.
+GPT-6.1 Sol High independent review found no correctness or security issue and
+finished before acceptance. Private fixture ownership/resource classifications
+remain unchanged. `make build` passed both formats after the final packaged edit.
+
+On each target, all 24 observed station processes had empty private views of
+root-owned 0775/0777 and non-root-owned 0755/0555 directories, with the user-owned
+0644 file absent. Both ordinary roles retained exact contents/access initially,
+after replacing the recorded 0777 directory and omitted file, and after restoring
+their original inodes/bytes. The same manager, namespace and generation survived
+replacement. The full thread census stayed confined; the allowed native control
+executed and the shell negative had its exact enforcing kernel denial. Public
+passwordless entry reached the loaded form and Cancel returned to sign-in.
+Fedora kernel: `7.2.11-200.fc44.x86_64`, enforcing SELinux (`permissive=0`);
+Ubuntu kernel: `7.0.0-38-generic`, enforcing AppArmor.
+
+Both final receipts bind package-source digest
+`f29dbb154edcdb8d1523a49725878e1df956724d03cd41872ca39cfdb58853dd`,
+fixture digest `facbd895b378897dba77b7be5832e4db7b2b12595815c4fb78cabf6c7b70996d`
+and selected-input digest
+`4a5b25e7052ecade466d1595715181fa6f1ce2ce65592e8c80eaefa2a95cf4b1`.
+The selected guest and public observer/runner/snapshot/registry closure matches
+003a exactly; the native header changed, so its older installed package receipt
+was superseded for this candidate by the complete Ubuntu rerun, not reused.
+Final installed DEB SHA-256:
+`1da3b504aa104b55c845c3ab6b75c3e5687541468ae921f05d12ed3c0feba029`;
+RPM SHA-256:
+`6751dc9abe401bf82627f2dc208d2766fea89bef781df273aeadc463cc024fb0`.
+Native header SHA-256:
+`5bd1c93ac8144b7cda9248d84e176845d99c0cfb01016cbb54f8c84cdb5b0cb6`;
+host fixture SHA-256:
+`ffdc394a5c34ecef12d73d9dbd768f6ccc32db8b02f0f9e6305f8d8e2f6d646e`.
+
+The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-oyxcp4qk/evidence.zip)
+retains both final results, complete phase JUnit, public entry/exit and fixture
+cleanup receipts, frozen input/package manifests, the original Fedora failure,
+host negative/final reports and 003a's historical evidence. Bundle SHA-256:
+`e2720ed1c6dfc2b73b87b777644f9c4bd8714037309228da1ed64c400d8a7220`.
+Final allocations are `onpc-system-oj79lbh3` (Fedora) and
+`onpc-system-8knwkc34` (Ubuntu). Fixture removal, diagnostic/preparation session
+release, runner baseline restoration and serial
+`tools/cleanup-e2e --vm onpc-Ubuntu26.04,onpc-Fedora44` completed. Export cleanup
+also completed. The initial busy export and checkout-owner refusals passed on
+serial retry after their owners finished. No owned process or VM remains active.
+The pre-existing proof-document edit is preserved. Only 003 closes; these matching
+receipts are available to Reliability 006a's later scope review without checking
+that separate row or granting any other installed obligation acceptance.
+
+After queue/pointer/brief close-out, the maintained four-module documentation
+selection passed all 313 cases in
+[20261019T090218Z-d43a50d8](../output/test-runs/host/reports/20261019T090218Z-d43a50d8/report.md).
+Changed-document links and whitespace passed. Both named VMs were independently
+observed powered off after cleanup; the cumulative bundle remained verified.
 
 ### Remaining execution and acceptance
 

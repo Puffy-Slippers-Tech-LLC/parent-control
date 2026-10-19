@@ -3945,6 +3945,12 @@ static void mutate_source(const char *path) {
     printf("mutation:%u\n", source_checks);
 }
 static int fixture_open(const char *path, int flags) {
+    /* Fedora's GDM domain permits identity inspection but denies reading nsfs.
+     * Model that independent policy boundary for setup AND owned cleanup. */
+    if (strcmp(path, "/proc/self/ns/mnt") == 0 && !(flags & O_PATH)) {
+        errno = EACCES;
+        return -1;
+    }
     if (strcmp(path, "/usr") == 0 && cloned) return dup(clone_source);
     if (strcmp(path, manifest) == 0) path = manifest;
     return open(physical(path), flags);
@@ -4193,7 +4199,7 @@ int main(int argc, char **argv) {
         memset(&view, 0, sizeof(view));
         view.root = fixture_open(KIOSK_CONFINEMENT_VIEW, O_RDONLY | O_DIRECTORY);
         view.mounted = private_mount = 1; view.root_id = 2;
-        struct stat ns; int nsfd = fixture_open("/proc/self/ns/mnt", O_RDONLY);
+        struct stat ns; int nsfd = fixture_open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
         if (nsfd < 0 || fixture_fstat(nsfd, &ns) != 0) return 2;
         fixture_close(nsfd); view.namespace_device = ns.st_dev; view.namespace_inode = ns.st_ino;
         view.mounts = calloc(KIOSK_VIEW_ROWS, sizeof(*view.mounts));

@@ -107,6 +107,40 @@ def observe_activation(transport, lease, phase):
                 'engineering_confinement': census}
 
 
+def observe_station_refusal(transport, lease, verify_refusal, *, receipt):
+    """Select once, require independent native/session refusal, then read GDM."""
+    with watch_activity.operation('Checking refused request-station entry'):
+        ui = UiObservations(transport)
+        ui.boot_guard = ''
+        observations = []
+        receipt['public_observations'] = observations
+
+        def observe(operation):
+            lease.guard()
+            value = ui.observe(operation)
+            observations.append(value)
+            return value
+
+        enter_station(lease, ui, observe)
+        receipt['boot_sha256'] = ui.boot_proof
+        verify_refusal()
+        checked = time.monotonic()
+        result = observe('gdm-station-refused')
+        receipt['fallback'] = result['fallback']
+        if result['fallback'] == 'station-prompt':
+            # Escape is navigation from the freshly identified station prompt,
+            # never credential submission or an automatically replayed Enter.
+            lease.guard()
+            require(0 <= time.monotonic() - checked < 30, 'kiosk-activation:stale-recipient')
+            try:
+                lease.source.domain.sendKey(
+                    lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [1], 1, 0)
+            finally:
+                lease.guard()
+        observe('gdm-station-returned')
+        receipt['safe_return'] = True
+
+
 @contextmanager
 def native_update_station(transport, lease, *, receipt=None):
     """Hold one publicly admitted station across a native transaction assertion."""

@@ -55,6 +55,8 @@ NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
 NATIVE_UPDATE_PHASES = ('native-update', 'native-update-rebooted')
 SIBLING_CASE = 'test_kiosk_writable_sibling_isolation'
 SIBLING_PHASE = 'sibling-isolation'
+REQUIRED_CASE = 'test_kiosk_required_ancestor_refusal'
+REQUIRED_PHASE = 'required-ancestor'
 
 
 @dataclass(frozen=True)
@@ -113,7 +115,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               SIBLING_PHASE, 'authorization', 'enforcement', 'session')
+               SIBLING_PHASE, REQUIRED_PHASE, 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -148,6 +150,7 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
     'tests/support/application_ui.py',
     'common/oh_no_parent_control_ui/application_ui.py',
     'common/oh_no_parent_control_ui/application_ui_client.py', 'data/app.json',
+    'tests/integration/test_account_password.py',
 )
 NATIVE_UPDATE_HOST_INPUTS = (
     'tools/native_transaction_inputs.py', 'tools/build_test_artifacts.py',
@@ -155,6 +158,7 @@ NATIVE_UPDATE_HOST_INPUTS = (
     'tools/regression.py', 'tools/regression_process.py',
 )
 PHASE_DEPENDENCIES = {
+    REQUIRED_PHASE: (),
     SIBLING_PHASE: (),
     NATIVE_UPDATE_PHASES[0]: (),
     NATIVE_UPDATE_PHASES[1]: NATIVE_UPDATE_PHASES[:1],
@@ -176,6 +180,7 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    REQUIRED_PHASE: ('retained-app-snapshot', 'owned-required-ancestor', 'public-refusal-and-recovery'),
     SIBLING_PHASE: ('retained-app-snapshot', 'owned-sibling-inputs', 'retained-public-station'),
     NATIVE_UPDATE_PHASES[0]: ('verified-native-artifacts', 'old-native-before-install',
                             'package-install', 'guest-reboot', 'retained-public-station'),
@@ -391,6 +396,8 @@ def collect_area_cases(area, *, invoke=None):
 def case_phases(area, case_id):
     if area == 'enforcement' and case_id == SIBLING_CASE:
         return (SIBLING_PHASE,)
+    if area == 'enforcement' and case_id == REQUIRED_CASE:
+        return (REQUIRED_PHASE,)
     if area == 'removal':
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
@@ -1551,7 +1558,7 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
-    if any(item.case_id == SIBLING_CASE or
+    if any(item.case_id in (SIBLING_CASE, REQUIRED_CASE) or
            (item.area == 'package' and item.case_id in (KIOSK_ACTIVATION_CASE, NATIVE_UPDATE_CASE))
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
@@ -2016,6 +2023,59 @@ def run_sibling_phase(vm, lease, directory, selection):
             receipt['host_inputs_unchanged'], 'kiosk-sibling:incomplete-history')
 
 
+def run_required_phase(vm, lease, directory, selection):
+    """One owned required-input fault, real GDM refusal and fresh recovery."""
+    from kiosk_entry import native_update_station, observe_station_refusal
+    from test_account_password import read_password
+    inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    require(kiosk_activation_host_inputs() == inputs['host_files'], 'kiosk-required:host-inputs-changed')
+    command = ['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
+               'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+               PAYLOAD + '/system_kiosk_confinement.py']
+    receipt = {'refusal': {}, 'recovery': {}}
+
+    def ordinary_authentication(stage):
+        results = {}
+        secret = read_password().encode('ascii')
+        for role in ('ordinary', 'other'):
+            result = json.loads(vm.call([*command[:-1], PAYLOAD + '/system_kiosk_admission.py',
+                                        'ordinary-authentication', role], input=secret, timeout=40))
+            require(result == {'authenticate': 0, 'account': 0, 'end': 0},
+                    'kiosk-required:ordinary-authentication')
+            results[role] = result
+        receipt['ordinary_authentication_' + stage] = results
+
+    try:
+        ordinary_authentication('before')
+        try:
+            vm.call([*command, 'prepare-required-ancestor'], timeout=150)
+            vm.call([*command, 'verify-required-refusal'], timeout=150)
+            observe_station_refusal(vm, lease,
+                lambda: vm.call([*command, 'verify-required-gdm-refusal'], timeout=150),
+                receipt=receipt['refusal'])
+            ordinary_authentication('refused')
+        finally:
+            # Preparation persists its intent before chmod. An uncertain reply
+            # must still attempt identity-checked restoration, never skip it.
+            vm.call([*command, 'restore-required-ancestor'], timeout=150)
+            receipt['fixture_restoration'] = 'passed'
+        with native_update_station(vm, lease, receipt=receipt['recovery']):
+            run_pytest(vm, lease.state['run'], REQUIRED_PHASE, selection)
+        ordinary_authentication('restored')
+        vm.call([*command, 'cleanup-required-ancestor'], timeout=150)
+        receipt['fixture_cleanup'] = 'passed'
+    finally:
+        output = directory / 'guest-results'
+        output.mkdir(mode=0o700, exist_ok=True)
+        receipt.update(host_files=inputs['host_files'],
+            host_inputs_unchanged=kiosk_activation_host_inputs() == inputs['host_files'],
+            selected_inputs_sha256=baseline.digest(directory / 'input/selected-inputs.json'))
+        (output / 'station-required-ancestor.json').write_bytes(baseline.encode(receipt))
+    require(receipt['refusal'].get('safe_return') and receipt['recovery'].get('normal_exit') and
+            receipt.get('fixture_cleanup') == 'passed' and receipt['host_inputs_unchanged'],
+            'kiosk-required:incomplete-history')
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
     ledger = ledger or RunLedger()
     run = lease.state['run']
@@ -2160,7 +2220,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
         for phase in (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
-                      SIBLING_PHASE, 'authorization', 'enforcement', 'session'):
+                      SIBLING_PHASE, REQUIRED_PHASE, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
             if phase in (NATIVE_UPDATE_PHASES[1], *rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2204,6 +2264,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         run_native_update_phase(vm, lease, directory, selection, phase, ledger)
                     elif phase == SIBLING_PHASE:
                         run_sibling_phase(vm, lease, directory, selection)
+                    elif phase == REQUIRED_PHASE:
+                        run_required_phase(vm, lease, directory, selection)
                     else:
                         run_pytest(vm, run, phase, selection)
                 except CommandError as error:

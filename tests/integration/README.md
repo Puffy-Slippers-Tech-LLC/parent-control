@@ -343,6 +343,32 @@ enforcing. Both ordinary roles retain contents/access. One masked directory and
 the omitted file are replaced while the same manager, namespace and generation
 remain live, then their exact original inodes and bytes are restored. Cleanup
 refuses changed identities or unknown contents and removes only recorded inputs.
+
+`enforcement` → `test_kiosk_required_ancestor_refusal` (291) keeps the complete
+required-input refusal/restoration/recovery history in one `required-ancestor`
+attempt. The canonical confinement helper records `/usr/lib/systemd` and its
+required executable, original inode/owner/mode and executable digest before
+adding only group write permission, including with group root. Real native PAM
+must refuse at executable inventory with `untrusted-path`; a separate public
+GDM selection must produce new preparation/native denials and no station
+session. `kiosk_entry.observe_station_refusal` independently reads GDM's safe
+fallback without a password or an error-text oracle. A missing or duplicated
+station label permits only another bounded read, never input authority.
+Restoration verifies the recorded inode/owner/bytes and expected mode before
+changing it back. Fresh public passwordless entry must reach the loaded form;
+the full confinement census, allowed native execution and an attributed enforcing
+shell denial remain required. Both ordinary roles retain metadata, contents,
+execution access and actual installed PAM authentication/account success before,
+during and after refusal. Existing fixture credentials travel on guarded stdin
+and are never changed. Public Cancel, inactive-manager checks, exact fixture
+restoration and runner baseline restoration complete cleanup.
+
+For bounded diagnosis, `tools/test-vm --vm NAME reproduce-kiosk-refusal` selects
+the station once through the same guarded helper and retains three read-only
+fallback samples in the existing recovery allocation. The caller owns any
+deliberate fault and its restoration. This route leaves the maintenance guest
+available for probes and grants no acceptance; use the complete system selector
+for qualification.
 The runner freezes both guest mechanics and the public observer's host closure.
 This is installed engineering qualification; platform receipts belong to
 [the kiosk prompt plan](../../docs/Kiosk-Prompt.md), with Fedora still pending.

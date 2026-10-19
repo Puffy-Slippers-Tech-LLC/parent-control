@@ -299,6 +299,7 @@ OPERATION_LABELS.update({
     'gdm-station-list': 'Reading the greeter before request-station entry',
     'gdm-station-focused': 'Checking the request station is focused',
     'gdm-station-returned': 'Checking the usable greeter after leaving the request station',
+    'gdm-station-refused': 'Reading sign-in after the request station was refused',
     'kiosk-request-form': 'Reading the request-station form and unavailable controls',
     'kiosk-lifecycle-defaults': 'Reading the request-station defaults after the lifecycle transition',
     'kiosk-restriction-ready': 'Checking and focusing the request station before an ordinary shortcut',
@@ -1371,6 +1372,9 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if operation == 'gdm-station-refused':
+            require(result.get('fallback') in ('account-list', 'station-prompt'), 'ui:gdm-refusal-result')
+            expected['fallback'] = result['fallback']
         if operation == 'child-natural-expiry-wrong-account-refused':
             require(result.get('natural_expiry_refused') is True, 'ui:natural-expiry-refusal')
             expected['natural_expiry_refused'] = True

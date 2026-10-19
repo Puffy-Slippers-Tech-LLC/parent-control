@@ -1192,6 +1192,48 @@ def census_model(monkeypatch):
     return module(ROOT / 'tests/integration/system_kiosk_confinement.py')
 
 
+@pytest.mark.parametrize('fault', [None, 'inode', 'owner', 'bytes', 'mode'])
+def test_required_ancestor_restoration_preserves_foreign_inputs(census_model, tmp_path, monkeypatch, fault):
+    import system_native_update
+    helper = census_model
+    path = tmp_path / 'required'
+    path.mkdir()
+    executable = path / 'systemd'
+    executable.write_bytes(b'original native canary')
+    monkeypatch.setattr(helper, 'REQUIRED_ANCESTOR', path)
+    monkeypatch.setattr(helper, 'REQUIRED_EXECUTABLE', executable)
+    monkeypatch.setattr(helper.guest, 'guard', lambda: None)
+    original = helper.required_ancestor_state()
+    checkpoint = tmp_path / 'required-ancestor.json'
+    checkpoint.write_text('{}')
+    monkeypatch.setattr(system_native_update, 'private', lambda: tmp_path)
+    monkeypatch.setattr(helper, 'required_ancestor_checkpoint', lambda: {'original': original, 'ordinary': {}})
+    monkeypatch.setattr(helper, 'required_ordinary_access', lambda expected: None)
+    published = []
+    monkeypatch.setattr(system_native_update, 'publish', lambda *args: published.append(args))
+    path.chmod(stat.S_IMODE(original['identity'][2]) | 0o020)
+    if fault == 'inode':
+        path.rename(tmp_path / 'original')
+        path.mkdir()
+        (path / 'systemd').write_bytes(b'original native canary')
+    elif fault == 'owner':
+        original['identity'][3] += 1
+    elif fault == 'bytes':
+        executable.write_bytes(b'foreign bytes')
+    elif fault == 'mode':
+        path.chmod(0o777)
+    before = helper.required_ancestor_state()
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='restoration-identity'):
+            helper.restore_required_ancestor()
+        assert helper.required_ancestor_state() == before
+        assert not published
+    else:
+        helper.restore_required_ancestor()
+        assert helper.required_ancestor_state() == original
+        assert published[0][0] == 'required-restored.json'
+
+
 @pytest.mark.parametrize('fault', [False, True])
 def test_appended_probe_restores_bytes_inode_mode_and_nanosecond_times(
         census_model, tmp_path, fault):

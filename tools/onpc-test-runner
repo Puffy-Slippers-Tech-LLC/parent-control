@@ -132,7 +132,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec',
-                                      'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                                      'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                       'reproduce-kiosk-preferences',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                       'reproduce-lock-denial',

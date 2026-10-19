@@ -377,7 +377,7 @@ def main(argv=None):
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec',
-                                          'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+                                          'reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                                           'reproduce-kiosk-preferences',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
@@ -452,7 +452,7 @@ def main(argv=None):
         elif args.action == 'rename-disk':
             from vm_disk_rename import rename_disk
             rename_disk(lease)
-        elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval',
+        elif args.action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval',
                              'reproduce-kiosk-preferences',
                              'reproduce-lock-denial', 'reproduce-retained-entry',
                              'reproduce-revoke-cancel',
@@ -473,9 +473,11 @@ def main(argv=None):
             from vm_probe import reproduce_retained_unlock
             from vm_probe import reproduce_natural_expiry
             from vm_probe import reproduce_kiosk_entry, reproduce_kiosk_approval, reproduce_kiosk_preferences
+            from vm_probe import reproduce_kiosk_refusal
             resume(lease)
             {'reproduce-gdm-denial': reproduce_gdm_denial,
              'reproduce-kiosk-entry': reproduce_kiosk_entry,
+             'reproduce-kiosk-refusal': reproduce_kiosk_refusal,
              'reproduce-kiosk-preferences': reproduce_kiosk_preferences,
              'reproduce-kiosk-approval': reproduce_kiosk_approval,
              'reproduce-lock-denial': reproduce_lock_denial,

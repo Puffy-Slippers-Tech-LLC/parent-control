@@ -701,6 +701,9 @@ GDM_NONSECRET_OPERATIONS = frozenset({
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
     'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
+OPERATIONS |= frozenset({'gdm-station-refused'})
+GREETER_OPERATIONS |= frozenset({'gdm-station-refused'})
+GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-station-refused'})
 GDM_ACCOUNT_ROLES = frozenset({'button', 'push button'})
 GDM_DIAGNOSTIC_ROLES = frozenset({
     'application', 'button', 'push button', 'label', 'password text',
@@ -8566,6 +8569,47 @@ class AccessibleUI:
         require(not any(public_automation_id(node) in forbidden and self.showing(node)
                         for node in nodes), 'ui:kiosk-exit-incomplete')
 
+    def station_refused(self):
+        """Read GDM's safe fallback, without treating its prompt as auth failure.
+
+        The system-history caller independently requires the native preparation
+        refusal and absence of a station session before requesting this read.
+        No credential or error-message oracle belongs to this operation.
+        """
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        return self.wait(self.station_refusal_snapshot, 'gdm-refused-fallback')
+
+    def station_refusal_snapshot(self):
+        """An absent account identity is a pending GDM transition, never input authority."""
+        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
+        showing = [node for node in nodes if self.showing(node)]
+        rows = self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES))
+        fields = [node for node in showing if node.get_role_name() == 'password text']
+        if rows:
+            require(not fields, 'ui:gdm-list-prompt-overlap')
+            self.kiosk_gdm_returned()
+            return 'account-list'
+        recipients = [self.gdm_semantic_name(node) for node in showing
+                      if node.get_role_name() == 'label' and
+                      self.gdm_semantic_name(node) in GREETER_IDENTITIES]
+        if self.timing is not None:
+            self.timing({'event': 'gdm-refusal-state', 'fields': len(fields),
+                         'recipients': [GREETER_IDENTITIES[name] for name in recipients]})
+        if not recipients:
+            # GDM briefly exposes its protected field before the selected
+            # account label while replacing a failed session. No identity is
+            # input authority; reacquire only the read within the same bound.
+            require(len(fields) <= 1, 'ui:gdm-refusal-ambiguous')
+            return None
+        require(all(name in (KIOSK, KIOSK_USERNAME) for name in recipients),
+                'ui:gdm-refusal-recipient')
+        require(len(fields) <= 1, 'ui:gdm-refusal-ambiguous')
+        if len(recipients) != 1:
+            # During the refusal animation GDM exposes two station labels.
+            # Ambiguity permits another read, never Escape or credential input.
+            return None
+        return 'station-prompt'
+
     def gdm_semantic_prompt(self):
         """Resolve one prepared prompt without traversing its protected field."""
         owner, nodes = self.gdm_semantic_nodes(protect_text=True)
@@ -12447,6 +12491,8 @@ class AccessibleUI:
                 self.gdm_nonsecret_prompt()
             elif operation == 'gdm-station-returned':
                 self.kiosk_gdm_returned()
+            elif operation == 'gdm-station-refused':
+                result['fallback'] = self.station_refused()
             elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
                               'gdm-station-focused', 'gdm-product-free-focused', 'gdm-child-focused',
                               'gdm-product-free-standard-focused', 'gdm-product-free-child-focused'):

@@ -378,7 +378,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri():
     select.__globals__['VM_UUIDS'] = {vm_name(): UUID}
     command = select(root, ['vm', 'send-key', '28', *VM_ARGS])
     assert command[3:] == [*VM_ARGS, '--expected-uuid', UUID, 'send-key', '28']
-    for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
+    for action in ('reproduce-gdm-denial', 'reproduce-kiosk-entry', 'reproduce-kiosk-refusal', 'reproduce-kiosk-approval', 'probe-kiosk-approval',
                    'reproduce-kiosk-preferences',
                    'reproduce-lock-denial', 'reproduce-retained-entry',
                    'reproduce-retained-app-visits',
@@ -429,6 +429,29 @@ def test_kiosk_reproduction_reuses_public_entry_and_stops_before_acceptance(monk
     vm_probe.reproduce_kiosk_entry(lease)
     reproduce.assert_called_once_with(lease, InstalledJourney, PLAN,
                                      'request-form', 'kiosk-entry')
+
+
+def test_kiosk_refusal_reproduction_enters_once_and_keeps_read_failures_for_probes(monkeypatch, tmp_path):
+    import vm_probe
+    import kiosk_entry
+    import ui_observations
+    import qualification_storage
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    entered, reads = Mock(), Mock(side_effect=[RuntimeError('unresolved'),
+        {'fallback': 'station-prompt'}, {'fallback': 'station-prompt'}])
+    monkeypatch.setattr(kiosk_entry, 'enter_station', entered)
+    monkeypatch.setattr(ui_observations, 'UiObservations', lambda _: SimpleNamespace(observe=reads, boot_proof='a'*64))
+    monkeypatch.setattr(vm_probe, 'connect', lambda lease: object())
+    monkeypatch.setattr(vm_probe, 'operation', lambda label: nullcontext())
+    monkeypatch.setattr(qualification_storage, 'recovery_session', lambda: nullcontext())
+    monkeypatch.setattr(qualification_storage, 'allocate', lambda *args, **kwargs: str(tmp_path))
+    monkeypatch.setattr('time.sleep', lambda seconds: None)
+    vm_probe.reproduce_kiosk_refusal(SimpleNamespace(commands=SimpleNamespace()))
+    entered.assert_called_once()
+    assert reads.call_count == 3
+    assert all(call.args == ('gdm-station-refused',) for call in reads.call_args_list)
+    assert json.loads((tmp_path / 'result.json').read_text())['samples'][0]['fallback'] == 'unresolved'
 
 
 @pytest.mark.parametrize('failure', [None, 'station-default-entry', 'kiosk-request-form',

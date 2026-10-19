@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **004a — [Qualify Ubuntu late refusal and recovery](Kiosk-Prompt-Tasks/004a-late-denial-ubuntu.md)**.
+Next task: **004 — [Qualify Fedora late refusal and recovery](Kiosk-Prompt-Tasks/004-late-denial-recovery.md)**.
 
 ## Outcome
 
@@ -737,10 +737,12 @@ The full thread census remained enforcing, a native positive executed, and the
 shell negative produced its matching enforcing AppArmor denial. Kernel:
 `7.0.0-38-generic`.
 
-The [retained evidence bundle](../output/test-runs/host/exports/onpc-evidence-bundle-8s59hcc0/evidence.zip)
-contains the complete installed result, phase JUnit, public-entry/exit/fixture
-cleanup receipt, frozen input manifest and supporting host reports. Bundle SHA-256:
+The original evidence bundle contained the complete installed result, phase
+JUnit, public-entry/exit/fixture cleanup receipt, frozen input manifest and
+supporting host reports. Its original SHA-256 was
 `ae6e378b33965dbd218a39df280e909928ed2550fac5afffb2f0f4bbf5b534eb`.
+Normal retention retired that export during 004a; all constituent receipts remain
+in [004a's verified cumulative bundle](#ubuntu-late-refusal-and-recovery--004a).
 Original allocation: `onpc-system-s_b4d2cd`; aggregate report:
 `20261019T082133Z-f7ba2a4a` (1/1 passed, 4.8 minutes including package-snapshot
 refresh). Product, infrastructure, collection and cleanup all passed.
@@ -846,10 +848,93 @@ receipts are available to Reliability 006a's later scope review without checking
 that separate row or granting any other installed obligation acceptance.
 
 After queue/pointer/brief close-out, the maintained four-module documentation
-selection passed all 313 cases in
-[20261019T090218Z-d43a50d8](../output/test-runs/host/reports/20261019T090218Z-d43a50d8/report.md).
+selection passed all 313 cases in `20261019T090218Z-d43a50d8`
+(subsequently retired under normal retention during 004a).
 Changed-document links and whitespace passed. Both named VMs were independently
 observed powered off after cleanup; the cumulative bundle remained verified.
+
+### Ubuntu late refusal and recovery — 004a
+
+Installed acceptance passed on `onpc-Ubuntu26.04` on 2026-10-19 UTC using
+registered enforcement case **291**, `test_kiosk_required_ancestor_refusal`,
+in the canonical `required-ancestor` phase. The confinement helper records the
+required `/usr/lib/systemd` ancestor and executable, then adds only group write
+permission (0755 → 0775, owner/group root). The original native PAM session
+refused with status 14 at `executable-inventory / untrusted-path`; its executor
+returned 125 without running the command. A separate real GDM selection added
+new manager preparation/native `prepare` denials, left no station session and
+returned to the public account list. No kiosk password was entered or prompt
+wording treated as failed authentication.
+
+The exact original inode, owner/group, executable bytes and mode were restored.
+Fresh public passwordless entry in the same boot reached the loaded request
+form with usable selection/Cancel and its expected limits-disabled explanation.
+The complete thread census stayed enforcing under AppArmor, an allowed native
+service executed, and the shell negative had its attributed enforcing kernel
+denial. Both ordinary roles retained account metadata, executable contents and
+execution access; their actual installed PAM authentication and account checks
+succeeded before the fault, during refusal and after recovery without changing
+their credentials. Public Cancel returned to sign-in. Kernel: `7.0.0-38-generic`.
+
+The first installed attempt, `20261019T091150Z-2639ae1e`, preserved the correct
+native/GDM refusal and restoration but stopped in the new public fallback reader.
+Owned live diagnosis identified GDM's transient two-label station state before
+its account list returned. The shared reader now waits within its original
+deadline; absent or duplicate station identity never authorizes input, wrong
+account/ambiguous fields still refuse, and persistent ambiguity times out.
+The fixed diagnostic run observed the account list on all three reads. A new
+fixed maintenance entry reuses the same one-shot selection and shared recovery
+storage; its initially missing dispatcher registration was repaired through
+the authorized setup route. One new host fixture needed an explicit two-second
+budget for three simulated reads; product deadlines and assertions were unchanged.
+
+The final combined report `20261019T092504Z-504622aa` passed all **3,384** affected
+host checks and the complete **1/1** Ubuntu installed history (1.9 minutes VM,
+2.7 minutes combined). The complete native/PAM selection retains existing
+required-source/protocol/mount/read-only/detach refusal controls; the audit found
+no distinct uncovered binding branch requiring another installed fault here.
+The prior input-directory retirement stopped `20261019T092326Z-031ee095` before
+VM work; maintained artifact preparation rebuilt verified inputs automatically.
+All final product, infrastructure, collection and cleanup outcomes passed.
+
+The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-obgg9ean/evidence.zip)
+retains the original failure, final result/JUnit/public refusal/recovery and
+cleanup receipts, exact frozen input/package manifests, complete host report,
+diagnostic samples and predecessor installed receipts. Bundle SHA-256:
+`24529f4d2267b8c42de9cb03358e9b5fa86d97f813d9d6753e4529c4cc3b7f87`.
+Final allocation: `onpc-system-kqo_t8br`. Installed DEB SHA-256:
+`1bcd2efeffec52fd1bac27e14db23991737a74780baeb74665f7d3e1391c4080`;
+package-source digest:
+`f29dbb154edcdb8d1523a49725878e1df956724d03cd41872ca39cfdb58853dd`;
+fixture digest:
+`facbd895b378897dba77b7be5832e4db7b2b12595815c4fb78cabf6c7b70996d`;
+selected-input digest:
+`63cede933c96bf4ddbb424cfaa810a390ed21d8243883412abacdeaa78d8d3d8`.
+The changed guest helpers and public observer/runner/snapshot/registry hashes
+match the frozen manifest; the receipt confirms the complete host closure stayed
+unchanged. Product inputs match 003's source digest; no packaged source or build
+dependency changed, so no separate `make build` is required. The maintained
+preparer built and verified the actual DEB used here. No predecessor receipt is
+reused as this task's acceptance.
+
+Parallelism review retains the existing compatible classifications: private
+pytest files, closed descriptors, process-local UI/VM doubles and bounded waited
+native children, with no new host display/bus/session owner. Diagnostic and
+attempt allocations use shared retention. Exact fault restoration, normal public
+exit, inactive-manager verification, maintenance release, runner baseline
+restoration and `tools/cleanup-e2e --vm onpc-Ubuntu26.04` completed. The VM was
+independently observed powered off and export cleanup completed. No subagent
+started successfully; none remains. The pre-existing proof-document edit is
+preserved. Setup regenerated its exact executable inventory alongside the
+dispatcher refresh. Only 004a closes; these receipts are available to 004 and
+Reliability 006b for exact-scope review without closing either consumer.
+
+After queue/pointer/brief close-out, the maintained four documentation modules
+passed all 313 cases in
+[20261019T093023Z-8f0880c7](../output/test-runs/host/reports/20261019T093023Z-8f0880c7/report.md).
+Changed-document links and whitespace passed. Historical export/report references
+retired during this task retain their original identities above; the complete
+installed receipts remain in the verified cumulative bundle.
 
 ### Remaining execution and acceptance
 

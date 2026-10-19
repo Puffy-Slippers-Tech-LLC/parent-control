@@ -600,6 +600,8 @@ CASES = (
                  'Native dependency update retained session'),
     CaseIdentity(290, 'enforcement', 'test_kiosk_writable_sibling_isolation',
                  'Kiosk writable sibling isolation'),
+    CaseIdentity(291, 'enforcement', 'test_kiosk_required_ancestor_refusal',
+                 'Kiosk required ancestor refusal and recovery'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

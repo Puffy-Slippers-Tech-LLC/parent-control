@@ -26,6 +26,207 @@ ENV = ['PATH=/usr/bin:/bin', 'LANG=C', 'LC_ALL=C']
 PROC = Path('/proc')
 MANAGER_SID = 'system_u:system_r:onpc_kiosk_manager_t:s0'
 SIBLING_PARENT = Path('/usr/share')
+REQUIRED_ANCESTOR = Path('/usr/lib/systemd')
+REQUIRED_EXECUTABLE = REQUIRED_ANCESTOR / 'systemd'
+
+
+def required_ancestor_checkpoint():
+    from system_native_update import private, read_private
+    marker = guest.guard()
+    data = read_private(private() / 'required-ancestor.json')
+    guest.require(data['binding'] == {key: marker[key] for key in
+                  ('run', 'package_sha256', 'selected_inputs_sha256')} and
+                  data['path'] == str(REQUIRED_ANCESTOR), 'kiosk-required:checkpoint-binding')
+    return data
+
+
+def required_ancestor_state():
+    info = REQUIRED_ANCESTOR.lstat()
+    guest.require(REQUIRED_ANCESTOR.resolve(strict=True) == REQUIRED_ANCESTOR and
+                  stat.S_ISDIR(info.st_mode), 'kiosk-required:ancestor-type')
+    return {'identity': sibling_identity(REQUIRED_ANCESTOR),
+            'executable_sha256': guest.sha(REQUIRED_EXECUTABLE)}
+
+
+def required_ordinary_access(expected):
+    from system_kiosk_accounts import verify_ordinary
+    verify_ordinary(expected)
+    digest = guest.sha(REQUIRED_EXECUTABLE)
+    for role in ('onpc-parent-jamie', 'onpc-child-jordan'):
+        account = pwd.getpwnam(role)
+        guest.require(hashlib.sha256(user_command(account,
+                      ['/usr/bin/cat', str(REQUIRED_EXECUTABLE)])).hexdigest() == digest and
+                      b'systemd ' in user_command(account, [str(REQUIRED_EXECUTABLE), '--version']),
+                      'kiosk-required:ordinary-access')
+
+
+def prepare_required_ancestor():
+    """Persist the exact owned mutation before changing a real required parent."""
+    from system_kiosk_accounts import ordinary_state
+    from system_native_update import publish
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    wait_kiosk_inactive(pwd.getpwnam('oh-no-parent-control'))
+    original = required_ancestor_state()
+    info = original['identity']
+    guest.require(info[3:] == [0, 0] and not info[2] & 0o022,
+                  'kiosk-required:ancestor-trust')
+    # Independently bind this parent to the installed native inventory.
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    records = preparation['inventory'](config)
+    guest.require(any(Path(row['path']).resolve() == REQUIRED_EXECUTABLE for row in records),
+                  'kiosk-required:not-required')
+    ordinary = ordinary_state()
+    required_ordinary_access(ordinary)
+    data = {'binding': {key: marker[key] for key in
+            ('run', 'package_sha256', 'selected_inputs_sha256')},
+            'path': str(REQUIRED_ANCESTOR), 'original': original, 'ordinary': ordinary,
+            'since': str(time.time()), 'kernel': guest.run(['uname', '-r']),
+            'backend': config['backend']}
+    publish('required-ancestor.json', data)
+    REQUIRED_ANCESTOR.chmod(stat.S_IMODE(info[2]) | 0o020)
+    expected = {**original, 'identity': [*info[:2], info[2] | 0o020, *info[3:]]}
+    guest.require(required_ancestor_state() == expected, 'kiosk-required:mutation')
+
+
+def required_refusal_markers(since, *, require_preparation=True):
+    """Keep closed native causes and source times, never raw journal text."""
+    raw = guest.run(['journalctl', '-b', '--since=@' + since, '--no-pager', '-o', 'json'],
+                    timeout=30)
+    rows = []
+    pattern = re.compile(r'onpc\.kiosk confinement preparation outcome=denied '
+                         r'role=(manager|gate) stage=(executable-inventory) reason=(untrusted-path)(?: |$)')
+    native = re.compile(r'onpc\.pam kiosk execution-boundary outcome=(denied) stage=(prepare)(?: |$)')
+    for line in raw.splitlines():
+        row = json.loads(line)
+        message = row.get('MESSAGE', '')
+        for kind, expression in (('preparation', pattern), ('native', native)):
+            match = expression.search(message) if isinstance(message, str) else None
+            if match:
+                rows.append({'kind': kind, 'fields': list(match.groups()),
+                             'source_us': row['__REALTIME_TIMESTAMP']})
+    guest.require((not require_preparation or any(row['kind'] == 'preparation' for row in rows)) and
+                  any(row['kind'] == 'native' for row in rows), 'kiosk-required:missing-native-cause')
+    return rows
+
+
+def verify_required_refusal():
+    """Run the original native PAM refusal while the exact mutation is present."""
+    from system_native_update import publish
+    data = required_ancestor_checkpoint()
+    info = data['original']['identity']
+    guest.require(required_ancestor_state() == {**data['original'],
+                  'identity': [*info[:2], info[2] | 0o020, *info[3:]]},
+                  'kiosk-required:mutation-changed')
+    account = pwd.getpwnam('oh-no-parent-control')
+    with tempfile.TemporaryDirectory(prefix='required-refusal-', dir=guest.PAYLOAD) as directory:
+        with tempfile.TemporaryFile(dir=directory) as diagnostic:
+            saved = os.dup(2)
+            try:
+                os.dup2(diagnostic.fileno(), 2)
+                status, result = first_exec(account, Path(directory),
+                    [str(REQUIRED_EXECUTABLE), '--version'], service='systemd-user', armed=False)
+            finally:
+                os.dup2(saved, 2)
+                os.close(saved)
+            diagnostic.seek(0)
+            cause = diagnostic.read(65537)
+    guest.require(len(cause) <= 65536 and b'onpc.kiosk confinement preparation outcome=denied '
+                  b'role=manager stage=executable-inventory reason=untrusted-path ' in cause,
+                  'kiosk-required:original-cause')
+    guest.require(status == 125 and json.loads(result)['pam'] != 0,
+                  'kiosk-required:unsafe-ancestor-admitted')
+    required_ordinary_access(data['ordinary'])
+    publish('required-native-refusal.json', {'status': status, 'pam': json.loads(result)['pam'],
+            'preparation': {'role': 'manager', 'stage': 'executable-inventory', 'reason': 'untrusted-path'},
+            'markers': required_refusal_markers(data['since'], require_preparation=False)})
+
+
+def verify_required_gdm_refusal():
+    """Independent safe session result plus causes from the actual GDM attempt."""
+    from system_native_update import publish, private, read_private
+    data = required_ancestor_checkpoint()
+    prior = read_private(private() / 'required-native-refusal.json')
+    deadline = time.monotonic() + 75
+    while True:
+        guest.guard()
+        try:
+            markers = required_refusal_markers(data['since'])
+        except guest.GuestError as error:
+            if str(error) != 'kiosk-required:missing-native-cause':
+                raise
+            markers = []
+        previous = max(int(row['source_us']) for row in prior['markers'])
+        if all(any(row['kind'] == kind and int(row['source_us']) > previous
+                   for row in markers) for kind in ('native', 'preparation')):
+            break
+        guest.require(time.monotonic() < deadline, 'kiosk-required:no-new-gdm-refusal')
+        time.sleep(0.25)
+    account = pwd.getpwnam('oh-no-parent-control')
+    wait_kiosk_inactive(account)
+    sessions = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
+    guest.require(not any(account.pw_name in line.split() for line in sessions.splitlines()),
+                  'kiosk-required:graphical-session-admitted')
+    required_ordinary_access(data['ordinary'])
+    publish('required-gdm-refusal.json', {'markers': markers, 'station_session': 'absent',
+                                        'ordinary_access': 'passed'})
+
+
+def restore_required_ancestor():
+    """Restore only the recorded inode/owner/bytes and expected mode transition."""
+    from system_native_update import publish, private
+    guest.guard()
+    if not (private() / 'required-ancestor.json').exists():
+        # No durable mutation intent means preparation did not reach chmod.
+        return
+    data = required_ancestor_checkpoint()
+    original = data['original']
+    current = required_ancestor_state()
+    info = original['identity']
+    mutated = {**original, 'identity': [*info[:2], info[2] | 0o020, *info[3:]]}
+    guest.require(current in (original, mutated), 'kiosk-required:restoration-identity')
+    descriptor = os.open(REQUIRED_ANCESTOR, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        actual = os.fstat(descriptor)
+        guest.require([actual.st_dev, actual.st_ino, actual.st_mode, actual.st_uid, actual.st_gid]
+                      == current['identity'], 'kiosk-required:restoration-identity')
+        os.fchmod(descriptor, stat.S_IMODE(info[2]))
+    finally:
+        os.close(descriptor)
+    guest.require(required_ancestor_state() == original, 'kiosk-required:restoration-mismatch')
+    required_ordinary_access(data['ordinary'])
+    publish('required-restored.json', {'outcome': 'passed', 'original': original})
+
+
+def cleanup_required_ancestor():
+    from system_native_update import publish
+    data = required_ancestor_checkpoint()
+    guest.require(required_ancestor_state() == data['original'], 'kiosk-required:cleanup-identity')
+    wait_kiosk_inactive(pwd.getpwnam('oh-no-parent-control'))
+    required_ordinary_access(data['ordinary'])
+    publish('required-cleanup.json', {'outcome': 'passed', 'original': data['original']})
+
+
+def verify_required_recovery(record):
+    from system_native_update import private, read_private
+    data = required_ancestor_checkpoint()
+    guest.require(required_ancestor_state() == data['original'], 'kiosk-required:not-restored')
+    for name in ('required-native-refusal.json', 'required-gdm-refusal.json', 'required-restored.json'):
+        record('onpc.kiosk.required.' + name, json.dumps(read_private(private() / name), sort_keys=True))
+    record('onpc.kiosk.required.input', json.dumps(data, sort_keys=True))
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    record_native_packages(config, record)
+    record('onpc.kiosk.required.census', json.dumps(census(), sort_keys=True))
+    account = pwd.getpwnam('oh-no-parent-control')
+    guest.require(b'systemd ' in user_command(account,
+        ['/usr/bin/systemd-run', '--user', '--wait', '--collect', '--pipe',
+         '--unit=onpc-required-positive', '/usr/bin/systemctl', '--version']),
+        'kiosk-required:positive-native-exec')
+    require_service_denial(account, config['backend'], 'onpc-required-denied.service',
+                           ['/bin/sh', '-c', 'exit 0'], record)
+    required_ordinary_access(data['ordinary'])
+    record('onpc.kiosk.required.restored-ordinary-access', 'passed')
 
 
 def sibling_identity(path):
@@ -2293,7 +2494,17 @@ def verify(record):
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['prepare-siblings']:
+    if sys.argv[1:] == ['prepare-required-ancestor']:
+        prepare_required_ancestor()
+    elif sys.argv[1:] == ['verify-required-refusal']:
+        verify_required_refusal()
+    elif sys.argv[1:] == ['verify-required-gdm-refusal']:
+        verify_required_gdm_refusal()
+    elif sys.argv[1:] == ['restore-required-ancestor']:
+        restore_required_ancestor()
+    elif sys.argv[1:] == ['cleanup-required-ancestor']:
+        cleanup_required_ancestor()
+    elif sys.argv[1:] == ['prepare-siblings']:
         prepare_siblings()
     elif sys.argv[1:] == ['cleanup-siblings']:
         cleanup_siblings()

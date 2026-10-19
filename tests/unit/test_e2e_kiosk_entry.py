@@ -226,6 +226,125 @@ def station_greeter(*rows, recipient=None, field=None, list_showing=True):
     return ui_for(Node(role='desktop frame', children=[application]))
 
 
+@pytest.mark.parametrize('fallback', ['account-list', 'station-prompt'])
+def test_station_refusal_reads_safe_fallback_without_a_password_or_message_oracle(fallback):
+    if fallback == 'account-list':
+        ui = station_greeter(Node('oh-no-parent-control', 'push button'))
+    else:
+        ui = station_greeter(recipient=Node('Oh No! Parent Control', 'label'),
+                             field=Node('private password canary', 'password text'))
+    assert ui.run('gdm-station-refused', '')['fallback'] == fallback
+
+
+def test_station_refusal_waits_for_confirmed_transition_absence_only(monkeypatch):
+    ui = station_greeter(Node('oh-no-parent-control', 'push button'))
+    ui.timeout = 2
+    actual = ui.station_refusal_snapshot
+    snapshots = iter([None, None])
+    def snapshot():
+        try:
+            return next(snapshots)
+        except StopIteration:
+            return actual()
+    monkeypatch.setattr(ui, 'station_refusal_snapshot', snapshot)
+    assert ui.run('gdm-station-refused', '')['fallback'] == 'account-list'
+
+
+def test_station_refusal_unbound_transition_never_authorizes_input():
+    assert station_greeter().station_refusal_snapshot() is None
+    ui = station_greeter(field=Node('private canary', 'password text'))
+    assert ui.station_refusal_snapshot() is None
+    with pytest.raises(UiError, match='timeout:gdm-refused-fallback'):
+        ui.run('gdm-station-refused', '')
+
+
+def test_station_refusal_duplicate_station_labels_are_pending_until_the_list_returns(monkeypatch):
+    ui = station_greeter(recipient=Node('Oh No! Parent Control', 'label'),
+                         field=Node('oh-no-parent-control', 'label'))
+    assert ui.station_refusal_snapshot() is None
+    application = ui.api.get_desktop(0).children[0]
+    actual = ui.station_refusal_snapshot
+    def snapshot():
+        result = actual()
+        if result is None:
+            application.children = [Node('oh-no-parent-control', 'push button')]
+            application.children[0].parent = application
+        return result
+    monkeypatch.setattr(ui, 'station_refusal_snapshot', snapshot)
+    ui.timeout = 2
+    assert ui.run('gdm-station-refused', '')['fallback'] == 'account-list'
+
+
+@pytest.mark.parametrize('fault', ['wrong-recipient', 'ambiguous-recipient', 'duplicate-field',
+                                 'mixed-list', 'uncertain'])
+def test_station_refusal_rejects_wrong_or_ambiguous_fallback(fault):
+    recipient = Node('Jamie (Parent)' if fault == 'wrong-recipient' else
+                     'Oh No! Parent Control', 'label')
+    rows = [Node('Oh No! Parent Control', 'push button')] if fault == 'mixed-list' else []
+    if fault == 'ambiguous-recipient':
+        rows.append(Node('oh-no-parent-control', 'label'))
+    if fault == 'duplicate-field':
+        rows.append(Node('private canary 2', 'password text'))
+    ui = station_greeter(*rows, recipient=recipient, field=Node('private canary', 'password text'))
+    ui.input_uncertain = fault == 'uncertain'
+    with pytest.raises(UiError):
+        ui.run('gdm-station-refused', '')
+
+
+@pytest.mark.parametrize('fallback', ['account-list', 'station-prompt'])
+@pytest.mark.parametrize('fault', [None, 'native', 'observation', 'escape'])
+def test_refused_station_requires_native_result_before_guarded_single_use_escape(
+        monkeypatch, fallback, fault):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import kiosk_entry
+    events = []
+
+    def observe(operation):
+        events.append(operation)
+        if operation == 'gdm-station-refused' and fault == 'observation':
+            raise RuntimeError('observation')
+        return {'operation': operation, 'outcome': 'passed',
+                'interface': 'ApplicationUI+external-provider', 'fallback': fallback}
+
+    def enter(lease, ui, observed):
+        events.append('enter')
+        ui.boot_proof = 'a' * 64
+
+    def verify():
+        events.append('native')
+        if fault == 'native':
+            raise RuntimeError('native')
+
+    def escape(*args):
+        events.append('escape')
+        assert args[2] == [1]
+        if fault == 'escape':
+            raise RuntimeError('escape')
+
+    ui = SimpleNamespace(observe=observe)
+    lease = SimpleNamespace(guard=Mock(), source=SimpleNamespace(
+        domain=SimpleNamespace(sendKey=Mock(side_effect=escape)),
+        api=SimpleNamespace(VIR_KEYCODE_SET_LINUX=0)))
+    monkeypatch.setattr(kiosk_entry, 'UiObservations', lambda transport: ui)
+    monkeypatch.setattr(kiosk_entry, 'enter_station', enter)
+    monkeypatch.setattr(kiosk_entry.watch_activity, 'operation', lambda _: nullcontext())
+    receipt = {}
+    failed = fault in ('native', 'observation') or (fault == 'escape' and fallback == 'station-prompt')
+    if failed:
+        with pytest.raises(RuntimeError, match=fault):
+            kiosk_entry.observe_station_refusal(None, lease, verify, receipt=receipt)
+        assert not receipt.get('safe_return')
+    else:
+        kiosk_entry.observe_station_refusal(None, lease, verify, receipt=receipt)
+        assert receipt['safe_return']
+        assert events[-1] == 'gdm-station-returned'
+    assert events[:2] == ['enter', 'native']
+    assert events.count('escape') <= 1
+    assert ('escape' in events) == (fallback == 'station-prompt' and fault not in ('native', 'observation'))
+
+
 def test_greeter_waits_for_public_owner_before_resolving_account(monkeypatch):
     import accessible_ui
     from unittest.mock import Mock

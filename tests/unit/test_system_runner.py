@@ -3030,6 +3030,84 @@ def test_sibling_selection_freezes_exact_scope_and_public_entry_inputs(tmp_path)
     assert system_case_ids.identity_for_case('enforcement', runner.SIBLING_CASE).numeric_id == 290
 
 
+def test_required_selection_freezes_exact_refusal_recovery_history(tmp_path):
+    import system_snapshots
+    selection = runner.resolve_selection('enforcement', runner.REQUIRED_CASE,
+        inventories=dict(INVENTORIES, enforcement=(runner.REQUIRED_CASE,)))
+    assert selection.phases == (runner.REQUIRED_PHASE,)
+    assert system_snapshots.attempts(selection) == [(selection, True)]
+    assert runner.pytest_command(RUN, runner.REQUIRED_PHASE, selection)[-1] == (
+        runner.PAYLOAD + '/test_enforcement.py::' + runner.REQUIRED_CASE)
+    runner.stage_selected_inputs(selection, tmp_path)
+    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert inputs['host_files'] == runner.kiosk_activation_host_inputs()
+    assert 'tests/integration/test_account_password.py' in inputs['host_files']
+    assert system_case_ids.identity_for_case('enforcement', runner.REQUIRED_CASE).numeric_id == 291
+
+
+@pytest.mark.parametrize('fault', [None, 'preparation', 'native', 'gdm', 'restore', 'assertion'])
+def test_required_history_restores_after_uncertain_preparation_and_keeps_original_failures(
+        tmp_path, monkeypatch, fault):
+    from contextlib import contextmanager
+    import kiosk_entry
+    import test_account_password
+    (tmp_path / 'input').mkdir()
+    inputs = {'host_files': {'source': 'digest'}}
+    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps(inputs))
+    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: inputs['host_files'])
+    monkeypatch.setattr(test_account_password, 'read_password', lambda: 'private-secret')
+    events = []
+
+    def call(command, **kwargs):
+        if command[-2] == 'ordinary-authentication':
+            assert kwargs['input'] == b'private-secret'
+            events.append('authentication')
+            return json.dumps({'authenticate': 0, 'account': 0, 'end': 0})
+        operation = command[-1]
+        events.append(operation)
+        if operation == {'preparation': 'prepare-required-ancestor', 'native': 'verify-required-refusal',
+                         'gdm': 'verify-required-gdm-refusal', 'restore': 'restore-required-ancestor'}.get(fault):
+            raise RuntimeError(fault)
+
+    def refusal(vm, lease, verify, *, receipt):
+        events.append('public-refusal')
+        verify()
+        receipt['safe_return'] = True
+
+    @contextmanager
+    def station(vm, lease, *, receipt):
+        events.append('public-recovery')
+        try:
+            yield
+        finally:
+            events.append('public-exit')
+            receipt['normal_exit'] = True
+
+    def assertions(*args):
+        events.append('assertions')
+        if fault == 'assertion':
+            raise RuntimeError(fault)
+
+    monkeypatch.setattr(kiosk_entry, 'observe_station_refusal', refusal)
+    monkeypatch.setattr(kiosk_entry, 'native_update_station', station)
+    monkeypatch.setattr(runner, 'run_pytest', assertions)
+    vm, lease = SimpleNamespace(call=call), SimpleNamespace(state={'run': RUN})
+    if fault:
+        with pytest.raises(RuntimeError, match=fault):
+            runner.run_required_phase(vm, lease, tmp_path, None)
+    else:
+        runner.run_required_phase(vm, lease, tmp_path, None)
+    assert events.count('restore-required-ancestor') == 1
+    if fault in ('preparation', 'native', 'gdm', 'restore'):
+        assert 'public-recovery' not in events
+    else:
+        assert events.index('restore-required-ancestor') < events.index('public-recovery')
+        assert 'public-exit' in events
+    receipt = json.loads((tmp_path / 'guest-results/station-required-ancestor.json').read_text())
+    assert 'private-secret' not in json.dumps(receipt)
+    assert receipt['host_inputs_unchanged']
+
+
 @pytest.mark.parametrize('fault', [None, 'preparation', 'assertion', 'cleanup', 'input-drift'])
 def test_sibling_history_preserves_failure_and_finishes_owned_cleanup(
         tmp_path, monkeypatch, fault):

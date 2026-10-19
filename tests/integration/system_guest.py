@@ -872,8 +872,12 @@ def collect(marker, outcome):
 
 def collect_native_checkpoints(output, redacted):
     """Export only the finite native history records through normal redaction."""
-    for phase in ('intent', 'old', 'retained-intent', 'updated', 'retired', 'loader-drained', 'complete'):
-        source = PAYLOAD / 'private' / ('native-update-' + phase + '.json')
+    names = [f'native-update-{phase}.json' for phase in
+             ('intent', 'old', 'retained-intent', 'updated', 'retired', 'loader-drained', 'complete')]
+    names += ['required-ancestor.json', 'required-native-refusal.json', 'required-gdm-refusal.json',
+              'required-restored.json', 'required-cleanup.json']
+    for name in names:
+        source = PAYLOAD / 'private' / name
         if not source.exists():
             continue
         info = source.lstat()

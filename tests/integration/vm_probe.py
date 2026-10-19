@@ -221,6 +221,45 @@ def reproduce_kiosk_entry(lease):
     return reproduce_denial(lease, InstalledJourney, PLAN, 'request-form', 'kiosk-entry')
 
 
+def reproduce_kiosk_refusal(lease):
+    """Stop after one shared station selection in the owned diagnostic guest.
+
+    The caller owns any deliberate input fault and subsequent restoration.
+    This preserves the live failed-entry boundary for probes, with no acceptance.
+    """
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from kiosk_entry import enter_station
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    import time
+    with operation('Reproducing refused request-station entry'), recovery_session():
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-kiosk-refusal-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        transport = connect(lease)
+        ui = UiObservations(transport)
+        ui.boot_guard = ''
+        enter_station(lease, ui, ui.observe)
+        results = []
+        try:
+            for sample in range(3):
+                try:
+                    result = ui.observe('gdm-station-refused')
+                    observed = {'sample': sample, 'fallback': result['fallback']}
+                except Exception:
+                    observed = {'sample': sample, 'fallback': 'unresolved'}
+                results.append(observed)
+                print('kiosk-refusal: ' + json.dumps(observed), flush=True)
+                if sample < 2:
+                    time.sleep(2)
+        finally:
+            (directory / 'result.json').write_text(json.dumps(
+                {'purpose': 'diagnostic-only', 'samples': results, 'boot_sha256': ui.boot_proof}) + '\n')
+            print('kiosk-refusal: evidence=' + str(directory), flush=True)
+        print('kiosk-refusal: station selected once; diagnostic guest retained', flush=True)
+
+
 def latency_events(commands, after_sequence):
     """Read only this probe's finite, already retained command timing records."""
     events = []

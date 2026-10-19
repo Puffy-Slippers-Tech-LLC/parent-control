@@ -20,6 +20,11 @@ def test_kiosk_writable_sibling_isolation(record_testsuite_property):
     verify_sibling_isolation(record_testsuite_property)
 
 
+def test_kiosk_required_ancestor_refusal(record_testsuite_property):
+    from system_kiosk_confinement import verify_required_recovery
+    verify_required_recovery(record_testsuite_property)
+
+
 def test_kiosk_login_admission(record_testsuite_property):
     from system_kiosk_admission import verify
     verify(record_testsuite_property)

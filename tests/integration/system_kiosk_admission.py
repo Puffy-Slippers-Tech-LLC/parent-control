@@ -25,11 +25,12 @@ PAM_AUTH_ERR = 7
 DURABLE_SERVICES = ('gdm-password', 'systemd-user')
 
 
-def empty_token_conversation(user):
-    """A real libpam conversation whose only credential is the empty token.
+def empty_token_conversation(user, *, token=b''):
+    """A real libpam conversation; station probes retain the empty default.
 
     PAM takes ownership of calloc/strdup responses on success. Keep the callback
     alive until pam_end; reject unknown styles and bound the provider's batch.
+    Ordinary-account collateral probes may supply their existing fixture token.
     """
     class Message(ctypes.Structure):
         _fields_ = [('style', ctypes.c_int), ('message', ctypes.c_char_p)]
@@ -60,7 +61,7 @@ def empty_token_conversation(user):
         responses = ctypes.cast(allocation, ctypes.POINTER(Response))
         for index, style in enumerate(styles):
             if style in (1, 2):
-                value = libc.strdup(b'' if style == 1 else user.encode())
+                value = libc.strdup(token if style == 1 else user.encode())
                 if not value:
                     for previous in range(index):
                         libc.free(responses[previous].response)
@@ -84,7 +85,7 @@ def pam_account(service, role, *, hold=None):
     return {'account': result['status'], 'end': result['end']}
 
 
-def pam_callback(service, role, callback, *, durable=False, hold=None):
+def pam_callback(service, role, callback, *, durable=False, hold=None, token=b''):
     """Call exactly one installed PAM boundary and retire its real handle."""
     guest.guard()
     services = DURABLE_SERVICES if durable else SERVICES
@@ -92,7 +93,10 @@ def pam_callback(service, role, callback, *, durable=False, hold=None):
                   callback in ('account', 'session', 'authentication-account') and
                   (durable or callback == 'account') and
                   (callback != 'authentication-account' or
-                   (service == 'gdm-password' and role == 'kiosk' and hold is None)),
+                   (service == 'gdm-password' and hold is None and
+                    (role == 'kiosk' and token == b'' or
+                     role in ('ordinary', 'other') and isinstance(token, bytes) and
+                     1 <= len(token) <= 256 and b'\0' not in token))),
                   'kiosk-admission:arguments')
     if service == 'gdm-password' and role == 'kiosk' and guest.package_path().suffix == '.rpm':
         from system_kiosk_confinement import caller_identity
@@ -118,7 +122,7 @@ def pam_callback(service, role, callback, *, durable=False, hold=None):
         getattr(pam, name).argtypes = [ctypes.c_void_p, ctypes.c_int]
         getattr(pam, name).restype = ctypes.c_int
     pam.pam_start.restype = ctypes.c_int
-    reply = empty_token_conversation(account.pw_name) if callback == 'authentication-account' else None
+    reply = empty_token_conversation(account.pw_name, token=token) if callback == 'authentication-account' else None
     handle = ctypes.c_void_p()
     conversation = Conversation(ctypes.cast(reply, ctypes.c_void_p).value if reply else None, None)
     guest.require(pam.pam_start(service.encode(), account.pw_name.encode(),
@@ -409,7 +413,11 @@ def verify(record):
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['held-account']:
+    if len(sys.argv) == 3 and sys.argv[1] == 'ordinary-authentication':
+        token = sys.stdin.buffer.read(257)
+        print(json.dumps(pam_callback('gdm-password', sys.argv[2], 'authentication-account',
+                                      durable=True, token=token), sort_keys=True))
+    elif sys.argv[1:] == ['held-account']:
         held_worker()
     elif sys.argv[1:] == ['pam-authentication-account']:
         print(json.dumps(pam_callback('gdm-password', 'kiosk', 'authentication-account', durable=True),

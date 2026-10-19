@@ -3,7 +3,7 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04
 
-Read the [master](../Kiosk-Prompt.md), reviewed transition table, canonical
+Read the [master](../Kiosk-Prompt.md), [reviewed transition table and admission proof](../SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins), canonical
 confinement/native-update mechanics and applicable installed/public-observation
 contracts. Implement/register the finite canonical history and reuse shared entry.
 

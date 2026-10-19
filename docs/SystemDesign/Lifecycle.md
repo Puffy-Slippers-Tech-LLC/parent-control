@@ -571,9 +571,11 @@ treated as release-qualified.
 ### Retained material activation and recovery
 
 The [005a material/pin design](Kiosk-Confinement.md#planned-retained-material-and-immutable-pins)
-separates required material from a realized ambient layout. It remains planned:
-005 reviews manager identity/concurrency and 006a–007 implement and qualify the
-composition. Current admission still uses the whole-layout generation digest.
+separates required material from a realized ambient layout. Its
+[005 admission proof](Kiosk-Confinement.md#planned-retained-view-admission-proof)
+settles manager identity, acquisition, concurrency and native receipts. The
+composition remains planned until 006a–007 implement and qualify it. Current
+admission still uses the whole-layout generation digest.
 
 The planned retained source is the verified manager's actual read-only `/usr`
 view, held across acquisition by a native-owned recursive mount-clone descriptor.
@@ -600,6 +602,30 @@ detach only recorded owned mounts on refusal; retain completed generations until
 reboot and enforce the existing four-generation/storage/time bounds. Do not add
 a pin daemon, persistent host mount or a new general cleanup operation. Existing
 package removal/admission ownership remains unchanged.
+
+Retained admission binds the same system-manager unit invocation, leader pidfd,
+complete task/credential/label/namespace proof and original source realization
+through clone acquisition and the last pre-MAC validation. Same-material manager
+reexec may proceed only while those invariants remain intact. Exit or replacement
+observed before that decision denies; a surviving pin supplies lifetime only.
+An exit afterward cannot change the gate's already owned confined mounts, but
+existing session startup/exit still owns unavailable services and return to
+sign-in. There is no new manager keepalive, restart or process-stopping route.
+The shared admission lease outlives preparation ownership through the PAM handle.
+Neither lock freezes distribution unpack; current-host required-input checks use
+separate pinned original `/usr` and outside-`/usr` lookup roots after private
+attachment. A host `/` descriptor alone would cross the new overmount. Explicit
+alias walks dispatch `/usr` paths to the original descriptor.
+
+An original native realization receipt `V` and a later gate's derived receipt `I`
+have different owners. Gate omission/masking never rewrites the manager's source
+receipt, adopts host replacements or allocates another completed generation.
+Initial ready publication precedes the future manager's exec and does not assert
+its PID; reuse separately proves the actual live manager and mounted sources.
+Ready publication followed by failed MAC/exec gives no admission credit without
+that proof. Unknown ownership stays closed. Required drift retains successful
+configuration plus reboot recovery; exact restoration may retry the unchanged
+live material only after a fresh complete transaction.
 
 ### Package activation and session renewal
 

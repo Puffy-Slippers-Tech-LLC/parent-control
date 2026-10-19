@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **005 — [Review retained-view admission proofs](Kiosk-Prompt-Tasks/005-generation-design.md)**.
+Next task: **006a — [Implement owned immutable-view primitives](Kiosk-Prompt-Tasks/006a-pin-primitives.md)**.
 
 ## Outcome
 
@@ -1067,6 +1067,54 @@ consistency selection passed all **313/313** cases in
 [20261019T095550Z-158c6599](../output/test-runs/host/reports/20261019T095550Z-158c6599/report.md).
 Runner-owned cleanup finished. Changed-document links and whitespace passed;
 all other queue rows retain their original status, order, Scope and Requires.
+
+### Retained-view admission proof review — 005
+
+Review acceptance passed on 2026-10-19 UTC. The enduring
+[admission proof](SystemDesign/Kiosk-Confinement.md#planned-retained-view-admission-proof)
+and [lifecycle composition](SystemDesign/Lifecycle.md#retained-material-activation-and-recovery)
+bind the system-manager unit invocation, leader pidfd, complete task/credential/
+label/namespace proof, recursive source clone and native receipts through final
+validation. Compatible reexec preserves that proof; observed exit or replacement
+refuses. Pin lifetime does not promise manager liveness after the admission
+decision. Original source `V` and derived gate `I` keep separate ownership,
+coverage, publication and cleanup. The finite ambient/required table remains;
+006a/006b/006 retain independent primitive, selection and composition witnesses,
+and 007a/007 retain actual installed acceptance on their declared targets.
+
+The coordinator reviewed complete `prepare()`, `manager_generation()`, generation
+verification/publication, native protocol/proof/binding/staging cleanup and final
+MAC callers, plus canonical `manager_boundary()` / `verify_updates()` and
+`system_native_update.stale_admission()` with its update/reboot callers. Product
+source identities remain `c4df120b8e61802a7e0fac85fc628112ff47a460c826dd66a183dc461a4d0c50`
+(preparation) and `5bd1c93ac8144b7cda9248d84e176845d99c0cfb01016cbb54f8c84cdb5b0cb6`
+(native header). No existing installed receipt is claimed as proof of the new
+mechanism. The earlier attestation refusal remains distinct from an actual
+material mismatch; historical ambient-addition failure still needs its permanent
+006b before/after control and real 007a/007 history.
+
+Independent GPT-6.1 Sol High review found and then accepted correction of one
+lookup-root gap: an original `/` descriptor still crosses a later `/usr`
+overmount. The proof now pins original `/usr` separately, explicitly dispatches
+aliases and requires an independent post-attachment host-drift refusal while
+private bytes stay unchanged. No source-store redesign or prerequisite is needed.
+Native proc/clone/bus access, mounted-source completeness, task churn and
+publication interruption remain explicit implementation/qualification risks.
+Unfinished consumer briefs link to the enduring proof without scope changes.
+
+The first reviewer could not start; the subsequent reviewer completed and owned
+no runtime resources. No product source, installation, VM, fixture or persistent
+process changed. The pre-existing proof-document edit is preserved; no runtime
+restoration remains. Only documentation outside package/build inputs changed,
+so no build is required. This review brief declares no Targets and grants no
+host or installed pass for the planned mechanism. Only 005 closes.
+
+After queue/pointer/brief close-out, the maintained four-module documentation
+consistency selection passed **313/313** cases in
+[20261019T100407Z-50c667fb](../output/test-runs/host/reports/20261019T100407Z-50c667fb/report.md).
+Runner-owned cleanup finished. Links for all nine changed Markdown documents
+and whitespace checks passed; every other queue row retains its original
+status, order, Scope and Requires.
 
 ### Remaining execution and acceptance
 

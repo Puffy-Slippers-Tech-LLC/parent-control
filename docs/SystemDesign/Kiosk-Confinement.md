@@ -349,8 +349,8 @@ completeness, publication and metadata-race host controls belong to 002a.
 
 ### Planned retained material and immutable pins
 
-This is the **005a design**, pending the manager/admission composition review
-at 005 and implementation/qualification at 006a–007 in the
+This is the **005a material design with 005's admission proof review**, pending
+implementation/qualification at 006a–007 in the
 [entry queue](../Kiosk-Prompt-Queue.md). The current implementation still hashes
 the whole layout and prepares new bindings from host names. This section grants
 no host or installed acceptance and does not change the phase-local contract
@@ -428,8 +428,8 @@ reason under the master's symptom boundary.
 **Transition table.** Apply required checks to current host inputs before
 selecting a retained view, then check the selected view's required pins against
 `M` and their own source assertions. Host trust and retained trust are separate
-observations. The following results assume a live verified manager and no
-concurrent ownership/identity failure; 005 owns those proofs.
+observations. The following results assume a live verified manager under the
+[admission proof](#planned-retained-view-admission-proof) below.
 
 | Change since initial realization | Material result | Later entry and independent control |
 | --- | --- | --- |
@@ -466,8 +466,8 @@ its `/usr`, held by a close-on-exec descriptor. The public
 already checked descriptor. A plain directory or namespace descriptor alone is
 not evidence that submounts were cloned. The clone owns its mount references
 even if the manager later exits; that guarantees source lifetime, not permission
-to admit after losing the manager. 005 must settle acquisition/recheck ordering,
-PID/thread/credential/label/namespace identity and exit/reexec races before use.
+to admit after losing the manager. The admission proof below defines acquisition,
+identity rechecks and the exit/reexec boundary.
 Failure of the public API or its existing trusted-caller permission denies;
 there is no legacy pathname fallback or new payload mount authority.
 
@@ -495,7 +495,7 @@ opened object/selected receipt. A versioned closed protocol must distinguish
 initial versus retained sources and bind `M`, `V`, backend and caller role.
 The gate's derived receipt `I` must reference the same selected source identities.
 Unknown fields/versions, ambiguous source classes, incomplete required coverage
-or old-format reuse refuse. 005 owns the final protocol/admission composition.
+or old-format reuse refuse. The admission proof below owns the protocol composition.
 
 Construct a **fresh invocation skeleton** from selected `V`, not from a new
 ambient host scan. Bind checked retained sources into those new private parents;
@@ -581,7 +581,7 @@ only that producer and parser agree on a digest.
 | 006b — original stale-manager regression | With unchanged required inputs, establish baseline admission, add an unrelated empty directory, then admit again from the original view; assert both material equality and native-selected source identity | Preserve the historical pre-fix `manager-generation-stale` before/after control from run `20261019T061016Z-d39f14ad`. Its retired export is historical evidence only; create a permanent reproduction, not a claimed rerun of removed probes. |
 | 006b — required drift and identical reinstall | Identical-byte/trust-compatible reinstall remains compatible using independent host/retained assertions; unlink the old helper and require original inode/content plus a fresh stable eight-field assertion, including changed ctime and zero links; exact restoration recovers | Independently change config/policy, native/library/runtime content, selected inventory, helper privilege metadata, required aliases/ancestors/completeness and source identity during measurement. Retained hardlinks or any change after assertion capture refuse. Distinguish attestation refusal from reattested material mismatch; none publishes/adopts a new retained view. |
 
-006 owns the composed native admission checks after 005's proof review.
+006 owns the composed native admission witnesses below.
 007a/007 must retain real installed before/after ambient availability, exact
 manager/view/source identity, enforcing positive/negative execution, required
 drift refusal/restoration, usable public reentry and ordinary-account controls
@@ -590,6 +590,197 @@ and reexec isolation; `system_native_update.stale_admission()` requires a specif
 generation reason. Their complete canonical histories and exact input comparison
 govern reuse; neither a test name nor case 267's earlier attestation refusal
 supplies new generation-stage or immutable-pin acceptance.
+
+### Planned retained-view admission proof
+
+This is **005's reviewed composition**, still unimplemented. It qualifies only
+the retained-view change above. Current `manager_generation()` checks the leader's
+four UIDs, marker and label through a pidfd, then closes it before native binding;
+it does not prove a retained mount source or the complete admission interval.
+The stronger engineering `manager_boundary()` is an observation recipe, not a
+production guard. Neither route supplies acceptance for this planned mechanism.
+
+**Authority and ordered acquisition.** Keep one native owner in the actual PAM
+caller. Its acquisition, helper, binding and final checks share a bounded
+transaction; retain the 60-second preparation deadline and five-second external
+query limits, without unbounded retries. All setup descriptors are close-on-exec
+except explicit duplicates passed to the one bounded preparation child. No
+descriptor or mount authority reaches the eventual session payload.
+
+1. Acquire the existing shared admission lease, then the exclusive preparation
+   lock. Check each named lock still denotes the opened private, root-owned,
+   single-link inode after locking and before releasing preparation ownership.
+   Preserve GDM routing's existing login lock and lifecycle lock order. Before
+   overlay attachment, separately pin the caller's original host `/usr` lookup
+   root and its host `/` root for dependencies outside `/usr`. A `/` descriptor
+   alone still crosses a later `/usr` overmount and is insufficient. Later host
+   checks must start beneath the original `/usr` descriptor for those paths.
+2. Verify the owned account, current attested config/policy and enforcement, and
+   measure current required `M`. For a gate, query the system manager's exact
+   `user@UID.service` using the public
+   [systemd unit interface](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.systemd1.html).
+   Read MainPID, InvocationID, ControlGroup and active state with bounded calls;
+   accept only active or reloading state with the complete invariant below.
+   Refuse absent, starting, stopping, failed or unknown state. Acquire the leader pidfd
+   and an opened proc directory, then repeat the unit/leader observation. Bind
+   all subsequent reads to those objects; do not follow a new numeric PID.
+3. Establish the complete manager proof below. Open its root and mount-namespace
+   descriptors through the pinned proc object, resolve exactly its `/usr`, and
+   acquire the recursive detached clone specified above. Recheck manager identity,
+   namespace/root and selected `M,V` after acquisition. Verify the clone's actual
+   required mounted inodes, bytes, labels and finite mount coverage against the
+   completed source receipt. A recursive flag, matching marker, namespace number
+   or successful clone syscall alone does not establish submount coverage.
+4. Pass only the selected clone and owned receipt/copy descriptors to preparation.
+   Its new skeleton comes from `V`; host measurement contributes required material
+   only, never a replacement ambient layout. Native checks the returned closed
+   protocol against its own acquisitions before binding. Revalidate current-host
+   required paths through their original host lookup roots, and retained sources through
+   the clone, with separate source-local assertions. Required aliases use their
+   explicit bounded component/target walk in the appropriate root. For host
+   proofs, dispatch entry into `/usr` to the original `/usr` descriptor, including
+   when expanding lexical or absolute aliases such as `/bin`; never let a kernel
+   symlink traversal cross into the overmount. No ambient symlink supplies a
+   source and no absolute link escapes into the other source class.
+5. Bind into fresh invocation parents, record actual outcomes in `I`, attach
+   recursively read-only and verify actual attachment/required coverage. Complete
+   identity-owned staging detach and ready publication under the lock. Recheck
+   current required observations, policy attestation/enforcement, the manager
+   proof and unit identity after binding and before final MAC. Late unit queries
+   use a bounded native system-bus call; do not start a verification process in
+   the newly attached view. A required pathname replacement during the transaction
+   refuses even when the new bytes match. Same-byte compatibility applies only
+   to a new transaction with independently verified host and retained assertions.
+6. Confirm preparation's child is reaped and close every source, clone, host
+   lookup-root, proc, namespace, receipt and bus descriptor after its last check.
+   Keep the manager pidfd through
+   the last pre-MAC liveness check, then close it before MAC. Set the manager-only
+   unit environment, clear ambient capabilities and apply/verify the existing
+   final MAC transition. Failure at any step denies and releases only owned state.
+   Keep preparation ownership through MAC; the admission lease still spans the
+   PAM handle as before. No subprocess runs after final MAC.
+
+**Manager proof and reexec.** The proof binds boot, owned UID, unit invocation,
+leader PID/starttime, pinned proc/pidfd, cgroup, root, mount/user/PID namespace
+objects, selected `M,V` and manager executable identity. A
+[pidfd](https://man7.org/linux/man-pages/man2/pidfd_open.2.html) observes process
+lifetime; it neither freezes exec/credentials/namespaces nor makes pathname reads
+atomic. Treat exit, hangup, poll/read failure or disagreement as refusal, never
+as permission to select another manager within this transaction.
+The actual leader cgroup must lie within the unit's ControlGroup on component
+boundaries; retain that exact observed cgroup through final validation, including
+the supported manager's `init.scope` placement.
+
+Enumerate every manager task under the pinned proc directory with finite bounds.
+For each opened task, check TID/starttime, all four UIDs and GIDs, expected
+unprivileged supplementary groups, absence of effective/permitted/inheritable/
+ambient capabilities, exact manager enforcing label, root and the same namespace
+objects and private `M,V` view. Bounding capabilities are not active capabilities.
+Mount namespace must differ from the original host's; user/PID namespaces must
+match the supported system manager's, with no unexpected identity mapping.
+The expected executable is the selected role's copied manager ELF inode/content,
+not merely the text of `/proc/PID/exe`. Recheck task identities and membership
+around the observation and at final validation. Any observed task exit, addition,
+credential/label/root/namespace change or unavailable record refuses this attempt;
+ordinary task churn may retry as a fresh public admission, not a partial scan.
+The leader's process pidfd alone does not witness individual thread lifetime.
+
+These observations are backed by the existing trusted systemd executable and
+enforcing role policy: the manager cannot write the skeleton or measured copies,
+mount, enter another namespace, acquire privilege or transition to an unrestricted
+domain. Reexecution of that same pinned executable preserves the unit invocation,
+leader lifetime, material and private mount tree. Allow it only when the full
+proof remains identical; an overlapping unstable census refuses for fresh retry.
+Repeated observations are not an atomic exec barrier. An unobserved compatible
+reexec is safe because it preserves these invariants, not because the pidfd
+detects exec. 006 must verify those policy restrictions and both supported
+reexec paths alongside its race controls; do not add ptrace, freezing, signalling
+or a new manager-coordination service to manufacture atomicity.
+
+**Concurrency and commit boundary.** The preparation lock serializes cooperating
+admissions and configuration/publication, not manager exit/reexec or distribution
+unpack. The shared admission lease excludes loader/removal writers. Required
+descriptor/path checks and attestation close unpack races independently; do not
+claim the locks freeze all host files. Poll the same manager and recheck the same
+unit invocation at acquisition, after cloning and at final validation. A changed
+MainPID, InvocationID, cgroup, namespace, root, executable or receipt denies even
+when material hashes match; no refresh to a new identity occurs inside the call.
+
+There is no atomic kernel operation combining remote manager liveness and final
+PAM return. The last successful validation is the admission decision boundary.
+A manager that exits before it is observed there denies, even though the clone
+survives. A subsequent exit cannot substitute sources or remove the gate's owned
+read-only mounts: the admitted gate still has its independently confined view.
+Existing session startup/exit owns unavailable services and return to sign-in;
+this design promises no keepalive or uninterrupted form after manager death.
+Fresh admission must prove the actual current manager again. Do not adopt a
+replacement manager from a surviving old clone or signal a manager for recovery.
+
+**Native receipts and publication.** The new protocol binds format, caller role,
+backend, `M`, source `V`, acquisition identity and a finite source index/class for
+every bind. Required/ambient status comes from the attested inventory and complete
+required closure. Native cross-checks it against selected records, never a
+producer's ambient flag alone. Retained indices resolve only beneath the acquired
+clone and must match `V`'s provenance; equal bytes at a foreign inode, an arbitrary
+FD or a new host source are insufficient. Initial realization keeps the original
+host/copy allowlist. A retained source uses the explicit zero-link allowance and
+renewed eight-field assertion above; initial/current-host rules stay strict.
+
+Source `V` is native's original realized view, including late omissions, not the
+helper's intended layout. Gate `I` records only that invocation's checked
+derivation: eligible ambient omission/masking may narrow it, never add a source
+or remove required coverage. Native verifies required mount sources independently
+after binding and read-only attachment; clone mount IDs can differ, so relate
+them to pinned inode/role/coverage witnesses rather than equating numeric IDs.
+No receipt is its own recursive hash input. Private marker fields identify the
+canonical receipt whose hash is computed without that self-reference.
+
+Root-only ready records bind the completed receipt, boot, native publisher and
+actual private view provenance. Initial publication occurs in the trusted PAM
+executor before the final manager exists: the publisher PID is not a claimed
+future MainPID. Later acquisition independently binds the live confined manager
+and actual mounted sources to that receipt. Pending marker, completed disk copy,
+or ready record from failed MAC/exec cannot qualify without that live proof.
+Gate publication never changes the manager's `V` or consumes another generation.
+Interruption before ready leaves an incomplete attempt; interruption after ready
+still requires exact live-view verification. Ambiguous/replaced ownership or
+receipt/mount disagreement refuses, with no overwrite, relabel or host rebuild.
+Only proven owned incomplete scratch is recoverable under the existing lock;
+completed generations and their four-generation budget survive until reboot.
+
+**Finite composition witnesses.** The 005a ambient/required transition table and
+006a/006b families above remain unchanged. The following are planned witness
+families for **006**, not registered selectors or current passes. Use barriers
+and independently opened descriptors/real native fixtures, not timing sleeps or
+only producer/parser agreement. Keep tests inside existing resource owners.
+
+| Boundary | Positive witness | Independent refusal/control |
+| --- | --- | --- |
+| Manager identity | Original unit invocation, leader/tasks, credentials, enforcing role, executable and namespace/view survive a full gate bind | At acquisition, post-clone and final validation inject exit/PID reuse, same-UID impostor, changed unit invocation/MainPID, wrong cgroup/root/namespace/label/executable, privileged task or task-set change; deny without adopting a replacement or changing completed records |
+| Exit and reexec | Same-inode reexec retains the original namespace, material, source receipt and enforcing allowed/denied execution | Exit after clone but before final check denies despite readable original clone bytes; incompatible/unstable reexec denies. Exit after the decision cannot expose host replacement bytes or an unconfined gate |
+| Concurrent writers | Sequential healthy admissions reuse the same source and leave the manager's dentries/receipt unchanged | Contending admission/configuration and loader/removal barriers refuse without partial publication; exact replaced-lock inode refuses; unlocked required unpack drift at measurement/bind/final proof refuses |
+| Current-host lookup after attachment | Independently opened original host `/usr` and retained sources keep distinct lookup identities across overlay attachment, including lexical/absolute aliases | After attachment, change a required original host `/usr` input while private copy bytes remain unchanged; final host proof must refuse. A `/`-only lookup that crosses into private copies cannot satisfy this control |
+| Source and invocation receipts | Actual source mount coverage matches `V`; eligible ambient loss produces stricter `I` in fresh parents and retains required sources | Wrong clone, missing submount, placeholders, changed source index/class/role/backend/version, forged ambient-required status, missing required mount, mixed `M,V,I` or source replacement denies; independently prove manager dentries unchanged |
+| Completion and cleanup | Complete attach/read-only/detach/ready/MAC order, then close every setup FD; attached view keeps its sources | Interrupt each boundary including ready-to-MAC/exec; fail query/clone/proof/attach/read-only/detach/MAC and prove no partial source is admitted, only owned resources are released, and primary/cleanup failures stay separate |
+
+007a/007 compose the existing canonical `verify_updates()`/manager observer and
+specific `stale_admission()` histories with real ambient before/after public entry.
+An ambient positive must identify the unchanged manager and original `V`/sources,
+observe the actual private absence/mask/content, reach a usable passwordless form,
+and retain enforcing native positive/negative and ordinary-role controls. Required
+drift needs its actual stage, exact restoration and the declared reboot/reentry
+history. A reattested material mismatch must reach manager-material selection;
+an earlier payload denial does not cover it. Preserve whole valid existing
+histories only after exact changed-input applicability review at 011a/011.
+
+Remaining risks are explicit implementation/qualification obligations: native
+bootstrap access to proc/recursive clone and bounded bus queries on both MAC
+backends, complete mount/source versus receipt validation, task churn and cleanup
+at every publication cut. API failure remains closed, without a pathname fallback
+or broader payload permission. Shallow distribution data retains its existing
+compatibility limits. No concrete source-store gap requires redesign or a new
+prerequisite; 006a/006b/006 own these finite implementation proofs and 007a/007
+own installed acceptance. Review acceptance supplies neither runtime pass.
 
 ## Roles, services and dialogs
 

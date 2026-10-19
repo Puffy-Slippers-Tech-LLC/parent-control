@@ -8,7 +8,7 @@ exit/reexec/concurrency and source-identity witnesses. Reuse earlier primitives
 and receipts; cumulative scope retains every original availability/drift
 assertion. A second independent mechanism requires a bounded prerequisite.
 
-Implement only 005's reviewed design through existing Python/native preparation
+Implement only [005's reviewed design](../SystemDesign/Kiosk-Confinement.md#planned-retained-view-admission-proof) through existing Python/native preparation
 and binding owners. Read the [master](../Kiosk-Prompt.md) and complete affected
 callers, callees and shared state before edits.
 

@@ -8,7 +8,7 @@ reconcile both candidate receipts. Session exception: each mutation and
 required-drift/reboot/recovery branch remains indivisible. 007a retains Ubuntu
 acceptance; rerun affected branches if a later fix invalidates that receipt.
 
-Follow the [master](../Kiosk-Prompt.md), 005's transition table and canonical
+Follow the [master](../Kiosk-Prompt.md), [005's transition table and admission proof](../SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins) and canonical
 confinement/native-update histories. Register a finite engineering selector;
 reuse actual public entry/return observations and independent enforcing witnesses.
 

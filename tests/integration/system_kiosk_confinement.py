@@ -2314,8 +2314,18 @@ def bootstrap_view(process, *, source=None):
                               'kiosk-bootstrap:required-readonly-mount')
             if source_class in ('native', 'runtime', 'payload', 'vendor'):
                 bootstrap_source_trust(actual, kind, info, values[21])
-                sources[path] = {'identity': info, 'role': role, 'class': source_class,
+                sources[path] = {'kind': kind, 'role': role, 'class': source_class,
                                  'sha256': values[19]}
+                if kind == 'link':
+                    # Native recreates links in fresh invocation parents; it
+                    # verifies trusted ownership/type and exact text, not V's
+                    # link inode. Keep the full dentry in objects above so a
+                    # later manager observation still detects replacement.
+                    sources[path].update(link=values[21], ownership=info[2:5])
+                else:
+                    # Bound executable/library/directory sources (and nested
+                    # coverage below) must remain the original manager's.
+                    sources[path]['identity'] = info
         else:
             guest.require(values[0] == 'C' and len(values) == 13,
                           'kiosk-bootstrap:coverage-fields')

@@ -6,11 +6,15 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 ## Current execution boundary after the requested breakdown
 
 Requires 006d, 006e1, 006e2 and 006e3. The queue now separates
-[host completion](006e1-bootstrap-host.md), the complete
+[host completion](../Kiosk-Prompt.md#bootstrap-host-repairs--006e1), the complete
 [Ubuntu history](006e2-bootstrap-ubuntu.md) and complete
 [Fedora history](006e3-bootstrap-fedora.md). This original consumer remains
 unchecked and keeps its Scope and all six per-target assertion families below.
 It is suspended without installed acceptance credit.
+
+006e1's host acceptance is complete. Its reference records exact probe/package
+inputs and the remaining Ubuntu policy and Fedora logging observations. Resume
+006e2, then 006e3; all six assertion families below remain required on both targets.
 
 After those prerequisites pass, reconcile their complete installed receipts
 against the final exact package, policy, selected test inputs and every assertion.

@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006e1 — [Finish bootstrap probe and permission repairs](Kiosk-Prompt-Tasks/006e1-bootstrap-host.md)**.
+Next task: **006e2 — [Qualify Ubuntu native bootstrap](Kiosk-Prompt-Tasks/006e2-bootstrap-ubuntu.md)**.
 
 ## Outcome
 
@@ -24,9 +24,8 @@ security refusal to suppress GDM's fallback presentation.
 Task 006 made substantive progress in five sessions and remains unfinished.
 The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) and
 [retained reuse and paired production dispatch](#retained-kiosk-reuse--006d)
-(006d) passed their host acceptance. Continue with
-[006e1's retained bootstrap implementation](Kiosk-Prompt-Tasks/006e1-bootstrap-host.md),
-then the complete Ubuntu and Fedora histories in 006e2/006e3 and
+(006d) passed their host acceptance. [006e1's bootstrap host repairs](#bootstrap-host-repairs--006e1)
+are complete. Continue with the complete Ubuntu and Fedora histories in 006e2/006e3 and
 [006e's both-target acceptance reconciliation](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md)
 before resuming
 [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
@@ -58,9 +57,71 @@ SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`.
 The [006e checkpoint](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md#fifth-attempt-and-developer-requested-suspension)
 owns precise failure locations, source applicability and the retired intermediate
 host-report limit. All subagents, children, fixtures and maintenance/test VMs
-finished owned cleanup. Resume unchecked 006e1, then complete every original
-installed assertion in 006e2/006e3 before 006e can close. No acceptance credit
-is granted by the breakdown or checkpoint commit.
+finished owned cleanup. The later 006e1 host completion is below; complete every
+original installed assertion in 006e2/006e3 before 006e can close. No installed
+acceptance credit is granted by the breakdown, checkpoint or host completion.
+
+### Bootstrap host repairs — 006e1
+
+Host acceptance passed on 2026-10-19 UTC. The independent gate observer now
+matches native fresh-parent semantics: skeleton links retain exact trusted text,
+type and ownership; bound executable/library/directory sources and nested
+coverage retain the original manager's full inode assertions. Full dentry
+observations still detect original-manager replacement, and completed records,
+marker and attachment checks remain unchanged. Thirteen private controls cover
+healthy recreated links, source replacement with equal bytes, link text/ownership,
+nested coverage, writable sources, extra mounts, records and manager dentries.
+Their file/inode observations are real; root identities and proc mounts are
+finite doubles, not installed permission evidence.
+
+The retained logger instrumentation preserves every original caller descriptor.
+Only a logger introduced by this fixture may renew at the same independently
+proved descriptor/type/peer/endpoint; one native admission lease is the sole
+addition and unknown extras refuse. All 27 logger controls passed. Fedora's
+fifth mismatch remains unclassified: its old receipt lacks the post-PAM evidence
+needed to establish a cause. 006e3 must inspect both instrumented tables before
+classifying it. The explicit AppArmor user-namespace denials also have host
+coverage only; both targets still require every original installed assertion.
+
+The final 19-module native/PAM/confinement, packaging, registration and resource
+selection passed **3,758/3,758** in `20261019T213414Z-88f60e64`, informational
+source-input digest `f6b678a3da9f665a8d42d9d96ca6bd9a6aabcc79a72c403bd89080bb54f60d23`.
+The retained report owns its exact selectors. Resource review found only
+pytest-private dentries/hard links and finite doubles in the added controls;
+unit, cleanup and UI classification inventories passed. Generated coverage was
+refreshed. The four established documentation modules passed **313/313** in
+`20261019T213914Z-58f139e4` before queue close-out.
+
+Packaged inputs are unchanged from the final 006e checkpoint. `make build`
+passed both formats and finished owned scratch cleanup. Package-source digest:
+`0c60e1de6a5bb63c5f916d9153be61a2b849fd68ffa4fecf5e760c4cb1eb3ce7`.
+DEB SHA-256: `f74e1dd1d2a8b9d69d85eb66d3c84edd137db5ec5f77285d4ef3566644fe08e1`;
+RPM SHA-256: `2af5c56335c0e0b508df35395cd719705062e1ab909dfff0cf0772d48c6342fe`.
+Policy, fresh coordinator and RPM-spec SHA-256 respectively:
+`aa8bd30728448c084f2fa6b792e97df6a7c6589489176e9fdf13a9ae5219007c`,
+`ff023b3ad84b2d8b39da126b060cc8c9aa3dd8be4f98587c6992167568860958`,
+`7d1933043bc5c060492205b24ddf297827869f771c64f00041141b0c0cf0e3ae`.
+The corrected `system_kiosk_confinement.py` SHA-256 is
+`d4f9e6af34b1662b147d8742855fb094ad04faf52ba728bacec386a0774fb2c6`;
+case 292's existing frozen-input closure includes it. Earlier installed attempts
+cannot qualify this observer or the checkpoint's later policy/logger edits.
+
+Retained first failures are the private-path fixture defect in
+`20261019T213206Z-2e0cef8c` and the healthy-link comparison reproduction in
+`20261019T213229Z-86febfe3`; assertions were preserved through repair. The
+focused observer/logger verification passed **40/40** in
+`20261019T213254Z-9bc887c1`. Runner, fixture and build cleanup finished; no
+subagent, VM, product installation or live-policy operation remains owned.
+Only 006e1 closes; 006e2 is next and 006e/006 retain their complete scope.
+
+Post-close-out documentation checks passed **313/313** in
+`20261019T214004Z-7622e598`. The verified
+[1,397-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-yq4xgv20/evidence.zip)
+retains all 1,332 checkpoint records, this task's first failures and focused pass,
+final affected acceptance and both documentation passes. SHA-256:
+`34bd4e9ea353bd00159faf32eecdafa65fa2b67d4a8a13055c35bc1d7802dc24`.
+Export verification and owned cleanup completed. Package outputs and
+`output/rpm/build.log` are local build evidence outside this test-bundle selection.
 
 ## Smaller execution slices
 

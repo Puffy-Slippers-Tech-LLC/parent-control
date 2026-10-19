@@ -351,6 +351,9 @@ closed on success and refusal, with mocked runcon and pytest-private PAM inputs.
 Bootstrap logger controls use managed short-runtime Unix sockets and close only
 owned duplicates/clients; libc logging is doubled, so host logger state is untouched.
 Endpoint/FD identity and symlink-trust controls add no shared service or cache.
+Gate-view observer controls use pytest-private dentries, hard-linked source
+stand-ins and proc-mount/root-identity doubles. They add no mounts, subprocesses,
+shared paths or service access and retain compatible unit scheduling.
 Inherited-descriptor command cleanup uses process/pidfd doubles and retains the
 same compatible unit and cleanup classifications.
 Pidfd-acquisition refusal also starts one finite direct Python child with a

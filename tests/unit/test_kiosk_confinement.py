@@ -6327,6 +6327,141 @@ def test_bootstrap_source_trust_preserves_exact_owned_links_and_rejects_writable
             helper.bootstrap_source_trust(path, kind, info, '/dev/null')
 
 
+@pytest.mark.parametrize('fault', [None, 'executable', 'library', 'link-text', 'link-owner',
+                                 'link-group', 'completed', 'marker', 'nested-inode',
+                                 'nested-mount', 'writable', 'extra-mount', 'manager-link'])
+def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources_and_manager(
+        census_model, tmp_path, monkeypatch, fault):
+    """Real private dentries; only proc mounts, root identity and record paths are doubled."""
+    helper = census_model
+    manager, gate = tmp_path / 'manager', tmp_path / 'gate'
+    paths = {'executable': '/usr/lib/systemd/systemd',
+             'library': '/usr/lib/systemd/libsystemd-shared.so',
+             'link': '/usr/lib/systemd/user/masked.service',
+             'nested': '/usr/lib/vendor/nested.so'}
+    def actual(process, path):
+        return process / 'root' / path.lstrip('/')
+    for path in paths.values():
+        original, retained = actual(manager, path), actual(gate, path)
+        original.parent.mkdir(parents=True, exist_ok=True)
+        retained.parent.mkdir(parents=True, exist_ok=True)
+        if path == paths['link']:
+            original.symlink_to('/dev/null')
+            retained.symlink_to('/dev/null')
+        else:
+            original.write_bytes(b'original measured source\n')
+            original.chmod(0o755)
+            # A hard link supplies a real shared inode without host mounts.
+            os.link(original, retained)
+    boot = tmp_path / 'boot'
+    boot.write_text('private-boot\n')
+    native_object = helper.bootstrap_object
+    def observe(path, *, follow=False):
+        result = native_object(path, follow=follow)
+        result[3:5] = [0, 0]
+        if fault in ('link-owner', 'link-group') and path == actual(gate, paths['link']):
+            result[3 if fault == 'link-owner' else 4] = 1002
+        return result
+    monkeypatch.setattr(helper, 'bootstrap_object', observe)
+    material_bytes = b'{"private":"material"}\n'
+    material = hashlib.sha256(b'ONPC-KIOSK-MATERIAL\0' +
+                              len(material_bytes).to_bytes(8, 'big') + material_bytes).hexdigest()
+    lines = ['\t'.join(['ONPC-KIOSK-RECEIPT', '2', 'V', 'apparmor', 'manager', material, '-', 'a' * 64])]
+    nodes = [('/usr', 'tree', 'skeleton'), (paths['executable'], 'file', 'native'),
+             (paths['library'], 'file', 'native'), (paths['link'], 'link', 'vendor')]
+    for slot, (path, kind, source_class) in enumerate(nodes):
+        info = observe(actual(manager, path))
+        lines.append('\t'.join(map(str, ['N', path, kind, 1, source_class, 'initial',
+            'manager', slot, *info[:2], *info[:2], info[5], info[6], info[7], info[2],
+            info[3], info[4], info[8], helper.guest.sha(actual(manager, path)) if kind == 'file' else '-',
+            '-', '/dev/null' if kind == 'link' else '-', int(kind != 'link')])))
+    info = observe(actual(manager, paths['nested']))
+    lines.append('\t'.join(map(str, ['C', 0, paths['nested'], *info[:2], *info[:2],
+                                    info[5], info[6], info[7], info[2], info[3], info[4]])))
+    encoded = ('\n'.join(lines) + '\n').encode()
+    view = hashlib.sha256(b'ONPC-KIOSK-VIEW\0' + len(encoded).to_bytes(8, 'big') + encoded).hexdigest()
+    records = tmp_path / 'records' / view
+    records.mkdir(parents=True)
+    (records / 'material.json').write_bytes(material_bytes)
+    (records / 'view').write_bytes(encoded)
+    (records / 'pins').write_text('private pins\n')
+    (records / 'runtime.json').write_text('{}\n')
+    marker_path = '/usr/share/oh-no-parent-control/confinement/retained-view'
+    marker = actual(manager, marker_path)
+    marker.parent.mkdir(parents=True)
+    marker.write_text('\t'.join(['ONPC-KIOSK-VIEW', '1', 'apparmor', material, view]) + '\n')
+    actual(gate, marker_path).parent.mkdir(parents=True)
+    os.link(marker, actual(gate, marker_path))
+    (records / 'ready').write_text('\t'.join(map(str, ['ONPC-KIOSK-READY', '2', material, view,
+        helper.guest.sha(records / 'pins'), 'private-boot', *observe(records)[:2],
+        *observe(actual(manager, '/usr'))[:2], *observe(marker)[:2], 41, 42])) + '\n')
+    for item in records.iterdir():
+        item.chmod(0o600)
+    def translated(value):
+        if str(value) == '/run/oh-no-parent-control-confinement':
+            return records.parent
+        if str(value) == '/proc/sys/kernel/random/boot_id':
+            return boot
+        return Path(value)
+    monkeypatch.setattr(helper, 'Path', translated)
+    mounts = {path: {'id': 41 + slot, 'options': ['ro'], 'filesystem': 'private',
+                     'superoptions': ['ro']} for slot, path in enumerate(
+                         ['/usr', paths['executable'], paths['library'], paths['nested']])}
+    def mounted(process):
+        result = {path: dict(value) for path, value in mounts.items()}
+        if process == gate:
+            if fault == 'nested-mount':
+                del result[paths['nested']]
+            elif fault == 'extra-mount':
+                result['/usr/foreign'] = dict(result['/usr'])
+        return result
+    monkeypatch.setattr(helper, 'bootstrap_mounts', mounted)
+    source = helper.bootstrap_view(manager)
+    assert observe(actual(gate, paths['link']))[:2] != observe(actual(manager, paths['link']))[:2]
+    if fault in ('executable', 'library', 'nested-inode'):
+        path = actual(gate, paths['nested' if fault == 'nested-inode' else fault])
+        contents = path.read_bytes()
+        path.unlink()
+        path.write_bytes(contents)
+        path.chmod(0o755)
+    elif fault == 'link-text':
+        actual(gate, paths['link']).unlink()
+        actual(gate, paths['link']).symlink_to('/foreign')
+    elif fault == 'completed':
+        (records / 'runtime.json').write_text('{"changed":true}\n')
+    elif fault == 'marker':
+        path = actual(gate, marker_path)
+        contents = path.read_bytes()
+        path.unlink()
+        path.write_bytes(contents)
+    elif fault == 'writable':
+        actual(gate, paths['executable']).chmod(0o777)
+    if fault not in (None, 'manager-link'):
+        reasons = {'executable': 'mounted-source-inode', 'library': 'mounted-source-inode',
+                   'link-text': 'mounted-link', 'link-owner': 'source-writable',
+                   'link-group': 'source-writable', 'completed': 'retained-view-not-manager-source',
+                   'marker': 'ready-binding', 'nested-inode': 'nested-coverage',
+                   'nested-mount': 'nested-coverage', 'writable': 'source-writable',
+                   'extra-mount': 'unexpected-nested-mount'}
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:' + reasons[fault]):
+            helper.bootstrap_view(gate, source=source)
+        return
+    result = helper.bootstrap_view(gate, source=source)
+    assert result['sources'] == source['sources']
+    assert result['objects'][paths['link']] != source['objects'][paths['link']]
+    assert helper.bootstrap_view(manager) == source
+    if fault == 'manager-link':
+        path = actual(manager, paths['link'])
+        # Hold the old dentry so inode reuse cannot mask the replacement.
+        descriptor = os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            path.unlink()
+            path.symlink_to('/dev/null')
+            assert helper.bootstrap_view(manager) != source
+        finally:
+            os.close(descriptor)
+
+
 @pytest.mark.parametrize('kind', [socket.SOCK_DGRAM, socket.SOCK_STREAM])
 def test_bootstrap_logger_socket_probes_only_a_duplicate_and_retains_caller_flags(
         census_model, short_runtime, monkeypatch, kind):

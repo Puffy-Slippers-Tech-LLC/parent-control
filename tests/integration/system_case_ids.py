@@ -602,6 +602,8 @@ CASES = (
                  'Kiosk writable sibling isolation'),
     CaseIdentity(291, 'enforcement', 'test_kiosk_required_ancestor_refusal',
                  'Kiosk required ancestor refusal and recovery'),
+    CaseIdentity(292, 'enforcement', 'test_kiosk_native_bootstrap_permissions',
+                 'Kiosk native bootstrap permissions'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

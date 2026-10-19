@@ -348,6 +348,9 @@ service, bus, display, network, VM or extra cleanup/UI inventory owner is added;
 these modules qualify for compatible unit scheduling.
 Caller result transport in kiosk_confinement uses private nonblocking pipes,
 closed on success and refusal, with mocked runcon and pytest-private PAM inputs.
+Bootstrap logger controls use managed short-runtime Unix sockets and close only
+owned duplicates/clients; libc logging is doubled, so host logger state is untouched.
+Endpoint/FD identity and symlink-trust controls add no shared service or cache.
 Inherited-descriptor command cleanup uses process/pidfd doubles and retains the
 same compatible unit and cleanup classifications.
 Pidfd-acquisition refusal also starts one finite direct Python child with a
@@ -1091,6 +1094,10 @@ from regression_ui import Bucket
 # a waited private manager and gate with private mount namespaces and barrier
 # pipes. The system bus, PAM identity and enforcing MAC are fixture boundaries;
 # no live host service, UI, VM, shared cache or cleanup inventory is used.
+# Composed failure witnesses add only independently opened fixture lock files,
+# identity-recorded publication faults and one pipe-held, joined manager thread.
+# All lock contention, record replacements and recursive-clone faults remain
+# inside those private trees/namespaces; no host policy or shared lock is used.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

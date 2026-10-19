@@ -42,6 +42,7 @@ def test_numeric_system_registry_covers_current_parameter_variants_without_vm_op
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child1]'): 26,
         ('authorization', 'test_method_role_matrix[ListManagedUsers-child2]'): 27,
         ('enforcement', 'test_kiosk_execution_confinement'): 267,
+        ('enforcement', 'test_kiosk_native_bootstrap_permissions'): 292,
         ('session', 'test_kiosk_expiry_graphical_runtime'): 282,
         ('package', 'test_pam_environment_installation_variants[plain]'): 283,
         ('package', 'test_pam_environment_installation_variants[distro-profile]'): 284,
@@ -3012,6 +3013,54 @@ def test_snapshot_changed_during_run_leaves_recovery_evidence(lease_rig):
     # Initial restore only; no revert or force stop against the changed identity.
     assert lease.source.domain.revertToSnapshot.call_count == 1
     lease.source.domain.destroyFlags.assert_not_called()
+
+
+def test_bootstrap_permissions_selection_freezes_ordinary_enforcement_inputs(tmp_path):
+    import system_snapshots
+
+    case = 'test_kiosk_native_bootstrap_permissions'
+    inventories = dict(INVENTORIES, enforcement=(case,))
+    selection = runner.resolve_selection('enforcement', case, inventories=inventories)
+    assert selection.phases == ('enforcement',)
+    assert len(selection.executions) == 1
+    assert not selection.executions[0].prerequisite
+    assert selection.executions[0].case_id == case
+    assert 'retained-app-snapshot' in selection.prerequisites
+    assert 'native-enforcement-fixture' in selection.prerequisites
+    assert system_snapshots.attempts(selection) == [(selection, True)]
+    numeric = runner.resolve_selection(recording_ids='292', inventories=inventories)
+    assert numeric.phases == selection.phases
+    assert numeric.executions == selection.executions
+    assert numeric.prerequisites == selection.prerequisites
+    assert runner.pytest_command(RUN, 'enforcement', selection)[-1] == (
+        runner.PAYLOAD + '/test_enforcement.py::' + case)
+    runner.stage_selected_inputs(selection, tmp_path)
+    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert 'host_files' not in inputs
+    for name in ('test_enforcement.py', 'system_kiosk_confinement.py', 'system_guest.py',
+                 'system_caller.py', 'system_enforcement.py'):
+        frozen = inputs['files'][name]
+        assert frozen['sha256'] == hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
+        assert frozen['sha256'] == hashlib.sha256(
+            (runner.ROOT / frozen['source']).read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_bootstrap_permissions_case_dispatches_only_its_owned_history(monkeypatch, failure):
+    error = guest.GuestError('bootstrap-permissions:original-failure')
+    verify = Mock(side_effect=error if failure else None)
+    monkeypatch.setitem(sys.modules, 'system_kiosk_confinement',
+                        SimpleNamespace(verify_bootstrap_permissions=verify))
+    case = load_module('private_bootstrap_permissions_case',
+                       runner.ROOT / 'tests/system/test_enforcement.py')
+    record = Mock()
+    if failure:
+        with pytest.raises(guest.GuestError) as caught:
+            case.test_kiosk_native_bootstrap_permissions(record)
+        assert caught.value is error
+    else:
+        case.test_kiosk_native_bootstrap_permissions(record)
+    verify.assert_called_once_with(record)
 
 
 def test_sibling_selection_freezes_exact_scope_and_public_entry_inputs(tmp_path):

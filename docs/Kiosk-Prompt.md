@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006 — [Integrate retained-view native admission](Kiosk-Prompt-Tasks/006-generation-implementation.md)**.
+Next task: **006e1 — [Finish bootstrap probe and permission repairs](Kiosk-Prompt-Tasks/006e1-bootstrap-host.md)**.
 
 ## Outcome
 
@@ -25,11 +25,80 @@ Task 006 made substantive progress in five sessions and remains unfinished.
 The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) and
 [retained reuse and paired production dispatch](#retained-kiosk-reuse--006d)
 (006d) passed their host acceptance. Continue with
+[006e1's retained bootstrap implementation](Kiosk-Prompt-Tasks/006e1-bootstrap-host.md),
+then the complete Ubuntu and Fedora histories in 006e2/006e3 and
+[006e's both-target acceptance reconciliation](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md)
+before resuming
 [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
+The current Ubuntu development boot has AppArmor and no SELinux kernel; existing
+native fixtures double policy/label/bus boundaries. They cannot establish the
+required actual permissions on both backends. This unqualified isolated probe is a
+prerequisite, with no acceptance credit for 006 and no change to 007a/007.
 The original 006 Scope and all installed obligations remain required. Its
 existing components are preserved in unfinished checkpoint commit `2f728697`;
 component progress and this replan grant no task completion. Continue from the
-fifth implementation checkpoint rather than rebuilding those components.
+current execution boundary in its brief rather than rebuilding those components.
+
+### Bootstrap qualification checkpoint — 006e
+
+Case 292 is implemented, but five installed attempts have not yet completed
+all required assertions on either target. The latest Ubuntu attempt passed the
+earlier source/FD checks, then admitted a forbidden user namespace; the later
+explicit AppArmor denials need installed verification. Fedora's latest logger
+receipt mismatch remains unclassified; the instrumented fixture now records
+independent before/after evidence without relaxing original caller FD ownership.
+The marker-group, independent-RPM-inode and inheritable/ambient capability fixes
+and all unfinished 006 composition work are preserved.
+
+After the final policy/logger edits, **2,175/2,175** focused host checks and both
+package builds passed; **313/313** documentation checks passed. The verified
+[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+retains all five attempts, exact input manifests, host receipts and cleanup;
+SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`.
+The [006e checkpoint](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md#fifth-attempt-and-developer-requested-suspension)
+owns precise failure locations, source applicability and the retired intermediate
+host-report limit. All subagents, children, fixtures and maintenance/test VMs
+finished owned cleanup. Resume unchecked 006e1, then complete every original
+installed assertion in 006e2/006e3 before 006e can close. No acceptance credit
+is granted by the breakdown or checkpoint commit.
+
+## Smaller execution slices
+
+The 2026-10-19 developer-requested breakdown preserves every existing row's
+completion, relative order, Scope and original dependencies. No checkpoint or
+planning change grants acceptance. The active 006e is suspended for the new
+006e1 host implementation and complete per-target 006e2/006e3 installed tasks;
+006e still owns all six original assertion families on both targets, exact-input
+applicability and final cleanup reconciliation.
+
+Later splits are concrete but staged. The active launcher accepts a new dependency
+block only immediately before its current unfinished consumer. Each named consumer
+brief therefore instructs its first session to insert its prepared block, add the
+backward dependencies, move Next task to the first new row, and return
+`prerequisite_required` after cleanup. Do not insert later blocks during 006e1–006e.
+This uses the ordinary [prerequisite route](Execution-Plans.md#execution-and-delegation)
+without editing a running controller's checkpoint or starting a second launcher.
+
+| Consumer when selected | Prepared prerequisite block | Consumer retains |
+| --- | --- | --- |
+| 006 | [006f manager lifetime](Kiosk-Prompt-Tasks/006f-manager-composition.md), [006g writers and host sources](Kiosk-Prompt-Tasks/006g-source-composition.md), [006h publication and closure](Kiosk-Prompt-Tasks/006h-publication-composition.md) | Full composition-table audit, exact bootstrap receipt applicability, cumulative host checks and final build |
+| 007a | [007a1 canonical histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md), [007a2 Ubuntu ambient](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md), [007a3 Ubuntu required drift](Kiosk-Prompt-Tasks/007a3-required-ubuntu.md) | Complete Ubuntu retained-view and refusal/recovery acceptance, using only applicable full receipts |
+| 007 | [0071 Fedora ambient](Kiosk-Prompt-Tasks/0071-ambient-fedora.md), [0072 Fedora required drift](Kiosk-Prompt-Tasks/0072-required-fedora.md) | Complete Fedora acceptance and both-target receipt reconciliation |
+| 009a | [009a1 canonical authentication history](Kiosk-Prompt-Tasks/009a1-auth-history-host.md) | Entire effective-policy/refusal/restoration/ordinary-account/public-reentry history on Ubuntu |
+| 010a | [010a1 canonical diagnostic history](Kiosk-Prompt-Tasks/010a1-feedback-history-host.md) | Entire failure/recovery/reboot/public-download/privacy history on Ubuntu |
+
+008a/008 remain the bounded authentication contract and implementation tasks.
+009/010 retain the existing canonical Fedora histories; 011a/011 retain final
+allocation and reconciliation. New independent mechanisms discovered in any
+slice need their own finite prerequisite; do not expand a validation slice.
+Keep each installed mutation/refusal/restoration/reentry history intact. A later
+input change invalidates only the exact affected assertions under their owner;
+record or repeat those complete histories before consumer acceptance.
+
+Historical host-bundle links below point to the current cumulative archive after
+normal export retention. Their historical counts and hashes describe the original
+exports; all those original records remain carried forward. The latest bootstrap
+checkpoint records the current archive's own count and hash.
 
 ## Symptom boundary and stop condition
 
@@ -1229,7 +1298,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -1286,7 +1355,7 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip),
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip),
 whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
@@ -1387,7 +1456,7 @@ unregistered build outputs are outside the test-bundle selection contract.
 After queue/pointer/brief close-out, the four documentation modules listed above
 passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
 (five documents, 267 links), as did whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 retains **645 files**, including every available original 006/006a/006b checkpoint
 receipt, all this task's intermediate test failures, the final affected pass and
 the post-close-out documentation pass.
@@ -1489,7 +1558,7 @@ After queue/pointer/brief close-out, the same four documentation modules listed
 in 006c passed **313/313** in `20261019T193722Z-ad511616`. Changed-document links
 passed (four documents, 257 links after adding the bundle reference), as did
 whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 retains **701 files**: all 669 carried-forward records, the four filename
 reproductions, final affected acceptance and post-close-out documentation checks.
 SHA-256: `f51c3f4637591345a4af04d93f2016f71ee809302272f9fa553a7f3c3f017c72`.
@@ -1506,6 +1575,46 @@ focused passes here may be reused only for unchanged inputs and exact assertions
 Installed public histories remain 007a/007. No installation, VM or live-policy
 change occurred. Runner/fixture/build cleanup completed; Git close-out remains
 with the controller.
+
+### Native composition checkpoint and bootstrap prerequisite — 006/006e
+
+006 remains unfinished. Its existing native fixtures gained 63 composed failure
+and control cases across fresh publication/concurrency and retained identity/
+reexec/exit/source boundaries. The [current checkpoint](Kiosk-Prompt-Tasks/006-generation-implementation.md#combined-witness-checkpoint-before-006e)
+retains exact candidate, first failures, fixture repairs and cumulative evidence.
+Production/package inputs remain unchanged from accepted 006d. The current host
+cannot establish SELinux enforcement; its MAC/label/bus doubles cannot supply
+the actual bootstrap permission proof required by the reviewed design.
+
+New unchecked [006e](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md) supplies one
+finite real-policy engineering probe on both registered targets, including both
+manager entrypoints, actual retained PAM/clone/bus access and enforcing execution
+controls. The consumer keeps its original Scope and all existing dependencies,
+with only 006e added to its Requires chain. No row is completed by this insertion.
+After that prerequisite, 006 must reconcile the complete matrix and final inputs,
+finish cumulative host/build acceptance and cleanup; 007a/007 retain their public
+installed histories.
+
+Checkpoint verification passed **3,283/3,283** affected host cases in
+`20261019T194737Z-19dcdf21`, including all 55 fresh and 60 retained fixture
+cases, resource inventories and 313 documentation checks. Its source-input
+digest is `35c24d6e7b65aba471218e03365b136e5309fd7d754ec7eca21fd654e62fe1d6`.
+The exact module selection is unchanged from 006d's 31-module selection above;
+the additional 63 cases are in its existing fixture owners. This supplies no
+actual loaded-policy/bootstrap or installed public-history pass. Only test,
+documentation and resource-comment inputs changed, so no new package build was
+needed at this checkpoint; 006's final build remains required after 006e.
+
+The post-handoff documentation selection passed **313/313** in
+`20261019T195047Z-c35b2061`. The verified
+[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+retains every prior receipt, both fixture-selection failures and all corrected
+verification above. SHA-256:
+`14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.
+Owned runner/fixture/export cleanup completed; all subagents finished. No
+installation, VM, live-policy/service change, staging or commit occurred.
+006e and 006 remain unchecked; the sole pointer is on the prerequisite. Every
+other row and the unrelated proof document are preserved.
 
 ### Remaining execution and acceptance
 

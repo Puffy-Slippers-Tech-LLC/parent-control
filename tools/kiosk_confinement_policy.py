@@ -402,6 +402,12 @@ def apparmor(entries):
                   '  capability setpcap,', '  capability sys_chroot,',
                   '  capability sys_resource,', '  capability audit_write,']
         lines.append('  deny /{,usr/}lib{,32,64,x32}/**/libgstpython.so m,')
+        if domain not in ('bwrap', 'glycin-bwrap'):
+            # The compatibility ABI does not mediate user namespaces merely
+            # because an allow rule is absent. An explicit rule emits the
+            # parser's mediates_userns marker without changing unrelated ABI
+            # permissions. Only the two native sandbox roles may create them.
+            lines.append('  audit deny userns,')
         if domain == 'gate':
             lines.append('  capability sys_tty_config,')
         if domain == 'manager':
@@ -437,6 +443,7 @@ def apparmor(entries):
             lines.append('  / r,')
             lines += ['  /usr/lib/polkit-1/polkit-agent-helper-1 Cx -> password,',
                       '  profile password {', '    /** rwkl,',
+                      '    audit deny userns,',
                       '    /{,usr/}lib{,32,64,x32}/** mr,',
                       '    capability,', '    network,', '    unix,',
                       '    signal,', '    /usr/sbin/unix_chkpwd ix,', '  }']

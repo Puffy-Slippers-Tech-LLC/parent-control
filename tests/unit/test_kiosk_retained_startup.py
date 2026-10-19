@@ -24,7 +24,13 @@ static int *clone_state;
 static unsigned cleanup_failures;
 static unsigned post_attach_drift, manager_acquisitions;
 static int forced_elapsed;
+static int independently_wrong_usr=-1;
+static unsigned invocation_attached, task_scans;
+static const char *fault_phase, *fault_kind;
 #define clone_seen (*clone_state)
+#define fault_active (clone_state[1])
+#define fault_hits (clone_state[2])
+#define manager_exited (clone_state[3])
 static const char *pam_service="systemd-user";
 static const void *pam_data[2];
 static void (*pam_cleanup[2])(pam_handle_t *,void *,int);
@@ -37,8 +43,21 @@ static const char *unit_cgroup="/user.slice/user-4242.slice/user@4242.service";
 static void manager_command(char command) {
     char reply;
     require(write(manager_release,&command,1)==1 && read(manager_ready,&reply,1)==1 &&
-        (reply==command || (command=='f' && reply=='r')),"owned-manager-command");
+        (reply==command || ((command=='f' || command=='d') && reply=='r')),"owned-manager-command");
 }
+static void exit_manager(void) {
+    manager_command('x');struct pollfd lifetime={.fd=manager_pidfd,.events=POLLIN};
+    require(poll(&lifetime,1,5000)==1 && (lifetime.revents&POLLIN),"owned-manager-exit-barrier");manager_exited=1;
+}
+static void activate_fault(const char *phase) {
+    if(!fault_phase || strcmp(fault_phase,phase) || fault_active)return;
+    fault_active=1;fault_hits++;
+    if(!strcmp(fault_kind,"exit"))exit_manager();
+    if(!strcmp(fault_kind,"executable"))manager_command('f');
+    if(!strcmp(fault_kind,"tasks"))manager_command('t');
+    if(!strcmp(fault_kind,"unstable-reexec")){manager_command('r');manager_command('t');}
+}
+static int fault(const char *kind) {return fault_active && !strcmp(fault_kind,kind);}
 static int synthetic(const char *text) {
     int fd=memfd_create("retained-platform-boundary",MFD_CLOEXEC);
     require(fd>=0 && write(fd,text,strlen(text))==(ssize_t)strlen(text) && lseek(fd,0,SEEK_SET)==0,"platform-record");return fd;
@@ -64,17 +83,26 @@ static int retained_openat(int dir,const char *path,int flags,...) {
         char text[1024],stat_text[4096];int fd=openat(dir,"stat",O_RDONLY|O_CLOEXEC);
         ssize_t n=fd<0?-1:read(fd,stat_text,sizeof(stat_text)-1);if(fd>=0)close(fd);
         if(n<=0)return -1;stat_text[n]=0;long tid=strtol(stat_text,NULL,10);
-        snprintf(text,sizeof(text),"Pid:\t%ld\nTgid:\t%ld\nUid:\t4242 4242 4242 4242\nGid:\t4242 4242 4242 4242\nGroups:\t4242\nCapInh:\t0\nCapPrm:\t0\nCapEff:\t0\nCapAmb:\t0\n",tid,(long)manager_pid);
+        snprintf(text,sizeof(text),"Pid:\t%ld\nTgid:\t%ld\nUid:\t4242 4242 4242 %u\nGid:\t4242 4242 4242 %u\nGroups:\t%s\nCapInh:\t0\nCapPrm:\t0\nCapEff:\t%u\nCapAmb:\t0\n",tid,(long)manager_pid,
+            fault("uid")?0:4242,fault("gid")?0:4242,fault("groups")?"4242 0":"4242",fault("capabilities")?1:0);
         return synthetic(text);
     }
-    if(!strcmp(path,"attr/apparmor/current"))return synthetic("onpc-kiosk-manager (enforce)\n");
-    if(!strcmp(path,"cgroup"))return synthetic("0::/user.slice/user-4242.slice/user@4242.service/init.scope\n");
+    if(!strcmp(path,"attr/apparmor/current"))return synthetic(fault("label")?"unconfined\n":"onpc-kiosk-manager (enforce)\n");
+    if(!strcmp(path,"cgroup"))return synthetic(fault("cgroup")?
+        "0::/user.slice/user-4242.slice/user@4242.service-impostor/init.scope\n":"0::/user.slice/user-4242.slice/user@4242.service/init.scope\n");
+    if(!strcmp(path,"task")) {
+        task_scans++;
+        /* The first census pins the original real task set. Add a real task
+         * before its repeated census, rather than inventing proc entries. */
+        if(task_scans==2 && fault_phase && !strcmp(fault_kind,"tasks"))activate_fault("acquire");
+    }
     if(!strcmp(path,"root") || !strncmp(path,"root/usr",8)) {
+        if(fault("root")){char wrong[PATH_MAX];snprintf(wrong,sizeof(wrong),"%s/host/usr",base);return open(wrong,flags);}
         /* Preserve the selected task's real proc-root route into its mounts. */
         char physical[PATH_MAX];snprintf(physical,sizeof(physical),"root%s/host%s",base,path+4);
         return openat(dir,physical,flags,permission);
     }
-    if(gate_phase && !strcmp(mode,"namespace") && clone_seen && !strcmp(path,"ns/mnt"))return open("/proc/self/ns/mnt",flags);
+    if(gate_phase && ((!strcmp(mode,"namespace") && clone_seen) || fault("namespace")) && !strcmp(path,"ns/mnt"))return open("/proc/self/ns/mnt",flags);
     return openat(dir,path,flags,permission);
 }
 static int retained_stat(const char *path,struct stat *info) {
@@ -96,7 +124,23 @@ static int retained_item(const pam_handle_t *p,int item,const void **value) {
     (void)p;require(item==PAM_SERVICE,"PAM-service-item");*value=pam_service;return PAM_SUCCESS;
 }
 static int retained_profile(const char *name) {
-    require(!strcmp(name,gate_phase?"onpc-kiosk-gate":"onpc-kiosk-manager"),"role-final-profile");mac_calls++;return 0;
+    require(!strcmp(name,gate_phase?"onpc-kiosk-gate":"onpc-kiosk-manager"),"role-final-profile");mac_calls++;
+    if(gate_phase) {
+        /* The preparation lock remains owned until MAC returns. Everything
+         * else is either an exact borrowed FD or that one owned lock. */
+        require(descriptors()==(unsigned)final_fd_baseline+1,"setup-FDs-closed-before-final-MAC");
+        char lock_path[PATH_MAX];struct stat lock_info;unsigned owned_locks=0;
+        snprintf(lock_path,sizeof(lock_path),"%s/lock",base);require(lstat(lock_path,&lock_info)==0,"independent-final-lock-inode");
+        for(int fd=0;fd<4096;fd++) {
+            struct stat current;int exists=fstat(fd,&current)==0;
+            if(caller_fds[fd])require(exists && current.st_dev==caller_objects[fd].st_dev &&
+                current.st_ino==caller_objects[fd].st_ino && current.st_mode==caller_objects[fd].st_mode,"borrowed-FD-identities-before-retained-MAC");
+            else if(exists){require(current.st_dev==lock_info.st_dev && current.st_ino==lock_info.st_ino,"only-owned-preparation-lock-survives-before-MAC");owned_locks++;}
+        }
+        require(owned_locks==1,"one-owned-preparation-lock-before-MAC");
+        if(!strcmp(mode,"exit-after-decision"))exit_manager();
+    }
+    return 0;
 }
 static int retained_get_profile(char **label,char **enforce) {
     const char *name=gate_phase?"onpc-kiosk-gate":"onpc-kiosk-manager";
@@ -121,12 +165,12 @@ static int bus_leave(struct sd_bus_message *m){(void)m;return 1;}
 static struct sd_bus_message *bus_message_unref(struct sd_bus_message *m){(void)m;return NULL;}
 static int bus_read(struct sd_bus_message *m,const char *signature,...){
     va_list a;va_start(a,signature);void *out=va_arg(a,void *);va_end(a);
-    if(!strcmp(signature,"u")){unit_reads++;*(uint32_t *)out=manager_pid+(clone_seen && !strcmp(mode,"manager"));}
+    if(!strcmp(signature,"u")){unit_reads++;*(uint32_t *)out=manager_pid+((clone_seen && !strcmp(mode,"manager")) || fault("mainpid"));}
     else if(!strcmp(m->property,"ActiveState"))*(const char **)out=!strcmp(mode,"inactive")?"inactive":"active";
     else *(const char **)out=unit_cgroup;return 1;}
 static int bus_array(struct sd_bus_message *m,char type,const void **out,size_t *size){
     (void)m;require(type=='y',"invocation-id-type");static unsigned char bytes[16];memset(bytes,0,16);
-    bytes[0]=clone_seen && !strcmp(mode,"invocation")?2:1;*out=bytes;*size=16;return 1;}
+    bytes[0]=(clone_seen && !strcmp(mode,"invocation")) || fault("invocation")?2:1;*out=bytes;*size=16;return 1;}
 static void *retained_dlopen(const char *path,int flags){return !strcmp(path,"libsystemd.so.0")?(void *)4:fixture_dlopen(path,flags);}
 static void *retained_dlsym(void *library,const char *name){
     if(library==(void *)1){if(!strcmp(name,"aa_change_profile"))return (void *)retained_profile;if(!strcmp(name,"aa_getcon"))return (void *)retained_get_profile;}
@@ -143,11 +187,29 @@ static void *retained_dlsym(void *library,const char *name){
 }
 static int retained_dlclose(void *library){return library==(void *)4?0:fixture_dlclose(library);}
 static int retained_open_tree(int dir,const char *path,unsigned flags) {
-    int result=open_tree(dir,path,flags);
+    int result=-1;
+    if(gate_phase && (flags&OPEN_TREE_CLONE) && !clone_seen) {
+        if(!strcmp(mode,"missing-nested-clone"))flags&=~AT_RECURSIVE;
+        if(!strcmp(mode,"wrong-clone")) {
+            /* The clone worker has already entered the manager namespace.
+             * Return a real foreign detached clone created before entry:
+             * names select the manager view, and cloning another namespace's
+             * attached mount through an FD refuses with EINVAL on Linux. */
+            struct stat selected,wrong;
+            require(independently_wrong_usr>=0 && fstat(dir,&selected)==0 &&
+                fstat(independently_wrong_usr,&wrong)==0 &&
+                (selected.st_dev!=wrong.st_dev || selected.st_ino!=wrong.st_ino),"independently-wrong-clone-root-inode");
+            result=fcntl(independently_wrong_usr,F_DUPFD_CLOEXEC,3);
+            require(result>=0,"real-foreign-detached-clone-transfer");
+        }
+    }
+    if(result<0)result=open_tree(dir,path,flags);
     if(gate_phase && result>=0 && (flags&OPEN_TREE_CLONE)) {
         clone_seen++;
         if(clone_seen==1 && !strcmp(mode,"same-reexec"))manager_command('r');
+        if(clone_seen==1 && !strcmp(mode,"same-fd-reexec"))manager_command('d');
         if(clone_seen==1 && !strcmp(mode,"foreign-reexec"))manager_command('f');
+        if(clone_seen==1)activate_fault("clone");
         if(clone_seen==1 && !strcmp(mode,"exit-after-clone")) {
             manager_command('x');struct pollfd lifetime={.fd=manager_pidfd,.events=POLLIN};
             require(poll(&lifetime,1,5000)==1 && (lifetime.revents&POLLIN),"owned-manager-exit-observed-before-final-proof");
@@ -157,6 +219,11 @@ static int retained_open_tree(int dir,const char *path,unsigned flags) {
 }
 static int retained_move_mount(int from,const char *source,int to,const char *target,unsigned flags) {
     int result=move_mount(from,source,to,target,flags);
+    if(gate_phase && !result) {
+        char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
+        ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n>0){actual[n]=0;snprintf(expected,sizeof(expected),"%s/host/usr",base);
+            if(!strcmp(actual,expected)){invocation_attached++;activate_fault("final");}}
+    }
     if(gate_phase && !result && !strcmp(mode,"post-attach-required-drift")) {
         char proc[64],actual[PATH_MAX],expected[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",to);
         ssize_t n=readlink(proc,actual,sizeof(actual)-1);if(n>0){actual[n]=0;snprintf(expected,sizeof(expected),"%s/host/usr",base);
@@ -205,7 +272,8 @@ static long retained_syscall(long number,...) {
     }else if(number==SYS_move_mount){int from=va_arg(a,int);const char *source=va_arg(a,const char *);int to=va_arg(a,int);const char *target=va_arg(a,const char *);unsigned flags=va_arg(a,unsigned);result=syscall(number,from,source,to,target,flags);
     }else if(number==SYS_mount_setattr){int fd=va_arg(a,int);const char *path=va_arg(a,const char *);unsigned flags=va_arg(a,unsigned);void *attr=va_arg(a,void *);size_t size=va_arg(a,size_t);result=syscall(number,fd,path,flags,attr,size);
     }else if(number==SYS_pidfd_open){int pid=va_arg(a,int);unsigned flags=va_arg(a,unsigned);
-        if(gate_phase){manager_acquisitions++;require(pid==manager_pid && manager_acquisitions==1,"one-original-manager-no-replacement-acquisition");}
+        if(gate_phase){manager_acquisitions++;require(pid==manager_pid && manager_acquisitions==1,"one-original-manager-no-replacement-acquisition");
+            if(!fault_kind || strcmp(fault_kind,"tasks"))activate_fault("acquire");}
         result=syscall(number,pid,flags);
     }else if(number==SYS_close_range){unsigned first=va_arg(a,unsigned),last=va_arg(a,unsigned),flags=va_arg(a,unsigned);result=syscall(number,first,last,flags);
     }else {fprintf(stderr,"unsupported-fixture-syscall:%ld\n",number);errno=ENOSYS;result=-1;}
@@ -246,7 +314,15 @@ static void put_text(const char *name,const char *text) {
 }
 static void release_pam(void) {for(int slot=1;slot>=0;slot--)if(pam_data[slot]){pam_cleanup[slot](NULL,(void *)pam_data[slot],PAM_SUCCESS);pam_data[slot]=NULL;}}
 static const char *expected_stage(const char *name) {
-    if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"same-reexec"))return "armed";
+    if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"same-reexec") ||
+        !strcmp(name,"same-fd-reexec") || !strcmp(name,"exit-after-decision") ||
+        !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero"))return "armed";
+    if(!strncmp(name,"capabilities-",13))return "final-lock";
+    if(fault_phase) {
+        if(!strcmp(fault_phase,"final"))return "final-source";
+        if(!strcmp(fault_phase,"clone"))return "source-clone";
+        return !strcmp(fault_kind,"executable")?"completed-record":"manager";
+    }
     if(!strcmp(name,"required-drift") || strstr(name,"ready") || strstr(name,"source"))return "completed-record";
     if(!strcmp(name,"post-attach-required-drift"))return "final-host";
     if(!strcmp(name,"inactive"))return "manager";
@@ -255,15 +331,37 @@ static const char *expected_stage(const char *name) {
     if(!strcmp(name,"cleanup-failure"))return "staging";
     return "source-clone";
 }
+static int task_release[2],task_ready[2];
+static pthread_t extra_task;
+static void *held_task(void *unused) {
+    (void)unused;char token='t';require(write(task_ready[1],&token,1)==1 &&
+        read(task_release[0],&token,1)==1,"owned-extra-task-barriers");return NULL;
+}
 static void manager_loop(int out,int in,int reexecuted) {
+    int task_live=0;
     char token=reexecuted?'r':'a';require(write(out,&token,1)==1,"manager-ready-barrier");
     while(read(in,&token,1)==1) {
-        if(token=='r' || token=='f') {
+        if(token=='r' || token=='f' || token=='d') {
             char path[PATH_MAX],a[32],b[32];snprintf(path,sizeof(path),"%s/%s",base,token=='r'?"host/usr/bin/native":"other-manager");
+            if(token=='d')snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);
             snprintf(a,sizeof(a),"%d",out);snprintf(b,sizeof(b),"%d",in);
+            if(token=='d') {
+                int fd=open(path,O_RDONLY|O_CLOEXEC);require(fd>=0,"pinned-same-manager-exec-FD");
+                char *arguments[]={path,"manager-loop",(char *)base,a,b,NULL};extern char **environ;
+                fexecve(fd,arguments,environ);_exit(127);
+            }
             execl(path,path,"manager-loop",base,a,b,NULL);_exit(127);
         }
-        require(token=='x',"finite-manager-command");require(write(out,&token,1)==1,"manager-exit-barrier");return;
+        if(token=='t') {
+            require(!task_live && pipe(task_release)==0 && pipe(task_ready)==0 &&
+                pthread_create(&extra_task,NULL,held_task,NULL)==0,"owned-extra-task-created");
+            require(read(task_ready[0],&token,1)==1 && token=='t' && write(out,&token,1)==1,"real-extra-task-stable-before-proof");task_live=1;continue;
+        }
+        require(token=='x',"finite-manager-command");require(write(out,&token,1)==1,"manager-exit-barrier");break;
+    }
+    if(task_live) {
+        require(write(task_release[1],"x",1)==1 && pthread_join(extra_task,NULL)==0,"owned-extra-task-joined");
+        close(task_release[0]);close(task_release[1]);close(task_ready[0]);close(task_ready[1]);
     }
 }
 static void actual_nested(void) {
@@ -279,12 +377,13 @@ static void actual_nested(void) {
 int main(int argc,char **argv) {
     if(argc==5 && !strcmp(argv[1],"manager-loop")){base=argv[2];manager_loop(atoi(argv[3]),atoi(argv[4]),1);return 0;}
     require(argc==3,"arguments");base=argv[2];mode="healthy";namespaces();
-    clone_state=mmap(NULL,sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
+    clone_state=mmap(NULL,4*sizeof(*clone_state),PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);require(clone_state!=MAP_FAILED,"shared-clone-barrier");
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested",base);
     require(mount("tmpfs",path,"tmpfs",0,"size=1m,mode=0755")==0,"private-recursive-source");
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree/nested/leaf",base);
     int fd=open(path,O_WRONLY|O_CREAT|O_CLOEXEC,0644);require(fd>=0 && write(fd,"nested-source",13)==13 && fchmod(fd,0644)==0 && close(fd)==0,"nested-source-bytes");
-    snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);original_source=open(path,O_RDWR|O_CLOEXEC);require(original_source>=0,"original-host-required-fd");
+    snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);original_source=open(path,O_RDWR|O_CLOEXEC);char original_required_byte;
+    require(original_source>=0 && pread(original_source,&original_required_byte,1,100)==1,"original-host-required-fd-and-byte");
     snprintf(path,sizeof(path),"%s/host/usr",base);require(lstat(path,&original_target_info)==0,"original-host-root");
     int ready[2],release[2];require(pipe(ready)==0 && pipe(release)==0,"manager-owned-pipes");manager_pid=fork();require(manager_pid>=0,"manager-owned-fork");
     if(!manager_pid) {
@@ -300,6 +399,11 @@ int main(int argc,char **argv) {
     snprintf(path,sizeof(path),"/proc/%ld/ns/mnt",(long)manager_pid);
     int held_manager_namespace=open(path,O_RDONLY|O_CLOEXEC);require(held_manager_namespace>=0,"independent-manager-namespace-lifetime");
     mode=argv[1];gate_phase=1;pam_service="gdm-password";put_text("mode",mode);
+    if(capability_model())capability_begin();
+    const char *phases[]={"acquire","clone","final"};
+    for(unsigned i=0;i<3;i++)if(!strncmp(mode,phases[i],strlen(phases[i])) && mode[strlen(phases[i])]=='-'){
+        fault_phase=phases[i];fault_kind=mode+strlen(phases[i])+1;
+    }
     snprintf(path,sizeof(path),"%s/host/usr/bin/ambient",base);
     if(!strcmp(mode,"ambient-narrow"))require(chmod(path,0666)==0,"host-ambient-narrowing");
     if(!strcmp(mode,"required-drift"))require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"host-required-drift");
@@ -325,10 +429,28 @@ int main(int argc,char **argv) {
     snprintf(runtime_path,sizeof(runtime_path),"%s/runtime",base);
     int held_manager=open(manager_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC),held_records=open(runtime_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC);
     require(held_manager>=0 && held_records>=0,"independently-held-manager-and-record-roots");
+    if(!strcmp(mode,"wrong-clone")) {
+        snprintf(path,sizeof(path),"%s/host/usr",base);int wrong_host=open(path,O_PATH|O_DIRECTORY|O_CLOEXEC);
+        require(wrong_host>=0,"wrong-host-source-pinned-before-namespace-entry");
+        independently_wrong_usr=open_tree(wrong_host,"",OPEN_TREE_CLONE|AT_RECURSIVE|AT_EMPTY_PATH|OPEN_TREE_CLOEXEC);
+        struct stat selected,wrong;
+        struct statx original_mount,clone_mount;
+        require(independently_wrong_usr>=0 && fstat(held_manager,&selected)==0 &&
+            fstat(independently_wrong_usr,&wrong)==0 &&
+            (selected.st_dev!=wrong.st_dev || selected.st_ino!=wrong.st_ino) &&
+            statx(wrong_host,"",AT_EMPTY_PATH,STATX_MNT_ID,&original_mount)==0 &&
+            statx(independently_wrong_usr,"",AT_EMPTY_PATH,STATX_MNT_ID,&clone_mount)==0 &&
+            original_mount.stx_mnt_id!=clone_mount.stx_mnt_id && close(wrong_host)==0,
+            "real-wrong-detached-clone-before-namespace-entry");
+    }
     observe_tree(held_manager,".",manager_before,&manager_count,0);observe_tree(held_records,".",records_before,&record_count,0);
     require(kiosk_admission(NULL,"oh-no-parent-control-kiosk")==PAM_SUCCESS,"owned-gate-admission");unsigned baseline=descriptors();
+    final_fd_baseline=(int)baseline;
     for(int caller=0;caller<4096;caller++)caller_fds[caller]=fstat(caller,&caller_objects[caller])==0;
-    int result=kiosk_confinement(NULL);int positive=!strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"same-reexec");
+    int result=kiosk_confinement(NULL);int positive=!strcmp(expected_stage(mode),"armed");
+    if(capability_model())capability_expect(result==PAM_SUCCESS?0:-1);
+    if(positive)require(capability_get_calls==2 && capability_set_calls==1 && capability_ambient_calls==1,
+        "production-retained-cut-uses-shared-capability-clear");
     if((result==PAM_SUCCESS)!=positive)fprintf(stderr,"retained-result:%s:%d clone=%d unit-reads=%d\n",mode,result,clone_seen,unit_reads);
     require((result==PAM_SUCCESS)==positive,"exact-production-retained-caller-result");
     struct kiosk_admission_transaction *owner=(void *)pam_data[1];require(owner!=NULL,"retained-PAM-transaction-owner");
@@ -338,6 +460,11 @@ int main(int argc,char **argv) {
     require(transaction->child.started && transaction->child.reaped && transaction->child.pidfd<0 && transaction->child.channel<0 &&
         transaction->closed && owner->closed && transaction->armed==positive,"helper-reaped-transaction-closed-and-arm-state");
     require(transaction->deadline>0 && transaction->child.deadline_ns==transaction->deadline*1000ULL,"original-transaction-deadline-never-renewed");
+    if(fault_phase) {
+        require(fault_hits==1 && manager_acquisitions==1,"one-finite-original-manager-fault");
+        if(!strcmp(fault_phase,"final"))require(invocation_attached==1,"final-fault-after-complete-private-attachment");
+        require(owner->retained.manager.deadline==transaction->deadline,"manager-retains-original-absolute-deadline");
+    }
     if(!strcmp(expected_stage(mode),"source-clone") || positive || !strcmp(mode,"post-attach-required-drift") ||
         !strcmp(mode,"result-malformed") || !strcmp(mode,"cleanup-failure")) {
         require(clone_seen>0 && manager_acquisitions==1 && owner->retained.manager.unit.pid==(uint32_t)manager_pid,"fault-after-clone-keeps-original-manager");
@@ -356,7 +483,14 @@ int main(int argc,char **argv) {
     release_pam();
     unsigned observed_manager=0,observed_records=0;
     observe_tree(held_manager,".",manager_before,&observed_manager,1);observe_tree(held_records,".",records_before,&observed_records,1);
-    require(observed_manager==manager_count && observed_records==record_count,"unchanged-complete-manager-and-record-domains");close(held_manager);close(held_records);
+    require(observed_manager==manager_count && observed_records==record_count,"unchanged-complete-manager-and-record-domains");
+    require(openat(held_manager,"bin/ambient-tree/nested/leaf",O_WRONLY|O_CLOEXEC)<0 && errno==EROFS,"original-manager-nested-source-remains-readonly");
+    close(held_manager);close(held_records);
+    if(!strcmp(mode,"exit-after-decision")) {
+        require(manager_exited && pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"host-replacement-after-manager-decision-exit");
+        snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);fd=open(path,O_RDONLY|O_CLOEXEC);char byte;
+        require(fd>=0 && pread(fd,&byte,1,100)==1 && byte==original_required_byte && close(fd)==0,"admitted-private-required-copy-survives-manager-death-and-host-drift");
+    }
     if(positive){actual_nested();require(mac_calls==1,"gate-final-MAC-once");snprintf(path,sizeof(path),"%s/host/usr/bin/ambient",base);
         require((access(path,F_OK)==0)==(strcmp(mode,"ambient-narrow")!=0),"invocation-ambient-selection");}
     else {
@@ -368,7 +502,8 @@ int main(int argc,char **argv) {
     }
     if(!strcmp(mode,"cleanup-failure"))require(cleanup_failures>0,"cleanup-failure-injected-at-owned-detach");
     if(!strcmp(mode,"deadline"))require(clone_seen>0,"original-deadline-expired-after-clone");
-    if(strcmp(mode,"exit-after-clone"))manager_command('x');int status;require(waitpid(manager_pid,&status,0)==manager_pid && WIFEXITED(status) && WEXITSTATUS(status)==0,"owned-manager-reaped");
+    if(strcmp(mode,"exit-after-clone") && !manager_exited)manager_command('x');int status;require(waitpid(manager_pid,&status,0)==manager_pid && WIFEXITED(status) && WEXITSTATUS(status)==0,"owned-manager-reaped");
+    if(independently_wrong_usr>=0)close(independently_wrong_usr);
     close(manager_ready);close(manager_release);close(manager_pidfd);close(held_manager_namespace);close(original_source);puts("verified");return 0;
 }
 '''
@@ -410,7 +545,7 @@ def _native(helper):
 #undef pam_get_data
 #undef pam_set_data
 #undef pam_syslog''')
-    source = source.replace('#include <sys/mount.h>', '#include <sys/mount.h>\n#include <sys/mman.h>\n#include <sys/statvfs.h>\n#include <linux/mount.h>\n#include <poll.h>')
+    source = source.replace('#include <sys/mount.h>', '#include <sys/mount.h>\n#include <sys/mman.h>\n#include <sys/statvfs.h>\n#include <linux/mount.h>\n#include <poll.h>\n#include <pthread.h>')
     return (source + MAIN).replace('@HELPER@', json.dumps(str(helper)))
 
 
@@ -441,7 +576,7 @@ def retained_scene(fresh_scene):
     binary = directory / 'retained'
     completed = subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Wno-unused-function',
                                 '-Wno-format-truncation', '-I', str(fresh.ROOT / 'tools'),
-                                str(source), '-ldl', '-lpam', '-o', str(binary)],
+                                str(source), '-ldl', '-lpam', '-pthread', '-o', str(binary)],
                                capture_output=True, text=True, timeout=30,
                                pass_fds=test_storage.scratch_descriptors())
     assert completed.returncode == 0, completed.stderr
@@ -459,11 +594,19 @@ fresh_scene = fresh.fresh_scene
 
 
 @pytest.mark.parametrize('mode', [
-    'healthy', 'ambient-narrow', 'same-reexec', 'required-drift', 'post-attach-required-drift', 'absent-ready',
+    'healthy', 'ambient-narrow', 'same-reexec', 'same-fd-reexec', 'exit-after-decision',
+    'wrong-clone', 'missing-nested-clone', 'required-drift', 'post-attach-required-drift', 'absent-ready',
     'stale-ready', 'forged-ready', 'missing-source', 'foreign-source', 'inactive',
     'manager', 'invocation', 'namespace', 'foreign-reexec', 'exit-after-clone',
     'helper-exit', 'helper-timeout', 'result-malformed', 'deadline', 'cleanup-failure',
-])
+    'capabilities-inherited', 'capabilities-zero', 'capabilities-get-before', 'capabilities-set',
+    'capabilities-ambient', 'capabilities-get-after', 'capabilities-inheritable-drift',
+    'capabilities-effective-drift', 'capabilities-permitted-drift',
+] + [f'{phase}-{kind}' for phase in ('acquire', 'clone', 'final') for kind in (
+    'exit', 'mainpid', 'invocation', 'cgroup', 'root', 'namespace', 'label',
+    'uid', 'gid', 'groups', 'capabilities', 'executable', 'tasks',
+) if phase != 'clone' or kind not in ('exit', 'mainpid', 'invocation', 'namespace', 'executable')]
+  + ['clone-unstable-reexec'])
 def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     directory, binary = retained_scene
     completed = subprocess.run([str(binary), mode, str(directory)],

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import select
+import socket
 import shutil
 import stat
 import subprocess
@@ -5235,6 +5236,20 @@ def test_glycin_sandbox_routes_have_no_general_service_or_unsandboxed_decoder_ro
     assert '(allow onpc_kiosk_glycin_t self (capability (sys_admin' not in generated
 
 
+def test_apparmor_user_namespace_rules_explicitly_mediate_every_role():
+    policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
+    generated = policy.apparmor(policy.executables('ubuntu'))
+    for domain in policy.DOMAINS:
+        profile = generated.split(f'profile onpc-kiosk-{domain} ', 1)[1].split('\n}\n', 1)[0]
+        # An absent rule can leave user namespaces unmediated under the
+        # compatibility ABI. Require an explicit decision in every profile.
+        rules = re.findall(r'^  (?![ \t])(.*\buserns\b.*)$', profile, flags=re.MULTILINE)
+        assert rules == (['userns,'] if domain in ('bwrap', 'glycin-bwrap') else
+                         ['audit deny userns,'])
+    password = generated.split('  profile password {', 1)[1].split('\n  }', 1)[0]
+    assert re.findall(r'^    (.*userns.*)$', password, flags=re.MULTILINE) == ['audit deny userns,']
+
+
 def test_native_bootstrap_permissions_do_not_expand_payload_or_initial_namespace():
     policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
     generated = policy.apparmor(policy.executables('ubuntu'))
@@ -6119,19 +6134,39 @@ def test_service_denial_composes_fresh_proofs_and_guards_owned_reset(
 
 
 @pytest.mark.parametrize('backend', ['apparmor', 'selinux'])
-@pytest.mark.parametrize('fault', [None, 'sibling-label', 'sibling-uid', 'sibling-namespace',
-                                   'sibling-generation', 'host-namespace', 'invalid-generation',
-                                   'manager-replaced', 'exited', 'thread-replaced'])
+@pytest.mark.parametrize('retained_view,fault', [
+    (retained_view, fault) for retained_view in (False, True)
+    for fault in (None, 'sibling-label', 'sibling-uid', 'sibling-namespace',
+                  'sibling-generation', 'host-namespace', 'invalid-generation',
+                  'manager-replaced', 'exited', 'thread-replaced')
+] + [(True, fault) for fault in (
+    'marker-header', 'marker-version', 'marker-backend', 'marker-material', 'marker-view',
+    'marker-extra-field', 'marker-missing-newline', 'marker-extra-line', 'sibling-view',
+    'marker-lifecycle-changed', 'manager-marker-lifecycle-changed')])
 def test_manager_reexec_observation_requires_each_live_thread_boundary(
-        census_model, tmp_path, monkeypatch, backend, fault):
+        census_model, tmp_path, monkeypatch, backend, retained_view, fault):
     helper = census_model
     monkeypatch.setattr(helper, 'PROC', tmp_path)
     manager = tmp_path / '42'
     namespace = 'mnt:[host]' if fault == 'host-namespace' else 'mnt:[private]'
-    generation = 'unconfined\n' if fault == 'invalid-generation' else 'a' * 64 + '\n'
+    current_marker = 'ONPC-KIOSK-VIEW\t1\t' + backend + '\t' + 'a' * 64 + '\t' + 'b' * 64 + '\n'
+    generation = current_marker if retained_view else 'a' * 64 + '\n'
+    malformed = {
+        'marker-header': current_marker.replace('ONPC-KIOSK-VIEW', 'ONPC-KIOSK-READY'),
+        'marker-version': current_marker.replace('\t1\t', '\t2\t'),
+        'marker-backend': current_marker.replace(backend, 'selinux' if backend == 'apparmor' else 'apparmor'),
+        'marker-material': current_marker.replace('a' * 64, 'a' * 63),
+        'marker-view': current_marker.replace('b' * 64, 'B' * 64),
+        'marker-extra-field': current_marker.removesuffix('\n') + '\textra\n',
+        'marker-missing-newline': current_marker.removesuffix('\n'),
+        'marker-extra-line': current_marker + '\n',
+        'invalid-generation': 'unconfined\n',
+    }
+    generation = malformed.get(fault, generation)
     attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
     expected = 'onpc-kiosk-manager (enforce)' if backend == 'apparmor' else helper.MANAGER_SID
-    marker = 'root/usr/share/oh-no-parent-control/confinement/generation'
+    marker_directory = 'root/usr/share/oh-no-parent-control/confinement/'
+    marker = marker_directory + ('retained-view' if retained_view else 'generation')
     for target in (manager, manager / 'task/42', manager / 'task/43'):
         target.mkdir(parents=True, exist_ok=True)
         (target / 'stat').write_text('42 (fixture) S 1 ' + '0 ' * 17 + '100')
@@ -6140,8 +6175,14 @@ def test_manager_reexec_observation_requires_each_live_thread_boundary(
         (target / 'ns/mnt').symlink_to('mnt:[other]' if target.name == '43' and
                                      fault == 'sibling-namespace' else namespace)
         (target / marker).parent.mkdir(parents=True)
-        (target / marker).write_text('b' * 64 + '\n' if target.name == '43' and
-                                   fault == 'sibling-generation' else generation)
+        sibling_marker = current_marker.replace('a' * 64, 'c' * 64) if retained_view else 'b' * 64 + '\n'
+        if fault == 'sibling-view':
+            sibling_marker = current_marker.replace('b' * 64, 'c' * 64)
+        (target / marker).write_text(sibling_marker if target.name == '43' and
+                                   fault in ('sibling-generation', 'sibling-view') else generation)
+        # The marker from the other format cannot authorize this observation.
+        (target / (marker_directory + ('generation' if retained_view else 'retained-view'))).write_text(
+            'unconfined\n' if retained_view else current_marker)
         (target / attribute).parent.mkdir(parents=True)
         (target / attribute).write_text('unconfined' if target.name == '43' and
                                        fault == 'sibling-label' else expected)
@@ -6162,17 +6203,489 @@ def test_manager_reexec_observation_requires_each_live_thread_boundary(
     def thread_identity(thread):
         value = original(thread)
         seen[thread] = seen.get(thread, 0) + 1
+        if fault in ('marker-lifecycle-changed', 'manager-marker-lifecycle-changed') and (
+                thread.name == '43' and seen[thread] > 1):
+            target = manager if fault == 'manager-marker-lifecycle-changed' else thread
+            (target / marker).write_text(current_marker.replace('b' * 64, 'c' * 64))
         return ('replacement', *value[1:]) if (fault == 'thread-replaced' and
                 thread.name == '43' and seen[thread] > 1) else value
     monkeypatch.setattr(helper, 'census_thread_identity', thread_identity)
+    options = {'retained_view': True} if retained_view else {}
     if fault:
         with pytest.raises(helper.guest.GuestError, match='kiosk-confinement:manager-'):
-            helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend)
+            helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend,
+                                    **options)
     else:
-        result = helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend)
+        result = helper.manager_boundary(SimpleNamespace(pw_uid=1002), 'user@1002.service', backend,
+                                         **options)
         assert result == {'pid': 42, 'identity': ('100', 1, ('1002',) * 4),
                           'label': expected, 'namespace': namespace, 'generation': generation}
     assert closed == [900]
+
+
+@pytest.mark.parametrize('fault', [None, 'exited', 'pid', 'starttime', 'namespace', 'invocation'])
+def test_bootstrap_control_refuses_a_foreign_or_changed_manager_before_mutation(
+        census_model, monkeypatch, fault):
+    helper = census_model
+    account = SimpleNamespace(pw_uid=1002)
+    unit = 'user@1002.service'
+    boundary = {'pid': 42, 'identity': ('100', 1, ('1002',) * 4),
+                'label': helper.MANAGER_SID, 'namespace': 'mnt:[private]',
+                'generation': 'ONPC-KIOSK-VIEW\t1\tselinux\t' + 'a' * 64 + '\t' + 'b' * 64 + '\n'}
+    expected = {**boundary, 'invocation': 'b' * 32}
+    observed = dict(boundary)
+    if fault == 'pid':
+        observed['pid'] = 43
+    elif fault == 'starttime':
+        observed['identity'] = ('101', 1, ('1002',) * 4)
+    elif fault == 'namespace':
+        observed['namespace'] = 'mnt:[foreign]'
+    monkeypatch.setattr(helper, 'manager_boundary', Mock(return_value=observed))
+    monkeypatch.setattr(helper, 'exited', Mock(return_value=fault == 'exited'))
+    run = Mock(return_value='c' * 32 if fault == 'invocation' else expected['invocation'])
+    monkeypatch.setattr(helper.guest, 'run', run)
+    monkeypatch.setattr(helper.os, 'kill', killed := Mock())
+    monkeypatch.setattr(helper.signal, 'pidfd_send_signal', signalled := Mock())
+    if fault:
+        with pytest.raises(helper.guest.GuestError):
+            helper.bootstrap_manager_unchanged(account, unit, 'selinux', expected, 900)
+    else:
+        helper.bootstrap_manager_unchanged(account, unit, 'selinux', expected, 900)
+    if fault == 'exited':
+        helper.manager_boundary.assert_not_called()
+    else:
+        helper.manager_boundary.assert_called_once_with(account, unit, 'selinux', retained_view=True)
+    # A reused PID or foreign invocation supplies no authority to stop, reload,
+    # or signal a manager. Only read-only identity queries may have occurred.
+    assert all(call.args[0] == ['systemctl', 'show', '--value',
+                              '--property=InvocationID', unit]
+               for call in run.call_args_list)
+    killed.assert_not_called()
+    signalled.assert_not_called()
+
+
+@pytest.mark.parametrize('retained_view', [False, True])
+@pytest.mark.parametrize('fault', [None, 'after-reexec', 'after-denial'])
+def test_bootstrap_reexec_preserves_the_selected_marker_boundary(
+        census_model, monkeypatch, retained_view, fault):
+    helper = census_model
+    account, unit = SimpleNamespace(pw_uid=1002), 'user@1002.service'
+    marker = ('ONPC-KIOSK-VIEW\t1\tapparmor\t' + 'a' * 64 + '\t' + 'b' * 64 + '\n'
+              if retained_view else 'a' * 64 + '\n')
+    boundary = {'pid': 42, 'generation': marker}
+    changed = {**boundary, 'generation': marker.replace('a' * 64, 'c' * 64)}
+    observe = Mock(side_effect=[boundary,
+        changed if fault == 'after-reexec' else boundary,
+        changed if fault == 'after-denial' else boundary])
+    monkeypatch.setattr(helper, 'manager_boundary', observe)
+    monkeypatch.setattr(helper.guest, 'run', Mock(side_effect=['notify-reload', '59', '']))
+    monkeypatch.setattr(helper, 'user_command', allowed := Mock(return_value=b'systemd 260'))
+    monkeypatch.setattr(helper, 'require_service_denial', denied := Mock())
+    record = Mock()
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='reexec-changed-manager-boundary'):
+            helper.bootstrap_reexec(account, unit, 'apparmor', record, retained_view=retained_view)
+        record.assert_not_called()
+    elif retained_view:
+        helper.bootstrap_reexec(account, unit, 'apparmor', record, retained_view=True)
+    else:
+        helper.bootstrap_reexec(account, unit, 'apparmor', record)
+    expected_options = {'retained_view': True} if retained_view else {}
+    assert observe.call_count == (2 if fault == 'after-reexec' else 3)
+    for call in observe.call_args_list:
+        assert call.args == (account, unit, 'apparmor') and call.kwargs == expected_options
+    if fault == 'after-reexec':
+        allowed.assert_not_called()
+        denied.assert_not_called()
+    else:
+        denied.assert_called_once_with(account, 'apparmor',
+            'onpc-confinement-after-reexec-denied.service', ['/bin/sh', '-c', 'exit 0'], record)
+
+
+@pytest.mark.parametrize('kind,mode,uid,gid,text,accepted', [
+    ('link', stat.S_IFLNK | 0o777, 0, 0, '/dev/null', True),
+    ('link', stat.S_IFLNK | 0o777, 1002, 0, '/dev/null', False),
+    ('link', stat.S_IFLNK | 0o777, 0, 1002, '/dev/null', False),
+    ('link', stat.S_IFLNK | 0o777, 0, 0, '/foreign', False),
+    ('link', stat.S_IFREG | 0o644, 0, 0, '/dev/null', False),
+    ('file', stat.S_IFLNK | 0o777, 0, 0, '/dev/null', False),
+    ('file', stat.S_IFREG | 0o755, 0, 0, '', True),
+    ('file', stat.S_IFREG | 0o775, 0, 0, '', False),
+    ('tree', stat.S_IFDIR | 0o755, 0, 0, '', True),
+    ('tree', stat.S_IFDIR | 0o757, 0, 0, '', False),
+])
+def test_bootstrap_source_trust_preserves_exact_owned_links_and_rejects_writable_sources(
+        census_model, monkeypatch, kind, mode, uid, gid, text, accepted):
+    helper = census_model
+    path = Path('/private-view/usr/share/user-units/masked.service')
+    monkeypatch.setattr(helper.os, 'readlink', Mock(return_value=text))
+    info = [1, 2, mode, uid, gid, 0, 0, 0, 1]
+    if accepted:
+        helper.bootstrap_source_trust(path, kind, info, '/dev/null')
+    else:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:source-writable'):
+            helper.bootstrap_source_trust(path, kind, info, '/dev/null')
+
+
+@pytest.mark.parametrize('kind', [socket.SOCK_DGRAM, socket.SOCK_STREAM])
+def test_bootstrap_logger_socket_probes_only_a_duplicate_and_retains_caller_flags(
+        census_model, short_runtime, monkeypatch, kind):
+    helper = census_model
+    endpoint, alias = short_runtime / 'logger', short_runtime / 'dev-log'
+    with socket.socket(socket.AF_UNIX, kind) as server, socket.socket(socket.AF_UNIX, kind) as client:
+        server.bind(str(endpoint))
+        if kind == socket.SOCK_STREAM:
+            server.listen(1)
+        alias.symlink_to(endpoint)
+        client.connect(str(alias))
+        connected_peer = client.getpeername()
+        original = helper.bootstrap_descriptors(helper.PROC / 'self')[str(client.fileno())]
+        duplicated = []
+        native_fcntl = fcntl.fcntl
+        def command(fd, operation, *args):
+            result = native_fcntl(fd, operation, *args)
+            if operation == fcntl.F_DUPFD_CLOEXEC:
+                duplicated.append(result)
+            return result
+        monkeypatch.setattr(helper.fcntl, 'fcntl', command)
+        observed = helper.bootstrap_logger_endpoint(alias)
+        receipt = helper.bootstrap_logger_socket(client.fileno(), observed)
+        assert receipt == {'fd': client.fileno(), 'socket_type': kind, 'peer': connected_peer,
+                           'endpoint': observed, 'descriptor': original}
+        assert helper.bootstrap_descriptors(helper.PROC / 'self')[str(client.fileno())] == original
+        assert client.getpeername() == connected_peer
+        assert Path(connected_peer).resolve(strict=True) == endpoint
+        assert len(duplicated) == 1
+        with pytest.raises(OSError):
+            os.fstat(duplicated[0])
+
+
+@pytest.mark.parametrize('fault', [None, 'unconnected', 'extra', 'ambiguous', 'inheritable'])
+def test_bootstrap_logger_eager_setup_requires_one_verified_socket_and_no_unknown_fd(
+        census_model, short_runtime, monkeypatch, fault):
+    from contextlib import ExitStack
+    helper = census_model
+    endpoint = short_runtime / 'logger'
+    with ExitStack() as resources:
+        server = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+        server.bind(str(endpoint))
+        clients = []
+        def eager(_ident, options, facility):
+            assert options == 0x08 and facility == 10 << 3
+            for _ in range(2 if fault == 'ambiguous' else 1):
+                client = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+                clients.append(client)
+                if fault != 'unconnected':
+                    client.connect(str(endpoint))
+                if fault == 'inheritable':
+                    os.set_inheritable(client.fileno(), True)
+            if fault == 'extra':
+                resources.enter_context(open('/dev/null', 'rb'))
+        library = SimpleNamespace(openlog=Mock(side_effect=eager), closelog=Mock())
+        monkeypatch.setattr(helper.ctypes, 'CDLL', Mock(return_value=library))
+        if fault:
+            with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:logger-'):
+                helper.bootstrap_logger_prepare(endpoint)
+        else:
+            receipt = helper.bootstrap_logger_prepare(endpoint)
+            assert receipt['fd'] == clients[0].fileno()
+            assert receipt['introduced'] is True
+            assert receipt['socket_type'] == socket.SOCK_DGRAM
+            census = helper.bootstrap_descriptors(helper.PROC / 'self')
+            assert receipt['descriptor'] == census[str(clients[0].fileno())]
+            helper.bootstrap_logger_validate(receipt, census, path=endpoint)
+            # A receipt is bounded scenario data, leaving the unchanged shared
+            # admission event's 4096-byte writer/reader checks in place.
+            assert len(json.dumps(receipt).encode()) < 1024
+        library.openlog.assert_called_once_with(None, 0x08, 10 << 3)
+        library.closelog.assert_not_called()
+        for client in clients:
+            assert client.fileno() >= 0 and stat.S_ISSOCK(os.fstat(client.fileno()).st_mode)
+
+
+@pytest.mark.parametrize('fault', ['constructor', 'peer'])
+def test_bootstrap_logger_socket_failure_closes_duplicate_and_preserves_original(
+        census_model, short_runtime, monkeypatch, fault):
+    helper = census_model
+    endpoint = short_runtime / 'logger'
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as server, socket.socket(
+            socket.AF_UNIX, socket.SOCK_DGRAM) as client:
+        server.bind(str(endpoint))
+        client.connect(str(endpoint))
+        original = os.fstat(client.fileno())
+        owned = []
+        native_fcntl = fcntl.fcntl
+        def duplicate(fd, operation, *args):
+            result = native_fcntl(fd, operation, *args)
+            if operation == fcntl.F_DUPFD_CLOEXEC:
+                owned.append(result)
+            return result
+        monkeypatch.setattr(helper.fcntl, 'fcntl', duplicate)
+        failure = OSError(5, 'owned socket probe failed')
+        if fault == 'constructor':
+            monkeypatch.setattr(helper.socket, 'socket', Mock(side_effect=failure))
+        else:
+            class FailedSocket:
+                family = socket.AF_UNIX
+                def __init__(self, *, fileno):
+                    self.fd = fileno
+                def getsockopt(self, *_):
+                    return socket.SOCK_DGRAM
+                def getpeername(self):
+                    raise failure
+                def close(self):
+                    os.close(self.fd)
+            monkeypatch.setattr(helper.socket, 'socket', FailedSocket)
+        with pytest.raises(OSError) as caught:
+            helper.bootstrap_logger_socket(client.fileno(), helper.bootstrap_logger_endpoint(endpoint))
+        assert caught.value is failure
+        assert os.fstat(client.fileno()) == original
+        assert len(owned) == 1
+        with pytest.raises(OSError):
+            os.fstat(owned[0])
+
+
+@pytest.mark.parametrize('fault', ['fd', 'identity', 'flags', 'peer', 'endpoint', 'type'])
+def test_bootstrap_logger_parent_receipt_requires_independent_endpoint_and_exact_fd(
+        census_model, short_runtime, fault):
+    helper = census_model
+    endpoint, other = short_runtime / 'logger', short_runtime / 'other'
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as server, socket.socket(
+            socket.AF_UNIX, socket.SOCK_DGRAM) as client, socket.socket(
+            socket.AF_UNIX, socket.SOCK_DGRAM) as foreign:
+        server.bind(str(endpoint))
+        foreign.bind(str(other))
+        client.connect(str(endpoint))
+        receipt = helper.bootstrap_logger_socket(client.fileno(), helper.bootstrap_logger_endpoint(endpoint))
+        receipt['introduced'] = False
+        census = helper.bootstrap_descriptors(helper.PROC / 'self')
+        receipt['descriptor'] = census[str(client.fileno())].copy()
+        if fault == 'fd':
+            receipt['fd'] += 10000
+        elif fault == 'identity':
+            receipt['descriptor'][1] += 1
+        elif fault == 'flags':
+            census[str(client.fileno())] = [*receipt['descriptor']]
+            census[str(client.fileno())][3] &= ~os.O_CLOEXEC
+            receipt['descriptor'] = census[str(client.fileno())].copy()
+        elif fault == 'peer':
+            receipt['peer'] = str(other)
+        elif fault == 'endpoint':
+            receipt['endpoint']['identity'][1] += 1
+        else:
+            receipt['socket_type'] = socket.SOCK_RAW
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:logger-'):
+            helper.bootstrap_logger_validate(receipt, census, path=endpoint)
+        assert client.getpeername() == str(endpoint)
+
+
+@pytest.mark.parametrize('case', ['stable', 'renewed', 'preexisting-stable', 'preexisting-renewed',
+                                 'moved', 'peer', 'type', 'endpoint', 'caller', 'extra',
+                                 'missing-lease', 'post-error'])
+def test_bootstrap_logger_renewal_is_only_its_fixture_owned_fd_with_one_native_lease(
+        census_model, short_runtime, monkeypatch, case):
+    from contextlib import ExitStack
+    helper = census_model
+    endpoint, foreign_endpoint = short_runtime / 'logger', short_runtime / 'foreign'
+    with ExitStack() as resources:
+        server = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+        foreign = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+        server.bind(str(endpoint))
+        foreign.bind(str(foreign_endpoint))
+        sentry = resources.enter_context(open('/dev/null', 'rb'))
+        clients = []
+        def create_logger():
+            client = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+            client.connect(str(endpoint))
+            clients.append(client)
+        preexisting = case.startswith('preexisting-')
+        if preexisting:
+            create_logger()
+        library = SimpleNamespace(openlog=Mock(side_effect=lambda *_: None if preexisting else create_logger()))
+        monkeypatch.setattr(helper.ctypes, 'CDLL', Mock(return_value=library))
+        original = helper.bootstrap_logger_prepare(endpoint)
+        assert original['introduced'] is (not preexisting)
+        logger_fd = original['fd']
+        before = helper.bootstrap_descriptors(helper.PROC / 'self')
+        if case not in ('stable', 'preexisting-stable'):
+            # Only our explicitly owned logger number is renewed. The actual
+            # kernel socket inode changes; every unrelated caller FD stays live.
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as replacement:
+                replacement.connect(str(foreign_endpoint if case == 'peer' else endpoint))
+                os.dup2(replacement.fileno(), logger_fd, inheritable=False)
+        with monkeypatch.context() as guard:
+            guard.setattr(helper, 'bootstrap_descriptors', Mock(side_effect=AssertionError('no post-PAM proc census')))
+            current = helper.bootstrap_logger_after(original)
+        if case == 'type':
+            current['socket_type'] = socket.SOCK_STREAM
+        elif case == 'moved':
+            current['fd'] += 10000
+        elif case == 'post-error':
+            current = {'error': {'type': 'PermissionError', 'errno': 13, 'category': 'socket-probe'}}
+        elif case == 'endpoint':
+            endpoint.unlink()
+            changed = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+            changed.bind(str(endpoint))
+        elif case == 'extra':
+            unexpected = resources.enter_context(socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM))
+            unexpected.connect(str(endpoint))
+        after = helper.bootstrap_descriptors(helper.PROC / 'self')
+        if case == 'caller':
+            after[str(sentry.fileno())] = after[str(sentry.fileno())].copy()
+            after[str(sentry.fileno())][1] += 1
+        if case != 'missing-lease':
+            # Finite parent-protocol fixture for the native lease slot. All
+            # logger/caller identities above come from actual private FDs.
+            after['2147483646'] = [0, 1, stat.S_IFREG | 0o600, os.O_RDWR | os.O_CLOEXEC,
+                                  '/run/oh-no-parent-control-kiosk-admission.lock']
+        if case in ('stable', 'renewed', 'preexisting-stable'):
+            helper.bootstrap_logger_transition(original, current, before, after, path=endpoint)
+            assert (original['descriptor'][1] != current['descriptor'][1]) is (case == 'renewed')
+        else:
+            with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:'):
+                helper.bootstrap_logger_transition(original, current, before, after, path=endpoint)
+        assert len(json.dumps({'logger': original, 'logger_after': current}).encode()) < 2048
+        assert os.fstat(sentry.fileno())
+        assert clients[0].fileno() == logger_fd
+
+
+@pytest.mark.parametrize('fault', ['fork', 'pidfd'])
+@pytest.mark.parametrize('route', ['pam-witness', 'apparmor-service', 'selinux-service',
+                                   'apparmor-manager-pam'])
+def test_bootstrap_pam_witness_closes_channels_and_reaps_only_its_direct_child_on_failure(
+        census_model, tmp_path, monkeypatch, fault, route):
+    helper = census_model
+    descriptors = []
+    pipe2, opened = os.pipe2, os.open
+    read_text = Path.read_text
+    def config(path, *args, **kwargs):
+        if str(path) == '/usr/share/oh-no-parent-control/confinement/config.json':
+            return '{"backend":"apparmor"}'
+        return read_text(path, *args, **kwargs)
+    def pipe(flags):
+        pair = pipe2(flags)
+        descriptors.extend(pair)
+        return pair
+    def sentry(path, flags, *args, **kwargs):
+        fd = opened(path, flags, *args, **kwargs)
+        descriptors.append(fd)
+        return fd
+    monkeypatch.setattr(Path, 'read_text', config)
+    monkeypatch.setattr(helper.os, 'pipe2', pipe)
+    monkeypatch.setattr(helper.os, 'open', sentry)
+    original = OSError('owned ' + fault + ' failure')
+    monkeypatch.setattr(helper.os, 'fork', Mock(
+        side_effect=original if fault == 'fork' else None, return_value=41001))
+    acquire = Mock(side_effect=original)
+    monkeypatch.setattr(helper.os, 'pidfd_open', acquire)
+    monkeypatch.setattr(helper.os, 'kill', killed := Mock())
+    monkeypatch.setattr(helper.os, 'waitpid', waited := Mock(return_value=(41001, 0)))
+    monkeypatch.setattr(helper.signal, 'pidfd_send_signal', signalled := Mock())
+    account = SimpleNamespace(pw_uid=1002, pw_gid=1002)
+    user = Mock(return_value=b'InvocationID=\nActiveState=inactive\n')
+    monkeypatch.setattr(helper, 'user_command', user)
+    if route == 'apparmor-manager-pam':
+        manager = tmp_path / 'proc/42'
+        (manager / 'ns').mkdir(parents=True)
+        (manager / 'ns/mnt').write_bytes(b'private namespace descriptor')
+        marker = manager / 'root/usr/share/oh-no-parent-control/confinement/retained-view'
+        marker.parent.mkdir(parents=True)
+        marker.write_text('ONPC-KIOSK-VIEW\t1\tapparmor\t' + 'b' * 64 + '\t' + 'a' * 64 + '\n')
+        monkeypatch.setattr(helper, 'PROC', tmp_path / 'proc')
+        monkeypatch.setattr(helper, 'manager_pid', Mock(return_value=42))
+        monkeypatch.setattr(helper.ctypes, 'CDLL', Mock(return_value=SimpleNamespace(
+            aa_change_profile=Mock(), setns=Mock())))
+    record = Mock()
+    with pytest.raises(OSError) as caught:
+        if route == 'pam-witness':
+            helper.bootstrap_pam_witness(account, tmp_path,
+                                         ['/usr/lib/systemd/systemd', '--version'], record,
+                                         service='systemd-user')
+        else:
+            helper.bootstrap_service_entrypoint(account,
+                'selinux' if route == 'selinux-service' else 'apparmor',
+                '/usr/lib/systemd/systemd', {'view': 'a' * 64}, record,
+                pam_route=route == 'apparmor-manager-pam', manager_pid_value=42)
+    assert caught.value is original
+    assert descriptors
+    for fd in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(fd)
+    if fault == 'fork':
+        acquire.assert_not_called()
+        killed.assert_not_called()
+        waited.assert_not_called()
+    else:
+        acquire.assert_called_once_with(41001)
+        killed.assert_called_once_with(41001, helper.signal.SIGKILL)
+        waited.assert_called_once_with(41001, 0)
+    signalled.assert_not_called()
+    record.assert_not_called()
+    if route in ('apparmor-service', 'selinux-service'):
+        user.assert_called_once_with(account, ['/usr/bin/systemctl', '--user', 'show',
+            'onpc-bootstrap-systemd.service', '--property=InvocationID,ActiveState'], check=False)
+    else:
+        user.assert_not_called()
+
+
+@pytest.mark.parametrize('state', ['inactive', 'active'])
+def test_bootstrap_service_entrypoint_preserves_an_existing_invocation_before_allocating(
+        census_model, monkeypatch, state):
+    helper = census_model
+    account = SimpleNamespace(pw_uid=1002)
+    user = Mock(return_value=('InvocationID=' + 'a' * 32 + '\nActiveState=' + state + '\n').encode())
+    monkeypatch.setattr(helper, 'user_command', user)
+    monkeypatch.setattr(helper.os, 'pipe2', allocated := Mock())
+    monkeypatch.setattr(helper.os, 'fork', forked := Mock())
+    monkeypatch.setattr(helper.os, 'pidfd_open', pinned := Mock())
+    monkeypatch.setattr(helper.os, 'kill', killed := Mock())
+    monkeypatch.setattr(helper.signal, 'pidfd_send_signal', signalled := Mock())
+    record = Mock()
+    with pytest.raises(helper.guest.GuestError, match='entrypoint-unit-already-active'):
+        helper.bootstrap_service_entrypoint(account, 'apparmor', '/usr/lib/systemd/systemd',
+                                             {}, record)
+    user.assert_called_once_with(account, ['/usr/bin/systemctl', '--user', 'show',
+        'onpc-bootstrap-systemd.service', '--property=InvocationID,ActiveState'], check=False)
+    for operation in (allocated, forked, pinned, killed, signalled, record):
+        operation.assert_not_called()
+
+
+@pytest.mark.parametrize('diagnostic_fault', [None, 'read', 'record', 'audit'])
+def test_bootstrap_start_preserves_first_failure_and_bounds_its_diagnostics(
+        census_model, monkeypatch, diagnostic_fault):
+    helper = census_model
+    original = helper.guest.GuestError('original-manager-start')
+    unit = 'user@1002.service'
+    calls = []
+
+    def run(command, *, timeout):
+        calls.append((command, timeout))
+        if command[:2] == ['systemctl', 'start']:
+            raise original
+        assert timeout == 10
+        if diagnostic_fault == 'read':
+            raise OSError('diagnostic read failed')
+        return 'x' * 70000
+
+    monkeypatch.setattr(helper.guest, 'run', run)
+    audit = Mock(side_effect=OSError('audit unavailable') if diagnostic_fault == 'audit' else None,
+                 return_value='k' * 70000)
+    monkeypatch.setitem(sys.modules, 'system_kiosk_platform', SimpleNamespace(kernel_audit=audit))
+    record = Mock(side_effect=OSError('record unavailable') if diagnostic_fault == 'record' else None)
+    with pytest.raises(helper.guest.GuestError) as caught:
+        helper.bootstrap_start_manager(unit, 'selinux', record)
+    assert caught.value is original
+    assert calls[0] == (['systemctl', 'start', unit], 75)
+    assert all(command[0] in ('systemctl', 'journalctl') for command, _ in calls[1:])
+    if diagnostic_fault != 'record':
+        assert calls[1:] == [
+            (['systemctl', 'show', unit,
+              '--property=InvocationID,MainPID,ActiveState,SubState,Result,ExecMainStatus'], 10),
+            (['journalctl', '--no-pager', '--utc', '-b', '-u', unit,
+              '-n', '100', '-o', 'short-precise'], 10),
+        ]
+        audit.assert_called_once_with('selinux')
+    assert all(len(call.args[1]) <= 65536 for call in record.call_args_list)
 
 
 @pytest.mark.parametrize('directory', [True, False])

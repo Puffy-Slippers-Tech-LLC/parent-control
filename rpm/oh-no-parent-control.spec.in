@@ -84,6 +84,10 @@ Requires(postun): util-linux
 # Private Python modules are loaded by our fixed launchers, not site-packages.
 # Hash shipped bytes only after RPM's strip/shebang/other post-install passes.
 %global __brp_python_bytecompile %{nil}
+# Measured runtime files require one owned name per inode. Fedora 44's
+# linkdupes pass would merge identical launchers and Python modules; retain
+# their independent identities without changing the other post-install passes.
+%global __os_install_post_hardlink %{nil}
 # Preserve late expansion of RPM's debug-package conditional. Eager expansion
 # here suppresses find-debuginfo before RPM enables its generated debug packages.
 %global onpc_spec_install_post %{macrobody:__spec_install_post}

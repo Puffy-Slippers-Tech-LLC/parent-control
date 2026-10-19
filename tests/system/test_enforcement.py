@@ -25,6 +25,11 @@ def test_kiosk_required_ancestor_refusal(record_testsuite_property):
     verify_required_recovery(record_testsuite_property)
 
 
+def test_kiosk_native_bootstrap_permissions(record_testsuite_property):
+    from system_kiosk_confinement import verify_bootstrap_permissions
+    verify_bootstrap_permissions(record_testsuite_property)
+
+
 def test_kiosk_login_admission(record_testsuite_property):
     from system_kiosk_admission import verify
     verify(record_testsuite_property)

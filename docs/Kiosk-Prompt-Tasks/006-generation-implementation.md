@@ -2,7 +2,36 @@
 
 Acceptance: host
 
+## First action when this consumer resumes
+
+The developer requested the [staged smaller-task breakdown](../Kiosk-Prompt.md#smaller-execution-slices).
+Once 006 is the active first unchecked task, before further implementation insert
+these explicit unchecked rows immediately before it, with these existing briefs:
+
+| Done | ID | Task | Requires | Scope | Estimate |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | 006f | [Finish manager lifetime composition witnesses](006f-manager-composition.md) | 006e | Complete only the manager-identity and exit/reexec rows of the original finite composition table | 20–30 min; reuse existing composed controls |
+| [ ] | 006g | [Finish writer and host-source composition witnesses](006g-source-composition.md) | 006f | Complete only concurrent-writer and original-host-after-attachment witnesses from the original table | 20–30 min; reuse existing composed controls |
+| [ ] | 006h | [Finish receipt, publication and closure witnesses](006h-publication-composition.md) | 006g | Complete only source/invocation receipt, publication-cut and owned-closure witnesses from the original table | 20–30 min; reuse existing composed controls |
+
+Queue links must be relative to the queue (`Kiosk-Prompt-Tasks/...`). Add 006f,
+006g and 006h to 006's Requires, preserving all original dependencies and Scope.
+Move the master's Next task to 006f, finish any owned cleanup and return
+`prerequisite_required`. Insert nothing elsewhere in the queue. On resumption
+after these pass, audit every original table row and exact input applicability,
+finish cumulative host checks and the final build. Keep this consumer unchecked
+until its whole original acceptance passes; split progress grants no credit.
+
 ## Current execution boundary after the integration split
+
+The newly discovered missing real-policy probe is allocated to
+[006e](006e-bootstrap-permissions.md), immediately before this consumer. The
+current Ubuntu development kernel has AppArmor and no SELinux enforcement;
+native fixtures double MAC/label/bus boundaries. Actual bootstrap permission and
+both production entrypoint routes therefore remain unproved by host fixtures.
+006e must supply candidate-bound real-policy evidence on both registered targets.
+Task 006 remains unchecked and keeps every original acceptance obligation;
+resume its combined matrix and final host/build checks after that prerequisite.
 
 The five sessions below made substantive component progress; they did not reach
 complete production integration. This is a sizing split, not a failed approach
@@ -52,6 +81,80 @@ Historical bundle links below now point to their complete carried-forward
 contents carried forward by the latest accepted prerequisite; original counts
 and hashes remain historical. The 006d master receipt records the final candidate,
 exact host selection and focused passes available for applicability review.
+
+## Combined-witness checkpoint before 006e
+
+The existing fresh/retained native fixtures now contain **63 additional composed
+controls**: 24 fresh and 39 retained. Fresh coverage includes independent open-file
+lock contention, replaced lock/lease identities at selection/ready/pre-MAC,
+record and ready durability cuts, atomic publication, clone/bind/attachment/
+detach faults, three/four-generation bounds and same-byte foreign record
+replacement with exact completed membership. Retained coverage adds acquisition/
+post-clone/final manager/credential/task/namespace/role/executable refusals, real
+thread churn, same-inode FD reexec, after-decision manager exit, and actual
+foreign/shallow recursive-clone refusals. Independent tree, inode/content,
+read-only mount, borrowed-FD, original-deadline and cleanup witnesses remain.
+
+The first focused run, `20261019T194243Z-f205cc12`, passed **114/115**. Its
+wrong-clone fixture selected the correct manager tree after namespace entry.
+The first repair pinned the wrong host directory, but Linux refused cloning
+that cross-namespace directory before the intended source-identity check
+(`20261019T194555Z-7ebbbcf0`: three strengthened publication cases passed,
+wrong-clone failed its applicability assertion). The final fixture prepares a
+real foreign detached recursive tree before namespace entry, independently proves
+its root/mount identity, then transfers it through the ordinary clone result.
+Its unchanged expected source-clone refusal passed **1/1** in
+`20261019T194716Z-3b8b717b`. These were proven fixture-selection defects; no
+production behavior or assertion was changed to accept them.
+
+The intermediate [723-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+retains all 701 previous files and both failed development runs, including the
+three strengthened publication passes. SHA-256:
+`f4f1b75f9d2ec42718b6196725b95baa1c83f6682cc2a9174f0e7b0c68f0828e`.
+The final affected selection passed **3,283/3,283** in
+`20261019T194737Z-19dcdf21`, informational source-input digest
+`35c24d6e7b65aba471218e03365b136e5309fd7d754ec7eca21fd654e62fe1d6`.
+Its exact 31 `tools/run-tests unit` module selectors, with `-q`, are the 24
+listed in the master's 006c receipt plus the seven added in its 006d receipt.
+This includes all **55 fresh** (45 complete transactions and 10 SELinux API
+controls), **60 retained** transactions, both resource inventories and the
+maintained **313 documentation** cases. The same final test inputs passed;
+no product assertion failed. Final documentation verification/export follows
+below before handoff.
+
+No packaged input changed from 006d/HEAD `af43bfcbc43a91067e070034de5b30e4ece1724e`.
+The two test-file SHA-256 values, fresh then retained, are
+`297a72a00f86a7eea841b16f71a998862690168120c3f7a780e866d1e5ba5c98`
+and `facc1b4dc4ae9cd0ac84cbc24ffe0abf7113ea71c512823f3787dcee38d31522`.
+Resource review retains compatible private files, namespaces, bounded owned
+children and one joined pipe-held thread; no live MAC/bus/service/UI/VM owner
+was introduced. All subagents finished before cumulative verification.
+
+No build is required for this checkpoint's test/documentation/comment-only edits:
+they are outside `PACKAGE_SOURCE_FILES` and build dependencies. The accepted
+006d build remains unchanged-input historical evidence; 006's final build stays
+an explicit obligation after prerequisite execution and final input review.
+
+Task 006 remains unchecked. First execute 006e through both real-policy passes
+and cleanup. Then audit the whole finite composition table against exact final
+inputs, finish any remaining composed assertion, rerun affected checks where
+inputs changed and perform the final build/host acceptance. Existing component
+or installed receipts may be reused only for their unchanged exact assertions.
+The original acceptance, deadline, generation bound, other queue scopes and
+007a/007 public histories remain intact. No task acceptance is claimed here.
+
+Post-handoff documentation checks passed **313/313** in
+`20261019T195047Z-c35b2061`. The verified final
+[756-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+contains every prior receipt, both fixture-selection failures, the final
+wrong-clone pass, cumulative 3,283-case pass and documentation pass. SHA-256:
+`14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.
+All runner/fixture/export cleanup finished; all subagents are complete. No
+installation, VM, live-policy/service change, staging or commit occurred. The
+unrelated proof document and every other queue row's completion/order/scope/
+dependencies are preserved. The master points to unchecked 006e and retains
+unchecked 006 as its consumer. Continue with GPT-6.1 Sol High at 006e, then
+resume this task's original acceptance after its declared prerequisite passes.
 
 ## Original cumulative integration obligations
 
@@ -220,7 +323,7 @@ Unwired headers/modules still need package/install/dependency entries when their
 production callers are connected; their contents are outside the package digest.
 
 The second checkpoint bundle, now carried forward in the
-[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip),
+[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip),
 contained all 293 retained files, including the first checkpoint bundle's complete
 contents, the 2,351-case run, narrow development passes and final **313/313**
 documentation pass `20261019T113334Z-98d82122`. Original bundle SHA-256:
@@ -324,7 +427,7 @@ order; `sha256sum` output hashed again) is
 `e8c71214d4d6ad3b157d829081246818cf0d5323aded58809471f9deefc26be3`.
 
 The third checkpoint bundle, now carried forward in the
-[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip),
+[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip),
 contained all **341** retained files, including every prior checkpoint receipt,
 the nine fixture failures, their passing retry, cumulative pass and final focused
 verification. Original bundle SHA-256:
@@ -434,7 +537,7 @@ and its required witnesses remain unrun.
 
 The post-checkpoint documentation selection passed **313/313** in
 `20261019T120809Z-aea7856e`. The
-[carried-forward verified cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+[carried-forward verified cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 contains all **391** files from the intermediate bundle and these two final
 reports. SHA-256:
 `707662e101bf5865870d4de9a9769ca60ef8a4b2900d113865bd019f186d89bc`.
@@ -542,7 +645,7 @@ The new headers remain unwired: the unchanged DEB hash is consistent with no
 new production caller. The package-source map now includes their contents.
 
 The verified intermediate
-[449-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+[449-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 contains every file from the prior 419-file bundle, including the six fixture
 failures, plus the final intent, realization and affected-suite reports.
 SHA-256: `b1a910eaf94f91c3d49b65dde16444a9fafc9dad1430c74f4d04d541e5567572`.
@@ -551,7 +654,7 @@ order, scope and dependencies remain unchanged; no acceptance credit is claimed.
 
 Post-checkpoint documentation verification passed **313/313** in
 `20261019T123312Z-00b1e4e4`. The verified final
-[461-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-xfxmlozn/evidence.zip)
+[461-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
 contains all 449 intermediate files plus that report. SHA-256:
 `53076e7482ab2e589a725bb39ae9aaa84cdfeb8c786235ebee9603dca5e8b5c5`.
 Runner, build and export cleanup finished; all subagents are complete. No

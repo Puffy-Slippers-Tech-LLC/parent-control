@@ -17,6 +17,9 @@ import shlex
 import re
 import stat
 import struct
+import fcntl
+import grp
+import socket
 from contextlib import ExitStack, contextmanager
 
 import system_guest as guest
@@ -969,8 +972,161 @@ def pam_caller_command(directory, service, *, expected_selinux='Enforcing'):
         yield ['/usr/bin/runcon', context, str(caller), '-B']
 
 
+def bootstrap_logger_endpoint(path):
+    """Pin the public logging endpoint separately from a client's socket FD."""
+    def identity(info):
+        return [info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid, info.st_nlink]
+    entry = path.lstat()
+    resolved = path.resolve(strict=True)
+    info = resolved.stat()
+    guest.require(stat.S_ISSOCK(info.st_mode), 'kiosk-bootstrap:logger-endpoint-type')
+    return {'path': str(path), 'resolved': str(resolved), 'entry': identity(entry),
+            'identity': identity(info)}
+
+
+def bootstrap_logger_descriptor(fd):
+    """Observe the one known logger without opening proc after final PAM MAC."""
+    before = os.fstat(fd)
+    status = fcntl.fcntl(fd, fcntl.F_GETFL)
+    flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+    after = os.fstat(fd)
+    guest.require(stat.S_ISSOCK(before.st_mode) and
+                  (before.st_dev, before.st_ino, before.st_mode) ==
+                  (after.st_dev, after.st_ino, after.st_mode),
+                  'kiosk-bootstrap:logger-descriptor-flags')
+    return [before.st_dev, before.st_ino, before.st_mode,
+            status | (os.O_CLOEXEC if flags & fcntl.FD_CLOEXEC else 0),
+            f'socket:[{before.st_ino}]']
+
+
+def bootstrap_logger_socket(fd, endpoint):
+    """Inspect only an owned CLOEXEC duplicate; never close the caller's FD."""
+    descriptor = bootstrap_logger_descriptor(fd)
+    duplicate = fcntl.fcntl(fd, fcntl.F_DUPFD_CLOEXEC, 3)
+    connection = None
+    try:
+        guest.require(socket.getdefaulttimeout() is None, 'kiosk-bootstrap:logger-socket-timeout')
+        connection = socket.socket(fileno=duplicate)
+        if connection.family != socket.AF_UNIX:
+            return None
+        kind = connection.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
+        if kind not in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
+            return None
+        try:
+            peer = connection.getpeername()
+        except OSError as error:
+            if error.errno == errno.ENOTCONN:
+                return None
+            raise
+        if not isinstance(peer, str) or not peer.startswith('/') or len(os.fsencode(peer)) > 108:
+            return None
+        try:
+            peer_path = Path(peer).resolve(strict=True)
+        except FileNotFoundError:
+            return None
+        if str(peer_path) != endpoint['resolved']:
+            return None
+        pinned = os.fstat(duplicate)
+        guest.require(descriptor[3] & os.O_CLOEXEC and
+                      [pinned.st_dev, pinned.st_ino, pinned.st_mode] == descriptor[:3] and
+                      bootstrap_logger_descriptor(fd) == descriptor,
+                      'kiosk-bootstrap:logger-probe-identity-changed')
+        return {'fd': fd, 'socket_type': kind, 'peer': peer, 'endpoint': endpoint,
+                'descriptor': descriptor}
+    finally:
+        if connection is not None:
+            connection.close()
+        else:
+            os.close(duplicate)
+
+
+def bootstrap_logger_prepare(path=Path('/dev/log')):
+    """Eagerly establish libc's real retained logger before the PAM baseline."""
+    endpoint = bootstrap_logger_endpoint(path)
+    before = bootstrap_descriptors(PROC / 'self')
+    guest.require(len(before) <= 128, 'kiosk-bootstrap:logger-descriptor-bound')
+    library = ctypes.CDLL(None, use_errno=True)
+    library.openlog.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+    library.openlog.restype = None
+    # NULL leaves libc's stable program identity in place; libc retains an
+    # ident pointer, so a temporary ctypes string must not be supplied here.
+    library.openlog(None, 0x08, 10 << 3)  # LOG_NDELAY, LOG_AUTHPRIV.
+    after = bootstrap_descriptors(PROC / 'self')
+    guest.require(len(after) <= 128 and all(after.get(fd) == value for fd, value in before.items()),
+                  'kiosk-bootstrap:logger-changed-caller-descriptor')
+    candidates = []
+    for fd, value in after.items():
+        if stat.S_ISSOCK(value[2]):
+            receipt = bootstrap_logger_socket(int(fd), endpoint)
+            if receipt is not None:
+                guest.require(receipt['descriptor'] == value, 'kiosk-bootstrap:logger-proc-identity')
+                candidates.append(receipt)
+    guest.require(len(candidates) == 1, 'kiosk-bootstrap:logger-connected-socket-missing-or-ambiguous')
+    receipt = candidates[0]
+    added = set(after) - set(before)
+    guest.require(added in (set(), {str(receipt['fd'])}) and
+                  bootstrap_logger_endpoint(path) == endpoint, 'kiosk-bootstrap:logger-setup-drift')
+    receipt['introduced'] = str(receipt['fd']) in added
+    return receipt
+
+
+def bootstrap_logger_validate(receipt, before, *, path=Path('/dev/log')):
+    """Bind the child's actual socket probe to the independent parent census."""
+    guest.require(isinstance(receipt, dict) and set(receipt) == {
+        'fd', 'socket_type', 'peer', 'endpoint', 'descriptor', 'introduced'} and
+        type(receipt['fd']) is int and receipt['fd'] > 2 and
+        type(receipt['socket_type']) is int and
+        type(receipt['introduced']) is bool and
+        receipt['socket_type'] in (socket.SOCK_DGRAM, socket.SOCK_STREAM) and
+        isinstance(receipt['peer'], str) and receipt['peer'].startswith('/') and
+        len(os.fsencode(receipt['peer'])) <= 108,
+        'kiosk-bootstrap:logger-receipt')
+    endpoint = bootstrap_logger_endpoint(path)
+    value = before.get(str(receipt['fd']))
+    guest.require(receipt['endpoint'] == endpoint, 'kiosk-bootstrap:logger-endpoint-changed')
+    guest.require(str(Path(receipt['peer']).resolve(strict=True)) == endpoint['resolved'],
+                  'kiosk-bootstrap:logger-peer-changed')
+    guest.require(isinstance(value, list) and len(value) == 5 and value == receipt['descriptor'] and
+                  stat.S_ISSOCK(value[2]) and value[3] & os.O_CLOEXEC,
+                  'kiosk-bootstrap:logger-descriptor-changed')
+
+
+def bootstrap_logger_after(receipt):
+    """Retain a bounded post-PAM proof or error for only this fixture's FD."""
+    try:
+        observed = bootstrap_logger_socket(receipt['fd'], receipt['endpoint'])
+        guest.require(observed is not None, 'kiosk-bootstrap:logger-post-pam-not-connected')
+        observed['introduced'] = receipt['introduced']
+        return observed
+    except (OSError, guest.GuestError) as error:
+        return {'error': {'type': type(error).__name__,
+                          'errno': error.errno if isinstance(error, OSError) else None,
+                          'category': str(error)[:128] if isinstance(error, guest.GuestError) else 'socket-probe'}}
+
+
+def bootstrap_logger_transition(original, current, before, after, *, path=Path('/dev/log')):
+    """Only a fixture-created logger may renew its same independently proved FD."""
+    bootstrap_logger_validate(original, before, path=path)
+    guest.require(isinstance(current, dict) and 'error' not in current,
+                  'kiosk-bootstrap:logger-post-pam-probe')
+    bootstrap_logger_validate(current, after, path=path)
+    guest.require(all(original[key] == current[key] for key in
+                      ('fd', 'socket_type', 'peer', 'endpoint', 'introduced')) and
+                  original['descriptor'][0] == current['descriptor'][0] and
+                  original['descriptor'][2:4] == current['descriptor'][2:4],
+                  'kiosk-bootstrap:logger-resource-changed')
+    logger_fd = str(original['fd'])
+    for fd, value in before.items():
+        expected = current['descriptor'] if original['introduced'] and fd == logger_fd else value
+        guest.require(after.get(fd) == expected, 'kiosk-bootstrap:caller-descriptor-changed')
+    extra = {fd: value for fd, value in after.items() if fd not in before}
+    guest.require(len(extra) == 1 and all(value[4] ==
+        '/run/oh-no-parent-control-kiosk-admission.lock' and value[3] & os.O_CLOEXEC
+        for value in extra.values()), 'kiosk-bootstrap:setup-descriptor-leak')
+
+
 def first_exec(account, directory, command, *, fd_mode=None, service='gdm-password', armed=True,
-               expected_selinux='Enforcing'):
+               expected_selinux='Enforcing', witness=None):
     """A real PAM final-session call followed by the caller's actual exec.
 
     Root Python is only the engineering harness: it is already running before
@@ -1006,14 +1162,18 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
                     diagnostic_read, diagnostic_write = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
                     channels.callback(os.close, diagnostic_read)
                     channels.callback(os.close, diagnostic_write)
-                    request = json.dumps({'command': command, 'directory': str(directory),
+                    request_data = {'command': command, 'directory': str(directory),
                         'fd_mode': fd_mode, 'service': service, 'armed': armed,
                         'result_fd': result_write, 'diagnostic_fd': diagnostic_write,
-                        'expected_selinux': expected_selinux})
+                        'expected_selinux': expected_selinux}
+                    if witness:
+                        request_data['witness'] = witness
+                    request = json.dumps(request_data)
                     try:
                         guest.commands.run([*caller,
-                            str(Path(__file__).resolve()), 'first-exec', request], timeout=90,
-                            merge_stderr=False, pass_fds=(result_write, diagnostic_write))
+                            str(Path(__file__).resolve()), 'first-exec', request], timeout=180 if witness else 90,
+                            merge_stderr=False, pass_fds=(result_write, diagnostic_write,
+                                *(witness.values() if witness else ())))
                     finally:
                         # Nonblocking writes cannot deadlock a full pipe while
                         # Commands owns the bounded child wait. Read only this
@@ -1063,6 +1223,12 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
     if child == 0:
         os.close(read_fd)
         try:
+            if witness:
+                for fd in witness.values():
+                    os.set_inheritable(fd, False)
+                host_namespace = os.open('/proc/self/ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
+                logger = bootstrap_logger_prepare()
+                before = bootstrap_descriptors(PROC / 'self')
             target = command[0]
             descriptor = None
             if fd_mode == 'file':
@@ -1079,9 +1245,28 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             if status:
                 os.write(write_fd, json.dumps({'pam': status}).encode())
                 os._exit(125)
+            if witness:
+                event = {'phase': 'admitted', 'pid': os.getpid(),
+                         'before': before, 'logger': logger, 'logger_after': bootstrap_logger_after(logger)}
+                encoded = (json.dumps(event, sort_keys=True) + '\n').encode()
+                guest.require(len(encoded) <= 4096 and
+                              os.write(witness['events'], encoded) == len(encoded),
+                              'kiosk-bootstrap:admission-event')
+                poll = select.poll()
+                poll.register(witness['release'], select.POLLIN | select.POLLHUP)
+                guest.require(poll.poll(75000) and os.read(witness['release'], 1) == b'E',
+                              'kiosk-bootstrap:release-timeout')
+                os.dup2(witness['output'], 1)
             os.setgroups([])
             os.setgid(account.pw_gid)
             os.setuid(account.pw_uid)
+            if witness and service == 'systemd-user':
+                restrictions = bootstrap_restrictions(host_namespace, command[0])
+                encoded = (json.dumps({'phase': 'restrictions', 'result': restrictions}, sort_keys=True) + '\n').encode()
+                guest.require(len(encoded) <= 4096 and os.write(witness['events'], encoded) == len(encoded),
+                              'kiosk-bootstrap:restrictions-event')
+            if witness:
+                os.close(host_namespace)
             os.write(write_fd, b'armed\n')
             try:
                 os.execve(descriptor if descriptor is not None else target, command,
@@ -1089,13 +1274,18 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             except OSError as error:
                 os.write(write_fd, json.dumps({'exec_errno': error.errno}).encode())
                 os._exit(126)
-        except BaseException:
+        except BaseException as error:
+            if witness:
+                detail = {'stage': 'first-exec-witness', 'type': type(error).__name__,
+                          'errno': error.errno if isinstance(error, OSError) else None,
+                          'category': str(error) if isinstance(error, guest.GuestError) else 'fixture-failure'}
+                os.write(2, (json.dumps(detail, sort_keys=True) + '\n').encode())
             os._exit(124)
     os.close(write_fd)
-    return wait_first_exec(child, read_fd, armed=armed)
+    return wait_first_exec(child, read_fd, armed=armed, **({'timeout_ms': 180000} if witness else {}))
 
 
-def wait_first_exec(child, read_fd, *, armed):
+def wait_first_exec(child, read_fd, *, armed, timeout_ms=75000):
     """Own the unreaped fork child even if pidfd acquisition fails."""
     pidfd = None
     reaped = False
@@ -1103,7 +1293,7 @@ def wait_first_exec(child, read_fd, *, armed):
         pidfd = os.pidfd_open(child)
         poll = select.poll()
         poll.register(pidfd, select.POLLIN)
-        if not poll.poll(75000):
+        if not poll.poll(timeout_ms):
             raise AssertionError('confinement probe timed out')
         _, status = os.waitpid(child, 0)
         reaped = True
@@ -1929,7 +2119,7 @@ def verify_user_inputs(account, backend, record):
             path.rmdir()
 
 
-def manager_boundary(account, unit, backend):
+def manager_boundary(account, unit, backend, *, retained_view=False):
     """Pin the actual manager and every thread across a single observation."""
     process = PROC / str(manager_pid(unit))
     pidfd = os.pidfd_open(int(process.name))
@@ -1938,11 +2128,15 @@ def manager_boundary(account, unit, backend):
         expected = ('onpc-kiosk-manager (enforce)' if backend == 'apparmor' else MANAGER_SID)
         attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
         namespace = os.readlink(process / 'ns/mnt')
-        marker = 'root/usr/share/oh-no-parent-control/confinement/generation'
+        marker = ('root/usr/share/oh-no-parent-control/confinement/' +
+                  ('retained-view' if retained_view else 'generation'))
         generation = (process / marker).read_text()
+        marker_pattern = (r'ONPC-KIOSK-VIEW\t1\t' + re.escape(backend) +
+                          r'\t[a-f0-9]{64}\t[a-f0-9]{64}\n'
+                          if retained_view else r'[a-f0-9]{64}\n')
         guest.require(identity[2] == (str(account.pw_uid),) * 4 and
                       namespace != os.readlink(PROC / '1/ns/mnt') and
-                      re.fullmatch(r'[a-f0-9]{64}\n', generation) is not None,
+                      re.fullmatch(marker_pattern, generation) is not None,
                       'kiosk-confinement:manager-boundary')
         threads = {thread: census_thread_identity(thread)
                    for thread in (process / 'task').iterdir()}
@@ -1956,12 +2150,819 @@ def manager_boundary(account, unit, backend):
         guest.require(not exited(pidfd) and process_identity(process) == identity and
                       manager_pid(unit) == int(process.name) and
                       set((process / 'task').iterdir()) == set(threads) and
-                      all(census_thread_identity(thread) == value for thread, value in threads.items()),
+                      all(census_thread_identity(thread) == value for thread, value in threads.items()) and
+                      (not retained_view or all((target / marker).read_text() == generation
+                                               for target in (process, *threads))),
                       'kiosk-confinement:manager-lifecycle-changed')
         return {'pid': int(process.name), 'identity': identity,
                 'label': expected, 'namespace': namespace, 'generation': generation}
     finally:
         os.close(pidfd)
+
+
+def bootstrap_descriptors(process):
+    """Exclude only the transient descriptor used to enumerate our own table."""
+    result = {}
+    for entry in (process / 'fd').iterdir():
+        try:
+            info = entry.stat()
+            flags = dict(line.split(':', 1) for line in
+                         (process / 'fdinfo' / entry.name).read_text().splitlines())
+            result[entry.name] = [info.st_dev, info.st_ino, info.st_mode,
+                                  int(flags['flags'].strip(), 8), os.readlink(entry)]
+        except FileNotFoundError:
+            guest.require(process == PROC / 'self', 'kiosk-bootstrap:descriptor-disappeared')
+    return result
+
+
+def bootstrap_object(path, *, follow=False):
+    info = path.stat() if follow else path.lstat()
+    return [info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+            info.st_size, info.st_mtime_ns, info.st_ctime_ns, info.st_nlink]
+
+
+def bootstrap_restrictions(host_namespace, executable):
+    """Harmless actual kernel attempts from the already admitted PAM worker."""
+    result = {}
+    for name, operation in (
+        ('mount', lambda library: library.mount(None, b'/usr', None, ctypes.c_ulong(33), None)),
+        ('mount-namespace', lambda library: library.unshare(0x00020000)),
+        ('user-namespace', lambda library: library.unshare(0x10000000)),
+        ('host-namespace', lambda library: library.setns(host_namespace, 0x00020000)),
+    ):
+        library = ctypes.CDLL(None, use_errno=True)
+        ctypes.set_errno(0)
+        status = operation(library)
+        error = ctypes.get_errno()
+        result[name] = {'status': status, 'errno': error}
+        guest.require(status == -1 and error in (errno.EACCES, errno.EPERM),
+                      'kiosk-bootstrap:authority-not-denied:' + name)
+    paths = [Path(executable)]
+    for directory in (Path('/usr/lib64/systemd'), Path('/usr/lib/x86_64-linux-gnu/systemd')):
+        if directory.exists():
+            paths.extend(sorted(directory.glob('libsystemd-*.so'))[:1])
+    guest.require(len(paths) == 2, 'kiosk-bootstrap:library-source-missing')
+    for path in paths:
+        descriptor = None
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CLOEXEC)
+        except OSError as error:
+            result[str(path)] = error.errno
+            guest.require(error.errno in (errno.EROFS, errno.EACCES, errno.EPERM),
+                          'kiosk-bootstrap:source-write-error')
+        else:
+            raise guest.GuestError('kiosk-bootstrap:source-write-admitted')
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+        guest.require(not os.access(path.parent, os.W_OK, effective_ids=True),
+                      'kiosk-bootstrap:source-replacement-admitted')
+    for path in (Path('/usr'), Path('/run/oh-no-parent-control-confinement')):
+        guest.require(not os.access(path, os.W_OK, effective_ids=True),
+                      'kiosk-bootstrap:skeleton-or-record-write-admitted')
+    return result
+
+
+def bootstrap_mounts(process):
+    result = {}
+    for line in (process / 'mountinfo').read_text().splitlines():
+        left, right = line.split(' - ', 1)
+        fields = left.split()
+        path = re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), fields[4])
+        guest.require(path not in result or not (path == '/usr' or path.startswith('/usr/')),
+                      'kiosk-bootstrap:stacked-mount')
+        result[path] = {'id': int(fields[0]), 'options': fields[5].split(','),
+                        'filesystem': right.split()[0], 'superoptions': right.split()[2].split(',')}
+    return result
+
+
+def bootstrap_source_trust(path, kind, info, link):
+    # Linux symlink mode bits do not grant write access. Their exact text,
+    # ownership and the read-only containing skeleton establish this boundary.
+    is_link = stat.S_ISLNK(info[2])
+    guest.require(info[3:5] == [0, 0] and (
+        kind == 'link' and is_link and os.readlink(path) == link or
+        kind != 'link' and not is_link and not info[2] & 0o022),
+        'kiosk-bootstrap:source-writable')
+
+
+def bootstrap_view(process, *, source=None):
+    """Independently observe mounted objects; a parsed V alone is no witness."""
+    deadline = time.monotonic() + 60
+    root = process / 'root'
+    marker = root / 'usr/share/oh-no-parent-control/confinement/retained-view'
+    fields = marker.read_text().rstrip('\n').split('\t')
+    guest.require(len(fields) == 5 and fields[:2] == ['ONPC-KIOSK-VIEW', '1'] and
+                  fields[2] in ('apparmor', 'selinux') and all(
+                  re.fullmatch(r'[a-f0-9]{64}', value) for value in fields[3:]),
+                  'kiosk-bootstrap:marker')
+    backend, material, view = fields[2:]
+    directory = Path('/run/oh-no-parent-control-confinement') / view
+    completed = {item.name: bootstrap_object(item) + [guest.sha(item)]
+                 for item in directory.iterdir()}
+    required_records = {'material.json', 'view', 'pins', 'ready', 'runtime.json'}
+    guest.require(required_records <= set(completed) and all(
+        value[3:5] == [0, 0] and not value[2] & 0o022 and value[8] == 1
+        for value in completed.values()), 'kiosk-bootstrap:completed-trust')
+    encoded = (directory / 'view').read_bytes()
+    digest = hashlib.sha256(b'ONPC-KIOSK-VIEW\0' + len(encoded).to_bytes(8, 'big') + encoded).hexdigest()
+    guest.require(digest == view and len(encoded) <= 64 * 1024 * 1024,
+                  'kiosk-bootstrap:view-digest')
+    lines = encoded.decode().splitlines()
+    header = lines[0].split('\t')
+    guest.require(header[:6] == ['ONPC-KIOSK-RECEIPT', '2', 'V', backend, 'manager', material]
+                  and len(lines) <= 32769, 'kiosk-bootstrap:view-header')
+    material_bytes = (directory / 'material.json').read_bytes()
+    guest.require(hashlib.sha256(b'ONPC-KIOSK-MATERIAL\0' +
+        len(material_bytes).to_bytes(8, 'big') + material_bytes).hexdigest() == material,
+        'kiosk-bootstrap:material-digest')
+    ready = (directory / 'ready').read_text().rstrip('\n').split('\t')
+    guest.require(len(ready) == 14 and ready[:5] == ['ONPC-KIOSK-READY', '2', material, view,
+                  guest.sha(directory / 'pins')] and
+                  ready[5] == Path('/proc/sys/kernel/random/boot_id').read_text().strip() and
+                  list(map(int, ready[6:8])) == bootstrap_object(directory)[:2] and
+                  list(map(int, ready[10:12])) == bootstrap_object(marker)[:2],
+                  'kiosk-bootstrap:ready-binding')
+    mounts = bootstrap_mounts(process)
+    mounts = {path: value for path, value in mounts.items()
+              if path == '/usr' or path.startswith('/usr/')}
+    objects, coverage, sources, expected_mounts = {}, {}, {}, set()
+    for line in lines[1:]:
+        guest.require(time.monotonic() < deadline, 'kiosk-bootstrap:view-observation-timeout')
+        values = line.split('\t')
+        if values[0] == 'N':
+            guest.require(len(values) == 23, 'kiosk-bootstrap:node-fields')
+            path, kind, required, source_class, acquisition, role = values[1:7]
+            guest.require(path == '/usr' or path.startswith('/usr/'), 'kiosk-bootstrap:node-path')
+            if kind in ('absent', 'empty-directory'):
+                continue
+            actual = root / path.lstrip('/')
+            info = bootstrap_object(actual)
+            objects[path] = info
+            # Gate skeleton parents are newly made. Every actual retained leaf
+            # and every nested directory source must retain the original inode.
+            if kind not in ('tree', 'link'):
+                guest.require(info[:2] == list(map(int, values[10:12])),
+                              'kiosk-bootstrap:mounted-source-inode')
+            if kind == 'link':
+                guest.require(os.readlink(actual) == values[21], 'kiosk-bootstrap:mounted-link')
+            if required == '1' and kind == 'file':
+                guest.require(guest.sha(actual) == values[19], 'kiosk-bootstrap:mounted-source-bytes')
+            if values[22] == '1':
+                expected_mounts.add(path)
+                guest.require(path in mounts and 'ro' in mounts[path]['options'],
+                              'kiosk-bootstrap:required-readonly-mount')
+            if source_class in ('native', 'runtime', 'payload', 'vendor'):
+                bootstrap_source_trust(actual, kind, info, values[21])
+                sources[path] = {'identity': info, 'role': role, 'class': source_class,
+                                 'sha256': values[19]}
+        else:
+            guest.require(values[0] == 'C' and len(values) == 13,
+                          'kiosk-bootstrap:coverage-fields')
+            path = values[2]
+            actual = bootstrap_object(root / path.lstrip('/'))
+            guest.require(actual[:2] == list(map(int, values[5:7])) and path in mounts and
+                          'ro' in mounts[path]['options'], 'kiosk-bootstrap:nested-coverage')
+            coverage[path] = actual
+            expected_mounts.add(path)
+    guest.require({path for path in mounts if path == '/usr' or path.startswith('/usr/')} ==
+                  expected_mounts, 'kiosk-bootstrap:unexpected-nested-mount')
+    guest.require(objects and sources and '/usr' in mounts and
+                  'ro' in mounts['/usr']['options'], 'kiosk-bootstrap:empty-view')
+    result = {'backend': backend, 'material': material, 'view': view,
+              'marker': bootstrap_object(marker), 'completed': completed,
+              'directory': bootstrap_object(directory),
+              'objects': objects, 'coverage': coverage, 'sources': sources,
+              'root': bootstrap_object(root, follow=True)[:5], 'usr': bootstrap_object(root / 'usr'),
+              'ready': ready, 'mounts': mounts}
+    if source is None:
+        guest.require(list(map(int, ready[8:10])) == result['usr'][:2] and
+                      int(ready[12]) == mounts['/usr']['id'], 'kiosk-bootstrap:ready-source-attachment')
+    if source is not None:
+        guest.require(source['material'] == material and source['view'] == view and
+                      source['completed'] == completed and source['directory'] == result['directory'] and
+                      source['marker'] == result['marker'] and
+                      source['sources'] == sources and source['coverage'] == coverage,
+                      'kiosk-bootstrap:retained-view-not-manager-source')
+    return result
+
+
+def bootstrap_process(process, account, backend, *, label=None, expected_groups=None, record=None):
+    identity = process_identity(process)
+    attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
+    expected = label or ('onpc-kiosk-manager (enforce)' if backend == 'apparmor' else MANAGER_SID)
+    if expected_groups is None:
+        expected_groups = sorted(set(os.getgrouplist(account.pw_name, account.pw_gid)))
+    privileged = {0}
+    for name in ('root', 'sudo', 'wheel', 'admin'):
+        try:
+            privileged.add(grp.getgrnam(name).gr_gid)
+        except KeyError:
+            pass
+    guest.require(account.pw_uid != 0 and account.pw_gid not in privileged and
+                  not set(expected_groups) & privileged, 'kiosk-bootstrap:privileged-groups')
+    namespaces = {name: bootstrap_object(process / 'ns' / name, follow=True)[:2]
+                  for name in ('mnt', 'user', 'pid')}
+    status = dict(line.split(':', 1) for line in (process / 'status').read_text().splitlines() if ':' in line)
+    observed_label = (process / attribute).read_text().strip().rstrip('\0')
+    host_namespaces = {name: bootstrap_object(PROC / '1/ns' / name, follow=True)[:2]
+                       for name in ('mnt', 'user', 'pid')}
+    if record is not None:
+        record('onpc.kiosk.bootstrap.process-authority', json.dumps({
+            'pid': int(process.name), 'label': observed_label, 'expected_label': expected,
+            'namespaces': namespaces, 'host_namespaces': host_namespaces,
+            'credentials': {name: status[name].split() for name in ('Uid', 'Gid', 'Groups')},
+            'capabilities': {name: status[name].strip() for name in
+                             ('CapEff', 'CapPrm', 'CapInh', 'CapAmb', 'CapBnd')},
+        }, sort_keys=True))
+    guest.require(observed_label == expected and
+                  all(int(status[name].strip(), 16) == 0 for name in
+                      ('CapEff', 'CapPrm', 'CapInh', 'CapAmb')) and
+                  namespaces['mnt'] != host_namespaces['mnt'] and all(
+                  namespaces[name] == host_namespaces[name]
+                  for name in ('user', 'pid')), 'kiosk-bootstrap:process-authority')
+    tasks = {}
+    for item in (process / 'task').iterdir():
+        thread_identity = census_thread_identity(item)
+        fields = dict(line.split(':', 1) for line in (item / 'status').read_text().splitlines() if ':' in line)
+        guest.require(thread_identity[2] == (str(account.pw_uid),) * 4 and
+            tuple(fields['Gid'].split()) == (str(account.pw_gid),) * 4 and
+            sorted(set(map(int, fields['Groups'].split()))) == list(expected_groups) and
+            all(int(fields[name].strip(), 16) == 0 for name in ('CapEff', 'CapPrm', 'CapInh', 'CapAmb')) and
+            (item / attribute).read_text().strip().rstrip('\0') == expected and
+            bootstrap_object(item / 'root', follow=True)[:5] == bootstrap_object(process / 'root', follow=True)[:5] and
+            all(bootstrap_object(item / 'ns' / name, follow=True)[:2] == value
+                for name, value in namespaces.items()), 'kiosk-bootstrap:task-authority')
+        tasks[item.name] = thread_identity
+    guest.require(bool(tasks) and set(tasks) == {item.name for item in (process / 'task').iterdir()} and
+                  all(census_thread_identity(process / 'task' / name) == value
+                      for name, value in tasks.items()) and process_identity(process) == identity,
+                  'kiosk-bootstrap:task-set-changed')
+    return {'identity': identity, 'label': expected, 'namespaces': namespaces,
+            'root': bootstrap_object(process / 'root', follow=True)[:5],
+            'executable': bootstrap_object(process / 'exe', follow=True),
+            'executable_sha256': guest.sha(process / 'exe'),
+            'cgroup': (process / 'cgroup').read_text(),
+            'tasks': tasks}
+
+
+def bootstrap_manager_unchanged(account, unit, backend, expected, pidfd):
+    guest.require(not exited(pidfd) and manager_boundary(account, unit, backend, retained_view=True) ==
+                  {key: value for key, value in expected.items() if key != 'invocation'} and
+                  guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit]) ==
+                  expected['invocation'], 'kiosk-bootstrap:manager-replaced')
+
+
+def bootstrap_manager_policy(backend, process, source, record):
+    """Query the actual enforcing SELinux manager domain, never a policy double.
+
+    Combined with the observed empty capability sets, host user namespace,
+    read-only sources and root DAC, these decisions exclude creation/entry of
+    a privileged namespace or an unconfined executable transition.
+    """
+    if backend != 'selinux':
+        return
+    class Decision(ctypes.Structure):
+        _fields_ = [('allowed', ctypes.c_uint32), ('decided', ctypes.c_uint32),
+                    ('auditallow', ctypes.c_uint32), ('auditdeny', ctypes.c_uint32),
+                    ('seqno', ctypes.c_uint32), ('flags', ctypes.c_uint32)]
+    library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+    library.string_to_security_class.argtypes = [ctypes.c_char_p]
+    library.string_to_security_class.restype = ctypes.c_ushort
+    library.string_to_av_perm.argtypes = [ctypes.c_ushort, ctypes.c_char_p]
+    library.string_to_av_perm.restype = ctypes.c_uint32
+    library.security_compute_av_flags_raw.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+        ctypes.c_ushort, ctypes.c_uint32, ctypes.POINTER(Decision)]
+    library.security_check_context_raw.argtypes = [ctypes.c_char_p]
+    observed_sid = (process / 'attr/current').read_text().strip().rstrip('\0')
+    unconfined_sid = lifecycle_label('selinux')
+    guest.require(observed_sid == MANAGER_SID, 'kiosk-bootstrap:manager-policy-role')
+    guest.require(unconfined_sid.split(':', 3)[2] == 'unconfined_t' and
+                  library.security_check_context_raw(unconfined_sid.encode()) == 0,
+                  'kiosk-bootstrap:unconfined-control-context')
+    checks = [(observed_sid, kind, permission) for kind, permissions in (
+        ('capability', ('sys_admin', 'sys_ptrace')),
+        ('cap_userns', ('sys_admin',)), ('user_namespace', ('create',)),
+        ('process', ('setcurrent', 'setexec', 'dyntransition')))
+        for permission in permissions]
+    checks.extend((target, 'process', permission) for target in (
+        unconfined_sid, caller_identity('systemd-user')[0])
+        for permission in ('transition', 'dyntransition'))
+    fscontext = 'system_u:object_r:tmpfs_t:s0'
+    guest.require(source['mounts']['/usr']['filesystem'] == 'tmpfs' and any(
+        option in ('fscontext=' + fscontext, 'fscontext="' + fscontext + '"')
+        for option in source['mounts']['/usr']['superoptions']),
+        'kiosk-bootstrap:manager-filesystem-context')
+    checks.extend((fscontext, 'filesystem', permission) for permission in ('mount', 'remount', 'unmount'))
+    root = process / 'root'
+    directory_sid = os.getxattr(root / 'usr', 'security.selinux').rstrip(b'\0').decode()
+    checks.append((directory_sid, 'dir', 'mounton'))
+    native = [(path, row) for path, row in source['sources'].items()
+              if row['class'] == 'native' and row['role'] in ('manager', 'executor', 'library')]
+    guest.require({'manager', 'executor', 'library'} <= {row['role'] for path, row in native},
+                  'kiosk-bootstrap:manager-policy-native-inputs')
+    for path, row in native:
+        sid = os.getxattr(root / path.lstrip('/'), 'security.selinux').rstrip(b'\0').decode()
+        checks.extend((sid, 'file', permission) for permission in
+                      ('mounton', 'write', 'append', 'create', 'relabelfrom', 'relabelto'))
+        if row['role'] in ('manager', 'executor'):
+            host_sid = os.getxattr(path, 'security.selinux').rstrip(b'\0').decode()
+            checks.append((host_sid, 'file', 'execute_no_trans'))
+    rows = []
+    for target, kind, permission in sorted(set(checks)):
+        guest.require(library.security_check_context_raw(target.encode()) == 0,
+                      'kiosk-bootstrap:invalid-policy-query-context')
+        cls = library.string_to_security_class(kind.encode())
+        perm = library.string_to_av_perm(cls, permission.encode())
+        decision = Decision()
+        status = library.security_compute_av_flags_raw(observed_sid.encode(), target.encode(),
+                                                       cls, perm, ctypes.byref(decision))
+        row = {'source': observed_sid, 'target': target, 'class': kind, 'permission': permission,
+               'status': status, 'allowed': decision.allowed, 'flags': decision.flags}
+        rows.append(row)
+        record('onpc.kiosk.bootstrap.manager-policy', json.dumps(rows, sort_keys=True))
+        guest.require(cls and perm and status == 0 and not decision.flags & 1 and
+                      not decision.allowed & perm, 'kiosk-bootstrap:manager-policy-authority:' + permission)
+
+
+def bootstrap_pam_witness(account, directory, command, record, *, service='gdm-password', manager=None):
+    """Hold only our PAM child, then its exact ELF on a full stdout pipe.
+
+    Blocking stdout preserves a live post-exec object without ptrace, a signal,
+    vendor mutation, replacement ELF, or extra policy. Draining releases it.
+    """
+    backend = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())['backend']
+    descriptors, workers = set(), {}
+    child = pidfd = observed_fd = None
+    reaped = False
+    try:
+        def pipe():
+            pair = os.pipe2(os.O_CLOEXEC)
+            descriptors.update(pair)
+            return pair
+        def close(fd):
+            os.close(fd)
+            descriptors.remove(fd)
+        events_read, events_write = pipe()
+        release_read, release_write = pipe()
+        output_read, output_write = pipe()
+        result_read, result_write = pipe()
+        start_read, start_write = pipe()
+        # Fill exactly the pipe's capacity. A native --version flush blocks
+        # until the parent has independently pinned and inspected its ELF.
+        capacity = fcntl.fcntl(output_write, fcntl.F_GETPIPE_SZ)
+        guest.require(0 < capacity <= 1024 * 1024, 'kiosk-bootstrap:pipe-capacity')
+        filler = b'P' * capacity
+        guest.require(os.write(output_write, filler) == capacity, 'kiosk-bootstrap:pipe-fill')
+        sentry = os.open('/dev/null', os.O_RDWR | os.O_CLOEXEC)
+        descriptors.add(sentry)
+        child = os.fork()
+        if child == 0:
+            try:
+                for fd in (events_read, release_write, output_read, result_read, start_write):
+                    os.close(fd)
+                guest.require(os.read(start_read, 1) == b'B', 'kiosk-bootstrap:worker-not-pinned')
+                os.close(start_read)
+                if backend == 'selinux':
+                    # Commands' sequence is process-local after fork. Keep
+                    # this worker's caller captures in its own retained child
+                    # directory rather than overwrite the parent's next file.
+                    guest.require(guest.commands.directory is not None,
+                                  'kiosk-bootstrap:command-evidence-unavailable')
+                    guest.commands.directory = Path(tempfile.mkdtemp(
+                        prefix='bootstrap-pam-', dir=guest.commands.directory))
+                status, data = first_exec(account, directory, command, service=service,
+                    witness={'events': events_write, 'release': release_read,
+                             'output': output_write, 'sentry': sentry})
+                os.write(result_write, json.dumps({'status': status, 'data': data.hex()}).encode())
+                os._exit(0)
+            except BaseException as error:
+                detail = {'stage': 'pam-witness', 'type': type(error).__name__,
+                          'errno': error.errno if isinstance(error, OSError) else None,
+                          'category': str(error) if isinstance(error, guest.GuestError) else 'worker-failure'}
+                os.write(2, (json.dumps(detail, sort_keys=True) + '\n').encode())
+                os._exit(124)
+        pidfd = os.pidfd_open(child)
+        for fd in (events_write, release_read, output_write, result_write, sentry, start_read):
+            close(fd)
+        os.write(start_write, b'B')
+        close(start_write)
+        event = lifecycle_event(events_read)
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.admission',
+               json.dumps(event, sort_keys=True))
+        guest.require(set(event) == {'phase', 'pid', 'before', 'logger', 'logger_after'} and event['phase'] == 'admitted' and
+                      type(event['pid']) is int and event['pid'] > 1,
+                      'kiosk-bootstrap:admission-protocol')
+        # Only a PID supplied by this direct child's private channel can be
+        # observed. It is never signalled; the owned wrapper reaps it.
+        observed = PROC / str(event['pid'])
+        observed_fd = os.pidfd_open(event['pid'])
+        before, after = event['before'], bootstrap_descriptors(observed)
+        try:
+            logger_endpoint = bootstrap_logger_endpoint(Path('/dev/log'))
+        except (OSError, guest.GuestError) as error:
+            logger_endpoint = {'error': type(error).__name__, 'errno': getattr(error, 'errno', None),
+                               'category': str(error)[:128] if isinstance(error, guest.GuestError) else 'endpoint-probe'}
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.descriptors',
+               json.dumps({'before': before, 'after': after, 'logger_before': event['logger'],
+                           'logger_after': event['logger_after'], 'logger_endpoint': logger_endpoint}, sort_keys=True))
+        bootstrap_logger_transition(event['logger'], event['logger_after'], before, after)
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.logger',
+               json.dumps({'before': event['logger'], 'after': event['logger_after']}, sort_keys=True))
+        expected = ('onpc-kiosk-manager (enforce)' if backend == 'apparmor' else
+                    'system_u:system_r:onpc_kiosk_manager_pam_t:s0') if service == 'systemd-user' else (
+                    'onpc-kiosk-gate (enforce)' if backend == 'apparmor' else
+                    'system_u:system_r:onpc_kiosk_gate_t:s0')
+        attribute = 'attr/apparmor/current' if backend == 'apparmor' else 'attr/current'
+        current_expected = caller_identity(service)[0] if backend == 'selinux' and service == 'gdm-password' else expected
+        guest.require((observed / attribute).read_text().strip().rstrip('\0') == current_expected and
+                      not exited(observed_fd), 'kiosk-bootstrap:admitted-role')
+        if backend == 'selinux' and service == 'gdm-password':
+            guest.require((observed / 'attr/exec').read_text().strip().rstrip('\0') == expected,
+                          'kiosk-bootstrap:pending-gate-role')
+        view = bootstrap_view(observed, source=manager)
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.view',
+               json.dumps(view, sort_keys=True))
+        os.write(release_write, b'E')
+        if service == 'systemd-user':
+            restrictions = lifecycle_event(events_read)
+            guest.require(set(restrictions) == {'phase', 'result'} and restrictions['phase'] == 'restrictions',
+                          'kiosk-bootstrap:restriction-protocol')
+            record('onpc.kiosk.bootstrap.' + Path(command[0]).name + '.restrictions',
+                   json.dumps({'role': current_expected, 'operations': restrictions['result']}, sort_keys=True))
+        if service in ('systemd-user', 'gdm-password'):
+            target = Path(command[0])
+            deadline = time.monotonic() + 10
+            while True:
+                guest.require(not exited(observed_fd), 'kiosk-bootstrap:exec-exited-before-observation')
+                actual = (observed / 'exe').stat()
+                selected = (observed / 'root' / target.relative_to('/')).stat()
+                if (actual.st_dev, actual.st_ino) == (selected.st_dev, selected.st_ino):
+                    break
+                guest.require(time.monotonic() < deadline, 'kiosk-bootstrap:exec-observation-timeout')
+                time.sleep(0.01)
+            actual = bootstrap_process(observed, account, backend,
+                                       label=expected if service == 'gdm-password' else None,
+                                       expected_groups=(), record=record)
+            guest.require(actual['identity'][2] == (str(account.pw_uid),) * 4,
+                          'kiosk-bootstrap:exec-credentials')
+            record('onpc.kiosk.bootstrap.entrypoint.' + target.name + '.' + service,
+                   json.dumps(actual, sort_keys=True))
+        # The gate's --help is short-lived; its pre-exec view above, successful
+        # allowed final entry and completed-record comparison prove admission.
+        received = bytearray()
+        os.set_blocking(output_read, False)
+        deadline = time.monotonic() + 75
+        while not exited(pidfd):
+            try:
+                received.extend(os.read(output_read, 65536))
+            except BlockingIOError:
+                pass
+            guest.require(len(received) <= capacity + 65536 and time.monotonic() < deadline,
+                          'kiosk-bootstrap:output-timeout')
+            time.sleep(0.01)
+        while True:
+            chunk = os.read(output_read, 65536)
+            if not chunk:
+                break
+            received.extend(chunk)
+            guest.require(len(received) <= capacity + 65536, 'kiosk-bootstrap:output-size')
+        _, status = os.waitpid(child, 0)
+        reaped = True
+        result = json.loads(os.read(result_read, 4096))
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.result',
+               json.dumps(result, sort_keys=True))
+        guest.require(os.waitstatus_to_exitcode(status) == 0 and result == {'status': 0, 'data': ''} and
+                      bytes(received[:capacity]) == filler and
+                      (service != 'systemd-user' or b'systemd ' in received[capacity:]),
+                      'kiosk-bootstrap:positive-exec')
+        return view
+    finally:
+        # Close the release/stdio writers first. The wrapper's bounded
+        # first_exec owner then reaps its child before the wrapper is reaped.
+        saved_result = result_read if 'result_read' in locals() and result_read in descriptors else None
+        for fd in tuple(descriptors):
+            if fd != saved_result:
+                close(fd)
+        if child is not None and not reaped:
+            try:
+                if pidfd is None:
+                    # Our direct unreaped child cannot have its PID reused.
+                    os.kill(child, signal.SIGKILL)
+                elif not exited(pidfd):
+                    poll = select.poll()
+                    poll.register(pidfd, select.POLLIN)
+                    if not poll.poll(80000):
+                        signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.waitpid(child, 0)
+        if saved_result is not None:
+            try:
+                os.set_blocking(saved_result, False)
+                detail = os.read(saved_result, 4097)
+                if detail:
+                    record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.failure-result',
+                           detail[:4096].decode(errors='replace'))
+            except BlockingIOError:
+                pass
+            finally:
+                close(saved_result)
+        if observed_fd is not None:
+            os.close(observed_fd)
+        if pidfd is not None:
+            os.close(pidfd)
+
+
+def bootstrap_reexec(account, unit, backend, record, *, retained_view=False):
+    """The supported owned notify-reload transaction; no package mutations."""
+    options = {'retained_view': True} if retained_view else {}
+    boundary = manager_boundary(account, unit, backend, **options)
+    guest.require(guest.run(['systemctl', 'show', '--value', '--property=Type', unit]) == 'notify-reload' and
+                  guest.run(['systemctl', 'show', '--value', '--property=ReloadSignal', unit]) == '59',
+                  'kiosk-confinement:unsupported-manager-reexec-protocol')
+    guest.run(['systemctl', 'reload', unit], timeout=75)
+    guest.require(manager_boundary(account, unit, backend, **options) == boundary,
+                  'kiosk-confinement:reexec-changed-manager-boundary')
+    guest.require(b'systemd ' in user_command(account, ['/usr/bin/systemd-run', '--user', '--wait',
+        '--collect', '--pipe', '--unit=onpc-confinement-after-reexec', '/usr/bin/systemctl', '--version']),
+        'kiosk-confinement:service-after-reexec')
+    user_command(account, ['/bin/sh', '-c', 'exit 0'])
+    require_service_denial(account, backend, 'onpc-confinement-after-reexec-denied.service',
+                           ['/bin/sh', '-c', 'exit 0'], record)
+    guest.require(manager_boundary(account, unit, backend, **options) == boundary,
+                  'kiosk-confinement:reexec-changed-manager-boundary')
+    record('onpc.kiosk.manager-boundary-after-reexec', json.dumps(boundary, sort_keys=True))
+
+
+def bootstrap_service_entrypoint(account, backend, executable, source, record, *, pam_route=False,
+                                 manager_pid_value=None):
+    """Observe the selected copied ELF on the real manager-to-manager route."""
+    unit = 'onpc-bootstrap-' + Path(executable).name + '.service'
+    if not pam_route:
+        inactive = user_command(account, ['/usr/bin/systemctl', '--user', 'show', unit,
+            '--property=InvocationID,ActiveState'], check=False).decode()
+        guest.require('InvocationID=\n' in inactive and 'ActiveState=inactive\n' in inactive,
+                      'kiosk-bootstrap:entrypoint-unit-already-active')
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC)
+    start_read, start_write = os.pipe2(os.O_CLOEXEC)
+    child = pidfd = native_fd = None
+    reaped = False
+    invocation = None
+    namespace = None
+    try:
+        if pam_route:
+            guest.require(backend == 'apparmor', 'kiosk-bootstrap:unsupported-extra-pam-route')
+            guest.require(type(manager_pid_value) is int and manager_pid_value > 1,
+                          'kiosk-bootstrap:pam-route-manager-not-pinned')
+            manager = PROC / str(manager_pid_value)
+            namespace = os.open(manager / 'ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
+            guest.require(manager_pid(f'user@{account.pw_uid}.service') == manager_pid_value and
+                          (manager / 'root/usr/share/oh-no-parent-control/confinement/retained-view').read_text().split('\t')[-1].strip() ==
+                          source['view'], 'kiosk-bootstrap:pam-route-manager-view')
+            apparmor = ctypes.CDLL('libapparmor.so.1', use_errno=True)
+            apparmor.aa_change_profile.argtypes = [ctypes.c_char_p]
+            library = ctypes.CDLL(None, use_errno=True)
+        capacity = fcntl.fcntl(write_fd, fcntl.F_GETPIPE_SZ)
+        guest.require(0 < capacity <= 1024 * 1024 and
+                      os.write(write_fd, b'P' * capacity) == capacity, 'kiosk-bootstrap:pipe-fill')
+        child = os.fork()
+        if child == 0:
+            try:
+                os.close(read_fd)
+                os.close(start_write)
+                guest.require(os.read(start_read, 1) == b'B', 'kiosk-bootstrap:worker-not-pinned')
+                os.close(start_read)
+                os.dup2(write_fd, 1)
+                os.close(write_fd)
+                if pam_route:
+                    guest.require(library.setns(namespace, 0x00020000) == 0,
+                                  'kiosk-bootstrap:pam-route-setns')
+                    os.close(namespace)
+                    selected = Path(executable).stat()
+                    guest.require([selected.st_dev, selected.st_ino] ==
+                                  source['sources'][executable]['identity'][:2],
+                                  'kiosk-bootstrap:pam-route-not-selected-copy')
+                    guest.require(apparmor.aa_change_profile(b'onpc-kiosk-manager-pam') == 0,
+                                  'kiosk-bootstrap:pam-route-profile')
+                    os.setgroups([])
+                    os.setgid(account.pw_gid)
+                    os.setuid(account.pw_uid)
+                    os.execve(executable, [executable, '--version'], {'PATH': '/usr/bin:/bin', 'LANG': 'C'})
+                arguments = ['/usr/bin/setpriv', '--reuid', str(account.pw_uid),
+                    '--regid', str(account.pw_gid), '--clear-groups', '/usr/bin/env', '-i', *ENV,
+                    f'XDG_RUNTIME_DIR=/run/user/{account.pw_uid}',
+                    f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{account.pw_uid}/bus',
+                    '/usr/bin/systemd-run', '--user', '--wait', '--pipe', '--unit=' + unit,
+                    executable, '--version']
+                os.execve(arguments[0], arguments, dict(os.environ))
+            except BaseException as error:
+                os.write(2, (json.dumps({'stage': 'entrypoint', 'type': type(error).__name__,
+                    'errno': error.errno if isinstance(error, OSError) else None,
+                    'category': str(error) if isinstance(error, guest.GuestError) else 'fixture-failure'}) + '\n').encode())
+                os._exit(124)
+        pidfd = os.pidfd_open(child)
+        os.close(start_read)
+        start_read = None
+        os.write(start_write, b'B')
+        os.close(start_write)
+        start_write = None
+        os.close(write_fd)
+        write_fd = None
+        if pam_route:
+            process = PROC / str(child)
+        else:
+            deadline = time.monotonic() + 15
+            while True:
+                properties = dict(line.split('=', 1) for line in user_command(account,
+                    ['/usr/bin/systemctl', '--user', 'show', unit,
+                     '--property=InvocationID,ExecMainPID,ActiveState'], check=False).decode().splitlines())
+                if properties.get('ExecMainPID', '0') != '0':
+                    invocation = properties['InvocationID']
+                    break
+                guest.require(not exited(pidfd) and time.monotonic() < deadline,
+                              'kiosk-bootstrap:service-entrypoint-not-started')
+                time.sleep(0.025)
+            process = PROC / properties['ExecMainPID']
+        native_fd = os.pidfd_open(int(process.name))
+        deadline = time.monotonic() + 10
+        while bootstrap_object(process / 'exe', follow=True)[:2] != source['sources'][executable]['identity'][:2]:
+            guest.require(not exited(native_fd) and time.monotonic() < deadline,
+                          'kiosk-bootstrap:service-entrypoint-not-selected-copy')
+            time.sleep(0.01)
+        observed = bootstrap_process(process, account, backend,
+                                     expected_groups=() if pam_route else None, record=record)
+        guest.require(bootstrap_view(process, source=source)['usr'] == source['usr'] and
+                      not exited(native_fd), 'kiosk-bootstrap:service-entrypoint-view')
+        record('onpc.kiosk.bootstrap.entrypoint.' + Path(executable).name +
+               ('.apparmor-manager-pam' if pam_route else '.manager'),
+               json.dumps({'invocation': invocation, 'process': observed}, sort_keys=True))
+        os.set_blocking(read_fd, False)
+        output = bytearray()
+        deadline = time.monotonic() + 75
+        while not exited(pidfd):
+            try:
+                output.extend(os.read(read_fd, 65536))
+            except BlockingIOError:
+                pass
+            guest.require(time.monotonic() < deadline and len(output) <= capacity + 65536,
+                          'kiosk-bootstrap:service-entrypoint-output')
+            time.sleep(0.01)
+        while True:
+            chunk = os.read(read_fd, 65536)
+            if not chunk:
+                break
+            output.extend(chunk)
+            guest.require(len(output) <= capacity + 65536, 'kiosk-bootstrap:service-entrypoint-output')
+        _, status = os.waitpid(child, 0)
+        reaped = True
+        guest.require(os.waitstatus_to_exitcode(status) == 0 and output[:capacity] == b'P' * capacity and
+                      b'systemd ' in output[capacity:], 'kiosk-bootstrap:service-entrypoint-exit')
+    finally:
+        for fd in (read_fd, write_fd, start_read, start_write):
+            if fd is not None:
+                os.close(fd)
+        if child is not None and not reaped:
+            try:
+                if pidfd is None:
+                    os.kill(child, signal.SIGKILL)
+                elif not exited(pidfd):
+                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.waitpid(child, 0)
+        try:
+            if invocation:
+                current = dict(line.split('=', 1) for line in user_command(account,
+                    ['/usr/bin/systemctl', '--user', 'show', unit,
+                     '--property=InvocationID,LoadState,ActiveState,ExecMainPID'], check=False).decode().splitlines())
+                if current.get('InvocationID') == invocation:
+                    # A failed observation can leave the owned blocked native
+                    # process alive. Never stop a replacement invocation.
+                    user_command(account, ['/usr/bin/systemctl', '--user', 'stop', unit])
+                    user_command(account, ['/usr/bin/systemctl', '--user', 'reset-failed', unit], check=False)
+                else:
+                    guest.require(current.get('InvocationID', '') == '' and
+                                  current.get('LoadState') == 'not-found' and
+                                  current.get('ActiveState') == 'inactive' and
+                                  current.get('ExecMainPID') == '0' and native_fd is not None and exited(native_fd),
+                                  'kiosk-bootstrap:entrypoint-unit-replaced')
+        finally:
+            for fd in (native_fd, pidfd, namespace):
+                if fd is not None:
+                    os.close(fd)
+
+
+def bootstrap_start_manager(unit, backend, record):
+    """Preserve the first start failure and bounded native cause before restore."""
+    try:
+        guest.run(['systemctl', 'start', unit], timeout=75)
+    except BaseException:
+        try:
+            for name, command in (
+                ('unit', ['systemctl', 'show', unit,
+                          '--property=InvocationID,MainPID,ActiveState,SubState,Result,ExecMainStatus']),
+                ('journal', ['journalctl', '--no-pager', '--utc', '-b', '-u', unit,
+                             '-n', '100', '-o', 'short-precise']),
+            ):
+                try:
+                    output = guest.run(command, timeout=10)
+                    record('onpc.kiosk.bootstrap.start-failure.' + name, output[-65536:])
+                except Exception:
+                    record('onpc.kiosk.bootstrap.start-failure.' + name, 'diagnostic-unavailable')
+            from system_kiosk_platform import kernel_audit
+            record('onpc.kiosk.bootstrap.start-failure.kernel', kernel_audit(backend)[-65536:])
+        except Exception:
+            # Diagnostic collection never replaces the original start error.
+            pass
+        raise
+
+
+def verify_bootstrap_permissions(record):
+    """Finite fresh/retained admission with the exact loaded production policy."""
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    payload = Path('/usr/share/oh-no-parent-control/confinement')
+    config = json.loads((payload / 'config.json').read_text())
+    backend = config['backend']
+    preparation = runpy.run_path('/usr/libexec/oh-no-parent-control-kiosk-confinement')
+    preparation['enforcing'](config)
+    policy = payload / ('onpc-kiosk.apparmor' if backend == 'apparmor' else 'onpc-kiosk.cil')
+    state = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
+    attestation = json.loads(state.read_text())
+    guest.require(attestation['backend'] == backend and
+                  attestation['loaded_config_sha256'] == guest.sha(payload / 'config.json') and
+                  attestation['loaded_policy_sha256'] == guest.sha(policy), 'kiosk-bootstrap:attestation')
+    original = {'policy': guest.sha(policy), 'config': guest.sha(payload / 'config.json'),
+                'attestation': bootstrap_object(state) + [guest.sha(state)], 'pam': guest.pam_service_state()}
+    record('onpc.kiosk.bootstrap.candidate', json.dumps({
+        'binding': {key: marker[key] for key in ('run', 'package_sha256', 'selected_inputs_sha256')},
+        'boot': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+        'backend': backend, 'state': original, 'attestation': attestation}, sort_keys=True))
+    record_native_packages(config, record)
+    account = pwd.getpwnam('oh-no-parent-control')
+    unit = f'user@{account.pw_uid}.service'
+    wait_kiosk_inactive(account)
+    bootstrap_start_manager(unit, backend, record)
+    invocation = guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit])
+    pidfd = None
+    try:
+        guest.require(re.fullmatch(r'[a-f0-9]{32}', invocation), 'kiosk-bootstrap:manager-invocation')
+        boundary = manager_boundary(account, unit, backend, retained_view=True)
+        pidfd = os.pidfd_open(boundary['pid'])
+        expected = {**boundary, 'invocation': invocation}
+        process = PROC / str(boundary['pid'])
+        identity = bootstrap_process(process, account, backend, record=record)
+        cgroup = guest.run(['systemctl', 'show', '--value', '--property=ControlGroup', unit])
+        actual_cgroup = identity['cgroup'].strip().removeprefix('0::')
+        guest.require(cgroup.startswith('/') and (actual_cgroup == cgroup or
+                      actual_cgroup.startswith(cgroup + '/')), 'kiosk-bootstrap:manager-cgroup')
+        source = bootstrap_view(process)
+        bootstrap_manager_policy(backend, process, source, record)
+        selected = source['sources']['/usr/lib/systemd/systemd']['identity'][:2]
+        guest.require(bootstrap_object(process / 'exe', follow=True)[:2] == selected,
+                      'kiosk-bootstrap:manager-not-selected-copy')
+        record('onpc.kiosk.bootstrap.manager', json.dumps({'invocation': invocation,
+            'process': identity, 'view': source}, sort_keys=True))
+        with tempfile.TemporaryDirectory(prefix='kiosk-bootstrap-', dir=guest.PAYLOAD) as temporary:
+            directory = Path(temporary)
+            for executable in ('/usr/lib/systemd/systemd', '/usr/lib/systemd/systemd-executor'):
+                bootstrap_pam_witness(account, directory, [executable, '--version'], record,
+                                      service='systemd-user')
+                bootstrap_manager_unchanged(account, unit, backend, expected, pidfd)
+                bootstrap_service_entrypoint(account, backend, executable, source, record)
+                bootstrap_manager_unchanged(account, unit, backend, expected, pidfd)
+                if backend == 'apparmor':
+                    bootstrap_service_entrypoint(account, backend, executable, source, record,
+                                                 pam_route=True, manager_pid_value=boundary['pid'])
+                    bootstrap_manager_unchanged(account, unit, backend, expected, pidfd)
+            bootstrap_pam_witness(account, directory, ['/usr/libexec/gdm-wayland-session', '--help'],
+                                  record, manager=source)
+            bootstrap_manager_unchanged(account, unit, backend, expected, pidfd)
+            guest.require(bootstrap_view(process) == source, 'kiosk-bootstrap:gate-changed-manager-dentries')
+        bootstrap_reexec(account, unit, backend, record, retained_view=True)
+        bootstrap_manager_unchanged(account, unit, backend, expected, pidfd)
+        guest.require(bootstrap_view(process) == source and
+                      bootstrap_process(process, account, backend, record=record) == identity,
+                      'kiosk-bootstrap:reexec-source-or-process-changed')
+        for setting in ('AppArmorProfile=unconfined',) if backend == 'apparmor' else (
+                'SELinuxContext=' + lifecycle_label('selinux'),):
+            require_service_denial(account, backend, 'onpc-bootstrap-unconfined.service',
+                                   ['/usr/bin/systemctl', '--version'], record, setting=setting)
+        record('onpc.kiosk.bootstrap.production-admission-reexec', True)
+    finally:
+        try:
+            guest.require(guest.run(['systemctl', 'show', '--value', '--property=InvocationID', unit]) == invocation,
+                          'kiosk-bootstrap:manager-replaced')
+            guest.run(['systemctl', 'stop', unit], timeout=75)
+        finally:
+            if pidfd is not None:
+                os.close(pidfd)
+            preparation['enforcing'](config)
+            guest.require(original == {'policy': guest.sha(policy), 'config': guest.sha(payload / 'config.json'),
+                'attestation': bootstrap_object(state) + [guest.sha(state)], 'pam': guest.pam_service_state()},
+                'kiosk-bootstrap:policy-or-pam-changed')
+            record('onpc.kiosk.bootstrap.policy-pam-unchanged', True)
 
 
 def verify_updates(account, unit, backend, record):
@@ -2004,27 +3005,10 @@ def verify_updates(account, unit, backend, record):
                 guest.require(hashlib.sha256(program.read_bytes()).digest() != digest,
                               'kiosk-confinement:update-not-applied')
         pinned_bytes()
-        # Both supported systemd packages expose the user manager's reexec as
-        # a synchronous notify-reload transaction (SIGRTMIN+25 = 59).
-        guest.require(guest.run(['systemctl', 'show', '--value', '--property=Type', unit]) == 'notify-reload' and
-                      guest.run(['systemctl', 'show', '--value', '--property=ReloadSignal', unit]) == '59',
-                      'kiosk-confinement:unsupported-manager-reexec-protocol')
-        guest.run(['systemctl', 'reload', unit], timeout=75)
+        bootstrap_reexec(account, unit, backend, record)
         pinned_bytes()
         guest.require(manager_boundary(account, unit, backend) == boundary,
                       'kiosk-confinement:reexec-changed-manager-boundary')
-        guest.require(b'systemd ' in user_command(account, ['/usr/bin/systemd-run', '--user', '--wait',
-            '--collect', '--pipe', '--unit=onpc-confinement-after-reexec', '/usr/bin/systemctl', '--version']),
-            'kiosk-confinement:service-after-reexec')
-        # A successful allowed service cannot show that reexec retained the
-        # execution barrier. Require a fresh executor error and kernel denial
-        # from this same manager while the replacement files are still present.
-        user_command(account, ['/bin/sh', '-c', 'exit 0'])
-        require_service_denial(account, backend, 'onpc-confinement-after-reexec-denied.service',
-                               ['/bin/sh', '-c', 'exit 0'], record)
-        guest.require(manager_boundary(account, unit, backend) == boundary,
-                      'kiosk-confinement:reexec-changed-manager-boundary')
-        record('onpc.kiosk.manager-boundary-after-reexec', json.dumps(boundary, sort_keys=True))
         record('onpc.kiosk.executable-library-replacement-and-reexec', True)
     plugin_directory = Path('/usr/lib64/gstreamer-1.0' if backend == 'selinux'
                             else '/usr/lib/x86_64-linux-gnu/gstreamer-1.0')
@@ -2628,8 +3612,10 @@ if __name__ == '__main__':
         guest.require(len(sys.argv) == 3 and sys.argv[1] == 'first-exec',
                       'kiosk-confinement:arguments')
         request = json.loads(sys.argv[2])
-        guest.require(set(request) == {'command', 'directory', 'fd_mode', 'service', 'armed',
+        guest.require(set(request) in ({'command', 'directory', 'fd_mode', 'service', 'armed',
                                       'result_fd', 'diagnostic_fd', 'expected_selinux'},
+                                     {'command', 'directory', 'fd_mode', 'service', 'armed',
+                                      'result_fd', 'diagnostic_fd', 'expected_selinux', 'witness'}),
                       'kiosk-confinement:caller-request')
         result_fd = request.pop('result_fd')
         diagnostic_fd = request.pop('diagnostic_fd')

@@ -80,10 +80,16 @@ therefore enforced in the PAM caller itself, after vendor session callbacks.
 The [native gate](../../tools/kiosk_confinement.h) validates the root-owned
 mode-0600 preparation lock and mode-0700 runtime tree, invokes bounded
 [preparation](../../tools/kiosk_confinement.py), attaches a private read-only
-executable view, clears PAM-granted ambient capabilities and installs mandatory
-access control. No subprocess runs after the final MAC operation.
+executable view, clears PAM-granted inheritable and ambient capabilities and
+installs mandatory access control. The native clear verifies unchanged effective
+and permitted capabilities for the trusted PAM executor's remaining work; it
+does not change the bounding set. No subprocess runs after the final MAC operation.
 
 Ubuntu immediately changes and verifies the caller's enforcing AppArmor profile.
+Every non-sandbox profile, including the password helper's child profile,
+explicitly denies user-namespace creation. Under AppArmor's compatibility ABI,
+an absent allow alone does not establish mediation of that feature. Only the
+two native bubblewrap roles retain their explicit user-namespace grants.
 Fedora GDM receives a verified pending SELinux exec context whose private
 entrypoint type constrains the actual next executable. Fedora's single-threaded
 systemd executor instead enters the current `onpc_kiosk_manager_pam_t` domain
@@ -763,8 +769,8 @@ descriptor or mount authority reaches the eventual session payload.
    lookup-root, proc, namespace, receipt and bus descriptor after its last check.
    Keep the manager pidfd through
    the last pre-MAC liveness check, then close it before MAC. Set the manager-only
-   unit environment, clear ambient capabilities and apply/verify the existing
-   final MAC transition. Failure at any step denies and releases only owned state.
+   unit environment, clear inheritable and ambient capabilities and apply/verify
+   the existing final MAC transition. Failure at any step denies and releases only owned state.
    Keep preparation ownership through MAC; the admission lease still spans the
    PAM handle as before. No subprocess runs after final MAC.
 

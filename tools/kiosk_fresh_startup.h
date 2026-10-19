@@ -8,6 +8,7 @@
 #include "kiosk_policy_authority.h"
 #include "kiosk_native_realization.h"
 #include "kiosk_view_publication.h"
+#include <linux/capability.h>
 #include <sys/random.h>
 
 #ifndef KIOSK_FRESH_DLOPEN
@@ -18,6 +19,15 @@
 #endif
 #ifndef KIOSK_FRESH_DLCLOSE
 #define KIOSK_FRESH_DLCLOSE dlclose
+#endif
+#ifndef KIOSK_FRESH_CAPGET
+#define KIOSK_FRESH_CAPGET(header, data) syscall(SYS_capget, (header), (data))
+#endif
+#ifndef KIOSK_FRESH_CAPSET
+#define KIOSK_FRESH_CAPSET(header, data) syscall(SYS_capset, (header), (data))
+#endif
+#ifndef KIOSK_FRESH_AMBIENT_CLEAR
+#define KIOSK_FRESH_AMBIENT_CLEAR() prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)
 #endif
 
 #define KIOSK_FRESH_MARKER "/usr/share/oh-no-parent-control/confinement/retained-view"
@@ -135,6 +145,29 @@ static inline int kiosk_fresh_locks(int lock, int lease)
         !kiosk_admission_current(lease) ? 0 : -1;
 }
 
+/* pam_systemd can seed inheritable capabilities before this PAM callback.
+ * Remove only inheritance and ambient authority from the actual caller task.
+ * Its root effective/permitted sets still belong to the executor's remaining
+ * credential/MAC setup; the bounding set is never changed here. */
+static inline int kiosk_fresh_capabilities_until(uint64_t deadline)
+{
+    struct __user_cap_header_struct header = {.version = _LINUX_CAPABILITY_VERSION_3, .pid = 0};
+    struct __user_cap_data_struct before[_LINUX_CAPABILITY_U32S_3] = {{0}},
+        cleared[_LINUX_CAPABILITY_U32S_3], after[_LINUX_CAPABILITY_U32S_3] = {{0}};
+    if (kiosk_pin_before(deadline) || KIOSK_FRESH_CAPGET(&header, before) ||
+        header.version != _LINUX_CAPABILITY_VERSION_3 || header.pid || kiosk_pin_before(deadline)) return -1;
+    memcpy(cleared, before, sizeof(cleared));
+    for (unsigned i = 0; i < _LINUX_CAPABILITY_U32S_3; i++) cleared[i].inheritable = 0;
+    if (KIOSK_FRESH_CAPSET(&header, cleared) || kiosk_pin_before(deadline) ||
+        KIOSK_FRESH_AMBIENT_CLEAR() || kiosk_pin_before(deadline) ||
+        KIOSK_FRESH_CAPGET(&header, after) || header.version != _LINUX_CAPABILITY_VERSION_3 ||
+        header.pid || kiosk_pin_before(deadline)) return -1;
+    for (unsigned i = 0; i < _LINUX_CAPABILITY_U32S_3; i++)
+        if (after[i].inheritable || after[i].effective != before[i].effective ||
+            after[i].permitted != before[i].permitted) return -1;
+    return 0;
+}
+
 /* Namespace cloning gives inherited mounts new mount identities. Runtime
  * publication and mountinfo walks must use this caller's private namespace,
  * while retaining independently checked original host inode identities. This
@@ -189,7 +222,11 @@ static inline int kiosk_fresh_account_until(struct kiosk_fresh_startup *s)
     }
     valid = valid && uid && (uint64_t)(uid_t)uid == uid &&
         !kiosk_material_sha256(record, size, s->crypto, s->deadline, digest);
-    struct kiosk_host_spec spec = {.path = KIOSK_FRESH_ACCOUNT, .kind = S_IFREG, .mode = 0600, .sha256 = digest};
+    /* The broker owns root-only state with the platform's administrative group
+     * (wheel on Fedora). Bind that exact verified group without relaxing the
+     * root-group requirement for executables or any ancestor/alias source. */
+    struct kiosk_host_spec spec = {.path = KIOSK_FRESH_ACCOUNT, .kind = S_IFREG, .mode = 0600,
+        .sha256 = digest, .private_state_group = 1, .group = before.st_gid};
     if (valid) valid = !kiosk_host_proof_capture_until(&s->account, &s->roots, &spec, 1, s->deadline);
     if (valid) {
         const struct kiosk_host_row *row = kiosk_material_host_row(&s->account, KIOSK_FRESH_ACCOUNT);
@@ -556,7 +593,7 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     s->stage = "environment";
     if (pam_putenv(pamh, "SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:") != PAM_SUCCESS) goto done;
     s->stage = "ambient";
-    if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)) goto done;
+    if (kiosk_fresh_capabilities_until(deadline)) goto done;
     s->stage = "closure";
     /* Transfer only the actual attachment's cleanup identity before closing
      * setup FDs. A final MAC refusal still detaches that exact private mount. */

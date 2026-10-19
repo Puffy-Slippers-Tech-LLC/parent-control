@@ -3,6 +3,23 @@
 Acceptance: installed
 Targets: onpc-Fedora44
 
+## First action when selected
+
+Apply the developer-requested [staged split](../Kiosk-Prompt.md#smaller-execution-slices).
+Insert only these unchecked prerequisites immediately before this active consumer:
+
+| Done | ID | Task | Requires | Scope | Estimate |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | 0071 | [Qualify Fedora retained ambient changes](0071-ambient-fedora.md) | 006, 007a | Complete Fedora unrelated-change, immutable-view, enforcing-entry and ordinary-account history | 15–30 min |
+| [ ] | 0072 | [Qualify Fedora required drift and recovery](0072-required-fedora.md) | 006, 007a, 0071 | Complete Fedora required native/config/policy/privilege drift refusals, exact restoration and reboot/reentry histories | 20–30 min; keep each history intact |
+
+Use queue-relative `Kiosk-Prompt-Tasks/...` links. Add both IDs to this consumer's
+Requires, retaining 006 and 007a, the original Scope and every assertion below.
+Move Next task to 0071, finish owned cleanup and return `prerequisite_required`.
+After they pass, reconcile complete Fedora histories and still-applicable Ubuntu
+receipts. Repeat exact invalidated histories before closing this original row;
+no partial branch or host pass supplies installed acceptance.
+
 Session boundary: run 007a's canonical retained-view history on Fedora and
 reconcile both candidate receipts. Session exception: each mutation and
 required-drift/reboot/recovery branch remains indivisible. 007a retains Ubuntu

@@ -264,7 +264,7 @@ static inline int kiosk_retained_startup_until(struct kiosk_retained_startup *g,
     /* I is invocation-private. No completed generation is allocated or changed. */
     s->stage = "final-proof";
     if (kiosk_retained_final_proofs(g, lock, lease) ||
-        prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)) goto done;
+        kiosk_fresh_capabilities_until(deadline)) goto done;
     s->stage = "closure";
     s->view.cloned = 1; s->view.clone_id = s->pin.attached_id;
     s->pin.published = 1; /* Private I is complete; this does not publish a generation. */

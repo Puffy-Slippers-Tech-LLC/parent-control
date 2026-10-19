@@ -32,7 +32,10 @@ The formats also share [source checks](../packaging/check_package.py), the
 [activation classifier](../packaging/package_activation.py),
 [manuals](../packaging/man/oh-no-parent-control.1), assets, modules, native
 helpers and security templates. Both refresh activation digests after stripping
-and shebang rewriting, against final shipped bytes. Manual installation and the
+and shebang rewriting, against final shipped bytes. The RPM opts out of Fedora's
+[duplicate-file hardlinking](https://fedoraproject.org/wiki/Changes/Hardlink_identical_files_in_packages_by_default)
+because measured runtime inputs require independent inodes with one link. The
+other post-install processing remains enabled. Manual installation and the
 child-command alias belong to the shared payload map; each format applies its
 normal compression. Shared source checks validate the rendered lifecycle shell
 for both distributions. The

@@ -31,8 +31,9 @@ def host_probe(tmp_path_factory):
 static int fixture_clock(clockid_t, struct timespec *);
 static ssize_t fixture_pread(int, void *, size_t, off_t);
 static int fixture_hash(int, off_t, char[65], void *, uint64_t);
+static gid_t strict_group;
 #define KIOSK_HOST_PROOF_OWNER getuid()
-#define KIOSK_HOST_PROOF_GROUP getgid()
+#define KIOSK_HOST_PROOF_GROUP strict_group
 #define KIOSK_HOST_CLOCK_GETTIME fixture_clock
 #define pread fixture_pread
 #include "host-proof.h"
@@ -85,8 +86,89 @@ static void content(int fd, const char *bytes) {
     char data[64] = {0}; require(fd >= 0, "content-fd");
     require(pread(fd, data, sizeof(data), 0) == (ssize_t) strlen(bytes) && !memcmp(data, bytes, strlen(bytes)), "independent-bytes");
 }
+static void private_state(const char *mode, const char *digest, struct kiosk_host_roots *roots,
+                          unsigned baseline) {
+    /* Actual inode metadata is untouched: the fixture's normalized strict
+     * executable group deliberately differs, while this root-only state spec
+     * explicitly pins the real group. No chown privilege or stat double. */
+    strict_group = getgid() ? 0 : 1;
+    require(chmod("etc/required", 0600) == 0, "private-state-mode");
+    struct kiosk_host_spec specs[2] = {{.path="/etc/required", .kind=S_IFREG,
+        .mode=0600, .sha256=digest, .private_state_group=1, .group=getgid()}};
+    unsigned count = 1;
+    int initial_refusal = 0;
+    if (!strcmp(mode, "private-state-wrong-group")) { specs[0].group = strict_group; initial_refusal = 1; }
+    if (!strcmp(mode, "private-state-default-group")) {
+        specs[0].private_state_group = 0; specs[0].group = 0; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-group-without-flag")) {
+        specs[0].private_state_group = 0; specs[0].group = strict_group ? 2 : 1; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-invalid-flag")) { specs[0].private_state_group = 2; initial_refusal = 1; }
+    if (!strcmp(mode, "private-state-wrong-mode")) {
+        require(chmod("etc/required", 0640) == 0, "private-state-broad-mode"); initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-wrong-mode-spec")) { specs[0].mode = 0644; initial_refusal = 1; }
+    if (!strcmp(mode, "private-state-missing-digest")) { specs[0].sha256 = NULL; initial_refusal = 1; }
+    if (!strcmp(mode, "private-state-wrong-digest")) {
+        specs[0].sha256 = "0000000000000000000000000000000000000000000000000000000000000000"; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-privileged")) { specs[0].privileged = 1; initial_refusal = 1; }
+    if (!strcmp(mode, "private-state-directory")) {
+        specs[0].path = "/etc"; specs[0].kind = S_IFDIR; specs[0].sha256 = NULL; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-hardlink")) {
+        require(link("etc/required", "state-link") == 0, "private-state-hardlink"); initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-endpoint-alias")) {
+        require(symlink("required", "etc/alias") == 0, "private-state-endpoint-alias");
+        specs[0].path = "/etc/alias"; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-ancestor-alias")) {
+        require(symlink("etc", "state") == 0, "private-state-ancestor-alias");
+        specs[0].path = "/state/required"; initial_refusal = 1;
+    }
+    if (!strcmp(mode, "private-state-default-duplicate")) {
+        specs[1] = (struct kiosk_host_spec){.path="/etc/required", .kind=S_IFREG, .mode=0600, .sha256=digest};
+        count = 2; initial_refusal = 1;
+    }
+    struct stat original;
+    require(stat("etc/required", &original) == 0 && original.st_uid == getuid() &&
+            original.st_gid == getgid() && original.st_gid != strict_group,
+            "private-state-independent-inode-owner-group");
+    struct kiosk_host_proof proof;
+    int captured = kiosk_host_proof_capture(&proof, roots, specs, count);
+    kiosk_host_roots_close(roots);
+    if (initial_refusal) {
+        require(captured != 0 && !proof.sealed && proof.rows == NULL, "private-state-initial-refusal");
+        require(descriptors() == baseline, "private-state-initial-fd-balance"); puts("refused"); return;
+    }
+    require(captured == 0 && proof.sealed && proof.count == 3, "private-state-captured");
+    require(proof.rows[2].info.st_gid == original.st_gid && proof.rows[2].info.st_uid == original.st_uid &&
+            proof.rows[2].info.st_ino == original.st_ino && proof.rows[2].info.st_dev == original.st_dev &&
+            !strcmp(proof.rows[2].sha256, digest), "private-state-exact-capture");
+    require(kiosk_host_proof_recheck(&proof, specs, count) == 0, "private-state-baseline-recheck");
+    int refused = strcmp(mode, "private-state-alternate-group") != 0;
+    if (!strcmp(mode, "private-state-group-spec-change")) specs[0].group = strict_group;
+    else if (!strcmp(mode, "private-state-flag-spec-change")) specs[0].private_state_group = 0;
+    else if (!strcmp(mode, "private-state-mode-change")) require(chmod("etc/required", 0640) == 0, "private-state-mode-drift");
+    else if (!strcmp(mode, "private-state-replaced")) {
+        require(rename("etc/required", "etc/old-required") == 0, "private-state-replace");
+        put("etc/required", "original"); require(chmod("etc/required", 0600) == 0, "private-state-replaced-mode");
+        struct stat replacement; require(stat("etc/required", &replacement) == 0 &&
+            replacement.st_ino != original.st_ino, "private-state-independent-replacement");
+    } else if (!strcmp(mode, "private-state-ancestor-replaced")) {
+        require(rename("etc", "old-etc") == 0 && mkdir("etc", 0755) == 0, "private-state-ancestor-replace");
+        require(rename("old-etc/required", "etc/required") == 0, "private-state-retain-file");
+    } else if (!strcmp(mode, "private-state-content-change")) put("etc/required", "changed!");
+    require((kiosk_host_proof_recheck(&proof, specs, count) != 0) == refused,
+            "private-state-final-proof");
+    kiosk_host_proof_close(&proof);
+    require(descriptors() == baseline, "private-state-final-fd-balance"); puts(refused ? "refused" : "verified");
+}
 int main(int argc, char **argv) {
     require(argc == 4 && chdir(argv[2]) == 0, "arguments");
+    strict_group = getgid();
     const char *mode = argv[1]; unsigned baseline = descriptors();
     expected_digest = argv[3];
     int root = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
@@ -95,6 +177,9 @@ int main(int argc, char **argv) {
     require(kiosk_host_roots_from_fds(&roots, root, usr) == 0, "root-pins");
     close(root); close(usr);
     require((fcntl(roots.root, F_GETFD) & FD_CLOEXEC) && (fcntl(roots.usr, F_GETFD) & FD_CLOEXEC), "roots-cloexec");
+    if (!strncmp(mode, "private-state-", 14)) {
+        private_state(mode, argv[3], &roots, baseline); return 0;
+    }
     struct kiosk_host_spec specs[] = {
         {.path="/usr/bin/tool", .kind=S_IFREG, .sha256=argv[3], .mode=0644},
         {.path="/bin/tool", .kind=S_IFREG, .sha256=argv[3]},
@@ -259,3 +344,30 @@ def test_native_host_proof_refuses_drift_or_unclosed_alias(host_probe, host_tree
                             pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == 0, result.stderr
     assert result.stdout == 'refused\n'
+
+
+@pytest.mark.parametrize('mode', [
+    'alternate-group', 'wrong-group', 'default-group', 'group-without-flag', 'invalid-flag',
+    'wrong-mode', 'wrong-mode-spec', 'missing-digest', 'wrong-digest', 'privileged', 'directory',
+    'hardlink', 'endpoint-alias', 'ancestor-alias', 'default-duplicate',
+    'group-spec-change', 'flag-spec-change', 'mode-change', 'replaced', 'ancestor-replaced',
+    'content-change',
+])
+def test_native_host_proof_private_state_group_is_exact_and_endpoint_only(host_probe, host_tree, mode):
+    result = subprocess.run([str(host_probe), 'private-state-' + mode, str(host_tree),
+                             hashlib.sha256(b'original').hexdigest()],
+                            capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ('verified\n' if mode == 'alternate-group' else 'refused\n')
+
+
+def test_native_private_state_group_retains_unconditional_owner_and_capability_proof():
+    source = (ROOT / 'tools/kiosk_host_proof.h').read_text()
+    trust = source.split('static inline int kiosk_host_trust(', 1)[1].split('\n}', 1)[0]
+    assert 'info->st_uid == KIOSK_HOST_PROOF_OWNER' in trust
+    assert 'private_state' not in trust
+    observation = source.split('static inline int kiosk_host_observe(', 1)[1].split('\n}', 1)[0]
+    assert observation.index('!kiosk_host_trust(info)') < observation.index('if (private_state)')
+    assert 'capability_absent = capability < 0 && errno == ENODATA;' in observation
+    assert 'info->st_nlink != 1 || info->st_gid != group' in observation

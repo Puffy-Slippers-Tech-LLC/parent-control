@@ -37,11 +37,16 @@ struct kiosk_host_spec {
     const char *link, *sha256, *label;
     mode_t mode;                  /* Zero means no extra permission assertion. */
     int privileged, terminal_link; /* Only explicit masks stop at link text. */
+    /* Root-only state can retain its lifecycle-owned administrative group.
+     * This is explicit endpoint authority, never an executable/ancestor rule. */
+    int private_state_group;
+    gid_t group;
 };
 struct kiosk_host_row {
     char *path, *link;
     struct stat info;
     char sha256[65], label[256];
+    const struct kiosk_host_spec *private_state; /* Borrowed from owned specs. */
     unsigned epoch;
 };
 struct kiosk_host_proof {
@@ -204,13 +209,32 @@ static inline void kiosk_host_proof_close(struct kiosk_host_proof *proof)
 
 /* Sorted bounded closure: duplicate ancestors must match their first observed
  * assertion even during capture. Rechecking cannot introduce another object. */
+static inline int kiosk_host_private_state_spec(const struct kiosk_host_spec *spec)
+{
+    if (spec->private_state_group != 0 && spec->private_state_group != 1) return -1;
+    if (!spec->private_state_group) return spec->group ? -1 : 0;
+    return spec->kind == S_IFREG && spec->mode == 0600 && !spec->privileged &&
+        !spec->terminal_link && !spec->link && spec->sha256 ? 0 : -1;
+}
+
 static inline int kiosk_host_observe(struct kiosk_host_proof *proof, const char *path, int fd,
-                                   const struct stat *info, int capture, struct kiosk_host_row **out)
+                                   const struct stat *info, int capture, struct kiosk_host_row **out,
+                                   const struct kiosk_host_spec *private_state)
 {
     unsigned low = 0, high = proof->count;
-    struct kiosk_host_row observed = {.info = *info};
+    struct kiosk_host_row observed = {.info = *info, .private_state = private_state};
     char link[PATH_MAX];
     if (!kiosk_host_trust(info) || kiosk_host_before(proof->deadline) != 0) return -1;
+    gid_t group = KIOSK_HOST_PROOF_GROUP;
+    if (private_state) {
+        if (!private_state->private_state_group || kiosk_host_private_state_spec(private_state) ||
+            strcmp(path, private_state->path) || !S_ISREG(info->st_mode) ||
+            (info->st_mode & 07777) != 0600) return -1;
+        group = private_state->group;
+    }
+    /* Check before the per-epoch hash cache: another/default spec for the same
+     * inode must not inherit a private state's explicit group authority. */
+    if (S_ISREG(info->st_mode) && (info->st_nlink != 1 || info->st_gid != group)) return -1;
     while (low < high) {
         unsigned middle = low + (high - low) / 2;
         if (strcmp(proof->rows[middle].path, path) < 0) low = middle + 1; else high = middle;
@@ -228,7 +252,6 @@ static inline int kiosk_host_observe(struct kiosk_host_proof *proof, const char 
         if (n <= 0 || n >= PATH_MAX) return -1;
         link[n] = '\0'; observed.link = link;
     } else if (S_ISREG(info->st_mode) || S_ISDIR(info->st_mode)) {
-        if (S_ISREG(info->st_mode) && (info->st_nlink != 1 || info->st_gid != KIOSK_HOST_PROOF_GROUP)) return -1;
         char descriptor[64]; struct stat before, after;
         snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", fd);
         int readable = open(descriptor, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
@@ -286,6 +309,7 @@ static inline int kiosk_host_walk(struct kiosk_host_proof *proof, const struct k
         (spec->terminal_link && (spec->kind != S_IFLNK || !spec->link)) ||
         (spec->link && spec->kind != S_IFLNK) || (spec->sha256 && spec->kind != S_IFREG) ||
         (spec->label && spec->kind == S_IFLNK) || (spec->mode & ~07777U) ||
+        kiosk_host_private_state_spec(spec) ||
         kiosk_host_before(proof->deadline) != 0) return -1;
     if (spec->sha256 && (strlen(spec->sha256) != 64 || strspn(spec->sha256, "0123456789abcdef") != 64)) return -1;
     if (spec->link && (!spec->link[0] || strlen(spec->link) >= PATH_MAX)) return -1;
@@ -305,7 +329,7 @@ static inline int kiosk_host_walk(struct kiosk_host_proof *proof, const struct k
     stack[0] = fcntl(proof->roots.root, F_DUPFD_CLOEXEC, 3);
     if (stack[0] < 0) return -1;
     if (fstat(stack[0], &info) != 0 || !S_ISDIR(info.st_mode) ||
-        kiosk_host_observe(proof, "/", stack[0], &info, capture, &row) != 0) goto done;
+        kiosk_host_observe(proof, "/", stack[0], &info, capture, &row, NULL) != 0) goto done;
     strcpy(pending, spec->path + 1);
     int endpoint_checked = 0;
     if (!pending[0]) {
@@ -329,8 +353,10 @@ static inline int kiosk_host_walk(struct kiosk_host_proof *proof, const struct k
         if (used < 0 || used >= PATH_MAX || depth >= PATH_MAX / 2) goto done;
         child = !strcmp(next, "/usr") ? fcntl(proof->roots.usr, F_DUPFD_CLOEXEC, 3) :
             openat(stack[depth], part, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+        const struct kiosk_host_spec *private_state = spec->private_state_group &&
+            !pending[0] && !strcmp(next, spec->path) ? spec : NULL;
         if (child < 0 || fstat(child, &info) != 0 ||
-            kiosk_host_observe(proof, next, child, &info, capture, &row) != 0) goto done;
+            kiosk_host_observe(proof, next, child, &info, capture, &row, private_state) != 0) goto done;
         /* Hashing reads the pin; separately prove that its original named edge
          * still selects it. The explicit /usr anchor is the sole dispatch. */
         int named = !strcmp(next, "/usr") ? fcntl(proof->roots.usr, F_DUPFD_CLOEXEC, 3) :
@@ -381,7 +407,7 @@ static inline int kiosk_host_edges(struct kiosk_host_proof *proof)
         int current = fcntl(proof->roots.root, F_DUPFD_CLOEXEC, 3), result = -1;
         struct stat info; struct kiosk_host_row *row;
         if (current < 0) return -1;
-        if (fstat(current, &info) != 0 || kiosk_host_observe(proof, "/", current, &info, 0, &row) != 0) goto edge_done;
+        if (fstat(current, &info) != 0 || kiosk_host_observe(proof, "/", current, &info, 0, &row, NULL) != 0) goto edge_done;
         for (char *part = pending; *part;) {
             char *next = strchr(part, '/'); if (next) *next++ = '\0';
             size_t used = strlen(path);
@@ -392,8 +418,10 @@ static inline int kiosk_host_edges(struct kiosk_host_proof *proof)
                 openat(current, part, O_PATH | O_NOFOLLOW | O_CLOEXEC);
             if (child < 0) goto edge_done;
             close(current); current = child;
+            const struct kiosk_host_spec *private_state = NULL;
+            if (!next) private_state = proof->rows[i].private_state;
             if (fstat(current, &info) != 0 || (next && !S_ISDIR(info.st_mode)) ||
-                kiosk_host_observe(proof, path, current, &info, 0, &row) != 0) goto edge_done;
+                kiosk_host_observe(proof, path, current, &info, 0, &row, private_state) != 0) goto edge_done;
             if (!next) break;
             part = next;
         }
@@ -463,7 +491,8 @@ static inline int kiosk_host_proof_recheck(struct kiosk_host_proof *proof,
         const char *a[] = {specs[i].path, specs[i].link, specs[i].sha256, specs[i].label};
         const char *b[] = {saved->path, saved->link, saved->sha256, saved->label};
         if (specs[i].kind != saved->kind || specs[i].mode != saved->mode ||
-            specs[i].privileged != saved->privileged || specs[i].terminal_link != saved->terminal_link) return -1;
+            specs[i].privileged != saved->privileged || specs[i].terminal_link != saved->terminal_link ||
+            specs[i].private_state_group != saved->private_state_group || specs[i].group != saved->group) return -1;
         for (unsigned j = 0; j < 4; j++)
             if (a[j] ? !b[j] || strcmp(a[j], b[j]) : b[j] != NULL) return -1;
         if (kiosk_host_walk(proof, saved, 0, NULL) != 0) return -1;

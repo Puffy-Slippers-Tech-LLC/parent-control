@@ -378,6 +378,16 @@ nonblocking pipe because its real caller domain cannot write the harness's
 temporary capture files. Result and diagnostic channels stay distinct and bounded;
 no product permission is added for the engineering fixture.
 
+`enforcement` → `test_kiosk_native_bootstrap_permissions` (292) is the bounded
+real-policy bootstrap prerequisite for the
+[kiosk entry plan](../../docs/Kiosk-Prompt.md). It uses the ordinary enforcement
+phase and its frozen guest input closure, with one owned manager invocation.
+It qualifies fresh manager PAM, retained gate PAM, copied systemd/executor
+entrypoints and notify-reload reexecution under the installed enforcing policy.
+Independent proc/pidfd, source/view, descriptor and policy/PAM observations remain
+required; a PAM success alone is insufficient. It runs no package/plugin
+replacement matrix and grants no public request-form acceptance.
+
 `enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
 PAM callback bytes/options and the manager credential fallback, then starts and
 stops one owned ordinary administrator and standard-user manager. It also

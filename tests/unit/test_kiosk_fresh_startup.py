@@ -152,7 +152,8 @@ if mode in ('result-malformed', 'ticket-parent', 'ticket-malformed', 'copy-repla
                 record['plan'] = {}
         return original(record, deadline_ns)
     service._canonical = canonical
-if mode in ('helper-result-exit', 'copy-replacement', 'source-replacement', 'required-drift', 'ambient-narrow'):
+if mode in ('helper-result-exit', 'copy-replacement', 'source-replacement', 'required-drift', 'ambient-narrow',
+            'selection-lock-replaced', 'selection-lease-replaced'):
     detached = c.InitialPreparation.detach
     def detach(attempt):
         # Mutate after the real Python owner successfully transfers its ticket.
@@ -160,6 +161,13 @@ if mode in ('helper-result-exit', 'copy-replacement', 'source-replacement', 'req
         ticket = detached(attempt)
         if mode == 'helper-result-exit':
             sys.exit(17)
+        if mode.startswith('selection-'):
+            name = 'lock' if mode == 'selection-lock-replaced' else 'lease'
+            p = base / name
+            p.rename(base / ('original-' + name))
+            p.write_bytes(b'foreign-lock')
+            p.chmod(0o600)
+            return ticket
         if mode == 'copy-replacement':
             p = c.RUNTIME / ticket['name'] / 'native-0'
             original_bytes = p.read_bytes()
@@ -202,6 +210,7 @@ NATIVE = r'''
 #include <dirent.h>
 #include <dlfcn.h>
 #include <limits.h>
+#include <linux/capability.h>
 #include <pwd.h>
 #include <sched.h>
 #include <signal.h>
@@ -236,8 +245,82 @@ static uint64_t transaction_deadline;
 static struct stat caller_objects[4096];
 static unsigned char caller_fds[4096];
 static unsigned selinux_order;
+static unsigned fault_hits, contention_checks;
+static void contend(void);
+static int ready_expected(void) {
+    return !strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"concurrent-writers") ||
+        !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline") ||
+        !strcmp(mode,"environment-failure") || !strcmp(mode,"post-attach-required-drift") ||
+        !strncmp(mode,"ready-",6) || !strncmp(mode,"premac-",7) || !strcmp(mode,"generation-three");
+}
 static void require(int ok, const char *stage) {
     if (!ok) { fprintf(stderr,"fresh-witness:%s:%s\n",stage,strerror(errno)); exit(2); }
+}
+/* Only the capability API boundary is doubled for these finite controls.
+ * Ordinary complete transactions below still use the real caller syscalls. */
+static unsigned capability_get_calls, capability_set_calls, capability_ambient_calls;
+static int capability_ambient;
+static struct __user_cap_data_struct capability_state[2], capability_original[2];
+static int capability_model(void) {return !strncmp(mode,"capabilities-",13);}
+static void capability_begin(void) {
+    capability_get_calls=capability_set_calls=capability_ambient_calls=0;
+    capability_state[0]=(struct __user_cap_data_struct){.effective=0x12345678U,.permitted=0xffffffffU,.inheritable=0x10U};
+    capability_state[1]=(struct __user_cap_data_struct){.effective=0x40U,.permitted=0x148U,.inheritable=8U};
+    capability_ambient=1;
+    if(!strcmp(mode,"capabilities-zero")){capability_state[0].inheritable=capability_state[1].inheritable=0;capability_ambient=0;}
+    memcpy(capability_original,capability_state,sizeof(capability_original));
+}
+static long fixture_capget(struct __user_cap_header_struct *header,struct __user_cap_data_struct *data) {
+    capability_get_calls++;
+    require(header->version==_LINUX_CAPABILITY_VERSION_3 && header->pid==0,"capget-only-current-task-v3");
+    if(!capability_model())return syscall(SYS_capget,header,data);
+    if((capability_get_calls==1 && !strcmp(mode,"capabilities-get-before")) ||
+        (capability_get_calls==2 && !strcmp(mode,"capabilities-get-after"))){errno=EIO;return -1;}
+    memcpy(data,capability_state,sizeof(capability_state));
+    if(capability_get_calls==2) {
+        if(!strcmp(mode,"capabilities-inheritable-drift"))data[1].inheritable=8U;
+        if(!strcmp(mode,"capabilities-effective-drift"))data[1].effective^=1U;
+        if(!strcmp(mode,"capabilities-permitted-drift"))data[0].permitted^=1U;
+    }
+    return 0;
+}
+static long fixture_capset(struct __user_cap_header_struct *header,const struct __user_cap_data_struct *data) {
+    capability_set_calls++;
+    require(header->version==_LINUX_CAPABILITY_VERSION_3 && header->pid==0,"capset-only-current-task-v3");
+    if(!capability_model())return syscall(SYS_capset,header,data);
+    for(unsigned i=0;i<2;i++)require(!data[i].inheritable && data[i].effective==capability_original[i].effective &&
+        data[i].permitted==capability_original[i].permitted,"capset-clears-only-inheritable-preserves-executor-authority");
+    if(!strcmp(mode,"capabilities-set")){errno=EPERM;return -1;}
+    memcpy(capability_state,data,sizeof(capability_state));return 0;
+}
+static int fixture_ambient_clear(void) {
+    capability_ambient_calls++;
+    if(!capability_model())return prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0);
+    if(!strcmp(mode,"capabilities-ambient")){errno=EPERM;return -1;}
+    capability_ambient=0;return 0;
+}
+static void capability_expect(int result) {
+    int positive=!strcmp(mode,"capabilities-inherited") || !strcmp(mode,"capabilities-zero");
+    require((result==0)==positive,"capability-clear-result");
+    unsigned gets=!strcmp(mode,"capabilities-expired")?0:
+        (!strcmp(mode,"capabilities-get-before") || !strcmp(mode,"capabilities-set") || !strcmp(mode,"capabilities-ambient"))?1:2;
+    unsigned sets=gets && strcmp(mode,"capabilities-get-before");
+    unsigned ambient=sets && strcmp(mode,"capabilities-set");
+    require(capability_get_calls==gets && capability_set_calls==sets && capability_ambient_calls==ambient,
+        "bounded-capability-syscall-order-and-failure-cut");
+    for(unsigned i=0;i<2;i++)require(capability_state[i].effective==capability_original[i].effective &&
+        capability_state[i].permitted==capability_original[i].permitted,"unchanged-effective-permitted-authority");
+    if(positive)require(!capability_state[0].inheritable && !capability_state[1].inheritable && !capability_ambient,
+        "all-inheritable-words-and-ambient-cleared");
+}
+static uint64_t actual_bounding_set(void) {
+    uint64_t mask=0;
+    for(unsigned i=0;i<64;i++){
+        int value=prctl(PR_CAPBSET_READ,i,0,0,0);
+        if(value<0){require(errno==EINVAL && i>0,"bounded-capability-read");break;}
+        require(value==0 || value==1,"bounding-set-bit");if(value)mask|=1ULL<<i;
+    }
+    return mask;
 }
 static unsigned descriptors(void) {
     DIR *d=opendir("/proc/self/fd"); require(d!=NULL,"fd-census");
@@ -265,9 +348,21 @@ static int fixture_statx(int fd,const char *p,int flags,unsigned mask,struct sta
     char out[PATH_MAX];return statx(fd,p[0]=='/'?map(p,out):p,flags,mask,s);
 }
 static int fixture_mount(const char *source,const char *target,const char *type,unsigned long flags,const void *data) {
+    if(!strcmp(mode,"bind-cut") && (flags&MS_BIND) && !fault_hits++) {errno=EIO;return -1;}
     char out[PATH_MAX]; return mount(source,!strcmp(target,"/")?target:map(target,out),type,flags,data);
 }
-static int fixture_umount(const char *target,int flags) {char out[PATH_MAX];return umount2(map(target,out),flags);}
+static int fixture_umount(const char *target,int flags) {
+    if(!strcmp(mode,"staging-detach-cut") && !fault_hits++) {errno=EIO;return -1;}
+    char out[PATH_MAX];return umount2(map(target,out),flags);
+}
+static int fixture_open_tree(int fd,const char *path,unsigned flags) {
+    if(!strcmp(mode,"clone-cut") && !fault_hits++) {errno=EIO;return -1;}
+    return open_tree(fd,path,flags);
+}
+static int fixture_move_mount(int from,const char *source,int to,const char *target,unsigned flags) {
+    if(!strcmp(mode,"attachment-cut") && !fault_hits++) {errno=EIO;return -1;}
+    return move_mount(from,source,to,target,flags);
+}
 static int fixture_unshare(int flags) {
     int result=unshare(flags);
     if(!result && flags==CLONE_NEWNS) {
@@ -303,7 +398,17 @@ static int fixture_account(const char *name,struct passwd *p,char *bytes,size_t 
 }
 static int fixture_environment(pam_handle_t *p,const char *value) {
     (void)p; require(!strcmp(value,"SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:"),"manager-environment");
-    environment_calls++;return !strcmp(mode,"environment-failure")?PAM_SESSION_ERR:PAM_SUCCESS;
+    environment_calls++;
+    if(!strcmp(mode,"concurrent-writers")) contend();
+    if(!strncmp(mode,"premac-",7)) {
+        const char *name=!strcmp(mode,"premac-lock-replaced")?"lock":"lease";
+        char path[PATH_MAX],saved[PATH_MAX];snprintf(path,sizeof(path),"%s/%s",base,name);
+        snprintf(saved,sizeof(saved),"%s/original-%s",base,name);
+        require(rename(path,saved)==0,"premac-displace-owned-lock");
+        int fd=open(path,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);
+        require(fd>=0 && write(fd,"foreign-lock",12)==12 && close(fd)==0,"premac-foreign-lock");fault_hits++;
+    }
+    return !strcmp(mode,"environment-failure")?PAM_SESSION_ERR:PAM_SUCCESS;
 }
 static int fixture_user(pam_handle_t *p,const char **name,const char *prompt) {
     (void)p;(void)prompt;*name="oh-no-parent-control-kiosk";return PAM_SUCCESS;
@@ -398,8 +503,61 @@ static int fixture_rename(int a,const char *from,int b,const char *to,unsigned f
             selected=open(source,O_RDONLY|O_CLOEXEC);memset(bytes,0,sizeof(bytes));
             require(selected>=0 && read(selected,bytes,sizeof(bytes))==19 && !memcmp(bytes,"\177ELF/usr/bin/native",19),"private-copy-survives-original-host-drift");close(selected);
         }
-        int r=renameat2(a,from,b,to,flags);if(!r)ready_commits++;return r;
-    }return renameat2(a,from,b,to,flags);
+        int r=renameat2(a,from,b,to,flags);if(!r)ready_commits++;
+        if(!r && (!strcmp(mode,"ready-lock-replaced") || !strcmp(mode,"ready-lease-replaced"))) {
+            const char *name=!strcmp(mode,"ready-lock-replaced")?"lock":"lease";
+            char path[PATH_MAX],saved[PATH_MAX];snprintf(path,sizeof(path),"%s/%s",base,name);
+            snprintf(saved,sizeof(saved),"%s/original-%s",base,name);
+            require(rename(path,saved)==0,"ready-displace-owned-lock");
+            int fd=open(path,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);
+            require(fd>=0 && write(fd,"foreign-lock",12)==12 && close(fd)==0,"ready-foreign-lock");fault_hits++;
+        }
+        if(!r && (!strcmp(mode,"ready-material-replaced") || !strcmp(mode,"ready-view-replaced") ||
+            !strcmp(mode,"ready-pins-replaced"))) {
+            const char *name=!strcmp(mode,"ready-material-replaced")?"material.json":
+                !strcmp(mode,"ready-view-replaced")?"view":"pins";
+            struct stat original,foreign;require(fstatat(a,name,&original,AT_SYMLINK_NOFOLLOW)==0,
+                "independent-original-publication-identity");
+            int owner=open(base,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+            require(owner>=0 && renameat(a,name,owner,"displaced-record")==0,"displace-owned-completed-record-outside-publication");
+            int input=openat(owner,"displaced-record",O_RDONLY|O_CLOEXEC);
+            int output=openat(a,name,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);char bytes[4096];ssize_t n;
+            require(input>=0 && output>=0,"foreign-completed-record-open");
+            while((n=read(input,bytes,sizeof(bytes)))>0) require(write(output,bytes,(size_t)n)==n,"foreign-identical-record-bytes");
+            require(n==0 && fstat(output,&foreign)==0 && foreign.st_ino!=original.st_ino &&
+                close(input)==0 && close(output)==0 && close(owner)==0,"independent-foreign-record-identity");
+            char witness[PATH_MAX];snprintf(witness,sizeof(witness),"%s/record-identities",base);
+            FILE *record=fopen(witness,"w");require(record && fprintf(record,"%s %llu %llu %llu %llu\n",name,
+                (unsigned long long)original.st_dev,(unsigned long long)original.st_ino,
+                (unsigned long long)foreign.st_dev,(unsigned long long)foreign.st_ino)>0 && fclose(record)==0,
+                "record-publication-identities");fault_hits++;
+        }
+        if(!r && !strcmp(mode,"ready-account-drift")) {
+            char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host/var/lib/oh-no-parent-control/package-created-kiosk-uid",base);
+            int fd=open(path,O_WRONLY|O_CLOEXEC);require(fd>=0 && pwrite(fd,"4243",4,0)==4 && close(fd)==0,
+                "post-ready-independent-original-account-drift");fault_hits++;
+        }
+        return r;
+    }
+    if(strlen(to)==64 && !strcmp(mode,"generation-rename-cut")) {fault_hits++;errno=EIO;return -1;}
+    return renameat2(a,from,b,to,flags);
+}
+static int fixture_fsync(int fd) {
+    char proc[64],name[PATH_MAX];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",fd);
+    ssize_t n=readlink(proc,name,sizeof(name)-1);
+    if(n>0) {
+        name[n]=0;const char *leaf=strrchr(name,'/');leaf=leaf?leaf+1:name;
+        const char *record=!strcmp(mode,"material-fsync-cut")?"material.json":
+            !strcmp(mode,"view-fsync-cut")?"view":!strcmp(mode,"pins-fsync-cut")?"pins":
+            !strcmp(mode,"pending-fsync-cut")?"ready.pending":NULL;
+        if(!fault_hits && ((record && !strcmp(leaf,record)) ||
+            (!strcmp(mode,"ready-durability-cut") && ready_commits && strlen(leaf)==64) ||
+            (!strcmp(mode,"generation-durability-cut") && !strcmp(leaf,"runtime")))) {
+            /* The runtime directory is fsynced only after its atomic rename;
+             * each one-shot fault allows explicit recovery to prove cleanup. */
+            fault_hits++;errno=EIO;return -1;
+        }
+    }return fsync(fd);
 }
 static ssize_t fixture_write(int fd,const void *data,size_t size) {
     if(!strcmp(mode,"publication-partial")) {
@@ -415,6 +573,9 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 }
 #define KIOSK_ACCOUNT_NAME "oh-no-parent-control-kiosk"
 #define KIOSK_CONFINEMENT_PREPARE @HELPER@
+#define KIOSK_FRESH_CAPGET fixture_capget
+#define KIOSK_FRESH_CAPSET fixture_capset
+#define KIOSK_FRESH_AMBIENT_CLEAR fixture_ambient_clear
 #define open fixture_open
 #define lstat fixture_lstat
 #define mkdir fixture_mkdir
@@ -433,6 +594,9 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #define dlclose fixture_dlclose
 #define renameat2 fixture_rename
 #define write fixture_write
+#define fsync fixture_fsync
+#define open_tree fixture_open_tree
+#define move_mount fixture_move_mount
 #include "kiosk_confinement.h"
 #include "kiosk_fresh_startup.h"
 #undef open
@@ -453,6 +617,25 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #undef dlclose
 #undef renameat2
 #undef write
+#undef fsync
+#undef open_tree
+#undef move_mount
+static void contend(void) {
+    char path[PATH_MAX];snprintf(path,sizeof(path),"%s/lock",base);
+    int lock=open(path,O_RDWR|O_CLOEXEC);snprintf(path,sizeof(path),"%s/lease",base);
+    int lease=open(path,O_RDWR|O_CLOEXEC);
+    require(lock>=0 && lease>=0,"independent-competing-lock-open");
+    unsigned before=descriptors();struct kiosk_fresh_startup other;kiosk_fresh_startup_init(&other);
+    require(kiosk_fresh_startup_until(&other,NULL,lock,lease,transaction_deadline)!=0 &&
+        other.stage && !strcmp(other.stage,"identity") && !other.child.started && !other.ready &&
+        !other.armed && kiosk_fresh_close(&other)==0 && descriptors()==before,
+        "competing-full-admission-refuses-before-helper-or-publication");contention_checks++;
+    require(flock(lock,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
+        "configuration-writer-refused-by-original-preparation-lock");contention_checks++;
+    require(flock(lease,LOCK_EX|LOCK_NB)!=0 && (errno==EAGAIN || errno==EWOULDBLOCK),
+        "loader-removal-writer-refused-by-original-admission-lease");contention_checks++;
+    require(close(lock)==0 && close(lease)==0,"competing-descriptors-close");
+}
 static void mapfile(const char *path,const char *text) {
     int fd=open(path,O_WRONLY|O_CLOEXEC);require(fd>=0 && write(fd,text,strlen(text))==(ssize_t)strlen(text) && close(fd)==0,"user-map");
 }
@@ -522,6 +705,14 @@ static void independent_coverage(const struct kiosk_fresh_startup *s) {
 }
 int main(int argc,char **argv) {
     require(argc==3,"arguments");mode=argv[1];base=argv[2];
+    if(capability_model()) {
+        capability_begin();uint64_t now;require(kiosk_pin_now(&now)==0,"capability-clock");
+        uint64_t bounding=actual_bounding_set();unsigned before=descriptors();
+        int result=kiosk_fresh_capabilities_until(!strcmp(mode,"capabilities-expired")?now-1:now+1000000);
+        capability_expect(result);
+        require(actual_bounding_set()==bounding && descriptors()==before,"unchanged-bounding-set-and-descriptors");
+        puts("capabilities verified");return 0;
+    }
     if(!strncmp(mode,"selinux-",8)) {
         unsigned before=descriptors();struct kiosk_fresh_mac mac;
         int gate=strstr(mode,"selinux-gate")!=NULL;
@@ -557,10 +748,16 @@ int main(int argc,char **argv) {
     require(startup.deadline==deadline &&
         kiosk_fresh_startup_until(&startup,NULL,lock,lease,deadline+1000000)!=0 && startup.deadline==deadline,
         "original-deadline-and-single-attempt");
-    int positive=!strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow");
+    int positive=!strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") ||
+        !strcmp(mode,"concurrent-writers") || !strcmp(mode,"generation-three");
     if((result==0)!=positive) fprintf(stderr,"fresh-result mode=%s result=%d stage=%s child-started=%d reaped=%d phase=%u pidfd=%d channel=%d\n",mode,result,startup.stage?startup.stage:"-",
         startup.child.started,startup.child.reaped,startup.child.phase,startup.child.pidfd,startup.child.channel);
     require((result==0)==positive,"complete-transaction-result");
+    if(!strcmp(mode,"concurrent-writers")) require(contention_checks==3,"all-competing-production-writers-observed");
+    if(strstr(mode,"-cut") && strcmp(mode,"publication-cut")) require(fault_hits>0,"requested-failure-boundary-observed");
+    if(!positive) require(!startup.armed && startup.failure.stage && (mac_calls==0)==
+        (strcmp(mode,"mac-failure") && strcmp(mode,"mac-readback") && strcmp(mode,"mac-deadline")),
+        "primary-refusal-keeps-MAC-boundary-closed");
     if(!strcmp(mode,"ticket-parent") || !strcmp(mode,"ticket-malformed")) {
         require(startup.transferred_scratch && !startup.ticket_adopted && startup.child.reaped &&
             startup.child.pidfd<0 && startup.response.count==2 && descriptors()>(unsigned)final_fd_baseline,
@@ -572,6 +769,8 @@ int main(int argc,char **argv) {
         puts("retained");return 0;
     }
     if(positive) {
+        require(capability_get_calls==2 && capability_set_calls==1 && capability_ambient_calls==1,
+            "production-fresh-cut-uses-shared-capability-clear");
         independent_coverage(&startup);
         struct statx actual_mount;require(statx(AT_FDCWD,original_usr,AT_SYMLINK_NOFOLLOW,STATX_MNT_ID,&actual_mount)==0 &&
             actual_mount.stx_mnt_id!=original_target_mount.stx_mnt_id,"independent-actual-root-attachment");
@@ -608,8 +807,13 @@ int main(int argc,char **argv) {
     }
     require(kiosk_fresh_close(&startup)==0,"setup-close");
     require((int)descriptors()==final_fd_baseline,"exact-descriptor-balance");
-    require(ready_commits==(positive || !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-readback") ||
-        !strcmp(mode,"mac-deadline") || !strcmp(mode,"environment-failure") || !strcmp(mode,"post-attach-required-drift")),"publication-boundary");
+    for(int caller=0;caller<4096;caller++) {
+        struct stat info;int exists=fstat(caller,&info)==0;
+        require(exists==(int)caller_fds[caller],"exact-caller-FD-set-after-close");
+        if(exists) require(info.st_dev==caller_objects[caller].st_dev && info.st_ino==caller_objects[caller].st_ino &&
+            info.st_mode==caller_objects[caller].st_mode,"borrowed-FD-identities-after-close");
+    }
+    require(ready_commits==(unsigned)ready_expected(),"publication-boundary");
     close(original_source);close(lock);close(lease);puts("verified");return 0;
 }
 '''
@@ -676,10 +880,25 @@ def fresh_scene(tmp_path):
     'helper-identity', 'result-malformed', 'ticket-parent', 'ticket-malformed', 'copy-replacement', 'source-replacement',
     'required-drift', 'post-attach-required-drift', 'publication-cut',
     'publication-partial', 'expired', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
+    'concurrent-writers', 'selection-lock-replaced', 'selection-lease-replaced',
+    'ready-lock-replaced', 'ready-lease-replaced', 'premac-lock-replaced', 'premac-lease-replaced',
+    'material-fsync-cut', 'view-fsync-cut', 'pins-fsync-cut', 'pending-fsync-cut',
+    'generation-rename-cut', 'generation-durability-cut', 'ready-durability-cut',
+    'bind-cut', 'clone-cut', 'attachment-cut', 'staging-detach-cut',
+    'generation-three', 'generation-four',
+    'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift',
 ])
 def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
     directory, binary = fresh_scene
     (directory / 'mode').write_text(mode)
+    borrowed = {name: (directory / name).stat() for name in ('lock', 'lease')}
+    retained_generations = {}
+    if mode in ('generation-three', 'generation-four'):
+        for index in range(3 if mode == 'generation-three' else 4):
+            generation = directory / 'runtime' / f'{index:064x}'
+            generation.mkdir(mode=0o700)
+            _put(generation / 'foreign-record', b'previous-generation', 0o600)
+            retained_generations[generation.name] = (generation.stat(), (generation / 'foreign-record').stat())
     completed = subprocess.run([str(binary), mode, str(directory)],
                                capture_output=True, text=True, timeout=20,
                                pass_fds=test_storage.scratch_descriptors())
@@ -700,22 +919,46 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         'helper-started:' + (helper_started.read_text() if helper_started.exists() else 'helper-not-entered') + '\n'
         'helper-result:' + result_summary)
     assert completed.stdout == ('retained\n' if mode in ('ticket-parent', 'ticket-malformed') else 'verified\n')
-    assert (directory / 'lock').read_bytes() == (directory / 'lease').read_bytes() == b'owned-lock'
+    for name, original in borrowed.items():
+        displaced = directory / ('original-' + name)
+        selected = displaced if displaced.exists() else directory / name
+        assert selected.read_bytes() == b'owned-lock'
+        assert (selected.stat().st_dev, selected.stat().st_ino) == (original.st_dev, original.st_ino)
+        if displaced.exists():
+            # Replacement names are foreign to the production cleanup owner.
+            assert (directory / name).read_bytes() == b'foreign-lock'
+            assert (directory / name).stat().st_ino != original.st_ino
     if mode != 'expired':
         started = json.loads(helper_started.read_text())
         assert started['pid'] > 0
-        assert started['lock'] == (directory / 'lock').stat().st_ino
-        assert started['lease'] == (directory / 'lease').stat().st_ino
+        assert started['lock'] == borrowed['lock'].st_ino
+        assert started['lease'] == borrowed['lease'].st_ino
         assert started['deadline'] > 0
     else:
         assert not helper_started.exists()
+    for name, (root_identity, member_identity) in retained_generations.items():
+        generation = directory / 'runtime' / name
+        assert {p.name for p in generation.iterdir()} == {'foreign-record'}
+        assert (generation / 'foreign-record').read_bytes() == b'previous-generation'
+        assert (generation.stat().st_dev, generation.stat().st_ino) == (root_identity.st_dev, root_identity.st_ino)
+        actual = (generation / 'foreign-record').stat()
+        assert (actual.st_dev, actual.st_ino) == (member_identity.st_dev, member_identity.st_ino)
     generations = [path for path in (directory / 'runtime').iterdir()
-                   if len(path.name) == 64]
-    if mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline', 'post-attach-required-drift'):
+                   if len(path.name) == 64 and path.name not in retained_generations]
+    if mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-readback', 'mac-deadline',
+                'post-attach-required-drift', 'concurrent-writers', 'ready-lock-replaced', 'ready-lease-replaced',
+                'premac-lock-replaced', 'premac-lease-replaced', 'ready-durability-cut', 'generation-three',
+                'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift'):
         assert len(generations) == 1
         names = {path.name for path in generations[0].iterdir()}
-        assert names == {'material.json', 'view', 'pins', 'runtime.json', 'ready',
-                         'native-0', '0', '1', '2'}
+        expected_names = {'material.json', 'view', 'pins', 'runtime.json', 'ready', 'native-0', '0', '1', '2'}
+        if mode in ('ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced'):
+            name, original_dev, original_ino, foreign_dev, foreign_ino = (directory / 'record-identities').read_text().split()
+            owned, foreign = directory / 'displaced-record', generations[0] / name
+            assert owned.read_bytes() == foreign.read_bytes()
+            assert (owned.stat().st_dev, owned.stat().st_ino) == (int(original_dev), int(original_ino))
+            assert (foreign.stat().st_dev, foreign.stat().st_ino) == (int(foreign_dev), int(foreign_ino))
+        assert names == expected_names
         assert (generations[0] / 'native-0').read_bytes() == b'\x7fELF/usr/bin/native'
         assert { (generations[0] / str(index)).read_bytes() for index in range(3)} == {
             (directory / 'host/usr/bin/script').read_bytes(),
@@ -751,3 +994,14 @@ def test_native_fresh_selinux_security_transition(fresh_scene, mode):
                                pass_fds=test_storage.scratch_descriptors())
     assert completed.returncode == 0, (completed.returncode, completed.stdout, completed.stderr)
     assert completed.stdout == 'mac verified\n'
+
+
+@pytest.mark.parametrize('mode', ['inherited', 'zero', 'get-before', 'set', 'ambient', 'get-after',
+                                 'inheritable-drift', 'effective-drift', 'permitted-drift', 'expired'])
+def test_native_admission_clears_only_inheritable_and_ambient_capabilities(fresh_scene, mode):
+    directory, binary = fresh_scene
+    completed = subprocess.run([str(binary), 'capabilities-' + mode, str(directory)],
+                               capture_output=True, text=True, timeout=5,
+                               pass_fds=test_storage.scratch_descriptors())
+    assert completed.returncode == 0, (completed.returncode, completed.stdout, completed.stderr)
+    assert completed.stdout == 'capabilities verified\n'

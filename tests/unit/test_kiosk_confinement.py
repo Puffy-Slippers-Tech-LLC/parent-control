@@ -1492,9 +1492,9 @@ def test_installed_admission_requires_positive_and_restores_mutation_on_failure(
     ('gdm-password', 'system_u:system_r:xdm_t:s0', 'xdm_exec_t'),
     ('systemd-user', 'system_u:system_r:init_t:s0', 'init_exec_t'),
 ])
-@pytest.mark.parametrize('fault', [None, 'command', 'missing-result', 'empty-result'])
+@pytest.mark.parametrize('fault', [None, 'command', 'missing-result', 'empty-result', 'diagnostic-capacity'])
 def test_final_pam_probe_enters_real_vendor_caller_without_policy_changes(
-        census_model, tmp_path, monkeypatch, service, context, label, fault):
+        census_model, tmp_path, monkeypatch, capfd, service, context, label, fault):
     from unittest.mock import Mock
     helper = census_model
     monkeypatch.setattr(helper.guest, 'guard', Mock())
@@ -1516,34 +1516,85 @@ def test_final_pam_probe_enters_real_vendor_caller_without_policy_changes(
     monkeypatch.setattr(helper.guest, 'run', run)
     commands = Mock()
     monkeypatch.setattr(helper.guest, 'commands', commands)
+    channels = []
+    original_pipe = helper.os.pipe2
+    def pipe(flags):
+        descriptors = original_pipe(flags)
+        channels.extend(descriptors)
+        return descriptors
+    monkeypatch.setattr(helper.os, 'pipe2', pipe)
+    diagnostic = b'original native refusal\n'
+    diagnostic_size = len(diagnostic)
     def enter(argv, **kwargs):
+        nonlocal diagnostic_size
         assert argv[:2] == ['/usr/bin/runcon', context]
         caller = Path(argv[2])
         assert caller.is_relative_to(tmp_path) and caller.stat().st_mode & 0o777 == 0o700
         assert run.call_args.args[0] == ['/usr/bin/chcon', '-t', label, str(caller)]
         request = json.loads(argv[-1])
         result_fd = request.pop('result_fd')
+        diagnostic_fd = request.pop('diagnostic_fd')
+        assert diagnostic_fd != result_fd
+        assert not os.get_blocking(diagnostic_fd)
+        assert not os.get_inheritable(diagnostic_fd)
+        assert not os.get_inheritable(result_fd)
         assert request == {'command': ['/usr/bin/true'], 'directory': str(tmp_path),
                            'service': service, 'armed': True, 'fd_mode': 'file',
                            'expected_selinux': 'Enforcing'}
-        assert kwargs == {'timeout': 90, 'merge_stderr': False, 'pass_fds': (result_fd,)}
+        assert kwargs == {'timeout': 90, 'merge_stderr': False,
+                          'pass_fds': (result_fd, diagnostic_fd)}
+        os.write(diagnostic_fd, diagnostic)
+        if fault == 'diagnostic-capacity':
+            # Filling the actual pipe must return EAGAIN, never block while
+            # the parent waits for its finite caller command to finish.
+            for _ in range(257):
+                try:
+                    diagnostic_size += os.write(diagnostic_fd, b'x' * 4096)
+                except BlockingIOError:
+                    break
+            else:
+                pytest.fail('diagnostic channel did not reach its finite capacity')
         assert (tmp_path / service).read_text() == (
             'session required /usr/lib64/security/pam_oh_no_parent_control.so kiosk-confinement\n')
         if fault == 'command':
             raise helper.guest.GuestError('command:failed:runcon')
         if fault == 'empty-result':
             return b''
-        os.write(result_fd, b'help output' if fault else
+        os.write(result_fd, b'help output' if fault == 'missing-result' else
                  b'onpc-first-exec:{"status":126,"data":"7b7d"}')
-        return b''
+        return b'caller stdout must stay private\n'
     commands.run.side_effect = enter
-    if fault:
+    if fault in ('command', 'missing-result', 'empty-result'):
         with pytest.raises(helper.guest.GuestError):
             helper.first_exec(SimpleNamespace(), tmp_path, ['/usr/bin/true'],
                               service=service, fd_mode='file')
+    elif fault == 'diagnostic-capacity':
+        try:
+            result = helper.first_exec(SimpleNamespace(), tmp_path, ['/usr/bin/true'],
+                                       service=service, fd_mode='file')
+        except helper.guest.GuestError as error:
+            assert diagnostic_size > 65536
+            assert str(error) == 'kiosk-confinement:caller-diagnostic-size'
+        else:
+            assert diagnostic_size <= 65536
+            assert result == (126, b'{}')
     else:
         assert helper.first_exec(SimpleNamespace(), tmp_path, ['/usr/bin/true'],
                                  service=service, fd_mode='file') == (126, b'{}')
+    captured = capfd.readouterr()
+    assert captured.out == ''
+    if fault == 'diagnostic-capacity':
+        if diagnostic_size > 65536:
+            assert captured.err == ''
+        else:
+            assert captured.err.startswith(diagnostic.decode())
+            assert set(captured.err[len(diagnostic):]) == {'x'}
+    else:
+        assert captured.err == diagnostic.decode()
+    assert len(channels) == 4
+    for descriptor in channels:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
     assert list(tmp_path.iterdir()) == [tmp_path / service]
 
 

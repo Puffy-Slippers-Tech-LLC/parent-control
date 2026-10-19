@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **004 — [Qualify Fedora late refusal and recovery](Kiosk-Prompt-Tasks/004-late-denial-recovery.md)**.
+Next task: **005a — [Design material identity and immutable pins](Kiosk-Prompt-Tasks/005a-material-design.md)**.
 
 ## Outcome
 
@@ -832,11 +832,13 @@ Native header SHA-256:
 host fixture SHA-256:
 `ffdc394a5c34ecef12d73d9dbd768f6ccc32db8b02f0f9e6305f8d8e2f6d646e`.
 
-The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-oyxcp4qk/evidence.zip)
-retains both final results, complete phase JUnit, public entry/exit and fixture
+The original verified cumulative bundle, `onpc-evidence-bundle-oyxcp4qk/evidence.zip`,
+contained both final results, complete phase JUnit, public entry/exit and fixture
 cleanup receipts, frozen input/package manifests, the original Fedora failure,
 host negative/final reports and 003a's historical evidence. Bundle SHA-256:
 `e2720ed1c6dfc2b73b87b777644f9c4bd8714037309228da1ed64c400d8a7220`.
+That export retired under normal retention during 004; all constituent receipts
+remain in [004's verified cumulative bundle](#fedora-late-refusal-and-candidate-reconciliation--004).
 Final allocations are `onpc-system-oj79lbh3` (Fedora) and
 `onpc-system-8knwkc34` (Ubuntu). Fixture removal, diagnostic/preparation session
 release, runner baseline restoration and serial
@@ -930,11 +932,98 @@ dispatcher refresh. Only 004a closes; these receipts are available to 004 and
 Reliability 006b for exact-scope review without closing either consumer.
 
 After queue/pointer/brief close-out, the maintained four documentation modules
-passed all 313 cases in
-[20261019T093023Z-8f0880c7](../output/test-runs/host/reports/20261019T093023Z-8f0880c7/report.md).
+passed all 313 cases in `20261019T093023Z-8f0880c7`
+(subsequently retired under normal retention during 004).
 Changed-document links and whitespace passed. Historical export/report references
 retired during this task retain their original identities above; the complete
 installed receipts remain in the verified cumulative bundle.
+
+### Fedora late refusal and candidate reconciliation — 004
+
+Installed acceptance passed on `onpc-Fedora44` on 2026-10-19 UTC using
+canonical enforcement case **291**, `test_kiosk_required_ancestor_refusal`,
+phase `required-ancestor`. The same final selection freshly passed on
+`onpc-Ubuntu26.04`. Fedora report `20261019T094152Z-8236f31a` took 3.5 minutes
+including input preparation; Ubuntu report `20261019T094152Z-dee12fa6` took
+3.1 minutes. Product, infrastructure, collection and cleanup passed on both.
+
+Each uninterrupted history recorded the required `/usr/lib/systemd` ancestor
+and executable identity, added only group write permission (0755 → 0775,
+owner/group root), then independently required the original native refusal:
+PAM status 14, executor status 125 and `executable-inventory / untrusted-path`.
+A separate actual GDM selection produced new preparation/native denials,
+left no station session and returned to the account list. Fedora retained both
+manager and gate preparation causes. No kiosk password was entered, and prompt
+wording was not classified as authentication failure.
+
+Exact inode, owner/group, executable bytes and mode restoration preceded fresh
+passwordless entry in the same boot. The loaded confined form had usable child
+selection and Cancel with the expected limits-disabled explanation. Full thread
+census, allowed native execution and the attributed enforcing shell denial passed.
+Fedora used kernel `7.2.11-200.fc44.x86_64`, enforcing SELinux (`permissive=0`);
+Ubuntu used `7.0.0-38-generic`, enforcing AppArmor. Both ordinary roles retained
+metadata, contents and execution access; real installed PAM authentication/account
+checks succeeded before the fault, during refusal and after restoration. Public
+Cancel returned to sign-in.
+
+The first Fedora attempt, `20261019T093422Z-61651a06`, stopped at the engineering
+probe's original-cause capture, before product assertions. Exact restoration and
+runner cleanup passed. Live maintenance diagnosis found that the vendor PAM
+caller could not write the harness's `user_tmp_t` capture files. A controlled
+inherited-pipe experiment independently recovered the 146-byte original refusal
+under enforcing SELinux, with PAM 14/executor 125 and exact restoration. The
+shared probe now carries bounded diagnostics through a separate inherited
+nonblocking pipe, retaining result/stdout separation, deadlines, descriptor cleanup
+and every refusal assertion. No product permission changed. The complete affected
+confinement/PAM/partition selection passed **1,362/1,362** checks in
+`20261019T094054Z-7949f1d1`, including both vendor callers, error paths, pipe
+saturation and descriptor cleanup. Existing required-source/protocol/mount/
+read-only/detach controls remain; review found no distinct uncovered binding stage
+requiring a second installed fault. This installed history proves preparation
+refusal, not an injected bind-stage failure.
+
+The initial read-only review matched all 54 guest/host source paths against
+004a's receipt. The diagnostic repair then changed one guest input, so both final
+target histories above supersede that older receipt for this candidate. Final
+selected-input digest:
+`fbc2e8175880c850a0f36ac8b55e61fdfc5f7685762205735bec7d2326e103c5`;
+all 54 distinct current source paths match, with no mismatch, and both receipts
+confirm the host closure stayed unchanged. Package-source digest remains
+`f29dbb154edcdb8d1523a49725878e1df956724d03cd41872ca39cfdb58853dd`;
+fixture digest remains
+`facbd895b378897dba77b7be5832e4db7b2b12595815c4fb78cabf6c7b70996d`.
+Installed RPM SHA-256:
+`6751dc9abe401bf82627f2dc208d2766fea89bef781df273aeadc463cc024fb0`;
+DEB SHA-256:
+`1bcd2efeffec52fd1bac27e14db23991737a74780baeb74665f7d3e1391c4080`.
+Only test helpers, their regression and documentation changed; no packaged source
+or build dependency changed, so no separate `make build` is required.
+
+The [verified cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-a161sv3w/evidence.zip)
+retains both final results, complete phase JUnit, public refusal/recovery and
+cleanup receipts, frozen input/package manifests, the original failure/error log,
+affected host report and predecessor receipts. Bundle SHA-256:
+`51268136679d7bdcc3653e0fdca307b2f7e7f1364a15232477363d34479f8575`.
+Final allocations: `onpc-system-yg6gu6qf` (Fedora) and
+`onpc-system-dks99oc9` (Ubuntu). The diagnostic helper SHA-256 is
+`2db892875ff62f3a050cd8c8309e23fd7773a7acf131673e9d6045d4db0eece0`;
+regression SHA-256 is
+`ced4ff31579ea58f98b8e36c064c8719f3cc0a14263f9e8ea08d76417e2439e6`.
+
+The scoped reviewer/worker finished before acceptance and cleanup. Resource review
+retains private files/mocks and fixture-owned descriptor capture; there is no new
+host display, bus, session or process owner. Diagnostic mutation restoration,
+maintenance release, public exit, fixture cleanup, runner baseline restoration,
+serial `tools/cleanup-e2e --vm onpc-Ubuntu26.04,onpc-Fedora44` and export cleanup
+completed. Both VMs were independently observed powered off. The pre-existing
+proof-document edit is preserved. Only 004 closes; matching receipts are available
+to Reliability 006b without completing that row.
+
+After queue/pointer/brief close-out, the maintained four documentation modules
+passed all 313 cases in
+[20261019T094725Z-f86c5193](../output/test-runs/host/reports/20261019T094725Z-f86c5193/report.md).
+Changed-document links and whitespace passed. Retired historical export/report
+links retain their original identities and point to the cumulative retained proof.
 
 ### Remaining execution and acceptance
 

@@ -370,8 +370,13 @@ deliberate fault and its restoration. This route leaves the maintenance guest
 available for probes and grants no acceptance; use the complete system selector
 for qualification.
 The runner freezes both guest mechanics and the public observer's host closure.
-This is installed engineering qualification; platform receipts belong to
-[the kiosk prompt plan](../../docs/Kiosk-Prompt.md), with Fedora still pending.
+This is installed engineering qualification; both-target receipts and exact
+candidate applicability belong to
+[the kiosk prompt plan](../../docs/Kiosk-Prompt.md#fedora-late-refusal-and-candidate-reconciliation--004).
+The Fedora vendor-caller probe carries native stderr over a separate inherited
+nonblocking pipe because its real caller domain cannot write the harness's
+temporary capture files. Result and diagnostic channels stay distinct and bounded;
+no product permission is added for the engineering fixture.
 
 `enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
 PAM callback bytes/options and the manager credential fallback, then starts and

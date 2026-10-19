@@ -996,23 +996,45 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             with pam_caller_command(directory, service,
                                     expected_selinux=expected_selinux) as caller:
                 # init_t cannot write the harness's user_tmp_t capture files.
-                # An inherited pipe carries the bounded result without a
+                # Inherited pipes carry the bounded result and diagnostics without a
                 # production permission or a differently labelled fixture file.
-                result_read, result_write = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
-                try:
+                with ExitStack() as channels:
+                    result_read, result_write = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+                    channels.callback(os.close, result_read)
+                    channels.callback(os.close, result_write)
+                    diagnostic_read, diagnostic_write = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+                    channels.callback(os.close, diagnostic_read)
+                    channels.callback(os.close, diagnostic_write)
                     request = json.dumps({'command': command, 'directory': str(directory),
                         'fd_mode': fd_mode, 'service': service, 'armed': armed,
-                        'result_fd': result_write, 'expected_selinux': expected_selinux})
-                    guest.commands.run([*caller,
-                        str(Path(__file__).resolve()), 'first-exec', request], timeout=90,
-                        merge_stderr=False, pass_fds=(result_write,))
+                        'result_fd': result_write, 'diagnostic_fd': diagnostic_write,
+                        'expected_selinux': expected_selinux})
+                    try:
+                        guest.commands.run([*caller,
+                            str(Path(__file__).resolve()), 'first-exec', request], timeout=90,
+                            merge_stderr=False, pass_fds=(result_write, diagnostic_write))
+                    finally:
+                        # Nonblocking writes cannot deadlock a full pipe while
+                        # Commands owns the bounded child wait. Read only this
+                        # finite channel, including after a command failure.
+                        diagnostic = bytearray()
+                        while len(diagnostic) <= 65536:
+                            try:
+                                chunk = os.read(diagnostic_read, 65537 - len(diagnostic))
+                            except BlockingIOError:
+                                break
+                            if not chunk:
+                                break
+                            diagnostic.extend(chunk)
+                        guest.require(len(diagnostic) <= 65536,
+                                      'kiosk-confinement:caller-diagnostic-size')
+                        pending = memoryview(diagnostic)
+                        while pending:
+                            pending = pending[os.write(2, pending):]
                     try:
                         last = os.read(result_read, 4097)
                     except BlockingIOError:
                         last = b''
-                finally:
-                    os.close(result_read)
-                    os.close(result_write)
                 guest.require(last.startswith(b'onpc-first-exec:'),
                               'kiosk-confinement:caller-result-missing')
                 guest.require(len(last) <= 4096, 'kiosk-confinement:caller-result-size')
@@ -2539,21 +2561,31 @@ if __name__ == '__main__':
                       'kiosk-confinement:arguments')
         request = json.loads(sys.argv[2])
         guest.require(set(request) == {'command', 'directory', 'fd_mode', 'service', 'armed',
-                                      'result_fd', 'expected_selinux'},
+                                      'result_fd', 'diagnostic_fd', 'expected_selinux'},
                       'kiosk-confinement:caller-request')
-        guest.guard(expected_selinux=request.pop('expected_selinux'))
         result_fd = request.pop('result_fd')
-        guest.require(type(result_fd) is int and result_fd > 2,
+        diagnostic_fd = request.pop('diagnostic_fd')
+        guest.require(all(type(fd) is int and fd > 2 for fd in (result_fd, diagnostic_fd)) and
+                      result_fd != diagnostic_fd,
                       'kiosk-confinement:caller-result-descriptor')
-        # The fork child must not retain this reporting channel after exec.
-        os.set_inheritable(result_fd, False)
-        context, _ = caller_identity(request['service'])
-        guest.require(Path('/proc/self/attr/current').read_text().strip().rstrip('\0') == context,
-                      'kiosk-confinement:caller-context')
-        status, data = first_exec(pwd.getpwnam('oh-no-parent-control'),
-            Path(request.pop('directory')), request.pop('command'), **request)
-        result = ('onpc-first-exec:' + json.dumps({'status': status, 'data': data.hex()})).encode()
-        guest.require(len(result) <= 4096, 'kiosk-confinement:caller-result-size')
-        guest.require(os.write(result_fd, result) == len(result),
-                      'kiosk-confinement:caller-result-write')
-        os.close(result_fd)
+        try:
+            # Only fd 2 remains available to native preparation subprocesses;
+            # original reporting channels must not survive the actual exec.
+            try:
+                os.set_inheritable(result_fd, False)
+                os.set_inheritable(diagnostic_fd, False)
+                os.dup2(diagnostic_fd, 2)
+            finally:
+                os.close(diagnostic_fd)
+            guest.guard(expected_selinux=request.pop('expected_selinux'))
+            context, _ = caller_identity(request['service'])
+            guest.require(Path('/proc/self/attr/current').read_text().strip().rstrip('\0') == context,
+                          'kiosk-confinement:caller-context')
+            status, data = first_exec(pwd.getpwnam('oh-no-parent-control'),
+                Path(request.pop('directory')), request.pop('command'), **request)
+            result = ('onpc-first-exec:' + json.dumps({'status': status, 'data': data.hex()})).encode()
+            guest.require(len(result) <= 4096, 'kiosk-confinement:caller-result-size')
+            guest.require(os.write(result_fd, result) == len(result),
+                          'kiosk-confinement:caller-result-write')
+        finally:
+            os.close(result_fd)

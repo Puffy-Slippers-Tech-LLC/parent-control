@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **001b — [Audit preparation and native admission](Kiosk-Prompt-Tasks/001b-native-audit.md)**.
+Next task: **001 — [Reconcile the entry failure map](Kiosk-Prompt-Tasks/001-entry-audit.md)**.
 
 ## Outcome
 
@@ -181,6 +181,117 @@ restoration remains. Markdown links passed before queue close-out; the maintaine
 four-module documentation consistency selection passed 313/313 in
 [the retained runner report](../output/test-runs/host/reports/20261019T063757Z-1fe129b7/report.md).
 Only documentation changed, so no package build or installed check was required.
+
+### Preparation and native admission audit — 001b
+
+Reviewed against `93e2a66d064e81e7366730567d2e3ff357c3f2f1` on 2026-10-19 UTC.
+The pre-existing proof-document edit was preserved. This review continues 001a
+at the final PAM caller; it supplies no installed acceptance. Expected results
+remain in [confinement](SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity)
+and [lifecycle](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle):
+healthy entry reaches the confined form, unsafe required inputs deny entry,
+and unrelated software must not invalidate a healthy station. A refusal alone
+does not prove the greeter result or subsequent usable recovery; 004a/004 own
+that public history, and 001 owns session-to-form readiness.
+
+**Consumed roots and trust scope.** The finite
+[policy inventory](../tools/kiosk_confinement_policy.py#L22) measures native
+entrypoints, selected systemd libraries, WebKit/scanner/Glycin paths and the
+blocked optional GStreamer Python plugin. Policy generation reserves the
+distribution's systemd and GStreamer library directories; the preserved Polkit
+helper contributes its own parent. Preparation builds skeleton parents under
+`/usr`, including the confinement payload, and binds other accepted immediate
+siblings. This is not a recursive trust measurement of every sibling subtree.
+
+The [fixed launchers](../tools/kiosk_session.c#L17) actually consume
+`/usr/bin/oh-no-parent-control`, `/usr/bin/gnome-service-client`, the installed
+`/usr/lib/oh-no-parent-control/{kiosk,common}` Python roots, and the extension's
+`wellbeingService.js` under `/usr/share/gnome-shell/extensions`. Audio explicitly
+uses `/etc/wireplumber:/usr/share/wireplumber` and `/usr/share/wireplumber`, with
+empty default Lua search paths. General XDG roots are `/etc/xdg`,
+`/usr/local/share` and `/usr/share`; the manager additionally consumes the owned
+payload's `user-units`, and Ubuntu D-Bus uses its `session-data` prefix.
+`/etc` is outside the `/usr` overlay; `/usr/local` and accepted share/library
+siblings can expose nested runtime data through a shallow directory bind.
+Trust of their immediate directory does not establish ownership, immutability
+or a content digest for all nested scripts, configuration or plugins. This is
+a source-reviewed limit, not a demonstrated nested-input exploit or a new
+qualification campaign. 005a must classify these actual consumers when defining
+material identity; 001 must distinguish an unavailable consumed runtime input
+from an unrelated sibling and map its later readiness failure. No new root or
+general desktop-service obligation is inferred from an arbitrary policy read rule.
+
+The following selectors name current code and registration, not fresh passes.
+Host selectors below are in `tests/unit/test_kiosk_confinement.py` unless stated
+otherwise; installed case 267 is
+`enforcement / test_kiosk_execution_confinement`.
+
+| Boundary / trigger | Intended result, source and current witnesses | Remaining allocation / diagnostic limit |
+| --- | --- | --- |
+| Identity, attestation and enforcement | [prepare()](../tools/kiosk_confinement.py#L486) verifies the recorded non-root account, successful-load attestation and exact config/policy digest pair before enforcement and inventory. Missing, changed or non-enforcing inputs refuse, without adopting unpacked bytes. `test_preparation_refuses_snapshot_changed_after_verification_before_inventory`, `test_payload_drift_requires_native_and_boot_refusal_before_exact_recovery` and case 267's `verify_payload_attestation_faults()` / `verify_admission_faults()` distinguish drift, native denial and exact restoration. | Intentional refusal; reuse unaffected proofs. Preparation has distinct identity/attestation/payload/enforcement stages. AppArmor must be enforcing; SELinux additionally checks every generated role and the preserved vendor helper domain. Missing dependencies after this boundary pass to 001. |
+| Native inventory and alias trust | [trusted() / inventory()](../tools/kiosk_confinement.py#L92) check original lexical ancestors, every resolved target, root ownership, prohibited write bits, native ELF bytes, roles and substitution source/destination identity. Systemd's selected library directory contributes its finite installed native libraries. Host `test_native_inventory_validates_lexical_alias_and_every_target_path`, `test_native_inventory_refuses_relative_symlink_cycles` and substitution tests cover measurement; case 267's `verify_admission_faults()` covers an installed alias refusal/restoration. | Measurement-time trust does not cover later layout drift. All three retained lexical-parent/intermediate-target failures remain open at 002a; none may become an ambient omission. Local stages distinguish executable/privileged inventories. |
+| Layout, required completeness and races | `directory_layout()` constructs the finite owned skeleton, masks unsafe unrelated directories and omits unsafe files/links/special entries or unsupported names. Required inputs must refuse. `test_directory_skeleton_preserves_links_without_following_them` and `test_writable_sibling_contents_never_enter_private_generation_or_bindings` cover private layout/empty placeholders; signed-helper tests require exactly one preserved destination. | The required set lacks full lexical alias ancestry, and completeness currently covers preserved helpers rather than every measured native destination. The retained missing-destination probe demonstrates acceptance despite that absence. 002a owns required ancestry/completeness, metadata/readlink/disappearance controls and actual manager/gate non-UTF-8 publication. 003a/003 own native isolation; host placeholders do not prove it. Aggregate classifications omit names/paths. |
+| Drift after layout | Native binding reopens and checks source/target metadata, refuses unowned/writable input and checks the preserved helper's measured device/inode/size/timestamps/mode/UID/GID before and after mounting. Host `test_native_preserved_identity_checks_every_python_assertion_field`, `test_native_preserved_identity_refuses_real_post_measurement_file_changes` and `test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone` cover these branches. | An accepted ambient source disappearing or becoming unsafe before binding still aborts entry. This is the existing source-reviewed availability gap at 002a, not permission to weaken native checks. Required drift stays closed; an independent safe mechanism, if needed, requires its own bounded prerequisite there. Native failures currently collapse to `stage=bind`; 002b owns cause production. |
+| Generation and manager identity | `prepare()` hashes config/policy, measured native/preserved records and the whole ambient layout. Gate [manager_generation()](../tools/kiosk_confinement.py#L418) obtains systemd's manager PID, pins it with a pidfd, checks all four UIDs, enforcing label and `/proc/PID/root/usr/.../generation`, then checks exit. A mismatch refuses without killing/replacing the manager. The retained ambient-addition model reaches `manager-generation-stale` despite unchanged required material. | 005a/005 and 006a/006b/006 own material/pin selection and admission composition; 007a/007 own actual retained-manager histories. Production does not independently recheck MainPID, every thread or namespace identity; the stronger engineering `manager_boundary()` observer does. 005 owns that retained-view proof. Removing layout from the digest alone supplies no safe source lifetime. Preparation projects stale-manager/reboot-required separately. |
+| Runtime ownership and interrupted publication | [reclaim_interrupted() / prepare()](../tools/kiosk_confinement.py#L451) and `verify_tree()` require private root-owned runtime/generation metadata, independent copied inodes, exact records, hashes/modes/labels and uncontaminated placeholders. Only owned incomplete generations are reclaimed; mounts, hardlinks, unknown files or foreign ownership refuse, with only expected private-tree symlinks allowed. Completed generations survive until reboot; four generations, 32,768 layout entries and 512 MiB remain bounds. Bindings publish through an owned temporary file and atomic replacement. | Existing preserved-helper preparation/reinstall tests cover stable reuse, changed assertions and exact signed publication. Binding text encoding still fails on a surrogate filename after escaped JSON succeeds; the retained probes exercise publication for both roles. 002a owns that repair. The preparation stages distinguish runtime, recovery, generation-create/verify and bindings; unrecognized exceptions become `verification`. |
+| Mount attachment, replacement and staging detach | [bind_kiosk_executables()](../tools/kiosk_confinement.h) validates the private manifest, creates a private mount namespace, binds through checked descriptors, recursively attaches the skeleton over `/usr`, makes the clone recursively read-only, then detaches only its recorded staging mounts. Any failure refuses before MAC. The host detach selector above checks ordering/failure controls; case 267's `verify_updates()` checks private dentries across actual executable/library/plugin-parent replacement and manager reexec. | A retained namespace keeps its inode pins after host unlink/rename, but detached staging placeholders are not reusable mounted source trees. Existing replacement safety does not prove admission availability after a changed ambient layout. 005a/005 must specify immutable source lifetime; 006/007 must witness it. Native manifest/namespace/mount/read-only/detach causes remain 002b/002. |
+| Admission, preparation and lifecycle serialization | [Native admission](../tools/kiosk_confinement.h) keeps the shared admission lease on the PAM handle and holds the no-follow exclusive preparation lock across runtime creation, helper, binds and MAC. Lifecycle configuration takes shared admission then exclusive preparation; loader/removal barriers take exclusive admission/routing/preparation. Unsafe metadata, missing barriers or contention deny. Host `test_install_refuses_native_preparation_before_policy_or_record_mutation`, `test_install_preserves_existing_admission_and_excludes_preparation_through_attestation`, private PAM tests in `test_kiosk_login.py` and case 267's held-admission loader control cover the crossings. | Intentional refusals with existing ownership; no new lock campaign. Routing's separate login lock and bound account/session state remain as recorded in 001a. Preparation lock errors have only the native stage; detailed bind causes are scoped to 002b. |
+| Bounded helper, environment, capabilities and final MAC | Native preparation has a 60-second whole-helper deadline and reaps its own child; integration verification and the manager query each have five-second deadlines. Failed helper exit, runtime setup, manager-only unit environment, ambient-capability clearing or MAC denies. Ubuntu immediately verifies AppArmor; Fedora verifies pending GDM exec context or immediately confines the manager PAM caller. No subprocess follows final MAC. Case 267's `verify_execution_boundary()` performs an allowed actual exec before forbidden final-exec controls and verifies the manager boundary. | Intentional closed failure; helper success or `outcome=armed` does not prove app readiness. Native records separate identity/admission/lock/runtime/prepare/bind/environment/ambient/mac/armed, but generally lack a cause. Existing routing timeout coverage remains separate from preparation timeout. 001 owns post-boundary startup/readiness projection. |
+
+**Evidence applicability and remaining proof.** The retained
+[five-failure review](../output/test-runs/host/exports/onpc-artifact-export-tmc1qzhs/report.md)
+contains `alias-directory`, `alias-link` and `target-link` controls that expected
+refusal but did not raise, a publication `UnicodeEncodeError`, and the ambient
+generation mismatch. The
+[follow-up report](../output/test-runs/host/exports/onpc-artifact-export-3obq7d2l/report.md)
+retains missing required destination, manager/gate encoding and ambient digest
+failures. Their temporary probes were removed; those names are historical
+engineering receipts, not maintained runnable selectors or installed races.
+Commit `83d502b3` handled root-owned writable directories only; it retained the
+non-root-owner rejection, did not solve alias ancestry or encoding, and did not
+remove ambient layout from generation identity. The current candidate handles
+more ambient classifications but still has the demonstrated gaps above.
+
+The config append in case 267's `verify_execution_boundary()` is not reattested:
+it reaches payload-attestation refusal before manager comparison. It supplies
+no generation-stage acceptance. The separate
+[stale_admission()](../tests/integration/system_native_update.py#L743) requires
+the specific generation reason. Its only caller is `retain_upgrade()`, dispatched
+by [test_install_smoke.py](../tests/system/test_install_smoke.py#L52) and registered
+as case 289, `package / test_native_dependency_update_retained_session`.
+That complete two-phase history checks retained mappings/manager/generations,
+enforcement, loader exclusion, safe reexec, public exit and reboot recovery;
+the helper alone is not an independent public-entry history.
+
+The [retained case 289 receipts](../tests/README.md#core-installation-and-runtime-compatibility)
+are Ubuntu `20261018T221414Z-71987d6a` and Fedora
+`20261018T221414Z-ffdaf92b`, in `onpc-evidence-bundle-imeub3ps/evidence.zip`
+(SHA-256 `fdbf8cf7e9732308ceee22a720fdaf5df6d0d1b6c0f4b2d5e1916beacbe37df1`).
+Read-only bundle inspection confirmed both native-update phases and product
+revision `9162f12d8d92`. Current `directory_layout()` classification, required-set
+and diagnostic inputs differ from that revision. Those are historical
+generation-stage receipts; no current-candidate receipt was established here.
+001 and 011a/011 must allocate matching input comparison or the affected complete
+history, rather than reuse a test name or source link as proof.
+
+The [diagnostic parser](../broker/oh_no_parent_control/dependency_diagnostics.py#L294)
+recognizes these preparation/native stages only with reviewed root producer
+provenance. It exports closed categories and bounded errno/status/source lines,
+not arbitrary exception text. Native bind has no detailed cause yet; 002b/002
+own production/projection. The existing 20-marker clipping defect can displace
+authentication/routing/recovery context under repeated denials; 002 owns it,
+and 010a/010 own actual Parent-archive recovery/reboot proof. No new independent
+prerequisite is needed to finish this review: the demonstrated entry gaps
+already have finite owners. Session/readiness reconciliation remains task 001.
+
+001b review acceptance passed: preparation/native stages, consumed roots,
+required-input/race controls, exact selectors and historical generation receipts
+were checked. Both read-only workers finished before acceptance. No product,
+VM, fixture or persistent process was created or changed, so no runtime
+restoration remains. Only documentation changed; no package build or installed
+check is required by this review brief. Changed Markdown links passed, and the
+required four-module documentation consistency selection passed 313/313 in
+[the retained runner report](../output/test-runs/host/reports/20261019T064419Z-1aad8930/report.md).
 
 ### Remaining execution and acceptance
 

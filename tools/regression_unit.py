@@ -891,6 +891,12 @@ from regression_ui import Bucket
 # reaped with descriptor-balance assertions. No ambient special file is opened,
 # and no new socket, cache, external service, cleanup/UI inventory entry or
 # shared owner is added.
+# Native cause diagnostics reuse the bounded binding fixture and its private
+# manifests, descriptor/mount-identity witnesses and process-local syslog/kernel
+# doubles. Logger failure and errno bounds add no persistent output or live
+# namespace, mount, PAM, bus, socket or cache owner. Compiler/probe deadlines and
+# synchronous child reaping remain unchanged; unit overlap stays compatible,
+# with no cleanup or UI inventory changes.
 # Preparation diagnostic shutdown checks own private broken pipes and bounded,
 # waited Python children with bytecode writes disabled. Preparation is a local
 # double; no host account, PAM, mount, policy or shared cache is accessed.
@@ -924,6 +930,11 @@ from regression_ui import Bucket
 # Manager credential checks reuse that compiled module and private confdir,
 # loading only inert vendor permit/deny callbacks to verify kiosk exclusion and
 # unchanged ordinary fallback. No host PAM files or live credentials are changed.
+# Its native-boundary callback observer compiles one further small private
+# executable (30-second deadline) and waits for each 5-second probe. Lock, PAM,
+# namespace, mount, environment, MAC and logging calls are process-local doubles;
+# the real production callback supplies ordering and return values. No new live
+# resource or cleanup/UI classification is needed; compatible overlap remains.
 # Wellbeing identity/environment cases compile a tiny private launcher with
 # linker-wrapped NSS/exec observers and run bounded waited children. They read
 # no live account or settings backend and preserve compatible unit scheduling.

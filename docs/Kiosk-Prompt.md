@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **002b — [Add native binding failure causes](Kiosk-Prompt-Tasks/002b-native-diagnostics.md)**.
+Next task: **002 — [Complete customer diagnostic projection](Kiosk-Prompt-Tasks/002-generic-host-fix.md)**.
 
 ## Outcome
 
@@ -575,8 +575,8 @@ The final affected selection was `tools/run-tests unit` with
 `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py` and
 `tests/unit/test_regression_unit.py`, retaining the native probes' 5-second and
 compiler's 30-second deadlines. Its
-[report](../output/test-runs/host/reports/20261019T075434Z-fd0e91fe/report.md)
-records all 1,302 passes: 1,209 confinement checks (including 83 new classification
+historical report `20261019T075434Z-fd0e91fe` (retired under normal retention
+during 002b) records all 1,302 passes: 1,209 confinement checks (including 83 new classification
 cases and every original post-layout/required-input control), 66 PAM caller checks
 and 27 resource/partition checks. Actual manager/gate publication reaches the
 native consumer for healthy directory aliases. Independent ambient/required
@@ -605,6 +605,50 @@ After queue/pointer/brief close-out, the maintained four-module documentation
 consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T075636Z-75f99911/report.md).
 Changed Markdown links and whitespace checks passed. Expired predecessor report
 links above are recorded as historical run identifiers rather than fresh receipts.
+
+### Native binding failure causes — 002b
+
+Host acceptance passed on 2026-10-19 UTC. The native PAM caller now emits bounded
+`onpc.pam kiosk native-view` causes for namespace/staging, manifest, metadata,
+identity, binding/attachment, read-only and owned-detach refusals. The
+[producer schema and sanitized examples](SystemDesign/Logging-and-Feedback.md#kiosk-admission-diagnostics)
+give 002 its exact projection input. Invocation-local primary and cleanup causes
+remain separate; direct errors use errno 1–4095 and unavailable/comparison errors
+use -1. Legacy markers, required refusals, ambient omission/masking, labels,
+limits and cleanup authority remain unchanged. Logging failure changes neither
+the native result nor its mount/detach sequence.
+
+Original source review found only `execution-boundary outcome=denied stage=bind`
+at this boundary; no pre-fix fixture execution is claimed. The final maintained
+selection, `tools/run-tests unit` with `tests/unit/test_kiosk_confinement.py`,
+`tests/unit/test_kiosk_login.py` and `tests/unit/test_regression_unit.py`,
+[passed all 1,339 cases](../output/test-runs/host/reports/20261019T080357Z-d7eecb05/report.md):
+1,238 confinement, 74 PAM and 27 partition/resource checks. Its 37 added cases
+cover all nine stages and seven reasons, independent inode/mount/namespace
+witnesses, errno bounds, silent success, cleanup causes and both complete PAM
+caller roles. Private compiler/probe deadlines remain 30/5 seconds. Source SHA-256
+for `tools/kiosk_confinement.h` is
+`85556d6fa59dab9edf65d647861e97afe4306ae6c1de8a11c1770b5fda87f72f`;
+fixture hashes are `72dd22b2b45230951928fc6b8fe095ec62c26e3fb99bb54be6dd466336cb9fcb`
+and `7879fb7b06ca7ff49bec35c3d089e68557407279f3f2a81c4137c4882401a744`
+for the confinement and PAM modules respectively.
+
+`make build` passed both formats after the final packaged edit: DEB SHA-256
+`c6fe4fd9c7f990b1fa8c068309af2c01199d0371023bfcc21118ce195056518f`;
+RPM SHA-256 `9608bd1c8914e8fa384f01406e77361d57ce7d0654225c9924d2775d3f8ba593`.
+Both workers and the independent High reviewer completed before acceptance.
+Resource review retains compatible private fixtures and adds no cleanup/UI
+inventory or shared resource. Runner-owned cleanup and
+`tools/cleanup-e2e --host-only` finished; no installation, VM, persistent process
+or runtime restoration remains. The pre-existing proof-document edit is preserved.
+This host brief declares no Targets and grants no installed or archive-projection
+credit. Only 002b closes; every other queue row retains its status, order and scope.
+
+After queue/pointer/brief close-out, the maintained four-module documentation
+consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T080606Z-b923ca49/report.md).
+Changed Markdown links and whitespace checks passed. Both final acceptance
+reports remain retained; predecessor receipt retirement above preserves its
+historical result and does not remove any current 002b evidence.
 
 ### Remaining execution and acceptance
 

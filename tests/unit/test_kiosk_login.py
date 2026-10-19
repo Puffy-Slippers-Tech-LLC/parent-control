@@ -643,3 +643,186 @@ def test_real_pam_service_and_identity_scope(native, user, service, expected):
         assert (native.pam.pam_acct_mgmt(handle, 0) == 0) == expected
         assert (native.pam.pam_open_session(handle, 0) == 0) == expected
     assert native.calls() == []
+
+
+@pytest.fixture(scope='module')
+def native_boundary_callback(tmp_path_factory):
+    """Compile the complete production PAM boundary around private observers.
+
+    Native mount/identity mechanics are exercised by native_mount_binding in
+    test_kiosk_confinement. This fixture checks their caller's propagation and
+    logging without a privileged PAM stack, host lock or namespace operation.
+    """
+    directory = tmp_path_factory.mktemp('onpc-native-boundary-callback')
+    header = (ROOT / 'tools/kiosk_confinement.h').read_text()
+    declarations = header[header.index('/* The namespace, filesystem and every mount below it belong'):].split(
+        '\nstruct kiosk_record {', 1)[0]
+    callback = 'static int\nkiosk_confinement' + header.split(
+        'static int\nkiosk_confinement', 1)[1]
+    source = directory / 'callback.c'
+    source.write_text(r'''
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/file.h>
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <syslog.h>
+#include <unistd.h>
+#include <security/pam_modules.h>
+#define KIOSK_ACCOUNT_NAME "private-account-canary"
+#define KIOSK_CONFINEMENT_LOCK "private-lock-canary"
+#define KIOSK_CONFINEMENT_RUNTIME "private-runtime-canary"
+static const char *fixture_service, *fixture_fault;
+static int discard;
+static unsigned log_attempts;
+static void fixture_log(pam_handle_t *handle, int priority, const char *format, ...) {
+    (void) handle; (void) priority;
+    log_attempts++;
+    if (!discard) {
+        va_list arguments; va_start(arguments, format);
+        vprintf(format, arguments); putchar('\n'); va_end(arguments);
+    }
+    errno = EPIPE;
+}
+#define pam_syslog fixture_log
+''' + declarations + r'''
+static int fixture_user(pam_handle_t *handle, const char **user, const char *prompt) {
+    (void) handle; (void) prompt; *user = KIOSK_ACCOUNT_NAME; return PAM_SUCCESS;
+}
+static int fixture_item(const pam_handle_t *handle, int item, const void **value) {
+    (void) handle; if (item != PAM_SERVICE) exit(2);
+    *value = fixture_service; return PAM_SUCCESS;
+}
+static int kiosk_admission(pam_handle_t *handle, const char *user) {
+    (void) handle; (void) user; puts("admission"); return PAM_SUCCESS;
+}
+static int kiosk_admission_fd(pam_handle_t *handle) { (void) handle; return 8; }
+static int fixture_open(const char *path, int flags, ...) {
+    if (strcmp(path, KIOSK_CONFINEMENT_LOCK) != 0 ||
+        flags != (O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC)) exit(2);
+    puts("lock-open"); return 7;
+}
+static int fixture_fstat(int fd, struct stat *info) {
+    if (fd != 7) exit(2);
+    memset(info, 0, sizeof(*info)); info->st_mode = S_IFREG | 0600;
+    info->st_nlink = 1; return 0;
+}
+static int fixture_flock(int fd, int operation) {
+    if (fd != 7 || operation != (LOCK_EX | LOCK_NB)) exit(2);
+    puts("lock-held"); return 0;
+}
+static int fixture_mkdir(const char *path, mode_t mode) {
+    if (strcmp(path, KIOSK_CONFINEMENT_RUNTIME) != 0 || mode != 0700) exit(2);
+    return 0;
+}
+static int fixture_lstat(const char *path, struct stat *info) {
+    if (strcmp(path, KIOSK_CONFINEMENT_RUNTIME) != 0) exit(2);
+    memset(info, 0, sizeof(*info)); info->st_mode = S_IFDIR | 0700; return 0;
+}
+static int setup_kiosk_view(struct kiosk_view *view) {
+    memset(view, 0, sizeof(*view)); view->root = -1; puts("setup");
+    if (strcmp(fixture_fault, "namespace") == 0) {
+        errno = EPERM;
+        return kiosk_os_failure(&view->failure, "namespace", "namespace", 1) ? -1 : 0;
+    }
+    return 0;
+}
+static int prepare_kiosk_confinement(const char *role, int lock, int admission) {
+    if ((strcmp(role, "manager") != 0 && strcmp(role, "gate") != 0) || lock != 7 || admission != 8) exit(2);
+    puts("prepare"); return 0;
+}
+static int bind_kiosk_executables(char *backend, size_t size, const char *role, struct kiosk_view *view) {
+    (void) role; puts("bind");
+    if (strcmp(fixture_fault, "none") != 0) {
+        kiosk_failure(&view->failure, "bind", "mount", EIO); return -1;
+    }
+    if (size < sizeof("apparmor")) exit(2);
+    strcpy(backend, "apparmor"); return 0;
+}
+static int cleanup_kiosk_view(struct kiosk_view *view, int keep_clone) {
+    if (keep_clone) exit(2);
+    puts("cleanup");
+    if (strcmp(fixture_fault, "cleanup") == 0) {
+        kiosk_failure(&view->cleanup_failure, "detach", "detach", EBUSY); return -1;
+    }
+    return 0;
+}
+static int fixture_environment(pam_handle_t *handle, const char *value) {
+    (void) handle;
+    if (strcmp(value, "SYSTEMD_UNIT_PATH=/usr/share/oh-no-parent-control/confinement/user-units:") != 0) exit(2);
+    puts("environment"); return PAM_SUCCESS;
+}
+static int fixture_prctl(int option, ...) {
+    if (option != PR_CAP_AMBIENT) exit(2);
+    puts("ambient"); return 0;
+}
+static int apply_kiosk_mac(const char *backend, const char *role) {
+    (void) role; if (strcmp(backend, "apparmor") != 0) exit(2);
+    puts("mac"); return 0;
+}
+static int fixture_close(int fd) { if (fd != 7) exit(2); puts("lock-close"); return 0; }
+#define pam_get_user fixture_user
+#define pam_get_item fixture_item
+#define pam_putenv fixture_environment
+#define geteuid() 0
+#define open fixture_open
+#define fstat fixture_fstat
+#define flock fixture_flock
+#define mkdir fixture_mkdir
+#define lstat fixture_lstat
+#define prctl fixture_prctl
+#define close fixture_close
+''' + callback + r'''
+int main(int argc, char **argv) {
+    if (argc != 4) return 2;
+    fixture_service = argv[1]; fixture_fault = argv[2]; discard = strcmp(argv[3], "discard") == 0;
+    int result = kiosk_confinement(NULL);
+    printf("result:%d\nlog-attempts:%u\n", result, log_attempts);
+    return 0;
+}
+''')
+    executable = directory / 'callback'
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
+                    str(executable), str(source)], check=True, capture_output=True, text=True, timeout=30)
+    return executable
+
+
+@pytest.mark.parametrize('service,role', [('systemd-user', 'manager'), ('gdm-password', 'gate')])
+@pytest.mark.parametrize('fault', ['none', 'namespace', 'bind', 'cleanup'])
+def test_native_boundary_pam_result_survives_diagnostic_failure(native_boundary_callback, service, role, fault):
+    def invoke(mode):
+        result = subprocess.run([str(native_boundary_callback), service, fault, mode],
+                                check=True, capture_output=True, text=True, timeout=5)
+        return result.stdout.splitlines()
+    captured, discarded = invoke('capture'), invoke('discard')
+    expected_result = 'result:0' if fault == 'none' else 'result:14'  # PAM_SESSION_ERR
+    assert expected_result in captured and expected_result in discarded
+    # All effects of the actual PAM caller remain identical if logging drops
+    # every record and changes errno. The final result is checked separately
+    # from both the producer's reason and its existing stage-only marker.
+    assert [line for line in captured if not line.startswith('onpc.')] == discarded
+    assert captured.index('lock-held') < captured.index('setup')
+    assert captured.index('lock-close') < captured.index(expected_result)
+    native = [line for line in captured if line.startswith('onpc.pam kiosk native-view ')]
+    if fault == 'none':
+        assert native == []
+        assert 'mac' in captured
+        assert 'onpc.pam kiosk execution-boundary outcome=armed stage=armed' in captured
+    else:
+        assert 'mac' not in captured and 'ambient' not in captured
+        stage, reason, error = ('namespace', 'namespace', 1) if fault == 'namespace' else ('bind', 'mount', 5)
+        expected = [f'onpc.pam kiosk native-view outcome=denied role={role} '
+                    f'stage={stage} reason={reason} errno={error}']
+        if fault == 'cleanup':
+            expected.append(f'onpc.pam kiosk native-view outcome=cleanup-failed role={role} '
+                            'stage=detach reason=detach errno=16')
+        assert native == expected
+        outer_stage = 'runtime' if fault == 'namespace' else 'bind'
+        assert f'onpc.pam kiosk execution-boundary outcome=denied stage={outer_stage}' in captured
+    assert 'private-account-canary' not in '\n'.join(native)
+    assert 'private-lock-canary' not in '\n'.join(native)

@@ -27,6 +27,11 @@ arbitrary text. Retain original denials after recovery and reboot within the
 documented history bounds. Validate provenance, unknown records, clipping,
 collection failure and privacy through archive round trips. Logging failure must
 not change admission. Reuse existing collector/storage and shared native fixtures.
+Use the exact `onpc.pam kiosk native-view` producer schema and sanitized examples
+in the [admission diagnostic contract](../SystemDesign/Logging-and-Feedback.md#kiosk-admission-diagnostics).
+Primary denial and independent cleanup failure are separate bounded records;
+the legacy execution-boundary marker remains unchanged. Producer coverage alone
+does not complete this task's collector/archive assertions.
 
 The follow-up review's
 [exported host probe](../../output/test-runs/host/exports/onpc-artifact-export-3obq7d2l/report.md)

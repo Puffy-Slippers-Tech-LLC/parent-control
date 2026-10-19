@@ -199,9 +199,42 @@ special types, separator names and unavailable metadata can be omitted
 without exposing their contents; required inputs must still fail closed. The
 alias ancestry and UTF-8 publication repairs passed host acceptance in
 [task 002a](../Kiosk-Prompt.md#ambient-classification-and-required-input-controls--002a).
-Native binding currently exports only its failed stage; bounded native cause
-production and projection remain with tasks 002b/002 of that plan. Neither
-classification record includes the entry name or full path.
+Neither classification record includes the entry name or full path.
+
+The native PAM caller adds a separate `onpc.pam kiosk native-view` record for
+private-view failures. The existing `execution-boundary` and `cleanup=failed`
+records retain their format and meaning. Cause production is separate from the
+collector projection owned by task 002 of the
+[entry plan](../Kiosk-Prompt.md); the new record alone does not establish that
+feedback contains its cause.
+
+The producer schema is fixed, with no optional or arbitrary text fields:
+
+```text
+onpc.pam kiosk native-view outcome=denied role=manager stage=manifest reason=manifest errno=-1
+onpc.pam kiosk native-view outcome=denied role=gate stage=bind reason=mount errno=13
+onpc.pam kiosk native-view outcome=cleanup-failed role=gate stage=detach reason=identity errno=-1
+```
+
+These sanitized examples illustrate independent records, not a single admission.
+`outcome` is `denied` for the primary native failure or `cleanup-failed` for an
+independent owned-cleanup failure. `role` is the validated service-derived
+`manager` or `gate`. Closed stages are `namespace`, `staging`, `manifest`,
+`structure`, `source`, `bind`, `attach`, `readonly` and `detach`; closed reasons
+are `manifest`, `metadata`, `identity`, `namespace`, `mount`, `readonly` and
+`detach`. The stage identifies the operation; the reason distinguishes invalid
+records, unsafe metadata, identity mismatch and kernel operation failure.
+`errno` is a directly observed error number from 1 through 4095, or -1 when
+unavailable, out of range or a validation comparison failed. Never infer an
+error number from a successful call's leftover state.
+
+Each invocation retains its first primary failure and first cleanup failure,
+emitting at most two cause records at the final PAM boundary. Success emits no
+cause record. No names, paths, inode/mount/account identities, manifest contents
+or system error text enter these records. Logging preserves the caller's error
+state and cannot change admission or cleanup results. Host fixture witnesses
+cover cause production; installed behavior and archive composition keep their
+separate acceptance obligations.
 
 Before a feedback snapshot, the independent
 `collect_kiosk_admission_diagnostics()` reader projects exact reviewed native

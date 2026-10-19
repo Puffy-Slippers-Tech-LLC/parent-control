@@ -132,6 +132,13 @@ struct kiosk_owned_mount {
     int live;
 };
 
+/* Closed, invocation-local diagnostics. A validation failure has no syscall
+ * errno; only an immediately observed failed syscall supplies one. */
+struct kiosk_failure {
+    const char *stage, *reason;
+    int error;
+};
+
 struct kiosk_view {
     int root, selinux, mounted, cloned;
     dev_t namespace_device;
@@ -139,7 +146,42 @@ struct kiosk_view {
     unsigned long long root_id, clone_id;
     struct kiosk_owned_mount *mounts;
     unsigned count;
+    struct kiosk_failure failure, cleanup_failure;
 };
+
+static void
+kiosk_failure(struct kiosk_failure *failure, const char *stage, const char *reason, int error)
+{
+    if (failure->stage == NULL) {
+        failure->stage = stage;
+        failure->reason = reason;
+        failure->error = error > 0 && error <= 4095 ? error : -1;
+    }
+}
+
+/* The boolean argument must describe just the preceding syscall, never a
+ * compound syscall/metadata comparison. Success does not inspect errno. */
+static int
+kiosk_os_failure(struct kiosk_failure *failure, const char *stage, const char *reason, int failed)
+{
+    if (failed)
+        kiosk_failure(failure, stage, reason, errno);
+    return failed;
+}
+
+static void
+kiosk_native_diagnostic(pam_handle_t *pamh, const struct kiosk_view *view, const char *role)
+{
+    int saved_errno = errno;
+    const struct kiosk_failure *failures[] = {&view->failure, &view->cleanup_failure};
+    for (unsigned i = 0; i < 2; i++)
+        if (failures[i]->stage != NULL)
+            pam_syslog(pamh, LOG_ERR,
+                       "onpc.pam kiosk native-view outcome=%s role=%s stage=%s reason=%s errno=%d",
+                       i == 0 ? "denied" : "cleanup-failed", role,
+                       failures[i]->stage, failures[i]->reason, failures[i]->error);
+    errno = saved_errno;
+}
 
 struct kiosk_record {
     char *storage, *key, *v[6];
@@ -270,11 +312,18 @@ kiosk_absolute_parent(const char *path, char name[PATH_MAX])
 }
 
 static int
-kiosk_detach_owned(const char *path, unsigned long long expected)
+kiosk_detach_owned(const char *path, unsigned long long expected, struct kiosk_failure *failure)
 {
     unsigned long long actual;
-    return kiosk_mount_id(path, &actual) == 0 && actual == expected &&
-        umount2(path, MNT_DETACH) == 0 ? 0 : -1;
+    /* mount-id absence and identity mismatch are validation failures, not
+     * necessarily failed syscalls from which errno can be inferred. */
+    if (kiosk_mount_id(path, &actual) != 0 || actual != expected) {
+        kiosk_failure(failure, "detach", "identity", -1);
+        return -1;
+    }
+    if (kiosk_os_failure(failure, "detach", "detach", umount2(path, MNT_DETACH) != 0))
+        return -1;
+    return 0;
 }
 
 static int
@@ -289,6 +338,7 @@ cleanup_kiosk_view(struct kiosk_view *view, int keep_clone)
         if (ns >= 0)
             close(ns);
         if (!matches) {
+            kiosk_failure(&view->cleanup_failure, "detach", "namespace", -1);
             if (view->root >= 0) {
                 close(view->root);
                 view->root = -1;
@@ -297,7 +347,7 @@ cleanup_kiosk_view(struct kiosk_view *view, int keep_clone)
         }
     }
     if (!keep_clone && view->cloned) {
-        if (kiosk_detach_owned("/usr", view->clone_id) != 0)
+        if (kiosk_detach_owned("/usr", view->clone_id, &view->cleanup_failure) != 0)
             result = -1;
         else
             view->cloned = 0;
@@ -305,7 +355,7 @@ cleanup_kiosk_view(struct kiosk_view *view, int keep_clone)
     for (unsigned i = view->count; i > 0; i--) {
         struct kiosk_owned_mount *item = &view->mounts[i - 1];
         if (item->live) {
-            if (kiosk_detach_owned(item->path, item->id) != 0)
+            if (kiosk_detach_owned(item->path, item->id, &view->cleanup_failure) != 0)
                 result = -1;
             else
                 item->live = 0;
@@ -313,7 +363,7 @@ cleanup_kiosk_view(struct kiosk_view *view, int keep_clone)
     }
     /* Never hide an unsuccessful subordinate detach under a root detach. */
     if (result == 0 && view->mounted) {
-        if (kiosk_detach_owned(KIOSK_CONFINEMENT_VIEW, view->root_id) != 0)
+        if (kiosk_detach_owned(KIOSK_CONFINEMENT_VIEW, view->root_id, &view->cleanup_failure) != 0)
             result = -1;
         else
             view->mounted = 0;
@@ -389,10 +439,12 @@ setup_kiosk_view(struct kiosk_view *view)
     struct dirent *entry;
     void *library = NULL;
     int ns = -1, fresh = -1, scan = -1, empty = 1, result = -1;
+    const char *stage = "staging", *reason = "metadata";
     int (*enabled)(void);
     memset(view, 0, sizeof(*view));
     view->root = -1;
-    if ((view->mounts = calloc(KIOSK_VIEW_ROWS, sizeof(*view->mounts))) == NULL)
+    if (kiosk_os_failure(&view->failure, stage, reason,
+                        (view->mounts = calloc(KIOSK_VIEW_ROWS, sizeof(*view->mounts))) == NULL))
         goto done;
     library = dlopen("libselinux.so.1", RTLD_NOW | RTLD_LOCAL);
     if (library != NULL) {
@@ -401,16 +453,22 @@ setup_kiosk_view(struct kiosk_view *view)
             goto done;
     } else if (access("/sys/fs/selinux/enforce", F_OK) == 0 || errno != ENOENT)
         goto done;
+    stage = "namespace"; reason = "namespace";
     ns = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
-    if (ns < 0 || fstat(ns, &before) != 0 || unshare(CLONE_NEWNS) != 0 ||
-        mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0)
+    if (kiosk_os_failure(&view->failure, stage, reason, ns < 0) ||
+        kiosk_os_failure(&view->failure, stage, reason, fstat(ns, &before) != 0) ||
+        kiosk_os_failure(&view->failure, stage, reason, unshare(CLONE_NEWNS) != 0) ||
+        kiosk_os_failure(&view->failure, stage, "mount",
+                         mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0))
         goto done;
     fresh = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
-    if (fresh < 0 || fstat(fresh, &after) != 0 ||
+    if (kiosk_os_failure(&view->failure, stage, reason, fresh < 0) ||
+        kiosk_os_failure(&view->failure, stage, reason, fstat(fresh, &after) != 0) ||
         (before.st_dev == after.st_dev && before.st_ino == after.st_ino))
         goto done;
     view->namespace_device = after.st_dev;
     view->namespace_inode = after.st_ino;
+    stage = "staging"; reason = "metadata";
     if ((mkdir(KIOSK_CONFINEMENT_VIEW, 0700) != 0 && errno != EEXIST) ||
         (view->root = open(KIOSK_CONFINEMENT_VIEW,
                            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) < 0 ||
@@ -429,9 +487,10 @@ setup_kiosk_view(struct kiosk_view *view)
         goto done;
     closedir(directory);
     directory = NULL;
-    if (mount("tmpfs", KIOSK_CONFINEMENT_VIEW, "tmpfs", 0,
+    if (kiosk_os_failure(&view->failure, stage, "mount",
+        mount("tmpfs", KIOSK_CONFINEMENT_VIEW, "tmpfs", 0,
               view->selinux ? "mode=0700,size=536870912,nr_inodes=32776,fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0"
-                            : "mode=0700,size=536870912,nr_inodes=32776") != 0)
+                            : "mode=0700,size=536870912,nr_inodes=32776") != 0))
         goto done;
     view->mounted = 1;
     if (kiosk_mount_id(KIOSK_CONFINEMENT_VIEW, &view->root_id) != 0 ||
@@ -450,6 +509,8 @@ setup_kiosk_view(struct kiosk_view *view)
         goto done;
     result = 0;
 done:
+    if (result != 0)
+        kiosk_failure(&view->failure, stage, reason, -1);
     if (directory != NULL)
         closedir(directory);
     if (ns >= 0)
@@ -654,6 +715,7 @@ kiosk_read_protocol(struct kiosk_protocol *protocol, struct kiosk_view *view, co
     char line[PATH_MAX * 3 + 256], *header[5];
     FILE *stream = NULL;
     int fd = -1, pin = -1, result = -1, phase = 0, terminal = 0;
+    const char *reason = "manifest";
     size_t bytes = 0;
     memset(protocol, 0, sizeof(*protocol));
     protocol->roots = calloc(KIOSK_VIEW_ROWS, sizeof(*protocol->roots));
@@ -664,7 +726,10 @@ kiosk_read_protocol(struct kiosk_protocol *protocol, struct kiosk_view *view, co
         (strcmp(role, "manager") != 0 && strcmp(role, "gate") != 0))
         goto done;
     pin = openat(view->root, "bindings", O_PATH | O_NOFOLLOW | O_CLOEXEC);
-    if (pin < 0 || fstat(pin, &info) != 0 || !kiosk_trusted_stat(&info, S_IFREG) ||
+    reason = "metadata";
+    if (kiosk_os_failure(&view->failure, "manifest", reason, pin < 0) ||
+        kiosk_os_failure(&view->failure, "manifest", reason, fstat(pin, &info) != 0) ||
+        !kiosk_trusted_stat(&info, S_IFREG) ||
         (info.st_mode & 07777) != 0600 || info.st_nlink != 1 ||
         info.st_size <= 0 || info.st_size > KIOSK_VIEW_BYTES ||
         kiosk_label(pin, KIOSK_CONFINEMENT_BINDINGS, 0, view->selinux) != 0)
@@ -673,9 +738,11 @@ kiosk_read_protocol(struct kiosk_protocol *protocol, struct kiosk_view *view, co
     char descriptor[64];
     snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", pin);
     fd = open(descriptor, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    if (fd < 0 || (stream = fdopen(fd, "r")) == NULL)
+    if (kiosk_os_failure(&view->failure, "manifest", reason, fd < 0) ||
+        kiosk_os_failure(&view->failure, "manifest", reason, (stream = fdopen(fd, "r")) == NULL))
         goto done;
     fd = -1;
+    reason = "manifest";
     if (fgets(line, sizeof(line), stream) == NULL)
         goto done;
     bytes = strlen(line);
@@ -767,6 +834,7 @@ kiosk_read_protocol(struct kiosk_protocol *protocol, struct kiosk_view *view, co
         goto done;
     /* Pin and validate the selected shared generation and its unchanged marker.
      * It is preparation's digest, not a digest guessed by the native caller. */
+    reason = "identity";
     char name[PATH_MAX], marker[66];
     int parent = kiosk_absolute_parent(protocol->generation, name);
     int generation = parent < 0 ? -1 : openat(parent, name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
@@ -798,6 +866,8 @@ kiosk_read_protocol(struct kiosk_protocol *protocol, struct kiosk_view *view, co
         goto done;
     result = 0;
 done:
+    if (result != 0)
+        kiosk_failure(&view->failure, "manifest", reason, -1);
     if (stream != NULL)
         fclose(stream);
     if (fd >= 0)
@@ -987,17 +1057,32 @@ kiosk_final_error(void)
 }
 
 static int
-kiosk_source_state(int source, int parent, const char *name, int kind, struct stat *info)
+kiosk_source_state(int source, int parent, const char *name, int kind, struct stat *info,
+                   struct kiosk_failure *failure)
 {
     struct stat named;
-    if (fstat(source, info) != 0)
+    memset(failure, 0, sizeof(*failure));
+    if (fstat(source, info) != 0) {
+        kiosk_failure(failure, "source", "metadata", errno);
         return kiosk_final_error() ? 1 : -1;
-    if (!kiosk_trusted_stat(info, kind) || info->st_nlink == 0)
+    }
+    if (!kiosk_trusted_stat(info, kind) || info->st_nlink == 0) {
+        kiosk_failure(failure, "source", "metadata", -1);
         return 1;
-    if (fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0)
+    }
+    if (fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0) {
+        kiosk_failure(failure, "source", "metadata", errno);
         return kiosk_final_error() ? 1 : -1;
-    return !kiosk_trusted_stat(&named, kind) || named.st_nlink == 0 ||
-        named.st_dev != info->st_dev || named.st_ino != info->st_ino ? 1 : 0;
+    }
+    if (!kiosk_trusted_stat(&named, kind) || named.st_nlink == 0) {
+        kiosk_failure(failure, "source", "metadata", -1);
+        return 1;
+    }
+    if (named.st_dev != info->st_dev || named.st_ino != info->st_ino) {
+        kiosk_failure(failure, "source", "identity", -1);
+        return 1;
+    }
+    return 0;
 }
 
 static int
@@ -1086,10 +1171,14 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
     char fd_path[64], target_fd_path[64];
     int tree = -1, source = -1, target = -1, source_parent = -1, target_parent = -1;
     int result = -1;
+    const char *stage = "manifest", *reason = "manifest";
     if (view->root < 0 || !view->mounted ||
         kiosk_read_protocol(&protocol, view, role) != 0 || strlen(protocol.backend) >= size)
         goto done;
+    stage = "structure"; reason = "metadata";
     tree = openat(view->root, "tree", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (kiosk_os_failure(&view->failure, stage, reason, tree < 0))
+        goto done;
     unsigned long long tree_id;
     if (snprintf(path, sizeof(path), "%s/tree", KIOSK_CONFINEMENT_VIEW) >= PATH_MAX ||
         kiosk_mount_id(path, &tree_id) != 0 || tree_id != view->root_id)
@@ -1100,6 +1189,7 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
         kiosk_structure(&protocol, view, tree) != 0)
         goto done;
     /* Validate every assertion before any source fallback or mount. */
+    stage = "manifest"; reason = "identity";
     for (unsigned i = 0; i < protocol.nb; i++) {
         struct kiosk_record *record = &protocol.binds[i];
         if (strcmp(record->v[5], "-") != 0 &&
@@ -1113,30 +1203,38 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
         int kind = kiosk_kind(record->v[2]);
         int assertion = strcmp(record->v[5], "-") != 0;
         int state;
+        struct kiosk_failure source_failure;
         struct kiosk_owned_mount *owned = NULL;
+        stage = "structure"; reason = "metadata";
         if (snprintf(path, sizeof(path), "%s/tree/%s", KIOSK_CONFINEMENT_VIEW, record->v[4]) >= PATH_MAX)
             goto done;
         target_parent = kiosk_parent(tree, record->v[4], target_name);
         target = target_parent < 0 ? -1 : openat(target_parent, target_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
-        if (target < 0 || fstat(target, &placeholder) != 0 ||
+        if (target_parent < 0 || kiosk_os_failure(&view->failure, stage, reason, target < 0) ||
+            kiosk_os_failure(&view->failure, stage, reason, fstat(target, &placeholder) != 0) ||
             !kiosk_trusted_stat(&placeholder, kind) ||
             (kind == S_IFREG && (placeholder.st_nlink != 1 || placeholder.st_size != 0)))
             goto done;
         unsigned long long target_id;
         if (kiosk_mount_id(path, &target_id) != 0 || target_id != view->root_id)
             goto done;
+        stage = "source"; reason = "identity";
         source_parent = kiosk_absolute_parent(record->v[3], source_name);
         if (source_parent < 0)
             goto done;
         source = openat(source_parent, source_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
         if (source < 0) {
-            if (!ambient || !kiosk_final_error())
+            if (!ambient || !kiosk_final_error()) {
+                kiosk_failure(&view->failure, stage, "metadata", errno);
                 goto done;
+            }
             goto omit;
         }
-        state = kiosk_source_state(source, source_parent, source_name, kind, &info);
-        if (state < 0 || (state != 0 && !ambient))
+        state = kiosk_source_state(source, source_parent, source_name, kind, &info, &source_failure);
+        if (state < 0 || (state != 0 && !ambient)) {
+            view->failure = source_failure;
             goto done;
+        }
         if (state != 0)
             goto omit;
         if (assertion && (info.st_nlink != 1 || preserved_kiosk_identity(&info, record->v[5]) != 0))
@@ -1150,9 +1248,11 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
             !kiosk_trusted_stat(&target_named, kind))
             goto done;
         /* Last descriptor/pathname measurement immediately before the bind. */
-        state = kiosk_source_state(source, source_parent, source_name, kind, &info);
-        if (state < 0 || (state != 0 && !ambient))
+        state = kiosk_source_state(source, source_parent, source_name, kind, &info, &source_failure);
+        if (state < 0 || (state != 0 && !ambient)) {
+            view->failure = source_failure;
             goto done;
+        }
         if (state != 0)
             goto omit;
         if (assertion && (info.st_nlink != 1 || preserved_kiosk_identity(&info, record->v[5]) != 0))
@@ -1164,9 +1264,12 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
             goto done;
         snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", source);
         snprintf(target_fd_path, sizeof(target_fd_path), "/proc/self/fd/%d", target);
-        if (mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0)
+        stage = "bind"; reason = "mount";
+        if (kiosk_os_failure(&view->failure, stage, reason,
+                             mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0))
             goto done; /* A mount error is never an ambient omission. */
         owned->live = 1;
+        reason = "identity";
         unsigned long long bound_id;
         if (kiosk_mount_id(path, &bound_id) != 0 || bound_id == view->root_id)
             goto done;
@@ -1180,13 +1283,16 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
         if (!mounted_valid)
             goto done;
         owned->id = bound_id;
+        stage = "source"; reason = "identity";
         if (kiosk_source_ancestry(record->v[3], source_parent) != 0)
             goto done;
-        state = kiosk_source_state(source, source_parent, source_name, kind, &info);
-        if (state < 0 || (state != 0 && !ambient))
+        state = kiosk_source_state(source, source_parent, source_name, kind, &info, &source_failure);
+        if (state < 0 || (state != 0 && !ambient)) {
+            view->failure = source_failure;
             goto done;
+        }
         if (state != 0) {
-            if (kiosk_detach_owned(owned->path, owned->id) != 0)
+            if (kiosk_detach_owned(owned->path, owned->id, &view->failure) != 0)
                 goto done;
             owned->live = 0;
             goto omit;
@@ -1195,9 +1301,11 @@ bind_kiosk_executables(char *backend, size_t size, const char *role, struct kios
             goto done;
         goto next;
 omit:
+        stage = "source"; reason = "identity";
         if (kiosk_source_ancestry(record->v[3], source_parent) != 0 ||
             kiosk_source_ancestry(path, target_parent) != 0)
             goto done;
+        stage = "structure"; reason = "metadata";
         if (kiosk_omit(target_parent, target_name, path, &placeholder, view->root_id, kind) != 0)
             goto done;
 next:
@@ -1209,9 +1317,11 @@ next:
         source = target = source_parent = target_parent = -1;
     }
     /* Required ancestry and full alias closure stay strict through attachment. */
+    stage = "source"; reason = "identity";
     for (unsigned i = 0; i < protocol.np; i++)
         if (kiosk_proof(&protocol, protocol.proofs[i].v[2]) != 0)
             goto done;
+    stage = "attach"; reason = "identity";
     target = open("/usr", O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     struct stat tree_info, named_tree;
     unsigned long long previous_usr, attached_id;
@@ -1224,9 +1334,12 @@ next:
         goto done;
     snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", tree);
     snprintf(target_fd_path, sizeof(target_fd_path), "/proc/self/fd/%d", target);
-    if (mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0)
+    reason = "mount";
+    if (kiosk_os_failure(&view->failure, stage, reason,
+                         mount(fd_path, target_fd_path, NULL, MS_BIND | MS_REC, NULL) != 0))
         goto done;
     view->cloned = 1;
+    reason = "identity";
     if (kiosk_mount_id("/usr", &attached_id) != 0 || attached_id == previous_usr ||
         attached_id == view->root_id)
         goto done;
@@ -1239,7 +1352,9 @@ next:
     if (!clone_valid)
         goto done;
     view->clone_id = attached_id;
-    if (mount_setattr(AT_FDCWD, "/usr", AT_RECURSIVE, &readonly, sizeof(readonly)) != 0)
+    stage = "readonly"; reason = "readonly";
+    if (kiosk_os_failure(&view->failure, stage, reason,
+                         mount_setattr(AT_FDCWD, "/usr", AT_RECURSIVE, &readonly, sizeof(readonly)) != 0))
         goto done;
     close(tree);
     tree = -1;
@@ -1247,11 +1362,19 @@ next:
     target = -1;
     /* The /usr clone owns the dentries now. Detach aliases, never unlink the
      * skeleton: deleting it would also delete names visible in the clone. */
-    if (cleanup_kiosk_view(view, 1) != 0)
+    stage = "detach"; reason = "detach";
+    if (cleanup_kiosk_view(view, 1) != 0) {
+        /* This detach is required to finish binding; it is also independently
+         * retained as cleanup evidence if later recovery cannot detach it. */
+        if (view->failure.stage == NULL)
+            view->failure = view->cleanup_failure;
         goto done;
+    }
     strcpy(backend, protocol.backend);
     result = 0;
 done:
+    if (result != 0)
+        kiosk_failure(&view->failure, stage, reason, -1);
     if (source >= 0)
         close(source);
     if (target >= 0)
@@ -1340,7 +1463,7 @@ apply_kiosk_mac(const char *backend, const char *role)
 static int
 kiosk_confinement(pam_handle_t *pamh)
 {
-    const char *username = NULL, *service = NULL, *role, *stage = "identity";
+    const char *username = NULL, *service = NULL, *role = NULL, *stage = "identity";
     struct stat info;
     char backend[32];
     struct kiosk_view view = {.root = -1};
@@ -1413,6 +1536,8 @@ done:
     free(view.mounts);
     if (fd >= 0)
         close(fd);
+    if (role != NULL)
+        kiosk_native_diagnostic(pamh, &view, role);
     pam_syslog(pamh, result == PAM_SUCCESS ? LOG_INFO : LOG_ERR,
                "onpc.pam kiosk execution-boundary outcome=%s stage=%s",
                result == PAM_SUCCESS ? "armed" : "denied", stage);

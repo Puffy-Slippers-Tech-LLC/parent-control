@@ -318,8 +318,10 @@ or recursively erased. Process/namespace exit releases surviving private mount
 references; do not return successful admission with unfinished detach. A caller
 crash leaves no persistent private payload to sweep. Preserve an unexpected
 shared mountpoint identity or nonempty directory and refuse it. Diagnostics use
-closed categories without paths and cannot change admission if logging fails;
-002b retains detailed native cause production.
+closed categories without paths and cannot change admission if logging fails.
+Detailed native cause production follows the
+[admission diagnostic contract](Logging-and-Feedback.md#kiosk-admission-diagnostics);
+its host acceptance is recorded at [002b](../Kiosk-Prompt.md#native-binding-failure-causes--002b).
 
 **Finite host acceptance allocation (002ab).** The following selector families
 are registered in `tests/unit/test_kiosk_confinement.py`, including the

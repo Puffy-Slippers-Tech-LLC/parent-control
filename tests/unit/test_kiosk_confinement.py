@@ -3821,9 +3821,27 @@ def native_mount_binding(tmp_path_factory):
 #include <dlfcn.h>
 #include <time.h>
 #include <signal.h>
+#include <stdarg.h>
+#include <syslog.h>
 #include <sys/wait.h>
 #include <unistd.h>
 static const char *manifest, *fault, *fixture_root, *caller, *drift_source;
+static const char *diagnostic_mode;
+static unsigned diagnostic_attempts;
+typedef void pam_handle_t;
+static void pam_syslog(pam_handle_t *handle, int priority, const char *format, ...) {
+    (void) handle; (void) priority;
+    diagnostic_attempts++;
+    if (strcmp(diagnostic_mode, "discard") != 0) {
+        va_list arguments;
+        va_start(arguments, format);
+        printf("native-record:"); vprintf(format, arguments); putchar('\n');
+        va_end(arguments);
+    }
+    /* A failed log transport can change errno even though pam_syslog has no
+     * return value. Production must preserve both native result and errno. */
+    errno = EPIPE;
+}
 static char runtime_path[PATH_MAX], view_path[PATH_MAX], helper_path[PATH_MAX];
 static unsigned source_checks, source_opens;
 static int fixture_source_boundary;
@@ -3950,6 +3968,7 @@ static int fixture_openat(int fd, const char *path, int flags, ...) {
     return result;
 }
 static int metadata(const char *path, struct stat *info) {
+    if (strcmp(fault, "metadata") == 0) errno = EACCES;
     info->st_uid = info->st_gid = 0;
     if (strncmp(path, "/usr", 4) != 0 && strncmp(path, fixture_root, strlen(fixture_root)) != 0)
         info->st_mode &= ~0022;
@@ -3990,7 +4009,13 @@ static int fixture_fstat(int fd, struct stat *info) {
         source_checks++; mutate_source(path);
     }
     if (fstat(fd, info) != 0) return -1;
-    if (strstr(path, "mnt:[")) info->st_ino += namespace_changed;
+    if (strstr(path, "mnt:[")) {
+        info->st_ino += namespace_changed;
+        if (strcmp(fault, "cleanup-namespace") == 0 && readonly) {
+            info->st_ino++;
+            puts("namespace-witness:mismatch");
+        }
+    }
     return metadata(logical(path), info);
 }
 static int fixture_fstatat(int fd, const char *path, struct stat *info, int flags) {
@@ -4025,8 +4050,9 @@ static int fixture_fstatfs(int fd, struct statfs *info) {
 }
 static int fixture_unshare(int flags) {
     printf("namespace\n");
+    if (strcmp(fault, "setup-namespace") == 0) { errno = EPERM; return -1; }
     namespace_changed = 1;
-    return flags == CLONE_NEWNS && strcmp(fault, "setup-namespace") != 0 ? 0 : -1;
+    return flags == CLONE_NEWNS ? 0 : -1;
 }
 static int fixture_mkdir(const char *path, mode_t mode) { return mkdir(physical(path), mode); }
 static int fixture_statx(int fd, const char *path, int flags, unsigned mask, struct statx *info) {
@@ -4047,20 +4073,32 @@ static int fixture_statx(int fd, const char *path, int flags, unsigned mask, str
 }
 static int fixture_mount(const char *from, const char *to, const char *type,
                          unsigned long flags, const void *data) {
-    if (from == NULL) return flags == (MS_REC | MS_PRIVATE) && strcmp(fault, "setup-propagation") != 0 ? 0 : -1;
+    if (from == NULL) {
+        if (strcmp(fault, "setup-propagation") == 0) { errno = EACCES; return -1; }
+        return flags == (MS_REC | MS_PRIVATE) ? 0 : -1;
+    }
     if (type && strcmp(type, "tmpfs") == 0) {
         printf("tmpfs:%s\n", to); private_mount = 1;
         printf("tmpfs-options:%s\n", (const char *) data);
-        return strcmp(fault, "setup-tmpfs") == 0 ? -1 : 0;
+        if (strcmp(fault, "setup-tmpfs") == 0) { errno = ENOSPC; return -1; }
+        return 0;
     }
     int fd; char target[PATH_MAX];
     if (!(flags & MS_BIND) || sscanf(to, "/proc/self/fd/%d", &fd) != 1) exit(2);
     fd_name(fd, target);
     const char *path = logical(target);
     printf("bind:%s\n", path);
-    if (strcmp(fault, "bind") == 0) return -1;
+    if (strcmp(fault, "bind") == 0) { errno = EIO; return -1; }
+    if (strncmp(fault, "bind-errno-", 11) == 0) {
+        if (strcmp(fault, "bind-errno-zero") == 0) errno = 0;
+        else if (strcmp(fault, "bind-errno-negative") == 0) errno = -1;
+        else if (strcmp(fault, "bind-errno-upper") == 0) errno = 4095;
+        else if (strcmp(fault, "bind-errno-overflow") == 0) errno = 4096;
+        else exit(2);
+        return -1;
+    }
     if (strcmp(path, "/usr") == 0) {
-        if (strcmp(fault, "attach") == 0) return -1;
+        if (strcmp(fault, "attach") == 0) { errno = EIO; return -1; }
         int source_fd;
         if (sscanf(from, "/proc/self/fd/%d", &source_fd) != 1 ||
             (clone_source = dup(source_fd)) < 0) exit(2);
@@ -4082,7 +4120,7 @@ static int fixture_readonly(int fd, const char *path, unsigned flags,
         attributes->attr_set != MOUNT_ATTR_RDONLY) exit(2);
     printf("readonly:%s\n", path);
     if (strcmp(path, "/usr") == 0) {
-        if (strcmp(fault, "readonly") == 0) return -1;
+        if (strcmp(fault, "readonly") == 0) { errno = EROFS; return -1; }
         readonly = 1;
     }
     return 0;
@@ -4090,7 +4128,7 @@ static int fixture_readonly(int fd, const char *path, unsigned flags,
 static int fixture_detach(const char *path, int flags) {
     if (flags != MNT_DETACH) exit(2);
     printf("detach:%s\n", path);
-    if (strcmp(fault, "detach") == 0) return -1;
+    if (strcmp(fault, "detach") == 0) { errno = EBUSY; return -1; }
     if (strcmp(path, "/usr") == 0) {
         if (clone_source >= 0) close(clone_source);
         clone_source = -1; cloned = 0;
@@ -4133,8 +4171,9 @@ static int fixture_detach(const char *path, int flags) {
 int main(int argc, char **argv) {
     char backend[32];
     struct kiosk_view view;
-    if (argc != 6) return 2;
+    if (argc != 6 && argc != 7) return 2;
     manifest = argv[1]; fault = argv[2]; fixture_root = argv[3]; caller = argv[4]; drift_source = argv[5];
+    diagnostic_mode = argc == 7 ? argv[6] : "capture";
     if (snprintf(runtime_path, sizeof(runtime_path), "%s/runtime", fixture_root) >= PATH_MAX ||
         snprintf(view_path, sizeof(view_path), "%s/native-view", runtime_path) >= PATH_MAX ||
         snprintf(helper_path, sizeof(helper_path), "%s/helper", runtime_path) >= PATH_MAX) return 2;
@@ -4163,6 +4202,10 @@ int main(int argc, char **argv) {
     }
     if (result == 0 && strcmp(fault, "post-attach") == 0) result = -1;
     if (cleanup_kiosk_view(&view, result == 0) != 0) result = -1;
+    int saved_errno = errno;
+    kiosk_native_diagnostic(NULL, &view, caller);
+    printf("diagnostic-attempts:%u\n", diagnostic_attempts);
+    printf("diagnostic-errno-preserved:%d\n", errno == saved_errno);
     /* Kernel references are represented by fixture-owned duplicates; close
      * that bookkeeping after native cleanup before auditing native fd balance. */
     if (clone_source >= 0) close(clone_source);
@@ -4248,11 +4291,11 @@ def _native_binding_scene(executable, root, *, role='manager', required=False, k
         manifest.write_text('\n'.join(rows if values is None else values) + '\n')
         manifest.chmod(0o600)
 
-    def run(fault='none', *, caller=role, path=source):
+    def run(fault='none', *, caller=role, path=source, diagnostic='capture'):
         changed = root / path.lstrip('/') if path.startswith('/usr/') else Path(path)
         assert changed.is_relative_to(root)
         try:
-            result = NATIVE_RUN([str(executable), str(manifest), fault, str(root), caller, path],
+            result = NATIVE_RUN([str(executable), str(manifest), fault, str(root), caller, path, diagnostic],
                                 capture_output=True, text=True, timeout=5)
         finally:
             # Real mode drift can remove directory search permission. Restore
@@ -4320,6 +4363,128 @@ def test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone(
         assert 'readonly:/usr' not in operations or fault == 'readonly'
     if fault == 'none':
         assert '/usr' not in detached
+
+
+def _native_diagnostic_records(result):
+    records = [line.removeprefix('native-record:') for line in result.stdout.splitlines()
+               if line.startswith('native-record:')]
+    for record in records:
+        # Match the whole schema: fixture paths, numeric identities, backend
+        # exceptions and arbitrary syscall text cannot become producer fields.
+        prefix = 'onpc.pam kiosk native-view '
+        assert record.startswith(prefix), record
+        fields = dict(value.split('=', 1) for value in record.removeprefix(prefix).split())
+        assert set(fields) == {'outcome', 'role', 'stage', 'reason', 'errno'}
+        assert fields['outcome'] in ('denied', 'cleanup-failed')
+        assert fields['role'] in ('manager', 'gate')
+        assert fields['stage'] in ('namespace', 'staging', 'manifest', 'structure',
+                                   'source', 'bind', 'attach', 'readonly', 'detach')
+        assert fields['reason'] in ('manifest', 'metadata', 'identity', 'namespace',
+                                    'mount', 'readonly', 'detach')
+        assert fields['errno'] == '-1' or 1 <= int(fields['errno']) <= 4095
+        assert len(record) < 180
+    return records
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('fault,stage,reason,error', [
+    ('manifest', 'manifest', 'manifest', -1),
+    ('metadata', 'structure', 'metadata', -1),
+    ('identity', 'source', 'identity', -1),
+    ('setup-namespace', 'namespace', 'namespace', 1),
+    ('setup-storage', 'staging', 'metadata', -1),
+    ('setup-tmpfs', 'staging', 'mount', 28),
+    ('bind', 'bind', 'mount', 5),
+    ('attach', 'attach', 'mount', 5),
+    ('readonly', 'readonly', 'readonly', 30),
+    ('detach', 'detach', 'detach', 16),
+])
+def test_native_binding_reports_closed_failure_causes(
+        native_mount_binding, tmp_path, role, fault, stage, reason, error):
+    scene = _native_binding_scene(native_mount_binding, tmp_path, role=role)
+    if fault == 'manifest':
+        scene.publish([scene.rows[0].replace('ONPC-KIOSK', 'private-manifest-canary'), *scene.rows[1:]])
+    elif fault == 'metadata':
+        scene.target.chmod(0o666)
+    elif fault == 'identity':
+        # Preserve an independently measured real identity in the native
+        # assertion, then change exactly its inode witness. Do not ask the
+        # diagnostic producer whether the helper is the same file.
+        measured = list(module(ROOT / 'tools/kiosk_confinement.py').file_identity(scene.physical.stat()))
+        measured[-2:] = [0, 0]
+        measured[1] += 1
+        rows = [row for row in scene.rows if not row.startswith('bind\tambient')]
+        rows.insert(1, 'root\tpreserved\t' + scene.source + '\t' + scene.source)
+        proof_at = next(index for index, row in enumerate(rows) if row.startswith('bind\t'))
+        rows[proof_at:proof_at] = ['proof\tdirectory\t/usr/bin\t-',
+                                  'proof\tfile\t' + scene.source + '\t-']
+        rows.insert(-1, '\t'.join(('bind', 'required', 'file', scene.source,
+                                   scene.relative, ' '.join(map(str, measured)))))
+        scene.publish(rows)
+    elif fault.startswith('setup-'):
+        shutil.rmtree(scene.tree)
+        scene.manifest.unlink()
+    result = scene.run(fault)
+    assert result.returncode == 1, result.stdout + result.stderr
+    expected = (f'onpc.pam kiosk native-view outcome=denied role={role} '
+                f'stage={stage} reason={reason} errno={error}')
+    records = _native_diagnostic_records(result)
+    assert records[0] == expected, result.stdout + result.stderr
+    assert all('private-manifest-canary' not in record and str(tmp_path) not in record
+               for record in records)
+    assert 'diagnostic-errno-preserved:1' in result.stdout.splitlines()
+    operations = result.stdout.splitlines()
+    if fault in ('manifest', 'metadata', 'identity') or fault.startswith('setup-'):
+        assert 'bind:' + str(scene.target) not in operations
+        assert 'readonly:/usr' not in operations
+    if fault in ('attach', 'readonly', 'detach'):
+        assert 'bind:' + str(scene.target) in operations
+    if fault == 'readonly':
+        assert 'readonly:/usr' in operations and 'detach:/usr' in operations
+    if fault == 'detach':
+        assert operations.index('readonly:/usr') < operations.index('detach:' + str(scene.target))
+        assert 'detach:' + str(scene.view) not in operations
+
+
+@pytest.mark.parametrize('fault,error', [
+    ('bind-errno-zero', -1), ('bind-errno-negative', -1),
+    ('bind-errno-upper', 4095), ('bind-errno-overflow', -1),
+])
+def test_native_binding_bounds_only_observed_syscall_errno(native_mount_binding, tmp_path, fault, error):
+    scene = _native_binding_scene(native_mount_binding, tmp_path)
+    result = scene.run(fault)
+    assert result.returncode == 1
+    assert _native_diagnostic_records(result)[0] == (
+        'onpc.pam kiosk native-view outcome=denied role=manager '
+        f'stage=bind reason=mount errno={error}')
+    assert 'readonly:/usr' not in result.stdout.splitlines()
+
+
+@pytest.mark.parametrize('fault', ['none', 'bind', 'readonly', 'detach'])
+def test_native_binding_diagnostic_transport_failure_preserves_result(native_mount_binding, tmp_path, fault):
+    scene = _native_binding_scene(native_mount_binding, tmp_path)
+    observed = scene.run(fault)
+    discarded = scene.run(fault, diagnostic='discard')
+    assert observed.returncode == discarded.returncode == (0 if fault == 'none' else 1)
+    records = _native_diagnostic_records(observed)
+    assert len(records) == (0 if fault == 'none' else 2 if fault == 'detach' else 1)
+    assert _native_diagnostic_records(discarded) == []
+    assert f'diagnostic-attempts:{len(records)}' in discarded.stdout.splitlines()
+    if fault == 'detach':
+        assert records == [
+            'onpc.pam kiosk native-view outcome=denied role=manager '
+            'stage=detach reason=detach errno=16',
+            'onpc.pam kiosk native-view outcome=cleanup-failed role=manager '
+            'stage=detach reason=detach errno=16',
+        ]
+    assert 'diagnostic-errno-preserved:1' in discarded.stdout.splitlines()
+    # Logger failure does not change the independently observed native mount
+    # and detach sequence, including refusal to detach a root after failed
+    # subordinate cleanup. Ignore only the logger's own output.
+    def operations(result):
+        return [line for line in result.stdout.splitlines()
+                if not line.startswith(('native-record:', 'diagnostic-'))]
+    assert operations(observed) == operations(discarded)
 
 
 @pytest.mark.parametrize('role', ['manager', 'gate'])
@@ -4539,7 +4704,7 @@ def test_post_layout_protocol_and_targets_source_errors(native_mount_binding, tm
 
 
 @pytest.mark.parametrize('fault', ['none', 'bind', 'attach', 'readonly', 'detach',
-    'foreign-mount', 'post-attach', 'setup-none', 'setup-namespace', 'setup-propagation',
+    'foreign-mount', 'cleanup-namespace', 'post-attach', 'setup-none', 'setup-namespace', 'setup-propagation',
     'setup-tmpfs', 'setup-storage', 'setup-inodes', 'setup-nonempty', 'setup-selinux-none',
     'setup-selinux-label', 'setup-selinux-options', 'setup-selinux-override',
     'helper-success', 'helper-failure', 'helper-timeout'])
@@ -4568,6 +4733,10 @@ def test_post_layout_owned_cleanup_and_bounds(native_mount_binding, tmp_path, fa
         assert 'detach:/usr' not in operations
     if fault == 'post-attach': assert 'detach:/usr' in operations
     if fault == 'foreign-mount': assert 'detach:' + str(scene.target) not in operations
+    if fault == 'cleanup-namespace':
+        assert 'namespace-witness:mismatch' in operations
+        assert 'readonly:/usr' in operations
+        assert not any(line.startswith('detach:') for line in operations)
     assert all('foreign' not in line for line in operations if line.startswith('detach:'))
     assert 'fd-balance:0' in operations
     if fault.startswith('helper-'):
@@ -4584,6 +4753,27 @@ def test_post_layout_owned_cleanup_and_bounds(native_mount_binding, tmp_path, fa
         assert 'detach:' + str(scene.view) in operations
     if fault == 'setup-nonempty':
         assert (scene.view / 'foreign').read_text() == 'do not adopt'
+    records = _native_diagnostic_records(result)
+    expected_primary = {
+        'setup-propagation': ('namespace', 'mount', 13),
+        'setup-tmpfs': ('staging', 'mount', 28),
+        'setup-storage': ('staging', 'metadata', -1),
+        'setup-inodes': ('staging', 'metadata', -1),
+        'setup-selinux-label': ('staging', 'metadata', -1),
+        'setup-selinux-options': ('staging', 'metadata', -1),
+        'setup-selinux-override': ('staging', 'metadata', -1),
+    }
+    if fault in expected_primary:
+        stage, reason, error = expected_primary[fault]
+        assert records[0] == ('onpc.pam kiosk native-view outcome=denied role=manager '
+                              f'stage={stage} reason={reason} errno={error}')
+    if fault in ('foreign-mount', 'cleanup-namespace'):
+        reason = 'identity' if fault == 'foreign-mount' else 'namespace'
+        assert records[-1] == ('onpc.pam kiosk native-view outcome=cleanup-failed role=manager '
+                               f'stage=detach reason={reason} errno=-1')
+    assert len(records) <= 2
+    if fault in ('none', 'setup-none', 'setup-selinux-none'):
+        assert records == []
 
 
 @pytest.mark.parametrize('role', ['manager', 'gate'])

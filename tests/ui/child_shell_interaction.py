@@ -15,7 +15,6 @@ import traceback
 from gi.repository import GLib
 
 from tests.support.application_ui import ApplicationUI, UIClientError
-from child_shell_screenshot import capture_screenshot
 
 
 TIMEOUT_SECONDS = float(os.environ.get("ONPC_CHILD_INTERACTION_TIMEOUT_SECONDS", "15"))
@@ -212,16 +211,10 @@ def _review_language_changes(oracles):
         assert actual == expected["description"], (language, "panel description", expected["description"], actual)
         actual = _panel().getText(COUNTDOWN_ANIMATION_ID)
         assert actual == expected["countdown"], (language, "countdown label", expected["countdown"], actual)
-        capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]).with_name(
-            "language-" + language + ".png"))
         print("Child panel localization reviewed: " + language, flush=True)
 
 
 def _reminder_preview():
-    from common.oh_no_parent_control_ui.system_info import display_info
-    displays = display_info()
-    assert displays['status'] == 'complete' and displays['monitors'], displays
-    print('Live session display diagnostics: ' + json.dumps(displays), flush=True)
     _open_overlay(1)
     overlay = _overlay_automation()
     _complete_language_setup(overlay)
@@ -252,8 +245,6 @@ def _reminder_preview():
     overlay.activate('reminder-editor-preview', surface_id='reminder-editor-dialog')
     _wait(lambda: preview_body('60 seconds left'), 'real Shell minute boundary preview')
     assert _panel().getValue('child-reminder-preview-countdown', surface_id='child-reminder-preview') in (5, 4)
-    capture_screenshot(Path(os.environ['ONPC_CHILD_SHELL_SCREENSHOT_PATH']).with_name(
-        'reminder-countdown.png'))
     _wait(lambda: not any(s['id'] == 'child-reminder-preview' for s in _panel().listSurfaces()),
           'real Shell five-second auto close')
     overlay.setText('reminder-value', '15', surface_id='reminder-editor-dialog')
@@ -303,7 +294,6 @@ def main():
         print("interaction stage=countdown-preference-persisted", flush=True)
 
         _open_overlay(1)
-        capture_screenshot(Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]))
         print("interaction stage=overlay-visible", flush=True)
         _activate_overlay_cancel()
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
@@ -335,13 +325,6 @@ def main():
         if OVERLAY is not None:
             print(f"Interaction pinned overlay process exists="
                   f"{_process_exists(OVERLAY.pid)}", file=sys.stderr)
-        try:
-            capture_screenshot(
-                Path(os.environ["ONPC_CHILD_SHELL_SCREENSHOT_PATH"]).with_name("interaction-failure.png"),
-                include_cursor=True,
-            )
-        except Exception:
-            print("Child interaction failure screenshot unavailable", file=sys.stderr)
         print(f"Launch records: {_launch_records()!r}", file=sys.stderr)
         print(f"Redacted Application UI snapshot:\n{_snapshot()}", file=sys.stderr)
         return 1

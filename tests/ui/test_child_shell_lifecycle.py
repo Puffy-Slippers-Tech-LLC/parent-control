@@ -14,10 +14,9 @@ import pytest
 
 from tests.support.child_shell import extension_error_context, run_child_shell
 
-# The Devkit viewer needs an outer display. Request our private compositor
-# explicitly instead of depending on another module having booted it first.
-# This also keeps focused and bucket runs off the developer's desktop.
-pytestmark = [pytest.mark.ui, pytest.mark.usefixtures('hermetic_ui_session')]
+# The shared runner owns its headless Shell, private display and bus. These
+# API-driven checks need no outer compositor, viewer or screenshot service.
+pytestmark = pytest.mark.ui
 ROOT = Path(__file__).resolve().parents[2]
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
 ARTIFACTS = ROOT / "artifacts" / "ui" / "child-shell"
@@ -91,19 +90,12 @@ def _assert_preview_evidence(
 ) -> list[str]:
     logs = [artifact_root / "logs" / f"child-preview-generation-{generation}.log"
             for generation in range(1, generations + 1)]
-    screenshots = [artifact_root / "screenshots" / f"generation-{generation}.png"
-                   for generation in range(1, generations + 1)]
-    for path in [*logs, *screenshots, artifact_root / "lifecycle-events.log"]:
+    for path in [*logs, artifact_root / "lifecycle-events.log"]:
         assert path.is_file(), f"Required nested-Shell artifact is missing: {path}\n{diagnostic}"
-    for screenshot in screenshots:
-        assert screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), (
-            f"Nested-Shell screenshot is not a PNG: {screenshot}\n{diagnostic}"
-        )
     stages = (artifact_root / "lifecycle-events.log").read_text(
         encoding="utf-8", errors="replace"
     )
     assert "stage=setup outcome=success error_category=none" in stages, diagnostic
-    assert "stage=screenshot outcome=success error_category=none" in stages, diagnostic
     assert "stage=shutdown outcome=success error_category=none" in stages, diagnostic
     return [path.read_text(encoding="utf-8", errors="replace") for path in logs]
 
@@ -260,7 +252,6 @@ def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
     assert 'Child panel localization cycle passed' in result.stdout, diagnostic
     for language in oracles:
         assert f'Child panel localization reviewed: {language}' in result.stdout, diagnostic
-        assert (artifact_root / 'screenshots' / f'language-{language}.png').is_file(), diagnostic
     events = (artifact_root / 'request-overlay-events.tsv').read_text(encoding='utf-8')
     assert events.count('request-launch\t') == len(oracles), diagnostic
     logs = _assert_preview_evidence(artifact_root, 1, diagnostic)

@@ -470,7 +470,6 @@ def test_standard_user_startup_denial_has_specific_public_result(launch_ui, auto
             'denial-dismissed')
 
 
-@pytest.mark.usefixtures('hermetic_ui_session')
 def test_search_adapter_in_isolated_shell(render_artifacts):
     import os
     import sys

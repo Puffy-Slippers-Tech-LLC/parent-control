@@ -908,6 +908,14 @@ Include dependency fixtures in the consumer too; aliases can disambiguate names.
 Helpers must not import collected cases, mutate the desktop at import time or
 infer process ownership from names/environment variables.
 
+`child_shell.run_child_shell` owns a headless GNOME Shell through the shared
+lifecycle runner and its subreaper guardian. All consumers share the private
+Wayland output, bus, settings, copied extension payload and bounded cleanup.
+Use the Application UI API for real panel/overlay reads and input; do not add
+an outer desktop, Devkit viewer, screenshots or display-geometry acceptance to
+these semantic checks. Interactive child previews keep their separate visible
+viewer path in the same orchestration library.
+
 Preserve test names, parameter IDs, requirement links, refusal cases, deadlines,
 privacy canaries and cleanup checks during extraction. Validate affected callers
 at the [lowest effective scope](../README.md#all-established-regressions), retaining

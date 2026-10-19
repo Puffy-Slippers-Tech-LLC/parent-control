@@ -70,8 +70,6 @@ prefix_rule(
         "./tools/fix-tests",
         "tools/generate_test_coverage.sh",
         "./tools/generate_test_coverage.sh",
-        "tools/install-coverage",
-        "./tools/install-coverage",
         "tools/onpc-diagnostics",
         "./tools/onpc-diagnostics",
         "tools/prepare-appsnapshot",

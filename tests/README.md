@@ -2200,9 +2200,14 @@ Node and GJS checks are available as `make check-child-node` and
 `make check-child-gjs`. The latter prints its private
 `onpc-gjs-coverage-<run>/` shared allocation containing `coverage.lcov`.
 The nested-Shell guardian uses the shared short-runtime helper and removes its
-recorded identity after owned descendants settle. Its
+recorded identity after owned descendants settle. The shared lifecycle runner
+starts GNOME Shell headlessly with a virtual Wayland output. Panel, reminder,
+overlay, language and reload checks use public Application UI values and
+lifecycle results; no outer compositor, Devkit viewer, PipeWire capture,
+screenshot service or geometry assertion is required. Interactive child previews
+retain their visible Devkit viewer and its guarded ownership/cleanup. The
 [legacy review publisher](ui/test_child_shell_lifecycle.py)
-still copies attempt logs and screenshots to `artifacts/ui/child-shell/`;
+still copies attempt logs to `artifacts/ui/child-shell/`;
 `latest/` is only a convenience copy. Migration of that publisher to shared
 disk allocations remains required; preserve each attempt's evidence and avoid
 using the convenience copy for another revision or run.

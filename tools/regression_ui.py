@@ -86,8 +86,8 @@ from pathlib import PurePosixPath
 # no inspection listeners/sources or new process owners remain. Nested Shell
 # retains its whole-module bucket and existing resource reservation.
 # The panel localization cycle reuses that guardian-owned nested Shell and its
-# serial overlay launches, public input/result guards and retained screenshots.
-# It adds no process owner or persistent host settings; its finite nine-language
+# serial overlay launches and public input/result guards.
+# It adds no process owner or persistent host settings; its representative language
 # cycle has an explicit 600-second child deadline within the same Shell bucket.
 # Reminder preview delivery uses that same guardian, real Shell renderer and
 # private session bus. Its single preview source and sender watch are disposed
@@ -96,8 +96,10 @@ from pathlib import PurePosixPath
 # notification process, display/bus and unsaved editor. Its bounded timers and
 # packaged pixel assets add no process owner, cache, service or cleanup resource;
 # retain the compatible Request behavior and nested Shell classifications.
-# The countdown capture uses the same private Shell screenshot client and
-# existing registered attempt allocation; it adds no process or storage owner.
+# Shell API checks share the guardian-owned headless Shell and virtual output.
+# They require no outer compositor, Devkit viewer, screenshot client, PipeWire
+# or WirePlumber. Private buses, settings, logs and shader caches retain their
+# existing ownership/retention; keep the compatible whole-module reservation.
 # Timing hooks retain bounded per-phase aggregates in the existing category
 # stream through one non-inheritable pipe duplicate closed at session end.
 # Wrappers/counters are worker-local, with no threads/files or UI reads; preview
@@ -213,8 +215,8 @@ GROUPS = (
     ('Fixture GUI', ('test_fixture_gui.py',), 30),
 )
 
-# The adapter's Shell search has its own artifact/runtime root and outer
-# hermetic compositor; it does not publish Nested Shell's stable latest paths.
+# The adapter's Shell search shares the headless runner with its own artifact/
+# runtime root; it does not publish Nested Shell's stable latest paths.
 # The spectator fixture uses process-local memfds and per-test output. Its live
 # checks only read a running E2E feed and are excluded from host aggregates.
 # The combined watcher has private memfds, runtime sockets and tmp_path launcher

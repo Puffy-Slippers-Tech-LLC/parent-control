@@ -517,6 +517,8 @@ ESTIMATES = {'test_backing_verification_cleanup_safety.py': 12,
              'test_execution_probe_cleanup_safety.py': 3,
              'test_regression_cleanup_safety.py': 4,
              'test_test_retention_cleanup_safety.py': 16,
+             # Headless cleanup uses private helper groups and recorded starts;
+             # the unrelated sentinel survives. No compositor/shared resource.
              'test_child_preview_cleanup_safety.py': 2,
              'test_appsnapshot_cleanup_safety.py': 1,
              'test_baseline_guest_cleanup_safety.py': 1,

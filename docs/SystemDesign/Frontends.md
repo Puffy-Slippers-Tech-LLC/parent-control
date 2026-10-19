@@ -833,7 +833,7 @@ pointer coordinates are expressed in captured physical pixels and converted by
 Mutter to the screen's logical coordinates. The virtual seat is initialized
 before the app maps. Key/button state is released on viewer focus loss.
 
-The child Shell preview also starts private WirePlumber and relies on Devkit's
+The interactive child Shell preview starts private WirePlumber and relies on Devkit's
 single visible monitor. Supplying an additional command-line virtual monitor
 would allow the overlay to open on a screen the viewer does not show. Child
 preview overlays use the same fullscreen behavior as production.
@@ -842,10 +842,17 @@ On Ubuntu it explicitly selects the installed Yaru Shell resources through a
 Ubuntu's compiled desktop settings defaults. The private mode omits Ubuntu's
 system extensions; only the checkout extension is enabled. Other GNOME hosts
 use the standard user mode. Both interactive and automated child previews
-require GNOME Shell 50.x and share this setup. The preview renders the current
-checkout; an installed extension needs package activation and session renewal
+require GNOME Shell 50.x and share the isolated presentation and payload setup.
+The preview renders the current checkout; an installed extension needs package activation and session renewal
 to render changed payloads. Compare equivalent versions, monitor scales and
 viewer zoom when reviewing screenshots.
+
+Automated child component checks use the shared lifecycle runner's headless
+Shell with one virtual Wayland output. They exercise the real extension and
+overlay through the Application UI API, retaining process ownership, lifecycle
+and semantic result checks. They do not require the interactive viewer, outer
+compositor, PipeWire/WirePlumber, screenshots or geometry validation. The virtual
+output is infrastructure for the Shell and overlay, not an acceptance oracle.
 
 The rendering contract follows GTK's
 [surface scale](https://docs.gtk.org/gdk4/method.Surface.get_scale.html) and

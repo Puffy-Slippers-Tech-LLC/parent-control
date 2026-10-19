@@ -11,6 +11,7 @@ onpc_preview_configure() {
     onpc_preview_schema_source=${ONPC_PREVIEW_SYSTEM_SCHEMA_DIR:-/usr/share/glib-2.0/schemas}
     onpc_preview_system_shell_dir=${ONPC_PREVIEW_SYSTEM_SHELL_DIR:-/usr/share/gnome-shell}
     onpc_preview_session_mode=user
+    onpc_preview_headless=0
     onpc_preview_ready_timeout=${ONPC_PREVIEW_READY_TIMEOUT_SECONDS:-30}
     onpc_preview_generation=0
     onpc_preview_shell_pid=''
@@ -74,17 +75,32 @@ onpc_preview_require_accessibility_registry() {
 onpc_preview_require_lifecycle_dependencies() {
     local dependency
     for dependency in dbus-daemon gdbus gnome-extensions gnome-shell gsettings \
-            glib-compile-schemas inotifywait pipewire wireplumber setsid; do
+            glib-compile-schemas inotifywait setsid; do
         command -v "$dependency" >/dev/null || {
             printf '%s is required for the child Shell lifecycle smoke.\n' "$dependency" >&2
             return 1
         }
     done
-    [[ -x "$onpc_preview_devkit_path" ]] || {
-        printf '%s\n' 'Mutter Devkit is required (install mutter-dev-bin on Ubuntu).' >&2
-        return 1
-    }
+    if [[ $onpc_preview_headless != 1 ]]; then
+        for dependency in pipewire wireplumber; do
+            command -v "$dependency" >/dev/null || {
+                printf '%s is required for the child Shell lifecycle smoke.\n' "$dependency" >&2
+                return 1
+            }
+        done
+        [[ -x "$onpc_preview_devkit_path" ]] || {
+            printf '%s\n' 'Mutter Devkit is required (install mutter-dev-bin on Ubuntu).' >&2
+            return 1
+        }
+    fi
     onpc_preview_require_accessibility_registry
+}
+
+onpc_preview_enable_headless_shell() {
+    # Semantic component checks need a real Shell and Wayland output, not an
+    # outer desktop or Devkit viewer. The fixed monitor supplies an output;
+    # its geometry is neither a selector nor an acceptance condition.
+    onpc_preview_headless=1
 }
 
 onpc_preview_require_supported_shell_version() {
@@ -181,6 +197,11 @@ onpc_preview_prepare_environment() {
         GIO_EXTRA_MODULES GIO_MODULE_DIR PIPEWIRE_REMOTE PIPEWIRE_CONFIG_DIR \
         PIPEWIRE_CONFIG_NAME PIPEWIRE_CONFIG_PREFIX WIREPLUMBER_CONFIG_DIR \
         WIREPLUMBER_DATA_DIR WIREPLUMBER_MODULE_DIR WIREPLUMBER_PROFILE
+    if [[ $onpc_preview_headless == 1 ]]; then
+        export GDK_BACKEND=wayland
+        export WAYLAND_DISPLAY=$onpc_preview_nested_wayland_display
+        unset DISPLAY XAUTHORITY
+    fi
     gsettings set org.gnome.desktop.interface toolkit-accessibility true
     # The public Shell Screenshot D-Bus service honors this policy. Keep the
     # private component session explicitly permitted to save its evidence PNGs.
@@ -216,24 +237,27 @@ onpc_preview_prepare_presentation() {
 }
 
 onpc_preview_build_shell_command() {
-    # Devkit creates the visible monitor through its video stream. Adding a
-    # --virtual-monitor here creates another, invisible screen that can receive
-    # the request overlay instead of the viewer's screen.
-    local -a nested_x11_policy=()
-    if [[ $onpc_preview_host_gdk_backend == x11 ]]; then
+    # Interactive Devkit supplies its monitor through the video stream. Only
+    # headless component runs need an explicit virtual output; adding one to
+    # Devkit could send the overlay to a screen the viewer does not show.
+    local -a backend=(--devkit) nested_x11_policy=()
+    if [[ $onpc_preview_headless == 1 ]]; then
+        backend=(--headless --virtual-monitor=1280x720)
+        nested_x11_policy=(--no-x11)
+    elif [[ $onpc_preview_host_gdk_backend == x11 ]]; then
         # Preserve the host DISPLAY/XAUTHORITY pair for an X11 Devkit viewer.
         # Wayland-hosted and hermetic runs retain nested Xwayland because the
         # supported virtual-input lifecycle currently exercises that path.
         nested_x11_policy=(--no-x11)
     fi
     if [[ -n ${onpc_preview_bus_address:-} ]]; then
-        onpc_preview_shell_command=(gnome-shell --devkit --wayland \
+        onpc_preview_shell_command=(gnome-shell "${backend[@]}" --wayland \
             --mode "$onpc_preview_session_mode" \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
             --force-animations)
     else
-        onpc_preview_shell_command=(dbus-run-session -- gnome-shell --devkit --wayland \
+        onpc_preview_shell_command=(dbus-run-session -- gnome-shell "${backend[@]}" --wayland \
             --mode "$onpc_preview_session_mode" \
             "${nested_x11_policy[@]}" \
             --wayland-display "$onpc_preview_nested_wayland_display" \
@@ -467,7 +491,8 @@ onpc_preview_wait_for_reload() {
 
 onpc_preview_stop_shell() {
     local candidate='' discovery_status=0 status=0
-    if [[ -z ${onpc_preview_devkit_pid:-} \
+    if [[ ${onpc_preview_headless:-0} != 1 \
+            && -z ${onpc_preview_devkit_pid:-} \
             && -n ${onpc_preview_shell_pid:-} \
             && -n ${onpc_preview_shell_start_time:-} ]] \
             && candidate=$(onpc_preview_find_mutter_devkit_descendant); then
@@ -544,6 +569,14 @@ onpc_preview_record_owned_child_process() {
     for (( attempt = 0; attempt < max_attempts; attempt++ )); do
         if IFS=' ' read -r state process_group session start_time \
                 < <(onpc_preview_read_process_identity "$pid"); then
+            if [[ ${ONPC_PREVIEW_DIAGNOSE_DEVKIT_REGISTRATION:-0} == 1 \
+                    && $label == 'Mutter Devkit' ]]; then
+                # Report the identity already consumed here. Extra /proc reads
+                # before registration can obscure a short-lived transition.
+                printf 'Mutter Devkit checked identity: at=%s pid=%s state=%s pgrp=%s session=%s start=%s\n' \
+                    "$EPOCHREALTIME" "$pid" "$state" "$process_group" \
+                    "$session" "$start_time" >&2
+            fi
             if [[ $state != Z && -n $start_time ]]; then
                 printf -v "$start_time_variable" '%s' "$start_time"
                 return 0
@@ -575,8 +608,22 @@ onpc_preview_process_parent() {
 
 onpc_preview_process_is_descendant_of() {
     local process_id=$1 ancestor_id=$2 depth parent_id
+    local diagnostic_stage=${3:-}
     for (( depth = 0; depth < 64; depth++ )); do
-        parent_id=$(onpc_preview_process_parent "$process_id") || return 1
+        if ! parent_id=$(onpc_preview_process_parent "$process_id"); then
+            if [[ ${ONPC_PREVIEW_DIAGNOSE_DEVKIT_REGISTRATION:-0} == 1 \
+                    && -n $diagnostic_stage ]]; then
+                printf 'Mutter Devkit checked ancestry: at=%s stage=%s depth=%s pid=%s parent_unavailable=true\n' \
+                    "$EPOCHREALTIME" "$diagnostic_stage" "$depth" "$process_id" >&2
+            fi
+            return 1
+        fi
+        if [[ ${ONPC_PREVIEW_DIAGNOSE_DEVKIT_REGISTRATION:-0} == 1 \
+                && -n $diagnostic_stage ]]; then
+            # Record the value used by the guard, not a later reconstruction.
+            printf 'Mutter Devkit checked ancestry: at=%s stage=%s depth=%s pid=%s parent=%s expected_ancestor=%s\n' \
+                "$EPOCHREALTIME" "$diagnostic_stage" "$depth" "$process_id" "$parent_id" "$ancestor_id" >&2
+        fi
         [[ $parent_id == "$ancestor_id" ]] && return 0
         (( parent_id > 1 )) || return 1
         process_id=$parent_id
@@ -605,7 +652,7 @@ onpc_preview_find_mutter_devkit_descendant() {
             queue+=("$child")
             [[ /proc/$child/exe -ef "$onpc_preview_devkit_path" ]] || continue
             onpc_preview_process_is_descendant_of \
-                "$child" "$onpc_preview_shell_pid" || continue
+                "$child" "$onpc_preview_shell_pid" discovery || continue
             if [[ -n $found ]]; then
                 printf '%s\n' 'Refusing Mutter Devkit discovery because multiple matching owned descendants were found.' >&2
                 return 2
@@ -617,6 +664,45 @@ onpc_preview_find_mutter_devkit_descendant() {
     printf '%s\n' "$found"
 }
 
+onpc_preview_diagnose_mutter_devkit_registration() {
+    # Diagnostic observations, never ownership evidence or a cleanup fallback.
+    # Keep command names, arguments, environments and executable paths private.
+    # These reads are not atomic and do not replace the checked guard values.
+    local stage=$1 pid depth parent state process_group session start_time
+    local executable_matches=false
+    [[ /proc/$onpc_preview_devkit_pid/exe -ef "$onpc_preview_devkit_path" ]] \
+        && executable_matches=true
+    printf 'Mutter Devkit registration diagnostic: at=%s stage=%s viewer_pid=%s recorded_start=%s executable_matches_now=%s shell_pid=%s shell_recorded_start=%s\n' \
+        "$EPOCHREALTIME" "$stage" "$onpc_preview_devkit_pid" \
+        "$onpc_preview_devkit_start_time" "$executable_matches" \
+        "$onpc_preview_shell_pid" "$onpc_preview_shell_start_time" >&2
+    # Observe the Shell independently even when it is no longer in the chain.
+    for pid in "$onpc_preview_shell_pid" "$onpc_preview_devkit_pid"; do
+        if IFS=' ' read -r state process_group session start_time \
+                < <(onpc_preview_read_process_identity "$pid"); then
+            printf 'Mutter Devkit registration identity: pid=%s state=%s pgrp=%s session=%s start=%s\n' \
+                "$pid" "$state" "$process_group" "$session" "$start_time" >&2
+        else
+            printf 'Mutter Devkit registration identity: pid=%s unavailable=true\n' "$pid" >&2
+        fi
+    done
+    pid=$onpc_preview_devkit_pid
+    for (( depth = 0; depth < 64; depth++ )); do
+        if ! parent=$(onpc_preview_process_parent "$pid"); then
+            printf 'Mutter Devkit registration ancestry: depth=%s pid=%s parent_unavailable=true\n' \
+                "$depth" "$pid" >&2
+            return 0
+        fi
+        printf 'Mutter Devkit registration ancestry: depth=%s pid=%s parent=%s\n' \
+            "$depth" "$pid" "$parent" >&2
+        [[ $parent == "$onpc_preview_shell_pid" ]] && return 0
+        (( parent > 1 )) || return 0
+        pid=$parent
+    done
+    printf '%s\n' 'Mutter Devkit registration ancestry: depth_limit=true' >&2
+    return 0
+}
+
 onpc_preview_record_mutter_devkit() {
     local candidate='' deadline discovery_status
     [[ -z ${onpc_preview_devkit_pid:-} ]] || return 0
@@ -625,6 +711,8 @@ onpc_preview_record_mutter_devkit() {
             "${onpc_preview_shell_pid:-}" "${onpc_preview_shell_start_time:-}"; do
         if candidate=$(onpc_preview_find_mutter_devkit_descendant); then
             onpc_preview_devkit_pid=$candidate
+            # Keep multi-read diagnostic snapshots after the registration
+            # guards, so they cannot give a racing child extra time to settle.
             # Devkit calls setsid() after its remote-desktop context is ready,
             # but GTK's host backend can map the viewer before that happens.
             # Record the already ancestry-verified child immediately by exact
@@ -633,11 +721,19 @@ onpc_preview_record_mutter_devkit() {
             onpc_preview_record_owned_child_process \
                 "$onpc_preview_devkit_pid" onpc_preview_devkit_start_time \
                 'Mutter Devkit' || return
-            if ! [[ /proc/$onpc_preview_devkit_pid/exe -ef "$onpc_preview_devkit_path" ]] \
-                    || ! onpc_preview_process_is_descendant_of \
-                        "$onpc_preview_devkit_pid" "$onpc_preview_shell_pid"; then
+            if ! [[ /proc/$onpc_preview_devkit_pid/exe -ef "$onpc_preview_devkit_path" ]]; then
                 printf '%s\n' 'Refusing Mutter Devkit ownership because its executable or Shell ancestry changed during registration.' >&2
+                onpc_preview_diagnose_mutter_devkit_registration executable || true
                 return 1
+            fi
+            if ! onpc_preview_process_is_descendant_of \
+                    "$onpc_preview_devkit_pid" "$onpc_preview_shell_pid" registration; then
+                printf '%s\n' 'Refusing Mutter Devkit ownership because its executable or Shell ancestry changed during registration.' >&2
+                onpc_preview_diagnose_mutter_devkit_registration ancestry || true
+                return 1
+            fi
+            if [[ ${ONPC_PREVIEW_DIAGNOSE_DEVKIT_REGISTRATION:-0} == 1 ]]; then
+                onpc_preview_diagnose_mutter_devkit_registration registered || true
             fi
             if onpc_preview_owned_process_is_group_leader \
                     "$onpc_preview_devkit_pid" "$onpc_preview_devkit_start_time"; then

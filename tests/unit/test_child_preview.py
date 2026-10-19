@@ -302,6 +302,30 @@ class ChildPreviewTests(unittest.TestCase):
             "gnome-shell --devkit --wayland --mode user --no-x11 --wayland-display onpc-preview-test --force-animations",
         )
 
+    def test_headless_shell_needs_no_host_display_or_devkit_dependencies(self):
+        result = self.run_orchestration(
+            "set -e; source child/preview-orchestration.sh; "
+            "onpc_preview_configure child unused; "
+            "onpc_preview_enable_headless_shell; "
+            "onpc_preview_devkit_path=/missing/devkit; "
+            # Prove these optional viewer services are never queried, rather
+            # than relying on the developer machine having them installed.
+            "command() { case \"$2\" in pipewire|wireplumber) return 1;; "
+            "*) builtin command \"$@\";; esac; }; "
+            "onpc_preview_require_lifecycle_dependencies; "
+            "onpc_preview_bus_address=unix:path=/private/test-bus; "
+            "onpc_preview_build_shell_command; "
+            "printf '%s\\n' \"${onpc_preview_shell_command[@]}\""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        arguments = result.stdout.splitlines()
+        self.assertEqual(arguments[0], 'gnome-shell')
+        self.assertIn('--headless', arguments)
+        self.assertIn('--no-x11', arguments)
+        self.assertTrue(any(argument.startswith('--virtual-monitor=') for argument in arguments))
+        self.assertNotIn('--devkit', arguments)
+        self.assertNotIn('dbus-run-session', arguments)
+
     def test_wayland_host_keeps_nested_xwayland_for_virtual_input(self):
         result = self.run_orchestration(
             "unset GDK_BACKEND; "
@@ -595,10 +619,9 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertNotIn(".screen-time-request-hourglass", stylesheet)
         self.assertNotIn(".screen-time-request-plus", stylesheet)
 
-    def test_component_preview_uses_only_private_payload_and_screenshot_evidence(self):
+    def test_component_preview_uses_only_private_payload_and_semantic_evidence(self):
         orchestration = (ROOT / "child" / "preview-orchestration.sh").read_text()
         runner = (ROOT / "tests" / "ui" / "run-child-shell-lifecycle").read_text()
-        screenshot = (ROOT / "tests" / "ui" / "child_shell_screenshot.py").read_text()
 
         self.assertIn("ONPC_PREVIEW_EXTENSION_SOURCE_DIR", orchestration)
         self.assertIn("onpc_preview_install_payload", orchestration)
@@ -609,9 +632,10 @@ class ChildPreviewTests(unittest.TestCase):
         self.assertIn("child preview reload watcher", orchestration)
         self.assertIn("onpc_preview_record_owned_child_process", orchestration)
         self.assertIn("exec {event_fd}<>", orchestration)
-        self.assertIn("org.gnome.Shell.Screenshot", screenshot)
-        self.assertIn('"Screenshot"', screenshot)
-        self.assertIn('if [[ $scenario != e2e-search ]]', runner)
+        self.assertIn("onpc_preview_enable_headless_shell", runner)
+        self.assertNotIn("onpc_preview_enable_host_devkit_viewer", runner)
+        self.assertNotIn("onpc_preview_record_mutter_devkit", runner)
+        self.assertNotIn("capture_screenshot", runner)
 
     def test_request_icon_spins_during_the_final_ten_seconds(self):
         indicator = (ROOT / "child" / "remainingTimeIndicator.js").read_text()

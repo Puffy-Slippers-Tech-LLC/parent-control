@@ -491,6 +491,33 @@ class ChildPreviewCleanupSafetyTests(unittest.TestCase):
                         "Cleanup signalled an unrelated process sharing its runtime",
                     )
 
+    def test_headless_cleanup_stops_its_recorded_shell_without_viewer_discovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            preview_root = pathlib.Path(temporary)
+            with self.helper_process(runtime_directory=preview_root) as owned:
+                with self.helper_process(runtime_directory=preview_root) as unrelated:
+                    script = f"""
+                        set -e
+                        source {shlex.quote(str(ORCHESTRATION))}
+                        onpc_preview_configure child {shlex.quote(str(preview_root))}
+                        onpc_preview_enable_headless_shell
+                        onpc_preview_shell_pid={owned.pid}
+                        onpc_preview_record_owned_process "$onpc_preview_shell_pid" \
+                            onpc_preview_shell_start_time 'GNOME Shell'
+                        onpc_preview_find_mutter_devkit_descendant() {{
+                            printf '%s\\n' 'Unexpected viewer discovery' >&2
+                            return 2
+                        }}
+                        onpc_preview_stop_shell
+                        test -z "$onpc_preview_shell_pid"
+                        test -z "$onpc_preview_devkit_pid"
+                    """
+                    result = self.run_orchestration(script)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertNotIn('Unexpected viewer discovery', result.stderr)
+                    owned.wait(timeout=2)
+                    self.assertIsNone(unrelated.poll())
+
     def test_unrelated_process_with_same_runtime_survives_owned_cleanup(self):
         with tempfile.TemporaryDirectory(
             dir="/tmp", prefix="onpc-shared-runtime-"

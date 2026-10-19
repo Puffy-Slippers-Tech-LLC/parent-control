@@ -570,6 +570,10 @@ and GLib doubles; child_preview remains compatible without a real bus/display.
 # Child preview presentation checks use private temporary modes/theme fixtures
 # and waited shell children; no compositor, host settings or new cleanup owner.
 # Keep test_child_preview in its existing compatible whole-module bucket.
+# Headless command/dependency checks use waited shell children and local command
+# doubles. Its cleanup regression uses two explicitly spawned helper groups,
+# identity-checked cleanup and a private temporary directory; no display, bus,
+# host setting or shared service. Both child-preview modules remain compatible.
 # The diagnostic-report import-failure regression uses its existing tmp_path
 # writer and restored process-local logger/command doubles; no additional shared
 # service, bus, subprocess or cache. diagnostic collectors remain compatible.

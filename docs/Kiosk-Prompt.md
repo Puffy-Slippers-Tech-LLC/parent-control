@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **001 — [Reconcile the entry failure map](Kiosk-Prompt-Tasks/001-entry-audit.md)**.
+Next task: **002a — [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md)**.
 
 ## Outcome
 
@@ -86,6 +86,9 @@ verify the complete paths and coverage against the execution checkout.
 | Retained generation | `prepare()` hashes the complete ambient layout. Unrelated additions/removals or kind changes can stale the manager. Removing layout from the digest alone does not safely reuse its pinned mounts. | 005a through 007 |
 | Authentication policy | Fedora explicitly refuses `without-nullok`; Ubuntu's module-presence checks do not themselves prove effective empty-token authentication. This is a separate hypothesis, not the observed incident. | 001a, 008a, 008, 009a, 009 |
 | Affected existing entry evidence | Review existing account-classification, first-configuration, upgrade or native-update evidence only when a changed entry dependency affects it. A config-drift test named stale-manager reaches attestation first; do not count it as generation-stage proof. No blanket lifecycle campaign is required. | 001, 011a, 011 |
+| Session launch and usable form | Native `armed`, a live manager, compositor startup and broker bus ownership are separate milestones. Required launcher/import/unit loss can end the session before paint; initial broker reads can fail after paint. Healthy public form witnesses exist, but they do not inject each startup failure. The session/readiness map below records these distinctions. | 001; changed-view consumers at 005a/005; affected public entry at 003/004/007 and final allocation at 011a |
+| Post-confinement evidence | The startup collector recognizes a narrow renderer/app-exit chain on the current boot, not every missing runtime dependency or compositor cause. Failed frontend log delivery during a broker outage is not replayed. These are existing observation limits, not established causes of this incident. | Separate startup/recovery owners; Reliability 007/010 where applicable; no added kiosk-prompt acceptance gate |
+| Report collection after recovery | Admission history is queried across retained boots; startup crash history is current-boot only. Both need a functioning broker export route and live authorization. An independent collector does not promise a public archive while configuration is invalid. | 002 host composition/clipping; 010a/010 actual restored-entry/reboot/Parent archive |
 
 The existing 32,768-entry, four-generation, 512 MiB and preparation-timeout bounds,
 required native inputs, lexical aliases, privilege helpers, MAC enforcement,
@@ -178,8 +181,12 @@ sequence, source-history attribution and current selector limits were checked;
 remaining gaps have the owners above. No VM, product installation, process,
 temporary fixture or authentication mutation was created, so no owned runtime
 restoration remains. Markdown links passed before queue close-out; the maintained
-four-module documentation consistency selection passed 313/313 in
-[the retained runner report](../output/test-runs/host/reports/20261019T063757Z-1fe129b7/report.md).
+four-module documentation consistency selection recorded 313/313 in run
+`20261019T063757Z-1fe129b7`. That original report subsequently rotated under the
+runner's three-run retention policy during 001. The same selection passed again
+for 001's final documentation in
+[its retained report](../output/test-runs/host/reports/20261019T065201Z-bbb76ba6/report.md);
+this is fresh documentation validation, not a recovered original receipt.
 Only documentation changed, so no package build or installed check was required.
 
 ### Preparation and native admission audit — 001b
@@ -293,12 +300,116 @@ check is required by this review brief. Changed Markdown links passed, and the
 required four-module documentation consistency selection passed 313/313 in
 [the retained runner report](../output/test-runs/host/reports/20261019T064419Z-1aad8930/report.md).
 
+### Session, readiness and diagnostic reconciliation — 001
+
+Reviewed against `443b248a1ad07044dfe22c0dd3f9f59469446b69` on 2026-10-19 UTC,
+with the pre-existing proof-document edit preserved. The 001a and 001b tables
+above remain the cumulative authentication/account and preparation/native maps;
+this section completes their session-to-form and feedback crossings. Review
+acceptance supplies no installed acceptance for a later row.
+
+**Classification of the earlier stages.** Effective incompatible authentication
+policy is a hypothesis with finite owners 008a/008/009a/009, distinct from the
+incident's successful blank-password authentication. Identity, account expiry,
+package quarantine, unsafe routing, wrong service/transport, unbound PAM state,
+lock contention, failed integration, required inventory/alias/type drift,
+attestation/policy loss, unsafe runtime/recovery/publication, native environment/
+capability/MAC setup and helper deadlines are intentional refusals with the
+specific coverage limits in 001a/001b. Their allowed/armed markers prove only
+their own stage. The reproduced ambient classification, lexical-alias ancestry,
+required-destination completeness and non-UTF-8 publication defects are in-scope
+gaps at 002a; post-layout ambient disappearance/trust drift remains there too.
+The whole-layout digest and retained source-lifetime gaps belong to 005a–007.
+Native bind cause production, projection and causal-context clipping belong to
+002b/002. Generic vendor authentication/account-expiry and package-ownership
+cause export remain separate-owner observations; 008 owns only the settled
+incompatible-policy reason. No absence of an authentication marker is itself a
+failed-password result. These classifications preserve the original incident
+and `83d502b3` attribution, the exported failing probes and their exact limits.
+
+**Post-boundary failure/coverage map.** The selectors here identify current
+maintained functions and their assertions, not executions in this review.
+`unit`, `ui` and `component` selectors use their full file/function names below;
+variant descriptions are input selections, not invented collected node IDs.
+Installed system selectors retain the area/test names and IDs in 001a/001b.
+
+| Boundary / finite trigger | Intended public result and diagnostic producer/collector | Exact existing coverage, classification and remaining owner |
+| --- | --- | --- |
+| Fixed session launcher setup/exec fails, or caller supplies arguments | [Native session main()](../tools/kiosk_session.c) fixes `gnome-session --no-reexec --session=oh-no-parent-control`, clears injection variables and rejects arguments. Failure exits closed with `onpc.kiosk session startup outcome=failed`; it must not expose another desktop. This marker is not recognized by either admission or startup-crash projection. | `unit tests/unit/test_kiosk_login.py::test_session_entry_fixes_command_and_removes_startup_injection` and `::test_session_entry_rejects_alternate_arguments_without_executing` cover fixed command/environment and argument rejection in compiled private fixtures. Missing real `gnome-session`/exec recovery is source-reviewed missing proof, not those tests' assertion. Separate lifecycle/runtime-compatibility owner unless changed entry inputs affect it; 004a/004 still own only the plan's required-input late-refusal history. |
+| Required compositor/app unit cannot start, compositor exits, or app exits before paint | The [session target](../data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf) requires compositor target and app. The [app unit](../data/systemd/user/oh-no-parent-control-app.service) is `Type=simple`, `Restart=no`; both success and failure lead to session shutdown. Admission must remain confined; a session exit returns to sign-in. Unit activation is not usable-form readiness, and there is no product startup watchdog that bounds all compositor/app construction. | Healthy public `e2e --id 47` (`kiosk_cancel.py / kiosk-cancel`) and 50–52 (`restricted_station.py / approved, denied, cancelled`) reach the form and ordinary exit. They do not force compositor/pre-paint failure. No dedicated installed negative selector was found for those faults. `collect_kiosk_diagnostics()` recognizes app exit/status, core dump, OnFailure shutdown and session-target stop, but no compositor-specific cause. Separate lifecycle/Frontends observation; Reliability 007/010 own applicable abnormal-exit/recovery work, without a new gate here. |
+| Missing Python/GI/GTK/shared module, library or actual runtime data after native admission | [Installed Python entry](../kiosk/oh-no-parent-control) reports fixed `onpc.runtime startup failed` on import failure and exits 1; main imports dependencies before installing app exception hooks. A missing consumed input cannot be classified as harmless unrelated software. Generic loader/import text is not exported by the narrow journal parser; an app exit may identify the boundary without the dependency cause. | `unit tests/unit/test_package_payload.py::test_production_modules_import_without_preview_files` proves positive isolated imports from staged production roots, including notifications; it does not inject missing installed dependencies. Native missing-required-ELF refusals remain in 001b. Other missing-input branches are source-reviewed missing proof with the runtime-compatibility owner. 005a already owns deciding which actual view consumers affect material identity; 011a allocates only receipts invalidated by changed inputs. |
+| Broker fails before publication or disappears after confinement | [Service construction/register/main](../broker/oh_no_parent_control/service.py) requires policy and extension reconciliation before object publication; cap cleanup/log failure does not prevent readiness. [Broker launcher](../broker/oh-no-parent-control-broker) enforces migration/trust prerequisites; its unit has a 180-second startup budget. Broker failure is deliberately not a separate GDM gate. The form must report unavailable operations rather than grant access; system-bus acquisition can fail before the request window is built. Structured service/runtime errors exist only when their logging route survives. | `component tests/component/test_broker_startup.py::test_startup_witness_tracks_real_publication_and_required_failures` covers policy, extensions, caps, registration and logging inputs over a private bus. It is not installed GDM/outage/reentry proof. The feedback-confinement qualifier described below injects an outage only after readiness. General broker-outage recovery is a separate lifecycle/diagnostic observation, not an incident fix established here. |
+| Initial child/approver/preference read fails or times out after app start | [RequestWindow load/callback and error paths](../kiosk/oh_no_parent_control_kiosk/main.py) issue `ListKioskUsers`, `ListApprovers` and selected-child `GetPreferences` with 30-second call deadlines. Failures log `kiosk.017`, `.019` or `.022` and show a fixed unavailable result with reporting/exit; controls remain gated on successful loaded inputs. Exception hooks/reporting-only fallback start only after imports. Frontend `LogEvent` delivery is asynchronous and can be lost with the broker. | `ui tests/ui/test_request_form_component.py::test_shared_loading_keeps_controls_disabled_until_preferences_arrive` covers delayed successful preferences for kiosk and overlay. `::test_service_failure_shows_only_redacted_public_copy` and `ui tests/ui/test_error_feedback.py::test_request_error_review_restrictions_and_submission` fail Request **after** readiness. No dedicated maintained UI negative selector was found for initial list/preferences failure or the true 30-second timeout. This is missing proof with Frontends/runtime compatibility, not a new plan defect or test requirement absent an affected entry dependency. |
+| Initial language read fails; lists are empty; selected child has controls disabled | Language failure exposes its error state and Preferences retry; empty child/approver sets and disabled limits have intentional explanations and disabled requests. These states are not evidence of failed authentication. `form-painted` waits loaded inputs/language and no pending modal/transition; it is an observational witness. `form-presented` records frame feedback separately, with a two-second observation timeout; neither marker alone certifies customer readiness. | `ui tests/ui/test_language_settings.py::test_failed_startup_read_is_reported_and_preferences_retries` covers kiosk/overlay/parent. `ui tests/ui/test_request_form_component.py::test_kiosk_no_child_explains_how_to_continue`, `::test_no_approver_explains_why_request_is_unavailable` and `::test_control_disabled_never_submits` cover intentional unavailable states. `unit tests/unit/test_e2e_kiosk_entry.py::test_station_refuses_incomplete_form_even_when_required_controls_exist` and `::test_form_checks_fresh_language_completion_before_outer_deadline` protect observer completeness, not installed product failure/recovery. Existing covered behavior; no new scope. |
+| Estimate or optional notification/authentication service is unavailable | Estimate failure logs `kiosk.023`, reports the error and retains request availability when its required inputs are otherwise valid. The target only Wants notification/Polkit-agent services; their availability is not a mandatory first-paint gate. Later authentication failure must not grant access. | `ui tests/ui/test_request_form_component.py::test_footer_special_cases_keep_requests_available`, with estimate-unavailable inputs for both modes, checks enabled submission after closing the report; it does not submit during a real outage. Public 50–52 cover later administrator approval/denial/cancellation, not an absent-agent startup fault. Existing optional-service/request owners; no new audio/notification/approval qualification in this entry plan. |
+| Product reboot guard, retained live manager or previously failed manager | Diagnostics-only broker mode permits checked presentation/export reads and returns `RebootRequired` for policy operations; station shows the restart explanation. A mismatched live manager is refused without replacement (001b). [Successful configuration](../packaging/lifecycle/postinst.in) resets only the verified account's failed unit after confinement and broker activation; query/reset failure retains retry records. It never starts/stops/restarts a live manager. | `component tests/component/test_broker_startup.py::test_pending_reboot_exports_customer_evidence_over_private_bus` and `::test_other_reboots_leave_frontend_startup_available`; `ui tests/ui/test_error_feedback.py::test_product_update_modal_reboot_and_dismissal`; `unit tests/unit/test_package_configuration.py::test_configuration_retires_only_the_owned_failed_kiosk_manager`, `::test_kiosk_failed_state_recovery_preserves_configuration_retry`, `::test_failed_manager_recovery_refuses_unowned_kiosk`. System case 5's [public activation](../tests/e2e/kiosk_entry.py#L72) distinguishes pre-reboot notice from post-reboot form/cancel/census. Intentional covered branches; historical receipts need exact changed-input comparison at 011a. Ambient retained-manager regression stays with 005a–007. |
+| Enforcing renderer denial / Vulkan mapping failure / Mesa crash before paint | The [startup collector](../broker/oh_no_parent_control/dependency_diagnostics.py#L467) recognizes only reviewed renderer/unit provenance, exact enforcing GPU-map denial, Vulkan mapping markers and correlated Mesa segfault, followed by app exit/shutdown. It exports source UTC time, closed reason and bounded numeric exit fields; raw messages, identities, paths and traces are discarded. This can support a renderer diagnosis, not prove every crash cause or a usable restored session. | `unit tests/unit/test_diagnostics.py::test_kiosk_pre_paint_crash_chain_survives_feedback_without_machine_access` proves a synthetic eight-marker archive/privacy round trip. `::test_kiosk_collection_preserves_failures_and_bounds_history` covers query/identity/budget/malformed/clipping limits. Source-reviewed collector coverage, not installed renderer fault acceptance. Broader renderer/recovery work remains separate; no demonstrated connection to this incident's earlier layout refusal. |
+| Feedback collected after denied entry, recovery or reboot | [Export worker/delivery](../broker/oh_no_parent_control/service.py#L761) collects admission, startup and dependency observations before snapshot and rechecks the caller before releasing it. [Frontend collection/download](../common/oh_no_parent_control_ui/feedback.py#L347) prepares a fresh archive asynchronously; a visible prepared attachment alone does not prove the saved bytes. Failure offers retry/feedback without logs. Dedicated kiosk forbids the chooser; 010a/010 require Parent's real download. | `unit tests/unit/test_diagnostics.py::test_kiosk_admission_failure_survives_reboot_recovery_and_feedback_archive`, `tests/unit/test_service_contract.py::test_reboot_mode_collects_real_report_and_rechecks_role` and `tests/unit/test_service_contract.py::ServiceContractTests::test_export_collects_extension_evidence_before_snapshot_and_survives_failure` cover private composition/authorization and sanitization. Existing `check_e2e_kiosk_feedback_confinement` restores its post-ready broker outage **before** collection and proves editor/privacy/census only, without Send; it cannot establish collection during outage or an incident archive. In-scope clipping/archive repair remains 002; actual recovered/rebooted incident archive remains 010a/010, with selectors to be registered there. |
+
+**Consumed roots, not a recursive audit.** The finite 001b root map applies to
+these actual launch/import consumers. Native entrypoints and selected systemd
+libraries are measured; the fixed launcher then reaches packaged kiosk/common
+Python, system Python/GI typelibs, GTK libraries/assets and the named service
+scripts. The private manager unit path and Ubuntu session D-Bus data are consumed
+too. The XDG and WirePlumber roots recorded above can supply nested runtime data;
+`/etc` remains outside the `/usr` overlay. Accepted sibling directory binds do
+not recursively measure those nested scripts, modules or configuration. Neither
+an immediate root-owned directory nor a broad policy read permission establishes
+that all contents are immutable, safe or even consumed. This is the existing
+005a material-identity design input; missing consumed dependencies must be
+distinguished from unrelated siblings while preserving required-input refusal.
+No nested-input exploit was demonstrated and no recursive package/plugin audit
+or additional runtime campaign is allocated by this review.
+
+**Evidence applicability.** Admission queries are independent of a surviving
+manager and of loading kiosk configuration, across retained boots for 24 hours,
+200 matching entries and 20 exported markers. Startup crash queries instead
+require the configured kiosk UID and use `--boot=0`, 24 hours, 200 entries and
+20 markers per source within one five-second budget. Reboot can therefore remove
+the crash chain from a fresh query; it does not remove already-persisted validated
+events automatically. Neither collector recovers rotated history. Additionally,
+[public export authorization](../broker/oh_no_parent_control/core.py#L621) itself
+loads configuration, and frontend broker log handlers have no journal fallback
+or delivery replay. Collector independence is not proof of a downloadable archive
+while configuration or the broker is unavailable. The plan's 010 histories restore
+the incident input and working export route before collecting; they must use
+fresh actual Parent bytes, not a stale prepared attachment or synthetic archive.
+
+The retained installed receipts in 001a/001b remain historical, with the recorded
+source/package/helper identities and cleanup, not passes for this checkout's
+changed classification/diagnostic inputs. In particular, case 289's specific
+`stale_admission()` generation reason cannot be replaced by case 267's earlier
+attestation refusal. 011a must compare the actual final entry consumers and
+producer/parser/catalogue/native inputs before reusing an affected receipt, or
+allocate its affected complete history and target. A package hash difference
+alone does not invalidate unrelated assertions. Planned incident histories at
+003/004/007/009/010 still require their own canonical registration and all named
+target acceptance; a similarly named existing selector earns no such credit.
+
+The cumulative map is complete for the shipped authentication-to-form stages.
+Demonstrated in-scope defects and direct safety controls have finite existing
+owners; source-only post-boundary limits and missing negative proofs remain
+explicit separate-owner observations. No new prerequisite is needed for 001,
+and no later row is completed by this review.
+
+001 review acceptance passed: the coordinator reviewed the complete collector/
+export path and combined 001a/001b with an independent read-only startup,
+readiness, runtime-root and selector review. The reviewer finished before
+acceptance. The four-module documentation consistency selection passed 313/313
+again after queue close-out in
+[the retained runner report](../output/test-runs/host/reports/20261019T065201Z-bbb76ba6/report.md).
+Changed Markdown links and whitespace checks passed. No product, VM, fixture or
+persistent process was created or changed; runner-owned cleanup finished and
+there is no runtime restoration remaining. Only documentation changed, outside
+`PACKAGE_SOURCE_FILES` and build-tool dependencies; this review brief has no
+Targets and requires no package build or installed check.
+
 ### Remaining execution and acceptance
 
-Discovery is the first three bounded tasks: authentication/account admission,
-preparation/native confinement, then session/readiness/feedback coverage
-reconciliation. Their union must map the shipped entry failure stages and the
-finite missing regression controls before implementation closes. Existing
+The three discovery reviews now map authentication/account admission,
+preparation/native confinement and session/readiness/feedback coverage. Their
+cumulative map retains the finite missing regression controls for implementation
+and the exact limits of unaffected existing coverage. Existing
 unaffected coverage need not be requalified. The independent review confirmed
 the incident's blank authentication followed by preparation refusal; it did not qualify a new native
 candidate. The selected existing host checks passed 1,223 cases on 2026-10-19 UTC.

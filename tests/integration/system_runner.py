@@ -513,6 +513,10 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
                         executions.append(CaseExecution(phase, name, case, False))
         if phase not in terminal_phases:
             for case in inventories['package']:
+                # Earlier-release policy preservation is an explicitly selected
+                # history, never a current-package installation prerequisite.
+                if case == PREVIOUS_POLICY_CASE:
+                    continue
                 if PHASE_SEMANTICS.get(phase, phase) in case_phases('package', case):
                     executions.append(CaseExecution(phase, 'package', case, True))
 

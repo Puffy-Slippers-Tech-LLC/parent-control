@@ -7,6 +7,7 @@ The existing outer VM lease owns restoration, including failed transactions.
 
 import ast
 from contextlib import contextmanager
+import errno
 import grp
 import hashlib
 import json
@@ -653,8 +654,12 @@ def aborted_cleanup_rollback_retry(record):
     with mounted_pam_fault(record):
         guest.run([integration, 'check-remove'], timeout=30)
         output, status = observe_aborted_transaction(child, expected, denial, record)
-        failure = b'kiosk confinement configuration failed reason=unavailable; preserving ownership records'
-        guest.require(not package_absent() and output.count(failure) >= 2,
+        # The self bind fails atomic replacement with EBUSY in both callbacks.
+        # Source line numbers are diagnostic context, not part of the fault.
+        failure = (rb'kiosk confinement configuration failed reason=os-error errno=%d'
+                   rb'(?: source=kiosk-confinement line=[0-9]+)?; preserving ownership records'
+                   % errno.EBUSY)
+        guest.require(not package_absent() and len(re.findall(failure, output)) >= 2,
                       'rollback:native-callback-not-failed')
         if fedora:
             guest.require(b'preun' in output, 'rollback:rpm-preun-not-observed')

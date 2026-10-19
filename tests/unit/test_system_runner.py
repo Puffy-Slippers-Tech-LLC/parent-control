@@ -263,6 +263,42 @@ def trusted_fixture_inventories():
                                       runner.TRUSTED_FIXTURES_CASE)}
 
 
+@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
+def test_current_package_recovery_prerequisites_do_not_add_optional_upgrade_history(package_format):
+    inventories = {**RECOVERY_INVENTORIES,
+                   'package': (*RECOVERY_INVENTORIES['package'], runner.PREVIOUS_POLICY_CASE)}
+    selectors = [{}, {'area': 'removal'}]
+    for history in runner.REMOVAL_HISTORIES:
+        if history.package_format and history.package_format != package_format:
+            continue
+        identity = system_case_ids.identity_for_case('removal', history.case_id)
+        selectors.extend(({'area': 'removal', 'test': history.case_id},
+                          {'recording_ids': str(identity.numeric_id)}))
+    for options in selectors:
+        expected = runner.resolve_selection(**options, inventories=RECOVERY_INVENTORIES,
+                                             target_package_format=package_format)
+        selected = runner.resolve_selection(**options, inventories=inventories,
+                                             target_package_format=package_format)
+        assert selected.phases == expected.phases
+        assert selected.executions == expected.executions
+        assert selected.prerequisites == expected.prerequisites
+        assert all(item.case_id != runner.PREVIOUS_POLICY_CASE for item in selected.executions)
+
+
+@pytest.mark.parametrize('selectors', [
+    ['--area', 'package', '--test', 'test_previous_package_policy_preservation'], ['--id', '287'],
+])
+def test_explicit_previous_policy_cli_still_requires_previous_inputs(
+        monkeypatch, capsys, previous_policy_inventories, selectors):
+    monkeypatch.setattr(runner, 'collect_area_cases', lambda name: previous_policy_inventories[name])
+    with patch.object(runner.tempfile, 'mkdtemp') as allocate, \
+            patch.object(runner, 'Lease') as lease:
+        assert runner.main(['--vm', vm_name(), '--check-tools', *selectors]) == 1
+    assert 'selection:previous-policy-requires-previous-artifacts' in capsys.readouterr().err
+    allocate.assert_not_called()
+    lease.assert_not_called()
+
+
 def test_trusted_fixture_selection_is_only_the_explicit_old_package_qualification(
         trusted_fixture_inventories):
     case = runner.TRUSTED_FIXTURES_CASE

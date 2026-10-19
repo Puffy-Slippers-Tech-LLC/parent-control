@@ -241,6 +241,11 @@ class RecordingBroker:
     def authorize_diagnostic_export(self, *args):
         return self._invoke("authorize_diagnostic_export", None, *args)
 
+    def diagnostic_user_languages(self, *args):
+        return self._invoke(
+            "diagnostic_user_languages", {"status": "complete", "users": []}, *args,
+        )
+
     def observe_grants(self):
         return self._invoke("observe_grants", None)
 

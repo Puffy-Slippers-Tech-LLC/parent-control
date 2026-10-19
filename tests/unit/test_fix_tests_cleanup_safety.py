@@ -104,6 +104,34 @@ def test_resume_after_cancellation_keeps_passed_category_and_fresh_run_resets(ch
     assert all('--resume' not in call['args'] for call in calls[-2:])
 
 
+def test_resume_after_session_limit_retains_completed_diagnostic_categories(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['uncertain', 'diagnostic_ready', 'diagnostic_ready', 'diagnostic_ready', 'stalled'],
+        tests=[None, 'reminder-case', None, None, None])))
+    categories = ('unit', 'ui', 'system')
+    run, _ = fix_tests.select(root, categories=categories)
+    assert fix_tests.follow(run, io.StringIO()) == 1
+    stopped = json.loads((run / 'repair-stop.json').read_text())
+    assert stopped['reason'] == 'session_limit' and stopped['sessions'] == 5
+    from test_checkpoint import Checkpoint
+    checkpoint = Checkpoint(root, [(kind, []) for kind in categories],
+                            namespace='fix-tests', resume=True)
+    assert checkpoint.complete('unit') and checkpoint.complete('ui')
+    assert not checkpoint.complete('system')
+    (root / 'mode').write_text('pass')
+    resumed, started = fix_tests.select(root, categories=categories, resume=True)
+    output = io.StringIO()
+    assert started and fix_tests.follow(resumed, output) == 0
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    tests = [call['category'] for call in calls if call['kind'] == 'test']
+    assert tests == ['unit', 'ui', 'ui', 'ui', 'ui', 'system']
+    assert len([call for call in calls if call['kind'] == 'agent']) == 5
+    assert 'retaining passed categories: unit, ui' in output.getvalue()
+    assert json.loads((run / 'repair-stop.json').read_text()) == stopped
+
+
 def test_resume_interrupted_clean_verification_repeats_the_whole_pass(checkout):
     root, _ = checkout
     (root / 'mode').write_text('agent-script')

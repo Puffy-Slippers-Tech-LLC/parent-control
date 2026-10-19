@@ -437,6 +437,15 @@ budgets without loading old repair conversations; new verification rounds still
 execute the complete requested selection. After a repair within verification,
 the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
+
+Use `tools/fix-tests --resume` without repeating the original arguments to
+restore the saved selection and VM queue. Its startup line lists retained passed
+categories. A session-limit or stalled handoff does not erase those category
+passes, including a completed diagnostic test run; resuming does not reinterpret
+an old agent conversation. Failed/interrupted cases still need their matching
+runner checkpoint. Additional verification rounds deliberately run their fresh
+required selection; do not add `--rounds` just to continue a stopped round.
+
 An answered blocker keeps its current model/phase and is not a failed repair.
 Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal

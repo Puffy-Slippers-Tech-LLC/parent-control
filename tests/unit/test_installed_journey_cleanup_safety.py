@@ -433,8 +433,8 @@ from tests.support.e2e_recording import collector_sync
 
 SYNTHETIC = journeys.JourneyPlan(
     prefix='example', worker_mode='example_view',
-    screen_tags={'installed-greeter': 'onpc-example-greeter', 'opened': 'onpc-example-opened',
-                 'details': 'onpc-example-details', 'returned': 'onpc-example-opened'},
+    screen_tags={'installed-greeter': 'ui:gdm-list', 'opened': 'ui:parent-window',
+                 'details': 'ui:parent-about', 'returned': 'ui:parent-window'},
     phases={'ready': 'setup', 'setup-detached': 'setup', 'installed-greeter': 'start',
             'opened': 'step-1', 'details': 'step-1', 'returned': 'step-2'},
     advance_after={'details': 'step-2'},
@@ -443,6 +443,36 @@ SYNTHETIC = journeys.JourneyPlan(
 INTERVAL_RECORDER_PLAN = replace(real_interval_qualification.PLAN,
     advance_after={'before': 'step-2'},
     phases={**real_interval_qualification.PLAN.phases, 'after': 'step-2'})
+
+
+@pytest.mark.parametrize('tag', ['onpc-example-pixels', 'screenshot:parent',
+                               'geometry:control', 'ui:', None])
+def test_customer_plan_refuses_image_or_geometry_acceptance_before_execution(tag):
+    with pytest.raises(EvidenceError, match='semantic-plan'):
+        replace(SYNTHETIC, screen_tags={'opened': tag})
+
+
+@pytest.mark.parametrize('observed', [True, False])
+def test_semantic_results_do_not_depend_on_graphical_diagnostics(tmp_path, observed):
+    plan = replace(SYNTHETIC, screen_tags={'opened': 'ui:parent-window'})
+    (tmp_path / 'testresults').mkdir()
+    # An optional backend diagnostic has no image/geometry authority. In
+    # particular it cannot require reading an absent screenshot or replace a
+    # missing independent product result, even with a perfect match score.
+    details = [{'needle': 'unrelated-desktop', 'result': 'ok',
+                'area': [{'result': 'ok', 'similarity': 17 if observed else 100}],
+                'screenshot': 'missing.png'},
+               {'title': 'example-opened', 'result': 'ok'}]
+    (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({
+        'result': 'ok', 'details': details}))
+    observations = [{'stage': 'opened', 'ui': {
+        'operation': 'parent-window', 'outcome': 'passed'}}] if observed else []
+    if observed:
+        assert journeys.matched_screens(tmp_path, plan, observations) == [{
+            'stage': 'opened', 'detail_index': 1, 'ui': observations[0]['ui']}]
+    else:
+        with pytest.raises(EvidenceError, match='ui-evidence'):
+            journeys.matched_screens(tmp_path, plan, observations)
 
 
 @pytest.fixture
@@ -668,14 +698,9 @@ def test_shared_plan_records_before_input_and_latches_transition_failures(
     directory.mkdir()
     (directory / 'testresults').mkdir()
     details = []
-    for index, (stage, tag) in enumerate(plan.screen_tags.items()):
-        details.extend([
-            {'needle': tag, 'result': 'ok', 'area': [{'result': 'ok', 'similarity': 100}],
-             'screenshot': f'smoke-{index}.png'},
-            {'title': plan.prefix + '-' + stage, 'result': 'ok'},
-        ])
+    for stage in plan.screen_tags:
+        details.append({'title': plan.prefix + '-' + stage, 'result': 'ok'})
     (directory / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
-    monkeypatch.setattr(journeys, 'screenshot', lambda *_: {'sha256': 'a' * 64})
     monkeypatch.setattr(journeys.system, 'address', Mock(return_value='fixture-host'))
     monkeypatch.setattr(journeys, 'Transport', Mock())
     setup = Mock(return_value={'package_verified': True, 'setup_reboot_verified': True})
@@ -1216,7 +1241,7 @@ def test_review_requires_a_named_qualification_mode(tmp_path):
 
 def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path, monkeypatch):
     monkeypatch.setattr(installed_setup, 'InstalledSetup', Mock())
-    plan = replace(SYNTHETIC, screen_tags={"created": "onpc-example-created"},
+    plan = replace(SYNTHETIC, screen_tags={"created": "system:parent-command-context"},
                    phases={"ready": "setup", "setup-detached": "setup", "created": "step-1"},
                    stage_actions={"created": "create-account"})
     directory = tmp_path
@@ -1228,6 +1253,8 @@ def test_stage_action_runs_after_worker_guard_and_before_durable_reply(tmp_path,
     monkeypatch.setattr(journeys, "Transport", Mock(return_value=transport))
     monkeypatch.setattr(journeys, "ReadOnlyObservations", Mock(return_value=SimpleNamespace(
         read=Mock(return_value={"boot_sha256": "b" * 64}))))
+    monkeypatch.setattr(journeys.session_control, 'observe', Mock(return_value={
+        'operation': 'parent-command-context', 'outcome': 'passed'}))
     context = SimpleNamespace(directory=directory, host_key="fixture-key", commands=Mock(),
         installed_snapshot='onpc-v9.8.7',
         verified=Mock(), lease=SimpleNamespace(source=SimpleNamespace(uuid="fixture-uuid"),
@@ -1337,7 +1364,7 @@ def test_parent_information_return_comparison_refuses_before_durable_reply(tmp_p
                               'shell-search', 'search-launch',
                               'standard-search', 'kiosk-no-child', 'no-child-case',
                               'kiosk-no-approver', 'no-parent-case', 'restricted-station'])
-def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypatch, fault, plan):
+def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, fault, plan):
     details, observations = [], []
     for stage, tag in plan.screen_tags.items():
         if tag.startswith('ui:'):
@@ -1356,7 +1383,6 @@ def test_consumers_require_all_fresh_ordered_semantic_results(tmp_path, monkeypa
     if fault == 'wrong-operation': observations[-1]['ui']['operation'] = 'parent-selected'
     (tmp_path / 'testresults').mkdir()
     (tmp_path / 'testresults/result-smoke.json').write_text(json.dumps({'result': 'ok', 'details': details}))
-    monkeypatch.setattr(journeys, 'screenshot', lambda *_: {'sha256': 'a' * 64})
     if fault:
         with pytest.raises(EvidenceError): journeys.matched_screens(tmp_path, plan, observations)
     else:

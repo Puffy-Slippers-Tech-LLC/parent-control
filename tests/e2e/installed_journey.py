@@ -12,12 +12,11 @@ import sys
 import time
 
 import accessible_ui
-from check_graphical_smoke import module_result, screenshot
+from check_graphical_smoke import module_result
 import command_documentation
 import session_control
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
-from parent_needles import semantic_tag
 import system_runner as system
 from vm_transport import Transport
 from ui_observations import (
@@ -100,6 +99,9 @@ class JourneyPlan:
         require(all(type(stage) is str and re.fullmatch(r'[a-z][a-z0-9-]*', stage)
                     and stage not in ('ready', 'setup-detached')
                     for stage in self.screen_tags), self.prefix + ':stage-plan')
+        require(all(type(tag) is str and re.fullmatch(
+                    r'(?:ui|command|system):[a-z][a-z0-9-]*', tag)
+                    for tag in self.screen_tags.values()), self.prefix + ':semantic-plan')
         require(type(self.invocations) is tuple
                 and len(set(self.invocations)) == len(self.invocations)
                 and list(self.invocations) == [stage for stage in self.screen_tags
@@ -260,7 +262,7 @@ class JourneyPlan:
 
 
 def matched_screens(directory, plan, observations=()):
-    """Reconcile ordered public UI results; legacy/security needles stay strict.
+    """Reconcile ordered public UI/command/system results without image matching.
 
     ui: operations use fresh, durable accessibility results, not image scores.
     A worker marker alone, or a prior observation, cannot satisfy a stage.
@@ -268,14 +270,8 @@ def matched_screens(directory, plan, observations=()):
     module_result(directory)
     details = json.loads((directory / 'testresults/result-smoke.json').read_bytes())['details']
     stages, screens = [], []
-    last_match = None
     marker = plan.prefix + '-'
     for index, detail in enumerate(details):
-        if 'needle' in detail:
-            require(detail.get('result') == 'ok' and detail.get('area')
-                    and all(a.get('result') == 'ok' and a.get('similarity') == 100
-                            for a in detail['area']), plan.prefix + ':match-quality')
-            last_match = (index, detail)
         title = detail.get('title', '')
         if not title.startswith(marker):
             continue
@@ -292,7 +288,6 @@ def matched_screens(directory, plan, observations=()):
                 require(matches[0].get('challenge') == plan.challenge_at(stage),
                         plan.prefix + ':challenge-evidence')
             screens.append({'stage': stage, 'detail_index': index, 'ui': matches[0]['ui']})
-            last_match = None
             continue
         if tag.startswith('command:'):
             matches = [item for item in observations if item['stage'] == stage]
@@ -301,7 +296,6 @@ def matched_screens(directory, plan, observations=()):
                     plan.prefix + ':command-evidence')
             screens.append({'stage': stage, 'detail_index': index,
                             'command': matches[0]['command']})
-            last_match = None
             continue
         if tag.startswith('system:'):
             matches = [item for item in observations if item['stage'] == stage]
@@ -310,14 +304,8 @@ def matched_screens(directory, plan, observations=()):
                     plan.prefix + ':system-evidence')
             screens.append({'stage': stage, 'detail_index': index,
                             'system': matches[0]['system']})
-            last_match = None
             continue
-        require(last_match is not None and semantic_tag(last_match[1]['needle']) == tag,
-                plan.prefix + ':screen-order')
-        match_index, match = last_match
-        screens.append({'stage': stage, 'needle': match['needle'], 'detail_index': match_index,
-                        **screenshot(directory, match.get('screenshot'))})
-        last_match = None  # A prior match cannot authorize another stage.
+        require(False, plan.prefix + ':semantic-plan')
     require(stages == list(plan.screen_tags), plan.prefix + ':missing-screens')
     return screens
 

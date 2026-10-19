@@ -834,6 +834,10 @@ from regression_ui import Bucket
 # Category diagnostic replay tests reuse fix_tests_cleanup_safety's private
 # checkpoint trees and recorded, waited children. Both unit and cleanup
 # compatibility remain unchanged; no shared owner or new resource is introduced.
+# Session-limit resume adds only those same finite, waited process doubles and
+# private checkpoints. UI/E2E product-route parity uses in-memory API clients;
+# semantic evidence checks use private JSON and recorder doubles. No graphics,
+# VM, network, shared file or new owner; existing compatible classifications apply.
 # Launcher dispatch parameters use process-local synthetic package identities,
 # avoiding repeated Make/source scans; real identity/refusal checks stay in
 # test_storage_cleanup_safety. Installed-journey parameters retain function-local

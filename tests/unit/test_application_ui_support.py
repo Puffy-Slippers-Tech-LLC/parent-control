@@ -209,6 +209,52 @@ def test_uncertain_mutation_is_dispatched_once_without_fallback():
     assert client.calls == [('parent-screen-limit-toggle', 'setValue', {'value': True})]
 
 
+@pytest.mark.parametrize('consumer', ['ui', 'e2e'])
+@pytest.mark.parametrize('uncertain', [False, True])
+def test_ui_and_e2e_share_product_input_without_graphical_queries(monkeypatch, consumer, uncertain):
+    from tests.e2e.accessible_ui import AccessibleUI, UiError
+    from tests.support.automation import Automation, AutomationError
+    from tests.support.application_ui import ApplicationNode
+
+    client = Client()
+    ui = catalog(client)
+    ui.api.StateType.DEFUNCT = 'DEFUNCT'
+    forbidden = Mock(side_effect=AssertionError('unneeded graphical query'))
+    ui.api.get_desktop = forbidden
+    monkeypatch.setattr(ApplicationNode, 'get_component_iface', forbidden)
+    root = lambda: ui.applications()[0]
+    if consumer == 'ui':
+        facade = Automation(ui.api, root)
+        reader = facade.reader
+        write = lambda: facade.setValue('parent-screen-limit-toggle', True)
+        read = lambda: facade.getValue('parent-screen-limit-toggle')
+    else:
+        reader = AccessibleUI(ui.api, root=root)
+        write = lambda: reader.set_value('parent-screen-limit-toggle', True)
+        read = lambda: reader.get_value('parent-screen-limit-toggle')
+    reader.application_ui = ui
+    if uncertain:
+        original = client.call
+
+        def fail_mutation(scope, identity, operation, arguments=None):
+            if operation == 'setValue':
+                client.calls.append((identity, operation, arguments))
+                raise UIClientError('Transport', uncertain=True)
+            return original(scope, identity, operation, arguments)
+
+        monkeypatch.setattr(client, 'call', fail_mutation)
+        with pytest.raises((UIClientError, AutomationError)):
+            write()
+        with pytest.raises((UiError, AutomationError)):
+            write()
+    else:
+        write()
+        assert read() is True
+    assert reader.input_uncertain is uncertain
+    assert [operation for _, operation, _ in client.calls].count('setValue') == 1
+    forbidden.assert_not_called()
+
+
 @pytest.mark.parametrize('role,expected', [
     ('text-box', 'entry'), ('textbox', 'entry'), ('combo-box', 'combo box'),
     ('list-item', 'list item'), ('tab-list', 'page tab list'), ('menu-item', 'menu item'),

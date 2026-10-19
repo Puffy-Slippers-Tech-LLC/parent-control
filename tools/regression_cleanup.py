@@ -56,6 +56,10 @@ fixtures and external resources have been reviewed; never omit their cases.
 # Non-case diagnostic/repair replay uses those same private checkpoints and
 # waited children, including resumed entry. It changes no resource lifetime;
 # fix_tests_cleanup_safety remains compatible in both inventories.
+# Session-limit resume reuses its private checkpoints and finite recorded child
+# doubles. Semantic journey-plan/evidence checks use private JSON/in-memory
+# observations, without live VM or graphical services; both existing compatible
+# cleanup classifications and reservations remain appropriate.
 # Failure-context snapshots add only small files in those same private launcher
 # runs. Existing test children remain recorded and waited; no live artifact
 # reader, privilege, VM or additional cleanup owner is introduced. Compatible.

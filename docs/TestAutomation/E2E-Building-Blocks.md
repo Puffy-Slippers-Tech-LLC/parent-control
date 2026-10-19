@@ -5410,6 +5410,12 @@ the fixed packaged API; no caller JavaScript, arbitrary DOM, toolkit calls or
 AT-SPI product-read/input fallback is allowed. Qualification exercises public
 input/readback as well as identity discovery.
 
+Customer plans and their shared recorder enforce the
+[semantic evidence boundary](../../tests/e2e/README.md#functional-gui-acceptance):
+only public UI, command or system observations establish acceptance. Do not add
+a viewer, screenshot or geometry prerequisite to consume the shared product
+facade; UI and installed E2E use the same client, projection and guarded reader.
+
 External provider gaps remain separate from the rich-editor adapter. The source mappings name logical consumer requirements, not IDs assigned by the
 client. An ID route binds them to real provider-owned values; an exception route
 records its actual selectors and qualification separately.

@@ -18,6 +18,14 @@ provider adapters; names/roles/states verify meaning afterward. Use canonical
 setters, ordinary actions and fresh independent results. Fail wrong targets/results and unavailable
 required information. Keep backend probes out of customer acceptance.
 
+Customer `JourneyPlan` stages accept only `ui:`, `command:` or `system:`
+observations. Image/geometry stages refuse when the plan is constructed, before
+guest setup or input. The shared `matched_screens` reconciler retains its name
+for compatibility but consumes ordered semantic results, never needle scores
+or screenshot files. Optional recordings and diagnostic images supply no pass
+and cannot substitute for a missing product observation. Authentication harness
+recipient/capture safeguards remain under their separate contracts below.
+
 Apply the mandate's
 [result-oriented scope](../../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
 to both completed implementations and planned cases. Start with the customer's
@@ -1475,8 +1483,10 @@ distribution for `tests/integration/check_graphical_smoke.py`. Invoke the smoke
 through `tools/run-tests integration --vm NAME check_graphical_smoke`; the dispatcher invokes
 the selected controller with the existing VM lease and ownership checks. This is
 worker integration evidence, not an executed E2E-001 variant. The distribution's
-Perl sources still live in `tests/integration/graphical_smoke`; this extraction
-does not replace its feasibility geometry with the graphical runner's stable matching.
+Perl sources still live in `tests/integration/graphical_smoke`. Customer journeys
+use the shared semantic stage contract above; legacy image/pointer entry points
+refuse. The separate VT6 authentication harness retains its qualified pre-secret
+recipient and capture gates.
 
 The outer controller supplies its initial source map for diagnostics. The worker
 validates current distribution bytes, rejects unsafe source entries and writes

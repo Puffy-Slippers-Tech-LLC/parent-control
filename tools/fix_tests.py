@@ -740,6 +740,9 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         warn_remaining(budget.read()['tasks'], remaining, label='fix-tests')
         print(f'fix-tests: category pass, then {rounds - 1} verification round(s)', flush=True)
         print('fix-tests: categories: ' + ', '.join(categories), flush=True)
+        if resuming:
+            print(f'fix-tests: resuming round {start_round}; retaining passed categories: '
+                  + (', '.join(completed) or '(none)') + '.', flush=True)
         run_loop(categories, test, repair, check_stop, selected=bool(requested), rounds=rounds,
                  round_changed=round_changed,
                  completed=completed, resume_test=lambda category, **options: test(category, resume=True, **options),

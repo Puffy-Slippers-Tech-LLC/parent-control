@@ -3024,31 +3024,67 @@ def test_preserved_password_helper_preparation_publishes_exactly_one_inode_signe
     ('directory', 0o775, 0, 0, 'sibling', 'empty-directory'),
     ('directory', 0o775, 12345, 0, 'sibling', 'empty-directory'),
     ('directory', 0o777, 0, 0, 'sibling', 'empty-directory'),
-    ('directory', 0o755, 0, 12345, 'sibling', None),
+    ('directory', 0o755, 1000, 1000, 'sibling', 'empty-directory'),
+    ('directory', 0o700, 12345, 12345, 'sibling', 'empty-directory'),
+    ('directory', 0o555, 0, 12345, 'sibling', 'empty-directory'),
+    ('directory', 0o775, 12345, 12345, 'sibling', 'empty-directory'),
+    ('directory', 0o777, 12345, 12345, 'sibling', 'empty-directory'),
     ('directory', 0o775, 0, 0, 'reserved', None),
     ('directory', 0o775, 0, 0, 'executable-parent', None),
-    ('file', 0o664, 0, 0, 'sibling', None),
+    ('directory', 0o755, 1000, 1000, 'reserved', None),
+    ('directory', 0o755, 1000, 1000, 'executable-parent', None),
+    ('file', 0o664, 0, 0, 'sibling', 'absent'),
     ('file', 0o644, 12345, 0, 'sibling', 'file'),
+    ('file', 0o644, 1000, 1000, 'sibling', 'absent'),
+    ('file', 0o644, 1000, 1000, 'required-file', None),
+    ('file', 0o664, 0, 0, 'required-file', None),
+    ('link', 0o777, 0, 0, 'sibling', 'link'),
+    ('link', 0o777, 1000, 1000, 'sibling', 'absent'),
+    ('link', 0o777, 1000, 1000, 'alias', None),
+    ('fifo', 0o644, 0, 0, 'sibling', 'absent'),
+    ('fifo', 0o644, 1000, 1000, 'sibling', 'absent'),
+    ('directory-tab', 0o755, 0, 0, 'sibling', 'absent'),
+    ('directory-newline', 0o755, 1000, 1000, 'sibling', 'absent'),
+    ('directory-tab', 0o755, 0, 0, 'reserved', None),
 ])
+@pytest.mark.parametrize('sibling_parent', ('/usr/lib/polkit-1', '/usr/share', '/usr/bin'))
 def test_preserved_password_helper_parent_contributes_real_private_directory_layout(
-        tmp_path, monkeypatch, sibling_kind, mode, gid, uid, scope, expected):
+        tmp_path, monkeypatch, request, capfd, sibling_kind, mode, gid, uid, scope, expected,
+        sibling_parent):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
     private_root = tmp_path / 'private-root'
     source = private_root / 'usr/lib/polkit-1/polkit-agent-helper-1'
     source.parent.mkdir(parents=True)
     source.write_bytes(b'\x7fELFprivate preserved helper')
-    (source.parent / 'vendor-data').mkdir()
-    (source.parent / 'vendor-data/uncovered').write_text('private sibling')
+    executable = private_root / 'usr/bin/required-native'
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b'\x7fELFprivate native executable')
+    sibling_root = private_root / sibling_parent.lstrip('/')
+    sibling_root.mkdir(parents=True, exist_ok=True)
+    name = {'directory-tab': 'vendor\tdata', 'directory-newline': 'vendor\ndata'}.get(
+        sibling_kind, 'vendor-data' if sibling_kind == 'directory' else 'vendor-file')
+    sibling = sibling_root / name
+    if sibling_kind.startswith('directory'):
+        sibling.mkdir()
+        (sibling / 'uncovered').write_text('private sibling')
+    elif sibling_kind == 'file':
+        sibling.touch()
+    elif sibling_kind == 'link':
+        sibling.symlink_to('vendor-data')
+    else:
+        os.mkfifo(sibling)
     payload = private_root / 'usr/share/oh-no-parent-control/confinement'
     payload.mkdir(parents=True)
     (payload / 'generation').touch()
     for path in private_root.rglob('*'):
-        path.chmod(0o755 if path.is_dir() else 0o644)
-    sibling = source.parent / 'vendor-data' if sibling_kind == 'directory' else source.parent / 'vendor-file'
-    if sibling_kind == 'file':
-        sibling.touch()
-    sibling.chmod(mode)
-    original_iterdir, original_lstat = Path.iterdir, Path.lstat
+        if not path.is_symlink():
+            path.chmod(0o755 if path.is_dir() else 0o644)
+    if sibling_kind != 'link':
+        sibling.chmod(mode)
+        # Read-only ownership cases must not leave pytest's private scratch
+        # undeletable after success or the intentional pre-fix failure.
+        request.addfinalizer(lambda: sibling.chmod(0o755))
+    original_iterdir, original_lstat, original_readlink = Path.iterdir, Path.lstat, os.readlink
     visited = []
 
     def physical(path):
@@ -3070,6 +3106,12 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
         values[5] = gid if physical(path) == sibling else 0
         return os.stat_result(values)
 
+    def readlink(path, *args, **kwargs):
+        path = Path(path)
+        if path == Path('/usr') or Path('/usr') in path.parents:
+            path = physical(path)
+        return original_readlink(path, *args, **kwargs)
+
     def trusted(path, *, directory=False, **kwargs):
         path = Path(path)
         info = original_lstat(physical(path))
@@ -3078,12 +3120,18 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
 
     monkeypatch.setattr(helper.Path, 'iterdir', entries)
     monkeypatch.setattr(helper.Path, 'lstat', metadata)
+    monkeypatch.setattr(helper.os, 'readlink', readlink)
     monkeypatch.setattr(helper, 'trusted', trusted)
-    sibling_path = '/usr/lib/polkit-1/' + sibling.name
+    sibling_path = sibling_parent + '/' + sibling.name
     config = {'reserved_directories': [sibling_path] if scope == 'reserved' else []}
-    records = [{'path': '/usr/lib/polkit-1/polkit-agent-helper-1'}]
+    records = [{'path': '/usr/lib/polkit-1/polkit-agent-helper-1'},
+               {'path': '/usr/bin/required-native'}]
     if scope == 'executable-parent':
         records.append({'path': sibling_path + '/another-executable'})
+    elif scope == 'required-file':
+        records.append({'path': sibling_path})
+    elif scope == 'alias':
+        config['executables'] = [{'paths': [sibling_path]}]
     if expected is None:
         with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry'):
             helper.directory_layout(config, records)
@@ -3092,10 +3140,15 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
     kinds = {entry['path']: entry['kind'] for entry in layout}
     assert kinds['/usr/lib'] == kinds['/usr/lib/polkit-1'] == 'tree'
     assert kinds['/usr/lib/polkit-1/polkit-agent-helper-1'] == 'file'
-    assert kinds[sibling_path] == expected
-    assert '/usr/lib/polkit-1/vendor-data/uncovered' not in kinds
+    if expected == 'absent':
+        assert sibling_path not in kinds
+    else:
+        assert kinds[sibling_path] == expected
+    assert sibling_path + '/uncovered' not in kinds
     assert source.parent in visited
-    assert source.parent / 'vendor-data' not in visited
+    assert sibling not in visited
+    diagnostic = capfd.readouterr().err
+    assert 'vendor' not in diagnostic and str(uid) not in diagnostic
 
 
 @pytest.mark.parametrize('name', ['code', 'gnome-shell', 'wireplumber'])

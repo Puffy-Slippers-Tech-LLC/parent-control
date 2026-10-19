@@ -90,8 +90,11 @@ def test_broker_worker_exports_all_four_components_and_releases_lock(tmp_path, m
     monkeypatch.setattr(GLib, "idle_add", lambda callback, *args: callback(*args))
     kiosk_probe = Mock()
     monkeypatch.setattr(service, "collect_kiosk_diagnostics", kiosk_probe)
+    admission_probe = Mock()
+    monkeypatch.setattr(service, "collect_kiosk_admission_diagnostics", admission_probe)
     monkeypatch.setattr(service, "collect_dependency_diagnostics", Mock())
     service.Service._export_logs_worker(instance, invocation, 991)
+    admission_probe.assert_called_once_with()
     kiosk_probe.assert_called_once_with(service.CONFIG_PATH)
     response = invocation.return_value.call_args.args[0]
     with ZipFile(BytesIO(bytes(response.unpack()[0]))) as archive:

@@ -26,7 +26,8 @@ from tests.support.terminal_screen import Terminal
 
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
-], ids=['reliability-plan'])
+    ('kiosk-prompt', 'docs/Kiosk-Prompt.md'),
+], ids=['reliability-plan', 'kiosk-prompt'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param
     entry = Path(workflow.__file__).with_name(name)

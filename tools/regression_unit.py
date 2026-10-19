@@ -871,6 +871,9 @@ from regression_ui import Bucket
 # synchronously wait for its bounded children. Mount/namespace calls are doubles;
 # manifests and outputs stay in pytest-private trees. Existing compatible unit
 # admission still applies; there is no cleanup/UI inventory or shared resource.
+# Generic sibling cases add private FIFOs/symlinks and restore deliberately
+# read-only fixture modes on every outcome. They open no FIFO, mount or bus;
+# ownership, metadata-race and directory observations remain process-local.
 # Preparation diagnostic shutdown checks own private broken pipes and bounded,
 # waited Python children with bytecode writes disabled. Preparation is a local
 # double; no host account, PAM, mount, policy or shared cache is accessed.

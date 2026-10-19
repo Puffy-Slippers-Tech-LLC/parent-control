@@ -155,9 +155,9 @@ file, application inventory, or other arbitrary file becomes an attachment.
 
 The PAM module and fixed-purpose login helper emit local journal/syslog records
 with the `onpc.pam` prefix before the kiosk application can start. These are
-integration diagnostics, separate from the broker's event-file pipeline, and
-are not automatically attached to feedback reports or imported as raw journal
-text. Inspect them using the maintained system diagnostics reader.
+integration diagnostics. The broker projects only the reviewed closed-field
+records described below into feedback; raw journal text is never attached.
+Inspect local raw records using the maintained system diagnostics reader.
 
 Routing records identify the account or session stage, allowed/denied/
 unavailable outcome, dedicated/other/unset session category, wayland/other/unset
@@ -186,10 +186,51 @@ without command arguments or captured output. The retained
 `stale-manager-reboot-required` and `generation-limit-reboot-required` reasons
 require reboot rather than automatic process termination. A separate
 `onpc.kiosk confinement directory-view` record reports the aggregate number of
-writable sibling directories hidden behind empty private directories, with
+writable or non-root-owned sibling directories hidden behind empty private
+directories, with
 `outcome=masked reason=writable-sibling-directory`. It contains no directory
 names and does not assert completed admission. Unavailable diagnostic output
 does not change the preparation result.
+
+`onpc.kiosk confinement directory-entry` adds aggregated mask, omission or
+refusal classifications for ownership, access, entry kind, required/sibling
+scope, broad system area and the closed reason. Untrusted sibling files/links,
+special types, separator names and unavailable metadata can be omitted
+without exposing their contents; required inputs must still fail closed. The
+candidate's incomplete alias ancestry classification and non-UTF-8 publication
+handling remain open in [task 002a](../Kiosk-Prompt-Tasks/002a-classification.md).
+Native binding currently exports only its failed stage; bounded native cause
+production and projection remain with tasks 002b/002 of that plan. Neither
+classification record includes the entry name or full path.
+
+Before a feedback snapshot, the independent
+`collect_kiosk_admission_diagnostics()` reader projects exact reviewed native
+PAM, login-helper and preparation records. It runs even without a surviving
+kiosk manager, valid kiosk configuration or normal policy readiness. A separate
+five-second budget covers one bounded journal read of the last 24 hours across
+retained boots, at most 200 matching entries and 20 exported markers. Denials
+and unavailable/error outcomes take priority over later successes when clipping;
+retained markers keep source chronology. This does not recover unavailable or
+already-rotated journal history.
+
+`kiosk.admission-journal` records source UTC time, producer category, manager/gate
+role where known, stage, outcome, closed reason, session/transport/recovery
+categories and bounded numeric status, errno and shipped preparation source line.
+An absent status is -256, errno is -1 and source line is 0. Its exact native
+passwordless marker separates successful authentication from later routing or
+session-preparation failure. Success at one stage never attests completed entry.
+`kiosk.admission-directory` retains the aggregate entry classifications without
+names or paths. `kiosk.admission-observation` reports complete, partial or
+unavailable with retained, recognized, rejected and dropped counts. Complete
+describes this bounded read only; rejected records, a full tail or marker clipping
+make the observation partial.
+
+Projection requires root journal credentials, reviewed native executable paths,
+or the reviewed Python/helper executable, identifier and unit provenance.
+Unknown/spoofed messages and fields are not exported. Journal account/process/
+session/host/boot identities, raw messages, arguments and arbitrary exception
+text remain transient. Source timestamps and closed failure categories allow
+report-only diagnosis without turning those identities into attachments.
 
 Configuration/removal reports a bounded fixed
 reason token and retains ownership records on failure. It also identifies the
@@ -236,7 +277,7 @@ unrelated security denials do not establish the cause of a session exit.
 
 Raw journal messages, exception text, host/account/process/session/device
 identities, paths, addresses and stack traces are discarded, never attached.
-The existing PAM routing and preparation diagnostics remain local-only.
+PAM routing and preparation have the separate bounded projection described above.
 These additive catalogue entries ship with all validators. The broker loads
 the collector after `process-restart`; new frontend processes load its catalogue.
 No saved-data migration or feedback transport change is required. Archive and

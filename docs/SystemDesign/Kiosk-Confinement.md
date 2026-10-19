@@ -101,13 +101,28 @@ is attached recursively over `/usr` in a private mount namespace. Package
 unlink/rename cannot detach these private dentries and expose replacement bytes.
 Versioned systemd libraries remain coherent across manager reexecution.
 
-Unrelated root-owned sibling directories writable by a group or by everyone
-become empty private directories in the kiosk view. Their contents are never
-bound into the kiosk, so installed applications such as VS Code can ship
-mode-0775 data directories without blocking kiosk entry or supplying mutable
-scripts/plugins through the host's writable alias. Group root receives no trust
-exception. Executable files, their trusted ancestors, reserved directories and
-every native bind retain the prohibition on all group and world writes.
+Unrelated sibling directories owned by a non-root user or writable by a group
+or by everyone become empty private directories in the kiosk view. Non-root
+ownership requires masking even without write bits, because the owner can
+change those permissions. Untrusted sibling files/symlinks, special types,
+names containing manifest separators and unavailable sibling metadata are
+omitted. Their contents and aliases are never bound into the kiosk. This handles
+unknown applications generically, including root-owned mode-0775 data and
+user-owned mode-0755 data, without changing the host. Group root receives no
+trust exception. Required executable files, lexical aliases, their trusted
+ancestors, reserved directories and every native bind must retain their ownership
+and write prohibitions; their failures must never become sibling omissions.
+
+Closed aggregate directory classifications identify mask/omit/refusal action,
+reason, entry kind, ownership, access, required/sibling scope and broad system
+area without names or paths. The feedback collector projects these and the
+preceding admission stages under the
+[admission diagnostic contract](Logging-and-Feedback.md#kiosk-admission-diagnostics).
+The candidate still misclassifies late required-alias ancestry drift, and a
+non-UTF-8 sibling can fail binding publication. These reproduced gaps, native
+isolation of the generic candidate and retained-manager availability after
+ambient layout changes remain unfinished in the
+[kiosk prompt plan](../Kiosk-Prompt.md).
 
 The manager must have the expected UID, enforcing label and exact private
 generation before GDM admission. A stale manager requires reboot; configuration
@@ -231,7 +246,7 @@ every version or distribution. The qualification scope follows the table.
 | 22 | Use the administrator password helper as a general privileged program launcher. | Only the pinned vendor authentication helper and its finite transitions are permitted; native binding checks privilege metadata before and after mounting. Fedora's helper census requires exact credentials, label, parent, namespace and generation. Proof: [system helper identity assertions](../../tests/integration/system_kiosk_confinement.py#L197), [public authentication in cases 50–52](../../tests/e2e/restricted_station.py). |
 | 23 | Change the request station's default desktop or ask it to manage parental-control settings. | Root-owned routing and Polkit protect the account metadata; the kiosk has no management UI route. Broker methods independently check caller roles, targets and approval. Proof: [system routing denial/recovery](../../tests/integration/system_kiosk_admission.py#L363), [system broker role matrix](../../tests/system/test_authorization.py#L114), [E2E restrictions](../TestAutomation/E2E-Scenario-Recipes.md#e2e-016). Broker authorization is a separate boundary from execution confinement. |
 | 24 | Wait for a software update, then reuse an old background session to run newly replaced programs. | Private directory dentries pin executable/library/plugin inputs across package rename/replacement and manager reexec. The manager's every-thread boundary is rechecked and a fresh shell denial is required while replacement files are present. Proof: [system replacement/reexec assertions](../../tests/integration/system_kiosk_confinement.py#L1510). |
-| 25 | Keep an old station manager alive after its required configuration changes, then sign in again. | GDM admission requires an exact matching private generation and enforcing manager label. A stale manager denies admission and is not silently restarted. Proof: [system stale-manager assertion](../../tests/integration/system_kiosk_confinement.py#L1984). |
+| 25 | Keep an old station manager alive after its required configuration changes, then sign in again. | GDM admission requires an exact matching private generation and enforcing manager label. The [configuration-mutation check](../../tests/integration/system_kiosk_confinement.py#L2015) proves refusal without restarting the manager, but reaches payload attestation before generation comparison. The separate [native-update generation-refusal implementation](../../tests/integration/system_native_update.py#L743) requires the specific stale-generation reason; reuse requires matching candidate evidence. Final-candidate generation qualification remains with [the kiosk entry plan](../Kiosk-Prompt.md). |
 | 26 | Try entering while security policy is missing, stale, disabled or permissive. | Preparation independently verifies loaded enforcement and attested bytes; failed prerequisites deny native manager/GDM admission. Restoring the exact owned policy permits recovery. Proof: [system policy-loss assertions](../../tests/integration/system_kiosk_confinement.py#L1710). This tests fail-closed admission, not administrator removal of policy from an already-running session. |
 | 27 | Try entering during an interrupted installation or before the first required reboot. | Account expiry remains durable until configuration completes; the pre-reboot public station has no usable policy controls. Proof: [system first-configuration history](../../tests/system/test_install_smoke.py#L36), [installed/rebooted GDM history](../../tests/system/test_install_smoke.py#L43). |
 | 28 | Reboot after only part of an update was unpacked, hoping the new files will be trusted automatically. | Configuration and policy must match the successful-load digest pair. Native preparation and boot loading both refuse drift without adopting it. Proof: [system attestation-drift assertions](../../tests/integration/system_kiosk_confinement.py#L1659). |
@@ -246,7 +261,7 @@ every version or distribution. The qualification scope follows the table.
 
 Persistent system case identities are registered in
 [system case IDs](../../tests/integration/system_case_ids.py):
-4 covers first-configuration interruption/retry, 6 account classification and
+4 covers first-configuration interruption/retry, 5 account classification and
 real GDM activation across reboot, 267 native execution confinement, 268 installed
 login admission and 269 platform integrations. The
 [installed-suite guide](../../tests/integration/README.md#running-the-current-installed-suite)

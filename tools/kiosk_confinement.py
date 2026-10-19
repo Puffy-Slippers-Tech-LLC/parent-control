@@ -229,34 +229,84 @@ def directory_layout(config, records):
         if directory != Path('/usr') and Path('/usr') not in directory.parents:
             raise ValueError('inventory-outside-usr')
         covered.update(parent for parent in directory.parents if parent != Path('/'))
-    entries = []
+    required = covered | {Path(record['path']) for record in records}
+    # Include lexical executable aliases as well as their canonical storage.
+    for entry in config.get('executables', []):
+        required.update(Path(path) for path in entry['paths'])
+    observations = {}
+
+    def observe(child, info, action, reason):
+        kind = ('unknown' if info is None else
+                'directory' if stat.S_ISDIR(info.st_mode) else
+                'file' if stat.S_ISREG(info.st_mode) else
+                'link' if stat.S_ISLNK(info.st_mode) else 'special')
+        owner = 'unknown' if info is None else 'root' if info.st_uid == 0 else 'non-root'
+        access = ('unknown' if info is None else 'world-write' if info.st_mode & 0o002 else
+                  'group-write' if info.st_mode & 0o020 else
+                  'owner-change' if info.st_uid != 0 else 'read-only')
+        area = child.parts[2] if len(child.parts) > 2 else 'usr'
+        area = area if area in ('usr', 'bin', 'sbin', 'lib', 'lib64', 'libexec', 'share') else 'other'
+        fields = (action, reason, kind, owner, access,
+                  'required' if child in required else 'sibling', area)
+        observations[fields] = observations.get(fields, 0) + 1
+
+    def report():
+        for (action, reason, kind, owner, access, scope, area), count in sorted(observations.items()):
+            preparation_log(f'directory-entry action={action} reason={reason} kind={kind} '
+                            f'ownership={owner} access={access} scope={scope} area={area} count={count}')
+
+    entries, scanned = [], 0
     for directory in sorted(covered, key=str):
         trusted(directory, directory=True)
         for child in sorted(directory.iterdir()):
-            info = child.lstat()
-            if info.st_uid != 0 or '\t' in str(child) or '\n' in str(child):
-                raise ValueError('unsafe-directory-entry')
+            scanned += 1
+            if scanned > 32768:
+                report()
+                raise ValueError('directory-inventory-too-large')
+            try:
+                info = child.lstat()
+            except OSError:
+                observe(child, None, 'denied' if child in required else 'omitted', 'metadata-unavailable')
+                if child in required:
+                    report()
+                    raise
+                continue
+            reason = ('unsupported-name' if '\t' in str(child) or '\n' in str(child) else
+                      'non-root-owner' if info.st_uid != 0 else
+                      'writable-entry' if not stat.S_ISLNK(info.st_mode) and info.st_mode & 0o022 else
+                      'unsupported-type' if not (stat.S_ISREG(info.st_mode) or
+                                                stat.S_ISDIR(info.st_mode) or
+                                                stat.S_ISLNK(info.st_mode)) else None)
+            if reason:
+                # Ambient software is not an admission prerequisite. Never bind
+                # an untrusted sibling, or copy an untrusted symlink. Required
+                # native inputs retain the strict refusal, including late drift.
+                action = ('denied' if child in required else
+                          'masked' if stat.S_ISDIR(info.st_mode) and reason != 'unsupported-name' else 'omitted')
+                observe(child, info, action, reason)
+                if action == 'denied':
+                    report()
+                    raise ValueError('unsafe-directory-entry')
+                if action == 'masked':
+                    entries.append({'path': str(child), 'kind': 'empty-directory'})
+                continue
             if stat.S_ISLNK(info.st_mode):
-                entries.append({'path': str(child), 'kind': 'link', 'link': os.readlink(child)})
+                try:
+                    target = os.readlink(child)
+                except OSError:
+                    observe(child, info, 'denied' if child in required else 'omitted', 'metadata-unavailable')
+                    if child in required:
+                        report()
+                        raise
+                    continue
+                entries.append({'path': str(child), 'kind': 'link', 'link': target})
             else:
                 # The containing directory and all its ancestors were checked
                 # above. lstat identifies this immediate non-link child; do
                 # not resolve and recheck the same ancestry for every sibling.
-                if info.st_mode & 0o022:
-                    if not stat.S_ISDIR(info.st_mode) or child in covered:
-                        raise ValueError('untrusted-path')
-                    # An unrelated package may ship a writable data directory.
-                    # Read-only binds would still expose changes through the
-                    # host's writable alias, including group/ACL writers. Give
-                    # it an empty private directory instead; never bind it.
-                    entries.append({'path': str(child), 'kind': 'empty-directory'})
-                else:
-                    if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
-                        raise ValueError('unexpected-file-type')
-                    entries.append({'path': str(child), 'kind': 'tree' if child in covered else
-                                    'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
-            if len(entries) > 32768:
-                raise ValueError('directory-inventory-too-large')
+                entries.append({'path': str(child), 'kind': 'tree' if child in covered else
+                                'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
+    report()
     return entries
 
 

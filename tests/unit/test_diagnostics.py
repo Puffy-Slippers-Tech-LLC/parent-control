@@ -273,6 +273,240 @@ def test_dependency_command_caps_live_pipes_and_reaps_its_process(monkeypatch, m
     assert children[0].stdout.closed and children[0].stderr.closed
 
 
+def _admission_journal(message, producer='preparation', **overrides):
+    import json
+    item = {'MESSAGE': message, '__REALTIME_TIMESTAMP': '1792266283591440',
+            '_UID': '0', '_EXE': '/usr/bin/python3.14', '_COMM': 'oh-no-parent-co',
+            '_TRANSPORT': 'stdout', 'SYSLOG_IDENTIFIER': 'systemd',
+            '_SYSTEMD_UNIT': 'user@123456.service', '_BOOT_ID': 'private-previous-boot',
+            '_PID': '60579', '_HOSTNAME': 'private-host'}
+    if producer in ('pam', 'authentication'):
+        item.update(_EXE='/usr/libexec/gdm-session-worker', _COMM='gdm-session-wor',
+                    SYSLOG_IDENTIFIER='gdm-password]', _SYSTEMD_UNIT='gdm.service',
+                    _TRANSPORT='syslog')
+    elif producer == 'routing':
+        item.update(SYSLOG_IDENTIFIER='oh-no-parent-control-login-check', _TRANSPORT='syslog')
+    item.update(overrides)
+    return json.dumps(item)
+
+
+ADMISSION_FAILURE = ('onpc.kiosk confinement preparation outcome=denied role=manager '
+                     'stage=directory-layout reason=unsafe-directory-entry '
+                     'source=kiosk-confinement line=238')
+ADMISSION_DIRECTORY = ('onpc.kiosk confinement directory-entry action=denied '
+                       'reason=non-root-owner kind=file ownership=non-root '
+                       'access=owner-change scope=required area=bin count=1')
+
+
+def test_kiosk_admission_failure_survives_reboot_recovery_and_feedback_archive(
+        tmp_path, monkeypatch, caplog):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from oh_no_parent_control.logs import BrokerFileHandler
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+
+    caplog.set_level(logging.INFO)
+    rows = [
+        _admission_journal('pam_unix(gdm-password:auth): user [oh-no-parent-control] has blank '
+                           'password; authenticated without it', 'authentication'),
+        _admission_journal('onpc.pam kiosk routing stage=account outcome=allowed '
+                           'session=dedicated type=wayland recovery=none reason=none', 'routing'),
+        _admission_journal('pam_oh_no_parent_control(gdm-password:account): '
+                           'onpc.pam kiosk confinement stage=account outcome=allowed status=0', 'pam'),
+        _admission_journal(ADMISSION_DIRECTORY),
+        _admission_journal(ADMISSION_FAILURE),
+        _admission_journal('pam_oh_no_parent_control(systemd-user:session): '
+                           'onpc.pam kiosk execution-boundary outcome=denied stage=prepare', 'pam',
+                           _EXE='/usr/lib/systemd/systemd-executor', _COMM='(systemd)',
+                           SYSLOG_IDENTIFIER='(systemd)', _SYSTEMD_UNIT='user@123456.service'),
+        _admission_journal('pam_oh_no_parent_control(gdm-password:session): '
+                           'onpc.pam kiosk execution-boundary outcome=armed stage=armed', 'pam',
+                           _BOOT_ID='private-current-boot', __REALTIME_TIMESTAMP='1792266293591440'),
+    ]
+    commands = []
+
+    def run(command, timeout):
+        commands.append(command)
+        assert 0 < timeout <= 3
+        return subprocess.CompletedProcess([], 0, '\n'.join(rows), '')
+
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    monkeypatch.setattr(dependency.config, 'load', lambda _path: (_ for _ in ()).throw(
+        AssertionError('admission must not need kiosk configuration')))
+    dependency.collect_kiosk_admission_diagnostics()
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    markers = [row for row in values if row['event'] != 'kiosk.admission-observation']
+    assert len(markers) == 7
+    assert markers[0]['fields']['reason'] == 'passwordless-authenticated'
+    assert markers[1]['fields']['source'] == 'routing'
+    assert markers[2]['fields']['stage'] == 'account' and markers[2]['fields']['status'] == 0
+    assert markers[3]['fields']['scope'] == 'required' and markers[3]['fields']['kind'] == 'file'
+    failure = markers[4]['fields']
+    assert failure['stage'] == 'directory-layout' and failure['reason'] == 'unsafe-directory-entry'
+    assert failure['line'] == 238 and failure['occurred_at'] == '2026-10-17T19:44:43.591+00:00'
+    assert markers[5]['fields']['stage'] == 'prepare' and markers[5]['fields']['outcome'] == 'denied'
+    assert markers[6]['fields']['outcome'] == 'armed'
+    assert values[-1]['fields'] == dict(outcome='complete', count=7, recognized_count=7,
+                                        rejected_count=0, dropped_count=0)
+    assert len(commands) == 1 and '_UID=0' in commands[0]
+    assert '--since=-24hours' in commands[0] and '--lines=200' in commands[0]
+    assert not any(part.startswith('--boot') for part in commands[0])
+    writer = DailyLogWriter(tmp_path / 'logs')
+    handler = BrokerFileHandler(writer)
+    for record in caplog.records:
+        assert not record.args and not record.exc_info
+        handler.emit(record)
+    with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
+        logs, _ = read_report(archive)
+        exported = [row for records in logs.values() for row in records
+                    if row['event'].startswith('kiosk.admission-')]
+        assert [row['fields'] for row in exported] == [row['fields'] for row in values]
+        text = ''.join(archive.read(name).decode() for name in archive.namelist())
+    assert 'passwordless-authenticated' in text and 'unsafe-directory-entry' in text
+    assert 'source_line=238' in text and 'scope=required area=bin count=1' in text
+    for secret in ('private-', '123456', '60579', '/usr/', 'pam_unix', 'gdm-password]'):
+        assert secret not in text and secret not in caplog.text
+
+
+@pytest.mark.parametrize('fault', [
+    {'_UID': '123456'}, {'_UID': 0}, {'_EXE': '/home/private/python3.14'},
+    {'_COMM': 'private-command'}, {'SYSLOG_IDENTIFIER': 'private-identifier'},
+    {'_SYSTEMD_UNIT': 'private.service'}, {'_TRANSPORT': 'audit'},
+    {'MESSAGE': ADMISSION_FAILURE + ' account=private@example.test'},
+    {'MESSAGE': ADMISSION_FAILURE.replace('unsafe-directory-entry', 'private@example.test')},
+    {'MESSAGE': ADMISSION_FAILURE.replace('directory-layout', 'private-stage')},
+    {'MESSAGE': ADMISSION_FAILURE.replace('line=238', 'line=9999999')},
+    {'MESSAGE': ADMISSION_FAILURE.replace('role=manager', 'role=gate')},
+    {'__REALTIME_TIMESTAMP': 'private@example.test'},
+])
+def test_kiosk_admission_rejects_untrusted_provenance_unknown_fields_and_text(monkeypatch, caplog, fault):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(dependency, '_run_bounded', lambda *_args: subprocess.CompletedProcess(
+        [], 0, _admission_journal(ADMISSION_FAILURE, **fault), ''))
+    dependency.collect_kiosk_admission_diagnostics()
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    assert len(values) == 1 and values[0]['event'] == 'kiosk.admission-observation'
+    assert values[0]['fields'] == dict(outcome='partial', count=0, recognized_count=0,
+                                      rejected_count=1, dropped_count=0)
+    assert 'private' not in caplog.text and '123456' not in caplog.text
+
+
+@pytest.mark.parametrize('reason,details,expected', [
+    ('os-error', ' errno=13', {'errno': 13, 'status': -256}),
+    ('command-failed', ' status=-9', {'errno': -1, 'status': -9}),
+    ('command-timeout', '', {'errno': -1, 'status': -256}),
+])
+def test_kiosk_admission_keeps_only_bounded_numeric_failure_details(monkeypatch, caplog,
+                                                                  reason, details, expected):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+    caplog.set_level(logging.INFO)
+    message = ('onpc.kiosk confinement preparation outcome=denied role=manager '
+               f'stage=generation-create reason={reason}{details} source=kiosk-confinement line=345')
+    monkeypatch.setattr(dependency, '_run_bounded', lambda *_args: subprocess.CompletedProcess(
+        [], 0, _admission_journal(message), 'private@example.test'))
+    dependency.collect_kiosk_admission_diagnostics()
+    fields = decode(caplog.records[0].onpc_payload)['fields']
+    assert fields['reason'] == reason and fields['line'] == 345
+    assert {key: fields[key] for key in expected} == expected
+    assert 'private' not in caplog.text
+
+
+def test_kiosk_admission_accepts_gate_classifications_and_rejects_native_spoofing(monkeypatch, caplog):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+    caplog.set_level(logging.INFO)
+    passwordless = ('pam_unix(gdm-password:auth): user [oh-no-parent-control] has blank '
+                    'password; authenticated without it')
+    rows = [
+        _admission_journal(ADMISSION_DIRECTORY.replace('action=denied', 'action=omitted')
+                           .replace('scope=required', 'scope=sibling'),
+                           _SYSTEMD_UNIT='session-6.scope', SYSLOG_IDENTIFIER='gdm-session-worker'),
+        _admission_journal('onpc.kiosk confinement directory-view outcome=masked '
+                           'reason=writable-sibling-directory count=2'),
+        _admission_journal(passwordless, 'authentication', _UID='123456'),
+        _admission_journal(passwordless, 'authentication', _EXE='/home/private/gdm-session-worker'),
+        _admission_journal(passwordless + ' private@example.test', 'authentication'),
+        _admission_journal(passwordless.replace('oh-no-parent-control', 'private-child'), 'authentication'),
+        _admission_journal(ADMISSION_FAILURE.replace('unsafe-directory-entry', 'os-error errno=4096')),
+        _admission_journal(ADMISSION_FAILURE.replace('unsafe-directory-entry', 'command-failed status=256')),
+        _admission_journal(ADMISSION_DIRECTORY + ' entry=/home/private'),
+        _admission_journal(ADMISSION_DIRECTORY.replace('kind=file', 'kind=private-kind')),
+    ]
+    monkeypatch.setattr(dependency, '_run_bounded', lambda *_args: subprocess.CompletedProcess(
+        [], 0, '\n'.join(rows), ''))
+    dependency.collect_kiosk_admission_diagnostics()
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    assert len(values) == 3
+    assert values[0]['fields']['role'] == 'gate' and values[0]['fields']['action'] == 'omitted'
+    assert values[1]['fields']['outcome'] == 'masked' and values[1]['fields']['count'] == 2
+    assert values[-1]['fields'] == dict(outcome='partial', count=2, recognized_count=2,
+                                       rejected_count=8, dropped_count=0)
+    with pytest.raises(ValueError):
+        event('kiosk.admission-directory', {**values[0]['fields'], 'entry': '/home/private'})
+    assert 'private' not in caplog.text
+
+
+@pytest.mark.parametrize('fault', ['command', 'timeout', 'oversize', 'malformed',
+                                  'full-tail', 'marker-limit', 'empty', 'budget'])
+def test_kiosk_admission_collection_is_independent_bounded_and_failure_preserving(
+        monkeypatch, caplog, fault):
+    import logging
+    import subprocess
+    from oh_no_parent_control import dependency_diagnostics as dependency
+    from common.oh_no_parent_control_ui.diagnostic_events import decode
+    caplog.set_level(logging.INFO)
+    calls = []
+
+    def run(command, timeout):
+        calls.append(command)
+        assert 0 < timeout <= 3
+        if fault == 'command':
+            return subprocess.CompletedProcess([], 1, '', 'private@example.test')
+        if fault == 'timeout':
+            raise subprocess.TimeoutExpired(['private'], 3, stderr='private@example.test')
+        if fault == 'empty':
+            return subprocess.CompletedProcess([], 1, '', '')
+        success = _admission_journal('onpc.pam kiosk routing stage=account outcome=allowed '
+                                     'session=dedicated type=wayland recovery=none reason=none', 'routing')
+        output = {'oversize': 'x' * (dependency.MAX_OUTPUT + 1), 'malformed': 'private@example.test',
+                  'full-tail': '\n'.join([_admission_journal(ADMISSION_FAILURE)] + [success] * 199),
+                  'marker-limit': '\n'.join([_admission_journal(ADMISSION_FAILURE)] + [success] * 21),
+                  }.get(fault, '')
+        return subprocess.CompletedProcess([], 0, output, '')
+
+    monkeypatch.setattr(dependency, '_run_bounded', run)
+    if fault == 'budget':
+        ticks = iter([0, 6])
+        monkeypatch.setattr(dependency.time, 'monotonic', lambda: next(ticks))
+    dependency.collect_kiosk_admission_diagnostics()
+    values = [decode(record.onpc_payload) for record in caplog.records]
+    observation = values[-1]['fields']
+    unavailable = fault in ('command', 'timeout', 'oversize', 'budget')
+    assert observation['outcome'] == ('unavailable' if unavailable else
+                                       'complete' if fault == 'empty' else 'partial')
+    count = 20 if fault in ('full-tail', 'marker-limit') else 0
+    assert observation['count'] == count
+    assert observation['recognized_count'] == (200 if fault == 'full-tail' else
+                                               22 if fault == 'marker-limit' else 0)
+    assert observation['dropped_count'] == (180 if fault == 'full-tail' else
+                                            2 if fault == 'marker-limit' else 0)
+    if count:
+        assert values[0]['fields']['reason'] == 'unsafe-directory-entry'
+        assert values[0]['fields']['line'] == 238
+    assert len(calls) == (0 if fault == 'budget' else 1)
+    assert 'private' not in caplog.text
+
+
 def _kiosk_journal(message, **overrides):
     import json
     item = {"MESSAGE": message, "__REALTIME_TIMESTAMP": "1792266283591440",

@@ -26,6 +26,25 @@ PROPERTIES = ("Id", "LoadState", "ActiveState", "Result", "ExecMainCode", "ExecM
               "Restart", "NRestarts", "InvocationID")
 KIOSK_LOG = get_logger("kiosk")
 KIOSK_APP_UNIT = "oh-no-parent-control-app.service"
+ADMISSION_STAGES = (
+    'arguments', 'identity', 'attestation', 'payload', 'enforcement', 'executable-inventory',
+    'privileged-inventory', 'directory-layout', 'manager-generation', 'runtime', 'recovery',
+    'generation-create', 'generation-verify', 'bindings')
+ADMISSION_REASONS = (
+    'invalid-caller', 'invalid-arguments', 'unowned-account', 'substituted-path',
+    'untrusted-path', 'untrusted-ancestor', 'unexpected-file-type', 'unexpected-executable-mode',
+    'non-native-executable', 'source-changed', 'invalid-executable-substitution',
+    'missing-executable', 'conflicting-executable-roles', 'unexpected-preserved-executable',
+    'preserved-executable-label', 'preserved-executable-changed', 'preserved-executable-layout',
+    'inventory-outside-usr', 'unsafe-directory-entry', 'directory-inventory-too-large',
+    'directory-generation-changed', 'selinux-not-enforcing', 'selinux-query-unavailable',
+    'selinux-domain-not-enforcing', 'apparmor-not-enforcing', 'unknown-backend',
+    'manager-unavailable', 'manager-identity', 'manager-not-confined', 'manager-exited',
+    'mounted-preparation', 'linked-preparation', 'unknown-preparation-file', 'unowned-preparation',
+    'policy-snapshot-not-attested', 'runtime-mode', 'executable-inventory-too-large',
+    'copy-changed', 'generation-changed', 'executable-label-changed',
+    'stale-manager-reboot-required', 'generation-limit-reboot-required', 'verification',
+    'command-timeout', 'command-failed', 'os-error')
 
 
 def _run_bounded(command, timeout):
@@ -270,6 +289,168 @@ def _kiosk_session_event(item, uid):
         "GNOME Session (session: oh-no-parent-control).": "session-stopped",
     }.get(message)
     return (reason, "none", 0) if reason else None
+
+
+def _admission_marker(item):
+    """Parse exact reviewed producers; journal identities never leave this function."""
+    if item.get('_UID') != '0' or item.get('_TRANSPORT') not in ('journal', 'syslog', 'stdout'):
+        return None
+    message, executable = item.get('MESSAGE'), item.get('_EXE')
+    if type(message) is not str or type(executable) is not str:
+        return None
+    fields = dict(source='pam', role='none', stage='authentication', outcome='allowed',
+                  reason='none', session='unknown', transport='unknown', recovery='none',
+                  status=-256, errno=-1, line=0, count=0)
+    native = executable in ('/usr/libexec/gdm-session-worker', '/usr/lib/gdm3/gdm-session-worker',
+                            '/usr/lib/gdm/gdm-session-worker', '/usr/lib/systemd/systemd-executor',
+                            '/lib/systemd/systemd-executor')
+    if native:
+        if message == ('pam_unix(gdm-password:auth): user [oh-no-parent-control] has blank '
+                       'password; authenticated without it') and 'gdm-session-worker' in executable:
+            fields.update(source='authentication', role='gate', reason='passwordless-authenticated')
+            return 'kiosk.admission-journal', fields
+        wrapper = re.fullmatch(
+            r'pam_oh_no_parent_control\((gdm-password|systemd-user):(account|session)\): (.+)', message)
+        if wrapper is None:
+            return None
+        if (wrapper[1] == 'gdm-password') != ('gdm-session-worker' in executable):
+            return None
+        fields['role'] = 'gate' if wrapper[1] == 'gdm-password' else 'manager'
+        message = wrapper[3]
+        match = re.fullmatch(
+            r'onpc.pam kiosk confinement stage=(account|session) outcome=(allowed|denied) status=([0-9]{1,3})',
+            message)
+        if match and int(match[3]) <= 255:
+            fields.update(stage=match[1], outcome=match[2], status=int(match[3]))
+        else:
+            match = re.fullmatch(
+                r'onpc.pam kiosk confinement stage=(service|lock|account|integrity|session) '
+                r'outcome=(denied|unsafe|busy|helper-failed|helper-timeout|unbound)', message)
+            if match and ((match[1], match[2]) in (
+                    ('service', 'denied'), ('lock', 'unsafe'), ('lock', 'busy'), ('session', 'unbound'))
+                    or match[1] in ('account', 'integrity', 'session')
+                    and match[2] in ('helper-failed', 'helper-timeout')):
+                fields.update(stage=match[1], outcome=match[2])
+            else:
+                match = re.fullmatch(
+                    r'onpc.pam kiosk execution-boundary outcome=(armed|denied) '
+                    r'stage=(identity|admission|lock|runtime|prepare|bind|environment|ambient|mac|armed)',
+                    message)
+                if match:
+                    fields.update(stage=match[2], outcome=match[1])
+                elif message == 'onpc.pam kiosk admission outcome=denied stage=removal-barrier':
+                    fields.update(stage='removal-barrier', outcome='denied')
+                else:
+                    return None
+        return 'kiosk.admission-journal', fields
+    if (not re.fullmatch(r'/usr/bin/python3(?:\.[0-9]{1,2})?', executable)
+            or item.get('_COMM') != 'oh-no-parent-co'):
+        return None
+    identifier, unit = item.get('SYSLOG_IDENTIFIER'), item.get('_SYSTEMD_UNIT')
+    if identifier == 'oh-no-parent-control-login-check':
+        match = re.fullmatch(
+            r'onpc.pam kiosk routing stage=(account|session|confinement|service) '
+            r'outcome=(allowed|denied|unavailable) session=(unknown|dedicated|other|unset) '
+            r'type=(unknown|wayland|other|unset) recovery=(none|restored|failed) '
+            r'reason=(none|timeout|bus-failed|identity|verification|unavailable|integration)', message)
+        if match is None:
+            return None
+        fields.update(source='routing', role='gate', stage=match[1], outcome=match[2],
+                      session=match[3], transport=match[4], recovery=match[5], reason=match[6])
+        return 'kiosk.admission-journal', fields
+    if type(unit) is not str or identifier not in ('systemd', 'gdm-session-worker'):
+        return None
+    if re.fullmatch(r'user@[0-9]{1,10}\.service', unit):
+        role = 'manager'
+    elif re.fullmatch(r'session-[0-9]{1,10}\.scope', unit):
+        role = 'gate'
+    else:
+        return None
+    match = re.fullmatch(
+        r'onpc.kiosk confinement preparation outcome=denied role=(manager|gate|other) '
+        r'stage=([a-z-]+) reason=([a-z-]+)(?: (errno|status)=(-?[0-9]{1,4}))?'
+        r'(?: source=kiosk-confinement line=([0-9]{1,6}))?', message)
+    if match:
+        if (match[1] not in (role, 'other') or match[2] not in (*ADMISSION_STAGES, 'other')
+                or match[3] not in ADMISSION_REASONS):
+            return None
+        fields.update(source='preparation', role=match[1], stage=match[2], outcome='denied',
+                      reason=match[3], line=int(match[6] or 0))
+        if match[4]:
+            value = int(match[5])
+            if (match[4] == 'errno' and match[3] == 'os-error' and 0 <= value <= 4095
+                    or match[4] == 'status' and match[3] == 'command-failed' and -255 <= value <= 255):
+                fields[match[4]] = value
+            else:
+                return None
+        return 'kiosk.admission-journal', fields
+    match = re.fullmatch(
+        r'onpc.kiosk confinement directory-entry action=(masked|omitted|denied) '
+        r'reason=(metadata-unavailable|unsupported-name|non-root-owner|writable-entry|unsupported-type) '
+        r'kind=(unknown|directory|file|link|special) ownership=(unknown|root|non-root) '
+        r'access=(unknown|world-write|group-write|owner-change|read-only) '
+        r'scope=(required|sibling) area=(usr|bin|sbin|lib|lib64|libexec|share|other) count=([0-9]{1,5})',
+        message)
+    if match and 1 <= int(match[8]) <= 32769:
+        return 'kiosk.admission-directory', dict(
+            role=role, action=match[1], reason=match[2], kind=match[3], ownership=match[4],
+            access=match[5], scope=match[6], area=match[7], count=int(match[8]))
+    match = re.fullmatch(
+        r'onpc.kiosk confinement directory-view outcome=masked reason=writable-sibling-directory '
+        r'count=([0-9]{1,5})', message)
+    if match and 1 <= int(match[1]) <= 32769:
+        fields.update(source='preparation', role=role, stage='directory-layout', outcome='masked',
+                      reason='writable-sibling-directory', count=int(match[1]))
+        return 'kiosk.admission-journal', fields
+    return None
+
+
+def collect_kiosk_admission_diagnostics():
+    """Independent five-second read, including when kiosk configuration is unavailable.
+
+    Keep failures ahead of later success when the 20-marker cap trims history.
+    Neither a successful routing check nor passwordless auth attests admission.
+    """
+    try:
+        output = _query([
+            '/usr/bin/journalctl', '--no-pager', '--quiet', '--output=json', '--lines=200',
+            '--since=-24hours',
+            '--grep=(onpc\\.(pam kiosk|kiosk confinement)|^pam_unix\\(gdm-password:auth\\): '
+            'user \\[oh-no-parent-control\\] has blank password; authenticated without it$)',
+            '--output-fields=MESSAGE,__REALTIME_TIMESTAMP,_TRANSPORT,_UID,_EXE,_COMM,'
+            'SYSLOG_IDENTIFIER,_SYSTEMD_UNIT', '_UID=0',
+        ], time.monotonic() + 5, empty_match=True)
+        lines = output.splitlines()
+        selected, rejected = [], 0
+        for index, line in enumerate(lines[:200]):
+            try:
+                item = json.loads(line)
+                if type(item) is not dict:
+                    raise ValueError()
+                marker = _admission_marker(item)
+                if marker is None:
+                    raise ValueError()
+                stamp = item.get('__REALTIME_TIMESTAMP')
+                if type(stamp) is not str or not re.fullmatch(r'[0-9]{1,17}', stamp):
+                    raise ValueError()
+                occurred = datetime.fromtimestamp(int(stamp) / 1000000, timezone.utc)
+                event_id, fields = marker
+                fields['occurred_at'] = occurred.isoformat(timespec='milliseconds')
+                failure = fields.get('outcome', fields.get('action')) not in ('allowed', 'armed', 'masked', 'omitted')
+                selected.append((failure, index, event_id, fields))
+            except (ValueError, TypeError, OverflowError, OSError):
+                rejected += 1
+        retained = sorted(sorted(selected, key=lambda row: (row[0], row[1]), reverse=True)[:20],
+                          key=lambda row: row[1])
+        for _failure, _index, event_id, fields in retained:
+            KIOSK_LOG.warning(event_id, **fields)
+        KIOSK_LOG.info('kiosk.admission-observation',
+                       outcome='partial' if len(lines) >= 200 or rejected or len(selected) > 20 else 'complete',
+                       count=len(retained), recognized_count=len(selected), rejected_count=rejected,
+                       dropped_count=len(selected) - len(retained))
+    except Exception:
+        KIOSK_LOG.warning('kiosk.admission-observation', outcome='unavailable', count=0,
+                          recognized_count=0, rejected_count=0, dropped_count=0)
 
 
 def collect_kiosk_diagnostics(config_path):

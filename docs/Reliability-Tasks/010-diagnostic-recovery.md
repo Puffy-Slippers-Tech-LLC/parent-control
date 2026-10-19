@@ -6,6 +6,10 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [Task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Estimate: 30–60 minutes.
+Coordination: [Kiosk-Prompt](../Kiosk-Prompt.md) task 010 owns the distinct
+pre-admission failure/recovery/reboot export. Reuse canonical export mechanics
+and exact matching receipts, without replacing this row's app-crash or timer
+obligations. Neither plan closes the other's row; overlapping work is serial.
 
 ## Session boundary
 

@@ -1,0 +1,37 @@
+# Kiosk prompt task queue
+
+The [master](Kiosk-Prompt.md) owns the sole next-task pointer, initial audit,
+acceptance boundaries and coordination with existing reliability work. Planning
+and the current candidate changes complete no row. Every task preserves original
+failures, required-input refusals and owned cleanup.
+Every row inherits the master's symptom boundary. Existing lifecycle evidence is
+reviewed at 011a; only a demonstrated affected kiosk-entry history can become a
+finite prerequisite. There are no unconditional full-lifecycle acceptance rows.
+
+| Done | ID | Task | Requires | Scope | Estimate |
+| --- | --- | --- | --- | --- | --- |
+| [ ] | 001a | [Audit authentication and account admission](Kiosk-Prompt-Tasks/001a-auth-account-audit.md) | Baseline | Effective authentication, ownership, expiry, routing and PAM account failures with exact coverage gaps | 20–30 min |
+| [ ] | 001b | [Audit preparation and native admission](Kiosk-Prompt-Tasks/001b-native-audit.md) | 001a | Required aliases/runtime inputs, inventory, generation, binding, enforcement, races and timeout failure map | 20–30 min |
+| [ ] | 001 | [Reconcile the entry failure map](Kiosk-Prompt-Tasks/001-entry-audit.md) | 001a, 001b | Session-to-form and entry-diagnostic coverage map; allocate only demonstrated symptom gaps and changed-entry safety controls | 20–30 min |
+| [ ] | 002a | [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md) | 001 | Generic mask/omit handling, complete alias ancestry, representable publication and metadata-race refusals | 20–30 min |
+| [ ] | 002b | [Add native binding failure causes](Kiosk-Prompt-Tasks/002b-native-diagnostics.md) | 002a | Bounded native reason/errno markers and independent native-host refusal witnesses | 20–30 min |
+| [ ] | 002 | [Complete customer diagnostic projection](Kiosk-Prompt-Tasks/002-generic-host-fix.md) | 001, 002a, 002b | Admission collector/archive provenance, clipping, recovery history and privacy; cumulative host validation | 20–30 min |
+| [ ] | 003a | [Qualify Ubuntu sibling isolation](Kiosk-Prompt-Tasks/003a-sibling-ubuntu.md) | 002 | Ubuntu usable entry, empty/omitted views, retained host replacement and ordinary-account controls | 30–60 min; session exception |
+| [ ] | 003 | [Qualify Fedora sibling isolation](Kiosk-Prompt-Tasks/003-sibling-isolation.md) | 002, 003a | Fedora isolation history and reconciliation of both-target receipts | 25–45 min; session exception |
+| [ ] | 004a | [Qualify Ubuntu late refusal and recovery](Kiosk-Prompt-Tasks/004a-late-denial-ubuntu.md) | 002, 003 | Ubuntu required-input refusal, actual GDM fallback, restoration and fresh passwordless entry | 30–60 min; session exception |
+| [ ] | 004 | [Qualify Fedora late refusal and recovery](Kiosk-Prompt-Tasks/004-late-denial-recovery.md) | 002, 003, 004a | Fedora complete refusal/recovery history and both-target receipt reconciliation | 25–45 min; session exception |
+| [ ] | 005a | [Design material identity and immutable pins](Kiosk-Prompt-Tasks/005a-material-design.md) | 001, 004 | Ambient/required transitions, consumed runtime roots and immutable source lifetime after staging detach | 20–30 min |
+| [ ] | 005 | [Review retained-view admission proofs](Kiosk-Prompt-Tasks/005-generation-design.md) | 001, 004, 005a | Manager identity, concurrency, namespace and native binding proof for the retained-view design | 20–30 min |
+| [ ] | 006a | [Implement owned immutable-view primitives](Kiosk-Prompt-Tasks/006a-pin-primitives.md) | 005 | Identity-pinned source lifetime, ownership/publication and interruption refusal at host/native scope | 20–30 min |
+| [ ] | 006b | [Implement retained-material selection](Kiosk-Prompt-Tasks/006b-material-selection.md) | 006a | Preparation digest/source selection, ambient transitions and strict required-drift host controls | 20–30 min |
+| [ ] | 006 | [Integrate retained-view native admission](Kiosk-Prompt-Tasks/006-generation-implementation.md) | 005, 006a, 006b | Native binding integration, manager exit/reexec/concurrency witnesses and cumulative host checks | 20–30 min |
+| [ ] | 007a | [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a-generation-ubuntu.md) | 006 | Ubuntu ambient changes remain usable; required drift refuses and recovers with native identity proof | 35–60 min; session exception |
+| [ ] | 007 | [Qualify Fedora retained ambient changes](Kiosk-Prompt-Tasks/007-generation-installed.md) | 006, 007a | Fedora retained-view/drift history and both-target receipt reconciliation | 30–60 min; session exception |
+| [ ] | 008a | [Review effective authentication-policy contract](Kiosk-Prompt-Tasks/008a-auth-contract.md) | 001 | Exact supported/refused empty-token variants, expectations and finite host/installed branches | 20–30 min |
+| [ ] | 008 | [Implement authentication-policy validation](Kiosk-Prompt-Tasks/008-auth-policy-host.md) | 001, 008a | Settled policy parsing/composition/rollback and closed diagnostics without weakening administrator policy | 20–30 min |
+| [ ] | 009a | [Qualify Ubuntu authentication policy](Kiosk-Prompt-Tasks/009a-auth-ubuntu.md) | 004, 008 | Ubuntu supported entry and effective incompatible-policy refusal/restoration with ordinary-account controls | 30–60 min; session exception |
+| [ ] | 009 | [Qualify Fedora authentication policy](Kiosk-Prompt-Tasks/009-auth-policy-installed.md) | 004, 008, 009a | Fedora effective policy/refusal/recovery history and both-target receipt reconciliation | 25–45 min; session exception |
+| [ ] | 010a | [Qualify Ubuntu feedback-only diagnosis](Kiosk-Prompt-Tasks/010a-feedback-ubuntu.md) | 004, 007, 009 | Ubuntu failed-entry cause survives recovery/reboot in an actual sanitized Parent archive | 30–60 min; session exception |
+| [ ] | 010 | [Qualify Fedora feedback-only diagnosis](Kiosk-Prompt-Tasks/010-feedback-installed.md) | 004, 007, 009, 010a | Fedora complete feedback history and both-target receipt reconciliation | 25–45 min; session exception |
+| [ ] | 011a | [Allocate final entry validation](Kiosk-Prompt-Tasks/011a-final-input-audit.md) | 003, 004, 007, 009, 010 | Final entry/safety receipt map; exact source dependency required for any affected-history prerequisite | 15–30 min |
+| [ ] | 011 | [Close final candidate reconciliation](Kiosk-Prompt-Tasks/011-final-reconciliation.md) | 003, 004, 007, 009, 010, 011a | Canonical entry registration, final-input entry/safety receipts on both targets, diagnosis and owned cleanup | 15–30 min |

@@ -8,6 +8,10 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
+Coordination: [Kiosk-Prompt](../Kiosk-Prompt.md) owns the expanded generic-entry
+implementation and installed qualification. Review its task 003 receipts before
+executing this row; reuse only exact matching scope/candidate/target evidence.
+Neither plan closes the other's row, and overlapping work must not run concurrently.
 Session exception: private-view isolation must survive a host replacement in
 the retained kiosk and recover on each installed target.
 

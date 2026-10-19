@@ -8,6 +8,10 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
+Coordination: [Kiosk-Prompt](../Kiosk-Prompt.md) task 004 owns expanded late-denial
+and recovery qualification. Review its receipts before executing this row;
+reuse only exact matching scope/candidate/target evidence. Neither plan closes
+the other's row, and overlapping work must not run concurrently.
 Session exception: native refusal, exact restoration and fresh successful entry
 must complete on each target in one owned fault/recovery history.
 

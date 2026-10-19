@@ -325,6 +325,7 @@ def test_reboot_mode_collects_real_report_and_rechecks_role(tmp_path):
             [None, AccessDenied('denied')] if revoke else None)
         invocation = mock.Mock()
         with (mock.patch('oh_no_parent_control.service.threading.Thread') as thread,
+              mock.patch('oh_no_parent_control.service.collect_kiosk_admission_diagnostics') as admission_probe,
               mock.patch('oh_no_parent_control.service.collect_kiosk_diagnostics') as kiosk_probe,
               mock.patch('oh_no_parent_control.service.collect_dependency_diagnostics') as dependencies_probe,
               mock.patch('oh_no_parent_control.service.GLib.idle_add') as idle):
@@ -332,6 +333,7 @@ def test_reboot_mode_collects_real_report_and_rechecks_role(tmp_path):
                                  None, invocation)
             thread.assert_called_once()
             service._export_logs_worker(invocation, 1000)
+            admission_probe.assert_called_once_with()
             kiosk_probe.assert_called_once_with(CONFIG_PATH)
             dependencies_probe.assert_called_once_with()
         callback, reply, uid, data = idle.call_args.args
@@ -483,15 +485,19 @@ class ServiceContractTests(unittest.TestCase):
         service.broker.collect_extension_diagnostics.side_effect = lambda: order.append("observe")
         service.log_writer.snapshot.side_effect = lambda **_kwargs: order.append("snapshot") or b"report"
         with (mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply,
+              mock.patch("oh_no_parent_control.service.collect_kiosk_admission_diagnostics",
+                         side_effect=lambda: order.append("admission")),
               mock.patch("oh_no_parent_control.service.collect_kiosk_diagnostics",
                          side_effect=lambda _path: order.append("kiosk")),
               mock.patch("oh_no_parent_control.service.collect_dependency_diagnostics",
                          side_effect=lambda: order.append("dependencies"))):
             service._export_logs_worker(None, 0)
-        self.assertEqual(order, ["kiosk", "dependencies", "observe", "snapshot"])
+        self.assertEqual(order, ["admission", "kiosk", "dependencies", "observe", "snapshot"])
         self.assertEqual(reply.call_args.args[3], b"report")
         service.broker.collect_extension_diagnostics.side_effect = RuntimeError("private@example.test")
         with (mock.patch("oh_no_parent_control.service.GLib.idle_add") as reply,
+              mock.patch("oh_no_parent_control.service.collect_kiosk_admission_diagnostics",
+                         side_effect=RuntimeError("private@example.test")),
               mock.patch("oh_no_parent_control.service.collect_kiosk_diagnostics",
                          side_effect=RuntimeError("private@example.test")),
               mock.patch("oh_no_parent_control.service.collect_dependency_diagnostics",
@@ -500,6 +506,7 @@ class ServiceContractTests(unittest.TestCase):
             service._export_logs_worker(None, 0)
         self.assertEqual(reply.call_args.args[3], b"report")
         self.assertNotIn("private", "\n".join(logs.output))
+        self.assertIn("kiosk admission collection outcome=unavailable", "\n".join(logs.output))
 
     def test_service_uses_current_binding_friendly_registration_api(self):
         source = (

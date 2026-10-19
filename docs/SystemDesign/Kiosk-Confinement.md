@@ -347,6 +347,250 @@ No installed acceptance is earned here or at 002ab; 003/004/007 and 011a retain
 their full affected-target obligations. Classification, alias-closure,
 completeness, publication and metadata-race host controls belong to 002a.
 
+### Planned retained material and immutable pins
+
+This is the **005a design**, pending the manager/admission composition review
+at 005 and implementation/qualification at 006a–007 in the
+[entry queue](../Kiosk-Prompt-Queue.md). The current implementation still hashes
+the whole layout and prepares new bindings from host names. This section grants
+no host or installed acceptance and does not change the phase-local contract
+above until the complete replacement passes its own checks.
+
+**Two identities.** Define a versioned, canonically encoded material record
+`M` containing the exact attested config/policy digest pair, backend, configured
+native roles and source/destination substitutions, selected optional alternatives,
+native/library content hashes, preserved-helper content and privilege metadata,
+the required lexical alias/type/link closure, and the finite consumed runtime
+inputs below. Required ancestry contributes its trust predicates and exact link
+text; directory inode numbers, timestamps, link counts and ambient child lists
+do not define material. An ambient addition changes its parent's metadata without
+changing a required dependency. Retain current no-follow/trusted-ancestor and
+final-proof rechecks independently of that identity calculation.
+
+A separate immutable realization record `V` binds `M` to the original finite
+layout and the **actual realized** source mapping: copied-file indices, source
+inode assertions, masks/omissions, links, labels and mount coverage. Native
+realization must record a late ambient omission in `V`; preparation's intended
+layout alone cannot describe the resulting view. Use domain-separated,
+length-delimited canonical records for both hashes; never ambiguous byte
+concatenation. Local mount IDs are runtime witnesses, not portable hash inputs.
+The manager and gate must agree on both the selected `M` and source `V`.
+Each later gate also has a bounded invocation receipt `I`, bound to that pair,
+which records its own actual source decisions, omissions/masks and attachment.
+If a retained ambient inode becomes unsafe, `I` may describe a stricter view
+than source `V`; native must verify that exact derivation and its complete
+required coverage. It must not claim byte-for-byte realization equality while
+changing coverage, alter source `V`, or import a source absent from `V`.
+`I` lives only with that invocation's private view and does not allocate another
+completed generation. Equal `M` permits selecting an existing safe realization;
+it does not authorize mixing its layout with sources from another realization.
+Never overwrite a
+published realization to fit a new ambient scan.
+
+**Finite required set and runtime consumers.** Preserve every existing native,
+library, reserved-directory, lexical alias and privileged-helper requirement in
+`inventory()`, `layout_requirements()` and `preserved_inventory()`. Optional
+native routes selected in a realization remain material; installing/removing one
+can change `M`. The producer derives this set from attested configuration, never
+from a permission failure or an ambient flag. A required ancestor cannot become
+ambient because a new layout lacks it.
+
+The changed route retains scripts and service data across admissions, so the
+following demonstrably consumed, finite inputs also need explicit runtime
+records. These are allowlists for implementation, not permission to inventory
+all installed packages:
+
+| Actual consumer | Required material in the retained route | Limit |
+| --- | --- | --- |
+| Fixed app and notification-client arguments in [kiosk_session.c](../../tools/kiosk_session.c), and the [Python entry](../../kiosk/oh-no-parent-control) | `/usr/bin/oh-no-parent-control`, `/usr/bin/gnome-service-client`, and the shipped files in `/usr/lib/oh-no-parent-control/kiosk` and `/usr/lib/oh-no-parent-control/common`, including their import/asset closure | Enumerate the installed production payload's finite membership; hash relative names, kinds, link text and file bytes. Do not discover a new dependency by recursively following arbitrary host links or importing code during preparation. |
+| Fixed wellbeing launcher and its direct import/settings lookup in [wellbeingService.js](../../child/wellbeingService.js) | Under `/usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com`: `wellbeingService.js`, `wellbeingLogic.mjs`, `schemas/gschemas.compiled`, and their trusted ancestry | The extension-local compiled schema is consumed. The rest of the extension and the global compiled schema database are not newly measured by this route. |
+| Manager `SYSTEMD_UNIT_PATH` and generated Ubuntu D-Bus prefix in [policy generation](../../tools/kiosk_confinement_policy.py) | Exact generated membership/bytes/links in confinement `user-units`, and Ubuntu-only `session-data` | Include intentional `/dev/null` mask links as exact text; do not copy their targets. Do not turn all distribution user units or service files into new required inputs. |
+| Existing Python/GI/GTK, XDG and WirePlumber searches recorded by the [native audit](../Kiosk-Prompt.md#preparation-and-native-admission-audit--001b) | Preserve existing measured ELF/library inputs and required root/alias trust checks; distinguish an actually selected runtime source from an unrelated sibling | `/etc/xdg` and `/etc/wireplumber` stay outside the `/usr` overlay. `/usr/local/share`, `/usr/share`, typelibs, Python libraries and WirePlumber data keep their existing shallow/runtime compatibility limits; do not hash or copy their entire trees or require optional search roots to exist. |
+
+For newly measured runtime files, make independent root-owned non-hardlinked
+copies and verify bytes, safe modes, membership and original role-appropriate
+SELinux labels before publication and reuse. Do not label script/data copies as
+new native entrypoints. Reject unexpected code-bearing members, unsafe ancestry,
+escaping links, special nodes, mutable ownership, metadata/read failures and
+bound exhaustion. Known non-code build caches are excluded explicitly by the
+production membership rule, not by a general unknown-file exception. The bounded
+walk is of named product payload roots only. The new records and copies share
+the existing 32,768-entry and 512 MiB budgets; there is no larger allowance.
+
+This does not establish recursive immutability for shallow distribution data
+binds. A retained root descriptor preserves an inode, not every nested name or
+its contents. Missing genuinely consumed system data remains a readiness/runtime
+compatibility failure, not proof of harmless ambient drift. Neither a broad
+policy read rule nor an unused XDG search root adds a material prerequisite.
+Any further runtime addition needs a concrete changed-route consumer and safety
+reason under the master's symptom boundary.
+
+**Transition table.** Apply required checks to current host inputs before
+selecting a retained view, then check the selected view's required pins against
+`M` and their own source assertions. Host trust and retained trust are separate
+observations. The following results assume a live verified manager and no
+concurrent ownership/identity failure; 005 owns those proofs.
+
+| Change since initial realization | Material result | Later entry and independent control |
+| --- | --- | --- |
+| Unchanged required inputs; unrelated empty-directory addition/removal | Same `M`; keep original `V` | Admit using retained pins; original added name remains absent. Preserve the historical before/after stale-manager reproduction below. |
+| Ambient file/directory/link added, removed, renamed, or replaced by another kind/inode at the host name | Same `M`; no new host source is selected | Keep the original safe retained entry or its original absence/mask. A replacement's bytes/link target cannot enter through a reopened host name. |
+| Ambient mode/owner changes, including trusted to writable/non-root and back | Same `M` | If the retained source itself is unsafe, omit its file/link or mask its directory in the fresh invocation tree. Host replacement does not invalidate a still-safe old pin. Restoring trust does not expose a previously omitted source during that invocation. |
+| Ambient source disappears after pin acquisition, or a host name disappears/reappears | Same `M` | A valid retained inode/mount pin survives host unlink; never require the vanished host name. If no safe retained source exists, apply ambient omission/masking, not a host fallback. |
+| Config/policy bytes change, are missing or no longer attested/enforcing | Required refusal | Refuse at attestation/enforcement as applicable. Reboot alone cannot bless unpacked, unconfigured policy. An earlier refusal is not a generation-stage witness. |
+| Required native/library/runtime bytes, selected optional inventory, role/substitution, or required link target/type changes | Different `M`, or inventory/proof refusal | Refuse retained admission without publishing a new view or changing the manager. A safely reattested content change must reach the material mismatch control, independently of attestation negatives. |
+| Required source or lexical/target ancestor disappears, becomes unsafe or is replaced during measurement/binding | Required refusal | Never omit, retry against a substitute inode or rely solely on the old copy. Retain required-layout completeness and pre/post-bind proof checks. |
+| Required native/runtime file replaced between admissions by identical bytes and compatible role/trust; preserved helper replaced by identical content/privilege metadata | Same `M` after complete current-input verification | Reuse only independently verified old pins. Current host and retained helper have separate eight-field inode assertions; never compare an old pin against the new host inode's assertion. A replacement during either measured transaction still refuses. |
+| Preserved helper owner/group/mode, capabilities, label or bytes drift; required root/alias loses trust | Required refusal or different `M` | Preserve exact vendor helper requirements, capability rejection, enforcing domains and every alias/ancestor check. Ambient relaxation cannot reach these inputs. |
+| Selected pin, receipt, generation marker or mount source is missing, foreign, replaced or inconsistent | Identity/publication refusal | Deny with bounded diagnostics; do not reconstruct a retained view from host siblings or adopt an equal-looking directory. |
+
+An unsafe retained ambient **ancestor of required material** is a required
+failure. Source-only ambient fallback never covers target, manifest, mount,
+read-only, labeling, resource or detach failures. If a shallow ambient inode
+changes kind/owner/mode, its rejection must not mutate the manager's namespace
+or underlying private dentries.
+
+**Pin storage and exact source allowlists.** Select the manager's actual
+read-only `/usr` mount tree as the retained source store. The manager's namespace
+holds the initial tmpfs skeleton, copied required files, individually bound vendor
+helper and accepted shallow sibling mount references after native staging detach.
+Root-only `/run` records/copies remain supporting evidence; its detached `tree`
+placeholders are never a populated source store. No persistent host mount, pin
+daemon or process-killing recovery mechanism is introduced.
+
+Before preparation consumes retained sources, the trusted native caller must
+acquire the verified manager root and a recursive detached mount clone of exactly
+its `/usr`, held by a close-on-exec descriptor. The public
+[open_tree API](https://man7.org/linux/man-pages/man2/open_tree.2.html) supports
+`OPEN_TREE_CLONE | AT_RECURSIVE | AT_EMPTY_PATH | OPEN_TREE_CLOEXEC` from an
+already checked descriptor. A plain directory or namespace descriptor alone is
+not evidence that submounts were cloned. The clone owns its mount references
+even if the manager later exits; that guarantees source lifetime, not permission
+to admit after losing the manager. 005 must settle acquisition/recheck ordering,
+PID/thread/credential/label/namespace identity and exit/reexec races before use.
+Failure of the public API or its existing trusted-caller permission denies;
+there is no legacy pathname fallback or new payload mount authority.
+
+Use only these closed source classes:
+
+- Initial manager realization: the attested native substitution map and exact
+  measured runtime-copy indices below the selected owned generation; the exact
+  measured vendor helper path; and explicitly ambient immediate entries of
+  covered `/usr` skeleton directories accepted by the existing phase-local
+  protocol.
+- Retained realization: canonical relative names declared in selected `V`,
+  resolved beneath the native-owned retained `/usr` descriptor, with each
+  recorded required copy/helper identity and source kind/label checked. A
+  receipt cannot authorize an arbitrary process root, another generation or
+  an undeclared relative path. Required alias walks use their finite proof
+  closure; never follow ambient links to find bind sources.
+- Invocation targets: only the independently owned bounded tmpfs skeleton
+  and its terminal `/usr` attachment, with the existing component-wise target
+  checks. Neither host paths nor manager dentries are writable targets.
+
+Native owns the pin and its identity; a Python helper's path string, FD number
+or digest is not independent acquisition evidence. Any inherited descriptor is
+passed only to the one bounded preparation child and checked against native's
+opened object/selected receipt. A versioned closed protocol must distinguish
+initial versus retained sources and bind `M`, `V`, backend and caller role.
+The gate's derived receipt `I` must reference the same selected source identities.
+Unknown fields/versions, ambiguous source classes, incomplete required coverage
+or old-format reuse refuse. 005 owns the final protocol/admission composition.
+
+Construct a **fresh invocation skeleton** from selected `V`, not from a new
+ambient host scan. Bind checked retained sources into those new private parents;
+apply eligible ambient omission/masking there under the existing final-source
+rules. This permits unlink of a new private file placeholder without altering
+the old view. Never unlink, chmod or create inside the retained source clone:
+mount cloning shares underlying dentries and inodes. Safe retained sources are
+validated relative to the pin; their host pathname/link count may legitimately
+have disappeared. Required current-host checks still run separately. Preserve
+the helper's bytes/privilege checks and all eight source-local assertion fields;
+support a deliberately unlinked old inode only through this explicit retained
+source class, never by relaxing initial-source checks.
+
+Unlink can change a retained vendor inode's ctime/link count without changing
+its material. Keep `V`'s original device/inode provenance and `M`'s content,
+owner/group, privilege mode, capability and label requirements. At each retained
+acquisition, independently rehash/check that same pinned object and capture a
+fresh full eight-field source-local assertion; require every field stable
+through its pre/post-bind checks. This renews the observation, not the selected
+inode or bytes. The retained class alone permits link count zero or the original
+single link; unexpected positive hardlinks refuse. Initial/current-host helpers
+still require one link. Never drop ctime, mtime or another assertion field to
+make an in-flight source change pass.
+
+The invocation tree attaches recursively read-only at `/usr`; labels and native
+roles remain visible at their existing final paths. Detach only invocation-owned
+staging mounts, then close all setup/source/clone/receipt descriptors before MAC.
+The new `/usr` owns its references after descriptor closure; the original manager
+retains its own references throughout. Closing an unattached detached clone
+releases it. A later entry takes a fresh verified pin; it never trusts a saved
+PID, FD number, namespace number or unpopulated disk tree as a live source.
+
+**Publication, interruption and lifetime.** Keep the existing admission lease,
+exclusive preparation lock, runtime mode 0700, owned single-link mode-0600
+records and per-inode SELinux checks. Publish complete `M` records/copies and
+each `V` receipt atomically under the lock, with exact schema/membership/hash
+verification on reuse. Native finalizes the initial `V` or derived gate `I`
+after actual binding/omission. Its immutable identity can be placed in the private
+tree before read-only attachment; this is provisional until attachment,
+read-only verification and staging detach succeed. Only then publish the
+root-only completion record under the lock, before final MAC. Interruption
+before completion leaves no ready source, even if its private marker exists.
+The private view carries `M`, source `V` and, for a gate, its derived `I` bound
+to that receipt; a material marker alone cannot certify mount coverage or
+completed staging detach. A published receipt without a verified live view is
+not an admission source.
+
+Retain at most four completed realization generations per boot, including their
+supporting material copies/records; several layouts with equal `M` must not
+bypass that ceiling. Reuse selects an existing `V`, so repeated ambient changes
+do not consume new generations. A new manager without a reusable live source
+may make a fresh current-host realization under the existing bound; gate
+admission never silently manufactures a replacement manager. No legacy generation
+is adopted as the new format; deployed code/policy changes keep the existing
+reboot activation boundary. Preserve 32,768 layout/record bounds, 64 MiB manifest,
+512 MiB copy/tmpfs ceilings, bounded alias walks and the 60-second helper deadline.
+
+Only identity-proven owned incomplete publication is reclaimable under the lock,
+after owned child termination/reaping. Refuse mounted or hardlinked scratch,
+foreign ownership, symlink substitution, unknown members, replaced descriptors,
+receipt/marker disagreement and ambiguous completion. Never repair such state
+by recursive deletion, relabeling shared software, overwriting a completed
+generation or killing a manager. Failure releases only this invocation's
+descriptors and identity-recorded mounts; detach failure remains denial with
+separate cleanup evidence. Crashed callers lose private clone references through
+kernel lifetime rules. Completed supporting records survive until reboot;
+actual mounts survive as long as their namespace/clone references. Recovery
+uses exact restoration/retry for an owned incomplete attempt or successful
+configuration plus reboot for genuine required drift, under
+[lifecycle](Lifecycle.md#retained-material-activation-and-recovery).
+
+**Independent implementation witnesses.** These are finite acceptance families
+for 006a/006b, not currently registered selectors or passing results. Tests must
+observe mounted inode/content/absence and independent records, rather than assert
+only that producer and parser agree on a digest.
+
+| Owner / family | Positive witness | Independent negative/control witness |
+| --- | --- | --- |
+| 006a — pin lifetime | Acquire original source clone; detach initial staging; rename/unlink/replace original host file and directory; close original namespace owner; observe original copied bytes, vendor inode and private layout through held clone, then through a new owned attachment after FD closure | Plain placeholder source, missing recursive submount, foreign/replaced root or wrong receipt identity refuses. Host replacement bytes never appear. Source survival after manager exit supplies no admission credit. |
+| 006a — immutable required runtime copies | Replace/write original named script, product module, wellbeing import/schema and generated unit/data fixtures after copying; retained copy bytes/membership/labels stay exact | Mutate a private copy, role label, mode, member/link or hash; refuse. Independent inode checks exclude hardlinks; an escaping link/special node is not copied. |
+| 006a — publication/cleanup | Complete receipt and identities survive staging detach; repeated verified reuse leaves records/copies and original manager view unchanged | Interrupt before/after each atomic publication and ready boundary; reject partial/foreign/replaced/mounted state. Inject clone/attach/read-only/detach failure and prove only owned resources released; no writable staging alias or descriptor survives success. |
+| 006b — ambient transitions | Establish unchanged baseline, then one-at-a-time add/remove/rename/mode/owner/kind and disappearance/reappearance changes for file/directory/link inputs; same `M`, original `V`, original safe pins or eligible private mask/absence | Use new host content tokens and source-open spies to prove no host reopen. Make the retained ambient inode unsafe and prove omission/masking with original manager dentries unchanged; required-ancestor equivalent refuses. |
+| 006b — original stale-manager regression | With unchanged required inputs, establish baseline admission, add an unrelated empty directory, then admit again from the original view; assert both material equality and native-selected source identity | Preserve the historical pre-fix `manager-generation-stale` before/after control from run `20261019T061016Z-d39f14ad`. Its retired export is historical evidence only; create a permanent reproduction, not a claimed rerun of removed probes. |
+| 006b — required drift and identical reinstall | Identical-byte/trust-compatible reinstall remains compatible using independent host/retained assertions; unlink the old helper and require original inode/content plus a fresh stable eight-field assertion, including changed ctime and zero links; exact restoration recovers | Independently change config/policy, native/library/runtime content, selected inventory, helper privilege metadata, required aliases/ancestors/completeness and source identity during measurement. Retained hardlinks or any change after assertion capture refuse. Distinguish attestation refusal from reattested material mismatch; none publishes/adopts a new retained view. |
+
+006 owns the composed native admission checks after 005's proof review.
+007a/007 must retain real installed before/after ambient availability, exact
+manager/view/source identity, enforcing positive/negative execution, required
+drift refusal/restoration, usable public reentry and ordinary-account controls
+on both named targets. Existing `verify_updates()` proves retained replacement
+and reexec isolation; `system_native_update.stale_admission()` requires a specific
+generation reason. Their complete canonical histories and exact input comparison
+govern reuse; neither a test name nor case 267's earlier attestation refusal
+supplies new generation-stage or immutable-pin acceptance.
+
 ## Roles, services and dialogs
 
 The [generated role policy](../../tools/kiosk_confinement_policy.py) separates

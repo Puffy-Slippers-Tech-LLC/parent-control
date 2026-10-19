@@ -2,7 +2,8 @@
 
 Acceptance: host
 
-Read the [master](../Kiosk-Prompt.md), 005's transition/proof table, 006a's
+Read the [master](../Kiosk-Prompt.md), the [material transition table and finite witnesses](../SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins),
+005's composition proof, 006a's
 delivered primitives and complete affected prepare/generation/manager callers.
 
 Implement required-material digest/source selection using the reviewed pins.

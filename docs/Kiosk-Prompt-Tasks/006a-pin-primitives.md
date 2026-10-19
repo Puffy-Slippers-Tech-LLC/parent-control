@@ -2,7 +2,8 @@
 
 Acceptance: host
 
-Read the [master](../Kiosk-Prompt.md), 005's reviewed proof and complete affected
+Read the [master](../Kiosk-Prompt.md), the [material/pin design and finite witnesses](../SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins),
+005's reviewed proof and complete affected
 source/pin/native callers and shared state. Implement only its selected immutable
 source-storage/identity/lifetime primitives in existing owners.
 

@@ -3,8 +3,10 @@
 Acceptance: review
 
 Session boundary: review manager identity, concurrency, namespace and native
-binding proofs using 005a's material classification and immutable-pin lifetime
-design. Preserve the combined original scope. A source-storage redesign requires
+binding proofs using the reviewed [material/pin design](../SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins)
+and [activation/recovery boundary](../SystemDesign/Lifecycle.md#retained-material-activation-and-recovery).
+Include its source-realization versus derived-invocation receipts. Preserve the
+combined original scope. A source-storage redesign requires
 a concrete proof gap and a bounded prerequisite rather than independent new work.
 
 Read the [master](../Kiosk-Prompt.md), complete `prepare()`, `manager_generation()`,

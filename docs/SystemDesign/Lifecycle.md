@@ -568,6 +568,41 @@ is separate from public kiosk workflow acceptance. Both Ubuntu and Fedora must
 pass their current installed and graphical checks before this boundary is
 treated as release-qualified.
 
+### Retained material activation and recovery
+
+The [005a material/pin design](Kiosk-Confinement.md#planned-retained-material-and-immutable-pins)
+separates required material from a realized ambient layout. It remains planned:
+005 reviews manager identity/concurrency and 006a–007 implement and qualify the
+composition. Current admission still uses the whole-layout generation digest.
+
+The planned retained source is the verified manager's actual read-only `/usr`
+view, held across acquisition by a native-owned recursive mount-clone descriptor.
+Detached staging placeholders cannot restore it. A new admission builds private
+parents from its selected realization and binds only checked pinned sources;
+ambient host additions/removals do not replace those sources or consume another
+generation. Required current configuration, policy, native/library/runtime
+material and privilege/alias trust remain strict. A source pin surviving manager
+exit does not authorize admission to a missing or changed manager.
+
+Configuration keeps the existing shared-admission/exclusive-preparation order
+and never starts, stops or replaces a live manager. Genuine required drift
+requires successful configuration and the existing reboot boundary; partial
+package unpack is never adopted by reboot alone. An exact restoration can retry
+against the unchanged live material only after all current-input and source-pin
+checks pass. Unknown/foreign/replaced pin storage is refused, not repaired by
+signalling processes or overwriting completed state.
+
+Publication failure leaves only identity-owned incomplete records eligible for
+bounded recovery under the preparation lock. Ready receipts must describe native's
+actual realization and completed staging cleanup. A disk receipt or saved PID
+cannot substitute for a verified live source. Close invocation descriptors and
+detach only recorded owned mounts on refusal; retain completed generations until
+reboot and enforce the existing four-generation/storage/time bounds. Do not add
+a pin daemon, persistent host mount or a new general cleanup operation. Existing
+package removal/admission ownership remains unchanged.
+
+### Package activation and session renewal
+
 Saved-data migration completes before provisioning and package-update activation.
 See [Data migration](Data-Migration.md#package-lifecycle) for broker exclusion,
 package ordering, and failure/retry behavior.

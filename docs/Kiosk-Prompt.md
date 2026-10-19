@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **005a — [Design material identity and immutable pins](Kiosk-Prompt-Tasks/005a-material-design.md)**.
+Next task: **005 — [Review retained-view admission proofs](Kiosk-Prompt-Tasks/005-generation-design.md)**.
 
 ## Outcome
 
@@ -1024,6 +1024,49 @@ passed all 313 cases in
 [20261019T094725Z-f86c5193](../output/test-runs/host/reports/20261019T094725Z-f86c5193/report.md).
 Changed-document links and whitespace passed. Retired historical export/report
 links retain their original identities and point to the cumulative retained proof.
+
+### Material identity and immutable-pin design — 005a
+
+Review acceptance passed on 2026-10-19 UTC. The enduring
+[material/pin design](SystemDesign/Kiosk-Confinement.md#planned-retained-material-and-immutable-pins)
+and [activation/recovery boundary](SystemDesign/Lifecycle.md#retained-material-activation-and-recovery)
+define required material `M`, original realization `V` and derived invocation
+receipt `I`. The finite transition table preserves required-input refusal and
+same-byte reinstall while ambient add/remove/mode/owner/kind changes select no
+new host source. The finite runtime additions follow actual fixed launch/import,
+extension-local schema and generated unit/data consumers; broad distribution
+runtime trees retain their documented shallow compatibility limits.
+
+Retained source storage is the verified manager's actual `/usr` mount tree,
+held by a native-owned recursive detached clone descriptor after staging detach.
+Fresh invocation parents avoid mutating shared dentries. Source allowlists,
+inode/material provenance, renewed complete helper assertions, atomic publication,
+ready-state interruption, foreign/replaced state, bounds and identity-owned
+recovery are explicit. Independent positive/negative witness families allocate
+primitives to 006a and selection to 006b; 005 still owns manager/concurrency/native
+composition, and 006/007 retain integration and real installed acceptance.
+
+The coordinator reviewed complete preparation, generation verification/publication,
+native binding/staging cleanup and canonical `verify_updates()` /
+`system_native_update.stale_admission()` histories. The historical ambient-addition
+failure in `20261019T061016Z-d39f14ad` remains a required permanent before/after
+control at 006b and installed 007, not a current pin-design pass. Its retired
+export and earlier attestation-stage denials supply no new acceptance.
+
+Independent GPT-6.1 Sol High review accepted the final design after separating
+source versus invocation receipts and clarifying fresh eight-field assertions
+for an unlinked retained vendor inode. The reviewer completed before acceptance
+and owned no resources. No product source, installation, VM, fixture or persistent
+process changed; no runtime restoration remains. The pre-existing proof-document
+edit is preserved. Only documentation outside package/build inputs changed, so
+no build is required. This review brief declares no Targets and supplies no host
+or installed acceptance for the planned mechanism. Only 005a closes.
+
+After queue/pointer/brief close-out, the maintained four-module documentation
+consistency selection passed all **313/313** cases in
+[20261019T095550Z-158c6599](../output/test-runs/host/reports/20261019T095550Z-158c6599/report.md).
+Runner-owned cleanup finished. Changed-document links and whitespace passed;
+all other queue rows retain their original status, order, Scope and Requires.
 
 ### Remaining execution and acceptance
 

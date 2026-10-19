@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **001a — [Audit authentication and account admission](Kiosk-Prompt-Tasks/001a-auth-account-audit.md)**.
+Next task: **001b — [Audit preparation and native admission](Kiosk-Prompt-Tasks/001b-native-audit.md)**.
 
 ## Outcome
 
@@ -96,6 +96,93 @@ before their consumers under the shared plan contract. Other discoveries remain
 with their existing owners; they do not authorize a release-wide campaign.
 
 ## Execution and acceptance
+
+### Authentication and account audit — 001a
+
+Reviewed against the execution checkout on 2026-10-19 UTC. This is the finite
+authentication/account portion of the entry map; it grants no new installed
+acceptance. Expected public behavior remains the
+[dedicated request station](Specification.md#2-component-specifications), with
+the [lifecycle admission boundary](SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle)
+and [diagnostic contract](SystemDesign/Logging-and-Feedback.md#kiosk-admission-diagnostics)
+as owners. A successful password check, account callback or saved preference
+alone does not prove a usable confined form.
+
+Read-only incident verification used the maintained journal reader for
+2026-10-18 22:07:40–22:08:05 America/Los_Angeles. At 22:07:46 the native
+`gdm-password:auth` record explicitly accepted the blank password, followed by
+allowed account and session routing records (`dedicated`, `wayland`, native
+status 0). At 22:07:47 manager preparation and at 22:07:48 gate preparation
+reported `directory-layout/unsafe-directory-entry`, followed by native
+`execution-boundary/prepare` denials. Repeated attempts in that window show
+the same separation. These are retained host incident observations, not a test
+of this plan's candidate or proof of the greeter's exact fallback appearance.
+No password was entered and no authentication state was changed for this review.
+
+Source history independently confirms the attribution above:
+`git log --diff-filter=A` first adds `tools/kiosk_confinement.py` in
+`eb0b7323b1aff906d75dba8218d4c80464c444a1`, dated 2026-10-12 17:12:21 -0700.
+That revision's complete `directory_layout()` rejects any immediate child with
+non-root ownership as `unsafe-directory-entry`. The v1.0 and v1.3 trees contain
+neither that preparation helper nor its native header/integration helper.
+`83d502b3` masks root-owned writable sibling directories but retains the earlier
+ownership rejection. This establishes a newer late-session regression, not an
+authentication failure or a live historical comparison with those releases.
+
+The selectors below are current registered system selectors, confirmed through
+the read-only `tools/run-tests system --list` and
+[persistent case assignments](../tests/integration/system_case_ids.py).
+Coverage means the assertions implemented by the named owner; it does not claim
+a fresh passing execution. Host tests use private fixtures rather than the host's
+authentication configuration.
+
+| Boundary / trigger | Intended public result and source route | Existing coverage and remaining allocation |
+| --- | --- | --- |
+| Effective empty-token authentication | Selecting a supported station reaches the confined form without a kiosk password. An incompatible administrator policy must remain intact and cause the settled configuration/admission refusal. [Shared postinst](../packaging/lifecycle/postinst.in) validates the owned identity before `passwd --delete`; this creates an empty credential, not an authentication bypass. The [time-limit profile](../data/pam-configs/oh-no-parent-control-session-limits) skips only the product's time check for the station; vendor authentication still runs. | `package / test_first_configuration_interruption_retry` (4) calls [empty_authentication_probe()](../tests/integration/system_kiosk_admission.py#L312): real `pam_authenticate` with an empty-token conversation, then a separate `pam_acct_mgmt` result, including after retry and reboot. `test_kiosk_login_admission` (268) calls account management only and cannot establish empty-token authentication. Effective incompatible-policy cases remain with 008a/008/009a/009; their selectors are not yet registered. |
+| Distribution authentication policy | [Fedora preflight](../packaging/fedora.inc) refuses selected `without-nullok`; [fedora_pam.configure()](../packaging/fedora_pam.py#L90) also refuses it before creating a new owned profile, uses `authselect check` without force, preserves original features and refuses changed selections/owned bytes. [Ubuntu activation](../packaging/ubuntu.inc) preserves local configuration and checks product module/rule presence, but does not evaluate effective GDM auth include/control flow or empty-token support. | [test_nullok_policy_is_not_weakened](../tests/unit/test_fedora_pam.py#L173) asserts refusal without profile creation/selection. [Ubuntu activation regressions](../tests/unit/test_package_configuration.py#L976) reject missing/optional/commented kiosk rules and legacy helpers; they do not cover an otherwise integrated stack rejecting empty tokens. The read-only Ubuntu host sample routes GDM to `common-auth`, where `pam_unix.so nullok` succeeds past SSSD/deny into permit and the kiosk time-check skip. That sample and the incident prove no policy matrix. 008a must settle the finite supported/refused composition, 008 its validation/rollback and closed reason, 009a/009 actual incompatible-policy/refusal/restoration/public-reentry histories. |
+| Account ownership, privilege, home and visibility | [provision.account()/main()](../tools/provision.py#L322) reject root or `sudo`/`adm`/`wheel` membership, a wrong reserved home and unsafe home ownership. [Postinst](../packaging/lifecycle/postinst.in) refuses a missing/substituted/mismatched UID marker before changing existing credentials. `accounts_service_cache_kiosk()` verifies public visible/saved state and durable cache; retained classification repair uses the owned versioned start-pre adapter and preserves other metadata. Refusal must not expose another desktop or alter ordinary accounts. | [test_provision.py](../tests/unit/test_provision.py) owns identity/cache/version/transaction refusals; [test_package_configuration.py](../tests/unit/test_package_configuration.py) owns unowned-account ordering. `package / test_kiosk_account_classification_survives_reboot` (5), through [system_kiosk_accounts.exercise()/verify_reboot()](../tests/integration/system_kiosk_accounts.py#L331), covers fresh/retained visibility, unsafe cache refusal, interruption/retry, daemon restart, reboot and both ordinary roles' exact retained metadata. Its [runner-owned public activation](../tests/integration/system_runner.py#L1573) is distinct from these internal checks. Review affected receipts at 011a; do not reopen unrelated lifecycle histories. |
+| Expiry and incomplete package configuration | [configure_account_access()](../tools/provision.py#L391) journals the original expiry in a private UID-bound record, expires fresh accounts at creation and requarantines owned retries before other configuration. It refuses changed ownership/expiry/records, survives interruption/reboot and restores only the captured expiry after shared PAM verification and final confinement integration. Home setup drops credentials directly. Incomplete configuration must leave entry closed even if the account is visible and its password empty. | [KioskConfigurationAdmissionTests](../tests/unit/test_provision.py#L245) covers original expiry values, interrupted writes/release and unsafe or foreign records; [package ordering tests](../tests/unit/test_package_configuration.py#L119) cover provisioning/setup/PAM/confinement/release failure. [system_first_configure.verify_quarantine()/exercise()/verify_reboot()](../tests/integration/system_first_configure.py#L189), case 4, keeps two configuration interruptions, the owned empty-password retry, denied manager startup, ordinary account controls, successful retry and reboot together. Ubuntu's account expiry maps to PAM status 7 while empty-token authentication separately succeeds; Fedora preserves expiry or an earlier product permission denial. A numeric account denial is not evidence of a failed password. |
+| PAM service scope and control flow | [Native account/session callbacks](../tools/pam_oh_no_parent_control.c#L236) admit the station only through `gdm-password` and `systemd-user`; ordinary accounts avoid the routing helper/lock. The manager's `kiosk-manager-credentials` path permits credential setup/deletion, always refuses station authentication and preserves ordinary `auth include other`. [Integration rendering/verification](../packaging/kiosk_confinement.py#L194) audits logical includes/substacks, session jumps, supported callbacks and owned/vendor bytes; unsafe flow or pending vendor replacement refuses configuration. These guards supplement authentication, not replace it. | [test_kiosk_login.py](../tests/unit/test_kiosk_login.py#L395) exercises real private libpam handles for manager credentials, wrong services, integrity and callback ordering. [test_kiosk_confinement.py](../tests/unit/test_kiosk_confinement.py) owns parsing/final-gate composition. `enforcement / test_kiosk_login_admission` (268) verifies native `login`/`sshd` permission denials, effective SSH PAM routing and ordinary account controls. `package / test_pam_environment_installation_variants[plain,distro-profile,administrator-override,pending-vendor]` (283–286) owns the four independent install/configure/reboot/removal histories; these session/environment variants are not incompatible empty-token auth tests. Final execution/control-flow crossings pass to 001b; preserve the existing histories and ordinary callbacks. |
+| Admission lease and login serialization | [kiosk_admission()](../tools/kiosk_confinement.h#L40) checks the private root-owned single-link admission inode, holds a shared lease through the PAM handle and refuses a writer/removal barrier. [kiosk_account_check()/run_kiosk_check()](../tools/pam_oh_no_parent_control.c#L91) separately serialize GDM routing through a no-follow private login lock. Busy/unsafe locks deny; failed account state is cached and session opening without a successful bound account check refuses. PAM teardown closes descriptors without unlinking the lock. A helper retains the lock if its worker aborts. | [Native private-fixture regressions](../tests/unit/test_kiosk_login.py#L429) cover unbound/failed/repeated callbacks, contention, unsafe paths, abort, inherited lease and bounded helper exit. These are engineering coverage, not installed graphical acceptance. Journal markers distinguish `lock=unsafe/busy`, `session=unbound`, helper failure/timeout and `removal-barrier`. 001b must reconcile preparation/lifecycle locks with the final native boundary; no new speculative lock acceptance campaign is allocated. |
+| Saved route, actual transport, repair and timeout | [verify_session()/main()](../tools/oh-no-parent-control-login-check#L66) check integrity first, then the dedicated saved session; account stage checks saved Wayland while session stage checks PAM's actual `XDG_SESSION_TYPE`. A wrong route/transport is repaired through public setters and read back, but that attempt stays denied. Unknown identity, malformed/unavailable metadata, failed repair or timeout denies. Each bus call is noninteractive (4-second bus / 5-second process limit); the [native wrapper](../tools/pam_oh_no_parent_control.c#L91) bounds the whole helper at 25 seconds, kills/reaps its own child and records failure. Saved routing and `GDMSESSION` cannot attest the next executable. | [Routing tests](../tests/unit/test_kiosk_login.py#L193) cover valid no-write checks, changed/unset defaults, actual transport, failed repair and sanitized unavailable/timeout categories. The native private-fixture tests cover helper timeout and session failure/retry. [system_kiosk_admission.verify()](../tests/integration/system_kiosk_admission.py#L363), case 268, tests alternate saved session/transport denial, repair and fresh account retry; it opens no session and proves neither actual session transport nor a usable form. 001b owns final execution; 001 owns session-to-form/readiness and 004a/004 the demonstrated late-refusal/public-recovery gap. |
+
+**Diagnostic coverage and limits.** The complete
+[_admission_marker()/collect_kiosk_admission_diagnostics()](../broker/oh_no_parent_control/dependency_diagnostics.py#L297)
+path and its [export caller](../broker/oh_no_parent_control/service.py#L761)
+recognize the exact native blank-password success marker, account/session
+statuses, service/lock/unbound/helper/removal-barrier refusals and the helper's
+closed routing/recovery/reason categories. Producer provenance is checked before
+projection; raw identities, metadata, messages and exception text are excluded.
+The collector runs before snapshot even in diagnostics-only mode and without
+kiosk configuration or a live manager. Its 24-hour, 200-record read and 20-marker
+export are bounded; unavailable/partial observations are explicit.
+[test_diagnostics.py](../tests/unit/test_diagnostics.py#L301) covers synthetic
+authentication → routing → denial → recovery archive round-trip, spoofing,
+numeric bounds, malformed/empty/oversized input, timeout and clipping. It is
+host fixture coverage, not an actual Parent report from the incident.
+
+There is no reviewed general vendor authentication-failure or native account
+expiry marker in this projection; absence of the blank-password success marker
+does not establish authentication failure. Package ownership/quarantine failures
+also have local package evidence rather than a distinct exported admission cause.
+001 must classify these limits against the symptom boundary and combine 001b's
+native map; discovery alone creates no new test requirement. 008a/008 own the
+specific incompatible-auth-policy reason. 002 already owns the demonstrated
+clipping loss of authentication/routing/recovery context under repeated denials;
+010a/010 retain actual Parent-archive proof after recovery/reboot. Existing
+unaffected branches remain with their current owners. No arbitrary PAM matrix,
+host authentication change or installed run belongs to 001a.
+
+001a review acceptance passed: the authentication/account map, incident journal
+sequence, source-history attribution and current selector limits were checked;
+remaining gaps have the owners above. No VM, product installation, process,
+temporary fixture or authentication mutation was created, so no owned runtime
+restoration remains. Markdown links passed before queue close-out; the maintained
+four-module documentation consistency selection passed 313/313 in
+[the retained runner report](../output/test-runs/host/reports/20261019T063757Z-1fe129b7/report.md).
+Only documentation changed, so no package build or installed check was required.
+
+### Remaining execution and acceptance
 
 Discovery is the first three bounded tasks: authentication/account admission,
 preparation/native confinement, then session/readiness/feedback coverage

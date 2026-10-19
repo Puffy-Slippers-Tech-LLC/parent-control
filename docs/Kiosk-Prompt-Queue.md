@@ -10,7 +10,7 @@ finite prerequisite. There are no unconditional full-lifecycle acceptance rows.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | 001a | [Audit authentication and account admission](Kiosk-Prompt-Tasks/001a-auth-account-audit.md) | Baseline | Effective authentication, ownership, expiry, routing and PAM account failures with exact coverage gaps | 20–30 min |
+| [x] | 001a | [Audit authentication and account admission](Kiosk-Prompt.md#authentication-and-account-audit--001a) | Baseline | Effective authentication, ownership, expiry, routing and PAM account failures with exact coverage gaps | Review passed: incident/history confirmed; source/selector map and bounded gaps retained in master; no runtime cleanup needed |
 | [ ] | 001b | [Audit preparation and native admission](Kiosk-Prompt-Tasks/001b-native-audit.md) | 001a | Required aliases/runtime inputs, inventory, generation, binding, enforcement, races and timeout failure map | 20–30 min |
 | [ ] | 001 | [Reconcile the entry failure map](Kiosk-Prompt-Tasks/001-entry-audit.md) | 001a, 001b | Session-to-form and entry-diagnostic coverage map; allocate only demonstrated symptom gaps and changed-entry safety controls | 20–30 min |
 | [ ] | 002a | [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md) | 001 | Generic mask/omit handling, complete alias ancestry, representable publication and metadata-race refusals | 20–30 min |

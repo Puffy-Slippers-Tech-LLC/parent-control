@@ -5,6 +5,7 @@ The native PAM caller holds the preparation lock and installs these files in its
 own mount namespace. No shared distribution executable is relabelled or changed.
 """
 import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -48,6 +49,11 @@ PREPARATION_REASONS = frozenset((
     'unowned-preparation', 'policy-snapshot-not-attested', 'runtime-mode',
     'executable-inventory-too-large', 'copy-changed', 'generation-changed',
     'executable-label-changed'))
+MATERIAL_FAILURE_REASONS = {
+    'material-limit': 'executable-inventory-too-large',
+    'material-source-trust': 'untrusted-path', 'material-source-changed': 'source-changed',
+    'retained-layout': 'generation-changed', 'retained-source-identity': 'generation-changed',
+    'retained-required-source': 'copy-changed', 'retained-source-changed': 'source-changed'}
 
 
 def preparation_log(fields):
@@ -77,7 +83,9 @@ def report_preparation_failure(error, role='other'):
         value = error.args[0]
         if value in PREPARATION_REASONS:
             reason = value
-        elif value == 'manager-generation-stale':
+        elif value in MATERIAL_FAILURE_REASONS:
+            reason = MATERIAL_FAILURE_REASONS[value]
+        elif value in ('manager-generation-stale', 'manager-material-stale'):
             reason = 'stale-manager-reboot-required'
         elif value == 'generation-limit-reboot-required':
             reason = value
@@ -753,7 +761,8 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
 
 
 # The retained-material primitives below are deliberately not called by
-# prepare(). Selection and the native M/V/ready transaction belong to 006b/006.
+# prepare(). Native M/V/ready composition belongs to 006. Selection below grants
+# no admission authority without that transaction and its verified live clone.
 # In particular, a published disk copy is never a retained mount source.
 RUNTIME_COPY_FORMAT = 1
 RUNTIME_ROLES = frozenset(('script', 'module', 'asset', 'wellbeing', 'unit', 'session-data'))
@@ -1513,6 +1522,320 @@ def reclaim_runtime_scratch(root, ticket):
         if fd >= 0:
             os.close(fd)
         os.close(parent)
+
+
+MATERIAL_FORMAT = 1
+
+
+def material_digest(record):
+    """Material has its own versioned domain; source inode assertions are not M."""
+    data = json.dumps(record, sort_keys=True, separators=(',', ':'), ensure_ascii=True,
+                      allow_nan=False).encode('ascii')
+    if len(data) > MAX_MANIFEST:
+        raise ValueError('material-limit')
+    return hashlib.sha256(b'ONPC-KIOSK-MATERIAL\0' + len(data).to_bytes(8, 'big') + data).hexdigest()
+
+
+def material_file(path, backend, *, privileged=False, symlinks=True):
+    """Measure a current required inode, separately from a retained source.
+
+    trusted() owns the bounded lexical/target closure. An exact full assertion
+    and a final named-path comparison close replacement during this observation.
+    """
+    canonical = trusted(path, symlinks=symlinks)
+    before_name = canonical.stat()
+    fd = os.open(canonical, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    try:
+        before = os.fstat(fd)
+        if (file_identity(before) != file_identity(before_name) or not stat.S_ISREG(before.st_mode) or
+                before.st_uid != 0 or before.st_gid != 0 or before.st_mode & 0o022 or
+                before.st_nlink != 1 or not privileged and before.st_mode & 0o6000 or
+                'security.capability' in os.listxattr(fd)):
+            raise ValueError('material-source-trust')
+        if before.st_size > MAX_COPY_BYTES:
+            raise ValueError('material-limit')
+        digest = runtime_read_digest(fd, before.st_size)
+        label = (os.getxattr(fd, 'security.selinux').rstrip(b'\0').decode('ascii')
+                 if backend == 'selinux' else None)
+        assertion = file_identity(before)
+        if (file_identity(os.fstat(fd)) != assertion or
+                file_identity(canonical.stat()) != assertion or
+                trusted(path, symlinks=symlinks) != canonical):
+            raise ValueError('material-source-changed')
+        return digest, before.st_size, assertion, label
+    finally:
+        os.close(fd)
+
+
+def required_material(config_bytes, policy_bytes, attestation):
+    """Measure only required inputs. Never enumerate ambient host siblings.
+
+    This is an unwired preparation operation, not an alternative to prepare().
+    006 must supply the attested snapshot and retain native ownership/manager
+    proof across this operation, selection, binding and final revalidation.
+    """
+    pair = [hashlib.sha256(data).hexdigest() for data in (config_bytes, policy_bytes)]
+    if attestation != ' '.join(pair) + '\n':
+        raise ValueError('policy-snapshot-not-attested')
+    config = json.loads(config_bytes)
+    backend = config['backend']
+    if backend not in ('apparmor', 'selinux'):
+        raise ValueError('unknown-backend')
+    specs = config.get('runtime_inputs')
+    if specs != runtime_input_specs('ubuntu' if backend == 'apparmor' else 'fedora'):
+        raise ValueError('runtime-membership')
+    runtime_specs_valid(specs)
+    enforcing(config)
+    native = inventory(config)
+    preserved, vendor_assertions = preserved_inventory(config)
+    _, required, _ = layout_requirements(config, [*native, *preserved])
+    payload_paths = [PAYLOAD / 'config.json', PAYLOAD / (
+        'onpc-kiosk.cil' if backend == 'selinux' else 'onpc-kiosk.apparmor')]
+    paths = set(required) | set(payload_paths)
+    paths.update(Path(record.get('source', record['path'])) for record in native)
+    # Explicit mask links describe text, never /dev/null's special-file target.
+    paths.update(Path(path).parent if spec['kind'] == 'link' else Path(path)
+                 for path, spec in specs.items())
+    proofs = required_proofs(paths)
+    proof_map = {path: [kind, path, link] for kind, path, link in proofs}
+    assertions, copied_bytes, payload = {}, 0, []
+    for path, expected in zip(payload_paths, pair):
+        digest, size, assertion, source_label = material_file(path, backend, symlinks=False)
+        if digest != expected:
+            raise ValueError('policy-snapshot-not-attested')
+        assertions[str(path)] = assertion
+        payload.append(dict(path=str(path), sha256=digest, size=size,
+                            mode=stat.S_IMODE(assertion[5]), label=source_label))
+    for record in native:
+        source = record.get('source', record['path'])
+        digest, size, assertion, source_label = material_file(source, backend)
+        if digest != record['sha256']:
+            raise ValueError('material-source-changed')
+        record.update(size=size, source_label=source_label,
+                      mode=0o644 if record['role'] in ('blocked', 'library') else 0o755,
+                      label=(f'system_u:object_r:onpc_kiosk_{record["role"].replace("-", "_")}_exec_t:s0'
+                             if backend == 'selinux' else None))
+        assertions[source] = assertion
+        copied_bytes += size
+    for record in preserved:
+        digest, size, assertion, label_value = material_file(record['path'], backend, privileged=True)
+        if (digest != record['sha256'] or assertion != vendor_assertions[record['path']] or
+                label_value != record['label']):
+            raise ValueError('preserved-executable-changed')
+        record['size'] = size
+        assertions[record['path']] = assertion
+    runtime, runtime_assertions = measure_runtime_inputs(
+        specs, backend, used_rows=len(proofs) + len(native) + len(preserved), used_bytes=copied_bytes)
+    for record in runtime:
+        if record['kind'] == 'link':
+            proof_map[record['path']] = ['link', record['path'], record['link']]
+    proofs = [proof_map[path] for path in sorted(proof_map)]
+    # Preserve path/inode identity within a transaction, but do not hash parent
+    # timestamps or inode numbers. Sibling changes must not change material.
+    for kind, path, _ in proofs:
+        info = Path(path).lstat()
+        assertions.setdefault(path, runtime_walk_identity(info))
+    final_proofs = {path: [kind, path, link] for kind, path, link in required_proofs(paths)}
+    for item in runtime:
+        if item['kind'] == 'link':
+            final_proofs[item['path']] = ['link', item['path'], item['link']]
+    if final_proofs != proof_map:
+        raise ValueError('material-source-changed')
+    record = dict(format=MATERIAL_FORMAT, backend=backend, config=pair[0], policy=pair[1],
+                  native=native, preserved=preserved, runtime=runtime, proofs=proofs, payload=payload)
+    snapshot = dict(record=record, digest=material_digest(record), config=config, native=native,
+                    preserved=preserved, runtime=runtime, proofs=proofs, assertions=assertions,
+                    runtime_assertions=runtime_assertions, payload=payload)
+    _check_material_assertions(snapshot)
+    return snapshot
+
+
+def _check_material_assertions(snapshot):
+    for path, assertion in snapshot['assertions'].items():
+        if runtime_walk_identity(Path(path).lstat()) != tuple(assertion):
+            raise ValueError('material-source-changed')
+    check_runtime_assertions(snapshot['config']['runtime_inputs'], snapshot['runtime_assertions'])
+
+
+def verify_required_material(snapshot):
+    """Repeat host trust/content checks without forgiving same-byte replacement.
+
+    A later *fresh* transaction may accept identical reinstall. A replacement
+    after this transaction's capture must refuse, even if M still matches.
+    """
+    _check_material_assertions(snapshot)
+    config = snapshot['config']
+    for path, expected in ((PAYLOAD / 'config.json', snapshot['record']['config']),
+            (PAYLOAD / ('onpc-kiosk.cil' if config['backend'] == 'selinux' else 'onpc-kiosk.apparmor'),
+             snapshot['record']['policy'])):
+        digest, _, assertion, _ = material_file(path, config['backend'], symlinks=False)
+        if digest != expected or assertion != tuple(snapshot['assertions'][str(path)]):
+            raise ValueError('policy-snapshot-not-attested')
+    enforcing(config)
+    if json.loads((PAYLOAD / 'config.json').read_bytes()) != config:
+        raise ValueError('policy-snapshot-not-attested')
+    native = inventory(config)
+    preserved, identities = preserved_inventory(config)
+    expected_native = [{key: value for key, value in item.items()
+                        if key not in ('size', 'mode', 'label', 'source_label')} for item in snapshot['native']]
+    expected_preserved = [{key: value for key, value in item.items() if key != 'size'}
+                          for item in snapshot['preserved']]
+    if native != expected_native or preserved != expected_preserved:
+        raise ValueError('material-source-changed')
+    for item in snapshot['native'] + snapshot['preserved']:
+        path = item.get('source', item['path'])
+        digest, size, assertion, source_label = material_file(
+            path, config['backend'], privileged=item in snapshot['preserved'])
+        if (digest != item['sha256'] or size != item['size'] or
+                source_label != item.get('source_label', item['label']) or
+                assertion != tuple(snapshot['assertions'][path])):
+            raise ValueError('material-source-changed')
+    runtime, assertions = measure_runtime_inputs(config['runtime_inputs'], config['backend'],
+        used_rows=len(snapshot['proofs']) + len(native) + len(preserved),
+        used_bytes=sum(item['size'] for item in snapshot['native']))
+    if runtime != snapshot['runtime'] or assertions != snapshot['runtime_assertions']:
+        raise ValueError('material-source-changed')
+    paths = [path for kind, path, _ in snapshot['proofs']
+             if path not in config['runtime_inputs'] or config['runtime_inputs'][path]['kind'] != 'link']
+    proofs = {path: [kind, path, link] for kind, path, link in required_proofs(paths)}
+    for path, spec in config['runtime_inputs'].items():
+        if spec['kind'] == 'link':
+            proofs[path] = ['link', path, spec['link']]
+    if [proofs[path] for path in sorted(proofs)] != snapshot['proofs']:
+        raise ValueError('material-source-changed')
+    if material_digest(snapshot['record']) != snapshot['digest']:
+        raise ValueError('material-source-changed')
+    _check_material_assertions(snapshot)
+
+
+def retained_source_assertion(fd, identity, node, required, item, backend, preserved):
+    """Observe one source FD; callers narrow only eligible ambient source errors."""
+    before = os.fstat(fd)
+    if file_identity(before)[:2] != tuple(identity):
+        raise ValueError('retained-source-identity')
+    kind = node['kind']
+    valid_kind = (stat.S_ISLNK(before.st_mode) if kind == 'link' else
+                  stat.S_ISREG(before.st_mode) if kind == 'file' else stat.S_ISDIR(before.st_mode))
+    safe = (valid_kind and before.st_uid == 0 and
+            (kind == 'link' or not before.st_mode & 0o022))
+    if kind == 'link' and safe:
+        safe = os.readlink('', dir_fd=fd) == node['link']
+    if not safe:
+        if required:
+            raise ValueError('retained-required-source')
+        return None
+    if item is not None:
+        if (before.st_gid != 0 or before.st_nlink not in ((0, 1) if preserved else (1,)) or
+                stat.S_IMODE(before.st_mode) != item['mode'] or before.st_size != item['size'] or
+                'security.capability' in os.listxattr(fd)):
+            raise ValueError('retained-required-source')
+        value = (os.getxattr(fd, 'security.selinux').rstrip(b'\0').decode('ascii')
+                 if backend == 'selinux' else None)
+        if value != item['label']:
+            raise ValueError('retained-required-source')
+        os.lseek(fd, 0, os.SEEK_SET)
+        if runtime_read_digest(fd, item['size']) != item['sha256']:
+            raise ValueError('retained-required-source')
+    if file_identity(os.fstat(fd)) != file_identity(before):
+        raise ValueError('retained-source-changed')
+    return file_identity(before)
+
+
+def select_retained_material(current, retained_record, layout, pins):
+    """Select a fresh layout from a native-verified receipt/clone projection.
+
+    pins maps canonical /usr names to caller-owned descriptors plus original
+    (device,inode) provenance. This function neither opens a host ambient path
+    nor acquires/attests a clone, parses a ready receipt, publishes or attaches.
+    Only 006's native owner can supply that authority. Descriptors stay with the
+    caller; returned indices/assertions are bound again by native before use.
+    """
+    verify_required_material(current)
+    if (retained_record != current['record'] or
+            material_digest(retained_record) != current['digest']):
+        raise ValueError('manager-material-stale')
+    if not isinstance(layout, list) or len(layout) > MAX_ROWS or not isinstance(pins, dict):
+        raise ValueError('retained-layout')
+    nodes = {}
+    for entry in layout:
+        if not isinstance(entry, dict) or entry.get('kind') not in (
+                'tree', 'directory', 'empty-directory', 'file', 'link'):
+            raise ValueError('retained-layout')
+        path, kind = protocol_text(entry.get('path'), absolute=True), entry['kind']
+        if (not path.startswith('/usr/') or path in nodes or
+                set(entry) != ({'path', 'kind', 'link'} if kind == 'link' else {'path', 'kind'})):
+            raise ValueError('retained-layout')
+        if kind == 'link':
+            protocol_text(entry['link'])
+        nodes[path] = entry
+    for path in nodes:
+        if any(nodes.get(str(parent), {}).get('kind') != 'tree'
+               for parent in Path(path).parents if parent not in (Path('/usr'), Path('/'))):
+            raise ValueError('retained-layout')
+    proofs = {Path(path): (kind, link) for kind, path, link in current['proofs']}
+    concrete = {path: proof for path, proof in proofs.items()
+                if path != Path('/usr') and Path('/usr') in path.parents and
+                not any(proofs.get(parent, (None,))[0] == 'link' for parent in path.parents)}
+    validate_required_layout(layout, concrete, [*current['native'], *current['preserved']])
+    required = {'/usr'} | {str(path) for path in concrete}
+    files = current['native'] + current['preserved'] + current['runtime'] + current.get('payload', [])
+    expected = {item['path']: item for item in files if item.get('kind', 'file') == 'file'}
+    # Runtime/native overlap would make source class and privilege ambiguous.
+    if len(expected) != sum(item.get('kind', 'file') == 'file' for item in files):
+        raise ValueError('retained-layout')
+    if not set(expected) <= required:
+        raise ValueError('retained-layout')
+    if (len(nodes) + len(current['native']) + len(current['preserved']) +
+            len(current['runtime']) + len(proofs) > MAX_ROWS):
+        raise ValueError('material-limit')
+    if set(pins) != {'/usr'} | {path for path, node in nodes.items() if node['kind'] != 'empty-directory'}:
+        raise ValueError('retained-source-identity')
+    result, sources = [], {}
+    vendor = {item['path'] for item in current['preserved']}
+    for index, path in enumerate(sorted(pins)):
+        pin = pins[path]
+        if (not isinstance(pin, dict) or set(pin) != {'fd', 'identity'} or
+                type(pin['fd']) is not int or pin['fd'] < 0 or
+                not isinstance(pin['identity'], (tuple, list)) or len(pin['identity']) != 2 or
+                any(type(value) is not int or value < 0 for value in pin['identity'])):
+            raise ValueError('retained-source-identity')
+        fd, node = pin['fd'], nodes.get(path, {'path': '/usr', 'kind': 'tree'})
+        try:
+            assertion = retained_source_assertion(fd, pin['identity'], node, path in required,
+                expected.get(path), current['record']['backend'], path in vendor)
+        except OSError as error:
+            if path in required or error.errno not in (errno.EACCES, errno.EPERM, errno.EIO, errno.ESTALE):
+                raise
+            assertion = None
+        if assertion is None:
+            if node['kind'] == 'directory':
+                result.append(dict(path=path, kind='empty-directory'))
+            continue
+        sources[path] = dict(index=index, assertion=assertion)
+        if path != '/usr':
+            result.append(dict(node))
+    result += [dict(node) for node in layout if node['kind'] == 'empty-directory']
+    result.sort(key=lambda item: item['path'])
+    validate_required_layout(result, concrete, [*current['native'], *current['preserved']])
+    verify_required_material(current)
+    for path, source in list(sources.items()):
+        try:
+            assertion = file_identity(os.fstat(pins[path]['fd']))
+        except OSError as error:
+            if path in required or error.errno not in (errno.EACCES, errno.EPERM, errno.EIO, errno.ESTALE):
+                raise
+            # This last observation may only narrow the fresh invocation. It
+            # cannot revive a previously omitted source or change source V.
+            del sources[path]
+            result = [node for node in result if node['path'] != path]
+            if nodes[path]['kind'] == 'directory':
+                result.append(dict(path=path, kind='empty-directory'))
+            continue
+        if assertion != source['assertion']:
+            raise ValueError('retained-source-changed')
+    result.sort(key=lambda item: item['path'])
+    validate_required_layout(result, concrete, [*current['native'], *current['preserved']])
+    return dict(material=current['digest'], layout=result, sources=sources)
 
 
 def manager_generation(uid, digest, backend):

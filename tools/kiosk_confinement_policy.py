@@ -526,6 +526,12 @@ def apparmor(entries):
 
 
 def generate(destination, distribution):
+    # Shared finite production membership is attested with the config. Import
+    # supports both the build script and package-qualified host-test callers.
+    try:
+        from tools.kiosk_confinement import runtime_input_specs
+    except ModuleNotFoundError:
+        from kiosk_confinement import runtime_input_specs
     entries = executables(distribution)
     systemd_libraries = ('/usr/lib64/systemd' if distribution == 'fedora'
                          else '/usr/lib/x86_64-linux-gnu/systemd')
@@ -534,6 +540,7 @@ def generate(destination, distribution):
     entries.append(dict(role='library', paths=[], library_directory=systemd_libraries))
     destination.mkdir(parents=True, exist_ok=True)
     config = dict(backend='selinux' if distribution == 'fedora' else 'apparmor',
+                  runtime_inputs=runtime_input_specs(distribution),
                   domains=list(DOMAINS), executables=entries,
                   preserved_executables=[dict(path='/usr/lib/polkit-1/polkit-agent-helper-1',
                       mode=0o4755 if distribution == 'fedora' else 0o755,

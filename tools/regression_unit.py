@@ -1033,9 +1033,13 @@ from regression_ui import Bucket
 # in their own user/mount namespaces with private propagation. Native clone
 # workers use anonymous descriptor sockets and are bounded and reaped. They acquire no
 # host mount, service, bus, display, VM, network or shared cache; compatible unit
-# overlap is safe. Neither module participates in cleanup or UI inventories.
+# overlap is safe. Material selection adds only tiny pytest-private file/FD
+# trees and process-local metadata/label doubles; it uses no process, shared
+# cache, socket, bus, display or service. Its legacy-manager control briefly pins
+# its own test process with a closed pidfd; it never signals or spawns a manager.
+# None participates in cleanup/UI inventories.
 REVIEWED = frozenset("""
-kiosk_pin_native kiosk_pin_storage
+kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

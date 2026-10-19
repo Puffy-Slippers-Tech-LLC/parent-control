@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006b — [Implement retained-material selection](Kiosk-Prompt-Tasks/006b-material-selection.md)**.
+Next task: **006 — [Integrate retained-view native admission](Kiosk-Prompt-Tasks/006-generation-implementation.md)**.
 
 ## Outcome
 
@@ -1145,7 +1145,7 @@ clone refusal was reproduced before this correction; the permanent lifetime
 witness preserves that namespace boundary rather than substituting a local source.
 
 The exact six-module host selection passed **1,461/1,461** cases in
-[20261019T102801Z-85589297](../output/test-runs/host/reports/20261019T102801Z-85589297/report.md),
+`20261019T102801Z-85589297` (report retained in the verified cumulative bundle below),
 including all **33 native** and **50 storage** witnesses, existing confinement/PAM
 callers and both scheduling inventories. Real mounted witnesses prove original
 copied bytes, an unlinked vendor inode and directory contents survive staging
@@ -1169,8 +1169,9 @@ proof-document edit remains untouched.
 
 After queue/pointer/brief close-out, all **313/313** maintained documentation
 consistency checks passed in
-[20261019T103152Z-c98572c1](../output/test-runs/host/reports/20261019T103152Z-c98572c1/report.md).
-The [verified cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-gm3h4vqz/evidence.zip)
+`20261019T103152Z-c98572c1` (report retained in the verified cumulative bundle below).
+The original verified cumulative host bundle (now consolidated in
+[006b's bundle](#retained-material-selection--006b))
 retains the original development failures, the final affected host report and
 the documentation report (65 files). Bundle SHA-256:
 `a7a5b3cc93999cc295124124736dd28015ddf496e91802c5753676d6987ad9b1`.
@@ -1202,6 +1203,81 @@ hashes above remain historical; this host task supplies no replacement installed
 receipt. The existing 011a evidence audit must establish available matching
 receipts or allocate fresh affected histories before any reuse. No earlier row
 is requalified or given new acceptance credit by this close-out.
+
+### Retained-material selection — 006b
+
+Host acceptance passed on 2026-10-19 UTC. Unwired preparation operations
+`required_material()`, `verify_required_material()` and `select_retained_material()`
+separate required material from the original source layout. Generated config
+attests finite runtime membership. Current config/policy, native/library and
+runtime bytes, optional inventory, aliases, ancestry and vendor privilege checks
+remain strict. Transaction-local current-host assertions stay separate from
+renewed retained-source assertions, including an unlinked original helper.
+Source-only ambient errors may omit or mask only the fresh invocation; original
+source indices and manager dentries remain unchanged, with no host-source reopen.
+
+The exact eight-module selection passed **1,701/1,701** cases in
+[20261019T105420Z-4442a354](../output/test-runs/host/reports/20261019T105420Z-4442a354/report.md),
+including **157 selection** and **53 current-material** cases, existing native
+pin/storage and confinement/PAM callers, and both scheduling inventories.
+The permanent original-regression control observes the old whole-layout digest
+change after an unrelated empty-directory addition while real required material
+and the selected original descriptor inodes/bytes stay equal. It does not rerun
+the retired probes or supply native installed admission credit. The finite
+controls cover host ambient transitions, required drift/restoration, reattested
+material mismatch, same-byte reinstall, SELinux-label doubles, privilege metadata,
+source replacement, bounded schemas and interrupted copy publication.
+
+Independent GPT-6.1 Sol High review found a final-sweep ambient-error gap; the
+correction and 24 deterministic late-error controls passed final review and the
+full affected selection. All workers finished before final acceptance. A final
+direct-file audit made config/policy no-link checks explicit at their original
+boundary. Its two negative controls first observed the existing later
+`material-source-changed` refusal instead of the expected `substituted-path`;
+both now pass without relaxing either refusal. Initial
+current-material failures came from the private fixture's missing existence-check
+translation; the original diagnostics and corrected passes were exported before
+rotation. Assertions were preserved. Resource review covers only pytest-private
+files, descriptors and process-local doubles for the new modules; both are
+registered compatible units, with no new cleanup/UI inventory owner. Existing
+native witnesses retain their private namespace/child ownership.
+
+`make build` passed both package formats after the final packaged edit.
+Package-source digest:
+`4cba4518527ab5dec1ffbba3061d8aa1989de10f0ee836880c52bc512a69147a`.
+DEB SHA-256:
+`9b714ad87bceb06114308225a29a8576e8e8a3e845cdc0178b4d09d550a76432`;
+RPM SHA-256:
+`c16726b6fbb19292251549fbdea1cc8da754f459bf1022f9b6aa6322571c14e7`.
+Preparation source SHA-256:
+`b2d3f8fdf082be70210de86f90eb0f49023aab702dea65abc8c8d124b63256da`;
+policy-generator source SHA-256:
+`3ef69f01aaf474f732889ba63139a2ecaff30cbd274d5c96d1a9dd434921da9a`.
+
+Runner/build cleanup finished. No product installation, VM, service or shared
+mount changed; the pre-existing proof-document edit is preserved. Only 006b
+closes. The normalized descriptor projection grants no ready/manager authority;
+006 owns native receipt parsing, bounded acquisition from the verified clone,
+manager identity/concurrency, binding and activation. The live `prepare()` and
+`manager_generation()` route remains fail-closed; 007a/007 retain actual installed
+acceptance. This host brief declares no Targets.
+
+After final queue/pointer/brief close-out, all **313/313** maintained documentation
+checks passed in `20261019T105540Z-6ae5dab5`. The final affected run also includes
+the strengthened original-regression case: the actual legacy matcher accepts
+its baseline marker and emits `manager-generation-stale` after the addition,
+while preparation selection keeps the same material and original source inodes.
+Only manager observations are doubled; its pidfd belongs to the test process
+and is closed.
+
+The [verified cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-jkg678h5/evidence.zip)
+retains those reports, the final affected run, original fixture failures and all
+available 006a host evidence (162 files). Bundle SHA-256:
+`70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
+Export verification and owned cleanup completed. Historical 006a report links
+that rotated during this task now point readers to their preserved bundle;
+no earlier row gains new acceptance. Changed-document links and whitespace pass;
+every other queue row retains its status, order, Scope and Requires.
 
 ### Remaining execution and acceptance
 

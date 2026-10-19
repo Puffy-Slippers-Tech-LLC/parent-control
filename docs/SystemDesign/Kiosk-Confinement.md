@@ -361,8 +361,24 @@ now exist in `RuntimeCopyPublication` / `verify_runtime_copies()` and native
 `kiosk_pin_acquire()` / `kiosk_pin_attach()` / `kiosk_pin_finish()` /
 `kiosk_pin_publish()` / `kiosk_pin_release()`. Callers must independently select
 the finite runtime specs and pin receipt provenance; supporting disk copies or
-ready records alone grant no admission authority. Selection and full native
-composition remain 006b/006, followed by installed qualification at 007a/007.
+ready records alone grant no admission authority. Preparation selection has
+[006b host evidence](../Kiosk-Prompt.md#retained-material-selection--006b); full
+native composition remains 006, followed by installed qualification at 007a/007.
+
+Preparation now also has unwired `required_material()` /
+`verify_required_material()` / `select_retained_material()` operations.
+The generated attested config binds the exact `runtime_inputs` membership.
+Material measurement includes the current attested pair, native substitutions,
+vendor privilege requirements, finite runtime inputs and complete required trust
+closure; transaction-local inode assertions stay separate from its digest.
+Selection accepts only the original layout and a native-owned projection of
+source descriptors plus inode provenance, returning stable source indices and
+fresh eight-field assertions. It opens no ambient host source, and eligible
+ambient failures narrow only the fresh invocation layout, including at its last
+source observation. It never acquires a clone, adopts a ready record, publishes
+or attaches a view. **006** still owns the native receipt parser, manager proof,
+one-clone descriptor acquisition with bounded local opens, final binding checks
+and activation; the existing `prepare()` route remains fail-closed and unchanged.
 
 **Two identities.** Define a versioned, canonically encoded material record
 `M` containing the exact attested config/policy digest pair, backend, configured
@@ -591,8 +607,10 @@ uses exact restoration/retry for an owned incomplete attempt or successful
 configuration plus reboot for genuine required drift, under
 [lifecycle](Lifecycle.md#retained-material-activation-and-recovery).
 
-**Independent implementation witnesses.** These are finite acceptance families
-for 006a/006b, not currently registered selectors or passing results. Tests must
+**Independent implementation witnesses.** These finite acceptance families belong
+to 006a/006b; their linked host close-outs record implemented selectors and exact
+evidence limits. Descriptor selection does not establish composed native binding
+or installed admission, which remain 006/007a/007. Tests must
 observe mounted inode/content/absence and independent records, rather than assert
 only that producer and parser agree on a digest.
 

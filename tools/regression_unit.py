@@ -871,6 +871,14 @@ from regression_ui import Bucket
 # synchronously wait for its bounded children. Mount/namespace calls are doubles;
 # manifests and outputs stay in pytest-private trees. Existing compatible unit
 # admission still applies; there is no cleanup/UI inventory or shared resource.
+# Post-layout publication and descriptor-drift cases reuse those two fixtures.
+# Native descriptor walks operate on pytest-private files; root ownership,
+# mount identities, namespaces, tmpfs and SELinux labels are process-local
+# doubles. Real unlink/rename/type/mode changes affect only fixture children.
+# Every compiler/probe child has an explicit deadline and is synchronously
+# reaped; invocation trees and manifests have no shared cache or persistent
+# owner. The module remains compatible in the unit inventory; cleanup/UI
+# inventories and live host resources are unchanged.
 # Generic sibling cases add private FIFOs/symlinks and restore deliberately
 # read-only fixture modes on every outcome. They open no FIFO, mount or bus;
 # ownership, metadata-race and directory observations remain process-local.

@@ -6,6 +6,7 @@ import fcntl
 import os
 from pathlib import Path
 import select
+import shutil
 import stat
 import subprocess
 import sys
@@ -16,6 +17,7 @@ import pytest
 
 from tests.support.paths import ROOT
 
+NATIVE_RUN = subprocess.run
 
 def module(path):
     spec = importlib.util.spec_from_file_location('private_' + path.stem, path)
@@ -2856,9 +2858,13 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     marker = tmp_path / 'kiosk-uid'
     marker.write_text('1002\n')
     marker.chmod(0o600)
-    vendor = tmp_path / 'vendor-helper'
+    vendor = tmp_path / 'usr/lib/polkit-1/polkit-agent-helper-1'
+    vendor.parent.mkdir(parents=True)
+    (tmp_path / 'usr/share/oh-no-parent-control/confinement').mkdir(parents=True)
     vendor.write_bytes(b'\x7fELFprivate vendor password helper')
     vendor.chmod(0o755)
+    for directory in [tmp_path / 'usr', *(tmp_path / 'usr').rglob('*')]:
+        if directory.is_dir(): directory.chmod(0o755)
     path = '/usr/lib/polkit-1/polkit-agent-helper-1'
     entry = dict(path=path, mode=0o755, label=None)
     record = dict(entry, uid=0, gid=0, sha256=helper.hashlib.sha256(vendor.read_bytes()).hexdigest())
@@ -2869,25 +2875,40 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     (runtime / 'bindings').write_text('previous bindings\n')
     layout = [{'path': '/usr/lib', 'kind': 'tree'},
               {'path': '/usr/lib/polkit-1', 'kind': 'tree'},
-              {'path': path, 'kind': 'file'}]
+              {'path': path, 'kind': 'file'},
+              {'path': '/usr/share', 'kind': 'tree'},
+              {'path': '/usr/share/oh-no-parent-control', 'kind': 'tree'},
+              {'path': '/usr/share/oh-no-parent-control/confinement', 'kind': 'tree'},
+              {'path': '/usr/share/oh-no-parent-control/confinement/generation', 'kind': 'file'}]
     manager_checks, reclaims = [], []
-    monkeypatch.setattr(helper, 'PAYLOAD', payload)
+    real_manager_generation = helper.manager_generation
     monkeypatch.setattr(helper, 'RUNTIME', runtime)
     monkeypatch.setattr(helper.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(helper.os, 'umask', lambda mode: 0o022)
     monkeypatch.setattr(helper.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1002))
     # These unit cases inject a post-measurement layout, keeping actual private
     # generation/tree/bindings writes. Inventory trust has independent coverage.
-    monkeypatch.setattr(helper, 'trusted', lambda source, **kwargs:
-                        marker if str(source) == '/var/lib/oh-no-parent-control/package-created-kiosk-uid'
-                        else Path(source))
+    def trusted(source, **kwargs):
+        source = Path(source)
+        if str(source) == '/var/lib/oh-no-parent-control/package-created-kiosk-uid':
+            return marker
+        if source.parent == helper.PAYLOAD and source.name != 'generation':
+            return payload / source.name
+        return source
+    monkeypatch.setattr(helper, 'trusted', trusted)
     original_lstat = Path.lstat
 
     def metadata(source):
-        info = original_lstat(source)
-        if source == runtime or runtime in source.parents:
+        physical = tmp_path / str(source).lstrip('/') if source == Path('/usr') or Path('/usr') in source.parents else source
+        info = original_lstat(physical)
+        if (source == tmp_path or tmp_path in source.parents or
+                source == Path('/usr') or Path('/usr') in source.parents):
             values = list(info)
             values[4] = 0  # Model root-created generation files without host privileges.
+            values[5] = 0
+            return os.stat_result(values)
+        if source in tmp_path.parents:
+            values = list(info); values[4] = 0; values[0] &= ~0o022
             return os.stat_result(values)
         return info
 
@@ -2906,10 +2927,21 @@ def preserved_password_preparation(tmp_path, monkeypatch):
         assert records == [record]
         return layout
     monkeypatch.setattr(helper, 'directory_layout', collect)
+    def invocation(backend):
+        view = runtime / 'native-view'
+        # A new native tmpfs starts empty for every preparation. Only this
+        # fixture-owned invocation directory is replaced; generations persist.
+        if view.exists(): shutil.rmtree(view)
+        view.mkdir(mode=0o700)
+        return view
+    monkeypatch.setattr(helper, 'verify_invocation_root', invocation)
+    monkeypatch.setattr(helper, 'runtime_label', lambda *args, **kwargs: None)
     monkeypatch.setattr(helper, 'manager_generation', lambda *args: manager_checks.append(args))
     monkeypatch.setattr(helper, 'reclaim_interrupted', lambda: reclaims.append(True))
-    return SimpleNamespace(helper=helper, runtime=runtime, layout=layout, path=path, record=record,
-        identities=identities, manager_checks=manager_checks, reclaims=reclaims)
+    return SimpleNamespace(helper=helper, runtime=runtime, payload=payload, vendor=vendor,
+        bindings=runtime / 'native-view/bindings', layout=layout, path=path, record=record,
+        identities=identities, manager_checks=manager_checks, reclaims=reclaims,
+        real_manager_generation=real_manager_generation)
 
 
 @pytest.mark.parametrize('fault', ['config', 'policy', 'empty', 'extra', 'missing-newline', 'malformed'])
@@ -2923,7 +2955,7 @@ def test_preparation_refuses_snapshot_changed_after_verification_before_inventor
     def interrupted(*args, **kwargs):
         result = verify(*args, **kwargs)
         if fault in ('config', 'policy'):
-            path = helper.PAYLOAD / ('config.json' if fault == 'config' else 'onpc-kiosk.apparmor')
+            path = scene.payload / ('config.json' if fault == 'config' else 'onpc-kiosk.apparmor')
             path.write_bytes(path.read_bytes() + b'\n')
         else:
             result.stdout = {'empty': '', 'extra': result.stdout + 'unexpected\n',
@@ -2951,6 +2983,11 @@ def test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree(
         source = tmp_path / name
         source.write_bytes(b'\x7fELFprivate ' + name.encode())
         source.chmod(0o755)
+        installed = tmp_path / target.lstrip('/')
+        installed.parent.mkdir(parents=True, exist_ok=True)
+        installed.parent.chmod(0o755)
+        installed.write_bytes(source.read_bytes())
+        installed.chmod(0o755)
         records.append(dict(role=role, path=target, source=str(source),
                             sha256=helper.hashlib.sha256(source.read_bytes()).hexdigest()))
     originals = {record['source']: Path(record['source']).read_bytes() for record in records}
@@ -2962,17 +2999,17 @@ def test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree(
         return model.layout
     monkeypatch.setattr(helper, 'directory_layout', layout)
     helper.prepare('manager')
-    generation = next(path for path in model.runtime.iterdir() if path.is_dir())
-    bindings = (model.runtime / 'bindings').read_text()
+    generation = next(path for path in model.runtime.iterdir() if len(path.name) == 64)
+    bindings = model.bindings.read_text()
     for index, record in enumerate(records):
         copy = generation / str(index)
         assert copy.read_bytes() == originals[record['source']]
         assert copy.stat().st_ino != Path(record['source']).stat().st_ino
-        target = generation / 'tree' / record['path'].removeprefix('/usr/')
-        assert f'{copy}\t{target}\n' in bindings
+        target = record['path'].removeprefix('/usr/')
+        assert f'bind\trequired\tfile\t{copy}\t{target}\t-\n' in bindings
     assert json.loads((generation / 'records.json').read_text())['records'] == records
     helper.prepare('gate')
-    assert (model.runtime / 'bindings').read_text() == bindings
+    assert model.bindings.read_text().splitlines()[1:] == bindings.splitlines()[1:]
     assert {path: Path(path).read_bytes() for path in originals} == originals
 
 
@@ -2982,18 +3019,19 @@ def test_preserved_password_helper_preparation_refuses_missing_or_ambiguous_sign
         preserved_password_preparation, role, fault):
     model = preserved_password_preparation
     if fault == 'missing':
-        model.layout.pop()
+        model.layout[:] = [entry for entry in model.layout if entry['path'] != model.path]
     elif fault in ('link', 'directory'):
-        model.layout[-1]['kind'] = fault
+        entry = next(entry for entry in model.layout if entry['path'] == model.path)
+        entry['kind'] = fault
         if fault == 'link':
-            model.layout[-1]['link'] = 'replacement-helper'
+            entry['link'] = 'replacement-helper'
     else:
         model.layout.append(dict(path=model.path, kind='file' if fault == 'duplicate-file' else 'link',
                                  **({'link': 'replacement-helper'} if fault == 'duplicate-link' else {})))
     with pytest.raises(ValueError, match='preserved-executable-layout'):
         model.helper.prepare(role)
     assert (model.runtime / 'bindings').read_text() == 'previous bindings\n'
-    assert {item.name for item in model.runtime.iterdir()} == {'bindings'}
+    assert {item.name for item in model.runtime.iterdir()} <= {'bindings', 'native-view'}
     assert model.manager_checks == model.reclaims == []
 
 
@@ -3002,21 +3040,24 @@ def test_preserved_password_helper_preparation_publishes_exactly_one_inode_signe
         preserved_password_preparation, role):
     model = preserved_password_preparation
     model.helper.prepare(role)
-    lines = (model.runtime / 'bindings').read_text().splitlines()
-    assert lines[0] == 'apparmor'
-    source, destination, assertion = lines[1].split('\t')
+    lines = model.bindings.read_text().splitlines()
+    header = lines[0].split('\t')
+    assert header[:4] == ['ONPC-KIOSK', '1', 'apparmor', role]
+    signed = [line for line in lines if line.startswith('bind\trequired\tfile\t' + model.path + '\t')]
+    assert len(signed) == 1
+    _, _, _, source, destination, assertion = signed[0].split('\t')
     assert source == model.path
     assert assertion == ' '.join(map(str, model.identities[model.path]))
-    generation = Path(destination).parents[3]
-    assert Path(destination) == generation / 'tree/lib/polkit-1/polkit-agent-helper-1'
-    assert lines[2:] == [str(generation / 'tree') + '\t/usr']
+    generation = model.runtime / header[4]
+    assert destination == 'lib/polkit-1/polkit-agent-helper-1'
+    assert lines[-1] == 'attach\t/usr'
     assert json.loads((generation / 'records.json').read_text())['preserved'] == [model.record]
     assert len(model.manager_checks) == (1 if role == 'gate' else 0)
     assert model.reclaims == [True]
     # Reusing a stable generation must retain the same single signed binding.
     model.helper.prepare(role)
-    assert (model.runtime / 'bindings').read_text().splitlines() == lines
-    assert {item.name for item in model.runtime.iterdir()} == {'bindings', generation.name}
+    assert model.bindings.read_text().splitlines() == lines
+    assert {item.name for item in model.runtime.iterdir()} == {'bindings', 'native-view', generation.name}
 
 
 @pytest.mark.parametrize('sibling_kind,mode,gid,uid,scope,expected', [
@@ -3163,31 +3204,30 @@ def test_writable_sibling_contents_never_enter_private_generation_or_bindings(
     source.chmod(0o775)
     script = source / 'module.py'
     script.write_text('original host contents')
-    model.layout += [{'path': '/usr/share', 'kind': 'tree'},
-                     {'path': '/usr/share/' + name, 'kind': 'empty-directory'}]
+    model.layout += [{'path': '/usr/share/' + name, 'kind': 'empty-directory'}]
     model.helper.prepare(role)
     diagnostic = capfd.readouterr().err
     assert diagnostic.strip() == ('onpc.kiosk confinement directory-view outcome=masked '
                                   'reason=writable-sibling-directory count=1')
-    generation = next(path for path in model.runtime.iterdir() if path.is_dir())
+    generation = next(path for path in model.runtime.iterdir() if len(path.name) == 64)
     private = generation / 'tree/share' / name
     assert private.is_dir() and list(private.iterdir()) == []
     assert private.stat().st_ino != source.stat().st_ino
     assert stat.S_IMODE(private.stat().st_mode) == 0o755
-    bindings = (model.runtime / 'bindings').read_text().splitlines()
+    bindings = model.bindings.read_text().splitlines()
     # The native caller receives only the preserved helper and the final
     # private /usr root. Neither the global directory nor its private target
     # is a bind source/destination, even if it holds runtime script inputs.
-    assert len(bindings) == 3
-    assert bindings[-1] == str(generation / 'tree') + '\t/usr'
+    assert len([line for line in bindings if line.startswith('bind\t')]) == 2
+    assert bindings[-1] == 'attach\t/usr'
     assert all('/usr/share/' + name not in line and str(private) not in line
-               for line in bindings)
+               for line in bindings if line.startswith('bind\t'))
     script.unlink()
     script.symlink_to(tmp_path / 'replacement-script')
     (source / 'new-plugin').write_text('later host contents')
     model.helper.prepare(role)
     assert list(private.iterdir()) == []
-    assert (model.runtime / 'bindings').read_text().splitlines() == bindings
+    assert model.bindings.read_text().splitlines() == bindings
     # Generation validation must also reject contamination of the placeholder.
     (private / 'unexpected-script').write_text('private contamination')
     with pytest.raises(ValueError, match='directory-generation-changed'):
@@ -3208,8 +3248,9 @@ def native_preserved_identity(tmp_path_factory):
         '    if (argc != 3 || stat(argv[1], &info) != 0) return 2;\n'
         '    return preserved_kiosk_identity(&info, argv[2]) == 0 ? 0 : 1;\n}\n')
     executable = directory / 'identity'
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
-                    str(executable), str(source)], check=True, capture_output=True, text=True, timeout=30)
+    built = NATIVE_RUN(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
+                       str(executable), str(source)], capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stderr
     return executable
 
 
@@ -3258,7 +3299,8 @@ def test_native_preserved_identity_refuses_real_post_measurement_file_changes(
     assert result.returncode == 1
 
 
-@pytest.mark.parametrize('fault', ['missing-field', 'extra-field', 'trailing-space', 'nonnumeric', 'plus-sign', 'negative-zero', 'tab'])
+@pytest.mark.parametrize('fault', ['missing-field', 'extra-field', 'trailing-space', 'nonnumeric', 'plus-sign', 'negative-zero', 'tab',
+    *['overflow-' + str(field) for field in range(8)]])
 def test_native_preserved_identity_refuses_malformed_assertions(native_preserved_identity, tmp_path, fault):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
     source = tmp_path / 'helper'
@@ -3274,6 +3316,8 @@ def test_native_preserved_identity_refuses_malformed_assertions(native_preserved
         values[0] = '+' + values[0]
     elif fault == 'negative-zero':
         values[-1] = '-0'
+    elif fault.startswith('overflow-'):
+        values[int(fault.removeprefix('overflow-'))] = str(2**64)
     assertion = ' '.join(values) + (' ' if fault == 'trailing-space' else '')
     if fault == 'tab':
         assertion = assertion.replace(' ', '\t', 1)
@@ -3286,8 +3330,27 @@ def test_native_preserved_identity_refuses_malformed_assertions(native_preserved
 def native_mount_binding(tmp_path_factory):
     directory = tmp_path_factory.mktemp('kiosk-mount-binding')
     header = (ROOT / 'tools/kiosk_confinement.h').read_text()
-    functions = 'static int\npreserved_kiosk_identity' + header.split(
-        'static int\npreserved_kiosk_identity', 1)[1].split('\nstatic int\napply_kiosk_mac', 1)[0]
+    functions = header[header.index('/* The namespace, filesystem and every mount below it belong'):].split(
+        '\nstatic int\napply_kiosk_mac', 1)[0]
+    functions = functions.replace(
+        'fstat(child, &info) != 0 || !kiosk_trusted_stat(&info, kiosk_kind(proof->v[1])))\n            goto done;',
+        'fstat(child, &info) != 0 || !kiosk_trusted_stat(&info, kiosk_kind(proof->v[1]))) {\n'
+        '            fprintf(stderr, "fixture-proof:%s present=%d fd=%d mode=%o uid=%u\\n", next_path, '
+        'proof != NULL, child, (unsigned) info.st_mode, (unsigned) info.st_uid); goto done; }')
+    functions = functions.replace('if (!valid)\n            return -1;',
+        'if (!valid) { fprintf(stderr, "fixture-node:%s mode=%o uid=%u\\n", node->v[2], '
+        '(unsigned) info.st_mode, (unsigned) info.st_uid); return -1; }')
+    # Arm real mutations only when native consumption reaches source-state
+    # checking, after independent required-proof/target validation has finished.
+    functions = functions.replace('struct stat named;', 'struct stat named; fixture_source_boundary = 1;')
+    functions = functions.replace('goto done;',
+        '{ fprintf(stderr, "fixture-stop:%s:%d\\n", __func__, __LINE__); goto done; }')
+    functions = functions.replace('return -1;', 'return fixture_refuse(__func__, __LINE__);')
+    functions = ('#line ' + str(header[:header.index('/* The namespace, filesystem and every mount below it belong')].count('\n') + 1)
+                 + ' "kiosk_confinement.h"\n' + functions)
+    preparation = ('static int\nprepare_kiosk_confinement' + header.split(
+        'static int\nprepare_kiosk_confinement', 1)[1].split(
+        '/* The namespace, filesystem and every mount below it belong', 1)[0])
     source = directory / 'binding.c'
     source.write_text(r'''
 #define _GNU_SOURCE
@@ -3300,30 +3363,160 @@ def native_mount_binding(tmp_path_factory):
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
+#include <sys/syscall.h>
+#include <sys/xattr.h>
+#include <stdint.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include <time.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <unistd.h>
-static const char *manifest, *fault;
-static char paths[32][PATH_MAX];
-static unsigned descriptors;
-static int cloned, readonly;
-static int fixture_open(const char *path, int flags) {
-    if (!(flags & O_PATH)) return open(path, flags);
-    if (descriptors >= 32) exit(2);
-    snprintf(paths[descriptors], PATH_MAX, "%s", path);
-    return 100 + descriptors++;
+static const char *manifest, *fault, *fixture_root, *caller, *drift_source;
+static char runtime_path[PATH_MAX], view_path[PATH_MAX], helper_path[PATH_MAX];
+static unsigned source_checks, source_opens;
+static int fixture_source_boundary;
+static int cloned, readonly, private_mount;
+static int clone_source = -1;
+static int namespace_changed;
+static char mounted_paths[64][PATH_MAX];
+static int mounted_sources[64], mounted_live[64], mounted_descriptors[4096];
+static unsigned mount_queries[64];
+static unsigned mount_count;
+static int fixture_refuse(const char *function, int line) {
+    fprintf(stderr, "fixture-refuse:%s:%d errno=%d\n", function, line, errno);
+    return -1;
 }
-static int fixture_fstat(int fd, struct stat *info) {
-    if (fd < 100) {
-        if (fstat(fd, info) != 0) return -1;
-        info->st_uid = 0;
-        return 0;
+static unsigned descriptor_count(void) {
+    DIR *directory = opendir("/proc/self/fd");
+    if (!directory) exit(2);
+    unsigned count = 0; struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL)
+        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) count++;
+    closedir(directory); return count;
+}
+static int fixture_selinux(void) { return strncmp(fault, "setup-selinux", 13) == 0; }
+static void *fixture_dlopen(const char *name, int flags) { (void) name; (void) flags; return (void *) 1; }
+static void *fixture_dlsym(void *library, const char *name) { (void) library; (void) name; return (void *) fixture_selinux; }
+static int fixture_dlclose(void *library) { (void) library; return 0; }
+static ssize_t fixture_getxattr(const char *path, const char *name, void *buffer, size_t size) {
+    (void) path; (void) name;
+    const char context[] = "system_u:object_r:onpc_kiosk_runtime_t:s0";
+    if (strcmp(fault, "setup-selinux-label") == 0 || size < sizeof(context)) { errno = EIO; return -1; }
+    memcpy(buffer, context, sizeof(context)); return sizeof(context);
+}
+static FILE *fixture_fopen(const char *path, const char *mode) {
+    if (strcmp(path, "/proc/self/mountinfo") != 0) return fopen(path, mode);
+    static char contents[PATH_MAX + 512];
+    const char *options = strcmp(fault, "setup-selinux-options") == 0 ? "rw" :
+        strcmp(fault, "setup-selinux-override") == 0 ? "rw,context=system_u:object_r:onpc_kiosk_runtime_t:s0" :
+        "rw,fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0";
+    int size = snprintf(contents, sizeof(contents), "2 1 0:1 / %s rw - tmpfs tmpfs %s\n", view_path, options);
+    if (size < 0 || size >= (int) sizeof(contents)) exit(2);
+    return fmemopen(contents, (size_t) size, "r");
+}
+static int fixture_clock(clockid_t clock, struct timespec *value) {
+    static unsigned calls;
+    if (clock_gettime(clock, value) != 0) return -1;
+    if (strcmp(fault, "helper-timeout") == 0 && calls++ > 0) value->tv_sec += 61;
+    return 0;
+}
+static int fixture_kill(pid_t pid, int signal) {
+    printf("killed:%ld\n", (long) pid); return kill(pid, signal);
+}
+static pid_t fixture_waitpid(pid_t pid, int *status, int flags) {
+    pid_t result = waitpid(pid, status, flags);
+    if (result == pid) printf("reaped:%ld\n", (long) pid);
+    return result;
+}
+static char mapped[PATH_MAX];
+static const char *physical(const char *path) {
+    if (strncmp(path, "/usr", 4) == 0) {
+        snprintf(mapped, sizeof(mapped), "%s%s", fixture_root, path);
+        return mapped;
     }
-    const char *path = paths[fd - 100];
-    memset(info, 0, sizeof(*info));
-    size_t length = strlen(path);
-    int directory = strcmp(path, "/usr") == 0 || strstr(path, "assets") != NULL ||
-                    (length >= 5 && strcmp(path + length - 5, "/tree") == 0);
-    info->st_mode = directory ? S_IFDIR | 0755 : S_IFREG | 0644;
-    info->st_nlink = 1;
+    return path;
+}
+static const char *logical(const char *path) {
+    return strncmp(path, fixture_root, strlen(fixture_root)) == 0 &&
+        strncmp(path + strlen(fixture_root), "/usr", 4) == 0
+        ? path + strlen(fixture_root) : path;
+}
+static void fd_name(int fd, char *path) {
+    char name[64];
+    snprintf(name, sizeof(name), "/proc/self/fd/%d", fd);
+    ssize_t length = readlink(name, path, PATH_MAX - 1);
+    if (length < 0) { path[0] = 0; return; }
+    path[length] = 0;
+}
+static void mutate_source(const char *path) {
+    if (strncmp(fault, "real-", 5) != 0) return;
+    unsigned boundary = strstr(fault, "-post") ? 3U : strstr(fault, "-pre") ? 2U : 1U;
+    if (source_checks != boundary) return;
+    char replacement[PATH_MAX];
+    if (strstr(fault, "mode")) { if (chmod(path, 0666) != 0) exit(2); }
+    else if (strstr(fault, "owner")) { /* Root identity is a metadata double below. */ }
+    else if (strstr(fault, "vanish")) {
+        struct stat info;
+        if (lstat(path, &info) != 0) exit(2);
+        if (S_ISDIR(info.st_mode)) {
+            if (snprintf(replacement, sizeof(replacement), "%s/unreviewed-data", path) >= PATH_MAX ||
+                unlink(replacement) != 0 || rmdir(path) != 0) exit(2);
+        } else if (unlink(path) != 0) exit(2);
+    }
+    else {
+        if (snprintf(replacement, sizeof(replacement), "%s.retired", path) >= PATH_MAX) exit(2);
+        if (rename(path, replacement) != 0) exit(2);
+        if (strstr(fault, "type")) { if (symlink("replacement", path) != 0) exit(2); }
+        else if (!strstr(fault, "vanish")) {
+            int fd = open(path, O_CREAT | O_EXCL | O_WRONLY, 0644);
+            if (fd < 0 || write(fd, "replacement", 11) != 11 || close(fd) != 0) exit(2);
+        }
+    }
+    printf("mutation:%u\n", source_checks);
+}
+static int fixture_open(const char *path, int flags) {
+    if (strcmp(path, "/usr") == 0 && cloned) return dup(clone_source);
+    if (strcmp(path, manifest) == 0) path = manifest;
+    return open(physical(path), flags);
+}
+static int fixture_openat(int fd, const char *path, int flags, ...) {
+    char parent[PATH_MAX]; fd_name(fd, parent);
+    if (strcmp(parent, "/") == 0 && strcmp(path, "usr") == 0)
+        return open(physical("/usr"), flags);
+    char full[PATH_MAX];
+    if (path[0] == '/') snprintf(full, sizeof(full), "%s", path);
+    else if (snprintf(full, sizeof(full), "%s/%s", logical(parent), path) >= PATH_MAX) exit(2);
+    for (unsigned i = 0; i < mount_count; i++) if (mounted_live[i] && strcmp(full, mounted_paths[i]) == 0) {
+        int result = dup(mounted_sources[i]);
+        if (result >= 0 && result < 4096) mounted_descriptors[result] = 1;
+        return result;
+    }
+    int result = openat(fd, path[0] == '/' ? physical(path) : path, flags);
+    char name[PATH_MAX];
+    fd_name(result, name);
+    if (strcmp(logical(name), drift_source) == 0) source_opens++;
+    return result;
+}
+static int metadata(const char *path, struct stat *info) {
+    info->st_uid = info->st_gid = 0;
+    if (strncmp(path, "/usr", 4) != 0 && strncmp(path, fixture_root, strlen(fixture_root)) != 0)
+        info->st_mode &= ~0022;
+    if (strcmp(path, drift_source) == 0) {
+        if (strcmp(fault, "source-missing") == 0 || strcmp(fault, "missing-target-unlink") == 0) {
+            errno = ENOENT; return -1;
+        }
+        if (strncmp(fault, "error-", 6) == 0) {
+            errno = atoi(fault + 6); return -1;
+        }
+        if (strcmp(fault, "source-owner") == 0) info->st_uid = 12345;
+        if (strcmp(fault, "source-group") == 0) info->st_mode |= 0020;
+        if (strcmp(fault, "source-world") == 0) info->st_mode |= 0002;
+        if (strcmp(fault, "source-type") == 0) info->st_mode = S_IFLNK | 0777;
+        if (strstr(fault, "real-owner") && source_checks >=
+                (strstr(fault, "-post") ? 3U : strstr(fault, "-pre") ? 2U : 1U)) info->st_uid = 12345;
+    }
     if (strcmp(path, "/usr/share/assets") == 0) {
         if (strcmp(fault, "root-group-directory") == 0 ||
             strcmp(fault, "other-group-directory") == 0)
@@ -3336,21 +3529,100 @@ static int fixture_fstat(int fd, struct stat *info) {
         info->st_mode |= 0020;
     if (strstr(path, "/tree/share/assets") != NULL && strcmp(fault, "group-target") == 0)
         info->st_mode |= 0020;
+    if (strstr(path, "/tree/bin/program") != NULL && strcmp(fault, "target-stat") == 0) {
+        errno = EIO; return -1;
+    }
     return 0;
 }
-static int fixture_close(int fd) { return fd < 100 ? close(fd) : 0; }
-static int fixture_unshare(int flags) { return flags == CLONE_NEWNS ? 0 : -1; }
+static int fixture_fstat(int fd, struct stat *info) {
+    char path[PATH_MAX]; fd_name(fd, path);
+    if (fixture_source_boundary && fd < 4096 && !mounted_descriptors[fd] && strcmp(logical(path), drift_source) == 0) {
+        source_checks++; mutate_source(path);
+    }
+    if (fstat(fd, info) != 0) return -1;
+    if (strstr(path, "mnt:[")) info->st_ino += namespace_changed;
+    return metadata(logical(path), info);
+}
+static int fixture_fstatat(int fd, const char *path, struct stat *info, int flags) {
+    char parent[PATH_MAX], full[PATH_MAX];
+    if (path[0] == '/') snprintf(full, sizeof(full), "%s", path);
+    else {
+        fd_name(fd, parent);
+        if (snprintf(full, sizeof(full), "%s/%s", logical(parent), path) >= PATH_MAX) exit(2);
+    }
+    for (unsigned i = 0; i < mount_count; i++) if (mounted_live[i] && strcmp(full, mounted_paths[i]) == 0) {
+        if (fstat(mounted_sources[i], info) != 0) return -1;
+        return metadata(full, info);
+    }
+    if (fstatat(fd, path[0] == '/' ? physical(path) : path, info, flags) != 0) return -1;
+    return metadata(full, info);
+}
+static int fixture_close(int fd) {
+    if (fd >= 0 && fd < 4096) mounted_descriptors[fd] = 0;
+    return close(fd);
+}
+static int fixture_unlinkat(int fd, const char *path, int flags) {
+    if (strcmp(fault, "missing-target-unlink") == 0) { errno = EIO; return -1; }
+    return unlinkat(fd, path, flags);
+}
+static int fixture_fstatfs(int fd, struct statfs *info) {
+    if (fstatfs(fd, info) != 0) return -1;
+    info->f_type = 0x01021994;
+    info->f_bsize = 4096; info->f_blocks = 131072; info->f_files = 32776;
+    if (strcmp(fault, "setup-storage") == 0) info->f_blocks++;
+    if (strcmp(fault, "setup-inodes") == 0) info->f_files++;
+    return 0;
+}
+static int fixture_unshare(int flags) {
+    printf("namespace\n");
+    namespace_changed = 1;
+    return flags == CLONE_NEWNS && strcmp(fault, "setup-namespace") != 0 ? 0 : -1;
+}
+static int fixture_mkdir(const char *path, mode_t mode) { return mkdir(physical(path), mode); }
+static int fixture_statx(int fd, const char *path, int flags, unsigned mask, struct statx *info) {
+    (void) fd; (void) flags; (void) mask;
+    char buffer[PATH_MAX];
+    int descriptor;
+    if (sscanf(path, "/proc/self/fd/%d", &descriptor) == 1) { fd_name(descriptor, buffer); path = logical(buffer); }
+    memset(info, 0, sizeof(*info)); info->stx_mask = STATX_MNT_ID; info->stx_mnt_id = 1;
+    if (strstr(path, "/native-view") && private_mount) info->stx_mnt_id = 2;
+    for (unsigned i = 0; i < mount_count; i++)
+        if (mounted_live[i] && strcmp(path, mounted_paths[i]) == 0) {
+            info->stx_mnt_id = 10 + i; mount_queries[i]++;
+        }
+    if (strcmp(path, "/usr") == 0 && cloned) info->stx_mnt_id = 100;
+    if (strcmp(fault, "foreign-mount") == 0 && mount_count && mount_queries[0] > 1 && strcmp(path, mounted_paths[0]) == 0)
+        info->stx_mnt_id = 999;
+    return 0;
+}
 static int fixture_mount(const char *from, const char *to, const char *type,
                          unsigned long flags, const void *data) {
-    (void) type; (void) data;
-    if (from == NULL) return flags == (MS_REC | MS_PRIVATE) ? 0 : -1;
-    int fd;
-    if (flags != (MS_BIND | MS_REC) || sscanf(to, "/proc/self/fd/%d", &fd) != 1) exit(2);
-    const char *path = paths[fd - 100];
+    if (from == NULL) return flags == (MS_REC | MS_PRIVATE) && strcmp(fault, "setup-propagation") != 0 ? 0 : -1;
+    if (type && strcmp(type, "tmpfs") == 0) {
+        printf("tmpfs:%s\n", to); private_mount = 1;
+        printf("tmpfs-options:%s\n", (const char *) data);
+        return strcmp(fault, "setup-tmpfs") == 0 ? -1 : 0;
+    }
+    int fd; char target[PATH_MAX];
+    if (!(flags & MS_BIND) || sscanf(to, "/proc/self/fd/%d", &fd) != 1) exit(2);
+    fd_name(fd, target);
+    const char *path = logical(target);
     printf("bind:%s\n", path);
+    if (strcmp(fault, "bind") == 0) return -1;
     if (strcmp(path, "/usr") == 0) {
         if (strcmp(fault, "attach") == 0) return -1;
+        int source_fd;
+        if (sscanf(from, "/proc/self/fd/%d", &source_fd) != 1 ||
+            (clone_source = dup(source_fd)) < 0) exit(2);
         cloned = 1;
+    } else {
+        if (mount_count >= 64) exit(2);
+        int source_fd;
+        if (sscanf(from, "/proc/self/fd/%d", &source_fd) != 1) exit(2);
+        mounted_sources[mount_count] = dup(source_fd);
+        if (mounted_sources[mount_count] < 0) exit(2);
+        mounted_live[mount_count] = 1;
+        snprintf(mounted_paths[mount_count++], PATH_MAX, "%s", path);
     }
     return 0;
 }
@@ -3366,30 +3638,196 @@ static int fixture_readonly(int fd, const char *path, unsigned flags,
     return 0;
 }
 static int fixture_detach(const char *path, int flags) {
-    if (!cloned || !readonly || flags != MNT_DETACH || strcmp(path, "/usr") == 0) exit(2);
+    if (flags != MNT_DETACH) exit(2);
     printf("detach:%s\n", path);
-    return strcmp(fault, "detach") == 0 ? -1 : 0;
+    if (strcmp(fault, "detach") == 0) return -1;
+    if (strcmp(path, "/usr") == 0) {
+        if (clone_source >= 0) close(clone_source);
+        clone_source = -1; cloned = 0;
+    }
+    for (unsigned i = 0; i < mount_count; i++)
+        if (strcmp(path, mounted_paths[i]) == 0 && mounted_live[i]) {
+            mounted_live[i] = 0; close(mounted_sources[i]); mounted_sources[i] = -1;
+        }
+    return 0;
 }
+#define KIOSK_CONFINEMENT_RUNTIME runtime_path
+#define KIOSK_CONFINEMENT_VIEW view_path
 #define KIOSK_CONFINEMENT_BINDINGS manifest
+#define KIOSK_CONFINEMENT_PREPARE helper_path
+#define KIOSK_VIEW_ROWS 32768U
+#define KIOSK_VIEW_BYTES (64U * 1024U * 1024U)
 #define open fixture_open
+#define openat fixture_openat
 #define fstat fixture_fstat
+#define fstatat fixture_fstatat
 #define close fixture_close
+#define unlinkat fixture_unlinkat
+#define fstatfs fixture_fstatfs
+#define mkdir fixture_mkdir
+#define statx(...) fixture_statx(__VA_ARGS__)
 #define unshare fixture_unshare
 #define mount fixture_mount
 #define mount_setattr fixture_readonly
 #define umount2 fixture_detach
-''' + functions + r'''
+#define dlopen fixture_dlopen
+#define dlsym fixture_dlsym
+#define dlclose fixture_dlclose
+#define getxattr fixture_getxattr
+#define lgetxattr fixture_getxattr
+#define fopen fixture_fopen
+#define clock_gettime fixture_clock
+#define kill fixture_kill
+#define waitpid fixture_waitpid
+''' + preparation + functions + r'''
 int main(int argc, char **argv) {
     char backend[32];
-    if (argc != 3) return 2;
-    manifest = argv[1]; fault = argv[2];
-    return bind_kiosk_executables(backend, sizeof(backend)) == 0 ? 0 : 1;
+    struct kiosk_view view;
+    if (argc != 6) return 2;
+    manifest = argv[1]; fault = argv[2]; fixture_root = argv[3]; caller = argv[4]; drift_source = argv[5];
+    if (snprintf(runtime_path, sizeof(runtime_path), "%s/runtime", fixture_root) >= PATH_MAX ||
+        snprintf(view_path, sizeof(view_path), "%s/native-view", runtime_path) >= PATH_MAX ||
+        snprintf(helper_path, sizeof(helper_path), "%s/helper", runtime_path) >= PATH_MAX) return 2;
+    unsigned before = descriptor_count();
+    if (strncmp(fault, "helper-", 7) == 0) {
+        int lock = open(manifest, O_RDONLY);
+        if (strcmp(fault, "helper-failure") == 0) strcpy(helper_path, "/bin/false");
+        if (strcmp(fault, "helper-success") == 0) strcpy(helper_path, "/bin/true");
+        int result = prepare_kiosk_confinement(caller, lock, lock);
+        close(lock); printf("fd-balance:%d\n", (int) descriptor_count() - (int) before);
+        return result == 0 ? 0 : 1;
+    }
+    int setup_only = strncmp(fault, "setup-", 6) == 0;
+    int result;
+    if (setup_only) result = setup_kiosk_view(&view);
+    else {
+        memset(&view, 0, sizeof(view));
+        view.root = fixture_open(KIOSK_CONFINEMENT_VIEW, O_RDONLY | O_DIRECTORY);
+        view.mounted = private_mount = 1; view.root_id = 2;
+        struct stat ns; int nsfd = fixture_open("/proc/self/ns/mnt", O_RDONLY);
+        if (nsfd < 0 || fixture_fstat(nsfd, &ns) != 0) return 2;
+        fixture_close(nsfd); view.namespace_device = ns.st_dev; view.namespace_inode = ns.st_ino;
+        view.mounts = calloc(KIOSK_VIEW_ROWS, sizeof(*view.mounts));
+        result = view.root < 0 || view.mounts == NULL ? -1 : 0;
+        if (result == 0) result = bind_kiosk_executables(backend, sizeof(backend), caller, &view);
+    }
+    if (result == 0 && strcmp(fault, "post-attach") == 0) result = -1;
+    if (cleanup_kiosk_view(&view, result == 0) != 0) result = -1;
+    /* Kernel references are represented by fixture-owned duplicates; close
+     * that bookkeeping after native cleanup before auditing native fd balance. */
+    if (clone_source >= 0) close(clone_source);
+    for (unsigned i = 0; i < mount_count; i++) if (mounted_live[i]) close(mounted_sources[i]);
+    printf("source-opens:%u\n", source_opens);
+    printf("fd-balance:%d\n", (int) descriptor_count() - (int) before);
+    return result == 0 ? 0 : 1;
 }
 ''')
     executable = directory / 'binding'
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
-                    str(executable), str(source)], check=True, capture_output=True, text=True, timeout=30)
+    built = NATIVE_RUN(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-o',
+                       str(executable), str(source)], capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stderr
     return executable
+
+
+def _native_binding_scene(executable, root, *, role='manager', required=False, kind='file'):
+    """Extend the binding fixture with private real files and its closed stream."""
+    runtime = root / 'runtime'
+    view = runtime / 'native-view'
+    tree = view / 'tree'
+    generation = runtime / ('a' * 64)
+    for directory in (runtime, view, tree, generation, root / 'usr/bin', root / 'usr/share'):
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0o700 if directory in (runtime, view, generation) else 0o755)
+    (generation / 'generation').write_text(generation.name + '\n')
+    (generation / 'generation').chmod(0o644)
+    marker = '/usr/share/oh-no-parent-control/confinement/generation'
+    marker_relative = marker.removeprefix('/usr/')
+    (tree / marker_relative).parent.mkdir(parents=True)
+    (tree / marker_relative).touch()
+    source = '/usr/bin/program' if kind == 'file' else '/usr/share/assets'
+    physical = root / source.lstrip('/')
+    if kind == 'file':
+        physical.write_text('reviewed source')
+        physical.chmod(0o644)
+    else:
+        physical.mkdir(exist_ok=True)
+        physical.chmod(0o755)
+        (physical / 'unreviewed-data').write_text('must never be copied')
+    relative = source.removeprefix('/usr/')
+    target = tree / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if kind == 'file':
+        target.touch()
+    else:
+        target.mkdir(exist_ok=True)
+    roots = [('covered', '/usr', '-'),
+             ('marker', marker, str(generation / 'generation'))]
+    if required:
+        if kind == 'file':
+            shutil.copyfile(physical, generation / '0')
+            (generation / '0').chmod(0o644)
+            roots.append(('native', source, str(generation / '0')))
+        else:
+            roots.append(('reserved', source, '-'))
+    nodes = [('tree', 'bin', '-'), ('tree', 'share', '-'),
+             ('tree', 'share/oh-no-parent-control', '-'),
+             ('tree', 'share/oh-no-parent-control/confinement', '-'),
+             (kind, relative, '-'), ('file', marker_relative, '-')]
+    # Keep real skeleton nodes in exact agreement with its declared inventory.
+    (tree / 'bin').mkdir(exist_ok=True)
+    (tree / 'share').mkdir(exist_ok=True)
+    proof_paths = {'/', '/usr', str(generation), str(generation / 'generation')}
+    proof_paths.update(map(str, generation.parents))
+    if required:
+        proof_paths.update((source, str(Path(source).parent)))
+        if kind == 'file': proof_paths.add(str(generation / '0'))
+    proofs = [('file' if path in (source, str(generation / 'generation'), str(generation / '0')) and
+               not (path == source and kind == 'directory') else 'directory', path, '-')
+              for path in sorted(proof_paths)]
+    rows = ['ONPC-KIOSK\t1\tapparmor\t' + role + '\t' + generation.name]
+    rows += ['\t'.join(('root', *record)) for record in roots]
+    rows += ['\t'.join(('node', *record)) for record in nodes]
+    rows += ['\t'.join(('proof', *record)) for record in proofs]
+    bind_source = str(generation / '0') if required and kind == 'file' else source
+    rows += ['\t'.join(('bind', 'required', 'file', str(generation / 'generation'), marker_relative, '-')),
+             '\t'.join(('bind', 'required' if required else 'ambient', kind, bind_source, relative, '-')),
+             'attach\t/usr']
+    manifest = view / 'bindings'
+
+    def publish(values=None):
+        manifest.write_text('\n'.join(rows if values is None else values) + '\n')
+        manifest.chmod(0o600)
+
+    def run(fault='none', *, caller=role, path=source):
+        changed = root / path.lstrip('/') if path.startswith('/usr/') else Path(path)
+        assert changed.is_relative_to(root)
+        try:
+            result = NATIVE_RUN([str(executable), str(manifest), fault, str(root), caller, path],
+                                capture_output=True, text=True, timeout=5)
+        finally:
+            # Real mode drift can remove directory search permission. Restore
+            # only these fixture-owned source names after the native child is
+            # reaped, including timeout/assertion failures, so pytest and the
+            # identity-owned scratch collector can traverse their children.
+            for candidate in (changed, changed.with_name(changed.name + '.retired')):
+                try:
+                    info = candidate.lstat()
+                except FileNotFoundError:
+                    continue
+                if stat.S_ISDIR(info.st_mode):
+                    candidate.chmod(0o755, follow_symlinks=False)
+        assert result.returncode in (0, 1), result.stdout + result.stderr
+        assert 'fd-balance:0' in result.stdout.splitlines(), result.stdout + result.stderr
+        return result
+
+    publish()
+    for path in [root / 'usr', *(root / 'usr').rglob('*')]:
+        if path.is_dir(): path.chmod(0o755)
+    for path in tree.rglob('*'):
+        if not path.is_symlink(): path.chmod(0o755 if path.is_dir() else 0o644)
+    return SimpleNamespace(root=root, runtime=runtime, view=view, tree=tree, generation=generation,
+        source=source, physical=physical, target=target, relative=relative, rows=rows,
+        manifest=manifest, publish=publish, run=run, marker_relative=marker_relative, bind_source=bind_source)
 
 
 @pytest.mark.parametrize('fault', ['none', 'attach', 'readonly', 'detach', 'input',
@@ -3397,27 +3835,431 @@ int main(int argc, char **argv) {
     'unowned-directory', 'group-file', 'group-target'])
 def test_native_binding_detaches_only_its_staging_mounts_after_readonly_clone(
         native_mount_binding, tmp_path, fault):
-    root = '/run/oh-no-parent-control-confinement/generation/tree'
-    targets = [root + '/bin/program', root + '/share/assets']
-    manifest = tmp_path / 'bindings'
-    manifest.write_text('apparmor\n' +
-        ('/tmp/untrusted' if fault == 'input' else '/usr/bin/program') + '\t' + targets[0] + '\n' +
-        '/usr/share/assets\t' + targets[1] + '\n' + root + '\t/usr\n')
-    manifest.chmod(0o600)
-    result = subprocess.run([str(native_mount_binding), str(manifest), fault],
-                            capture_output=True, text=True, timeout=5)
+    scene = _native_binding_scene(native_mount_binding, tmp_path, required=True, kind='directory')
+    program = tmp_path / 'usr/bin/program'
+    program.write_text('required executable')
+    program.chmod(0o644)
+    shutil.copyfile(program, scene.generation / '0')
+    (scene.generation / '0').chmod(0o644)
+    (scene.tree / 'bin/program').touch()
+    (scene.tree / 'bin/program').chmod(0o644)
+    rows = scene.rows[:-1] + [
+        'root\tnative\t/usr/bin/program\t' + str(scene.generation / '0'),
+        'node\tfile\tbin/program\t-',
+        'proof\tdirectory\t/usr/bin\t-', 'proof\tfile\t/usr/bin/program\t-',
+        'proof\tfile\t' + str(scene.generation / '0') + '\t-',
+        'bind\trequired\tfile\t' + str(scene.generation / '0') + '\tbin/program\t-', scene.rows[-1]]
+    if fault == 'input':
+        rows[-2] = 'bind\trequired\tfile\t/tmp/untrusted\tbin/program\t-'
+    rows.sort(key=lambda row: {'ONPC-KIOSK': 0, 'root': 1, 'node': 2,
+                              'proof': 3, 'bind': 4, 'attach': 5}[row.split('\t')[0]])
+    scene.publish(rows)
+    result = scene.run(fault)
     assert result.returncode == (0 if fault == 'none' else 1), result.stderr
     operations = result.stdout.splitlines()
     detached = [value.removeprefix('detach:') for value in operations if value.startswith('detach:')]
+    targets = [str(scene.tree / scene.marker_relative), str(scene.target), str(scene.tree / 'bin/program')]
     if fault == 'none':
-        assert detached == targets
+        assert detached == targets + [str(scene.view)]
         assert [value for value in operations if value.startswith('readonly:')] == ['readonly:/usr']
         assert operations.index('readonly:/usr') < operations.index('detach:' + targets[0])
     elif fault == 'detach':
-        assert detached == targets[:1]
+        assert targets[0] in detached
+        assert str(scene.view) not in detached
     else:
-        assert detached == []
-    assert '/usr' not in detached
+        assert 'readonly:/usr' not in operations or fault == 'readonly'
+    if fault == 'none':
+        assert '/usr' not in detached
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('required', [False, True], ids=['ambient', 'required'])
+@pytest.mark.parametrize('kind', ['file', 'directory'])
+@pytest.mark.parametrize('drift', ['missing', 'owner', 'group', 'world', 'type'])
+def test_post_layout_source_drift(native_mount_binding, tmp_path, role, required, kind, drift):
+    scene = _native_binding_scene(native_mount_binding, tmp_path, role=role, required=required, kind=kind)
+    healthy = scene.run()
+    assert healthy.returncode == 0, healthy.stdout + healthy.stderr
+    result = scene.run('source-' + drift)
+    assert result.returncode == (1 if required else 0), result.stderr
+    if not required:
+        assert 'bind:' + str(scene.target) not in result.stdout.splitlines()
+        assert 'readonly:/usr' in result.stdout.splitlines()
+        assert (not scene.target.exists() if kind == 'file' else
+                scene.target.is_dir() and list(scene.target.iterdir()) == [])
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('scope', ['ambient-file', 'ambient-directory', 'required-file',
+                                  'required-directory', 'preserved-file'])
+@pytest.mark.parametrize('boundary', ['open', 'pre', 'post'])
+@pytest.mark.parametrize('drift', ['vanish', 'reappear', 'type', 'mode', 'owner'])
+def test_post_layout_descriptor_drift(native_mount_binding, tmp_path, role, scope, boundary, drift):
+    required = not scope.startswith('ambient')
+    kind = scope.rsplit('-', 1)[1]
+    scene = _native_binding_scene(native_mount_binding, tmp_path, role=role, required=required, kind=kind)
+    if scope.startswith('preserved'):
+        identity = list(module(ROOT / 'tools/kiosk_confinement.py').file_identity(scene.physical.stat()))
+        identity[-2:] = [0, 0]
+        rows = []
+        for row in scene.rows:
+            if row.startswith('root\tnative\t'):
+                row = 'root\tpreserved\t' + scene.source + '\t' + scene.source
+            elif row.startswith('bind\trequired\tfile\t' + scene.bind_source + '\t'):
+                row = '\t'.join(('bind', 'required', 'file', scene.source, scene.relative,
+                                  ' '.join(map(str, identity))))
+            rows.append(row)
+        scene.publish(rows)
+    mutation_source = scene.source if scope.startswith('preserved') else scene.bind_source
+    mutation_physical = (tmp_path / mutation_source.lstrip('/') if mutation_source.startswith('/usr/')
+                         else Path(mutation_source))
+    healthy = scene.run(path=mutation_source)
+    assert healthy.returncode == 0, healthy.stdout + healthy.stderr
+    result = scene.run('real-' + drift + '-' + boundary, path=mutation_source)
+    assert result.returncode == (1 if required else 0), result.stderr + result.stdout
+    operations = result.stdout.splitlines()
+    if required and not any(value.startswith('mutation:') for value in operations):
+        pytest.fail('required control did not reach its descriptor mutation')
+    assert any(value.startswith('mutation:') for value in operations), operations
+    # A removed or replaced name is never reopened to adopt its successor.
+    opens = int(next(value.split(':')[1] for value in operations if value.startswith('source-opens:')))
+    if not required:
+        assert opens == 1
+        if boundary == 'post':
+            assert 'detach:' + str(scene.target) in operations
+        assert (not scene.target.exists() if kind == 'file' else
+                scene.target.is_dir() and list(scene.target.iterdir()) == [])
+        assert 'readonly:/usr' in operations
+    assert (mutation_physical.with_name(mutation_physical.name + '.retired').exists()
+            if drift in ('reappear', 'type') else True)
+    if drift == 'vanish': assert not mutation_physical.exists()
+
+
+@pytest.mark.parametrize('fault', [
+    'old', 'version', 'backend', 'missing-caller', 'unknown-caller', 'caller-mismatch',
+    'source-role', 'root-role', 'node-kind', 'duplicate-root', 'duplicate-node',
+    'duplicate-proof', 'duplicate-bind', 'contradictory-node', 'truncated', 'extra-field',
+    'missing-attach', 'after-attach', 'nul', 'path-empty', 'path-dot', 'path-dotdot',
+    'path-prefix', 'absolute-target', 'overlong-path', 'over-limit-rows', 'over-limit-bytes',
+    'over-limit-roots', 'over-limit-proofs', 'over-limit-binds',
+    'missing-root', 'missing-marker-root', 'missing-marker-bind', 'missing-copy-proof',
+    'missing-proof', 'required-ambient', 'ambient-assertion',
+    'target-link', 'target-ancestor-link', 'target-mode', 'ancestor-mode', 'target-missing',
+    'target-stat', 'target-unlink',
+    'source-ancestor-mode', 'reserved-drift', 'alias-missing-target-proof', 'alias-unsafe-parent',
+    'marker-drift',
+])
+def test_post_layout_protocol_and_targets(native_mount_binding, tmp_path, fault):
+    scene = _native_binding_scene(native_mount_binding, tmp_path)
+    rows = scene.rows.copy()
+    bind_index = next(index for index, row in enumerate(rows) if row.startswith('bind\tambient'))
+    caller = 'manager'
+    if fault in ('version', 'backend', 'missing-caller', 'unknown-caller'):
+        fields = rows[0].split('\t')
+        fields[{'version': 1, 'backend': 2, 'missing-caller': 3, 'unknown-caller': 3}[fault]] = {
+            'version': '2', 'backend': 'unknown', 'missing-caller': '', 'unknown-caller': 'other'}[fault]
+        rows[0] = '\t'.join(fields)
+    elif fault == 'old':
+        rows = ['apparmor', scene.source + '\t' + str(scene.target), str(scene.tree) + '\t/usr']
+    elif fault == 'caller-mismatch':
+        caller = 'gate'
+    elif fault in ('source-role', 'ambient-assertion', 'required-ambient'):
+        fields = rows[bind_index].split('\t')
+        if fault == 'source-role': fields[1] = 'unknown'
+        elif fault == 'ambient-assertion': fields[-1] = '0 0 0 0 0 0 0 0'
+        else:
+            marker = next(index for index, row in enumerate(rows) if row.startswith('bind\trequired'))
+            rows[marker] = rows[marker].replace('\trequired\t', '\tambient\t')
+        rows[bind_index] = '\t'.join(fields)
+    elif fault in ('root-role', 'node-kind'):
+        prefix = 'root\t' if fault == 'root-role' else 'node\t'
+        index = next(index for index, row in enumerate(rows) if row.startswith(prefix))
+        fields = rows[index].split('\t'); fields[1] = 'unknown'; rows[index] = '\t'.join(fields)
+    elif fault.startswith('duplicate-') or fault == 'contradictory-node':
+        tag = 'node' if fault == 'contradictory-node' else fault.removeprefix('duplicate-')
+        index = next(index for index, row in enumerate(rows) if row.startswith(tag + '\t'))
+        duplicate = rows[index]
+        if fault == 'contradictory-node': duplicate = duplicate.replace('\ttree\t', '\tfile\t')
+        rows.insert(index, duplicate)
+    elif fault in ('missing-root', 'missing-proof', 'missing-marker-root', 'missing-marker-bind', 'missing-copy-proof'):
+        if fault == 'missing-root': rows.remove('root\tcovered\t/usr\t-')
+        elif fault == 'missing-proof': rows.remove('proof\tdirectory\t/usr\t-')
+        else:
+            prefix = {'missing-marker-root': 'root\tmarker\t', 'missing-marker-bind': 'bind\trequired\t',
+                      'missing-copy-proof': 'proof\tfile\t' + str(scene.generation / 'generation')}[fault]
+            rows.remove(next(row for row in rows if row.startswith(prefix)))
+    elif fault in ('missing-attach', 'after-attach'):
+        if fault == 'missing-attach': rows.pop()
+        else: rows.append(rows[bind_index])
+    elif fault in ('extra-field', 'nul'):
+        rows[bind_index] += '\textra' if fault == 'extra-field' else '\x00'
+    elif fault.startswith('path-') or fault in ('absolute-target', 'overlong-path'):
+        fields = rows[bind_index].split('\t')
+        fields[4] = {'path-empty': '', 'path-dot': 'bin/./program', 'path-dotdot': 'bin/../program',
+                     'path-prefix': 'binary/program', 'absolute-target': '/bin/program',
+                     'overlong-path': 'x' * 4096}[fault]
+        rows[bind_index] = '\t'.join(fields)
+    elif fault == 'over-limit-rows':
+        index = next(index for index, row in enumerate(rows) if row.startswith('node\t'))
+        rows[index:index] = ['node\tfile\toverflow-' + str(index) + '\t-' for index in range(32769)]
+    elif fault in ('over-limit-roots', 'over-limit-proofs', 'over-limit-binds'):
+        tag = {'over-limit-roots': 'root', 'over-limit-proofs': 'proof', 'over-limit-binds': 'bind'}[fault]
+        index = next(index for index, row in enumerate(rows) if row.startswith(tag + '\t'))
+        rows[index:index] = [
+            'root\tcovered\t/usr/overflow-' + str(value) + '\t-' if tag == 'root' else
+            'proof\tfile\t/usr/overflow-' + str(value) + '\t-' if tag == 'proof' else
+            'bind\tambient\tfile\t/usr/overflow-' + str(value) + '\toverflow-' + str(value) + '\t-'
+            for value in range(32769)]
+    elif fault == 'target-link':
+        scene.target.unlink(); scene.target.symlink_to('foreign')
+    elif fault == 'target-ancestor-link':
+        scene.target.unlink(); scene.target.parent.rmdir(); scene.target.parent.symlink_to(tmp_path / 'usr/bin')
+    elif fault in ('target-mode', 'ancestor-mode', 'source-ancestor-mode'):
+        path = scene.target if fault == 'target-mode' else scene.target.parent if fault == 'ancestor-mode' else scene.physical.parent
+        path.chmod(0o777)
+    elif fault == 'target-missing':
+        scene.target.unlink()
+    elif fault == 'reserved-drift':
+        rows.insert(1, 'root\treserved\t/usr/bin\t-')
+        rows.insert(next(index for index, row in enumerate(rows) if row.startswith('bind\t')),
+                    'proof\tdirectory\t/usr/bin\t-')
+        scene.physical.parent.chmod(0o777)
+    elif fault.startswith('alias-'):
+        alias = tmp_path / 'usr/alias'
+        required = tmp_path / 'usr/bin/required'
+        required.write_text('required canonical executable'); required.chmod(0o644)
+        shutil.copyfile(required, scene.generation / '0'); (scene.generation / '0').chmod(0o644)
+        (scene.tree / 'bin/required').touch(); (scene.tree / 'bin/required').chmod(0o644)
+        alias.symlink_to('targetalias' if fault == 'alias-missing-target-proof' else 'unsafe/../bin/required')
+        (scene.tree / 'alias').symlink_to(os.readlink(alias))
+        rows.insert(1, 'root\talias\t/usr/alias\t-')
+        rows.insert(1, 'root\tnative\t/usr/bin/required\t' + str(scene.generation / '0'))
+        rows.insert(next(index for index, row in enumerate(rows) if row.startswith('proof\t')),
+                    'node\tlink\talias\t' + os.readlink(alias))
+        rows.insert(next(index for index, row in enumerate(rows) if row.startswith('proof\t')),
+                    'node\tfile\tbin/required\t-')
+        index = next(index for index, row in enumerate(rows) if row.startswith('bind\t'))
+        rows[index:index] = ['proof\tlink\t/usr/alias\t' + os.readlink(alias),
+                            'proof\tdirectory\t/usr/bin\t-', 'proof\tfile\t/usr/bin/required\t-',
+                            'proof\tfile\t' + str(scene.generation / '0') + '\t-']
+        rows.insert(-1, 'bind\trequired\tfile\t' + str(scene.generation / '0') + '\tbin/required\t-')
+        if fault == 'alias-unsafe-parent':
+            (tmp_path / 'usr/unsafe').mkdir(mode=0o755); (tmp_path / 'usr/unsafe').chmod(0o755)
+            rows.insert(next(index for index, row in enumerate(rows) if row.startswith('bind\t')),
+                        'proof\tdirectory\t/usr/unsafe\t-')
+        else:
+            (tmp_path / 'usr/targetalias').symlink_to('bin/required')
+            (scene.tree / 'targetalias').symlink_to('bin/required')
+            rows.insert(next(index for index, row in enumerate(rows) if row.startswith('proof\t')),
+                        'node\tlink\ttargetalias\tbin/required')
+            rows.insert(next(index for index, row in enumerate(rows) if row.startswith('bind\t')),
+                        'proof\tlink\t/usr/targetalias\tbin/required')
+        scene.publish(rows)
+        healthy = scene.run()
+        assert healthy.returncode == 0, healthy.stdout + healthy.stderr
+        if fault == 'alias-unsafe-parent': (tmp_path / 'usr/unsafe').chmod(0o777)
+        else: rows.remove('proof\tlink\t/usr/targetalias\tbin/required')
+    elif fault == 'marker-drift':
+        (scene.generation / 'generation').write_text('b' * 64 + '\n')
+    scene.publish(rows)
+    if fault == 'truncated': scene.manifest.write_bytes(scene.manifest.read_bytes()[:-1])
+    if fault == 'over-limit-bytes':
+        with scene.manifest.open('r+b') as stream: stream.truncate(64 * 1024 * 1024 + 1)
+    # Missing ambient input must not conceal any structural or target error.
+    if fault == 'target-stat': scene.physical.unlink()
+    result = scene.run('target-stat' if fault == 'target-stat' else
+                       'missing-target-unlink' if fault == 'target-unlink' else 'source-missing', caller=caller)
+    assert result.returncode == 1, result.stdout + result.stderr
+    if fault.startswith('over-limit-'):
+        assert 'fixture-stop:kiosk_read_protocol:' in result.stderr
+    assert 'readonly:/usr' not in result.stdout.splitlines()
+    assert 'bind:' + str(scene.target) not in result.stdout.splitlines()
+
+
+@pytest.mark.parametrize('error', [13, 1, 5, 116, 24, 9, 12, 22])
+@pytest.mark.parametrize('required', [False, True], ids=['ambient', 'required'])
+def test_post_layout_protocol_and_targets_source_errors(native_mount_binding, tmp_path, error, required):
+    scene = _native_binding_scene(native_mount_binding, tmp_path, required=required)
+    result = scene.run('error-' + str(error))
+    allowed = not required and error in (13, 1, 5, 116)
+    assert result.returncode == (0 if allowed else 1), result.stdout + result.stderr
+    if allowed:
+        assert not scene.target.exists()
+        assert 'bind:' + str(scene.target) not in result.stdout
+
+
+@pytest.mark.parametrize('fault', ['none', 'bind', 'attach', 'readonly', 'detach',
+    'foreign-mount', 'post-attach', 'setup-none', 'setup-namespace', 'setup-propagation',
+    'setup-tmpfs', 'setup-storage', 'setup-inodes', 'setup-nonempty', 'setup-selinux-none',
+    'setup-selinux-label', 'setup-selinux-options', 'setup-selinux-override',
+    'helper-success', 'helper-failure', 'helper-timeout'])
+def test_post_layout_owned_cleanup_and_bounds(native_mount_binding, tmp_path, fault):
+    scene = _native_binding_scene(native_mount_binding, tmp_path)
+    shared = {str(path.relative_to(scene.generation)): path.read_bytes()
+              for path in scene.generation.rglob('*') if path.is_file()}
+    foreign = tmp_path / 'foreign'
+    foreign.write_text('foreign state survives')
+    if fault.startswith('setup-'):
+        shutil.rmtree(scene.tree)
+        scene.manifest.unlink()
+        if fault == 'setup-nonempty': (scene.view / 'foreign').write_text('do not adopt')
+    if fault == 'helper-timeout':
+        helper = scene.runtime / 'helper'
+        helper.write_text('#!/bin/sh\nexec /bin/sleep 30\n')
+        helper.chmod(0o755)
+    result = scene.run(fault)
+    assert result.returncode == (0 if fault in ('none', 'setup-none', 'setup-selinux-none', 'helper-success') else 1), result.stdout + result.stderr
+    operations = result.stdout.splitlines()
+    assert foreign.read_text() == 'foreign state survives'
+    assert {str(path.relative_to(scene.generation)): path.read_bytes()
+            for path in scene.generation.rglob('*') if path.is_file()} == shared
+    if fault == 'none':
+        assert operations.index('readonly:/usr') < operations.index('detach:' + str(scene.view))
+        assert 'detach:/usr' not in operations
+    if fault == 'post-attach': assert 'detach:/usr' in operations
+    if fault == 'foreign-mount': assert 'detach:' + str(scene.target) not in operations
+    assert all('foreign' not in line for line in operations if line.startswith('detach:'))
+    assert 'fd-balance:0' in operations
+    if fault.startswith('helper-'):
+        reaped = [line.removeprefix('reaped:') for line in operations if line.startswith('reaped:')]
+        assert len(reaped) == 1
+        killed = [line.removeprefix('killed:') for line in operations if line.startswith('killed:')]
+        assert killed == (reaped if fault == 'helper-timeout' else [])
+    if fault in ('setup-none', 'setup-selinux-none'):
+        options = next(line.removeprefix('tmpfs-options:') for line in operations if line.startswith('tmpfs-options:'))
+        expected = 'mode=0700,size=536870912,nr_inodes=32776'
+        if fault == 'setup-selinux-none':
+            expected += ',fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0'
+        assert options == expected
+        assert 'detach:' + str(scene.view) in operations
+    if fault == 'setup-nonempty':
+        assert (scene.view / 'foreign').read_text() == 'do not adopt'
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('kind', ['file', 'directory'])
+@pytest.mark.parametrize('drift', ['missing', 'owner', 'group', 'world', 'type'])
+def test_post_layout_published_roles_and_reuse(
+        preserved_password_preparation, native_mount_binding, tmp_path, monkeypatch, role, kind, drift):
+    model = preserved_password_preparation
+    helper = model.helper
+    scene = _native_binding_scene(native_mount_binding, tmp_path, role=role, kind=kind)
+    # Retain the real copied input as well as records, complete skeleton and
+    # marker in the shared snapshot; native omissions affect only native-view.
+    native = tmp_path / 'usr/bin/reviewed-native'
+    native.write_bytes(b'\x7fELFmeasured copy')
+    native.chmod(0o755)
+    record = dict(role='bwrap', path='/usr/bin/reviewed-native', source=str(native),
+                  sha256=hashlib.sha256(native.read_bytes()).hexdigest())
+    if not any(entry['path'] == '/usr/bin' for entry in model.layout):
+        model.layout.append(dict(path='/usr/bin', kind='tree'))
+    model.layout += [dict(path=record['path'], kind='file'), dict(path=scene.source, kind=kind)]
+    monkeypatch.setattr(helper, 'inventory', lambda config: [record])
+    monkeypatch.setattr(helper, 'directory_layout', lambda config, records: model.layout)
+    helper.prepare('manager')
+    digest = model.bindings.read_text().splitlines()[0].split('\t')[4]
+    generation = model.runtime / digest
+    manager = tmp_path / 'proc/777'
+    (manager / 'root' / str(helper.PAYLOAD).lstrip('/')).mkdir(parents=True)
+    (manager / 'root' / str(helper.PAYLOAD / 'generation').lstrip('/')).write_text(digest + '\n')
+    (manager / 'status').write_text('Uid:\t1002\t1002\t1002\t1002\n')
+    (manager / 'attr/apparmor').mkdir(parents=True)
+    (manager / 'attr/apparmor/current').write_text('onpc-kiosk-manager (enforce)\n')
+    verify = helper.subprocess.run
+    def command(args, **kwargs):
+        if args[:2] == ['/usr/bin/systemctl', 'show']:
+            return SimpleNamespace(stdout='777\n')
+        return verify(args, **kwargs)
+    monkeypatch.setattr(helper.subprocess, 'run', command)
+    original_path = helper.Path
+    monkeypatch.setattr(helper, 'Path', lambda path: tmp_path / 'proc' if str(path) == '/proc' else original_path(path))
+    monkeypatch.setattr(helper.os, 'pidfd_open', lambda pid: os.open(manager / 'status', os.O_RDONLY))
+    monkeypatch.setattr(helper.select if hasattr(helper, 'select') else select, 'poll',
+                        lambda: SimpleNamespace(register=lambda *args: None, poll=lambda *args: []))
+    def manager_check(uid, value, backend):
+        model.manager_checks.append((uid, value, backend))
+        model.real_manager_generation(uid, value, backend)
+    monkeypatch.setattr(helper, 'manager_generation', manager_check)
+    helper.prepare(role)
+    assert model.bindings.read_text().splitlines()[0].split('\t')[3:] == [role, digest]
+    def snapshot():
+        return {str(path.relative_to(generation)):
+                ('link', os.readlink(path)) if path.is_symlink() else
+                ('directory', stat.S_IMODE(path.stat().st_mode), path.stat().st_ino) if path.is_dir() else
+                ('file', path.read_bytes(), stat.S_IMODE(path.stat().st_mode), path.stat().st_ino)
+                for path in [generation, *generation.rglob('*')]}
+    before = snapshot()
+    result = scene.run('source-' + drift, caller=role)
+    assert result.returncode == 0, result.stdout + result.stderr
+    target = scene.tree / scene.relative
+    assert not target.exists() if kind == 'file' else target.is_dir() and list(target.iterdir()) == []
+    assert 'bind:' + str(target) not in result.stdout.splitlines()
+    assert snapshot() == before
+    assert (model.runtime / 'bindings').read_text() == 'previous bindings\n'
+    helper.prepare('gate')
+    assert snapshot() == before
+    assert model.manager_checks[-1] == (1002, digest, 'apparmor')
+    assert target.exists()
+    with pytest.raises(ValueError, match='manager-generation-stale'):
+        model.real_manager_generation(1002, 'b' * 64, 'apparmor')
+    model.layout.append(dict(path='/usr/share/new-layout-node', kind='file'))
+    with pytest.raises(ValueError, match='manager-generation-stale'):
+        helper.prepare('gate')
+    assert snapshot() == before
+
+
+@pytest.mark.parametrize('fault', ['row-limit', 'manifest-limit', 'generation-limit', 'copy-limit',
+                                  'label', 'publication', 'logging'])
+def test_post_layout_owned_cleanup_and_bounds_preparation(
+        preserved_password_preparation, monkeypatch, fault):
+    model = preserved_password_preparation
+    helper = model.helper
+    before = (model.runtime / 'bindings').read_bytes()
+    if fault == 'row-limit': monkeypatch.setattr(helper, 'MAX_ROWS', 2)
+    elif fault == 'manifest-limit': monkeypatch.setattr(helper, 'MAX_MANIFEST', 128)
+    elif fault == 'generation-limit':
+        for value in range(4): (model.runtime / (str(value) * 64)).mkdir()
+    elif fault == 'copy-limit':
+        source = model.runtime.parent / 'large-source'
+        source.write_bytes(b'\x7fELFbounded private input')
+        record = dict(role='bwrap', path='/usr/bin/large-source', source=str(source),
+                      sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+        monkeypatch.setattr(helper, 'inventory', lambda config: [record])
+        model.layout += [dict(path='/usr/bin', kind='tree'), dict(path=record['path'], kind='file')]
+        monkeypatch.setattr(helper, 'directory_layout', lambda config, records: model.layout)
+        original_stat = Path.stat
+        def oversized(path, *args, **kwargs):
+            info = original_stat(path, *args, **kwargs)
+            return SimpleNamespace(st_size=512 * 1024 * 1024 + 1) if path == source else info
+        monkeypatch.setattr(helper.Path, 'stat', oversized)
+    elif fault == 'label':
+        def denied(*args, **kwargs): raise OSError(5, 'private label failure')
+        monkeypatch.setattr(helper, 'runtime_label', denied)
+    elif fault == 'publication':
+        replace = Path.replace
+        def denied(path, target):
+            if target == model.bindings:
+                assert not model.bindings.exists()
+                raise OSError(5, 'private publication failure')
+            return replace(path, target)
+        monkeypatch.setattr(helper.Path, 'replace', denied)
+    else:
+        model.layout.append(dict(path='/usr/share/masked', kind='empty-directory'))
+        def broken_stderr(*args): raise BrokenPipeError(32, 'closed fixture log')
+        monkeypatch.setattr(helper.os, 'write', broken_stderr)
+    if fault == 'logging':
+        helper.prepare('manager')
+        assert model.bindings.exists()
+    else:
+        reason = {'row-limit': 'binding-protocol-limit', 'manifest-limit': 'binding-protocol-limit',
+                  'generation-limit': 'generation-limit-reboot-required',
+                  'copy-limit': 'executable-inventory-too-large', 'label': 'private label failure',
+                  'publication': 'private publication failure'}[fault]
+        with pytest.raises((ValueError, OSError), match=reason):
+            helper.prepare('manager')
+        assert not model.bindings.exists()
+    assert (model.runtime / 'bindings').read_bytes() == before
+    assert not any(path.name.startswith(('.bindings-', '.prepare-')) for path in model.runtime.rglob('*'))
 
 
 def test_directory_skeleton_preserves_links_without_following_them(tmp_path, monkeypatch):
@@ -3437,6 +4279,7 @@ def test_directory_skeleton_preserves_links_without_following_them(tmp_path, mon
     assert stat.S_IMODE(tree.stat().st_mode) == 0o755
     assert stat.S_IMODE((tree / 'bin').stat().st_mode) == 0o755
     assert (tree / 'bin/program').read_bytes() == b''
+    assert stat.S_IMODE((tree / 'bin/program').stat().st_mode) == 0o644
     assert (tree / 'share').is_dir()
     original = Path.lstat
     def owned(path):

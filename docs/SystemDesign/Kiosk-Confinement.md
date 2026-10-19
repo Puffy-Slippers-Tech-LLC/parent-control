@@ -133,9 +133,9 @@ preparations are reclaimed under the exclusive lock.
 
 ### Planned post-layout ambient binding
 
-This is the **002aa design**, pending implementation and host acceptance at
-[002ab](../Kiosk-Prompt-Tasks/002ab-ambient-binding-host.md). Current native code
-still refuses every missing or unsafe bind source. The design covers one
+The **002aa design** is implemented with host acceptance recorded at
+[002ab](../Kiosk-Prompt.md#post-layout-ambient-binding-implementation--002ab).
+The historical heading remains a stable reference anchor. This mechanism covers one
 preparation's published layout through native attachment; it does not select a
 previous admission's material. The complete layout remains in the generation
 digest, and `manager_generation()` keeps its exact comparison. Material identity,
@@ -313,13 +313,13 @@ shared mountpoint identity or nonempty directory and refuse it. Diagnostics use
 closed categories without paths and cannot change admission if logging fails;
 002b retains detailed native cause production.
 
-**Finite implementation acceptance allocation (002ab).** The following selectors
-are **planned and unimplemented** until registered in
-`tests/unit/test_kiosk_confinement.py`. Reuse `native_mount_binding` and
-`preserved_password_preparation`, with complete affected callers and their
-resource rationale in `tools/regression_unit.py`; do not add a parallel harness.
+**Finite host acceptance allocation (002ab).** The following selector families
+are registered in `tests/unit/test_kiosk_confinement.py`, including the
+`_source_errors` and `_preparation` controls. They reuse `native_mount_binding`
+and `preserved_password_preparation`; `tools/regression_unit.py` records their
+private storage, descriptor, child-process and simulated kernel resource ownership.
 
-| Planned selector | Required independent assertions |
+| Selector | Required independent assertions |
 | --- | --- |
 | `test_post_layout_source_drift` | Both caller roles; ambient and required files/directories independently vanish, become non-root-owned, group/world-writable or wrong-type after publication. Observe native consumption; rejected files absent, directories empty, rejected source never mounted; required equivalent refuses. |
 | `test_post_layout_descriptor_drift` | Disappearance/reappearance, rename/type substitution and owner/mode change between checked open, pre-bind and post-bind rechecks; no reopen retry, no rejected mount left behind; required and preserved controls refuse. Use real private file changes at descriptor boundaries in addition to metadata doubles. |
@@ -329,12 +329,13 @@ resource rationale in `tools/regression_unit.py`; do not add a parallel harness.
 
 Retain the existing detach-order selector's 11 independent controls, the eight
 preserved-identity field controls and real post-measurement file-change controls.
-Host namespace/mount/label doubles are engineering evidence only. 002ab must
-retain exact selectors, failing-then-passing reports, fixture/source identities,
-explicit child timeouts and runner cleanup, review affected unit resource
-classification, run the maintained documentation consistency selection and build
-after its final packaged edit. No installed acceptance is earned here or at
-002ab; 003/004/007 and 011a retain their full affected-target obligations.
+Host namespace/mount/label doubles are engineering evidence only. The
+[002ab receipt](../Kiosk-Prompt.md#post-layout-ambient-binding-implementation--002ab)
+retains exact selectors, failing-then-passing evidence, fixture/source identities,
+explicit child timeouts, runner cleanup, resource review and final package builds.
+No installed acceptance is earned here or at 002ab; 003/004/007 and 011a retain
+their full affected-target obligations. The original 002a classification,
+alias-closure, completeness, publication and metadata-race assertions remain open.
 
 ## Roles, services and dialogs
 

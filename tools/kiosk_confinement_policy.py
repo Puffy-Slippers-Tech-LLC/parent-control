@@ -148,6 +148,7 @@ def selinux(entries):
                      f'file (system_u object_r {runtime} ((s0) (s0))))')
     allow = lambda source, target, cls, permissions: lines.append(
         f'(allow {source} {target} ({cls} ({permissions})))')
+    allow(runtime, 'tmpfs_t', 'filesystem', 'associate')
     # This policy adds an execution boundary. Existing DAC, D-Bus and Polkit
     # authorization continue to own data, service and administrator authority.
     obj = 'onpc_kiosk_objects'
@@ -264,10 +265,13 @@ def selinux(entries):
                           ('oh-no-parent-control-confinement', 'dir')):
             lines.append(f'(typetransition {caller} var_run_t {cls} "{name}" {runtime})')
         allow(caller, runtime, 'file',
-              'create read write getattr setattr open lock unlink rename relabelfrom mounton')
+              'create read write getattr setattr open lock unlink rename relabelfrom relabelto mounton')
         allow(caller, runtime, 'dir',
-              'create read write getattr setattr search open add_name remove_name rmdir rename mounton')
-        allow(caller, runtime, 'lnk_file', 'create read getattr unlink')
+              'create read write getattr setattr search open add_name remove_name rmdir rename relabelfrom relabelto mounton')
+        allow(caller, runtime, 'lnk_file', 'create read getattr unlink relabelfrom relabelto')
+        # The pre-boundary caller alone creates/labels the invocation tmpfs.
+        # Bound executables retain their own independent inode labels.
+        allow(caller, 'tmpfs_t', 'filesystem', 'mount remount unmount relabelfrom relabelto')
         allow(caller, domains[role], 'process', 'transition')
         allow(caller, domains[role], 'process2', 'nosuid_transition')
         allow(caller, 'self', 'process', 'setexec')
@@ -334,10 +338,10 @@ def selinux(entries):
     for sandbox in ('bwrap', 'glycin-bwrap'):
         allow(domains[sandbox], 'self', 'cap_userns', 'net_admin')
         allow(domains[sandbox], 'self', 'netlink_route_socket', 'nlmsg_write')
-    # The manager's private /usr skeleton is backed by the host filesystem,
-    # not tmpfs. Bubblewrap's read-only bind remount checks that superblock's
-    # fs_t even when the pinned source mount is already read-only. After making
-    # oldroot private, the same native bootstrap detaches it with MNT_DETACH.
+    # The invocation's private /usr skeleton is backed by tmpfs; the existing
+    # finite bootstrap tmpfs permissions above cover its remount and detach.
+    # Other host-backed binds still require their original filesystem checks
+    # when the native bootstrap remounts its view and detaches oldroot.
     for sandbox in ('bwrap', 'glycin-bwrap'):
         allow(domains[sandbox], 'fs_t', 'filesystem', 'remount unmount')
     # --dev creates regular-file placeholders on its private tmpfs, then binds

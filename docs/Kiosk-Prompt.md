@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **002ab — [Implement safe post-layout ambient binding](Kiosk-Prompt-Tasks/002ab-ambient-binding-host.md)**.
+Next task: **002a — [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md)**.
 
 ## Outcome
 
@@ -451,7 +451,7 @@ Handoff correction retained each prerequisite's single acceptance declaration
 (`review` for 002aa, `host` for 002ab), renaming only the duplicate prose labels.
 All required results and validation remain unchanged. The four-module
 documentation consistency selection passed 313/313 in
-[the correction report](../output/test-runs/host/reports/20261019T065936Z-69697932/report.md).
+run `20261019T065936Z-69697932` (subsequently retired by normal retention).
 Markdown links and whitespace checks passed; runner-owned cleanup finished.
 This correction executes neither prerequisite nor 002a acceptance.
 
@@ -475,11 +475,11 @@ native structural/proof checks and generation-marker comparison, plus SELinux
 filesystem versus inode labels and their creation order. The reviewer finished
 before acceptance with no resources owned. The maintained four-module
 documentation consistency selection passed 313/313 in
-[the design validation report](../output/test-runs/host/reports/20261019T070750Z-93b75ae5/report.md).
+run `20261019T070750Z-93b75ae5`.
 The same 313/313 selection passed after queue/pointer/brief close-out in
-[the close-out validation report](../output/test-runs/host/reports/20261019T070859Z-59031128/report.md).
-Expired historical report links above retain their run identities and evidence
-limits. Changed Markdown links and whitespace checks passed.
+run `20261019T070859Z-59031128`. Both reports subsequently retired under normal
+retention; these identifiers preserve the accepted review history, not recovered
+receipts. Changed Markdown links and whitespace checks passed.
 
 Only documentation changed; no product, installation, VM or persistent process
 was created. Runner-owned cleanup finished, and no runtime restoration remains.
@@ -487,6 +487,67 @@ The pre-existing proof/master/queue work is preserved. No package input or build
 dependency changed, so no build is needed. This review brief declares no Targets
 and earns no native or installed credit. Only 002aa closes; 002ab and every
 later row keep their acceptance obligations.
+
+### Post-layout ambient binding implementation — 002ab
+
+Host acceptance passed on 2026-10-19 UTC. The
+[phase-local mechanism](SystemDesign/Kiosk-Confinement.md#planned-post-layout-ambient-binding)
+now uses an invocation-private bounded tmpfs, a versioned producer-derived
+protocol, complete declared-root proofs and descriptor-based source decisions.
+Unsafe ambient files are absent and directories remain empty; required, target,
+protocol, mount, read-only and identity-owned detach failures refuse. Shared
+generation bytes/tree/digest and exact manager matching remain unchanged.
+
+Before repair, `test_post_layout_source_drift` reached the existing native source
+checks: all 20 ambient variants failed availability and all 20 independent
+required controls passed in `20261019T071142Z-bc17fb2a`. The
+[retained failure report](../output/test-runs/host/exports/onpc-artifact-export-npn5sztx/report.md)
+contains that original stream and assertion evidence. The five registered
+`test_post_layout_*` families plus preserved identity and detach controls cover
+341 cases, including both actual manager/gate publications, real descriptor-time
+substitution, subsequent preparation/reuse, bounds, labels and owned child cleanup.
+
+The exact final affected selection was `tools/run-tests unit` with
+`tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py` and
+`tests/unit/test_regression_unit.py`, retaining the fixtures' 5/30-second native
+probe/compiler deadlines. Its
+[report](../output/test-runs/host/reports/20261019T074024Z-1036c546/report.md)
+records 1,218 passes and one private copy-fixture mode failure. After setting that
+test's newly created parent directories to 0755, its exact selector
+`test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree`
+[passed](../output/test-runs/host/reports/20261019T074140Z-e9b376b5/report.md).
+Only that case's parent-mode setup changed after the full selection; product,
+native/protocol fixtures and all other assertions are identical. Together these
+receipts supply all 1,219 required passes, including the 341 finite controls,
+66 PAM caller checks and 27 unit partition/resource checks.
+
+After queue, pointer and brief close-out, the maintained plan, inventory,
+coverage-generation and case-composition checks
+[passed all 313 cases](../output/test-runs/host/reports/20261019T074338Z-ad82f160/report.md).
+Changed-document links passed with 196 checked and none missing; the final
+whitespace check passed.
+
+Tested source and final fixture SHA-256 identities:
+
+| Input | SHA-256 |
+| --- | --- |
+| `tools/kiosk_confinement.h` | `5fbc00f5983a929af882efe4d80ec4445e45af8547d4f395244b78eee27c85f9` |
+| `tools/kiosk_confinement.py` | `243e4d92cb45686f820cc1cded9ce9476874c7c16cea070457d0e61c052aa6be` |
+| `tools/kiosk_confinement_policy.py` | `eb93e6c4ce407c93a477933d6f23f52cbebe66cf07c4bc3179b565867a1b7cca` |
+| `tests/unit/test_kiosk_confinement.py` | `cc31a2920804193f3ea9c494e5a4460fbb52b471c0bc0dc370497b7a40425389` |
+
+`make build` passed for both formats after the final packaged edit. Product
+package SHA-256: DEB `8a40d57a45a55b99f64502e42eabd408ccc44e6dd5216873a71ac4f38c24e479`;
+RPM `8f928090eee5a3a3f3662e136bb366c31059197317cb29f5d437f6bf5057c590`.
+The producer and native workers finished, including independent protocol/label
+review, before acceptance; the coverage worker also finished before final checks.
+Private mode-drift fixtures now restore directory access in `finally` after
+their child exits. The recorded leftover fixture modes were restored and
+`tools/cleanup-e2e --host-only` completed; subsequent runner startup and cleanup
+passed. No installation, VM or persistent process remains. The pre-existing
+proof-document work is preserved. This task declares no Targets and supplies no
+installed credit. Only 002ab closes; 002a resumes with every original assertion,
+and 003/004/007 plus 011a retain their installed obligations.
 
 ### Remaining execution and acceptance
 

@@ -22,6 +22,11 @@ PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
 RUNTIME = Path('/run/oh-no-parent-control-confinement')
 ACCOUNT = 'oh-no-parent-control'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
+PROTOCOL_VERSION = 1
+MAX_ROWS = 32768
+MAX_MANIFEST = 64 * 1024 * 1024
+MAX_PATH = 4096
+RUNTIME_CONTEXT = b'system_u:object_r:onpc_kiosk_runtime_t:s0'
 PREPARATION_STAGES = frozenset((
     'identity', 'attestation', 'payload', 'enforcement', 'executable-inventory',
     'privileged-inventory', 'directory-layout', 'manager-generation', 'runtime',
@@ -322,6 +327,7 @@ def make_tree(destination, layout):
             path.chmod(0o755)
         else:
             path.touch(mode=0o644)
+            path.chmod(0o644)
 
 
 def verify_tree(root, layout):
@@ -413,6 +419,257 @@ def verify_label(path, role, backend):
             raise ValueError('executable-label-changed')
     finally:
         library.freecon(context)
+
+
+def runtime_label(path, backend, *, verify=False):
+    """Label private dentries individually without hiding bound source labels."""
+    if backend != 'selinux':
+        return
+    library = ctypes.CDLL('libselinux.so.1', use_errno=True)
+    library.lsetfilecon_raw.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    library.lgetfilecon_raw.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_char_p)]
+    library.freecon.argtypes = [ctypes.c_void_p]
+    if not verify and library.lsetfilecon_raw(os.fsencode(path), RUNTIME_CONTEXT) != 0:
+        raise OSError(ctypes.get_errno(), 'runtime-label-failed')
+    context = ctypes.c_char_p()
+    if library.lgetfilecon_raw(os.fsencode(path), ctypes.byref(context)) < 0:
+        raise OSError(ctypes.get_errno(), 'runtime-label-unavailable')
+    try:
+        if context.value != RUNTIME_CONTEXT:
+            raise ValueError('runtime-label-changed')
+    finally:
+        library.freecon(context)
+
+
+def verify_invocation_root(backend):
+    """Require the empty tmpfs mounted by this invocation's native caller.
+
+    The caller owns namespace and mount identity lifetime. Never manufacture a
+    disk-backed substitute here, or adopt a previous preparation's publication.
+    """
+    root = trusted(RUNTIME / 'native-view', directory=True)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or
+                stat.S_IMODE(info.st_mode) != 0o700 or os.listdir(fd)):
+            raise ValueError('invocation-root-state')
+        mount_id = [line.split()[1] for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines()
+                    if line.startswith('mnt_id:')]
+        mounts = [line.split() for line in Path('/proc/self/mountinfo').read_text().splitlines()]
+        selected = [row for row in mounts if mount_id == [row[0]]]
+        if len(selected) != 1:
+            raise ValueError('invocation-root-mount')
+        row = selected[0]
+        # The fixed product path needs no mountinfo escaping. Fixtures use an
+        # explicit precondition double rather than qualifying kernel operations.
+        if row[4] != str(root) or row[row.index('-') + 1] != 'tmpfs':
+            raise ValueError('invocation-root-mount')
+        limits = os.fstatvfs(fd)
+        if (limits.f_blocks == 0 or limits.f_frsize == 0 or
+                limits.f_blocks * limits.f_frsize > 512 * 1024 * 1024 or
+                limits.f_files > MAX_ROWS + 8 or limits.f_files == 0):
+            raise ValueError('invocation-root-bounds')
+        runtime_label(root, backend, verify=True)
+        return root
+    finally:
+        os.close(fd)
+
+
+def protocol_text(value, *, absolute=False, relative=False):
+    if (not isinstance(value, str) or not value or any(ord(c) < 32 or ord(c) == 127 for c in value) or
+            len(value.encode('utf-8')) >= MAX_PATH):
+        raise ValueError('binding-protocol-path')
+    if absolute or relative:
+        parts = value.split('/')
+        if absolute:
+            if not value.startswith('/'):
+                raise ValueError('binding-protocol-path')
+            parts = parts[1:]
+            if value == '/':
+                parts = []
+        elif value.startswith('/'):
+            raise ValueError('binding-protocol-path')
+        if any(part in ('', '.', '..') for part in parts):
+            raise ValueError('binding-protocol-path')
+    return value
+
+
+def required_proofs(paths):
+    """Record every checked component, including lexical alias target chains."""
+    proofs = {}
+    def remember(path):
+        info = path.lstat()
+        kind = ('link' if stat.S_ISLNK(info.st_mode) else
+                'directory' if stat.S_ISDIR(info.st_mode) else
+                'file' if stat.S_ISREG(info.st_mode) else 'other')
+        if info.st_uid != 0 or (kind != 'link' and info.st_mode & 0o022) or kind == 'other':
+            raise ValueError('untrusted-path')
+        link = protocol_text(os.readlink(path)) if kind == 'link' else '-'
+        record = (kind, str(path), link)
+        if str(path) in proofs and proofs[str(path)] != record:
+            raise ValueError('binding-proof-changed')
+        proofs[str(path)] = record
+        if len(proofs) > MAX_ROWS:
+            raise ValueError('binding-protocol-limit')
+        return kind, link
+    for path in sorted(set(map(str, paths))):
+        protocol_text(path, absolute=True)
+        pending, current, links = path.split('/')[1:], Path('/'), 0
+        while True:
+            kind, link = remember(current)
+            if kind == 'link':
+                links += 1
+                if links > 40:
+                    raise ValueError('binding-proof-cycle')
+                target = link.split('/')
+                if link.startswith('/'):
+                    current, target = Path('/'), target[1:]
+                else:
+                    current = current.parent
+                pending = target + pending
+            elif pending and kind != 'directory':
+                raise ValueError('untrusted-ancestor')
+            elif not pending:
+                break
+            if not pending:
+                continue
+            component = pending.pop(0)
+            if component in ('', '.'):
+                continue
+            current = current.parent if component == '..' else current / component
+        # A symlink in an ancestor changes the descriptor walk's spelling.
+        # Retain the original required destination as an explicit assertion too.
+        remember(Path(path))
+    return [proofs[path] for path in sorted(proofs)]
+
+
+def binding_protocol(config, records, preserved, identities, layout, generation, role):
+    """Derive closed trust roles from attested configuration and measured inputs."""
+    if (config['backend'] not in ('apparmor', 'selinux') or role not in ('manager', 'gate') or
+            not re.fullmatch(r'[0-9a-f]{64}', generation.name)):
+        raise ValueError('binding-protocol-header')
+    if set(identities) != {record['path'] for record in preserved}:
+        raise ValueError('binding-protocol-identity')
+    nodes, roots, replacements = {}, {}, {}
+    for entry in layout:
+        protocol_text(entry['path'], absolute=True)
+        relative = protocol_text(str(Path(entry['path']).relative_to('/usr')), relative=True)
+        kind = entry['kind']
+        if kind not in ('tree', 'directory', 'empty-directory', 'file', 'link') or relative in nodes:
+            raise ValueError('binding-protocol-layout')
+        nodes[relative] = (kind, protocol_text(entry['link']) if kind == 'link' else '-')
+    if len(nodes) > MAX_ROWS:
+        raise ValueError('binding-protocol-limit')
+    def root(path, kind, source='-'):
+        path = protocol_text(str(path), absolute=True)
+        if source != '-':
+            source = protocol_text(str(source), absolute=True)
+        previous = roots.get(path)
+        if previous is None:
+            roots[path] = (kind, str(source))
+        elif previous != (kind, str(source)):
+            if kind not in ('covered', 'alias', 'reserved'):
+                raise ValueError('binding-protocol-overlap')
+            priority = {'covered': 0, 'alias': 1, 'reserved': 2,
+                        'native': 3, 'preserved': 3, 'marker': 3}
+            if priority[kind] > priority[previous[0]]:
+                roots[path] = (kind, str(source))
+    for index, record in enumerate(records):
+        source = generation / str(index)
+        root(record['path'], 'native', source)
+        replacements[record['path']] = str(source)
+    for record in preserved:
+        root(record['path'], 'preserved', record['path'])
+        if record['path'] not in identities:
+            raise ValueError('binding-protocol-identity')
+    marker = str(PAYLOAD / 'generation')
+    root(marker, 'marker', generation / 'generation')
+    replacements[marker] = str(generation / 'generation')
+    # Match each configured installed destination to the measured inventory;
+    # the stream cannot independently rediscover an omitted configured root.
+    measured = {record['path']: record for record in records}
+    for entry in config.get('executables', []):
+        paths = ([str(path) for path in trusted(entry['library_directory'], directory=True,
+                                               symlinks=True).glob('libsystemd-*.so')]
+                 if entry.get('library_directory') else entry['paths'])
+        installed = 0
+        for name in paths:
+            if not Path(name).exists():
+                continue
+            canonical = str(trusted(name, symlinks=True))
+            if canonical not in measured or measured[canonical]['role'] != entry['role']:
+                raise ValueError('binding-protocol-inventory')
+            if entry.get('source') is not None and measured[canonical].get('source') != str(
+                    trusted(entry['source'], symlinks=True)):
+                raise ValueError('binding-protocol-inventory')
+            installed += 1
+            root(name, 'alias')
+        if not installed and not entry.get('optional', False):
+            raise ValueError('missing-executable')
+    for entry in config.get('preserved_executables', []):
+        if entry['path'] not in {record['path'] for record in preserved}:
+            raise ValueError('binding-protocol-inventory')
+    for name in config.get('reserved_directories', []):
+        root(name, 'reserved')
+        root(trusted(name, directory=True, symlinks=True), 'reserved')
+    covered = {Path(record['path']).parent for record in [*records, *preserved]} | {PAYLOAD}
+    covered.update(trusted(name, directory=True, symlinks=True)
+                   for name in config.get('reserved_directories', []))
+    for directory in tuple(covered):
+        covered.update(parent for parent in directory.parents if parent != Path('/'))
+    for directory in sorted(covered, key=str):
+        root(directory, 'covered')
+    if len(roots) > MAX_ROWS:
+        raise ValueError('binding-protocol-limit')
+    for path, (kind, source) in roots.items():
+        if path == '/usr':
+            continue
+        relative = protocol_text(str(Path(path).relative_to('/usr')), relative=True)
+        if relative not in nodes:
+            raise ValueError('binding-protocol-coverage')
+        node = nodes[relative][0]
+        if kind in ('native', 'preserved', 'marker') and node != 'file':
+            raise ValueError('binding-protocol-coverage')
+        if kind in ('covered', 'reserved') and node not in ('tree', 'link'):
+            raise ValueError('binding-protocol-coverage')
+    for relative in nodes:
+        parent = Path(relative).parent
+        while parent != Path('.'):
+            if nodes.get(str(parent), (None,))[0] != 'tree':
+                raise ValueError('binding-protocol-coverage')
+            parent = parent.parent
+    proof_paths = [path for path, (kind, _) in roots.items() if kind != 'marker']
+    proof_paths.extend(replacements.values())
+    proof_paths.extend(record.get('source', record['path']) for record in records)
+    proofs = required_proofs(proof_paths)
+    rows = [f'ONPC-KIOSK\t{PROTOCOL_VERSION}\t{config["backend"]}\t{role}\t{generation.name}\n']
+    rows += [f'root\t{kind}\t{path}\t{source}\n' for path, (kind, source) in sorted(roots.items())]
+    rows += [f'node\t{kind}\t{path}\t{link}\n' for path, (kind, link) in sorted(nodes.items())]
+    rows += [f'proof\t{kind}\t{path}\t{link}\n' for kind, path, link in proofs]
+    binds = 0
+    for relative, (kind, _) in sorted(nodes.items()):
+        if kind in ('tree', 'link', 'empty-directory'):
+            continue
+        path = '/usr/' + relative
+        required = path in roots
+        assertion = '-'
+        if path in identities:
+            values = identities[path]
+            if (not required or len(values) != 8 or any(type(value) is not int or value < 0 or
+                    value > 2**64 - 1 for value in values)):
+                raise ValueError('binding-protocol-identity')
+            assertion = ' '.join(map(str, values))
+        rows.append(f'bind\t{"required" if required else "ambient"}\t{kind}\t'
+                    f'{replacements.get(path, path)}\t{relative}\t{assertion}\n')
+        binds += 1
+    if binds > MAX_ROWS:
+        raise ValueError('binding-protocol-limit')
+    rows.append('attach\t/usr\n')
+    data = ''.join(rows).encode('utf-8')
+    if len(data) > MAX_MANIFEST:
+        raise ValueError('binding-protocol-limit')
+    return data
 
 
 def manager_generation(uid, digest, backend):
@@ -538,6 +795,7 @@ def prepare(role):
     trusted(RUNTIME, directory=True)
     if stat.S_IMODE(RUNTIME.stat().st_mode) != 0o700:
         raise ValueError('runtime-mode')
+    invocation = verify_invocation_root(config['backend'])
     stage = 'recovery'
     reclaim_interrupted()
     generation = RUNTIME / digest
@@ -572,34 +830,32 @@ def prepare(role):
     trusted(generation, directory=True)
     if json.loads(trusted(generation / 'records.json').read_text()) != manifest:
         raise ValueError('generation-changed')
+    if trusted(generation / 'generation').read_text() != digest + '\n':
+        raise ValueError('generation-changed')
     verify_tree(generation / 'tree', layout)
-    replacements = {}
     for index, record in enumerate(records):
         target = trusted(generation / str(index))
         if hashlib.sha256(target.read_bytes()).hexdigest() != record['sha256']:
             raise ValueError('copy-changed')
         verify_label(target, record['role'], config['backend'])
-        replacements[record['path']] = target
-    replacements[str(PAYLOAD / 'generation')] = generation / 'generation'
     stage = 'bindings'
-    bindings = []
-    for entry in layout:
-        if entry['kind'] in ('tree', 'link', 'empty-directory'):
-            continue
-        source = replacements.get(entry['path'], entry['path'])
-        target = generation / 'tree' / Path(entry['path']).relative_to('/usr')
-        assertion = ('\t' + ' '.join(map(str, identities[entry['path']]))
-                     if entry['path'] in identities else '')
-        bindings.append(f'{source}\t{target}{assertion}\n')
-    # Recursively attach the complete tree only after all subordinate mounts
-    # use its independent dentries. /usr is the sole global mountpoint.
-    bindings.append(f'{generation / "tree"}\t/usr\n')
-    fd, name = tempfile.mkstemp(prefix='.bindings-', dir=RUNTIME)
+    bindings = binding_protocol(config, records, preserved, identities, layout, generation, role)
+    make_tree(invocation / 'tree', layout)
+    for path in (invocation / 'tree', *(invocation / 'tree').rglob('*')):
+        runtime_label(path, config['backend'])
+    verify_tree(invocation / 'tree', layout)
+    for path in (invocation / 'tree', *(invocation / 'tree').rglob('*')):
+        runtime_label(path, config['backend'], verify=True)
+    fd, name = tempfile.mkstemp(prefix='.bindings-', dir=invocation)
     pending = Path(name)
     try:
-        with os.fdopen(fd, 'w') as stream:
-            stream.write(config['backend'] + '\n' + ''.join(bindings))
-        pending.replace(RUNTIME / 'bindings')
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(bindings)
+            stream.flush()
+            os.fsync(stream.fileno())
+        runtime_label(pending, config['backend'])
+        pending.replace(invocation / 'bindings')
+        runtime_label(invocation / 'bindings', config['backend'], verify=True)
     finally:
         pending.unlink(missing_ok=True)
 

@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006 — [Integrate retained-view native admission](Kiosk-Prompt-Tasks/006-generation-implementation.md)**.
+Next task: **006c — [Compose fresh kiosk startup](Kiosk-Prompt-Tasks/006c-fresh-startup.md)**.
 
 ## Outcome
 
@@ -18,6 +18,17 @@ belongs to [the specification](Specification.md#2-component-specifications) and
 [kiosk confinement](SystemDesign/Kiosk-Confinement.md). This plan does not promise
 exhaustive protection against every future dependency or weaken an intentional
 security refusal to suppress GDM's fallback presentation.
+
+## Current integration handoff
+
+Task 006 made substantive progress in five sessions and remains unfinished.
+The remaining work is split into [fresh startup](Kiosk-Prompt-Tasks/006c-fresh-startup.md)
+(006c), [retained reuse and paired production dispatch](Kiosk-Prompt-Tasks/006d-retained-reuse.md)
+(006d), then [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
+The original 006 Scope and all installed obligations remain required. Its
+existing components are preserved in unfinished checkpoint commit `2f728697`;
+component progress and this replan grant no task completion. Continue from the
+fifth implementation checkpoint rather than rebuilding those components.
 
 ## Symptom boundary and stop condition
 
@@ -1217,7 +1228,8 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/reports/20261019T105420Z-4442a354/report.md),
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-a731tvdg/evidence.zip)
+(report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
 The permanent original-regression control observes the old whole-layout digest
@@ -1270,9 +1282,11 @@ while preparation selection keeps the same material and original source inodes.
 Only manager observations are doubled; its pidfd belongs to the test process
 and is closed.
 
-The [verified cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-jkg678h5/evidence.zip)
-retains those reports, the final affected run, original fixture failures and all
-available 006a host evidence (162 files). Bundle SHA-256:
+The original verified cumulative host bundle retained those reports, the final
+affected run, original fixture failures and all available 006a host evidence
+(162 files). Its contents are now carried forward in the
+[006 checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-a731tvdg/evidence.zip),
+whose identity is recorded in the active 006 brief. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
 that rotated during this task now point readers to their preserved bundle;

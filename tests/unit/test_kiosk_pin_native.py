@@ -10,6 +10,8 @@ import subprocess
 
 import pytest
 
+from tools import test_storage
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,6 +24,8 @@ PREAMBLE = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
+#include <poll.h>
 #include <limits.h>
 #include <unistd.h>
 #include <sys/mount.h>
@@ -54,12 +58,34 @@ static void private_namespace(void) {
     require(mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) == 0, "private-propagation");
 }
 static const char *probe_mode;
+static int transaction_elapsed;
+static unsigned clone_calls, transaction_clock_calls, expire_at, deferred_waits, move_calls, stage_detaches, ready_renames;
+static int fixture_pin_clock(clockid_t clock, struct timespec *value) {
+    int result = clock_gettime(clock, value);
+    transaction_clock_calls++;
+    if (expire_at && transaction_clock_calls >= expire_at) transaction_elapsed = 1;
+    if (result == 0 && transaction_elapsed) value->tv_sec += 120;
+    return result;
+}
+#define KIOSK_PIN_CLOCK_GETTIME fixture_pin_clock
 static int fault(const char *name) {
     if (probe_mode && strcmp(probe_mode, name) == 0) { errno = EIO; return 1; } return 0;
 }
 static int fixture_open_tree(int fd, const char *path, unsigned flags) {
-    if (probe_mode && strcmp(probe_mode, "worker-timeout") == 0) for (;;) pause();
+    clone_calls++;
+    if (probe_mode && strcmp(probe_mode, "deadline-after-clone") == 0) transaction_elapsed = 1;
+    if (probe_mode && (!strcmp(probe_mode, "worker-timeout") || !strcmp(probe_mode, "worker-deadline"))) for (;;) pause();
     return fault("clone-error") ? -1 : open_tree(fd, path, flags);
+}
+static int fixture_poll(struct pollfd *fds, nfds_t count, int timeout) {
+    if (probe_mode && !strcmp(probe_mode, "worker-deadline")) { transaction_elapsed = 1; return 0; }
+    return poll(fds, count, timeout);
+}
+static int fixture_waitid(idtype_t type, id_t id, siginfo_t *info, int options) {
+    if (probe_mode && !strcmp(probe_mode, "worker-deadline") && transaction_elapsed) {
+        memset(info, 0, sizeof(*info)); deferred_waits++; return 0;
+    }
+    return waitid(type, id, info, options);
 }
 static int fixture_setns(int fd, int type) { return fault("worker-error") ? -1 : setns(fd, type); }
 static ssize_t fixture_sendmsg(int socket, const struct msghdr *message, int flags) {
@@ -74,7 +100,10 @@ static long fixture_pidfd_send_signal(int fd, int signal, const void *info, unsi
     return syscall(SYS_pidfd_send_signal, fd, signal, info, flags);
 }
 static int fixture_move_mount(int source, const char *from, int target, const char *to, unsigned flags) {
-    return fault("attach-error") ? -1 : move_mount(source, from, target, to, flags);
+    move_calls++;
+    int result = fault("attach-error") ? -1 : move_mount(source, from, target, to, flags);
+    if (result == 0 && probe_mode && !strcmp(probe_mode, "attach-deadline-after-move")) transaction_elapsed = 1;
+    return result;
 }
 static int fixture_mount_setattr(int fd, const char *path, unsigned flags, struct mount_attr *attr, size_t size) {
     return ((flags & AT_EMPTY_PATH) && fault("readonly-error")) ? -1 : mount_setattr(fd, path, flags, attr, size);
@@ -82,20 +111,33 @@ static int fixture_mount_setattr(int fd, const char *path, unsigned flags, struc
 static int fixture_umount(const char *path, int flags) {
     if (probe_mode && strcmp(probe_mode, "detach-error") == 0 && strstr(path, "/stage")) { errno = EIO; return -1; }
     if (fault("cleanup-error")) return -1;
-    return umount2(path, flags);
+    int result = umount2(path, flags);
+    if (result == 0 && strstr(path, "/stage")) {
+        stage_detaches++;
+        if (probe_mode && !strcmp(probe_mode, "finish-deadline-after-detach")) transaction_elapsed = 1;
+    }
+    return result;
 }
 static ssize_t fixture_write(int fd, const void *bytes, size_t size) {
     if (fault("publish-cleanup-error")) return -1;
-    return fault("write-error") ? -1 : write(fd, bytes, size);
+    ssize_t result = fault("write-error") ? -1 : write(fd, bytes, size);
+    if (result > 0 && probe_mode && !strcmp(probe_mode, "publish-deadline-after-write")) transaction_elapsed = 1;
+    return result;
 }
 static int fixture_unlinkat(int fd, const char *path, int flags) {
     return fault("publish-cleanup-error") ? -1 : unlinkat(fd, path, flags);
 }
-static int fixture_fsync(int fd) { return fault("fsync-error") ? -1 : fsync(fd); }
+static int fixture_fsync(int fd) {
+    int result = fault("fsync-error") ? -1 : fsync(fd);
+    if (result == 0 && probe_mode && !strcmp(probe_mode, "publish-deadline-before-rename")) transaction_elapsed = 1;
+    return result;
+}
 static int fixture_rename(int from, const char *source, int to, const char *target, unsigned flags) {
     if (probe_mode && strcmp(probe_mode, "before-ready-cut") == 0) _exit(73);
     if (fault("rename-error")) return -1;
     int result = renameat2(from, source, to, target, flags);
+    if (result == 0) ready_renames++;
+    if (result == 0 && probe_mode && !strcmp(probe_mode, "publish-deadline-after-ready")) transaction_elapsed = 1;
     if (result == 0 && probe_mode && strcmp(probe_mode, "after-ready-cut") == 0) _exit(74);
     return result;
 }
@@ -127,6 +169,7 @@ def native_pin(tmp_path_factory):
                                ('unlinkat(', 'fixture_unlinkat('), ('setns(', 'fixture_setns('), ('sendmsg(', 'fixture_sendmsg(')]:
         primitives = primitives.replace(actual, controlled)
     primitives = primitives.replace('syscall(SYS_pidfd_send_signal, ', 'fixture_pidfd_send_signal(')
+    primitives = primitives.replace('poll(', 'fixture_poll(').replace('waitid(', 'fixture_waitid(')
     source.write_text(PREAMBLE + r'''
 struct kiosk_failure { const char *stage, *reason; int error; };
 struct kiosk_owned_mount { char *path; unsigned long long id; int live; };
@@ -215,6 +258,7 @@ int main(int argc, char **argv) {
     struct stat original_caller[3], observed_caller[3]; caller_identity(original_caller);
     int fds[3], sockets[2] = {-1, -1}; pid_t owner = -1;
     if (strcmp(mode, "lifetime") == 0 || strcmp(mode, "worker-error") == 0 || strcmp(mode, "worker-timeout") == 0 ||
+        strcmp(mode, "worker-deadline") == 0 ||
         strcmp(mode, "worker-malformed") == 0 || strcmp(mode, "wrong-namespace") == 0 || strcmp(mode, "worker-cleanup-error") == 0) {
         require(socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets) == 0, "owner-socket");
         owner = fork(); require(owner >= 0, "owner-fork");
@@ -254,18 +298,100 @@ int main(int argc, char **argv) {
         require(kiosk_pin_coverage(shallow, entries, 5, 1, &failure) != 0, "missing-recursive-refused"); close(shallow);
         close(fds[0]); close(fds[1]); close(fds[2]); puts("missing-recursive:refused"); return 0;
     }
-    int acquired = kiosk_pin_acquire(&pin, fds[0], fds[1], source_path, &source_namespace, entries, 5, &failure, &cleanup);
+    if (strncmp(mode, "deadline-", 9) == 0) {
+        uint64_t now; require(kiosk_pin_now(&now) == 0, "transaction-clock");
+        uint64_t deadline = strcmp(mode, "deadline-before-clone") == 0 ? now : now + 60000000U;
+        int acquired;
+        if (!strcmp(mode, "deadline-coverage-walk") || !strcmp(mode, "deadline-topology-walk")) {
+            expire_at = transaction_clock_calls + 3;
+            if (!strcmp(mode, "deadline-coverage-walk"))
+                acquired = kiosk_pin_coverage_policy_until(fds[0], entries, 5, NULL, 1, deadline, &failure);
+            else {
+                unsigned long long id; require(kiosk_pin_fd_mount(fds[0], &id) == 0, "walk-mount-witness");
+                acquired = kiosk_pin_topology_until(fds[1], id, source_path, entries, 5, deadline, &failure);
+            }
+            require(transaction_clock_calls == expire_at && clone_calls == 0, "mid-walk-deadline-stopped-work");
+        } else acquired = kiosk_pin_acquire_policy_until(&pin, fds[0], fds[1], source_path,
+            &source_namespace, entries, 5, NULL, deadline, &failure, &cleanup);
+        require(acquired != 0 && pin.fd == -1 && pin.worker == -1 && failure.stage != NULL,
+            "expired-transaction-refused");
+        require(clone_calls == (strcmp(mode, "deadline-after-clone") == 0 ? 1U : 0U),
+            "exact-clone-boundary-witness");
+        require(kiosk_pin_release(&pin, 0, &cleanup) == 0 && cleanup.stage == NULL, "deadline-owned-release");
+        content(fds[0], "bin/vendor", "original-vendor");
+        close(fds[0]); close(fds[1]); close(fds[2]);
+        require(descriptors() == baseline, "deadline-fd-balance");
+        printf("%s:refused\n", mode); return 0;
+    }
+    if (strncmp(mode, "provenance-", 11) == 0) {
+        unsigned char ambient[5] = {0, 0, 0, 0, 1};
+        int positive = strcmp(mode, "provenance-ambient-directory") == 0 ||
+            strcmp(mode, "provenance-ambient-file") == 0;
+        if (strcmp(mode, "provenance-ambient-file") == 0) {
+            ambient[3] = 1;
+            require(chmod("vendor", 0666) == 0, "ambient-file-unsafe");
+        } else require(chmod("ambient", 0777) == 0, "ambient-directory-unsafe");
+        if (strcmp(mode, "provenance-required") == 0) ambient[4] = 0;
+        if (strcmp(mode, "provenance-root") == 0) ambient[0] = 1;
+        if (strcmp(mode, "provenance-ancestor") == 0) ambient[1] = 1;
+        if (strcmp(mode, "provenance-unknown") == 0) ambient[4] = 2;
+        if (strcmp(mode, "provenance-foreign") == 0) entries[4].inode++;
+        struct kiosk_failure strict = {0};
+        require(kiosk_pin_coverage(fds[0], entries, 5, 1, &strict) != 0,
+            "unsafe-source-still-refuses-strict-attachment");
+        int acquired = kiosk_pin_acquire_policy(&pin, fds[0], fds[1], source_path,
+            &source_namespace, entries, 5, ambient, &failure, &cleanup);
+        require(positive ? acquired == 0 : acquired != 0, "retained-provenance-policy");
+        if (positive) {
+            struct stat observed;
+            require(fstatat(pin.fd, "data", &observed, AT_SYMLINK_NOFOLLOW) == 0 &&
+                observed.st_dev == entries[4].device && observed.st_ino == entries[4].inode,
+                "original-ambient-inode");
+            content(pin.fd, "data/leaf", "original-data");
+            require(kiosk_pin_coverage(pin.fd, entries, 5, 1, &strict) != 0,
+                "unsafe-clone-has-no-invocation-bind-authority");
+            int parent = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
+            require(parent >= 0, "provenance-staging-parent");
+            struct kiosk_pin_target ticket = target_for(parent, "attached");
+            uint64_t deadline;
+            require(kiosk_pin_now(&deadline) == 0, "provenance-staging-clock"); deadline += 60000000U;
+            require(kiosk_pin_attach_until(&pin, parent, "attached", &ticket, entries, 5, deadline, &strict) != 0 &&
+                !pin.attached, "strict-attachment-refuses-unsafe-provenance");
+            require(kiosk_pin_attach_policy_until(&pin, parent, "attached", &ticket, entries, 5, ambient,
+                deadline, &failure) == 0 && pin.verified, "explicit-ambient-staging-attachment");
+            struct kiosk_owned_mount stage = {.path = source_path, .live = 1};
+            require(kiosk_mount_id(stage.path, &stage.id) == 0, "provenance-stage-witness");
+            require(kiosk_pin_finish_until(&pin, &stage, 1, entries, 5, deadline, &failure) != 0 &&
+                !pin.complete && !stage.live, "ambient-staging-never-authorizes-completion");
+            close(parent);
+        }
+        require(kiosk_pin_release(&pin, 0, &cleanup) == 0, "provenance-release");
+        close(fds[0]); close(fds[1]); close(fds[2]);
+        require(descriptors() == baseline, "provenance-fd-balance");
+        printf("%s:verified\n", mode); return 0;
+    }
+    uint64_t transaction_deadline;
+    require(kiosk_pin_now(&transaction_deadline) == 0 && transaction_deadline < UINT64_MAX - 60000000U,
+        "original-transaction-deadline");
+    transaction_deadline += 60000000U;
+    int acquired = kiosk_pin_acquire_policy_until(&pin, fds[0], fds[1], source_path, &source_namespace,
+        entries, 5, NULL, transaction_deadline, &failure, &cleanup);
     caller_identity(observed_caller);
     for (unsigned i = 0; i < 3; i++) require(original_caller[i].st_dev == observed_caller[i].st_dev &&
         original_caller[i].st_ino == observed_caller[i].st_ino, "caller-namespace-root-cwd-preserved");
     if (strcmp(mode, "worker-error") == 0 || strcmp(mode, "worker-timeout") == 0 ||
+        strcmp(mode, "worker-deadline") == 0 ||
         strcmp(mode, "worker-malformed") == 0 || strcmp(mode, "wrong-namespace") == 0 || strcmp(mode, "worker-cleanup-error") == 0) {
         require(acquired != 0 && pin.fd == -1 && failure.stage != NULL, "crossnamespace-refusal");
-        if (strcmp(mode, "worker-cleanup-error") == 0) {
+        if (strcmp(mode, "worker-cleanup-error") == 0 || strcmp(mode, "worker-deadline") == 0 ||
+            (strcmp(mode, "worker-timeout") == 0 && pin.worker >= 0)) {
             require(pin.worker >= 0 && cleanup.stage != NULL, "worker-cleanup-identity-retained");
+            if (!strcmp(mode, "worker-deadline")) require(deferred_waits == 1 && cleanup.error == ETIMEDOUT,
+                "cleanup-does-not-renew-expired-transaction");
             require(kiosk_pin_acquire(&pin, fds[0], fds[1], source_path, &source_namespace, entries, 5, &failure, &cleanup) != 0,
                 "unreaped-worker-refuses-reuse");
             probe_mode = "recovery";
+            transaction_elapsed = 0;
             require(kiosk_pin_release(&pin, 0, &cleanup) == 0 && pin.worker == -1, "worker-cleanup-owned-retry");
         } else require(pin.worker == -1 && cleanup.stage == NULL, "clone-worker-cleaned");
         close(fds[0]); close(fds[1]); close(fds[2]); int status;
@@ -301,13 +427,39 @@ int main(int argc, char **argv) {
         require(kiosk_pin_attach(&pin, parent, "attached", &ticket, entries, 5, &failure) != 0 && !pin.attached, "target-refused");
         require(kiosk_pin_release(&pin, 0, &cleanup) == 0, "unattached-release"); close(parent); puts("target-replaced:refused"); return 0;
     }
-    int attached_result = kiosk_pin_attach(&pin, parent, "attached", &ticket, entries, 5, &failure);
+    if (strncmp(mode, "attach-deadline-", 16) == 0 && strcmp(mode, "attach-deadline-topology")) {
+        if (!strcmp(mode, "attach-deadline-expired")) transaction_elapsed = 1;
+        if (!strcmp(mode, "attach-deadline-coverage")) expire_at = transaction_clock_calls + 4;
+        require(kiosk_pin_attach_until(&pin, parent, "attached", &ticket, entries, 5,
+            transaction_deadline, &failure) != 0 && !pin.verified && !pin.complete && failure.stage != NULL,
+            "original-attachment-deadline-refused");
+        require(move_calls == (!strcmp(mode, "attach-deadline-after-move") ? 1U : 0U),
+            "attachment-mutation-boundary");
+        require(pin.attached == (!strcmp(mode, "attach-deadline-after-move") ? 1 : 0), "attachment-owned-state");
+        content(pin.fd, "bin/vendor", "original-vendor");
+        require(kiosk_pin_release(&pin, 0, &cleanup) == 0, "attachment-deadline-owned-release"); close(parent);
+        require(access("publication/ready", F_OK) != 0 && descriptors() == baseline, "attachment-deadline-no-publication");
+        printf("%s:verified\n", mode); return 0;
+    }
+    int attached_result = !strcmp(mode, "transaction-complete") ?
+        kiosk_pin_attach_until(&pin, parent, "attached", &ticket, entries, 5, transaction_deadline, &failure) :
+        kiosk_pin_attach(&pin, parent, "attached", &ticket, entries, 5, &failure);
     if (strcmp(mode, "attach-error") == 0 || strcmp(mode, "readonly-error") == 0) {
         require(attached_result != 0 && failure.stage != NULL && !pin.complete, "attachment-failure");
         require(kiosk_pin_release(&pin, 0, &cleanup) == 0, "attachment-failure-cleanup"); close(parent);
         require(descriptors() == baseline, "attachment-failure-fd-balance"); printf("%s:verified\n", mode); return 0;
     }
     require(attached_result == 0, "pin-attached");
+    if (!strcmp(mode, "attach-deadline-topology")) {
+        int attached = open("attached", O_PATH | O_DIRECTORY | O_CLOEXEC);
+        require(attached >= 0, "deadline-attached-witness");
+        expire_at = transaction_clock_calls + 3;
+        require(kiosk_pin_attached_topology_until(attached, entries, 5, transaction_deadline, &failure) != 0 &&
+            transaction_clock_calls == expire_at && move_calls == 1, "attached-topology-original-deadline");
+        close(attached);
+        require(kiosk_pin_release(&pin, 0, &cleanup) == 0, "topology-deadline-owned-release"); close(parent);
+        require(descriptors() == baseline, "topology-deadline-fd-balance"); printf("%s:verified\n", mode); return 0;
+    }
     if (strcmp(mode, "lifetime") == 0) {
         /* The source owner's namespace is gone; this new attachment owns the
          * original recursive sources even after the clone descriptor closes. */
@@ -324,7 +476,19 @@ int main(int argc, char **argv) {
         stages[i].path = strdup(path); stages[i].live = 1;
         require(stages[i].path != NULL && kiosk_mount_id(path, &stages[i].id) == 0, "stage-record");
     }
-    if (strcmp(mode, "incomplete") == 0 || strcmp(mode, "false-detach") == 0 || strcmp(mode, "foreign-stage") == 0) {
+    if (strncmp(mode, "finish-deadline-", 16) == 0) {
+        if (!strcmp(mode, "finish-deadline-expired")) transaction_elapsed = 1;
+        if (!strcmp(mode, "finish-deadline-staging")) expire_at = transaction_clock_calls + 10;
+        require(kiosk_pin_finish_until(&pin, stages, 3, entries, 5, transaction_deadline, &failure) != 0 &&
+            !pin.complete && failure.stage != NULL, "original-completion-deadline-refused");
+        require(stage_detaches == (!strcmp(mode, "finish-deadline-after-detach") ? 1U : 0U),
+            "completion-mutation-boundary");
+        require(stages[0].live && stages[1].live &&
+            stages[2].live == (!strcmp(mode, "finish-deadline-after-detach") ? 0 : 1), "exact-staging-ownership");
+        content(pin.fd, "bin/vendor", "original-vendor");
+        require(kiosk_pin_release(&pin, 0, &cleanup) == 0 && access("publication/ready", F_OK) != 0,
+            "completion-deadline-owned-release");
+    } else if (strcmp(mode, "incomplete") == 0 || strcmp(mode, "false-detach") == 0 || strcmp(mode, "foreign-stage") == 0) {
         if (strcmp(mode, "false-detach") == 0 || strcmp(mode, "foreign-stage") == 0) {
             if (strcmp(mode, "foreign-stage") == 0)
                 require(mount("tmpfs", "stage", "tmpfs", 0, "size=1m") == 0, "foreign-staging-alias");
@@ -351,9 +515,22 @@ int main(int argc, char **argv) {
         unsigned long long after; require(kiosk_mount_id("attached", &after) == 0 && after == foreign, "foreign-survives");
         require(umount2("attached", MNT_DETACH) == 0 && kiosk_pin_release(&pin, 0, &cleanup) == 0, "owned-cleanup-retry");
     } else {
-        require(kiosk_pin_finish(&pin, stages, 3, entries, 5, &failure) == 0 && pin.complete, "native-completion");
+        require((!strcmp(mode, "transaction-complete") ?
+            kiosk_pin_finish_until(&pin, stages, 3, entries, 5, transaction_deadline, &failure) :
+            kiosk_pin_finish(&pin, stages, 3, entries, 5, &failure)) == 0 && pin.complete, "native-completion");
         struct kiosk_pin_target publication = target_for(parent, "publication");
-        if (strcmp(mode, "publish-cleanup-error") == 0) {
+        if (strncmp(mode, "publish-deadline-", 17) == 0) {
+            if (!strcmp(mode, "publish-deadline-expired")) transaction_elapsed = 1;
+            if (!strcmp(mode, "publish-deadline-coverage")) expire_at = transaction_clock_calls + 4;
+            require(kiosk_pin_publish_until(&pin, parent, "publication", &publication, digest, entries, 5, 0,
+                transaction_deadline, &failure, &cleanup) != 0 && !pin.published && failure.stage != NULL,
+                "original-publication-deadline-refused");
+            int after_ready = !strcmp(mode, "publish-deadline-after-ready");
+            require(ready_renames == (unsigned) after_ready && (access("publication/ready", F_OK) == 0) == after_ready &&
+                access("publication/ready.pending", F_OK) != 0 && cleanup.stage == NULL,
+                "exact-expired-publication-boundary");
+            content(pin.fd, "bin/vendor", "original-vendor");
+        } else if (strcmp(mode, "publish-cleanup-error") == 0) {
             require(kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup) != 0 &&
                 !pin.published && failure.stage != NULL && cleanup.stage != NULL, "separate-publication-cleanup-error");
             require(access("publication/ready", F_OK) != 0 && access("publication/ready.pending", F_OK) == 0,
@@ -375,7 +552,10 @@ int main(int argc, char **argv) {
             require(kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup) != 0 && !pin.published,
                 "publication-identity-refused");
         } else {
-            require(kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup) == 0 && pin.published,
+            require((!strcmp(mode, "transaction-complete") ?
+                kiosk_pin_publish_until(&pin, parent, "publication", &publication, digest, entries, 5, 0,
+                    transaction_deadline, &failure, &cleanup) :
+                kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup)) == 0 && pin.published,
                 "native-ready-publication");
             struct stat ready; require(lstat("publication/ready", &ready) == 0 && ready.st_nlink == 1 &&
                 (ready.st_mode & 07777) == 0600 && ready.st_uid == 0, "native-ready-identity");
@@ -393,7 +573,8 @@ int main(int argc, char **argv) {
 }
 ''')
     result = subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', str(source), '-o', str(binary)],
-                            capture_output=True, text=True, timeout=30)
+                            capture_output=True, text=True, timeout=30,
+                            pass_fds=test_storage.scratch_descriptors())
     if result.returncode != 0:
         pytest.fail(result.stderr, pytrace=False)
     return binary
@@ -401,7 +582,8 @@ int main(int argc, char **argv) {
 
 def test_private_mount_capability(native_pin, tmp_path):
     result = subprocess.run([str(native_pin), 'capability', str(tmp_path)],
-                            capture_output=True, text=True, timeout=10)
+                            capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == 0, result.stderr
     assert result.stdout == 'private-mount-capability:verified\n'
 
@@ -415,7 +597,23 @@ def test_private_mount_capability(native_pin, tmp_path):
 ])
 def test_native_pin_mounted_lifetime_and_publication(native_pin, tmp_path, mode):
     result = subprocess.run([str(native_pin), mode, str(tmp_path)],
-                            capture_output=True, text=True, timeout=10)
+                            capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f'{mode}:verified\n'
+
+
+@pytest.mark.parametrize('mode', [
+    'transaction-complete', 'attach-deadline-expired', 'attach-deadline-coverage',
+    'attach-deadline-after-move', 'attach-deadline-topology',
+    'finish-deadline-expired', 'finish-deadline-staging', 'finish-deadline-after-detach',
+    'publish-deadline-expired', 'publish-deadline-coverage', 'publish-deadline-after-write',
+    'publish-deadline-before-rename', 'publish-deadline-after-ready',
+])
+def test_native_pin_attachment_completion_publication_share_original_deadline(native_pin, tmp_path, mode):
+    result = subprocess.run([str(native_pin), mode, str(tmp_path)],
+                            capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == 0, result.stderr
     assert result.stdout == f'{mode}:verified\n'
 
@@ -423,19 +621,33 @@ def test_native_pin_mounted_lifetime_and_publication(native_pin, tmp_path, mode)
 @pytest.mark.parametrize('mode', [
     'wrong-root', 'wrong-owner', 'placeholder', 'extra-mount', 'missing-recursive', 'target-replaced', 'unsafe-source', 'clone-error',
     'worker-error', 'worker-timeout', 'worker-malformed', 'wrong-namespace', 'worker-cleanup-error',
+    'worker-deadline', 'deadline-before-clone', 'deadline-after-clone', 'deadline-coverage-walk', 'deadline-topology-walk',
 ])
 def test_native_pin_refuses_wrong_source_and_coverage(native_pin, tmp_path, mode):
     result = subprocess.run([str(native_pin), mode, str(tmp_path)],
-                            capture_output=True, text=True, timeout=10)
+                            capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == 0, result.stderr
     assert result.stdout == f'{mode}:refused\n'
 
 
 @pytest.mark.parametrize(('mode', 'status', 'ready'), [('before-ready-cut', 73, False), ('after-ready-cut', 74, True)])
 def test_native_pin_crash_at_atomic_ready_boundary(native_pin, tmp_path, mode, status, ready):
-    result = subprocess.run([str(native_pin), mode, str(tmp_path)], capture_output=True, text=True, timeout=10)
+    result = subprocess.run([str(native_pin), mode, str(tmp_path)], capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == status, result.stderr
     assert (tmp_path / 'publication/ready').exists() is ready
     assert (tmp_path / 'publication/ready.pending').exists() is (not ready)
     record = (tmp_path / 'publication' / ('ready' if ready else 'ready.pending')).read_text()
     assert record.startswith('ONPC-PIN-READY 1\nreceipt 0123456789abcdef')
+
+
+@pytest.mark.parametrize('mode', [
+    'provenance-ambient-directory', 'provenance-ambient-file', 'provenance-required',
+    'provenance-root', 'provenance-ancestor', 'provenance-unknown', 'provenance-foreign',
+])
+def test_retained_provenance_separates_clone_identity_from_ambient_bind_trust(native_pin, tmp_path, mode):
+    result = subprocess.run([str(native_pin), mode, str(tmp_path)], capture_output=True, text=True, timeout=10,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == f'{mode}:verified\n'

@@ -30,6 +30,29 @@
 #endif
 #define KIOSK_ADMISSION_DATA "oh-no-parent-control.kiosk-admission"
 
+/* Locking an unlinked/replaced inode does not serialize the named lifecycle
+ * boundary. Check the exact private named object after locking and again at
+ * the admission decision; never repair or unlink a substituted lock. */
+static int
+kiosk_lock_identity(int fd, const char *path, uid_t owner)
+{
+    struct stat opened, named;
+    return fd >= 0 && fstat(fd, &opened) == 0 && lstat(path, &named) == 0 &&
+        S_ISREG(opened.st_mode) && S_ISREG(named.st_mode) &&
+        opened.st_uid == owner && named.st_uid == owner &&
+        (opened.st_mode & 07777) == 0600 && (named.st_mode & 07777) == 0600 &&
+        opened.st_nlink == 1 && named.st_nlink == 1 &&
+        opened.st_dev == named.st_dev && opened.st_ino == named.st_ino ? 0 : -1;
+}
+
+static int
+kiosk_admission_current(int fd)
+{
+    struct stat barrier;
+    return kiosk_lock_identity(fd, KIOSK_ADMISSION_LOCK, KIOSK_ADMISSION_LOCK_OWNER) == 0 &&
+        lstat(KIOSK_ADMISSION_DISABLED, &barrier) != 0 && errno == ENOENT ? 0 : -1;
+}
+
 static void
 release_kiosk_admission(pam_handle_t *pamh, void *data, int status)
 {
@@ -53,8 +76,13 @@ kiosk_admission(pam_handle_t *pamh, const char *username)
     if (strcmp(username, KIOSK_ACCOUNT_NAME) != 0)
         return PAM_SUCCESS;
     result = pam_get_data(pamh, KIOSK_ADMISSION_DATA, &existing);
-    if (result == PAM_SUCCESS && existing != NULL)
-        return PAM_SUCCESS;
+    if (result == PAM_SUCCESS && existing != NULL) {
+        if (kiosk_admission_current(*(const int *) existing) == 0)
+            return PAM_SUCCESS;
+        pam_syslog(pamh, LOG_ERR,
+                   "onpc.pam kiosk admission outcome=denied stage=removal-barrier");
+        return PAM_PERM_DENIED;
+    }
     if (result != PAM_NO_MODULE_DATA && result != PAM_SUCCESS)
         return result;
     fd = malloc(sizeof(*fd));
@@ -360,15 +388,32 @@ struct kiosk_pin_namespace {
     ino_t inode;
 };
 
+#ifndef KIOSK_PIN_CLOCK_GETTIME
+#define KIOSK_PIN_CLOCK_GETTIME clock_gettime
+#endif
+
 static int
-kiosk_pin_reap_worker(int pidfd, struct kiosk_failure *failure)
+kiosk_pin_now(uint64_t *now)
 {
-    struct timespec start, now;
-    if (syscall(SYS_pidfd_send_signal, pidfd, SIGKILL, NULL, 0) != 0 && errno != ESRCH) {
-        kiosk_failure(failure, "pin", "clone-cleanup", errno);
+    struct timespec value;
+    if (KIOSK_PIN_CLOCK_GETTIME(CLOCK_MONOTONIC, &value) != 0 || value.tv_sec < 0 ||
+        (uint64_t) value.tv_sec > (UINT64_MAX - 999999U) / 1000000U)
         return -1;
-    }
-    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0) {
+    *now = (uint64_t) value.tv_sec * 1000000U + (uint64_t) value.tv_nsec / 1000U;
+    return 0;
+}
+
+static int
+kiosk_pin_before(uint64_t deadline)
+{
+    uint64_t now;
+    return deadline && kiosk_pin_now(&now) == 0 && now < deadline ? 0 : -1;
+}
+
+static int
+kiosk_pin_reap_worker_until(int pidfd, uint64_t deadline, struct kiosk_failure *failure)
+{
+    if (syscall(SYS_pidfd_send_signal, pidfd, SIGKILL, NULL, 0) != 0 && errno != ESRCH) {
         kiosk_failure(failure, "pin", "clone-cleanup", errno);
         return -1;
     }
@@ -377,11 +422,22 @@ kiosk_pin_reap_worker(int pidfd, struct kiosk_failure *failure)
         int waited = waitid(P_PIDFD, (id_t) pidfd, &observed, WEXITED | WNOHANG | __WCLONE);
         if ((waited == 0 && observed.si_pid != 0) || (waited < 0 && errno == ECHILD)) return 0;
         if (waited < 0 && errno != EINTR) { kiosk_failure(failure, "pin", "clone-cleanup", errno); return -1; }
-        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 || now.tv_sec - start.tv_sec >= 5) {
+        if (kiosk_pin_before(deadline) != 0) {
             kiosk_failure(failure, "pin", "clone-cleanup", ETIMEDOUT); return -1;
         }
         struct timespec pause = {.tv_nsec = 1000000}; nanosleep(&pause, NULL);
     }
+}
+
+/* Explicit standalone recovery may wait for its already-recorded worker.
+ * Admission uses _until and retains an unresolved pidfd on deadline expiry;
+ * recovery never supplies admission credit or renews the failed transaction. */
+static int
+kiosk_pin_reap_worker(int pidfd, struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 5000000U) return -1;
+    return kiosk_pin_reap_worker_until(pidfd, now + 5000000U, failure);
 }
 
 /* An ordinary attached source must belong to open_tree's calling namespace.
@@ -393,15 +449,20 @@ kiosk_pin_reap_worker(int pidfd, struct kiosk_failure *failure)
  * Existing trusted bootstrap permission is mandatory; setns denial is final.
  */
 static int
-kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source,
+kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source, uint64_t transaction_deadline,
                        int *pending_worker, struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
 {
     struct stat initial, current, source_info;
     struct statfs filesystem;
-    struct timespec start, now;
+    uint64_t start, now, deadline;
     int ns = -1, sockets[2] = {-1, -1}, clone = -1, result = -1, received = -1, child_pidfd = -1;
     pid_t child = -1, caller = getpid();
     int reaped = 0;
+    if (kiosk_pin_now(&start) != 0 || start > UINT64_MAX - 5000000U ||
+        !transaction_deadline || start >= transaction_deadline)
+        goto done;
+    deadline = start + 5000000U;
+    if (transaction_deadline < deadline) deadline = transaction_deadline;
     if (source == NULL || source->fd < 0 || fstat(source->fd, &source_info) != 0 ||
         source_info.st_dev != source->device || source_info.st_ino != source->inode ||
         fstatfs(source->fd, &filesystem) != 0 || filesystem.f_type != 0x6e736673 ||
@@ -416,12 +477,12 @@ kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source
             current.st_dev == initial.st_dev && current.st_ino == initial.st_ino &&
             fstat(source->fd, &source_info) == 0 && source_info.st_dev == source->device && source_info.st_ino == source->inode;
         if (current_ns >= 0) close(current_ns);
-        if (!unchanged) goto done;
+        if (!unchanged || kiosk_pin_before(deadline) != 0) goto done;
         result = clone;
         clone = -1;
         goto done;
     }
-    if (clock_gettime(CLOCK_MONOTONIC, &start) != 0 || socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets) != 0)
+    if (kiosk_pin_before(deadline) != 0 || socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets) != 0)
         goto done;
     /* Atomically obtain identity before the child can exit or another PAM
      * thread can reap it. No numeric-PID signalling fallback is permitted.
@@ -467,12 +528,11 @@ kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source
         goto done;
     close(sockets[1]); sockets[1] = -1;
     for (;;) {
-        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+        if (kiosk_pin_now(&now) != 0)
             goto done;
-        long elapsed = (now.tv_sec - start.tv_sec) * 1000 + (now.tv_nsec - start.tv_nsec) / 1000000;
-        if (elapsed >= 5000) { kiosk_failure(failure, "pin", "clone-timeout", ETIMEDOUT); goto done; }
+        if (now >= deadline) { kiosk_failure(failure, "pin", "clone-timeout", ETIMEDOUT); goto done; }
         struct pollfd channel = {.fd = sockets[0], .events = POLLIN};
-        int ready = poll(&channel, 1, (int) (5000 - elapsed));
+        int ready = poll(&channel, 1, (int) ((deadline - now + 999U) / 1000U));
         if (ready < 0 && errno == EINTR) continue;
         if (ready <= 0) { kiosk_failure(failure, "pin", "clone-timeout", ready == 0 ? ETIMEDOUT : errno); goto done; }
         break;
@@ -509,7 +569,7 @@ kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source
         int waited = waitid(P_PIDFD, (id_t) child_pidfd, &exit_info, WEXITED | WNOHANG | __WCLONE);
         if (waited == 0 && exit_info.si_pid != 0) { reaped = 1; break; }
         if (waited < 0 && errno != EINTR) { if (errno == ECHILD) reaped = 1; goto done; }
-        if (clock_gettime(CLOCK_MONOTONIC, &now) != 0 || now.tv_sec - start.tv_sec >= 5)
+        if (kiosk_pin_before(deadline) != 0)
             goto done;
         struct timespec pause = {.tv_nsec = 1000000}; nanosleep(&pause, NULL);
     }
@@ -521,14 +581,15 @@ kiosk_pin_clone_worker(int checked_usr, const struct kiosk_pin_namespace *source
         current.st_dev == initial.st_dev && current.st_ino == initial.st_ino;
     if (current_ns >= 0) close(current_ns);
     int descriptor_flags = fcntl(received, F_GETFD);
-    if (!unchanged || descriptor_flags < 0 || !(descriptor_flags & FD_CLOEXEC))
+    if (!unchanged || descriptor_flags < 0 || !(descriptor_flags & FD_CLOEXEC) ||
+        kiosk_pin_before(deadline) != 0)
         goto done;
     result = received; received = -1;
 done:
     if (child > 0 && child_pidfd >= 0 && !reaped) {
         /* Only the atomically acquired child pidfd is signalled. Source
          * manager and reused numeric PIDs are never recovery targets. */
-        if (kiosk_pin_reap_worker(child_pidfd, cleanup_failure) != 0) {
+        if (kiosk_pin_reap_worker_until(child_pidfd, deadline, cleanup_failure) != 0) {
             *pending_worker = child_pidfd;
             child_pidfd = -1;
         }
@@ -580,9 +641,9 @@ kiosk_pin_mount_compare(const void *a, const void *b)
  * no mountinfo pathname: source topology is checked around recursive cloning,
  * and the actual clone topology is checked again upon private attachment. */
 static int
-kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path,
+kiosk_pin_topology_until(int mountinfo, unsigned long long root, const char *root_path,
                    const struct kiosk_pin_entry *entries, unsigned entry_count,
-                   struct kiosk_failure *failure)
+                   uint64_t deadline, struct kiosk_failure *failure)
 {
     struct statfs filesystem;
     struct kiosk_pin_mount_row *rows = NULL;
@@ -592,7 +653,8 @@ kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path
     unsigned count = 0, expected = 0, observed = 0;
     unsigned *chain = NULL;
     int result = -1, fd = -1;
-    if (!kiosk_path(root_path, 1) || entries == NULL || !entry_count || entry_count > KIOSK_VIEW_ROWS ||
+    if (kiosk_pin_before(deadline) != 0 ||
+        !kiosk_path(root_path, 1) || entries == NULL || !entry_count || entry_count > KIOSK_VIEW_ROWS ||
         fstatfs(mountinfo, &filesystem) != 0 || filesystem.f_type != 0x9fa0 ||
         (fd = fcntl(mountinfo, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0 || lseek(fd, 0, SEEK_SET) != 0 ||
         (stream = fdopen(fd, "r")) == NULL)
@@ -605,7 +667,8 @@ kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path
     while ((length = getline(&line, &capacity, stream)) >= 0) {
         char encoded[PATH_MAX], options[256], tail;
         struct kiosk_pin_mount_row *row;
-        if (count == KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX ||
+        if (kiosk_pin_before(deadline) != 0 ||
+            count == KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX ||
             line[length - 1] != '\n' || (bytes += (size_t) length) > KIOSK_VIEW_BYTES ||
             memchr(line, '\0', (size_t) length) != NULL || strstr(line, " - ") == NULL)
             goto done;
@@ -633,9 +696,11 @@ kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path
     for (unsigned i = 0; i < entry_count; i++)
         expected += entries[i].mountpoint != 0;
     for (unsigned i = 0; i < count; i++) {
+        if (kiosk_pin_before(deadline) != 0) goto done;
         struct kiosk_pin_mount_row *row = &rows[i], *ancestor = row;
         unsigned depth = 0;
         while (ancestor != NULL && ancestor->within == 0) {
+            if (kiosk_pin_before(deadline) != 0) goto done;
             ancestor->within = 3;
             chain[depth++] = (unsigned) (ancestor - rows);
             key.id = ancestor->parent;
@@ -665,7 +730,7 @@ kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path
             goto done;
         observed++;
     }
-    if (observed != expected)
+    if (observed != expected || kiosk_pin_before(deadline) != 0)
         goto done;
     result = 0;
 done:
@@ -681,6 +746,17 @@ done:
     return result;
 }
 
+static inline int
+kiosk_pin_topology(int mountinfo, unsigned long long root, const char *root_path,
+                   const struct kiosk_pin_entry *entries, unsigned entry_count,
+                   struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_topology_until(mountinfo, root, root_path, entries, entry_count,
+        now + 60000000U, failure);
+}
+
 static int
 kiosk_pin_fd_mount(int fd, unsigned long long *id)
 {
@@ -693,20 +769,30 @@ kiosk_pin_fd_mount(int fd, unsigned long long *id)
 }
 
 static int
-kiosk_pin_attached_topology(int root, const struct kiosk_pin_entry *entries, unsigned count,
-                            struct kiosk_failure *failure)
+kiosk_pin_attached_topology_until(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                                uint64_t deadline, struct kiosk_failure *failure)
 {
     char descriptor[64], path[PATH_MAX];
     unsigned long long id;
+    if (kiosk_pin_before(deadline) != 0) return -1;
     snprintf(descriptor, sizeof(descriptor), "/proc/self/fd/%d", root);
     ssize_t length = readlink(descriptor, path, sizeof(path) - 1);
     if (length <= 0 || length >= (ssize_t) sizeof(path) - 1 || kiosk_pin_fd_mount(root, &id) != 0)
         return -1;
     path[length] = '\0';
     int mountinfo = open("/proc/self/mountinfo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
-    int result = mountinfo < 0 ? -1 : kiosk_pin_topology(mountinfo, id, path, entries, count, failure);
+    int result = mountinfo < 0 ? -1 : kiosk_pin_topology_until(mountinfo, id, path, entries, count, deadline, failure);
     if (mountinfo >= 0) close(mountinfo);
     return result;
+}
+
+static inline int
+kiosk_pin_attached_topology(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                            struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_attached_topology_until(root, entries, count, now + 60000000U, failure);
 }
 
 static int
@@ -737,22 +823,54 @@ kiosk_pin_open(int root, const char *relative)
  * missing recursive submount cannot be mistaken for an ordinary source. Mount
  * IDs are local observations and never receipt/hash inputs. */
 static int
-kiosk_pin_coverage(int root, const struct kiosk_pin_entry *entries, unsigned count,
-                   int readonly, struct kiosk_failure *failure)
+kiosk_pin_provenance_open(int root, const char *relative)
+{
+    char path[PATH_MAX], *part, *next;
+    if (relative[0] != '\0' && !kiosk_path(relative, 0))
+        return -1;
+    int current = fcntl(root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+    if (current < 0 || relative[0] == '\0')
+        return current;
+    strcpy(path, relative);
+    for (part = path; part != NULL; part = next) {
+        next = strchr(part, '/');
+        if (next != NULL) *next++ = '\0';
+        int child = openat(current, part, O_PATH | O_NOFOLLOW | O_CLOEXEC |
+                           (next != NULL ? O_DIRECTORY : 0));
+        close(current);
+        if (child < 0) return -1;
+        current = child;
+    }
+    return current;
+}
+
+/* A retained source may have become unsafe since V was published. Clone its
+ * original inode/topology without granting it bind authority; selection may
+ * then omit/mask only explicitly ambient sources in a fresh invocation. The
+ * caller derives this vector from the attested required closure, never from a
+ * receipt's ambient claim. Required ancestors cannot be relaxed. NULL preserves
+ * the original strict primitive used for a newly realized/attached view. */
+static int
+kiosk_pin_coverage_policy_until(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                         const unsigned char *ambient, int readonly, uint64_t deadline,
+                         struct kiosk_failure *failure)
 {
     unsigned long long *ids = NULL;
     int result = -1;
-    if (entries == NULL || count == 0 || count > KIOSK_VIEW_ROWS ||
+    if (kiosk_pin_before(deadline) != 0 || entries == NULL || count == 0 || count > KIOSK_VIEW_ROWS ||
         entries[0].relative == NULL || entries[0].relative[0] != '\0' ||
         entries[0].parent != 0 || entries[0].mountpoint != 1 || !S_ISDIR(entries[0].mode) ||
         (ids = calloc(count, sizeof(*ids))) == NULL)
         goto done;
     for (unsigned i = 0; i < count; i++) {
+        if (kiosk_pin_before(deadline) != 0) goto done;
         const struct kiosk_pin_entry *entry = &entries[i];
         struct stat info;
         struct statfs filesystem;
         if (entry->relative == NULL || entry->mountpoint > 1 || entry->uid != 0 ||
             (entry->mode & 022) || (!S_ISREG(entry->mode) && !S_ISDIR(entry->mode)))
+            goto done;
+        if (ambient != NULL && (ambient[i] > 1 || (i == 0 && ambient[i])))
             goto done;
         if (i != 0) {
             if (!kiosk_path(entry->relative, 0) || entry->parent >= i ||
@@ -763,14 +881,19 @@ kiosk_pin_coverage(int root, const struct kiosk_pin_entry *entries, unsigned cou
             const char *parent = entries[entry->parent].relative;
             if (strlen(parent) != length || strncmp(parent, entry->relative, length) != 0)
                 goto done;
+            if (ambient != NULL && ambient[entry->parent] && !ambient[i])
+                goto done;
             if (strcmp(entries[i - 1].relative, entry->relative) >= 0)
                 goto done;
         }
-        int fd = kiosk_pin_open(root, entry->relative);
+        int fd = ambient == NULL ? kiosk_pin_open(root, entry->relative) :
+            kiosk_pin_provenance_open(root, entry->relative);
         int valid = fd >= 0 && fstat(fd, &info) == 0 &&
             info.st_dev == entry->device && info.st_ino == entry->inode &&
-            info.st_mode == entry->mode && info.st_uid == entry->uid && info.st_gid == entry->gid &&
-            (!S_ISREG(info.st_mode) || info.st_nlink <= 1) &&
+            (ambient != NULL && ambient[i] ?
+             (info.st_mode & S_IFMT) == (entry->mode & S_IFMT) :
+             (info.st_mode == entry->mode && info.st_uid == entry->uid && info.st_gid == entry->gid &&
+              (!S_ISREG(info.st_mode) || info.st_nlink <= 1))) &&
             kiosk_pin_fd_mount(fd, &ids[i]) == 0 &&
             (!readonly || (fstatfs(fd, &filesystem) == 0 && (filesystem.f_flags & ST_RDONLY)));
         if (fd >= 0)
@@ -779,7 +902,7 @@ kiosk_pin_coverage(int root, const struct kiosk_pin_entry *entries, unsigned cou
             ((ids[i] != ids[entry->parent]) != (entry->mountpoint != 0))))
             goto done;
     }
-    result = 0;
+    if (kiosk_pin_before(deadline) == 0) result = 0;
 done:
     free(ids);
     if (result != 0)
@@ -787,30 +910,51 @@ done:
     return result;
 }
 
+static int
+kiosk_pin_coverage_policy(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                         const unsigned char *ambient, int readonly, struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_coverage_policy_until(root, entries, count, ambient, readonly,
+        now + 60000000U, failure);
+}
+
 static inline int
-kiosk_pin_acquire(struct kiosk_source_pin *pin, int checked_usr, int mountinfo, const char *mount_path,
-                  const struct kiosk_pin_namespace *source_namespace,
-                  const struct kiosk_pin_entry *entries, unsigned count,
-                  struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+kiosk_pin_coverage(int root, const struct kiosk_pin_entry *entries, unsigned count,
+                   int readonly, struct kiosk_failure *failure)
+{
+    return kiosk_pin_coverage_policy(root, entries, count, NULL, readonly, failure);
+}
+
+static inline int
+kiosk_pin_acquire_policy_until(struct kiosk_source_pin *pin, int checked_usr, int mountinfo, const char *mount_path,
+                         const struct kiosk_pin_namespace *source_namespace,
+                         const struct kiosk_pin_entry *entries, unsigned count, const unsigned char *ambient,
+                         uint64_t transaction_deadline,
+                         struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
 {
     struct stat before, after;
     unsigned long long source_id, current_id, clone_id;
     int clone = -1;
-    if (pin->fd != -1 || pin->parent != -1 || pin->worker != -1 || pin->attached || pin->verified || pin->complete ||
+    if (kiosk_pin_before(transaction_deadline) != 0 ||
+        pin->fd != -1 || pin->parent != -1 || pin->worker != -1 || pin->attached || pin->verified || pin->complete ||
         fstat(checked_usr, &before) != 0 || !kiosk_trusted_stat(&before, S_IFDIR) ||
         kiosk_pin_fd_mount(checked_usr, &source_id) != 0 ||
-        kiosk_pin_coverage(checked_usr, entries, count, 1, failure) != 0 ||
-        kiosk_pin_topology(mountinfo, source_id, mount_path, entries, count, failure) != 0)
+        kiosk_pin_coverage_policy_until(checked_usr, entries, count, ambient, 1, transaction_deadline, failure) != 0 ||
+        kiosk_pin_topology_until(mountinfo, source_id, mount_path, entries, count, transaction_deadline, failure) != 0)
         goto denied;
-    clone = kiosk_pin_clone_worker(checked_usr, source_namespace, &pin->worker, failure, cleanup_failure);
+    clone = kiosk_pin_clone_worker(checked_usr, source_namespace, transaction_deadline,
+                                    &pin->worker, failure, cleanup_failure);
     if (kiosk_os_failure(failure, "pin", "clone", clone < 0))
         goto denied;
     if (fstat(checked_usr, &after) != 0 || !kiosk_pin_same_stat(&before, &after) ||
         kiosk_pin_fd_mount(checked_usr, &current_id) != 0 || source_id != current_id ||
         kiosk_pin_fd_mount(clone, &clone_id) != 0 || clone_id == source_id ||
-        kiosk_pin_coverage(clone, entries, count, 1, failure) != 0 ||
-        kiosk_pin_coverage(checked_usr, entries, count, 1, failure) != 0 ||
-        kiosk_pin_topology(mountinfo, source_id, mount_path, entries, count, failure) != 0)
+        kiosk_pin_coverage_policy_until(clone, entries, count, ambient, 1, transaction_deadline, failure) != 0 ||
+        kiosk_pin_coverage_policy_until(checked_usr, entries, count, ambient, 1, transaction_deadline, failure) != 0 ||
+        kiosk_pin_topology_until(mountinfo, source_id, mount_path, entries, count, transaction_deadline, failure) != 0 ||
+        kiosk_pin_before(transaction_deadline) != 0)
         goto denied;
     pin->fd = clone;
     return 0;
@@ -821,21 +965,55 @@ denied:
     return -1;
 }
 
+/* Standalone primitive callers keep a finite budget. Composed admission must
+ * use _until with the original transaction deadline, never restart this clock
+ * after manager acquisition, receipt parsing or preparation. */
+static inline int
+kiosk_pin_acquire_policy(struct kiosk_source_pin *pin, int checked_usr, int mountinfo, const char *mount_path,
+                         const struct kiosk_pin_namespace *source_namespace,
+                         const struct kiosk_pin_entry *entries, unsigned count, const unsigned char *ambient,
+                         struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) {
+        kiosk_failure(failure, "pin", "identity", -1);
+        return -1;
+    }
+    return kiosk_pin_acquire_policy_until(pin, checked_usr, mountinfo, mount_path, source_namespace,
+        entries, count, ambient, now + 60000000U, failure, cleanup_failure);
+}
+
+static inline int
+kiosk_pin_acquire(struct kiosk_source_pin *pin, int checked_usr, int mountinfo, const char *mount_path,
+                  const struct kiosk_pin_namespace *source_namespace,
+                  const struct kiosk_pin_entry *entries, unsigned count,
+                  struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    return kiosk_pin_acquire_policy(pin, checked_usr, mountinfo, mount_path, source_namespace,
+                                    entries, count, NULL, failure, cleanup_failure);
+}
+
 /* Only an independently owned fresh invocation target is legal here. Native
  * composition must check that ownership before calling; no source dentry is
- * ever modified. Parent/name are retained for identity-owned failure cleanup. */
+ * ever modified. Parent/name are retained for identity-owned failure cleanup.
+ * A non-NULL ambient vector permits only a retained-source staging projection
+ * whose provenance was independently acquired; it grants no invocation binding
+ * or completion authority. Completed views are always validated strictly. */
 static inline int
-kiosk_pin_attach(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+kiosk_pin_attach_policy_until(struct kiosk_source_pin *pin, int owned_parent, const char *name,
                  const struct kiosk_pin_target *expected,
-                 const struct kiosk_pin_entry *entries, unsigned count,
+                 const struct kiosk_pin_entry *entries, unsigned count, const unsigned char *ambient,
+                 uint64_t deadline,
                  struct kiosk_failure *failure)
 {
     struct stat info, parent_info, namespace_info;
     struct mount_attr readonly = {.attr_set = MOUNT_ATTR_RDONLY};
     unsigned long long previous;
     int target = -1, attached = -1, ns = -1, result = -1;
-    if (pin->fd < 0 || pin->parent != -1 || pin->attached || expected == NULL || !kiosk_path(name, 0) ||
-        strchr(name, '/') != NULL || kiosk_pin_coverage(pin->fd, entries, count, 1, failure) != 0)
+    if (kiosk_pin_before(deadline) != 0 ||
+        pin->fd < 0 || pin->parent != -1 || pin->attached || expected == NULL || !kiosk_path(name, 0) ||
+        strchr(name, '/') != NULL ||
+        kiosk_pin_coverage_policy_until(pin->fd, entries, count, ambient, 1, deadline, failure) != 0)
         goto done;
     ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
     target = openat(owned_parent, name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
@@ -856,17 +1034,19 @@ kiosk_pin_attach(struct kiosk_source_pin *pin, int owned_parent, const char *nam
      * post-attach inspection failure leaves identity-owned cleanup authority. */
     if (kiosk_pin_fd_mount(pin->fd, &pin->attached_id) != 0 || pin->attached_id == previous)
         goto done;
-    if (kiosk_os_failure(failure, "pin", "attach",
+    if (kiosk_pin_before(deadline) != 0 || kiosk_os_failure(failure, "pin", "attach",
         move_mount(pin->fd, "", target, "", MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH) != 0))
         goto done;
     pin->attached = 1;
     attached = openat(pin->parent, pin->name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     unsigned long long actual;
-    if (attached < 0 || kiosk_pin_fd_mount(attached, &actual) != 0 || actual != pin->attached_id ||
+    if (kiosk_pin_before(deadline) != 0 ||
+        attached < 0 || kiosk_pin_fd_mount(attached, &actual) != 0 || actual != pin->attached_id ||
         kiosk_os_failure(failure, "pin", "readonly",
             mount_setattr(attached, "", AT_EMPTY_PATH | AT_RECURSIVE, &readonly, sizeof(readonly)) != 0) ||
-        kiosk_pin_coverage(attached, entries, count, 1, failure) != 0 ||
-        kiosk_pin_attached_topology(attached, entries, count, failure) != 0)
+        kiosk_pin_coverage_policy_until(attached, entries, count, ambient, 1, deadline, failure) != 0 ||
+        kiosk_pin_attached_topology_until(attached, entries, count, deadline, failure) != 0 ||
+        kiosk_pin_before(deadline) != 0)
         goto done;
     pin->verified = 1;
     result = 0;
@@ -876,6 +1056,28 @@ done:
     if (ns >= 0) close(ns);
     if (result != 0) kiosk_failure(failure, "pin", "identity", -1);
     return result;
+}
+
+static inline int
+kiosk_pin_attach_until(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+                 const struct kiosk_pin_target *expected,
+                 const struct kiosk_pin_entry *entries, unsigned count,
+                 uint64_t deadline, struct kiosk_failure *failure)
+{
+    return kiosk_pin_attach_policy_until(pin, owned_parent, name, expected, entries, count,
+        NULL, deadline, failure);
+}
+
+static inline int
+kiosk_pin_attach(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+                 const struct kiosk_pin_target *expected,
+                 const struct kiosk_pin_entry *entries, unsigned count,
+                 struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_attach_until(pin, owned_parent, name, expected, entries, count,
+        now + 60000000U, failure);
 }
 
 /* keep_attachment is valid only after the caller's attach/read-only/staging
@@ -961,8 +1163,10 @@ kiosk_pin_path_compare(const void *a, const void *b)
  * surviving alias below that path must also deny completion, without detaching
  * it. Compare actual native mountinfo against all detached staging roots. */
 static int
-kiosk_pin_staging_clear(const struct kiosk_owned_mount *stages, unsigned count)
+kiosk_pin_staging_clear_until(const struct kiosk_owned_mount *stages, unsigned count, uint64_t deadline)
 {
+    if (kiosk_pin_before(deadline) != 0 || stages == NULL || count == 0 || count > KIOSK_VIEW_ROWS)
+        return -1;
     char **paths = calloc(count, sizeof(*paths));
     FILE *stream = fopen("/proc/self/mountinfo", "re");
     char *line = NULL;
@@ -971,18 +1175,22 @@ kiosk_pin_staging_clear(const struct kiosk_owned_mount *stages, unsigned count)
     int result = -1;
     if (paths == NULL || stream == NULL)
         goto done;
-    for (unsigned i = 0; i < count; i++)
+    for (unsigned i = 0; i < count; i++) {
+        if (kiosk_pin_before(deadline) != 0) goto done;
         if (!stages[i].live) paths[roots++] = stages[i].path;
+    }
     qsort(paths, roots, sizeof(*paths), kiosk_pin_path_compare);
     ssize_t length;
     while ((length = getline(&line, &capacity, stream)) >= 0) {
         char path[PATH_MAX];
-        if (++rows > KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX || line[length - 1] != '\n' ||
+        if (kiosk_pin_before(deadline) != 0 ||
+            ++rows > KIOSK_VIEW_ROWS || length == 0 || length > 3 * PATH_MAX || line[length - 1] != '\n' ||
             (bytes += (size_t) length) > KIOSK_VIEW_BYTES || memchr(line, '\0', (size_t) length) != NULL ||
             strstr(line, " - ") == NULL || sscanf(line, "%*s %*s %*s %*s %4095s", path) != 1 ||
             kiosk_pin_decode_mountpath(path) != 0)
             goto done;
         for (;;) {
+            if (kiosk_pin_before(deadline) != 0) goto done;
             char *key = path;
             if (bsearch(&key, paths, roots, sizeof(*paths), kiosk_pin_path_compare) != NULL)
                 goto done;
@@ -991,7 +1199,7 @@ kiosk_pin_staging_clear(const struct kiosk_owned_mount *stages, unsigned count)
             *slash = '\0';
         }
     }
-    if (ferror(stream))
+    if (ferror(stream) || kiosk_pin_before(deadline) != 0)
         goto done;
     result = 0;
 done:
@@ -1002,14 +1210,23 @@ done:
 }
 
 static inline int
-kiosk_pin_finish(struct kiosk_source_pin *pin, struct kiosk_owned_mount *stages, unsigned count,
+kiosk_pin_staging_clear(const struct kiosk_owned_mount *stages, unsigned count)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_staging_clear_until(stages, count, now + 60000000U);
+}
+
+static inline int
+kiosk_pin_finish_until(struct kiosk_source_pin *pin, struct kiosk_owned_mount *stages, unsigned count,
                  const struct kiosk_pin_entry *entries, unsigned entry_count,
-                 struct kiosk_failure *failure)
+                 uint64_t deadline, struct kiosk_failure *failure)
 {
     struct stat info;
     int ns = -1, attached = -1, result = -1;
     unsigned long long id;
-    if (!pin->attached || !pin->verified || pin->complete || pin->fd < 0 || pin->parent < 0 ||
+    if (kiosk_pin_before(deadline) != 0 ||
+        !pin->attached || !pin->verified || pin->complete || pin->fd < 0 || pin->parent < 0 ||
         stages == NULL || count == 0 || count > KIOSK_VIEW_ROWS)
         goto done;
     ns = open("/proc/self/ns/mnt", O_PATH | O_CLOEXEC);
@@ -1018,28 +1235,31 @@ kiosk_pin_finish(struct kiosk_source_pin *pin, struct kiosk_owned_mount *stages,
         goto done;
     /* Validate the complete cleanup inventory before the first mutation. */
     for (unsigned i = 0; i < count; i++)
-        if (stages[i].path == NULL || !kiosk_path(stages[i].path, 1) ||
+        if (kiosk_pin_before(deadline) != 0 || stages[i].path == NULL || !kiosk_path(stages[i].path, 1) ||
             stages[i].id == 0 || stages[i].id == pin->attached_id ||
             (stages[i].live ? (kiosk_mount_id(stages[i].path, &id) != 0 || id != stages[i].id) :
              !kiosk_pin_stage_absent(&stages[i])))
             goto done;
-    if (kiosk_pin_staging_clear(stages, count) != 0)
+    if (kiosk_pin_staging_clear_until(stages, count, deadline) != 0)
         goto done;
-    for (unsigned i = count; i > 0; i--)
+    for (unsigned i = count; i > 0; i--) {
+        if (kiosk_pin_before(deadline) != 0) goto done;
         if (stages[i - 1].live) {
             if (kiosk_detach_owned(stages[i - 1].path, stages[i - 1].id, failure) != 0)
                 goto done;
             stages[i - 1].live = 0;
         }
+    }
     for (unsigned i = 0; i < count; i++)
-        if (stages[i].live || !kiosk_pin_stage_absent(&stages[i]))
+        if (kiosk_pin_before(deadline) != 0 || stages[i].live || !kiosk_pin_stage_absent(&stages[i]))
             goto done;
-    if (kiosk_pin_staging_clear(stages, count) != 0)
+    if (kiosk_pin_staging_clear_until(stages, count, deadline) != 0)
         goto done;
     attached = openat(pin->parent, pin->name, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (attached < 0 || kiosk_pin_fd_mount(attached, &id) != 0 || id != pin->attached_id ||
-        kiosk_pin_coverage(attached, entries, entry_count, 1, failure) != 0 ||
-        kiosk_pin_attached_topology(attached, entries, entry_count, failure) != 0)
+        kiosk_pin_coverage_policy_until(attached, entries, entry_count, NULL, 1, deadline, failure) != 0 ||
+        kiosk_pin_attached_topology_until(attached, entries, entry_count, deadline, failure) != 0 ||
+        kiosk_pin_before(deadline) != 0)
         goto done;
     pin->complete = 1;
     result = 0;
@@ -1050,23 +1270,35 @@ done:
     return result;
 }
 
+static inline int
+kiosk_pin_finish(struct kiosk_source_pin *pin, struct kiosk_owned_mount *stages, unsigned count,
+                 const struct kiosk_pin_entry *entries, unsigned entry_count,
+                 struct kiosk_failure *failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_finish_until(pin, stages, count, entries, entry_count, now + 60000000U, failure);
+}
+
 /* Atomic, no-replace publication of a native completion witness. The opaque
  * receipt hash is the future closed V/I protocol's selected identity; this
  * primitive cannot select/parse that protocol or admit a manager. A leftover
  * pending or ready file is never reused. After ready, 006 still requires the
  * independently verified live view, policy and final MAC before admission. */
 static inline int
-kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+kiosk_pin_publish_until(struct kiosk_source_pin *pin, int owned_parent, const char *name,
                   const struct kiosk_pin_target *expected, const char *receipt,
                   const struct kiosk_pin_entry *entries, unsigned count,
-                  int selinux, struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+                  int selinux, uint64_t deadline,
+                  struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
 {
     struct stat parent_info, root_info, named, pending_info, attached_info, namespace_info;
     unsigned long long id;
     int root = -1, pending = -1, attached = -1, ns = -1, result = -1, created = 0, renamed = 0;
     char record[512];
-    if (!pin->complete || !pin->verified || !pin->attached || pin->published || expected == NULL ||
-        receipt == NULL || strlen(receipt) != 64 || !kiosk_path(name, 0) || strchr(name, '/') != NULL)
+    if (kiosk_pin_before(deadline) != 0 ||
+        !pin->complete || !pin->verified || !pin->attached || pin->published || expected == NULL ||
+        receipt == NULL || strnlen(receipt, 65) != 64 || !kiosk_path(name, 0) || strchr(name, '/') != NULL)
         goto done;
     for (unsigned i = 0; i < 64; i++)
         if (!((receipt[i] >= '0' && receipt[i] <= '9') || (receipt[i] >= 'a' && receipt[i] <= 'f')))
@@ -1085,8 +1317,8 @@ kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *na
         kiosk_label(root, NULL, 0, selinux) != 0 ||
         kiosk_pin_fd_mount(attached, &id) != 0 || id != pin->attached_id ||
         fstat(attached, &attached_info) != 0 ||
-        kiosk_pin_coverage(attached, entries, count, 1, failure) != 0 ||
-        kiosk_pin_attached_topology(attached, entries, count, failure) != 0)
+        kiosk_pin_coverage_policy_until(attached, entries, count, NULL, 1, deadline, failure) != 0 ||
+        kiosk_pin_attached_topology_until(attached, entries, count, deadline, failure) != 0)
         goto done;
     int scan = fcntl(root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
     DIR *directory = scan < 0 ? NULL : fdopendir(scan);
@@ -1094,9 +1326,11 @@ kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *na
     struct dirent *entry;
     int empty = 1;
     errno = 0;
-    while ((entry = readdir(directory)) != NULL)
-        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) empty = 0;
-    int valid = errno == 0 && empty;
+    while ((entry = readdir(directory)) != NULL) {
+        if (kiosk_pin_before(deadline) != 0) { empty = 0; break; }
+        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) { empty = 0; break; }
+    }
+    int valid = errno == 0 && empty && kiosk_pin_before(deadline) == 0;
     closedir(directory);
     if (!valid)
         goto done;
@@ -1116,24 +1350,26 @@ kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *na
         goto done;
     size_t offset = 0;
     while (offset < (size_t) length) {
+        if (kiosk_pin_before(deadline) != 0) goto done;
         ssize_t written = write(pending, record + offset, (size_t) length - offset);
         if (written < 0 && errno == EINTR) continue;
         if (written <= 0) goto done;
         offset += (size_t) written;
     }
-    if (fsync(pending) != 0 || fstatat(root, "ready.pending", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+    if (kiosk_pin_before(deadline) != 0 || fsync(pending) != 0 ||
+        kiosk_pin_before(deadline) != 0 || fstatat(root, "ready.pending", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
         named.st_dev != pending_info.st_dev || named.st_ino != pending_info.st_ino || named.st_nlink != 1 ||
         fstatat(owned_parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
-        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino ||
+        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino || kiosk_pin_before(deadline) != 0 ||
         renameat2(root, "ready.pending", root, "ready", RENAME_NOREPLACE) != 0)
         goto done;
     renamed = 1;
-    if (fsync(root) != 0 || fstatat(root, "ready", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+    if (kiosk_pin_before(deadline) != 0 || fsync(root) != 0 || fstatat(root, "ready", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
         named.st_dev != pending_info.st_dev || named.st_ino != pending_info.st_ino || named.st_nlink != 1 ||
         named.st_size != length || (named.st_mode & 07777) != 0600 || named.st_uid != 0 ||
         kiosk_label(pending, NULL, 0, selinux) != 0 || kiosk_label(root, NULL, 0, selinux) != 0 ||
         fstatat(owned_parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
-        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino)
+        named.st_dev != root_info.st_dev || named.st_ino != root_info.st_ino || kiosk_pin_before(deadline) != 0)
         goto done;
     pin->published = 1;
     result = 0;
@@ -1148,6 +1384,20 @@ done:
     if (ns >= 0) close(ns);
     if (result != 0) kiosk_failure(failure, "pin", "publication", -1);
     return result;
+}
+
+/* Convenience wrappers are standalone only. Composed callers pass the same
+ * original absolute deadline through attachment, completion and publication. */
+static inline int
+kiosk_pin_publish(struct kiosk_source_pin *pin, int owned_parent, const char *name,
+                  const struct kiosk_pin_target *expected, const char *receipt,
+                  const struct kiosk_pin_entry *entries, unsigned count,
+                  int selinux, struct kiosk_failure *failure, struct kiosk_failure *cleanup_failure)
+{
+    uint64_t now;
+    if (kiosk_pin_now(&now) != 0 || now > UINT64_MAX - 60000000U) return -1;
+    return kiosk_pin_publish_until(pin, owned_parent, name, expected, receipt, entries, count,
+        selinux, now + 60000000U, failure, cleanup_failure);
 }
 
 static int
@@ -2314,7 +2564,8 @@ kiosk_confinement(pam_handle_t *pamh)
     fd = open(KIOSK_CONFINEMENT_LOCK, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (fd < 0 || fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != 0 ||
         (info.st_mode & 07777) != 0600 || info.st_nlink != 1 ||
-        flock(fd, LOCK_EX | LOCK_NB) != 0)
+        flock(fd, LOCK_EX | LOCK_NB) != 0 ||
+        kiosk_lock_identity(fd, KIOSK_CONFINEMENT_LOCK, 0) != 0)
         goto done;
     /* Create the shared tree in the actual PAM caller's SELinux domain.
      * Fedora may transition the preparation interpreter to unconfined_t;
@@ -2348,6 +2599,10 @@ kiosk_confinement(pam_handle_t *pamh)
      * capability its new profile no longer permits. */
     stage = "ambient";
     if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
+        goto done;
+    stage = "lock";
+    if (kiosk_lock_identity(fd, KIOSK_CONFINEMENT_LOCK, 0) != 0 ||
+        kiosk_admission(pamh, username) != PAM_SUCCESS)
         goto done;
     stage = "mac";
     if (apply_kiosk_mac(backend, role) != 0)

@@ -50,6 +50,20 @@ def test_shell_only_suppression_client_update_still_needs_session_renewal():
     assert activation_for(f'{_activation["EXTENSION_PATH"]}/wellbeingSuppression.js') == 'session-renewal'
 
 
+@pytest.mark.parametrize('name', ['kiosk_preparation_input.py', 'kiosk_view_receipt.py',
+                                 'kiosk_preparation_service.py'])
+def test_preparation_support_is_included_in_the_manager_reboot_boundary(tmp_path, name):
+    support = Path('usr/libexec/oh-no-parent-control-kiosk-support')
+    installed = tmp_path / support / name
+    installed.parent.mkdir(parents=True)
+    installed.write_text('old preparation support')
+    old, new = tmp_path / 'old.json', tmp_path / 'new.json'
+    generate(tmp_path, old, includes=[support])
+    installed.write_text('updated preparation support')
+    generate(tmp_path, new, includes=[support])
+    assert changed_impacts(old, new) == ['reboot']
+
+
 @pytest.mark.parametrize('refresh', [False, True])
 @pytest.mark.parametrize('fault', ['delayed', 'missing', 'command', 'timeout', 'update', 'malformed'])
 def test_child_trust_wait_requires_committed_exact_records(tmp_path, monkeypatch, refresh, fault):

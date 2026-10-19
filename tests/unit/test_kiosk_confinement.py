@@ -5,6 +5,7 @@ import json
 import fcntl
 import os
 from pathlib import Path
+import re
 import select
 import shutil
 import stat
@@ -5392,6 +5393,69 @@ def test_selinux_entrypoint_mappings_preserve_fixed_execution_routes():
             assert f'(allow {domain} {typ} (file (read open getattr map execute)))' in generated
             if role not in policy.routes()[destination]:
                 assert f'(allow {domain} {typ} (file (execute_no_trans)))' not in generated
+
+
+def test_retained_manager_policy_keeps_reexec_inside_the_same_mount_boundary():
+    """The identity proof depends on policy as well as repeated proc reads.
+
+    These are generated-policy controls, not live MAC qualification. Check the
+    manager's effective generated grants, including its common attributes,
+    rather than only the absence of a manager-specific permission string.
+    """
+    policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
+    entries = policy.executables('ubuntu')
+    paths = {entry['role']: entry['paths'] for entry in entries
+             if entry['role'] in ('manager', 'executor')}
+    assert paths == {'manager': ['/usr/lib/systemd/systemd'],
+                     'executor': ['/usr/lib/systemd/systemd-executor']}
+    assert policy.routes()['manager-pam'] == {'manager': 'manager', 'executor': 'manager'}
+    assert {role: target for role, target in policy.routes()['manager'].items()
+            if role in ('manager', 'executor')} == {'manager': 'manager', 'executor': 'manager'}
+
+    apparmor = policy.apparmor(entries)
+    for role in ('manager', 'manager-pam', 'gate'):
+        profile = apparmor.split(f'profile onpc-kiosk-{role} ', 1)[1].split('\n}\n', 1)[0]
+        rules = [line.strip() for line in profile.splitlines()
+                 if line.strip() and not line.lstrip().startswith('#')]
+        assert not any(rule.startswith(('mount ', 'umount ', 'pivot_root ', 'userns',
+                                        'ptrace', 'change_profile ')) for rule in rules)
+        assert not any(' ux,' in rule or ' Ux,' in rule or ' pux,' in rule or
+                       ' PUx,' in rule or 'unconfined' in rule for rule in rules)
+        for executable in (*paths['manager'], *paths['executor']):
+            expected = ('ix' if role == 'manager' else 'Px -> onpc-kiosk-manager')
+            assert (f'{executable} {expected},' in rules) == (role != 'gate')
+    # The manager's temporary SYS_ADMIN mediation supports systemd seccomp
+    # setup. It supplies no mount or namespace rule to that profile.
+    manager = apparmor.split('profile onpc-kiosk-manager ', 1)[1].split('\n}\n', 1)[0]
+    assert '  capability sys_admin,' in manager
+
+    selinux = policy.selinux(policy.executables('fedora'))
+    sources = {'onpc_kiosk_manager_t', 'onpc_kiosk_manager_pam_t',
+               'onpc_kiosk_domains', 'onpc_kiosk_clients', 'domain'}
+    effective = []
+    for line in selinux.splitlines():
+        match = re.fullmatch(r'\(allow (\S+) (\S+) \((\S+) \(([^()]*)\)\)\)', line)
+        if match and match[1] in sources:
+            effective.append((match[1], match[2], match[3], set(match[4].split())))
+    assert effective
+    for source, target, kind, permissions in effective:
+        if kind in ('capability', 'cap_userns'):
+            assert not permissions & {'sys_admin', 'sys_ptrace', 'sys_module', 'sys_rawio'}
+        if kind == 'filesystem':
+            assert not permissions & {'mount', 'remount', 'unmount'}
+        if kind in ('file', 'dir', 'lnk_file'):
+            assert not permissions & {'mounton', 'relabelfrom', 'relabelto'}
+        if kind == 'user_namespace':
+            assert 'create' not in permissions
+        if kind == 'process':
+            assert not permissions & {'ptrace', 'dyntransition', 'setcurrent'}
+        if kind == 'process' and 'transition' in permissions:
+            assert target.startswith('onpc_kiosk_') and target.endswith('_t')
+    for role in ('manager', 'executor'):
+        typ = f'onpc_kiosk_{role}_exec_t'
+        assert f'(allow onpc_kiosk_manager_t {typ} (file (execute_no_trans)))' in selinux
+        assert (f'(typetransition onpc_kiosk_manager_pam_t {typ} process '
+                'onpc_kiosk_manager_t)') in selinux
 
 
 def test_selinux_policy_is_reproducible_across_python_hash_seeds(tmp_path):

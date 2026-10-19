@@ -485,6 +485,47 @@ def test_removal_excludes_new_pam_admissions_and_durable_marker_survives_unlock(
 
 
 @pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
+@pytest.mark.parametrize('change', ['replace', 'symlink', 'mode', 'hardlink', 'removal'])
+def test_retained_pam_lease_rechecks_exact_named_inode_before_reuse(native, service, change):
+    original = native.directory / 'saved-admission-inode'
+    sibling = native.directory / 'extra-admission-link'
+    barrier = native.directory / 'removing'
+    with native.transaction(service=service, account_mode='kiosk-integrity') as handle:
+        assert native.pam.pam_acct_mgmt(handle, 0) == 0
+        identity = native.admission.stat()
+        try:
+            if change in ('replace', 'symlink'):
+                native.admission.rename(original)
+                if change == 'replace':
+                    native.admission.touch(mode=0o600)
+                else:
+                    native.admission.symlink_to(original.name)
+            elif change == 'mode':
+                native.admission.chmod(0o640)
+            elif change == 'hardlink':
+                os.link(native.admission, sibling)
+            else:
+                barrier.write_text('removing\n')
+            assert native.pam.pam_acct_mgmt(handle, 0) != 0
+            assert len(native.calls()) == 1  # Refused before another routing helper.
+        finally:
+            if change in ('replace', 'symlink'):
+                native.admission.unlink()
+                original.rename(native.admission)
+            elif change == 'mode':
+                native.admission.chmod(0o600)
+            elif change == 'hardlink':
+                sibling.unlink()
+            else:
+                barrier.unlink()
+        restored = native.admission.stat()
+        assert (restored.st_dev, restored.st_ino) == (identity.st_dev, identity.st_ino)
+        # Restoring this exact owned inode permits a fresh observation. No
+        # replacement lock is adopted into the already leased PAM handle.
+        assert native.pam.pam_acct_mgmt(handle, 0) == 0
+
+
+@pytest.mark.parametrize('service', ['gdm-password', 'systemd-user'])
 def test_session_admission_denies_even_when_account_callback_was_not_used(native, service):
     native.admission.touch(mode=0o600, exist_ok=True)
     with native.admission.open('rb') as removal:
@@ -702,6 +743,10 @@ static int kiosk_admission(pam_handle_t *handle, const char *user) {
     (void) handle; (void) user; puts("admission"); return PAM_SUCCESS;
 }
 static int kiosk_admission_fd(pam_handle_t *handle) { (void) handle; return 8; }
+static int kiosk_lock_identity(int fd, const char *path, uid_t owner) {
+    if (fd != 7 || strcmp(path, KIOSK_CONFINEMENT_LOCK) || owner != 0) exit(2);
+    puts("lock-verified"); return 0;
+}
 static int fixture_open(const char *path, int flags, ...) {
     if (strcmp(path, KIOSK_CONFINEMENT_LOCK) != 0 ||
         flags != (O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC)) exit(2);
@@ -807,6 +852,10 @@ def test_native_boundary_pam_result_survives_diagnostic_failure(native_boundary_
     # from both the producer's reason and its existing stage-only marker.
     assert [line for line in captured if not line.startswith('onpc.')] == discarded
     assert captured.index('lock-held') < captured.index('setup')
+    assert captured.index('lock-held') < captured.index('lock-verified') < captured.index('setup')
+    if fault == 'none':
+        assert captured.index('ambient') < max(index for index, line in enumerate(captured)
+                                                if line == 'lock-verified') < captured.index('mac')
     assert captured.index('lock-close') < captured.index(expected_result)
     native = [line for line in captured if line.startswith('onpc.pam kiosk native-view ')]
     if fault == 'none':

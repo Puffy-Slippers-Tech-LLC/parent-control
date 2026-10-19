@@ -5,6 +5,7 @@ The native PAM caller holds the preparation lock and installs these files in its
 own mount namespace. No shared distribution executable is relabelled or changed.
 """
 import ctypes
+import copy
 import errno
 import hashlib
 import json
@@ -22,6 +23,9 @@ import secrets
 
 PAYLOAD = Path('/usr/share/oh-no-parent-control/confinement')
 RUNTIME = Path('/run/oh-no-parent-control-confinement')
+NATIVE_SUPPORT = Path('/usr/libexec/oh-no-parent-control-kiosk-support')
+NATIVE_LOCKS = ((4, Path('/run/oh-no-parent-control-confinement.lock')),
+                (5, Path('/run/oh-no-parent-control-kiosk-admission.lock')))
 ACCOUNT = 'oh-no-parent-control'
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'}
 PROTOCOL_VERSION = 1
@@ -254,6 +258,11 @@ def layout_requirements(config, records):
         if entry.get('library_directory'):
             paths.add(Path(entry['library_directory']))
     proofs = required_proofs(paths)
+    return layout_proof_requirements(proofs)
+
+
+def layout_proof_requirements(proofs):
+    """Keep all material consumers' ancestors in the private skeleton."""
     by_path = {Path(path): (kind, link) for kind, path, link in proofs}
     concrete = {path: proof for path, proof in by_path.items()
                 if path != Path('/usr') and Path('/usr') in path.parents and
@@ -280,7 +289,7 @@ def validate_required_layout(layout, concrete, records):
         raise ValueError('unsafe-directory-entry')
 
 
-def directory_layout(config, records):
+def directory_layout(config, records, *, material_proofs=None, source_assertions=None):
     """Own every mountpoint dentry from /usr to each protected executable.
 
     Binding directly onto global file dentries is unsafe: OS package unlink or
@@ -290,7 +299,9 @@ def directory_layout(config, records):
     for record in records:
         if Path('/usr') not in Path(record['path']).parents:
             raise ValueError('inventory-outside-usr')
-    covered, required, concrete = layout_requirements(config, records)
+    covered, required, concrete = (layout_requirements(config, records)
+                                   if material_proofs is None else
+                                   layout_proof_requirements(material_proofs))
     observations = {}
 
     def observe(child, info, action, reason):
@@ -318,7 +329,7 @@ def directory_layout(config, records):
         trusted(directory, directory=True)
         for child in sorted(directory.iterdir()):
             scanned += 1
-            if scanned > 32768:
+            if scanned > MAX_ROWS:
                 report()
                 raise ValueError('directory-inventory-too-large')
             try:
@@ -377,6 +388,10 @@ def directory_layout(config, records):
                 # not resolve and recheck the same ancestry for every sibling.
                 entries.append({'path': str(child), 'kind': 'tree' if child in covered else
                                 'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
+            if source_assertions is not None:
+                # Capture provenance with the inventory observation. Never
+                # reopen an ambient name later to substitute a newer inode.
+                source_assertions[str(child)] = file_identity(info)
     report()
     validate_required_layout(entries, concrete, records)
     return entries
@@ -1371,8 +1386,13 @@ class RuntimeCopyPublication:
         return False
 
 
-def verify_runtime_copies(fd, receipt, backend, expected_specs, *, used_rows=0, used_bytes=0):
-    """Validate an independently retained receipt, never adopt a disk manifest."""
+def verify_runtime_copies(fd, receipt, backend, expected_specs, *, used_rows=0, used_bytes=0,
+                          extra_members=()):
+    """Validate an independently retained receipt, never adopt a disk manifest.
+
+    InitialPreparation independently verifies any declared native scratch
+    members. Supporting-only publication passes no extras and refuses them.
+    """
     if (not isinstance(receipt, dict) or set(receipt) != {
             'format', 'backend', 'root', 'mount', 'manifest', 'manifest_identity', 'records', 'copies'} or
             type(receipt['format']) is not int or receipt['format'] != RUNTIME_COPY_FORMAT or
@@ -1401,7 +1421,12 @@ def verify_runtime_copies(fd, receipt, backend, expected_specs, *, used_rows=0, 
     if len(records) != len(specs) or len(copies) != sum(record['kind'] == 'file' for record in records):
         raise ValueError('runtime-membership')
     expected = {str(index) for index, record in enumerate(records) if record['kind'] == 'file'}
-    if runtime_members(fd, limit=MAX_ROWS + 1) != expected | {'runtime.json'}:
+    extras = set(extra_members)
+    if (len(extras) != len(extra_members) or extras & (expected | {'runtime.json'}) or
+            any(not isinstance(name, str) or not re.fullmatch(r'native-[0-9]+', name)
+                for name in extras)):
+        raise ValueError('runtime-membership')
+    if runtime_members(fd, limit=MAX_ROWS + 1) != expected | {'runtime.json'} | extras:
         raise ValueError('runtime-membership')
     manifest = dict(format=RUNTIME_COPY_FORMAT, backend=backend, records=records, copies=copies)
     data = runtime_canonical(manifest)
@@ -1474,7 +1499,7 @@ def reclaim_runtime_scratch(root, ticket):
             not isinstance(ticket['members'], dict) or len(ticket['members']) > MAX_ROWS + 1):
         raise ValueError('runtime-recovery-ticket')
     for name, identity in ticket['members'].items():
-        if (not re.fullmatch(r'(?:0|[1-9][0-9]*|runtime\.json)', name) or
+        if (not re.fullmatch(r'(?:(?:native-)?(?:0|[1-9][0-9]*)|runtime\.json)', name) or
                 not isinstance(identity, list) or len(identity) != 2 or
                 any(type(value) is not int or value < 0 for value in identity)):
             raise ValueError('runtime-recovery-ticket')
@@ -1708,6 +1733,300 @@ def verify_required_material(snapshot):
     _check_material_assertions(snapshot)
 
 
+def initial_material_budget(snapshot, layout=()):
+    """One budget for proof/layout rows and every independently copied byte."""
+    groups = [snapshot[name] for name in ('native', 'preserved', 'runtime', 'payload', 'proofs')]
+    if sum(map(len, groups)) + len(layout) + 1 > MAX_ROWS:
+        raise ValueError('material-limit')
+    copied = snapshot['native'] + snapshot['payload'] + [
+        item for item in snapshot['runtime'] if item['kind'] == 'file']
+    if any(type(item.get('size')) is not int or item['size'] < 0 for item in copied):
+        raise ValueError('material-limit')
+    total = sum(item['size'] for item in copied)
+    if total > MAX_COPY_BYTES:
+        raise ValueError('material-limit')
+    # A destination cannot acquire two source classes or privileges.
+    files = snapshot['native'] + snapshot['preserved'] + snapshot['payload'] + [
+        item for item in snapshot['runtime'] if item['kind'] == 'file']
+    if len({item['path'] for item in files}) != len(files):
+        raise ValueError('retained-layout')
+    return sum(map(len, groups)) + len(layout) + 1, total
+
+
+def initial_directory_layout(snapshot, *, source_assertions=None):
+    """Plan the initial private /usr with complete required-material coverage.
+
+    This still scans ambient immediate entries, and is never used for a later
+    retained invocation. Every ancestor of a runtime/payload copy is a tree,
+    so no shallow host directory can cover one of those independent copies.
+    Native realization must independently capture sources and record actual
+    late omissions; this intended layout is not a realization receipt.
+    """
+    verify_required_material(snapshot)
+    initial_material_budget(snapshot)
+    files = snapshot['native'] + snapshot['preserved'] + snapshot['payload'] + [
+        item for item in snapshot['runtime'] if item['kind'] == 'file']
+    layout = directory_layout(snapshot['config'], files, material_proofs=snapshot['proofs'],
+                              source_assertions=source_assertions)
+    # Validated bytecode caches are intentionally absent from the finite product
+    # payload. Binding their host directory would reintroduce mutable code.
+    cache_paths = {str(Path(path) / '__pycache__') for path, spec in
+                   snapshot['config']['runtime_inputs'].items()
+                   if spec == {'kind': 'directory', 'role': 'module'}}
+    layout = sorted((node for node in layout if node['path'] not in cache_paths),
+                    key=lambda node: node['path'])
+    if source_assertions is not None:
+        for path in cache_paths:
+            source_assertions.pop(path, None)
+    _, _, concrete = layout_proof_requirements(snapshot['proofs'])
+    validate_required_layout(layout, concrete, files)
+    nodes = {node['path']: node for node in layout}
+    for item in files:
+        if any(nodes.get(str(parent), {}).get('kind') != 'tree'
+               for parent in Path(item['path']).parents
+               if parent not in (Path('/'), Path('/usr'))):
+            raise ValueError('retained-layout')
+    initial_material_budget(snapshot, layout)
+    verify_required_material(snapshot)
+    return layout
+
+
+def initial_supporting_inputs(snapshot):
+    """Runtime scripts/data and attested config/policy use ordinary copy roles."""
+    records = [dict(item) for item in snapshot['runtime']]
+    assertions = dict(snapshot['runtime_assertions'])
+    for item in snapshot['payload']:
+        # Policy/config files grant no native execution role. The production
+        # package installs both at 0644; incompatible safe modes still refuse.
+        records.append(dict(item, kind='file', role='asset'))
+        assertions[item['path']] = snapshot['assertions'][item['path']]
+    records.sort(key=lambda item: item['path'])
+    used_rows = (len(snapshot['native']) + len(snapshot['preserved']) +
+                 len(snapshot['proofs']) + 1)
+    used_bytes = sum(item['size'] for item in snapshot['native'])
+    specs = runtime_records_valid(records, snapshot['record']['backend'],
+                                  used_rows=used_rows, used_bytes=used_bytes)
+    return records, assertions, specs
+
+
+class InitialPreparation:
+    """Unwired initial plan and owned native/supporting copies, without admission.
+
+    The native caller owns its lock, lease, source acquisition and deadline.
+    This context owns only RuntimeCopyPublication's identity-recorded scratch
+    and CLOEXEC descriptors. It removes scratch on exit unless the exact ticket
+    and directory have been transferred to native; no ready generation, V or
+    mount is published here. Native composition must acquire
+    and independently verify these copies before a realization can be claimed.
+    """
+
+    def __init__(self, root, snapshot):
+        self.publication = None
+        # Freeze the producer's intent independently of later caller mutation.
+        self.snapshot = copy.deepcopy(snapshot)
+        self._layout_assertions = {}
+        self.layout = initial_directory_layout(self.snapshot,
+                                               source_assertions=self._layout_assertions)
+        self.records, self.assertions, self.specs = initial_supporting_inputs(self.snapshot)
+        self.used_rows = (initial_material_budget(self.snapshot, self.layout)[0] -
+                          len(self.records))
+        self.used_bytes = sum(item['size'] for item in self.snapshot['native'])
+        backend = self.snapshot['record']['backend']
+        publication = RuntimeCopyPublication(root, backend, self.specs)
+        self.publication = publication
+        try:
+            self.receipt = publication.copy(self.records, self.assertions,
+                used_rows=self.used_rows, used_bytes=self.used_bytes)
+            self.native_copies = self._copy_native()
+            self.sources = self._sources()
+            self._intent = copy.deepcopy((self.layout, self.sources, self.native_copies,
+                                          self.snapshot['native']))
+            self.verify()
+        except BaseException as error:
+            publication.__exit__(type(error), error, error.__traceback__)
+            self.publication = None
+            raise
+
+    def _native_label(self, fd, record, *, write=False):
+        backend = self.snapshot['record']['backend']
+        expected = (f'system_u:object_r:onpc_kiosk_{record["role"].replace("-", "_")}_exec_t:s0'
+                    if backend == 'selinux' else None)
+        if record['label'] != expected:
+            raise ValueError('executable-label-changed')
+        if backend == 'selinux':
+            if write:
+                os.setxattr(fd, 'security.selinux', expected.encode('ascii') + b'\0')
+            if os.getxattr(fd, 'security.selinux').rstrip(b'\0').decode('ascii') != expected:
+                raise ValueError('executable-label-changed')
+
+    def _copy_native(self):
+        copies = []
+        for index, record in enumerate(self.snapshot['native']):
+            origin = record.get('source', record['path'])
+            assertion = tuple(self.snapshot['assertions'][origin])
+            source = runtime_open(origin)
+            target = -1
+            try:
+                if runtime_identity(os.fstat(source)) != assertion:
+                    raise ValueError('material-source-changed')
+                name = 'native-' + str(index)
+                target = self.publication._new_file(name)
+                if runtime_read_digest(source, record['size'], target=target) != record['sha256']:
+                    raise ValueError('material-source-changed')
+                os.fchmod(target, record['mode'])
+                self._native_label(target, record, write=True)
+                os.fsync(target)
+                info = os.fstat(target)
+                runtime_owned_stat(info, 'file')
+                if (runtime_identity(info)[:2] == assertion[:2] or
+                        runtime_identity(os.fstat(source)) != assertion):
+                    raise ValueError('material-source-changed')
+                copies.append(dict(index=index, name=name, identity=list(runtime_identity(info))))
+            finally:
+                os.close(source)
+                if target >= 0:
+                    os.close(target)
+        os.fsync(self.publication.fd)
+        return copies
+
+    def _verify_native(self):
+        if len(self.native_copies) != len(self.snapshot['native']):
+            raise ValueError('runtime-copy-identity')
+        for index, (member, record) in enumerate(zip(self.native_copies, self.snapshot['native'])):
+            if (set(member) != {'index', 'name', 'identity'} or
+                    type(member['index']) is not int or member['index'] != index or
+                    member['name'] != 'native-' + str(index) or
+                    self.publication.owned.get(member['name']) != tuple(member['identity'][:2])):
+                raise ValueError('runtime-copy-identity')
+            source = os.open(member['name'], os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                             os.O_NONBLOCK, dir_fd=self.publication.fd)
+            try:
+                before = os.fstat(source)
+                runtime_owned_stat(before, 'file')
+                origin = record.get('source', record['path'])
+                if (list(runtime_identity(before)) != member['identity'] or
+                        runtime_identity(before)[:2] == tuple(self.snapshot['assertions'][origin][:2]) or
+                        runtime_mount_id(source) != self.publication.mount or
+                        stat.S_IMODE(before.st_mode) != record['mode'] or
+                        record['mode'] != (0o644 if record['role'] in ('blocked', 'library') else 0o755) or
+                        before.st_size != record['size'] or 'security.capability' in os.listxattr(source)):
+                    raise ValueError('runtime-copy-identity')
+                self._native_label(source, record)
+                if runtime_read_digest(source, record['size']) != record['sha256']:
+                    raise ValueError('runtime-copy-changed')
+                if (runtime_identity(os.fstat(source)) != runtime_identity(before) or
+                        runtime_identity(os.stat(member['name'], dir_fd=self.publication.fd,
+                                                 follow_symlinks=False)) != runtime_identity(before)):
+                    raise ValueError('runtime-copy-identity')
+            finally:
+                os.close(source)
+
+    def _sources(self):
+        runtime = {item['path']: index for index, item in enumerate(self.records)}
+        copies = {item['index']: item for item in self.receipt['copies']}
+        native = {item['path']: index for index, item in enumerate(self.snapshot['native'])}
+        vendor = {item['path']: index for index, item in enumerate(self.snapshot['preserved'])}
+        payload = {item['path'] for item in self.snapshot['payload']}
+        required = {path for _, path, _ in self.snapshot['proofs']}
+        sources = {}
+        for source_index, node in enumerate([dict(path='/usr', kind='tree'), *self.layout]):
+            path, kind = node['path'], node['kind']
+            # source_index is the stable layout slot used by V/I. Class-local
+            # index below identifies a native/runtime/vendor input or copy;
+            # these are different namespaces and must never be interchanged.
+            source = dict(kind=kind, required=path in required, source_index=source_index,
+                          source_class='ambient' if kind == 'empty-directory' else 'skeleton')
+            if kind == 'link':
+                source['link'] = node['link']
+            if path in native:
+                index = native[path]
+                record = self.snapshot['native'][index]
+                origin = record.get('source', path)
+                source.update(source_class='native', index=index, path=origin,
+                              assertion=list(self.snapshot['assertions'][origin]),
+                              record=dict(record), name=self.native_copies[index]['name'],
+                              copy_identity=list(self.native_copies[index]['identity']))
+            elif path in runtime and kind == 'file':
+                index = runtime[path]
+                source.update(source_class='payload' if path in payload else 'runtime',
+                              index=index, name=copies[index]['name'],
+                              assertion=list(self.assertions[path]),
+                              copy_identity=list(copies[index]['identity']),
+                              record=dict(self.records[index]))
+            elif path in vendor:
+                source.update(source_class='vendor', index=vendor[path], path=path,
+                              assertion=list(self.snapshot['assertions'][path]),
+                              record=dict(self.snapshot['preserved'][vendor[path]]))
+            elif kind in ('file', 'directory', 'link'):
+                # Inventory captured this exact original source once. Native
+                # alone observes later trust/availability and either binds that
+                # inode or records omission/masking in actual V. No later host
+                # name is reopened here, including after identical replacement.
+                source.update(source_class='alias' if kind == 'link' and path in required
+                              else 'ambient', path=path, index=source_index,
+                              assertion=list(self._layout_assertions[path]))
+            sources[path] = source
+        return sources
+
+    def plan(self):
+        self.verify()
+        # No digest of this intended plan is represented as V or I.
+        data = json.dumps(dict(format=1, material=self.snapshot['digest'],
+            backend=self.snapshot['record']['backend'], layout=self.layout,
+            sources=self.sources, runtime=self.receipt, proofs=self.snapshot['proofs'],
+            native=dict(records=self.snapshot['native'], copies=self.native_copies)), sort_keys=True,
+            separators=(',', ':'), ensure_ascii=True, allow_nan=False).encode('ascii')
+        if len(data) > MAX_MANIFEST:
+            raise ValueError('material-limit')
+        return json.loads(data)
+
+    def verify(self):
+        """Recheck required material/copies and static intent, not ambient trust.
+
+        Late ambient acquisition, refusal and actual omission/masking belong to
+        native realization; frozen host provenance grants no binding authority.
+        """
+        if self.publication is None:
+            raise ValueError('runtime-publication-replaced')
+        self.publication._check_root()
+        verify_runtime_copies(self.publication.fd, self.receipt,
+            self.snapshot['record']['backend'], self.specs,
+            used_rows=self.used_rows, used_bytes=self.used_bytes,
+            extra_members=[member['name'] for member in self.native_copies])
+        if (self.records != self.receipt['records'] or
+                (self.layout, self.sources, self.native_copies, self.snapshot['native']) != self._intent):
+            raise ValueError('material-source-changed')
+        self._verify_native()
+        initial_material_budget(self.snapshot, self.layout)
+        verify_required_material(self.snapshot)
+
+    def ticket(self):
+        return self.publication.ticket()
+
+    def detach(self):
+        """Transfer the exact incomplete scratch to the native channel owner.
+
+        Call only after sending the plan, cleanup ticket and copy-directory
+        descriptor successfully. Native must reap this helper and independently
+        verify the named objects before using or publishing them. This operation
+        grants no completed realization or ready authority.
+        """
+        self.verify()
+        publication, self.publication = self.publication, None
+        ticket = publication.ticket()
+        publication.close()
+        return ticket
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, error, traceback):
+        publication, self.publication = self.publication, None
+        if publication is not None:
+            return publication.__exit__(kind, error, traceback)
+        return False
+
+
 def retained_source_assertion(fd, identity, node, required, item, backend, preserved):
     """Observe one source FD; callers narrow only eligible ambient source errors."""
     before = os.fstat(fd)
@@ -1741,7 +2060,112 @@ def retained_source_assertion(fd, identity, node, required, item, backend, prese
     return file_identity(before)
 
 
-def select_retained_material(current, retained_record, layout, pins):
+class RetainedSourceProjection:
+    """Bounded local opens beneath the single native-owned recursive clone.
+
+    Native must first verify the receipt, clone and this finite inode projection.
+    This adapter grants no acquisition authority. At most one leaf is borrowed
+    at a time; callers must consume it before looking up another entry. Every
+    parent and final node is opened without following links. A descriptor-backed
+    reopen of an already checked regular inode permits hashing an O_PATH clone
+    source without ever reopening its host name.
+    """
+    def __init__(self, root_fd, entries):
+        self.root = self.leaf = -1
+        if (type(root_fd) is not int or root_fd < 0 or not isinstance(entries, dict) or
+                not entries or len(entries) > MAX_ROWS or '/usr' not in entries):
+            raise ValueError('retained-source-identity')
+        self.entries = {}
+        for path, entry in entries.items():
+            protocol_text(path, absolute=True)
+            if (path != '/usr' and not path.startswith('/usr/') or
+                    not isinstance(entry, dict) or set(entry) != {'kind', 'identity'} or
+                    entry['kind'] not in ('tree', 'directory', 'file', 'link') or
+                    not isinstance(entry['identity'], (list, tuple)) or len(entry['identity']) != 2 or
+                    any(type(value) is not int or not 0 <= value <= 2**64 - 1
+                        for value in entry['identity'])):
+                raise ValueError('retained-source-identity')
+            self.entries[path] = dict(kind=entry['kind'], identity=tuple(entry['identity']))
+        if self.entries['/usr']['kind'] != 'tree':
+            raise ValueError('retained-source-identity')
+        for path in self.entries:
+            if any(self.entries.get(str(parent), {}).get('kind') != 'tree'
+                   for parent in Path(path).parents if parent not in (Path('/'),)):
+                raise ValueError('retained-source-identity')
+        self.root = os.dup(root_fd)
+        try:
+            os.set_inheritable(self.root, False)
+            info = os.fstat(self.root)
+            if (not stat.S_ISDIR(info.st_mode) or
+                    file_identity(info)[:2] != self.entries['/usr']['identity']):
+                raise ValueError('retained-source-identity')
+        except BaseException:
+            self.close()
+            raise
+
+    def __len__(self):
+        return len(self.entries)
+
+    def __iter__(self):
+        return iter(self.entries)
+
+    def __getitem__(self, path):
+        entry = self.entries[path]
+        if self.leaf >= 0:
+            os.close(self.leaf)
+            self.leaf = -1
+        if self.root < 0:
+            raise ValueError('retained-source-identity')
+        current = os.dup(self.root)
+        try:
+            walked = '/usr'
+            for part in path.split('/')[2:]:
+                child = os.open(part, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                dir_fd=current)
+                os.close(current)
+                current = child
+                walked += '/' + part
+                observed, expected = os.fstat(current), self.entries[walked]
+                if (file_identity(observed)[:2] != expected['identity'] or
+                        walked != path and not stat.S_ISDIR(observed.st_mode)):
+                    raise ValueError('retained-source-identity')
+            info = os.fstat(current)
+            kind = entry['kind']
+            if (file_identity(info)[:2] != entry['identity'] or
+                    (stat.S_IFMT(info.st_mode) != (
+                        stat.S_IFLNK if kind == 'link' else stat.S_IFREG if kind == 'file'
+                        else stat.S_IFDIR))):
+                raise ValueError('retained-source-identity')
+            if kind == 'file':
+                readable = os.open('/proc/self/fd/' + str(current),
+                                   os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+                if file_identity(os.fstat(readable)) != file_identity(info):
+                    os.close(readable)
+                    raise ValueError('retained-source-changed')
+                os.close(current)
+                current = readable
+            self.leaf, current = current, -1
+            return dict(fd=self.leaf, identity=entry['identity'])
+        finally:
+            if current >= 0:
+                os.close(current)
+
+    def close(self):
+        if self.leaf >= 0:
+            os.close(self.leaf)
+            self.leaf = -1
+        if self.root >= 0:
+            os.close(self.root)
+            self.root = -1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *unused):
+        self.close()
+
+
+def select_retained_material(current, retained_record, layout, pins, *, source_slots=None):
     """Select a fresh layout from a native-verified receipt/clone projection.
 
     pins maps canonical /usr names to caller-owned descriptors plus original
@@ -1749,17 +2173,22 @@ def select_retained_material(current, retained_record, layout, pins):
     nor acquires/attests a clone, parses a ready receipt, publishes or attaches.
     Only 006's native owner can supply that authority. Descriptors stay with the
     caller; returned indices/assertions are bound again by native before use.
+    source_slots is the native-verified V path-to-slot map, including original
+    masks and absences. Never number sources from the surviving descriptor set.
+    The default is useful for initial, contiguous plans only; production receipt
+    callers must pass the original slots, which may contain gaps.
     """
     verify_required_material(current)
     if (retained_record != current['record'] or
             material_digest(retained_record) != current['digest']):
         raise ValueError('manager-material-stale')
-    if not isinstance(layout, list) or len(layout) > MAX_ROWS or not isinstance(pins, dict):
+    if (not isinstance(layout, list) or len(layout) > MAX_ROWS or
+            not isinstance(pins, (dict, RetainedSourceProjection))):
         raise ValueError('retained-layout')
     nodes = {}
     for entry in layout:
         if not isinstance(entry, dict) or entry.get('kind') not in (
-                'tree', 'directory', 'empty-directory', 'file', 'link'):
+                'tree', 'directory', 'empty-directory', 'file', 'link', 'absent'):
             raise ValueError('retained-layout')
         path, kind = protocol_text(entry.get('path'), absolute=True), entry['kind']
         if (not path.startswith('/usr/') or path in nodes or
@@ -1778,6 +2207,19 @@ def select_retained_material(current, retained_record, layout, pins):
                 not any(proofs.get(parent, (None,))[0] == 'link' for parent in path.parents)}
     validate_required_layout(layout, concrete, [*current['native'], *current['preserved']])
     required = {'/usr'} | {str(path) for path in concrete}
+    paths = sorted({'/usr', *nodes})
+    if source_slots is None:
+        source_slots = dict(zip(paths, range(len(paths))))
+    if (not isinstance(source_slots, dict) or set(source_slots) != set(paths) or
+            any(type(source_slots[path]) is not int or
+                not 0 <= source_slots[path] < 2**63 for path in paths) or
+            any(source_slots[left] >= source_slots[right]
+                for left, right in zip(paths, paths[1:]))):
+        raise ValueError('retained-source-identity')
+    # Freeze the selected domain before any descriptor access or omission.
+    source_slots = dict(source_slots)
+    if any(nodes.get(path, {}).get('kind') in ('absent', 'empty-directory') for path in required):
+        raise ValueError('retained-required-source')
     files = current['native'] + current['preserved'] + current['runtime'] + current.get('payload', [])
     expected = {item['path']: item for item in files if item.get('kind', 'file') == 'file'}
     # Runtime/native overlap would make source class and privilege ambiguous.
@@ -1788,18 +2230,28 @@ def select_retained_material(current, retained_record, layout, pins):
     if (len(nodes) + len(current['native']) + len(current['preserved']) +
             len(current['runtime']) + len(proofs) > MAX_ROWS):
         raise ValueError('material-limit')
-    if set(pins) != {'/usr'} | {path for path, node in nodes.items() if node['kind'] != 'empty-directory'}:
+    if set(pins) != {'/usr'} | {path for path, node in nodes.items()
+                              if node['kind'] not in ('empty-directory', 'absent')}:
         raise ValueError('retained-source-identity')
     result, sources = [], {}
     vendor = {item['path'] for item in current['preserved']}
-    for index, path in enumerate(sorted(pins)):
-        pin = pins[path]
+    for path in sorted(pins):
+        index = source_slots[path]
+        node = nodes.get(path, {'path': '/usr', 'kind': 'tree'})
+        try:
+            pin = pins[path]
+        except OSError as error:
+            if path in required or error.errno not in (errno.EACCES, errno.EPERM, errno.EIO, errno.ESTALE):
+                raise
+            if node['kind'] == 'directory':
+                result.append(dict(path=path, kind='empty-directory'))
+            continue
         if (not isinstance(pin, dict) or set(pin) != {'fd', 'identity'} or
                 type(pin['fd']) is not int or pin['fd'] < 0 or
                 not isinstance(pin['identity'], (tuple, list)) or len(pin['identity']) != 2 or
                 any(type(value) is not int or value < 0 for value in pin['identity'])):
             raise ValueError('retained-source-identity')
-        fd, node = pin['fd'], nodes.get(path, {'path': '/usr', 'kind': 'tree'})
+        fd = pin['fd']
         try:
             assertion = retained_source_assertion(fd, pin['identity'], node, path in required,
                 expected.get(path), current['record']['backend'], path in vendor)
@@ -1835,7 +2287,8 @@ def select_retained_material(current, retained_record, layout, pins):
             raise ValueError('retained-source-changed')
     result.sort(key=lambda item: item['path'])
     validate_required_layout(result, concrete, [*current['native'], *current['preserved']])
-    return dict(material=current['digest'], layout=result, sources=sources)
+    return dict(material=current['digest'], layout=result, sources=sources,
+                source_slots=source_slots)
 
 
 def manager_generation(uid, digest, backend):
@@ -2030,12 +2483,102 @@ def prepare(role):
         pending.unlink(missing_ok=True)
 
 
+def native_preparation_service(deadline_ns):
+    """Load only checked installed support bytes in the isolated interpreter.
+
+    Do not add a directory to Python's import search or consume bytecode caches.
+    The native caller's original deadline also bounds this bootstrap through
+    its pidfd owner. Each support file keeps its named full identity across read.
+    """
+    import types
+    import time
+
+    def before():
+        now = time.monotonic_ns()
+        if not now < deadline_ns <= now + 60_000_000_000:
+            raise TimeoutError('preparation-deadline')
+
+    before()
+    sys.modules['kiosk_confinement'] = sys.modules[__name__]
+    for name in ('kiosk_preparation_input', 'kiosk_view_receipt', 'kiosk_preparation_service'):
+        before()
+        path = trusted(NATIVE_SUPPORT / (name + '.py'))
+        fd = runtime_open(path)
+        try:
+            info = os.fstat(fd)
+            runtime_owned_stat(info, 'file')
+            if info.st_nlink != 1 or not 0 < info.st_size <= MAX_MANIFEST:
+                raise ValueError('untrusted-path')
+            parts, offset = [], 0
+            while offset < info.st_size:
+                before()
+                data = os.pread(fd, min(65536, info.st_size - offset), offset)
+                if not data:
+                    raise ValueError('source-changed')
+                parts.append(data)
+                offset += len(data)
+            named = runtime_open(path)
+            try:
+                unchanged = file_identity(os.fstat(named)) == file_identity(info)
+            finally:
+                os.close(named)
+            if not unchanged or file_identity(os.fstat(fd)) != file_identity(info):
+                raise ValueError('source-changed')
+        finally:
+            os.close(fd)
+        module = types.ModuleType(name)
+        module.__file__, module.__package__ = str(path), ''
+        sys.modules[name] = module
+        exec(compile(b''.join(parts), str(path), 'exec'), module.__dict__)
+    before()
+    return sys.modules['kiosk_preparation_service']
+
+
+def prepare_native_channel(role, channel_text, deadline_text):
+    """The fixed native child entry; descriptors and deadline confer no admission."""
+    import socket
+    import fcntl
+    import time
+
+    if (os.geteuid() != 0 or role not in ('manager', 'gate') or channel_text != '3' or
+            not re.fullmatch(r'[1-9][0-9]{0,19}', deadline_text) or
+            not 0 < int(deadline_text) < 2**64):
+        raise ValueError('invalid-arguments')
+    deadline_ns = int(deadline_text)
+    now = time.monotonic_ns()
+    if not now < deadline_ns <= now + 60_000_000_000:
+        raise TimeoutError('preparation-deadline')
+    os.umask(0o077)
+    seen = set()
+    for fd, path in NATIVE_LOCKS:
+        info, named = os.fstat(fd), path.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or
+                stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or
+                file_identity(info) != file_identity(named) or
+                (info.st_dev, info.st_ino) in seen or
+                fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDWR):
+            raise ValueError('unowned-preparation')
+        seen.add((info.st_dev, info.st_ino))
+        os.set_inheritable(fd, False)
+    with socket.socket(fileno=3) as channel:
+        os.set_inheritable(channel.fileno(), False)
+        if (channel.family != socket.AF_UNIX or channel.type != socket.SOCK_SEQPACKET or
+                channel.getsockname() or channel.getpeername()):
+            raise ValueError('unowned-preparation')
+        service = native_preparation_service(deadline_ns)
+        service.serve(channel, role=role, deadline_ns=deadline_ns)
+
+
 def main():
-    role = sys.argv[1] if len(sys.argv) == 2 else 'other'
+    native = len(sys.argv) == 5 and sys.argv[1] == '--native-channel'
+    role = sys.argv[2] if native else sys.argv[1] if len(sys.argv) == 2 else 'other'
     try:
-        if len(sys.argv) != 2:
+        if native:
+            prepare_native_channel(role, sys.argv[3], sys.argv[4])
+        elif len(sys.argv) == 2:
+            prepare(role)
+        else:
             raise ValueError('invalid-arguments')
-        prepare(role)
     except Exception as error:
         report_preparation_failure(error, role)
         return 1

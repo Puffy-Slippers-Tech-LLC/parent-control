@@ -32,6 +32,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-dbus \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-support \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration \
 	$(DATADIR)/oh-no-parent-control/confinement \
 	$(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-kiosk-confinement.service \
@@ -191,6 +192,13 @@ PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-cont
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c
 PACKAGE_SOURCE_FILES += tools/kiosk_bwrap.c
 PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
+	tools/kiosk_host_proof.h tools/kiosk_manager_admission.h \
+	tools/kiosk_material_authority.h tools/kiosk_view_receipt.h \
+	tools/kiosk_preparation_channel.h tools/kiosk_preparation_child.h \
+	tools/kiosk_preparation_plan.h tools/kiosk_native_realization.h \
+	tools/kiosk_policy_authority.h tools/kiosk_view_publication.h \
+	tools/kiosk_preparation_input.py tools/kiosk_view_receipt.py \
+	tools/kiosk_preparation_service.py \
 	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \
 	data/systemd/oh-no-parent-control-kiosk-confinement.service \
 	data/systemd/user/org.gnome.Kiosk@wayland.service.d/confinement.conf \
@@ -577,6 +585,8 @@ endif
 		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap" tools/kiosk_bwrap.c
 	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-bwrap"
 	install -m 0755 tools/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement"
+	install -d "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-support"
+	install -m 0644 tools/kiosk_preparation_input.py tools/kiosk_view_receipt.py tools/kiosk_preparation_service.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-support/"
 	install -m 0755 packaging/kiosk_confinement.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-confinement-integration"
 	$(PYTHON) tools/kiosk_confinement_policy.py --distribution "$(PACKAGE_DISTRIBUTION)" --output "$(DESTDIR)$(DATADIR)/oh-no-parent-control/confinement"
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"

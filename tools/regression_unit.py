@@ -338,6 +338,14 @@ Trust-dump diagnostic regressions in system_enforcement, system_guest and
 system_runner_cleanup_safety use bounded in-memory databases, pytest-private
 logs and process/pidfd doubles. No real child, guest, shared path or cache is
 added; existing compatible unit and cleanup classifications remain valid.
+Native material-authority and preparation-child controls compile tiny private
+fixtures, decode bounded in-memory records and use anonymous sockets with
+atomically identified, bounded, reaped children. Descriptor closure, exact
+lock/lease inodes and deadline cancellation are observed independently. Native
+copy controls add private scratch inodes/xattr doubles and identity-owned
+cleanup; original-slot controls use private clone projections. No shared path,
+service, bus, display, network, VM or extra cleanup/UI inventory owner is added;
+these modules qualify for compatible unit scheduling.
 Caller result transport in kiosk_confinement uses private nonblocking pipes,
 closed on success and refusal, with mocked runcon and pytest-private PAM inputs.
 Inherited-descriptor command cleanup uses process/pidfd doubles and retains the
@@ -951,6 +959,10 @@ from regression_ui import Bucket
 # Admission/removal regressions use real advisory locks only on pytest-private
 # files. Native PAM leases cover root-executor/session teardown intervals and
 # the existing owned worker-abort case observes the inherited helper lease.
+# Retained-handle reuse additionally mutates only that module's private lock
+# inode/link/mode or removal marker and restores the exact owned inode before
+# fixture reuse. Final preparation-lock checks reuse the native callback double;
+# no new process, shared resource or cleanup/UI classification is introduced.
 # Lifecycle interruption/recovery uses private PAM/record/marker files and
 # fixed policy-command doubles; no host PAM, kernel policy or account changes.
 # Installed admission's worker/status and routing-failure checks use process-local
@@ -1038,8 +1050,44 @@ from regression_ui import Bucket
 # cache, socket, bus, display or service. Its legacy-manager control briefly pins
 # its own test process with a closed pidfd; it never signals or spawns a manager.
 # None participates in cleanup/UI inventories.
+# Retained projection uses only pytest-private files, symlinks and borrowed
+# descriptors. Its 512-source control observes constant descriptor use without
+# changing process limits. It adds no subprocess, live mount/bus, shared cache
+# or cleanup/UI owner; the existing compatible unit resource class applies.
+# Manager admission owns private compiled fixtures, typed bus/proc doubles and
+# bounded waited probes. Its reexec witness owns one pipe-barrier child and
+# pidfd, and signals only that recorded child. Host proofs use private descriptor
+# trees and bounded compiled probes with preloaded read-only hashing libraries.
+# Neither module opens a live bus, service, display, network or shared cache, or
+# changes a host namespace/mount. No cleanup/UI inventory owner is introduced.
+# Initial realization planning uses pytest-private files, descriptor copies and
+# process-local metadata doubles under the existing runtime-copy cleanup owner.
+# Receipt checks compile bounded private native probes and hash finite in-memory
+# records. Preparation channels use private anonymous descriptor sockets and
+# owned CLOEXEC descriptors; any native probes are bounded, waited children.
+# No shared path, cache, bus, display, service, VM or new cleanup/UI owner is
+# acquired. These three modules permit compatible unit overlap. Pin transaction
+# expiry controls use a local clock double with the existing private mounts and
+# unchanged owned-child/namespace cleanup; policy controls only inspect strings.
+# The preparation service/entry own private descriptor trees and anonymous
+# records. The service's alarm and import aliases are process-local and restored;
+# entry controls launch no child. No host lock, bus, mount or service is touched,
+# and neither module belongs to cleanup/UI inventories. Compatible overlap uses
+# the same bounded disk/CPU class as the initial-copy and channel fixtures.
+# Native plan/policy/publication controls use pytest-private real inode trees,
+# bounded waited compilers/probes and process-local enforcement/clock/syscall
+# doubles. Publication probes enter their own user namespace without mounts.
+# Native realization additionally owns private user/mount namespaces, nested
+# tmpfs mounts and anonymous descriptors, all detached/closed before probe exit.
+# They add no host policy, live bus/service/display, VM, shared cache or new
+# cleanup/UI owner. Their bounded CPU/disk use permits compatible unit overlap.
 REVIEWED = frozenset("""
-kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material
+kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
+kiosk_manager_admission kiosk_host_proof
+kiosk_initial_realization kiosk_view_receipt kiosk_preparation_channel
+kiosk_material_authority kiosk_preparation_child
+kiosk_preparation_service kiosk_preparation_entry
+kiosk_preparation_plan kiosk_native_realization kiosk_policy_authority kiosk_view_publication
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

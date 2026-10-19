@@ -47,6 +47,41 @@ def test_dated_report_roundtrip_enrichment_and_fixed_metadata():
         assert all(entry.date_time == (1980, 1, 1, 0, 0, 0) for entry in archive.infolist())
 
 
+def test_user_languages_survive_frontend_enrichment_and_transport_validation():
+    languages = {"status": "complete", "users": [
+        {"user": "[Parent 1]", "language": "en"},
+        {"user": "[Child 1]", "language": "sr-Latn"},
+        {"user": "[Child 2]", "language": "unset"},
+    ]}
+    data = build_report({}, user_languages=languages)
+    enriched = with_system_info(data, sample_info())
+    assert validate_bundle(enriched) == enriched
+    with ZipFile(BytesIO(enriched)) as archive:
+        assert read_report(archive)[1]["user_languages"] == languages
+
+
+@pytest.mark.parametrize("languages", [
+    None,
+    {"status": "complete", "users": [{"user": SECRET, "language": "en"}]},
+    {"status": "complete", "users": [{"user": "[Parent 1]", "language": "Private-Person"}]},
+    {"status": "complete", "users": [{"user": "[Child 1]", "language": "en", "uid": 1001}]},
+    {"status": "complete", "users": [{"user": "[Child 2]", "language": "en"}]},
+    {"status": "complete", "users": [{"user": "[Child 1]", "language": "unavailable"}]},
+    {"status": "unavailable", "users": [{"user": "[Child 1]", "language": "en"}]},
+    {"status": SECRET, "users": []},
+    {"status": "complete", "users": [], "username": SECRET},
+    {"status": "complete", "users": [{"user": f"[Child {i}]", "language": "en"}
+                                      for i in range(1, 258)]},
+])
+def test_user_language_archive_injection_is_rejected(languages):
+    def change(payload):
+        info = json.loads(payload["system-info.json"])
+        info["user_languages"] = languages
+        payload["system-info.json"] = (json.dumps(info, indent=2, sort_keys=True) + "\n").encode()
+    with pytest.raises(ValueError):
+        validate_bundle(rewrite(report(), change))
+
+
 def test_utc_and_older_records_roundtrip_together():
     current = {**record(), "timestamp": "2026-09-12T18:42:03.337Z"}
     logs = {LOG_NAME: [record(), current]}

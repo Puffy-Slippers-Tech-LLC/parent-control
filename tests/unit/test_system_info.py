@@ -309,6 +309,114 @@ def test_account_counts_request_only_role_properties(monkeypatch):
     assert info.account_info(connection)["status"] == "partial"
 
 
+@pytest.fixture
+def local_role_source(monkeypatch):
+    passwd = "\n".join([
+        "root:x:0:0:Private Name:/private:/bin/bash",
+        "renamed-kiosk:x:1000:1000:Private Name:/private:/bin/bash",
+        "private-parent:x:1001:1001:Private Name:/private:/bin/bash",
+        "private-child:x:1002:1002:Private Name:/private:/bin/bash",
+        "duplicate-child:x:1002:1002:Private Name:/private:/bin/bash",
+        "private-service:x:1003:1003:Private Name:/private:/usr/bin/false",
+        "private-remote:x:1004:1004:Private Name:/private:/bin/bash",
+        "private-system:x:1005:1005:Private Name:/private:/bin/bash",
+    ])
+    monkeypatch.setattr(info, "_bounded_read", lambda _: passwd)
+
+    def call(*args):
+        if args[3] == "FindUserById":
+            uid, = args[4].unpack()
+            return GLib.Variant("(o)", (f"/org/freedesktop/Accounts/User{uid}",))
+        assert args[3] == "Get"
+        prop = args[4].unpack()[1]
+        if prop == "LocalAccount":
+            value = GLib.Variant("b", not args[1].endswith("1004"))
+        elif prop == "SystemAccount":
+            value = GLib.Variant("b", args[1].endswith("1005"))
+        else:
+            assert prop == "AccountType"
+            value = GLib.Variant("i", 1 if args[1].endswith("1001") else 0)
+        return GLib.Variant("(v)", (value,))
+
+    return Mock(call_sync=Mock(side_effect=call))
+
+
+def test_local_role_reader_excludes_configured_kiosk_and_duplicate_identities(local_role_source):
+    assert info.local_account_roles(local_role_source, excluded_uid=1000) == (
+        "complete", [(1001, "administrator"), (1002, "non-administrator")])
+    lookups = [call.args[4].unpack()[0] for call in local_role_source.call_sync.call_args_list
+               if call.args[3] == "FindUserById"]
+    assert lookups == [1001, 1002, 1004, 1005]
+    assert all(0 < call.args[7] <= 250 for call in local_role_source.call_sync.call_args_list)
+
+
+def test_local_role_reader_stops_at_user_limit(local_role_source):
+    assert info.local_account_roles(local_role_source, excluded_uid=1000, limit=1) == (
+        "partial", [(1001, "administrator")])
+    assert local_role_source.call_sync.call_count == 4
+
+
+def test_local_role_reader_shares_deadline_across_property_reads(local_role_source, monkeypatch):
+    now = [0.0]
+    call = local_role_source.call_sync.side_effect
+
+    def slow_call(*args):
+        now[0] += 0.75
+        return call(*args)
+
+    monkeypatch.setattr(info.time, "monotonic", lambda: now[0])
+    local_role_source.call_sync.side_effect = slow_call
+    assert info.local_account_roles(local_role_source, excluded_uid=1000, deadline=1) == ("partial", [])
+    assert local_role_source.call_sync.call_count == 2
+
+
+def test_local_role_reader_caps_calls_to_remaining_budget(local_role_source, monkeypatch):
+    monkeypatch.setattr(info.time, "monotonic", lambda: 0.8)
+    assert info.local_account_roles(local_role_source, excluded_uid=1000, deadline=1)[0] == "complete"
+    assert all(0 < call.args[7] <= 200 for call in local_role_source.call_sync.call_args_list)
+
+
+def test_local_role_reader_expired_deadline_launches_no_calls(local_role_source):
+    assert info.local_account_roles(local_role_source, excluded_uid=1000, deadline=0) == ("partial", [])
+    local_role_source.call_sync.assert_not_called()
+
+
+@pytest.mark.parametrize("bad_result", [
+    OSError(SECRET), GLib.Variant("(o)", ("/org/freedesktop/Accounts/User9999",)),
+    GLib.Variant("(v)", (GLib.Variant("s", SECRET),)),
+])
+def test_local_role_reader_failures_cannot_report_complete(local_role_source, bad_result):
+    local_role_source.call_sync.side_effect = bad_result if isinstance(bad_result, Exception) else None
+    local_role_source.call_sync.return_value = bad_result
+    assert info.local_account_roles(local_role_source, excluded_uid=1000) == ("partial", [])
+
+
+@pytest.mark.parametrize("prop,value", [
+    ("LocalAccount", GLib.Variant("s", SECRET)),
+    ("SystemAccount", GLib.Variant("i", 0)),
+    ("AccountType", GLib.Variant("b", True)),
+    ("AccountType", GLib.Variant("i", 2)),
+])
+def test_local_role_reader_rejects_unreviewed_role_properties(local_role_source, prop, value):
+    original = local_role_source.call_sync.side_effect
+
+    def invalid(*args):
+        if args[3] == "Get" and args[4].unpack()[1] == prop:
+            return GLib.Variant("(v)", (value,))
+        return original(*args)
+
+    local_role_source.call_sync.side_effect = invalid
+    assert info.local_account_roles(local_role_source, excluded_uid=1000) == ("partial", [])
+
+
+def test_local_role_reader_unreadable_source_is_unavailable(local_role_source, monkeypatch):
+    monkeypatch.setattr(info, "_bounded_read", Mock(side_effect=OSError(SECRET)))
+    assert info.local_account_roles(local_role_source) == ("unavailable", [])
+    assert info.account_info(local_role_source) == {
+        "administrators": 0, "non_administrators": 0, "status": "unavailable"}
+    local_role_source.call_sync.assert_not_called()
+
+
 @pytest.mark.parametrize("override,name", [
     ("America/Los_Angeles", "America/Los_Angeles"),
     (":/usr/share/zoneinfo/Europe/London", "Europe/London"),

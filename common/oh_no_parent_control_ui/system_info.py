@@ -179,18 +179,30 @@ def _rpm_dependency_info(*, deadline=None):
         return {"status": "unavailable", "packages": [bundled]}
 
 
-def account_info(connection):
-    """Count local interactive human accounts through minimal property reads.
+def local_account_roles(connection, *, excluded_uid=None, deadline=None, limit=None):
+    """Read local human roles; identities are transient lookup keys only.
 
-    /etc/passwd identities are used only to locate AccountsService objects and
-    are immediately discarded. No GetAll, real names, icons, groups or homes.
+    /etc/passwd UIDs locate AccountsService objects and the broker's saved
+    preferences. Callers discard these lookup keys before serialization.
+    No GetAll, real names, icons, groups or homes are requested from the service.
     Root, system/service users and the reserved product kiosk are excluded.
     """
     from gi.repository import Gio, GLib
 
-    roles = []
+    roles, seen = [], set()
     complete = True
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + 5 if deadline is None else deadline
+
+    def call(path, interface, method, parameters, reply_type):
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            raise TimeoutError
+        return connection.call_sync(
+            "org.freedesktop.Accounts", path, interface, method, parameters,
+            GLib.VariantType.new(reply_type), Gio.DBusCallFlags.NONE,
+            min(250, remaining_ms), None,
+        ).unpack()[0]
+
     try:
         lines = _bounded_read("/etc/passwd").splitlines()
         for line in lines:
@@ -198,45 +210,51 @@ def account_info(connection):
             if len(fields) != 7:
                 complete = False
                 continue
-            if (not fields[2].isdigit() or int(fields[2]) < 1000 or
+            if (not fields[2].isdigit() or not 1000 <= int(fields[2]) <= 2**32 - 1 or
                     fields[0] == "oh-no-parent-control" or
-                    fields[6] in ("/usr/sbin/nologin", "/sbin/nologin", "/bin/false")):
+                    fields[6] in ("", "/usr/sbin/nologin", "/sbin/nologin", "/bin/false", "/usr/bin/false")):
                 continue
-            if time.monotonic() >= deadline:
+            uid = int(fields[2])
+            if uid == excluded_uid or uid in seen:
+                continue
+            seen.add(uid)
+            if time.monotonic() >= deadline or (limit is not None and len(roles) >= limit):
                 complete = False
                 break
             try:
-                reply = connection.call_sync(
-                    "org.freedesktop.Accounts", "/org/freedesktop/Accounts",
-                    "org.freedesktop.Accounts", "FindUserById",
-                    GLib.Variant("(x)", (int(fields[2]),)), GLib.VariantType.new("(o)"),
-                    Gio.DBusCallFlags.NONE, 250, None,
+                path = call(
+                    "/org/freedesktop/Accounts", "org.freedesktop.Accounts", "FindUserById",
+                    GLib.Variant("(x)", (uid,)), "(o)",
                 )
-                path, = reply.unpack()
-                if path != f"/org/freedesktop/Accounts/User{int(fields[2])}":
+                if path != f"/org/freedesktop/Accounts/User{uid}":
                     complete = False
                     continue
                 properties = {}
                 for prop in ("LocalAccount", "SystemAccount", "AccountType"):
-                    reply = connection.call_sync(
-                        "org.freedesktop.Accounts", path, "org.freedesktop.DBus.Properties",
-                        "Get", GLib.Variant("(ss)", ("org.freedesktop.Accounts.User", prop)),
-                        GLib.VariantType.new("(v)"), Gio.DBusCallFlags.NONE, 250, None,
+                    properties[prop] = call(
+                        path, "org.freedesktop.DBus.Properties", "Get",
+                        GLib.Variant("(ss)", ("org.freedesktop.Accounts.User", prop)), "(v)",
                     )
-                    properties[prop], = reply.unpack()
                 if any(type(properties[prop]) is not bool for prop in ("LocalAccount", "SystemAccount")):
                     complete = False
                 elif properties["LocalAccount"] is not True or properties["SystemAccount"] is not False:
-                    roles.append("excluded")
+                    continue
                 elif type(properties["AccountType"]) is int and properties["AccountType"] in (0, 1):
-                    roles.append("administrator" if properties["AccountType"] == 1 else "non-administrator")
+                    roles.append((uid, "administrator" if properties["AccountType"] == 1 else "non-administrator"))
                 else:
                     complete = False
             except Exception:
                 complete = False
     except (OSError, ValueError, UnicodeError):
-        return {"administrators": 0, "non_administrators": 0, "status": "unavailable"}
-    return account_counts(roles, complete=complete)
+        return "unavailable", []
+    return "complete" if complete else "partial", roles
+
+
+def account_info(connection):
+    """Export aggregate roles only, never the transient local lookup keys."""
+    status, roles = local_account_roles(connection)
+    counts = account_counts((role for _uid, role in roles), complete=status == "complete")
+    return {**counts, "status": status}
 
 
 def display_info(connection=None):

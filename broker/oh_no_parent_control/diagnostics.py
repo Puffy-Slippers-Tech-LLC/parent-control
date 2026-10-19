@@ -15,7 +15,7 @@ MAX_BYTES = 16 * 1024 * 1024
 COMPONENTS = ("broker", "parent", "child", "kiosk")
 
 
-def collect_logs(root=LOG_ROOT, today=None, *, health=None, summary=None):
+def collect_logs(root=LOG_ROOT, today=None, *, health=None, summary=None, user_languages=None):
     today = today or datetime.now(timezone.utc).date()
     counts = dict(summary or {})
     counts.update(invalid=0, truncated=0, missing=0)
@@ -122,7 +122,7 @@ def collect_logs(root=LOG_ROOT, today=None, *, health=None, summary=None):
             grouped = {name: [] for name in logs}
             for item in records:
                 grouped[record_files[(item["segment"], item["sequence"])]].append(item)
-            return build_report(grouped, health, counts)
+            return build_report(grouped, health, counts, user_languages=user_languages)
         except ValueError as error:
             if str(error) != "Diagnostic attachment limit" or not records:
                 raise

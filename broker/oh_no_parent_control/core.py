@@ -7,6 +7,7 @@ from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
 from common.oh_no_parent_control_ui.languages import desktop_language_candidates
+from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_LANGUAGE_USERS
 import gettext
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
@@ -93,6 +94,8 @@ class Authorizer(Protocol):
 
 class Accounts(Protocol):
     def list_users(self) -> tuple[UserAccount, ...]: ...
+    def diagnostic_user_roles(self, *, excluded_uid: int, deadline: float,
+                              limit: int) -> tuple[str, list[tuple[int, str]]]: ...
     def get_user(self, uid: int) -> UserAccount: ...
     def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]: ...
     def validate_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
@@ -642,6 +645,37 @@ class Broker:
             if self._eligible(config, user):
                 return
         raise AccessDenied("caller cannot write this component log")
+
+    def diagnostic_user_languages(self, caller_uid: int) -> dict:
+        """Project personal selections without exporting identities or raw locales."""
+        self.authorize_diagnostic_export(caller_uid)
+        deadline = time.monotonic() + 5
+        try:
+            config = self._load_config()
+            status, users = self._accounts.diagnostic_user_roles(
+                excluded_uid=config.kiosk_uid, deadline=deadline, limit=MAX_LANGUAGE_USERS)
+        except Exception:
+            return {"status": "unavailable", "users": []}
+        selections = []
+        for uid, role in users:
+            if len(selections) >= MAX_LANGUAGE_USERS or time.monotonic() >= deadline:
+                status = "partial"
+                break
+            try:
+                saved = self._preferences.load(uid)["personal"]["language"]
+                # Storage accepts future language syntax; export accepts only
+                # reviewed catalogue values, never arbitrary private subtags.
+                language = "unset" if saved == "" else saved if saved in LANGUAGE_IDS else "other"
+            except Exception:
+                language, status = "unavailable", "partial"
+            selections.append(("Parent" if role == "administrator" else "Child", language))
+        # Labels have no identity mapping, even transiently in the archive.
+        # Sort only projected values, never names, UIDs or account discovery order.
+        ordinals, rows = {"Parent": 0, "Child": 0}, []
+        for role, language in sorted(selections):
+            ordinals[role] += 1
+            rows.append({"user": f"[{role} {ordinals[role]}]", "language": language})
+        return {"status": status, "users": rows}
 
     def _authorize_own_language(self, caller_uid: int) -> None:
         config = self._load_config()

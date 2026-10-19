@@ -116,7 +116,7 @@ def validate_bundle(data):
             if members and members[0] == "system-info.json":
                 from .diagnostic_report import read_report, build_report
                 logs, info = read_report(archive)
-                return build_report(logs, info["health"], info["counts"], info["system"])
+                return build_report(logs, info["health"], info["counts"], info["system"], info.get("user_languages"))
             if members not in (MEMBERS, SYSTEM_MEMBERS):
                 raise ValueError("Invalid diagnostic archive members")
             manifest = json.loads(archive.read("manifest.json"))
@@ -158,4 +158,4 @@ def with_system_info(data, system_info):
                 # Older brokers discarded source dates. Never invent them.
                 logs.setdefault(record["component"] + "/undated.log", []).append(record)
     return build_report(logs, manifest["health"], manifest["counts"],
-                        validate_system_info(system_info))
+                        validate_system_info(system_info), manifest.get("user_languages"))

@@ -18,7 +18,9 @@ from common.oh_no_parent_control_ui.diagnostic_events import encode, event
 from oh_no_parent_control import service
 from oh_no_parent_control.logs import DailyLogWriter
 from oh_no_parent_control.core import AccessDenied
-from tests.support.broker import Accounts, make_broker
+from oh_no_parent_control.core import UserAccount
+from oh_no_parent_control.adapters import AccountsService
+from tests.support.broker import Accounts, Preferences, make_broker
 
 
 @pytest.mark.parametrize("uid", (0, 991, 1001, 1002, 1003))
@@ -93,10 +95,73 @@ def test_broker_worker_exports_all_four_components_and_releases_lock(tmp_path, m
     kiosk_probe.assert_called_once_with(service.CONFIG_PATH)
     response = invocation.return_value.call_args.args[0]
     with ZipFile(BytesIO(bytes(response.unpack()[0]))) as archive:
-        logs, _ = read_report(archive)
+        logs, info = read_report(archive)
+        assert info["user_languages"] == instance.broker.diagnostic_user_languages(991)
         records = [record for rows in logs.values() for record in rows]
         assert {record["component"] for record in records} == {"broker", "parent", "child", "kiosk"}
     assert not instance._diagnostic_export_lock.locked()
+
+
+def test_languages_cover_each_parent_and_child_without_identity():
+    accounts, preferences = Accounts(), Preferences()
+    accounts.users[1006] = UserAccount(1006, "private-parent", "Private Person", True, False, True,
+                                       is_locked=True)
+    preferences.update_language(1001, "de")
+    preferences.update_language(1003, "pt-BR")
+    preferences.update_language(1006, "zh-Hant")
+    broker = make_broker(accounts=accounts, preferences=preferences)
+    expected = {"status": "complete", "users": [
+        {"user": "[Child 1]", "language": "de"},
+        {"user": "[Child 2]", "language": "unset"},
+        {"user": "[Parent 1]", "language": "pt-BR"},
+        {"user": "[Parent 2]", "language": "zh-Hant"},
+    ]}
+    for caller in (991, 1001, 1003):
+        assert broker.diagnostic_user_languages(caller) == expected
+    accounts.users = dict(reversed(list(accounts.users.items())))
+    assert broker.diagnostic_user_languages(1003) == expected
+    with pytest.raises(AccessDenied):
+        broker.diagnostic_user_languages(1005)
+
+
+def test_language_collection_failures_and_unreviewed_values_are_private():
+    accounts, preferences = Accounts(), Preferences()
+    preferences.update_language(1001, "Private-Person")
+    original = preferences.load
+    preferences.load = lambda uid: original(uid) if uid != 1002 else (_ for _ in ()).throw(
+        OSError("private-person@example.test /home/private-person"))
+    broker = make_broker(accounts=accounts, preferences=preferences)
+    assert broker.diagnostic_user_languages(991) == {"status": "partial", "users": [
+        {"user": "[Child 1]", "language": "other"},
+        {"user": "[Child 2]", "language": "unavailable"},
+        {"user": "[Parent 1]", "language": "unset"},
+    ]}
+    accounts.diagnostic_user_roles = Mock(side_effect=OSError("private-person"))
+    assert broker.diagnostic_user_languages(991) == {"status": "unavailable", "users": []}
+
+
+def test_language_collection_is_bounded(monkeypatch):
+    from oh_no_parent_control import core
+    monkeypatch.setattr(core, "MAX_LANGUAGE_USERS", 1)
+    result = make_broker().diagnostic_user_languages(991)
+    assert result["status"] == "partial" and len(result["users"]) == 1
+    monkeypatch.setattr(core.time, "monotonic", Mock(side_effect=[0, 6]))
+    assert make_broker().diagnostic_user_languages(991) == {"status": "partial", "users": []}
+
+
+def test_language_export_uses_bounded_role_adapter_and_preserves_partial_status(monkeypatch):
+    from common.oh_no_parent_control_ui import system_info
+    from oh_no_parent_control import core
+    connection = Mock()
+    roles = Mock(return_value=("partial", [(1001, "non-administrator")]))
+    monkeypatch.setattr(system_info, "local_account_roles", roles)
+    monkeypatch.setattr(core.time, "monotonic", lambda: 10)
+    accounts = AccountsService(connection)
+    accounts.list_users = Mock(side_effect=AssertionError("general discovery must not run"))
+    result = make_broker(accounts=accounts).diagnostic_user_languages(991)
+    assert result == {"status": "partial", "users": [{"user": "[Child 1]", "language": "unset"}]}
+    roles.assert_called_once_with(connection, excluded_uid=991, deadline=15, limit=256)
+    accounts.list_users.assert_not_called()
 
 
 def test_export_rechecks_role_before_delivery():

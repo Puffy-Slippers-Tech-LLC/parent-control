@@ -184,10 +184,10 @@ class DailyLogWriter:
         with self._lock:
             return "available" if self._storage_available else "unavailable"
 
-    def snapshot(self, *, health=None):
+    def snapshot(self, *, health=None, user_languages=None):
         from .diagnostics import collect_logs
         with self._lock:
-            return collect_logs(self.root, health=health, summary=self.summary())
+            return collect_logs(self.root, health=health, summary=self.summary(), user_languages=user_languages)
 
 
 def _event_filename(name):

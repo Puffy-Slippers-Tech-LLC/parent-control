@@ -839,8 +839,8 @@ Support must not infer an exact distro package revision from this value.
 OS/session/architecture categories and dependency names are closed lists.
 New reports include only named, reviewed runtime dependencies. Older inventories
 are projected onto that same list before inclusion; their anonymous
-`[Dependency]` rows are omitted. There are no numbered labels, hashes, encrypted
-identities, mapping files, or cross-report identity references.
+`[Dependency]` rows are omitted. Dependencies have no numbered labels. There are
+no hashes, encrypted identities, mapping files, or cross-report identity references.
 Raw OS branding, environment values, package origins, paths and exceptions are
 never serialized. The timezone-name allowlist is shipped in
 [diagnostic_timezones.json](../../common/oh_no_parent_control_ui/diagnostic_timezones.json),
@@ -883,6 +883,28 @@ the shared helper receives only role categories and produces counts. Root,
 system/service accounts, and the reserved product kiosk account are excluded.
 Remote/NSS-directory identities are outside this local-account scope. Failed
 lookups and the five-second account-read budget mark the counts partial.
+
+The broker also adds `user_languages` to `system-info.json`, with one saved
+personal language selection per local interactive parent (administrator) and
+child (non-administrator). Root, system, remote and configured kiosk accounts
+are excluded; locked human accounts remain included. Generic `[Parent 1]` and
+`[Child 1]` labels are assigned after sorting only role and projected language,
+never account names, UIDs or discovery order. They have no retained identity map
+and cannot correlate an account with events or another report. Only exact
+shipped catalogue IDs survive; empty preferences become `unset`, unreviewed
+values become `other`, and failed preference reads become `unavailable` with a
+`partial` collection status. No desktop/session language is inferred for an
+unset selection. Enumeration failure reports `unavailable`; the broker reuses
+the bounded local account-role reader instead of general NSS account discovery.
+Failed role lookups mark the report `partial`. Collection stops at 256 users or
+its shared five-second account/preference-read budget and reports `partial`.
+The broker reuses diagnostic-export authorization and reads preferences without
+changing them, including in diagnostics-only mode. Frontend enrichment and
+submission revalidate and preserve these fields. Older reports without the
+optional field remain accepted; older frontend validators need restarting onto
+the matching package before collecting the expanded report. This loads with
+broker process restart and new frontend processes; no saved-data migration or
+portal API change is required.
 
 Opening feedback displays a spinner and **Collecting diagnostic information...**.
 The shared dialog uses `Adw.Spinner`, whose animation follows row visibility and

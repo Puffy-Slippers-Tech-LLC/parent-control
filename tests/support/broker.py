@@ -51,6 +51,13 @@ class Accounts:
     def list_users(self):
         return tuple(self.users.values())
 
+    def diagnostic_user_roles(self, *, excluded_uid, deadline, limit):
+        users = [(user.uid, "administrator" if user.is_admin else "non-administrator")
+                 for user in self.users.values()
+                 if 1000 <= user.uid <= 2**32 - 1 and user.uid != excluded_uid
+                 and user.is_local and not user.is_system and user.is_interactive]
+        return ("partial" if len(users) > limit else "complete"), users[:limit]
+
     def get_user(self, uid):
         return self.users[uid]
 

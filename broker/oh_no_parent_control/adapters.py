@@ -228,6 +228,11 @@ class AccountsService:
     def get_user(self, uid: int) -> UserAccount:
         return self._account_from_path(self._user_path(uid))
 
+    def diagnostic_user_roles(self, *, excluded_uid, deadline, limit):
+        from common.oh_no_parent_control_ui.system_info import local_account_roles
+        return local_account_roles(self.connection, excluded_uid=excluded_uid,
+                                   deadline=deadline, limit=limit)
+
     def clear_session_runtime_max(self, uid: int) -> tuple[str, ...]:
         """Remove pam_malcontent's systemd kill timer from this user's logins.
 

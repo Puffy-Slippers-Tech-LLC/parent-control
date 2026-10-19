@@ -319,6 +319,7 @@ def test_reboot_mode_collects_real_report_and_rechecks_role(tmp_path):
     logged.return_value.assert_called_once_with(None)
     service.broker.authorize_log_component.assert_called_once_with(1000, 'parent')
     service._health_snapshot = mock.Mock(return_value={})
+    service.broker.diagnostic_user_languages.return_value = {"status": "complete", "users": []}
     for revoke in (False, True):
         service.broker.authorize_diagnostic_export.side_effect = (
             [None, AccessDenied('denied')] if revoke else None)

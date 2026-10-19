@@ -9,6 +9,33 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 from .diagnostic_bundle import MAX_BYTES, MAX_INPUT_BYTES, MAX_RECORDS, _manifest, validate_record
 from .diagnostic_events import COMPONENTS, describe, encode
 from .system_info import DIAGNOSTIC_PACKAGES, RPM_DIAGNOSTIC_PACKAGES, validate_system_info
+from .languages import SUPPORTED_LANGUAGES
+
+MAX_LANGUAGE_USERS = 256
+LANGUAGE_IDS = frozenset(identity for identity, _name in SUPPORTED_LANGUAGES)
+
+
+def validate_user_languages(value):
+    """Accept report-local role labels and catalogue IDs, never account identity."""
+    if (type(value) is not dict or set(value) != {"status", "users"}
+            or value["status"] not in ("complete", "partial", "unavailable")
+            or type(value["users"]) is not list or len(value["users"]) > MAX_LANGUAGE_USERS):
+        raise ValueError("Invalid diagnostic user languages")
+    ordinals = {"Parent": 0, "Child": 0}
+    for row in value["users"]:
+        if type(row) is not dict or set(row) != {"user", "language"}:
+            raise ValueError("Invalid diagnostic user language")
+        role = next((role for role in ordinals
+                     if row["user"] == f"[{role} {ordinals[role] + 1}]"), None)
+        if (role is None or type(row["language"]) is not str
+                or row["language"] not in LANGUAGE_IDS | {"unset", "other", "unavailable"}):
+            raise ValueError("Invalid diagnostic user language")
+        ordinals[role] += 1
+    if value["status"] == "unavailable" and value["users"]:
+        raise ValueError("Invalid diagnostic user languages")
+    if value["status"] == "complete" and any(row["language"] == "unavailable" for row in value["users"]):
+        raise ValueError("Invalid diagnostic user languages")
+    return value
 
 DIRECTORIES = tuple(component + "/" for component in sorted(COMPONENTS))
 HEADER = (
@@ -56,7 +83,7 @@ def compact_system_info(value):
             "packages": [packages[name] for name in sorted(packages)]}}
 
 
-def contents(logs, health=None, summary=None, system_info=None):
+def contents(logs, health=None, summary=None, system_info=None, user_languages=None):
     if type(logs) is not dict or len(logs) > 3 * len(COMPONENTS):
         raise ValueError("Invalid diagnostic logs")
     payload, inventory = {}, {}
@@ -78,14 +105,16 @@ def contents(logs, health=None, summary=None, system_info=None):
     manifest = _manifest(health, summary)
     info = {"schema": 3, "system": compact_system_info(system_info),
             "health": manifest["health"], "counts": manifest["counts"], "logs": inventory}
+    if user_languages is not None:
+        info["user_languages"] = validate_user_languages(user_languages)
     # Indentation makes the small summary usable without a JSON formatter.
     return {"system-info.json": (json.dumps(info, ensure_ascii=True, indent=2, sort_keys=True)
                                  + "\n").encode("ascii"),
             **{name: b"" for name in DIRECTORIES}, **payload}
 
 
-def build_report(logs, health=None, summary=None, system_info=None):
-    payload = contents(logs, health, summary, system_info)
+def build_report(logs, health=None, summary=None, system_info=None, user_languages=None):
+    payload = contents(logs, health, summary, system_info, user_languages)
     if sum(map(len, payload.values())) > MAX_INPUT_BYTES:
         raise ValueError("Diagnostic attachment limit")
     output = BytesIO()
@@ -102,7 +131,8 @@ def build_report(logs, health=None, summary=None, system_info=None):
 def read_report(archive):
     """Parse only our canonical log grammar; arbitrary prose fails closed."""
     info = json.loads(archive.read("system-info.json"))
-    if (type(info) is not dict or set(info) != {"schema", "system", "health", "counts", "logs"}
+    keys = {"schema", "system", "health", "counts", "logs"}
+    if (type(info) is not dict or set(info) not in (keys, keys | {"user_languages"})
             or type(info["schema"]) is not int or info["schema"] != 3
             or type(info["logs"]) is not dict or len(info["logs"]) > 12):
         raise ValueError("Invalid diagnostic system information")
@@ -137,7 +167,9 @@ def read_report(archive):
                 raise ValueError("Invalid diagnostic log text")
             records.append(record)
         logs[name] = records
-    expected = contents(logs, info["health"], info["counts"], info["system"])
+    if "user_languages" in info:
+        validate_user_languages(info["user_languages"])
+    expected = contents(logs, info["health"], info["counts"], info["system"], info.get("user_languages"))
     if any(archive.read(name) != expected[name] for name in members):
         raise ValueError("Invalid diagnostic content")
     return logs, info

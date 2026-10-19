@@ -779,7 +779,8 @@ class Service:
             except Exception:
                 get_logger("extension-manager").warning(
                     "extension-manager.load-observation", outcome="unavailable")
-            data = self.log_writer.snapshot(health=self._health_snapshot())
+            user_languages = self.broker.diagnostic_user_languages(caller_uid)
+            data = self.log_writer.snapshot(health=self._health_snapshot(), user_languages=user_languages)
         except Exception as error:
             LOG.warning("service.011", error_type=error_code(error))
             record_exception(error)

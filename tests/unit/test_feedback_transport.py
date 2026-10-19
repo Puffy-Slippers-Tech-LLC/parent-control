@@ -56,13 +56,17 @@ def test_invalid_automatic_diagnostics_prevent_delivery(monkeypatch, report):
 def test_current_display_diagnostics_survive_feedback_attachment(monkeypatch, report):
     displays = {"status": "complete", "monitors": [
         {"width": 2560, "height": 1440, "scale": 1.0, "primary": True}], "text_scale": 1.0}
-    logs = build_report({}, system_info={**sample_info(), "displays": displays})
+    languages = {"status": "complete", "users": [
+        {"user": "[Parent 1]", "language": "de"},
+        {"user": "[Child 1]", "language": "ar"}]}
+    logs = build_report({}, system_info={**sample_info(), "displays": displays}, user_languages=languages)
     session = install_response(monkeypatch, response(202, {"ok": True}))
     assert ft.send_once(replace(report, logs=logs)).kind == "success"
     parts = session.post.call_args.kwargs["files"]
     attached = [value for key, value in parts if key == "attachments"][-1]
     with ZipFile(BytesIO(attached[1])) as archive:
         assert json.loads(archive.read("system-info.json"))["system"]["displays"] == displays
+        assert json.loads(archive.read("system-info.json"))["user_languages"] == languages
 
 
 @pytest.mark.parametrize("clean", [build_bundle([]), build_report({})])

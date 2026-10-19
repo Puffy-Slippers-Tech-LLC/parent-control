@@ -87,9 +87,10 @@ does not change the bounding set. No subprocess runs after the final MAC operati
 
 Ubuntu immediately changes and verifies the caller's enforcing AppArmor profile.
 Every non-sandbox profile, including the password helper's child profile,
-explicitly denies user-namespace creation. Under AppArmor's compatibility ABI,
-an absent allow alone does not establish mediation of that feature. Only the
-two native bubblewrap roles retain their explicit user-namespace grants.
+explicitly denies user-namespace creation. The generated policy selects the
+supported AppArmor 4.0 feature ABI: the parser's implicit compatibility ABI can
+leave even an explicit denial unmediated. Only the two native bubblewrap roles
+retain their explicit user-namespace grants.
 Fedora GDM receives a verified pending SELinux exec context whose private
 entrypoint type constrains the actual next executable. Fedora's single-threaded
 systemd executor instead enters the current `onpc_kiosk_manager_pam_t` domain

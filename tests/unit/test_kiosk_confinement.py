@@ -5239,10 +5239,13 @@ def test_glycin_sandbox_routes_have_no_general_service_or_unsandboxed_decoder_ro
 def test_apparmor_user_namespace_rules_explicitly_mediate_every_role():
     policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
     generated = policy.apparmor(policy.executables('ubuntu'))
+    # The real Ubuntu parser accepts explicit denials under its implicit
+    # compatibility ABI without enforcing them. Select the userns-aware ABI
+    # before the profiles; rule text alone is not the mediation contract.
+    assert generated.splitlines()[1] == 'abi <abi/4.0>,'
     for domain in policy.DOMAINS:
         profile = generated.split(f'profile onpc-kiosk-{domain} ', 1)[1].split('\n}\n', 1)[0]
-        # An absent rule can leave user namespaces unmediated under the
-        # compatibility ABI. Require an explicit decision in every profile.
+        # Require an explicit decision in every profile as well as the ABI.
         rules = re.findall(r'^  (?![ \t])(.*\buserns\b.*)$', profile, flags=re.MULTILINE)
         assert rules == (['userns,'] if domain in ('bwrap', 'glycin-bwrap') else
                          ['audit deny userns,'])
@@ -6329,7 +6332,9 @@ def test_bootstrap_source_trust_preserves_exact_owned_links_and_rejects_writable
 
 @pytest.mark.parametrize('fault', [None, 'executable', 'library', 'link-text', 'link-owner',
                                  'link-group', 'completed', 'marker', 'nested-inode',
-                                 'nested-mount', 'writable', 'extra-mount', 'manager-link'])
+                                 'nested-mount', 'writable', 'extra-mount', 'manager-link',
+                                 'marker-material', 'marker-backend', 'marker-view',
+                                 'marker-mode', 'marker-owner'])
 def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources_and_manager(
         census_model, tmp_path, monkeypatch, fault):
     """Real private dentries; only proc mounts, root identity and record paths are doubled."""
@@ -6339,6 +6344,7 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
              'library': '/usr/lib/systemd/libsystemd-shared.so',
              'link': '/usr/lib/systemd/user/masked.service',
              'nested': '/usr/lib/vendor/nested.so'}
+    marker_path = '/usr/share/oh-no-parent-control/confinement/retained-view'
     def actual(process, path):
         return process / 'root' / path.lstrip('/')
     for path in paths.values():
@@ -6361,6 +6367,8 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
         result[3:5] = [0, 0]
         if fault in ('link-owner', 'link-group') and path == actual(gate, paths['link']):
             result[3 if fault == 'link-owner' else 4] = 1002
+        if fault == 'marker-owner' and path == actual(gate, marker_path):
+            result[3] = 1002
         return result
     monkeypatch.setattr(helper, 'bootstrap_object', observe)
     material_bytes = b'{"private":"material"}\n'
@@ -6386,12 +6394,16 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
     (records / 'view').write_bytes(encoded)
     (records / 'pins').write_text('private pins\n')
     (records / 'runtime.json').write_text('{}\n')
-    marker_path = '/usr/share/oh-no-parent-control/confinement/retained-view'
     marker = actual(manager, marker_path)
     marker.parent.mkdir(parents=True)
     marker.write_text('\t'.join(['ONPC-KIOSK-VIEW', '1', 'apparmor', material, view]) + '\n')
+    marker.chmod(0o444)
     actual(gate, marker_path).parent.mkdir(parents=True)
-    os.link(marker, actual(gate, marker_path))
+    gate_marker = actual(gate, marker_path)
+    # I is invocation-private: its marker names I, while V's completed records
+    # and source inodes stay original. No completed I directory exists.
+    gate_marker.write_text('\t'.join(['ONPC-KIOSK-VIEW', '1', 'apparmor', material, 'c' * 64]) + '\n')
+    gate_marker.chmod(0o444)
     (records / 'ready').write_text('\t'.join(map(str, ['ONPC-KIOSK-READY', '2', material, view,
         helper.guest.sha(records / 'pins'), 'private-boot', *observe(records)[:2],
         *observe(actual(manager, '/usr'))[:2], *observe(marker)[:2], 41, 42])) + '\n')
@@ -6417,6 +6429,7 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
         return result
     monkeypatch.setattr(helper, 'bootstrap_mounts', mounted)
     source = helper.bootstrap_view(manager)
+    invocation_marker = observe(gate_marker) + [helper.guest.sha(gate_marker)]
     assert observe(actual(gate, paths['link']))[:2] != observe(actual(manager, paths['link']))[:2]
     if fault in ('executable', 'library', 'nested-inode'):
         path = actual(gate, paths['nested' if fault == 'nested-inode' else fault])
@@ -6434,19 +6447,38 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
         contents = path.read_bytes()
         path.unlink()
         path.write_bytes(contents)
+        path.chmod(0o444)
+    elif fault in ('marker-material', 'marker-backend', 'marker-view'):
+        values = gate_marker.read_text().rstrip('\n').split('\t')
+        values[{'marker-material': 3, 'marker-backend': 2, 'marker-view': 4}[fault]] = {
+            'marker-material': 'd' * 64, 'marker-backend': 'selinux', 'marker-view': view}[fault]
+        gate_marker.chmod(0o644)
+        gate_marker.write_text('\t'.join(values) + '\n')
+        gate_marker.chmod(0o444)
+        # Even a stable caller snapshot cannot authorize another M/backend
+        # or an old V marker masquerading as the current invocation.
+        invocation_marker = observe(gate_marker) + [helper.guest.sha(gate_marker)]
+    elif fault == 'marker-mode':
+        gate_marker.chmod(0o644)
     elif fault == 'writable':
         actual(gate, paths['executable']).chmod(0o777)
     if fault not in (None, 'manager-link'):
         reasons = {'executable': 'mounted-source-inode', 'library': 'mounted-source-inode',
                    'link-text': 'mounted-link', 'link-owner': 'source-writable',
                    'link-group': 'source-writable', 'completed': 'retained-view-not-manager-source',
-                   'marker': 'ready-binding', 'nested-inode': 'nested-coverage',
+                   'marker': 'invocation-marker-changed', 'nested-inode': 'nested-coverage',
                    'nested-mount': 'nested-coverage', 'writable': 'source-writable',
-                   'extra-mount': 'unexpected-nested-mount'}
+                   'extra-mount': 'unexpected-nested-mount',
+                   'marker-material': 'view-header',
+                   'marker-backend': 'view-header',
+                   'marker-view': 'invocation-marker-changed', 'marker-mode': 'marker-trust',
+                   'marker-owner': 'marker-trust'}
         with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:' + reasons[fault]):
-            helper.bootstrap_view(gate, source=source)
+            helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
         return
-    result = helper.bootstrap_view(gate, source=source)
+    result = helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
+    assert result['invocation_view'] == 'c' * 64 and result['view'] == view
+    assert result['marker'] != source['marker']
     assert result['sources'] == source['sources']
     assert result['objects'][paths['link']] != source['objects'][paths['link']]
     assert helper.bootstrap_view(manager) == source

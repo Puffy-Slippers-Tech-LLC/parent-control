@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006e2 — [Qualify Ubuntu native bootstrap](Kiosk-Prompt-Tasks/006e2-bootstrap-ubuntu.md)**.
+Next task: **006e3 — [Qualify Fedora native bootstrap](Kiosk-Prompt-Tasks/006e3-bootstrap-fedora.md)**.
 
 ## Outcome
 
@@ -25,7 +25,8 @@ Task 006 made substantive progress in five sessions and remains unfinished.
 The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) and
 [retained reuse and paired production dispatch](#retained-kiosk-reuse--006d)
 (006d) passed their host acceptance. [006e1's bootstrap host repairs](#bootstrap-host-repairs--006e1)
-are complete. Continue with the complete Ubuntu and Fedora histories in 006e2/006e3 and
+are complete. [Ubuntu's complete bootstrap history](#ubuntu-native-bootstrap--006e2)
+also passed. Continue with the complete Fedora history in 006e3 and
 [006e's both-target acceptance reconciliation](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md)
 before resuming
 [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
@@ -51,7 +52,7 @@ and all unfinished 006 composition work are preserved.
 
 After the final policy/logger edits, **2,175/2,175** focused host checks and both
 package builds passed; **313/313** documentation checks passed. The verified
-[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
 retains all five attempts, exact input manifests, host receipts and cleanup;
 SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`.
 The [006e checkpoint](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md#fifth-attempt-and-developer-requested-suspension)
@@ -122,6 +123,80 @@ final affected acceptance and both documentation passes. SHA-256:
 `34bd4e9ea353bd00159faf32eecdafa65fa2b67d4a8a13055c35bc1d7802dc24`.
 Export verification and owned cleanup completed. Package outputs and
 `output/rpm/build.log` are local build evidence outside this test-bundle selection.
+
+### Ubuntu native bootstrap — 006e2
+
+Installed acceptance passed on `onpc-Ubuntu26.04` on 2026-10-19 UTC through
+`tools/run-tests system --vm 'onpc-Ubuntu26.04' --area 'enforcement' --test 'test_kiosk_native_bootstrap_permissions'`
+(case **292**). Report `20261019T220221Z-7418cb41` and retained allocation
+`onpc-system-keoa4k_1` contain the complete 1.9-minute history. Product,
+infrastructure, collection and cleanup all passed; the closing baseline audit
+passed and the VM is off.
+
+All six original assertion families passed: exact package/boot/config/policy/
+attestation/native/frozen-input binding; actual fresh manager and retained gate
+PAM; independently observed original manager/task/pidfd/namespace and recursively
+read-only source identities; both copied systemd/executor entrypoints through
+both manager routes; supported live notify-reload reexec with unchanged manager,
+M/V and sources, allowed service and exact fresh shell/unconfined kernel denials;
+and caller/setup descriptor ownership with unchanged policy/PAM. Manager PID
+4365, starttime 6664 and invocation `5194ee6b6f84429ba4aa90c967aedc7a` survived
+reexec. Boot: `7a45645d-84b6-4bde-b279-97644fe9c5de`. No policy/API doubles or
+public request-form acceptance are claimed.
+
+The first attempt, `20261019T214210Z-a63e06d4` / `onpc-system-j37o1idz`,
+reproduced actual forbidden user-namespace creation. A separate owned VM
+experiment isolated the implicit AppArmor compatibility ABI: the original
+policy allowed creation, the same rules with explicit `abi <abi/4.0>,` denied
+with EACCES, and restoration allowed it again. Generated Ubuntu policy now pins
+that supported feature ABI; non-sandbox denials and both sandbox grants remain.
+The diagnostic instance restored and stopped through the maintained route.
+
+The second attempt, `20261019T215202Z-458e156a` / `onpc-system-nf0onqi3`,
+passed both entrypoints and namespace restrictions, then exposed an observer
+lookup of invocation I as a completed V directory. Native I has its own marker
+and no completed generation. The observer now binds the exact marker captured
+by its PAM caller before release, verifies its type/owner/mode/inode/bytes, and
+checks actual invocation sources/coverage against the original manager's V and
+unchanged completed records. All original source, replacement and descriptor
+refusals remain; five extra marker controls cover material/backend/view/mode/owner.
+The initial focused check's wrong refusal-stage label is retained in
+`20261019T220043Z-8fb09e82`; its assertion remained a refusal throughout repair.
+Both failed installed attempts completed restoration and cleanup.
+
+Final package SHA-256:
+`cf100ef8cd59fd6947b2305d45490c2efa9bcfe94f81a53c8ff4410524ca2025`.
+Package-source SHA-256 (369 files):
+`ea30eda63a8048ab56f842cc8f651dd26e4c131eb7da549bba2ed58345a6ddc5`.
+Frozen selected-input SHA-256 (36 entries, all 33 unique current sources matched):
+`86de491884dd348682f89092fbd8f021c2f0756a5cdf074ebe9a65105ecfaeae`.
+Loaded policy/config SHA-256 respectively:
+`e40c595b99bde646fb11f899b8480d00a3a29e2a6c6240b65001eec3c3fc0f2f` /
+`924ab95069c7393b87610ef832b26b6eff5b4feaaadd85647d62a29839dff236`.
+Observer SHA-256:
+`360ca3f1850433fd2e6f74e1b1a0cfe725e33bd769578965fe97d5231a13e5c0`.
+The final receipt qualifies these inputs, superseding the partial attempts.
+
+Focused confinement/resource checks passed **1,511/1,511** in
+`20261019T220102Z-869d6eb5`: `test_kiosk_confinement.py`,
+`test_regression_unit.py` and `test_regression_cleanup.py`, using `-q` through
+`tools/run-tests unit`. The added controls use only the existing pytest-private
+files and finite root/proc/mount doubles; resource classifications remain valid.
+Coverage was regenerated. `make build` passed DEB and RPM after the final
+packaged edit; subsequent repairs changed test inputs only. Build scratch,
+fixture children/descriptors, manager/unit and runner ownership are closed.
+No subagent remains. Only 006e2 closes; 006e3, 006e and 006 retain all obligations.
+
+Post-close-out documentation checks passed **313/313** in
+`20261019T220533Z-1c67037c`. Changed-document links and whitespace review passed.
+The verified [3,166-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+retains all 1,397 prior records, both installed failures, the final complete
+receipt and frozen input tree, the focused test-label failure, final host and
+documentation passes, and cleanup journals. SHA-256:
+`2538a88e2b14a96e718de9919c00778a29cc58fe643e9ec58ded2e6aedc0a074`.
+Export verification and owned cleanup finished. Normal retention retired the
+older `0v50uz9y` export; its historical links now resolve to the same carried
+records in this bundle, preserving their original counts/hashes as history.
 
 ## Smaller execution slices
 
@@ -1359,7 +1434,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -1416,7 +1491,7 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip),
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip),
 whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
@@ -1517,7 +1592,7 @@ unregistered build outputs are outside the test-bundle selection contract.
 After queue/pointer/brief close-out, the four documentation modules listed above
 passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
 (five documents, 267 links), as did whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
 retains **645 files**, including every available original 006/006a/006b checkpoint
 receipt, all this task's intermediate test failures, the final affected pass and
 the post-close-out documentation pass.
@@ -1619,7 +1694,7 @@ After queue/pointer/brief close-out, the same four documentation modules listed
 in 006c passed **313/313** in `20261019T193722Z-ad511616`. Changed-document links
 passed (four documents, 257 links after adding the bundle reference), as did
 whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
 retains **701 files**: all 669 carried-forward records, the four filename
 reproductions, final affected acceptance and post-close-out documentation checks.
 SHA-256: `f51c3f4637591345a4af04d93f2016f71ee809302272f9fa553a7f3c3f017c72`.
@@ -1668,7 +1743,7 @@ needed at this checkpoint; 006's final build remains required after 006e.
 
 The post-handoff documentation selection passed **313/313** in
 `20261019T195047Z-c35b2061`. The verified
-[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-0v50uz9y/evidence.zip)
+[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
 retains every prior receipt, both fixture-selection failures and all corrected
 verification above. SHA-256:
 `14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.

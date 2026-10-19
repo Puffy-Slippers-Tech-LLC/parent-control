@@ -385,7 +385,11 @@ def apparmor(entries):
     roles = {}
     for entry in entries:
         roles.setdefault(entry['role'], []).extend(entry['paths'])
-    lines = ['# Generated finite kiosk execution policy.', '#include <tunables/global>', '']
+    # The parser's implicit compatibility ABI can leave user namespaces
+    # unmediated even with an explicit deny. Pin the supported distro ABI
+    # that includes userns_create; do not depend on the host's parser default.
+    lines = ['# Generated finite kiosk execution policy.', 'abi <abi/4.0>,',
+             '#include <tunables/global>', '']
     transitions = routes()
     for domain in DOMAINS:
         lines += [f'profile onpc-kiosk-{domain} flags=(attach_disconnected,mediate_deleted) {{',
@@ -403,10 +407,8 @@ def apparmor(entries):
                   '  capability sys_resource,', '  capability audit_write,']
         lines.append('  deny /{,usr/}lib{,32,64,x32}/**/libgstpython.so m,')
         if domain not in ('bwrap', 'glycin-bwrap'):
-            # The compatibility ABI does not mediate user namespaces merely
-            # because an allow rule is absent. An explicit rule emits the
-            # parser's mediates_userns marker without changing unrelated ABI
-            # permissions. Only the two native sandbox roles may create them.
+            # Keep an explicit audited decision under the selected ABI.
+            # Only the two native sandbox roles may create user namespaces.
             lines.append('  audit deny userns,')
         if domain == 'gate':
             lines.append('  capability sys_tty_config,')

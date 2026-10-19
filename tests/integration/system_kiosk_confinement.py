@@ -1248,6 +1248,9 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             if witness:
                 event = {'phase': 'admitted', 'pid': os.getpid(),
                          'before': before, 'logger': logger, 'logger_after': bootstrap_logger_after(logger)}
+                if service == 'gdm-password':
+                    marker = Path('/usr/share/oh-no-parent-control/confinement/retained-view')
+                    event['invocation_marker'] = bootstrap_object(marker) + [guest.sha(marker)]
                 encoded = (json.dumps(event, sort_keys=True) + '\n').encode()
                 guest.require(len(encoded) <= 4096 and
                               os.write(witness['events'], encoded) == len(encoded),
@@ -2246,7 +2249,7 @@ def bootstrap_source_trust(path, kind, info, link):
         'kiosk-bootstrap:source-writable')
 
 
-def bootstrap_view(process, *, source=None):
+def bootstrap_view(process, *, source=None, invocation_marker=None):
     """Independently observe mounted objects; a parsed V alone is no witness."""
     deadline = time.monotonic() + 60
     root = process / 'root'
@@ -2256,7 +2259,19 @@ def bootstrap_view(process, *, source=None):
                   fields[2] in ('apparmor', 'selinux') and all(
                   re.fullmatch(r'[a-f0-9]{64}', value) for value in fields[3:]),
                   'kiosk-bootstrap:marker')
-    backend, material, view = fields[2:]
+    backend, material, marker_view = fields[2:]
+    marker_info = bootstrap_object(marker)
+    guest.require(stat.S_ISREG(marker_info[2]) and marker_info[2] & 0o7777 == 0o444 and
+                  marker_info[3:5] == [0, 0] and marker_info[8] == 1,
+                  'kiosk-bootstrap:marker-trust')
+    if invocation_marker is not None:
+        # Native I has a fresh marker and no completed generation directory.
+        # Bind that exact caller-observed marker, then independently compare
+        # the actual invocation mounts against the original manager's V.
+        guest.require(source is not None and marker_view != source['view'] and
+                      marker_info + [guest.sha(marker)] == invocation_marker,
+                      'kiosk-bootstrap:invocation-marker-changed')
+    view = source['view'] if invocation_marker is not None else marker_view
     directory = Path('/run/oh-no-parent-control-confinement') / view
     completed = {item.name: bootstrap_object(item) + [guest.sha(item)]
                  for item in directory.iterdir()}
@@ -2281,7 +2296,8 @@ def bootstrap_view(process, *, source=None):
                   guest.sha(directory / 'pins')] and
                   ready[5] == Path('/proc/sys/kernel/random/boot_id').read_text().strip() and
                   list(map(int, ready[6:8])) == bootstrap_object(directory)[:2] and
-                  list(map(int, ready[10:12])) == bootstrap_object(marker)[:2],
+                  list(map(int, ready[10:12])) == (
+                      source['marker'] if invocation_marker is not None else marker_info)[:2],
                   'kiosk-bootstrap:ready-binding')
     mounts = bootstrap_mounts(process)
     mounts = {path: value for path, value in mounts.items()
@@ -2340,7 +2356,7 @@ def bootstrap_view(process, *, source=None):
     guest.require(objects and sources and '/usr' in mounts and
                   'ro' in mounts['/usr']['options'], 'kiosk-bootstrap:empty-view')
     result = {'backend': backend, 'material': material, 'view': view,
-              'marker': bootstrap_object(marker), 'completed': completed,
+              'marker': marker_info, 'completed': completed,
               'directory': bootstrap_object(directory),
               'objects': objects, 'coverage': coverage, 'sources': sources,
               'root': bootstrap_object(root, follow=True)[:5], 'usr': bootstrap_object(root / 'usr'),
@@ -2349,11 +2365,13 @@ def bootstrap_view(process, *, source=None):
         guest.require(list(map(int, ready[8:10])) == result['usr'][:2] and
                       int(ready[12]) == mounts['/usr']['id'], 'kiosk-bootstrap:ready-source-attachment')
     if source is not None:
-        guest.require(source['material'] == material and source['view'] == view and
+        guest.require(source['backend'] == backend and source['material'] == material and source['view'] == view and
                       source['completed'] == completed and source['directory'] == result['directory'] and
-                      source['marker'] == result['marker'] and
+                      (invocation_marker is not None or source['marker'] == result['marker']) and
                       source['sources'] == sources and source['coverage'] == coverage,
                       'kiosk-bootstrap:retained-view-not-manager-source')
+    if invocation_marker is not None:
+        result['invocation_view'] = marker_view
     return result
 
 
@@ -2560,7 +2578,10 @@ def bootstrap_pam_witness(account, directory, command, record, *, service='gdm-p
         event = lifecycle_event(events_read)
         record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.admission',
                json.dumps(event, sort_keys=True))
-        guest.require(set(event) == {'phase', 'pid', 'before', 'logger', 'logger_after'} and event['phase'] == 'admitted' and
+        expected_event = {'phase', 'pid', 'before', 'logger', 'logger_after'}
+        if service == 'gdm-password':
+            expected_event.add('invocation_marker')
+        guest.require(set(event) == expected_event and event['phase'] == 'admitted' and
                       type(event['pid']) is int and event['pid'] > 1,
                       'kiosk-bootstrap:admission-protocol')
         # Only a PID supplied by this direct child's private channel can be
@@ -2590,7 +2611,8 @@ def bootstrap_pam_witness(account, directory, command, record, *, service='gdm-p
         if backend == 'selinux' and service == 'gdm-password':
             guest.require((observed / 'attr/exec').read_text().strip().rstrip('\0') == expected,
                           'kiosk-bootstrap:pending-gate-role')
-        view = bootstrap_view(observed, source=manager)
+        view = bootstrap_view(observed, source=manager, **(
+            {'invocation_marker': event['invocation_marker']} if service == 'gdm-password' else {}))
         record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.view',
                json.dumps(view, sort_keys=True))
         os.write(release_write, b'E')

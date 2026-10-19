@@ -3012,3 +3012,73 @@ def test_snapshot_changed_during_run_leaves_recovery_evidence(lease_rig):
     # Initial restore only; no revert or force stop against the changed identity.
     assert lease.source.domain.revertToSnapshot.call_count == 1
     lease.source.domain.destroyFlags.assert_not_called()
+
+
+def test_sibling_selection_freezes_exact_scope_and_public_entry_inputs(tmp_path):
+    import system_snapshots
+    selection = runner.resolve_selection('enforcement', runner.SIBLING_CASE,
+        inventories=dict(INVENTORIES, enforcement=(runner.SIBLING_CASE,)))
+    assert selection.phases == (runner.SIBLING_PHASE,)
+    assert system_snapshots.attempts(selection) == [(selection, True)]
+    assert len(selection.executions) == 1 and not selection.executions[0].prerequisite
+    assert runner.pytest_command(RUN, runner.SIBLING_PHASE, selection)[-1] == (
+        runner.PAYLOAD + '/test_enforcement.py::' + runner.SIBLING_CASE)
+    runner.stage_selected_inputs(selection, tmp_path)
+    inputs = json.loads((tmp_path / 'selected-inputs.json').read_text())
+    assert inputs['host_files'] == runner.kiosk_activation_host_inputs()
+    assert {'system_kiosk_confinement.py', 'system_native_update.py', 'system_guest.py'} <= set(inputs['files'])
+    assert system_case_ids.identity_for_case('enforcement', runner.SIBLING_CASE).numeric_id == 290
+
+
+@pytest.mark.parametrize('fault', [None, 'preparation', 'assertion', 'cleanup', 'input-drift'])
+def test_sibling_history_preserves_failure_and_finishes_owned_cleanup(
+        tmp_path, monkeypatch, fault):
+    from contextlib import contextmanager
+    import kiosk_entry
+    inputs = {'host_files': {'source': 'digest'}}
+    (tmp_path / 'input').mkdir()
+    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps(inputs))
+    monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: inputs['host_files'])
+    events = []
+
+    @contextmanager
+    def station(vm, lease, *, receipt):
+        events.append('public-entry')
+        receipt['station_confirmed'] = True
+        try:
+            yield receipt
+        finally:
+            events.append('public-exit')
+            receipt['normal_exit'] = True
+
+    def call(command, **kwargs):
+        operation = command[-1]
+        events.append(operation)
+        if (operation == 'prepare-siblings' and fault == 'preparation' or
+                operation == 'cleanup-siblings' and fault == 'cleanup'):
+            raise RuntimeError(fault)
+
+    def pytest_call(*args):
+        events.append('assertions')
+        if fault == 'assertion':
+            raise RuntimeError(fault)
+        if fault == 'input-drift':
+            monkeypatch.setattr(runner, 'kiosk_activation_host_inputs', lambda: {'source': 'changed'})
+
+    monkeypatch.setattr(kiosk_entry, 'native_update_station', station)
+    monkeypatch.setattr(runner, 'run_pytest', pytest_call)
+    vm = SimpleNamespace(call=call)
+    lease = SimpleNamespace(state={'run': RUN})
+    if fault:
+        with pytest.raises((RuntimeError, runner.Error)):
+            runner.run_sibling_phase(vm, lease, tmp_path, None)
+    else:
+        runner.run_sibling_phase(vm, lease, tmp_path, None)
+    receipt = json.loads((tmp_path / 'guest-results/station-sibling-isolation.json').read_text())
+    if fault == 'preparation':
+        assert events == ['prepare-siblings']
+    else:
+        assert events == ['prepare-siblings', 'public-entry', 'assertions', 'public-exit', 'cleanup-siblings']
+        assert receipt['normal_exit']
+        assert receipt.get('fixture_cleanup') == (None if fault == 'cleanup' else 'passed')
+    assert receipt['host_inputs_unchanged'] == (fault != 'input-drift')

@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **003a — [Qualify Ubuntu sibling isolation](Kiosk-Prompt-Tasks/003a-sibling-ubuntu.md)**.
+Next task: **003 — [Qualify Fedora sibling isolation](Kiosk-Prompt-Tasks/003-sibling-isolation.md)**.
 
 ## Outcome
 
@@ -250,9 +250,9 @@ otherwise; installed case 267 is
 five-failure review (`20261019T061016Z-d39f14ad`; its export has retired under normal retention)
 contains `alias-directory`, `alias-link` and `target-link` controls that expected
 refusal but did not raise, a publication `UnicodeEncodeError`, and the ambient
-generation mismatch. The
-[follow-up report](../output/test-runs/host/exports/onpc-artifact-export-3obq7d2l/report.md)
-retains missing required destination, manager/gate encoding and ambient digest
+generation mismatch. The historical follow-up report
+`20261019T061847Z-d1c50a84` (export retired under normal retention during 003a)
+recorded missing required destination, manager/gate encoding and ambient digest
 failures. Their temporary probes were removed; those names are historical
 engineering receipts, not maintained runnable selectors or installed races.
 Commit `83d502b3` handled root-owned writable directories only; it retained the
@@ -647,10 +647,11 @@ This host brief declares no Targets and grants no installed or archive-projectio
 credit. Only 002b closes; every other queue row retains its status, order and scope.
 
 After queue/pointer/brief close-out, the maintained four-module documentation
-consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T080606Z-b923ca49/report.md).
+consistency selection passed all 313 cases in `20261019T080606Z-b923ca49`
+(subsequently retired under normal retention during 003a).
 Changed Markdown links and whitespace checks passed. The native report later
 retired under normal retention during 002; its unchanged inputs passed the fresh
-cumulative 002 selection below. The documentation report remains retained.
+cumulative 002 selection below. The documentation result remains historical.
 Report retirement preserves the accepted historical result.
 
 ### Customer diagnostic projection — 002
@@ -676,7 +677,8 @@ Existing failure/budget/clipping and reboot-history archive controls still pass.
 The historical probe and source review established the original gaps; this
 session claims no new pre-fix execution.
 
-The [affected host report](../output/test-runs/host/reports/20261019T081141Z-f0874cf2/report.md)
+The historical affected host report `20261019T081141Z-f0874cf2`
+(subsequently retired under normal retention during 003a)
 passed all 2,117 unit cases and the selected Node command (six assertions).
 Exact selection: `tools/run-tests unit` with
 `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py`,
@@ -711,10 +713,70 @@ and every other queue row keeps its status, order, scope and dependencies.
 
 After queue/pointer/brief close-out, the maintained
 [four-module documentation selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
-[passed all 313 cases](../output/test-runs/host/reports/20261019T081327Z-ef31eea8/report.md).
-The current 002 acceptance and documentation reports remain retained. Older
+passed all 313 cases in `20261019T081327Z-ef31eea8`
+(subsequently retired under normal retention during 003a).
+The accepted 002 results remain historical. Older
 retired receipts above keep their historical run identifiers. Changed-document
 links and the final whitespace check passed.
+
+### Ubuntu sibling isolation — 003a
+
+Installed acceptance passed on `onpc-Ubuntu26.04` on 2026-10-19 UTC using
+registered enforcement case **290**, `test_kiosk_writable_sibling_isolation`.
+The canonical mechanics are in `system_kiosk_confinement.py`; the runner's
+`sibling-isolation` phase reuses the existing guarded public station helper.
+The public form loaded without a kiosk password and Cancel returned to sign-in.
+All 24 observed kiosk processes had empty private views of root-owned 0775/0777
+and non-root-owned 0755/0555 inert directories, and no view of the user-owned
+0644 file. These independent live-root observations passed initially, after
+replacing the exact owned 0777 directory and omitted file, and after restoring
+their original inodes/bytes. Both ordinary roles retained contents/access at
+each stage. The same manager, mount namespace and generation survived replacement.
+The full thread census remained enforcing, a native positive executed, and the
+shell negative produced its matching enforcing AppArmor denial. Kernel:
+`7.0.0-38-generic`.
+
+The [retained evidence bundle](../output/test-runs/host/exports/onpc-evidence-bundle-8s59hcc0/evidence.zip)
+contains the complete installed result, phase JUnit, public-entry/exit/fixture
+cleanup receipt, frozen input manifest and supporting host reports. Bundle SHA-256:
+`ae6e378b33965dbd218a39df280e909928ed2550fac5afffb2f0f4bbf5b534eb`.
+Original allocation: `onpc-system-s_b4d2cd`; aggregate report:
+`20261019T082133Z-f7ba2a4a` (1/1 passed, 4.8 minutes including package-snapshot
+refresh). Product, infrastructure, collection and cleanup all passed.
+DEB SHA-256:
+`031aed4a7d515acca60915a3e67b8165bc38513b8dcadafcccd9bbf9c584f26f`;
+package-source digest:
+`5135f062b60aff9d002c9a02d0f02feb1a51a281acf99da6fe53cbbaf01a0679`;
+fixture digest:
+`c12399c7d679ee5f1bbed9de8ee0d51cacbcf88f07dd2e506c465a483ff533cd`;
+selected-input digest:
+`4a5b25e7052ecade466d1595715181fa6f1ce2ce65592e8c80eaefa2a95cf4b1`.
+Current guest mechanics and collected case match the frozen hashes; the public
+observer/runner/snapshot/registry host closure also matches its retained receipt.
+Later input changes require the normal applicability review before reuse.
+
+The affected confinement, runner and partition selection passed 2,254 checks in
+`20261019T082001Z-a16e6ad7`; snapshot/cleanup safety and the final selection
+guard passed 313 checks in `20261019T082054Z-dcff4735`. Both reports are included
+in the bundle. Existing compatible resource classifications remain appropriate:
+host tests use private files and process-local doubles, with closed descriptors,
+bounded waited native probes and no new host session, mount, bus or display.
+No package source or package-build dependency changed, so no separate `make build` is required.
+The maintained artifact preparer built and verified the actual DEB used above.
+
+Fixture restoration/removal, public exit, runner baseline restoration and
+standalone `tools/cleanup-e2e --vm onpc-Ubuntu26.04` completed. Its first invocation
+was busy while the owned evidence export ran; the serial retry passed after that
+export finished. No product assertion failed. No subagent started successfully;
+none remains. The pre-existing proof-document edit is preserved. Only 003a
+closes; Fedora 003 and Reliability 006a retain their original acceptance scope.
+
+After queue/pointer/brief close-out, the maintained four documentation modules
+and unit partition/resource checks passed all 340 cases in
+[20261019T082827Z-a4e09239](../output/test-runs/host/reports/20261019T082827Z-a4e09239/report.md).
+Changed-document links and whitespace passed.
+Expired older links above retain their historical run identifiers; no earlier
+task is reopened or granted fresh acceptance. The 003a bundle remains retained.
 
 ### Remaining execution and acceptance
 
@@ -744,9 +806,9 @@ the original export included their probe source and failures.
 repair, with installed acceptance at 003/004/007. Required-path completeness and
 metadata-race controls remain mandatory within those owners.
 
-A follow-up review retained
-[five additional host probe failures](../output/test-runs/host/exports/onpc-artifact-export-3obq7d2l/report.md)
-in run `20261019T061847Z-d1c50a84`: non-UTF-8 publication failed for both roles,
+A follow-up review recorded five additional host probe failures
+in run `20261019T061847Z-d1c50a84` (its export retired under normal retention
+during 003a): non-UTF-8 publication failed for both roles,
 ambient addition still changed the retained-manager digest, an absent required
 native destination escaped the preserved-only layout completeness check, and
 20 repeated denial records displaced all authentication/routing/recovery context

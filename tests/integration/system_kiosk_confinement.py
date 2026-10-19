@@ -25,6 +25,242 @@ import system_guest as guest
 ENV = ['PATH=/usr/bin:/bin', 'LANG=C', 'LC_ALL=C']
 PROC = Path('/proc')
 MANAGER_SID = 'system_u:system_r:onpc_kiosk_manager_t:s0'
+SIBLING_PARENT = Path('/usr/share')
+
+
+def sibling_identity(path):
+    info = path.lstat()
+    return [info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid]
+
+
+def sibling_snapshot(path):
+    """Finite inert fixtures only; never recurse into an unexpected entry."""
+    identity = sibling_identity(path)
+    if stat.S_ISDIR(identity[2]):
+        guest.require(sorted(item.name for item in path.iterdir()) == ['canary'],
+                      'kiosk-sibling:unexpected-contents')
+        guest.require(stat.S_ISREG((path / 'canary').lstat().st_mode),
+                      'kiosk-sibling:unexpected-type')
+        return {'identity': identity, 'canary': sibling_snapshot(path / 'canary')}
+    guest.require(stat.S_ISREG(identity[2]) and path.lstat().st_nlink == 1 and
+                  path.lstat().st_size <= 128,
+                  'kiosk-sibling:unexpected-type')
+    return {'identity': identity, 'sha256': guest.sha(path)}
+
+
+def sibling_remove(path, expected):
+    # Compare everything before unlinking any child. Unknown/replaced entries
+    # are preserved for the enclosing controller's identity-owned recovery.
+    guest.require(sibling_snapshot(path) == expected, 'kiosk-sibling:cleanup-identity')
+    if 'canary' in expected:
+        (path / 'canary').unlink()
+        path.rmdir()
+    else:
+        path.unlink()
+
+
+def sibling_checkpoint():
+    from system_native_update import private, read_private
+    marker = guest.guard()
+    data = read_private(private() / 'sibling-inputs.json')
+    guest.require(data['binding'] == {key: marker[key] for key in
+                  ('run', 'package_sha256', 'selected_inputs_sha256')},
+                  'kiosk-sibling:checkpoint-binding')
+    prefix = 'onpc-sibling-' + marker['run'] + '-'
+    guest.require(len(data['rows']) == 5 and
+                  [row['name'] for row in data['rows']] == [prefix + suffix for suffix in
+                   ('root-0775', 'root-0777', 'user-0755', 'user-0555', 'omitted')],
+                  'kiosk-sibling:checkpoint-paths')
+    return data
+
+
+def sibling_create(path, mode, uid, gid, content, *, directory):
+    """Exclusive creation; these files are deliberate attempt mutations."""
+    if directory:
+        path.mkdir(mode=0o700)
+        target = path / 'canary'
+    else:
+        target = path
+    with target.open('xb') as output:
+        output.write(content)
+    target.chmod(0o444 if directory else mode)
+    os.chown(path, uid, gid, follow_symlinks=False)
+    path.chmod(mode)
+    return sibling_snapshot(path)
+
+
+def prepare_siblings():
+    from system_native_update import publish
+    marker = guest.guard()
+    guest.enable_diagnostics()
+    account = pwd.getpwnam('oh-no-parent-control')
+    wait_kiosk_inactive(account)
+    parent = SIBLING_PARENT.lstat()
+    guest.require(SIBLING_PARENT.resolve(strict=True) == SIBLING_PARENT and
+                  stat.S_ISDIR(parent.st_mode) and parent.st_uid == parent.st_gid == 0 and
+                  not parent.st_mode & 0o022, 'kiosk-sibling:fixture-parent')
+    child = pwd.getpwnam('onpc-child-riley')
+    guest.require(child.pw_uid > 0 and child.pw_uid != account.pw_uid,
+                  'kiosk-sibling:ordinary-identity')
+    rows = []
+    try:
+        for suffix, mode, uid, gid, directory in (
+                ('root-0775', 0o775, 0, 0, True), ('root-0777', 0o777, 0, 0, True),
+                ('user-0755', 0o755, child.pw_uid, child.pw_gid, True),
+                ('user-0555', 0o555, child.pw_uid, child.pw_gid, True),
+                ('omitted', 0o644, child.pw_uid, child.pw_gid, False)):
+            name = 'onpc-sibling-' + marker['run'] + '-' + suffix
+            path = SIBLING_PARENT / name
+            # Preflight all destinations, including restoration aliases, before
+            # exclusive creation. Never adopt a dangling link or old fixture.
+            guest.require(not os.path.lexists(path) and not os.path.lexists(str(path) + '-saved'),
+                          'kiosk-sibling:fixture-collision')
+            snapshot = sibling_create(path, mode, uid, gid,
+                                      ('original-' + suffix + '\n').encode(), directory=directory)
+            rows.append(dict(name=name, snapshot=snapshot, directory=directory))
+        data = {'binding': {key: marker[key] for key in
+                ('run', 'package_sha256', 'selected_inputs_sha256')}, 'rows': rows}
+        sibling_ordinary_controls(rows, lambda *_: None, 'before-entry')
+        publish('sibling-inputs.json', data)
+    except BaseException:
+        for row in reversed(rows):
+            sibling_remove(SIBLING_PARENT / row['name'], row['snapshot'])
+        raise
+
+
+def sibling_ordinary_controls(rows, record, stage):
+    for role in ('onpc-child-riley', 'onpc-parent-jamie'):
+        account = pwd.getpwnam(role)
+        for row in rows:
+            path = SIBLING_PARENT / row['name']
+            guest.require(sibling_snapshot(path) == row['snapshot'],
+                          'kiosk-sibling:host-fixture-changed')
+            target = path / 'canary' if row['directory'] else path
+            output = user_command(account, ['/usr/bin/cat', str(target)])
+            guest.require(hashlib.sha256(output).hexdigest() ==
+                          (row['snapshot']['canary'] if row['directory'] else
+                           row['snapshot'])['sha256'], 'kiosk-sibling:ordinary-access')
+            if row['directory']:
+                guest.require(user_command(account, ['/usr/bin/ls', '-A', str(path)]).strip() ==
+                              b'canary', 'kiosk-sibling:ordinary-contents')
+    record('onpc.kiosk.sibling.ordinary.' + stage, 'passed')
+
+
+def sibling_private_views(rows, record, stage):
+    """Observe actual live process roots, independent of preparation records."""
+    result = census()
+    account = pwd.getpwnam('oh-no-parent-control')
+    seen = 0
+    for process in PROC.iterdir():
+        if not process.name.isdecimal():
+            continue
+        try:
+            identity = process_identity(process)
+            if str(account.pw_uid) not in identity[2]:
+                continue
+            descriptor = os.pidfd_open(int(process.name))
+        except (ProcessLookupError, FileNotFoundError):
+            continue
+        try:
+            for row in rows:
+                visible = process / 'root' / SIBLING_PARENT.relative_to('/') / row['name']
+                if row['directory']:
+                    info = visible.lstat()
+                    guest.require(stat.S_ISDIR(info.st_mode) and not list(visible.iterdir()) and
+                                  [info.st_dev, info.st_ino] != row['snapshot']['identity'][:2],
+                                  'kiosk-sibling:mutable-directory-visible')
+                else:
+                    guest.require(not os.path.lexists(visible), 'kiosk-sibling:omitted-entry-visible')
+            guest.require(not exited(descriptor) and process_identity(process) == identity,
+                          'kiosk-sibling:observer-lifecycle-changed')
+            seen += 1
+        finally:
+            os.close(descriptor)
+    guest.require(seen > 0, 'kiosk-sibling:no-private-view')
+    record('onpc.kiosk.sibling.private.' + stage,
+           json.dumps(dict(processes=seen, **result), sort_keys=True))
+
+
+@contextmanager
+def sibling_replacement(row):
+    path = SIBLING_PARENT / row['name']
+    saved = path.with_name(path.name + '-saved')
+    guest.require(sibling_snapshot(path) == row['snapshot'] and not os.path.lexists(saved),
+                  'kiosk-sibling:replacement-identity')
+    path.rename(saved)
+    replacement = None
+    try:
+        original = row['snapshot']['identity']
+        replacement = sibling_create(path, stat.S_IMODE(original[2]), original[3], original[4],
+                                     b'replacement-mutable-content\n', directory=row['directory'])
+        guest.require(replacement['identity'][:2] != original[:2],
+                      'kiosk-sibling:replacement-not-new')
+        yield {**row, 'snapshot': replacement}
+    finally:
+        if replacement is not None:
+            sibling_remove(path, replacement)
+        guest.require(not os.path.lexists(path) and sibling_snapshot(saved) == row['snapshot'],
+                      'kiosk-sibling:restoration-identity')
+        saved.rename(path)
+        guest.require(sibling_snapshot(path) == row['snapshot'], 'kiosk-sibling:restoration-mismatch')
+
+
+def verify_sibling_isolation(record):
+    guest.guard()
+    guest.enable_diagnostics()
+    rows = sibling_checkpoint()['rows']
+    config = json.loads(Path('/usr/share/oh-no-parent-control/confinement/config.json').read_text())
+    record_native_packages(config, record)
+    record('onpc.kiosk.sibling.fixtures', json.dumps(rows, sort_keys=True))
+    record('onpc.kiosk.sibling.kernel', guest.run(['uname', '-r']))
+    account = pwd.getpwnam('oh-no-parent-control')
+    unit = f'user@{account.pw_uid}.service'
+    manager = PROC / str(manager_pid(unit))
+    descriptor = os.pidfd_open(int(manager.name))
+    identity = process_identity(manager)
+    namespace = os.readlink(manager / 'ns/mnt')
+    generation = (manager / 'root/usr/share/oh-no-parent-control/confinement/generation').read_text()
+    try:
+        sibling_ordinary_controls(rows, record, 'initial')
+        sibling_private_views(rows, record, 'initial')
+        guest.require(b'systemd ' in user_command(account,
+            ['/usr/bin/systemd-run', '--user', '--wait', '--collect', '--pipe',
+             '--unit=onpc-sibling-positive', '/usr/bin/systemctl', '--version']),
+            'kiosk-sibling:positive-native-exec')
+        require_service_denial(account, config['backend'], 'onpc-sibling-denied.service',
+                               ['/bin/sh', '-c', 'exit 0'], record)
+        # Replace one masked directory and the omitted file in the SAME live
+        # station, retaining the old inodes for exact restoration.
+        with sibling_replacement(rows[1]) as directory, sibling_replacement(rows[4]) as omitted:
+            replaced = [rows[0], directory, rows[2], rows[3], omitted]
+            record('onpc.kiosk.sibling.replacements', json.dumps(replaced, sort_keys=True))
+            sibling_ordinary_controls(replaced, record, 'replacement')
+            sibling_private_views(replaced, record, 'replacement')
+            guest.require(not exited(descriptor) and manager_pid(unit) == int(manager.name) and
+                          process_identity(manager) == identity and
+                          os.readlink(manager / 'ns/mnt') == namespace and
+                          (manager / 'root/usr/share/oh-no-parent-control/confinement/generation').read_text()
+                          == generation, 'kiosk-sibling:retained-manager-changed')
+            record('onpc.kiosk.sibling.retained-manager', 'passed')
+        sibling_ordinary_controls(rows, record, 'restored')
+        sibling_private_views(rows, record, 'restored')
+        record('onpc.kiosk.sibling.restoration', 'passed')
+    finally:
+        os.close(descriptor)
+
+
+def cleanup_siblings():
+    from system_native_update import publish
+    rows = sibling_checkpoint()['rows']
+    for row in rows:
+        path = SIBLING_PARENT / row['name']
+        guest.require(not os.path.lexists(str(path) + '-saved') and
+                      sibling_snapshot(path) == row['snapshot'], 'kiosk-sibling:cleanup-identity')
+    for row in reversed(rows):
+        sibling_remove(SIBLING_PARENT / row['name'], row['snapshot'])
+    guest.require(all(not os.path.lexists(SIBLING_PARENT / row['name']) for row in rows),
+                  'kiosk-sibling:cleanup-incomplete')
+    publish('sibling-cleanup.json', {'outcome': 'passed', 'fixtures': rows})
 
 
 def wait_kiosk_inactive(account, *,
@@ -2057,7 +2293,11 @@ def verify(record):
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['census']:
+    if sys.argv[1:] == ['prepare-siblings']:
+        prepare_siblings()
+    elif sys.argv[1:] == ['cleanup-siblings']:
+        cleanup_siblings()
+    elif sys.argv[1:] == ['census']:
         print(json.dumps(census(), sort_keys=True))
     elif len(sys.argv) == 3 and sys.argv[1] == 'bwrap-exec':
         request = json.loads(sys.argv[2])

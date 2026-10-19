@@ -5926,6 +5926,102 @@ def test_manager_reexec_observation_requires_each_live_thread_boundary(
     assert closed == [900]
 
 
+@pytest.mark.parametrize('directory', [True, False])
+@pytest.mark.parametrize('body_error', [False, True])
+def test_sibling_replacement_restores_exact_original_inode_and_content(
+        census_model, tmp_path, monkeypatch, directory, body_error):
+    helper = census_model
+    monkeypatch.setattr(helper, 'SIBLING_PARENT', tmp_path)
+    monkeypatch.setattr(helper.os, 'chown', lambda *args, **kwargs: None)
+    path = tmp_path / 'owned'
+    original = helper.sibling_create(path, 0o777 if directory else 0o644,
+                                    os.getuid(), os.getgid(), b'original', directory=directory)
+    row = dict(name=path.name, snapshot=original, directory=directory)
+
+    def exercise():
+        with helper.sibling_replacement(row) as replacement:
+            assert replacement['snapshot']['identity'][:2] != original['identity'][:2]
+            assert helper.sibling_snapshot(path) == replacement['snapshot']
+            if body_error:
+                raise RuntimeError('body-error')
+
+    if body_error:
+        with pytest.raises(RuntimeError, match='body-error'):
+            exercise()
+    else:
+        exercise()
+    assert helper.sibling_snapshot(path) == original
+    assert not path.with_name('owned-saved').exists()
+
+
+@pytest.mark.parametrize('fault', ['extra', 'content', 'mode', 'inode', 'symlink', 'hardlink'])
+def test_sibling_cleanup_preserves_unknown_or_changed_inputs(
+        census_model, tmp_path, fault):
+    helper = census_model
+    path = tmp_path / 'owned'
+    path.mkdir()
+    (path / 'canary').write_bytes(b'original')
+    expected = helper.sibling_snapshot(path)
+    if fault == 'extra':
+        (path / 'unknown').write_bytes(b'foreign')
+    elif fault == 'content':
+        (path / 'canary').write_bytes(b'changed')
+    elif fault == 'mode':
+        path.chmod(0o700)
+    elif fault == 'inode':
+        path.rename(tmp_path / 'saved')
+        path.mkdir()
+        (path / 'canary').write_bytes(b'original')
+    elif fault == 'symlink':
+        (path / 'canary').rename(tmp_path / 'foreign')
+        (path / 'canary').symlink_to(tmp_path / 'foreign')
+    elif fault == 'hardlink':
+        os.link(path / 'canary', tmp_path / 'another')
+    with pytest.raises(helper.guest.GuestError, match='kiosk-sibling:'):
+        helper.sibling_remove(path, expected)
+    assert path.exists() and (path / 'canary').exists()
+
+
+@pytest.mark.parametrize('fault', [None, 'contents', 'omitted-file', 'omitted-link', 'same-inode',
+                                  'process-replaced'])
+def test_sibling_private_view_reads_live_roots_and_refuses_exposure(
+        census_model, tmp_path, monkeypatch, fault):
+    helper = census_model
+    proc = tmp_path / 'proc'
+    process = proc / '42'
+    share = process / 'root/usr/share'
+    share.mkdir(parents=True)
+    masked = share / 'masked'
+    masked.mkdir()
+    omitted = share / 'omitted'
+    if fault == 'contents':
+        (masked / 'mutable').write_bytes(b'exposed')
+    elif fault == 'omitted-file':
+        omitted.write_bytes(b'exposed')
+    elif fault == 'omitted-link':
+        omitted.symlink_to('missing')
+    rows = [dict(name='masked', directory=True, snapshot={
+        'identity': [masked.stat().st_dev, masked.stat().st_ino] if fault == 'same-inode' else [-1, -1]}),
+        dict(name='omitted', directory=False)]
+    monkeypatch.setattr(helper, 'PROC', proc)
+    monkeypatch.setattr(helper.pwd, 'getpwnam', lambda _: SimpleNamespace(pw_uid=1234))
+    census = Mock(return_value={'backend': 'apparmor', 'confined_thread_roles': {'app': 1}})
+    monkeypatch.setattr(helper, 'census', census)
+    identities = iter([('start', 1, ('1234',) * 4),
+                       ('changed' if fault == 'process-replaced' else 'start', 1, ('1234',) * 4)])
+    monkeypatch.setattr(helper, 'process_identity', lambda _: next(identities))
+    monkeypatch.setattr(helper.os, 'pidfd_open', lambda _: os.open('/dev/null', os.O_RDONLY))
+    monkeypatch.setattr(helper, 'exited', lambda _: False)
+    records = {}
+    if fault:
+        with pytest.raises(helper.guest.GuestError, match='kiosk-sibling:'):
+            helper.sibling_private_views(rows, records.__setitem__, 'test')
+    else:
+        helper.sibling_private_views(rows, records.__setitem__, 'test')
+        assert json.loads(records['onpc.kiosk.sibling.private.test'])['processes'] == 1
+    census.assert_called_once_with()
+
+
 @pytest.mark.parametrize('stage', ['configuration', 'policy'])
 @pytest.mark.parametrize('fault', [None, 'native-admitted', 'load-accepted', 'wrong-load-refusal',
                                    'extended-load-refusal',

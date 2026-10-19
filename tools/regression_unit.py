@@ -764,6 +764,11 @@ from regression_ui import Bucket
 # preparation/SELinux/pidfd doubles only, with no real subprocess or policy read.
 # system_runner's retained refusal dispatch likewise uses private logs and
 # process-local transport doubles; its unit/cleanup classifications stay compatible.
+# Sibling-isolation dispatch uses the same private JSON/VM doubles. Its host
+# fixture checks use pytest-private inert files, process-local ownership/census
+# doubles and immediately closed read-only descriptors; no host UID, process,
+# mount, bus, socket, display, shared cache or external service is changed.
+# Existing compatible classifications and small bounded resource demand hold.
 # Focused rollback histories retain private files and mocked VM/native commands.
 # Bind-mount ownership and transaction-watcher tests use synthetic mount rows
 # and joined local threads with command doubles, never host mounts or packages;

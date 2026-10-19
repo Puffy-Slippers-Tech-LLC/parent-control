@@ -479,7 +479,8 @@ Persistent system case identities are registered in
 [system case IDs](../../tests/integration/system_case_ids.py):
 4 covers first-configuration interruption/retry, 5 account classification and
 real GDM activation across reboot, 267 native execution confinement, 268 installed
-login admission and 269 platform integrations. The
+login admission, 269 platform integrations and 290 sibling mask/omission
+isolation across an owned host replacement in a retained public station. The
 [installed-suite guide](../../tests/integration/README.md#running-the-current-installed-suite)
 defines their exact scope, positive controls and failure witnesses. Public cases
 50, 51, 52 and 192 are independently registered in the

@@ -331,6 +331,22 @@ an unconfined synthetic caller must not create that inode with a different type.
 The fixture changes no policy or runtime-lock label and cleans up its own
 interpreter after success or failure.
 
+`enforcement` → `test_kiosk_writable_sibling_isolation` (290) keeps one public
+station entry, host replacement and restoration together in the dedicated
+`sibling-isolation` phase. `system_kiosk_confinement` creates attempt-owned inert
+siblings under `/usr/share`: root-owned 0775/0777 directories, ordinary-user-owned
+0755/0555 directories and a user-owned 0644 file. The existing public station
+helper observes the usable form and normal Cancel/greeter return. Independent
+live process-root reads require empty directories and an absent file; the
+complete confinement census and native positive/denied execution remain
+enforcing. Both ordinary roles retain contents/access. One masked directory and
+the omitted file are replaced while the same manager, namespace and generation
+remain live, then their exact original inodes and bytes are restored. Cleanup
+refuses changed identities or unknown contents and removes only recorded inputs.
+The runner freezes both guest mechanics and the public observer's host closure.
+This is installed engineering qualification; platform receipts belong to
+[the kiosk prompt plan](../../docs/Kiosk-Prompt.md), with Fedora still pending.
+
 `enforcement` → `test_kiosk_shared_integration_scope` checks preserved vendor
 PAM callback bytes/options and the manager credential fallback, then starts and
 stops one owned ordinary administrator and standard-user manager. It also

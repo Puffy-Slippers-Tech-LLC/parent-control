@@ -53,6 +53,8 @@ TRUSTED_FIXTURES_CASE = 'test_trusted_native_upgrade_fixtures'
 TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
 NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
 NATIVE_UPDATE_PHASES = ('native-update', 'native-update-rebooted')
+SIBLING_CASE = 'test_kiosk_writable_sibling_isolation'
+SIBLING_PHASE = 'sibling-isolation'
 
 
 @dataclass(frozen=True)
@@ -111,7 +113,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session')
+               SIBLING_PHASE, 'authorization', 'enforcement', 'session')
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
     'removal': ROOT / 'tests/system/test_removal.py',
@@ -153,6 +155,7 @@ NATIVE_UPDATE_HOST_INPUTS = (
     'tools/regression.py', 'tools/regression_process.py',
 )
 PHASE_DEPENDENCIES = {
+    SIBLING_PHASE: (),
     NATIVE_UPDATE_PHASES[0]: (),
     NATIVE_UPDATE_PHASES[1]: NATIVE_UPDATE_PHASES[:1],
     TRUSTED_FIXTURES_PHASE: (),
@@ -173,6 +176,7 @@ PHASE_DEPENDENCIES = {
     'session': (),
 }
 PHASE_PREREQUISITES = {
+    SIBLING_PHASE: ('retained-app-snapshot', 'owned-sibling-inputs', 'retained-public-station'),
     NATIVE_UPDATE_PHASES[0]: ('verified-native-artifacts', 'old-native-before-install',
                             'package-install', 'guest-reboot', 'retained-public-station'),
     NATIVE_UPDATE_PHASES[1]: ('native-update-phase', 'normal-public-station-exit',
@@ -385,6 +389,8 @@ def collect_area_cases(area, *, invoke=None):
 
 
 def case_phases(area, case_id):
+    if area == 'enforcement' and case_id == SIBLING_CASE:
+        return (SIBLING_PHASE,)
     if area == 'removal':
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
@@ -1545,7 +1551,8 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
-    if any(item.area == 'package' and item.case_id in (KIOSK_ACTIVATION_CASE, NATIVE_UPDATE_CASE)
+    if any(item.case_id == SIBLING_CASE or
+           (item.area == 'package' and item.case_id in (KIOSK_ACTIVATION_CASE, NATIVE_UPDATE_CASE))
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
         if any(item.case_id == NATIVE_UPDATE_CASE for item in selection.executions):
@@ -1977,6 +1984,38 @@ def run_native_update_phase(vm, lease, directory, selection, phase, ledger=None)
         vm.call(guest_command(lease.state['run'], 'native-retired'), timeout=180)
 
 
+def run_sibling_phase(vm, lease, directory, selection):
+    """One uninterrupted public entry, replacement, restoration and exit."""
+    from kiosk_entry import native_update_station
+    inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
+    require(kiosk_activation_host_inputs() == inputs['host_files'],
+            'kiosk-sibling:host-inputs-changed')
+    command = ['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
+               'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+               PAYLOAD + '/system_kiosk_confinement.py']
+    receipt = {}
+    prepared = False
+    try:
+        vm.call([*command, 'prepare-siblings'], timeout=150)
+        prepared = True
+        with native_update_station(vm, lease, receipt=receipt):
+            run_pytest(vm, lease.state['run'], SIBLING_PHASE, selection)
+    finally:
+        try:
+            if prepared:
+                vm.call([*command, 'cleanup-siblings'], timeout=150)
+                receipt['fixture_cleanup'] = 'passed'
+        finally:
+            output = directory / 'guest-results'
+            output.mkdir(mode=0o700, exist_ok=True)
+            receipt.update(host_files=inputs['host_files'],
+                           host_inputs_unchanged=kiosk_activation_host_inputs() == inputs['host_files'],
+                           selected_inputs_sha256=baseline.digest(directory / 'input/selected-inputs.json'))
+            (output / 'station-sibling-isolation.json').write_bytes(baseline.encode(receipt))
+    require(receipt.get('normal_exit') and receipt.get('fixture_cleanup') == 'passed' and
+            receipt['host_inputs_unchanged'], 'kiosk-sibling:incomplete-history')
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False):
     ledger = ledger or RunLedger()
     run = lease.state['run']
@@ -2121,7 +2160,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                          for phase in history.phases[1:])
         for phase in (*NATIVE_UPDATE_PHASES, TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *recovery_phases,
-                      'authorization', 'enforcement', 'session'):
+                      SIBLING_PHASE, 'authorization', 'enforcement', 'session'):
             if phase not in selection.phases:
                 continue
             if phase in (NATIVE_UPDATE_PHASES[1], *rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -2163,6 +2202,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 try:
                     if phase in NATIVE_UPDATE_PHASES:
                         run_native_update_phase(vm, lease, directory, selection, phase, ledger)
+                    elif phase == SIBLING_PHASE:
+                        run_sibling_phase(vm, lease, directory, selection)
                     else:
                         run_pytest(vm, run, phase, selection)
                 except CommandError as error:

@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **002a — [Finish ambient classification and required-input controls](Kiosk-Prompt-Tasks/002a-classification.md)**.
+Next task: **002b — [Add native binding failure causes](Kiosk-Prompt-Tasks/002b-native-diagnostics.md)**.
 
 ## Outcome
 
@@ -246,8 +246,8 @@ otherwise; installed case 267 is
 | Admission, preparation and lifecycle serialization | [Native admission](../tools/kiosk_confinement.h) keeps the shared admission lease on the PAM handle and holds the no-follow exclusive preparation lock across runtime creation, helper, binds and MAC. Lifecycle configuration takes shared admission then exclusive preparation; loader/removal barriers take exclusive admission/routing/preparation. Unsafe metadata, missing barriers or contention deny. Host `test_install_refuses_native_preparation_before_policy_or_record_mutation`, `test_install_preserves_existing_admission_and_excludes_preparation_through_attestation`, private PAM tests in `test_kiosk_login.py` and case 267's held-admission loader control cover the crossings. | Intentional refusals with existing ownership; no new lock campaign. Routing's separate login lock and bound account/session state remain as recorded in 001a. Preparation lock errors have only the native stage; detailed bind causes are scoped to 002b. |
 | Bounded helper, environment, capabilities and final MAC | Native preparation has a 60-second whole-helper deadline and reaps its own child; integration verification and the manager query each have five-second deadlines. Failed helper exit, runtime setup, manager-only unit environment, ambient-capability clearing or MAC denies. Ubuntu immediately verifies AppArmor; Fedora verifies pending GDM exec context or immediately confines the manager PAM caller. No subprocess follows final MAC. Case 267's `verify_execution_boundary()` performs an allowed actual exec before forbidden final-exec controls and verifies the manager boundary. | Intentional closed failure; helper success or `outcome=armed` does not prove app readiness. Native records separate identity/admission/lock/runtime/prepare/bind/environment/ambient/mac/armed, but generally lack a cause. Existing routing timeout coverage remains separate from preparation timeout. 001 owns post-boundary startup/readiness projection. |
 
-**Evidence applicability and remaining proof.** The retained
-[five-failure review](../output/test-runs/host/exports/onpc-artifact-export-tmc1qzhs/report.md)
+**Evidence applicability and remaining proof.** The historical
+five-failure review (`20261019T061016Z-d39f14ad`; its export has retired under normal retention)
 contains `alias-directory`, `alias-link` and `target-link` controls that expected
 refusal but did not raise, a publication `UnicodeEncodeError`, and the ambient
 generation mismatch. The
@@ -510,20 +510,20 @@ substitution, subsequent preparation/reuse, bounds, labels and owned child clean
 The exact final affected selection was `tools/run-tests unit` with
 `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py` and
 `tests/unit/test_regression_unit.py`, retaining the fixtures' 5/30-second native
-probe/compiler deadlines. Its
-[report](../output/test-runs/host/reports/20261019T074024Z-1036c546/report.md)
+probe/compiler deadlines. Its historical report, `20261019T074024Z-1036c546`,
+subsequently retired under normal retention and
 records 1,218 passes and one private copy-fixture mode failure. After setting that
 test's newly created parent directories to 0755, its exact selector
 `test_preparation_swaps_independent_bubblewrap_copies_only_in_private_tree`
-[passed](../output/test-runs/host/reports/20261019T074140Z-e9b376b5/report.md).
+passed in `20261019T074140Z-e9b376b5` (also retired under normal retention).
 Only that case's parent-mode setup changed after the full selection; product,
 native/protocol fixtures and all other assertions are identical. Together these
 receipts supply all 1,219 required passes, including the 341 finite controls,
 66 PAM caller checks and 27 unit partition/resource checks.
 
 After queue, pointer and brief close-out, the maintained plan, inventory,
-coverage-generation and case-composition checks
-[passed all 313 cases](../output/test-runs/host/reports/20261019T074338Z-ad82f160/report.md).
+coverage-generation and case-composition checks passed all 313 cases in
+`20261019T074338Z-ad82f160` (subsequently retired under normal retention).
 Changed-document links passed with 196 checked and none missing; the final
 whitespace check passed.
 
@@ -549,6 +549,63 @@ proof-document work is preserved. This task declares no Targets and supplies no
 installed credit. Only 002ab closes; 002a resumes with every original assertion,
 and 003/004/007 plus 011a retain their installed obligations.
 
+### Ambient classification and required-input controls — 002a
+
+Host acceptance passed on 2026-10-19 UTC. Required layout closure now includes
+lexical alias ancestors, intermediate target chains and reserved roots. Inventory
+retains selected optional aliases; all measured native destinations, including
+substituted executables, require unique intended private placeholders before
+manager matching or generation writes. Directory aliases use concrete skeleton
+nodes and explicit lexical proofs. Final publication refuses changed required
+types/link text. Unsupported UTF-8 names, controls and link text are omitted only
+for ambient entries; masked directories remain empty. No rejected source is bound,
+no ambient contents are read and diagnostic failure leaves admission unchanged.
+
+Before repair, all five permanent reproduction cases failed in
+`20261019T074857Z-fc49bc5b`: three late alias ancestry/target ownership changes
+did not refuse, and both caller roles raised `UnicodeEncodeError` during actual
+publication. The [exported failure report](../output/test-runs/host/exports/onpc-artifact-export-p1vmuvzh/report.md)
+retains their assertions and original failures. Subsequent fixture repairs made
+the private generation marker explicitly 0644 and mapped current Python's direct
+`Path.exists()` queries to the private tree; these preserve those original failures
+and expectations. Existing executable-parent/copy-limit fixtures now supply their
+real private required destinations, preserving their original refusal/bounds checks.
+
+The final affected selection was `tools/run-tests unit` with
+`tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py` and
+`tests/unit/test_regression_unit.py`, retaining the native probes' 5-second and
+compiler's 30-second deadlines. Its
+[report](../output/test-runs/host/reports/20261019T075434Z-fd0e91fe/report.md)
+records all 1,302 passes: 1,209 confinement checks (including 83 new classification
+cases and every original post-layout/required-input control), 66 PAM caller checks
+and 27 resource/partition checks. Actual manager/gate publication reaches the
+native consumer for healthy directory aliases. Independent ambient/required
+metadata, owner/mode/type, disappearance/reappearance, readlink and final-proof
+retarget controls pass. The full layout digest and exact manager match remain;
+between-preparation ambient changes still belong to 005a–007.
+
+Tested source SHA-256 is `c4df120b8e61802a7e0fac85fc628112ff47a460c826dd66a183dc461a4d0c50`
+for `tools/kiosk_confinement.py`; the final fixture SHA-256 is
+`c87027808b237eeeda4b83d46be8c63772710c3c8a0ea8fdd1f169a537da3f58`.
+Native header and policy source match the 002ab identities above. `make build`
+passed both formats after the final packaged edit: DEB SHA-256
+`483ef5fa54455c6c35199ff9afa229b22b0f512a12edf846dd9aed4213f5c781`;
+RPM SHA-256 `c96b869a1c27b6e6d0752b098f10a9d2a54597dd12ef7e7587c1e8bc6fa28e2f`.
+
+Both GPT-6.1 Sol workers finished before acceptance, including independent High
+source review. Resource rationale covers private trees, scoped metadata doubles,
+bounded waited native children and unchanged cleanup/UI inventories. Runner-owned
+cleanup and `tools/cleanup-e2e --host-only` completed; no process, VM, installation
+or runtime restoration remains. The pre-existing proof-document edit is preserved.
+This host brief declares no Targets and grants no installed or diagnostic-export
+acceptance. Only 002a closes; 002b is next, and all other rows retain their scope,
+dependencies, order and status.
+
+After queue/pointer/brief close-out, the maintained four-module documentation
+consistency selection [passed all 313 cases](../output/test-runs/host/reports/20261019T075636Z-75f99911/report.md).
+Changed Markdown links and whitespace checks passed. Expired predecessor report
+links above are recorded as historical run identifiers rather than fresh receipts.
+
 ### Remaining execution and acceptance
 
 The three discovery reviews now map authentication/account admission,
@@ -558,12 +615,12 @@ and the exact limits of unaffected existing coverage. Existing
 unaffected coverage need not be requalified. The independent review confirmed
 the incident's blank authentication followed by preparation refusal; it did not qualify a new native
 candidate. The selected existing host checks passed 1,223 cases on 2026-10-19 UTC.
-The deliberate alias-ancestor and non-UTF-8 publication failures remain unresolved
-engineering evidence in existing runner reports; temporary review probes were
-removed.
+The deliberate alias-ancestor and non-UTF-8 publication failures are historical
+engineering evidence; their permanent regressions and repairs passed at 002a
+above. Temporary review probes were removed.
 
 A further independent review reproduced five host failures in
-[the exported probe report](../output/test-runs/host/exports/onpc-artifact-export-tmc1qzhs/report.md):
+`20261019T061016Z-d39f14ad` (its export subsequently retired under normal retention):
 non-root lexical directory/link ancestry and an intermediate target link were
 masked/omitted instead of refused; a non-UTF-8 sibling failed actual binding
 publication; and an unrelated masked-directory addition changed the digest and
@@ -572,7 +629,7 @@ were removed and their containing file restored exactly. These are bounded
 engineering reproductions, not maintained regression coverage or installed proof.
 The first review report rotated during subsequent checks. The same five failures
 were reproduced in run `20261019T061016Z-d39f14ad` and exported before close-out;
-the linked report includes their probe source and failures.
+the original export included their probe source and failures.
 002a owns the first four failures; 005a/005 and 006a/006b/006 own retained-view
 repair, with installed acceptance at 003/004/007. Required-path completeness and
 metadata-race controls remain mandatory within those owners.
@@ -585,10 +642,9 @@ native destination escaped the preserved-only layout completeness check, and
 20 repeated denial records displaced all authentication/routing/recovery context
 from a 31-record diagnostic input. The last two are newly demonstrated gaps;
 002a and 002 respectively own their permanent regressions and correction.
-002a also owns the source-reviewed post-layout ambient disappearance/trust-drift
-boundary: native bind checks remain strict, but currently make that unrelated
-source an entry prerequisite. Its brief requires a bounded prerequisite if
-safe handling needs an independent mechanism. These are engineering observations,
+002a's source-reviewed post-layout ambient disappearance/trust-drift boundary
+was resolved by the 002aa/002ab prerequisites and revalidated in 002a's affected
+selection, preserving strict required-input controls. These are engineering observations,
 not installed acceptance. Temporary probes were removed and both containing
 test files restored to their exact pre-probe hashes.
 

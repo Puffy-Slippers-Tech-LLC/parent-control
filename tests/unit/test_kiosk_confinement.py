@@ -2852,6 +2852,8 @@ def test_preserved_password_helper_reinstall_keeps_generation_and_refreshes_inod
 @pytest.fixture
 def preserved_password_preparation(tmp_path, monkeypatch):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
+    real_directory_layout, real_trusted = helper.directory_layout, helper.trusted
+    real_inventory, real_source_record = helper.inventory, helper.source_record
     payload, runtime = tmp_path / 'payload', tmp_path / 'runtime'
     payload.mkdir()
     runtime.mkdir(mode=0o700)
@@ -2941,7 +2943,453 @@ def preserved_password_preparation(tmp_path, monkeypatch):
     return SimpleNamespace(helper=helper, runtime=runtime, payload=payload, vendor=vendor,
         bindings=runtime / 'native-view/bindings', layout=layout, path=path, record=record,
         identities=identities, manager_checks=manager_checks, reclaims=reclaims,
-        real_manager_generation=real_manager_generation)
+        real_manager_generation=real_manager_generation,
+        real_directory_layout=real_directory_layout, real_trusted=real_trusted,
+        real_inventory=real_inventory, real_source_record=real_source_record)
+
+
+@pytest.fixture
+def classification_preparation(preserved_password_preparation, tmp_path, monkeypatch):
+    """Use real trust, inventory classification and publication on private /usr."""
+    scene = preserved_password_preparation
+    helper = scene.helper
+    old_trusted, old_lstat = helper.trusted, Path.lstat
+    old_iterdir, old_readlink, old_stat, old_exists = Path.iterdir, os.readlink, Path.stat, Path.exists
+    faults, failures, visited = {}, {}, []
+    root = tmp_path / 'usr'
+    (root / 'share/oh-no-parent-control/confinement/generation').touch()
+    (root / 'share/oh-no-parent-control/confinement/generation').chmod(0o644)
+
+    def physical(path):
+        path = Path(path)
+        return tmp_path / path.relative_to('/') if path == Path('/usr') or Path('/usr') in path.parents else path
+
+    def logical(path):
+        path = Path(path)
+        return Path('/usr') / path.relative_to(root) if path == root or root in path.parents else path
+
+    def metadata(path):
+        path = Path(path)
+        name = logical(path)
+        if ('metadata', name) in failures:
+            raise failures['metadata', name]
+        info = old_lstat(physical(path))
+        if name in faults:
+            values = list(info)
+            mode, uid, gid = faults[name]
+            values[0] = stat.S_IFMT(info.st_mode) | mode
+            values[4:6] = [uid, gid]
+            return os.stat_result(values)
+        return info
+
+    def entries(path):
+        visited.append(logical(path))
+        return iter(logical(child) for child in old_iterdir(physical(path)))
+
+    def readlink(path, *args, **kwargs):
+        name = logical(path)
+        if ('readlink', name) in failures:
+            raise failures['readlink', name]
+        return old_readlink(physical(path), *args, **kwargs)
+
+    def trusted(path, **kwargs):
+        path = Path(path)
+        # Payload snapshots use the attested fixture, while all layout and
+        # alias checks use the real private tree and complete original checks.
+        if path.parent == helper.PAYLOAD and path.name in ('config.json', 'onpc-kiosk.apparmor'):
+            return old_trusted(path, **kwargs)
+        if path == Path('/usr') or Path('/usr') in path.parents:
+            return logical(scene.real_trusted(physical(path), **kwargs))
+        return old_trusted(path, **kwargs)
+
+    monkeypatch.setattr(helper.Path, 'lstat', metadata)
+    monkeypatch.setattr(helper.Path, 'stat', lambda path, **kwargs: old_stat(physical(path), **kwargs))
+    monkeypatch.setattr(helper.Path, 'exists', lambda path, **kwargs: old_exists(physical(path), **kwargs))
+    monkeypatch.setattr(helper.Path, 'iterdir', entries)
+    monkeypatch.setattr(helper.os, 'readlink', readlink)
+    monkeypatch.setattr(helper, 'trusted', trusted)
+    monkeypatch.setattr(helper, 'directory_layout', scene.real_directory_layout)
+    scene.faults, scene.failures, scene.visited = faults, failures, visited
+    scene.physical = physical
+    scene.config = json.loads((scene.payload / 'config.json').read_text())
+
+    def configure():
+        (scene.payload / 'config.json').write_text(json.dumps(scene.config))
+    scene.configure = configure
+    return scene
+
+
+@pytest.mark.parametrize('fault', ['lexical-directory', 'lexical-link', 'intermediate-target'])
+def test_classification_refuses_late_required_alias_ancestry(classification_preparation, fault):
+    scene = classification_preparation
+    root = scene.physical('/usr')
+    (root / 'bin').mkdir(mode=0o755)
+    (root / 'aliases').mkdir(mode=0o755)
+    (root / 'links').mkdir(mode=0o755)
+    (root / 'aliases/command').symlink_to('../links/forward')
+    (root / 'links/forward').symlink_to('../lib/polkit-1/polkit-agent-helper-1')
+    if fault == 'lexical-directory':
+        changed = Path('/usr/aliases')
+    elif fault == 'lexical-link':
+        (root / 'bin/command').symlink_to('../aliases/command')
+        changed = Path('/usr/aliases/command')
+    else:
+        changed = Path('/usr/links/forward')
+    alias = '/usr/aliases/command' if fault == 'lexical-directory' else '/usr/bin/command'
+    if fault == 'intermediate-target':
+        (root / 'bin/command').symlink_to('../aliases/command')
+    config = dict(scene.config, executables=[dict(role='service', paths=[alias])])
+    # This models owner drift after a successful native inventory, before the
+    # actual directory trust/layout boundary. Canonical bytes remain present.
+    scene.faults[changed] = (0o755 if fault == 'lexical-directory' else 0o777, 1000, 1000)
+    with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry'):
+        scene.helper.directory_layout(config, [scene.record])
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+def test_classification_non_utf8_name_reaches_actual_publication(classification_preparation, role):
+    scene = classification_preparation
+    sibling = scene.physical('/usr/lib/polkit-1') / os.fsdecode(b'vendor-\xff')
+    sibling.write_bytes(b'ambient bytes must never be read')
+    sibling.chmod(0o644)
+    scene.helper.prepare(role)
+    bindings = scene.bindings.read_bytes()
+    assert b'ONPC-KIOSK\t1\tapparmor\t' + role.encode() + b'\t' in bindings
+    assert b'vendor-' not in bindings
+    generation = next(path for path in scene.runtime.iterdir() if len(path.name) == 64)
+    layout = json.loads((generation / 'records.json').read_text())['layout']
+    assert all('vendor-' not in entry['path'] for entry in layout)
+    assert not (generation / 'tree/lib/polkit-1' / sibling.name).exists()
+    assert sibling.read_bytes() == b'ambient bytes must never be read'
+
+
+CLASSIFICATION_CASES = [
+    ('directory', 'owner', 'empty-directory'),
+    ('directory', 'group-write', 'empty-directory'),
+    ('directory', 'world-write', 'empty-directory'),
+    ('file', 'owner', None), ('file', 'group-write', None), ('file', 'world-write', None),
+    ('link', 'owner', None), ('fifo', 'safe', None),
+    ('file', 'tab-name', None), ('file', 'newline-name', None),
+    ('file', 'control-name', None), ('file', 'delete-name', None),
+    ('file', 'non-utf8-name', None), ('directory', 'non-utf8-name', None),
+    ('link', 'tab-target', None), ('link', 'newline-target', None),
+    ('link', 'control-target', None), ('link', 'non-utf8-target', None),
+    ('file', 'metadata-denied', None), ('directory', 'metadata-denied', None),
+    ('file', 'disappeared', None), ('link', 'readlink-denied', None),
+    ('link', 'readlink-disappeared', None),
+]
+
+
+@pytest.mark.parametrize('kind,fault,expected', CLASSIFICATION_CASES)
+@pytest.mark.parametrize('required', [False, True], ids=['ambient', 'required'])
+def test_classification_independent_required_and_ambient_inputs(
+        classification_preparation, monkeypatch, capfd, kind, fault, expected, required):
+    scene = classification_preparation
+    helper = scene.helper
+    names = {'tab-name': 'vendor\titem', 'newline-name': 'vendor\nitem',
+             'control-name': 'vendor\ritem', 'delete-name': 'vendor\x7fitem',
+             'non-utf8-name': os.fsdecode(b'vendor-\xff')}
+    path = Path('/usr/lib/polkit-1') / names.get(fault, 'vendor-item')
+    source = scene.physical(path)
+    target = {'tab-target': 'vendor\titem', 'newline-target': 'vendor\nitem',
+              'control-target': 'vendor\ritem',
+              'non-utf8-target': os.fsdecode(b'vendor-\xff')}.get(
+                  fault, 'polkit-agent-helper-1')
+    if kind == 'directory':
+        source.mkdir(mode=0o755)
+        (source / 'private-content').write_bytes(b'never enumerate masked descendants')
+    elif kind == 'link':
+        source.symlink_to(target)
+    elif kind == 'fifo':
+        os.mkfifo(source, 0o644)
+    else:
+        source.write_bytes(b'never read ambient contents')
+        source.chmod(0o644)
+    if fault in ('owner', 'group-write', 'world-write'):
+        mode = 0o755 if kind == 'directory' else 0o777 if kind == 'link' else 0o644
+        mode |= 0o020 if fault == 'group-write' else 0o002 if fault == 'world-write' else 0
+        scene.faults[path] = (mode, 1000 if fault == 'owner' else 0, 1000)
+    if fault in ('metadata-denied', 'disappeared', 'readlink-denied', 'readlink-disappeared'):
+        operation = 'readlink' if fault.startswith('readlink') else 'metadata'
+        error = FileNotFoundError(2, 'private disappearing entry') if 'disappeared' in fault else PermissionError(13, 'private unavailable entry')
+        scene.failures[operation, path] = error
+    records = [scene.record]
+    config = dict(scene.config)
+    if required:
+        if kind == 'directory':
+            config['reserved_directories'] = [str(path)]
+        elif kind == 'link':
+            config['executables'] = [dict(role='service', paths=[str(path)])]
+        else:
+            records.append(dict(path=str(path)))
+    original_open = Path.open
+
+    def no_contents(path, *args, **kwargs):
+        assert path != source, 'classification read an ambient or rejected input'
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(helper.Path, 'open', no_contents)
+    if required:
+        with pytest.raises((ValueError, OSError)):
+            helper.directory_layout(config, records)
+    else:
+        layout = helper.directory_layout(config, records)
+        entry = next((entry for entry in layout if entry['path'] == str(path)), None)
+        assert entry == (dict(path=str(path), kind=expected) if expected else None)
+        assert path not in scene.visited
+        # Exercise actual manager and gate generation and protocol publication,
+        # rather than accepting a layout that the binder cannot represent.
+        for role in ('manager', 'gate'):
+            helper.prepare(role)
+            rows = [row.split('\t') for row in scene.bindings.read_text().splitlines()]
+            assert all(row[3] != str(path) for row in rows if row[0] == 'bind')
+            generation = scene.runtime / rows[0][4]
+            private = generation / 'tree' / path.relative_to('/usr')
+            if expected == 'empty-directory':
+                assert private.is_dir() and list(private.iterdir()) == []
+            else:
+                assert not private.exists() and not private.is_symlink()
+    assert 'vendor' not in capfd.readouterr().err
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('fault', ['missing', 'link', 'directory', 'masked', 'duplicate-file',
+                                  'duplicate-link', 'disappeared-and-restored'])
+def test_classification_requires_every_native_destination_before_publication(
+        preserved_password_preparation, tmp_path, monkeypatch, role, fault):
+    scene = preserved_password_preparation
+    source = tmp_path / 'measured-native'
+    source.write_bytes(b'\x7fELFmeasured substitute remains present')
+    source.chmod(0o755)
+    path = '/usr/bin/required-native'
+    installed = tmp_path / path.lstrip('/')
+    installed.parent.mkdir(mode=0o755)
+    installed.write_bytes(source.read_bytes())
+    installed.chmod(0o755)
+    record = dict(role='service', path=path, source=str(source),
+                  sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+    scene.layout.append(dict(path='/usr/bin', kind='tree'))
+    if fault not in ('missing', 'disappeared-and-restored'):
+        kind = {'masked': 'empty-directory', 'directory': 'directory', 'link': 'link'}.get(fault, 'file')
+        scene.layout.append(dict(path=path, kind=kind, **({'link': 'other'} if kind == 'link' else {})))
+        if fault.startswith('duplicate'):
+            scene.layout.append(dict(path=path, kind='file' if fault == 'duplicate-file' else 'link',
+                                     **({'link': 'other'} if fault == 'duplicate-link' else {})))
+    monkeypatch.setattr(scene.helper, 'inventory', lambda config: [record])
+
+    def collect(config, records):
+        assert records == [record, scene.record]
+        if fault == 'disappeared-and-restored':
+            # The layout missed a transient absent destination. Its return does
+            # not prove completeness even when that pathname is restored.
+            installed.unlink()
+            assert not installed.exists()
+            installed.write_bytes(source.read_bytes())
+            installed.chmod(0o755)
+        return scene.layout
+    monkeypatch.setattr(scene.helper, 'directory_layout', collect)
+    with pytest.raises(ValueError, match='layout|coverage|unsafe-directory-entry'):
+        scene.helper.prepare(role)
+    assert source.read_bytes() == installed.read_bytes() == b'\x7fELFmeasured substitute remains present'
+    assert (scene.runtime / 'bindings').read_text() == 'previous bindings\n'
+    assert not scene.bindings.exists()
+    assert not any(len(item.name) == 64 for item in scene.runtime.iterdir())
+    assert scene.manager_checks == scene.reclaims == []
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('required', [False, True], ids=['ambient', 'required'])
+def test_classification_disappearance_reappearance_at_directory_snapshot(
+        classification_preparation, monkeypatch, role, required):
+    scene = classification_preparation
+    path = Path(scene.path) if required else Path('/usr/lib/polkit-1/vendor-transient')
+    source = scene.physical(path)
+    if not required:
+        source.write_bytes(b'private transient sibling')
+        source.chmod(0o644)
+    contents, mode = source.read_bytes(), stat.S_IMODE(source.stat().st_mode)
+    original_entries, collect = Path.iterdir, scene.helper.directory_layout
+    removed = []
+
+    def entries(directory):
+        children = list(original_entries(directory))
+        if directory == path.parent and path in children:
+            source.unlink()
+            removed.append(path)
+        return iter(children)
+
+    def snapshot(config, records):
+        try:
+            return collect(config, records)
+        finally:
+            # Restore after classification, before binding publication: a
+            # pathname reappearing cannot supply a missing layout assertion.
+            source.write_bytes(contents)
+            source.chmod(mode)
+    monkeypatch.setattr(scene.helper.Path, 'iterdir', entries)
+    monkeypatch.setattr(scene.helper, 'directory_layout', snapshot)
+    if required:
+        with pytest.raises((ValueError, OSError)):
+            scene.helper.prepare(role)
+        assert not scene.bindings.exists()
+        assert (scene.runtime / 'bindings').read_text() == 'previous bindings\n'
+    else:
+        scene.helper.prepare(role)
+        assert 'vendor-transient' not in scene.bindings.read_text()
+    assert removed
+    assert source.read_bytes() == contents
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('denied', [False, True], ids=['ambient-admitted', 'required-denied'])
+def test_classification_logging_failure_preserves_actual_admission(
+        classification_preparation, monkeypatch, role, denied):
+    scene = classification_preparation
+    path = Path(scene.path) if denied else Path('/usr/lib/polkit-1/vendor-masked')
+    if not denied:
+        scene.physical(path).mkdir(mode=0o755)
+    if denied:
+        requirements = scene.helper.layout_requirements
+        def drift_after_proof(*args):
+            result = requirements(*args)
+            scene.faults[path] = (0o664, 0, 0)
+            return result
+        monkeypatch.setattr(scene.helper, 'layout_requirements', drift_after_proof)
+    else:
+        scene.faults[path] = (0o775, 0, 0)
+    original_write = scene.helper.os.write
+    attempts = []
+
+    def closed_log(fd, data):
+        if fd == 2:
+            attempts.append(data)
+            raise BrokenPipeError(32, 'private closed diagnostics')
+        return original_write(fd, data)
+    monkeypatch.setattr(scene.helper.os, 'write', closed_log)
+    if denied:
+        with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry'):
+            scene.helper.prepare(role)
+        assert not scene.bindings.exists()
+    else:
+        scene.helper.prepare(role)
+        assert b'vendor-masked' not in b'\n'.join(
+            row for row in scene.bindings.read_bytes().splitlines() if row.startswith(b'bind\t'))
+    assert attempts
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+def test_classification_healthy_directory_alias_reaches_actual_publication(
+        classification_preparation, native_mount_binding, monkeypatch, role):
+    scene = classification_preparation
+    root = scene.physical('/usr')
+    (root / 'bin').mkdir(mode=0o755)
+    source = root / 'bin/program'
+    source.write_bytes(b'\x7fELFprivate alias program')
+    source.chmod(0o755)
+    (root / 'alias-bin').symlink_to('bin', target_is_directory=True)
+    scene.config['executables'] = [dict(role='service', paths=['/usr/alias-bin/program'])]
+    scene.configure()
+    record = dict(role='service', path='/usr/bin/program', source=str(source),
+                  sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+    monkeypatch.setattr(scene.helper, 'inventory', lambda config: [record])
+    scene.helper.prepare(role)
+    rows = [row.split('\t') for row in scene.bindings.read_text().splitlines()]
+    generation = scene.runtime / rows[0][4]
+    assert ['node', 'link', 'alias-bin', 'bin'] in rows
+    assert ['proof', 'link', '/usr/alias-bin', 'bin'] in rows
+    assert ['proof', 'file', '/usr/alias-bin/program', '-'] in rows
+    assert ['bind', 'required', 'file', str(generation / '0'), 'bin/program', '-'] in rows
+    assert (generation / 'tree/alias-bin').is_symlink()
+    consumed = NATIVE_RUN([str(native_mount_binding), str(scene.bindings), 'none',
+                          str(scene.runtime.parent), role, '/usr/bin/program'],
+                         capture_output=True, text=True, timeout=5)
+    assert consumed.returncode == 0, consumed.stdout + consumed.stderr
+    assert 'fd-balance:0' in consumed.stdout.splitlines()
+    assert os.readlink(scene.runtime / 'native-view/tree/alias-bin') == 'bin'
+    assert source.read_bytes() == b'\x7fELFprivate alias program'
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('selected', [False, True], ids=['never-installed', 'selected-then-removed'])
+def test_classification_optional_alias_selected_by_real_inventory_stays_required(
+        classification_preparation, monkeypatch, role, selected):
+    scene = classification_preparation
+    root = scene.physical('/usr')
+    (root / 'bin').mkdir(mode=0o755)
+    source = root / 'bin/program'
+    source.write_bytes(b'\x7fELFprivate optional native')
+    source.chmod(0o755)
+    alias = root / 'optional-program'
+    if selected:
+        alias.symlink_to('bin/program')
+    scene.config['executables'] = [dict(role='service', paths=['/usr/optional-program'], optional=True)]
+    scene.configure()
+
+    def measured(role, path):
+        canonical = scene.real_trusted(scene.physical(path), symlinks=True)
+        record = scene.real_source_record(role, canonical)
+        record['path'] = '/usr/' + str(canonical.relative_to(root))
+        return record
+    monkeypatch.setattr(scene.helper, 'source_record', measured)
+    records = scene.real_inventory(scene.config)
+    if selected:
+        assert len(records) == 1
+        assert records[0]['path'] == '/usr/bin/program'
+        assert records[0]['aliases'] == ['/usr/optional-program']
+        alias.unlink()
+    else:
+        assert records == []
+    monkeypatch.setattr(scene.helper, 'inventory', lambda config: records)
+    if selected:
+        with pytest.raises((ValueError, OSError)):
+            scene.helper.prepare(role)
+        assert not scene.bindings.exists()
+        assert scene.manager_checks == scene.reclaims == []
+    else:
+        scene.helper.prepare(role)
+        assert 'optional-program' not in scene.bindings.read_text()
+    assert source.read_bytes() == b'\x7fELFprivate optional native'
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('retarget', [False, True], ids=['healthy', 'final-proof-retarget'])
+def test_classification_reserved_directory_alias_and_final_proof_drift(
+        classification_preparation, monkeypatch, role, retarget):
+    scene = classification_preparation
+    alias = scene.physical('/usr/alias-data')
+    original = 'share/oh-no-parent-control'
+    alias.symlink_to(original, target_is_directory=True)
+    scene.config['reserved_directories'] = ['/usr/alias-data/confinement']
+    scene.configure()
+    proofs = scene.helper.required_proofs
+    changed = []
+
+    def final_proofs(paths):
+        paths = list(paths)
+        # Only the final publication proof includes the private generation
+        # marker's replacement source. Keep every earlier layout proof healthy.
+        if retarget and any(Path(path).name == 'generation' and
+                            Path(path).parent.parent == scene.runtime for path in paths):
+            alias.unlink()
+            alias.symlink_to('share/./oh-no-parent-control', target_is_directory=True)
+            changed.append(True)
+        return proofs(paths)
+    monkeypatch.setattr(scene.helper, 'required_proofs', final_proofs)
+    try:
+        if retarget:
+            with pytest.raises(ValueError, match='binding-proof-changed'):
+                scene.helper.prepare(role)
+            assert changed
+            assert not scene.bindings.exists()
+        else:
+            scene.helper.prepare(role)
+            rows = [row.split('\t') for row in scene.bindings.read_text().splitlines()]
+            assert ['root', 'reserved', '/usr/share/oh-no-parent-control/confinement', '-'] in rows
+            assert ['proof', 'link', '/usr/alias-data', original] in rows
+            assert ['proof', 'directory', '/usr/alias-data/confinement', '-'] in rows
+            assert ['node', 'link', 'alias-data', original] in rows
+    finally:
+        alias.unlink()
+        alias.symlink_to(original, target_is_directory=True)
 
 
 @pytest.mark.parametrize('fault', ['config', 'policy', 'empty', 'extra', 'missing-newline', 'malformed'])
@@ -3168,13 +3616,15 @@ def test_preserved_password_helper_parent_contributes_real_private_directory_lay
     records = [{'path': '/usr/lib/polkit-1/polkit-agent-helper-1'},
                {'path': '/usr/bin/required-native'}]
     if scope == 'executable-parent':
+        (sibling / 'another-executable').write_bytes(b'\x7fELFprivate required executable')
+        (sibling / 'another-executable').chmod(0o755)
         records.append({'path': sibling_path + '/another-executable'})
     elif scope == 'required-file':
         records.append({'path': sibling_path})
     elif scope == 'alias':
         config['executables'] = [{'paths': [sibling_path]}]
     if expected is None:
-        with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry'):
+        with pytest.raises(ValueError, match='untrusted-path|unsafe-directory-entry|binding-protocol-path'):
             helper.directory_layout(config, records)
         return
     layout = helper.directory_layout(config, records)
@@ -4222,6 +4672,11 @@ def test_post_layout_owned_cleanup_and_bounds_preparation(
     elif fault == 'copy-limit':
         source = model.runtime.parent / 'large-source'
         source.write_bytes(b'\x7fELFbounded private input')
+        source.chmod(0o755)
+        installed = model.runtime.parent / 'usr/bin/large-source'
+        installed.parent.mkdir(mode=0o755)
+        installed.write_bytes(source.read_bytes())
+        installed.chmod(0o755)
         record = dict(role='bwrap', path='/usr/bin/large-source', source=str(source),
                       sha256=hashlib.sha256(source.read_bytes()).hexdigest())
         monkeypatch.setattr(helper, 'inventory', lambda config: [record])

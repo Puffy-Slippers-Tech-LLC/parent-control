@@ -175,11 +175,18 @@ def inventory(config):
                 record['source'] = record['path']
                 record['path'] = str(trusted(path, symlinks=True))
             if record['path'] in seen:
-                if seen[record['path']] != record:
+                previous = seen[record['path']]
+                if {key: value for key, value in previous.items() if key != 'aliases'} != record:
                     raise ValueError('conflicting-executable-roles')
-                continue
-            seen[record['path']] = record
-            records.append(record)
+                record = previous
+            else:
+                seen[record['path']] = record
+                records.append(record)
+            # Retain selected lexical routes across the post-inventory boundary.
+            # Re-discovering them with exists() would silently forget an alias
+            # that disappeared, including an optional installed alternative.
+            if str(path) != record['path']:
+                record['aliases'] = sorted(set(record.get('aliases', [])) | {str(path)})
     return records
 
 
@@ -219,6 +226,50 @@ def preserved_inventory(config):
     return records, identities
 
 
+def layout_requirements(config, records):
+    """Return concrete skeleton parents and the complete required trust walk."""
+    paths = {Path(record['path']) for record in records} | {PAYLOAD}
+    paths.update(Path(alias) for record in records for alias in record.get('aliases', []))
+    paths.update(Path(name) for name in config.get('reserved_directories', []))
+    for name in (PAYLOAD, *config.get('reserved_directories', [])):
+        directory = trusted(name, directory=True, symlinks=True)
+        if directory != Path('/usr') and Path('/usr') not in directory.parents:
+            raise ValueError('inventory-outside-usr')
+    # A sole mandatory route cannot disappear or become a dangling link.
+    # Absent alternatives/optional routes are permitted only when inventory
+    # never selected them; selected lexical aliases are retained above.
+    for entry in config.get('executables', []):
+        mandatory = not entry.get('optional', False) and len(entry['paths']) == 1
+        paths.update(Path(name) for name in entry['paths'] if mandatory or Path(name).exists())
+        if entry.get('library_directory'):
+            paths.add(Path(entry['library_directory']))
+    proofs = required_proofs(paths)
+    by_path = {Path(path): (kind, link) for kind, path, link in proofs}
+    concrete = {path: proof for path, proof in by_path.items()
+                if path != Path('/usr') and Path('/usr') in path.parents and
+                not any(by_path.get(parent, (None,))[0] == 'link' for parent in path.parents)}
+    covered = {Path('/usr')} | {path for path, (kind, _) in concrete.items() if kind == 'directory'}
+    return covered, by_path, concrete
+
+
+def validate_required_layout(layout, concrete, records):
+    """A missing/replaced required dentry must never become a sibling omission."""
+    nodes = {}
+    for entry in layout:
+        path = Path(entry['path'])
+        if path in nodes:
+            raise ValueError('unsafe-directory-entry')
+        nodes[path] = entry
+    for path, (kind, link) in concrete.items():
+        entry = nodes.get(path)
+        expected = 'tree' if kind == 'directory' else kind
+        if (entry is None or entry['kind'] != expected or
+                kind == 'link' and entry.get('link') != link):
+            raise ValueError('unsafe-directory-entry')
+    if any(nodes.get(Path(record['path']), {}).get('kind') != 'file' for record in records):
+        raise ValueError('unsafe-directory-entry')
+
+
 def directory_layout(config, records):
     """Own every mountpoint dentry from /usr to each protected executable.
 
@@ -226,18 +277,10 @@ def directory_layout(config, records):
     replacement detaches such mounts across namespaces. Independent directory
     entries keep the old executable and library views valid until reboot.
     """
-    covered = {Path(record['path']).parent for record in records}
-    covered.add(PAYLOAD)
-    for name in config.get('reserved_directories', []):
-        covered.add(trusted(name, directory=True, symlinks=True))
-    for directory in tuple(covered):
-        if directory != Path('/usr') and Path('/usr') not in directory.parents:
+    for record in records:
+        if Path('/usr') not in Path(record['path']).parents:
             raise ValueError('inventory-outside-usr')
-        covered.update(parent for parent in directory.parents if parent != Path('/'))
-    required = covered | {Path(record['path']) for record in records}
-    # Include lexical executable aliases as well as their canonical storage.
-    for entry in config.get('executables', []):
-        required.update(Path(path) for path in entry['paths'])
+    covered, required, concrete = layout_requirements(config, records)
     observations = {}
 
     def observe(child, info, action, reason):
@@ -276,7 +319,12 @@ def directory_layout(config, records):
                     report()
                     raise
                 continue
-            reason = ('unsupported-name' if '\t' in str(child) or '\n' in str(child) else
+            try:
+                protocol_text(str(child), absolute=True)
+                representable = True
+            except ValueError:
+                representable = False
+            reason = ('unsupported-name' if not representable else
                       'non-root-owner' if info.st_uid != 0 else
                       'writable-entry' if not stat.S_ISLNK(info.st_mode) and info.st_mode & 0o022 else
                       'unsupported-type' if not (stat.S_ISREG(info.st_mode) or
@@ -304,6 +352,14 @@ def directory_layout(config, records):
                         report()
                         raise
                     continue
+                try:
+                    protocol_text(target)
+                except ValueError:
+                    observe(child, info, 'denied' if child in required else 'omitted', 'unsupported-name')
+                    if child in required:
+                        report()
+                        raise ValueError('unsafe-directory-entry')
+                    continue
                 entries.append({'path': str(child), 'kind': 'link', 'link': target})
             else:
                 # The containing directory and all its ancestors were checked
@@ -312,6 +368,7 @@ def directory_layout(config, records):
                 entries.append({'path': str(child), 'kind': 'tree' if child in covered else
                                 'directory' if stat.S_ISDIR(info.st_mode) else 'file'})
     report()
+    validate_required_layout(entries, concrete, records)
     return entries
 
 
@@ -477,9 +534,13 @@ def verify_invocation_root(backend):
 
 
 def protocol_text(value, *, absolute=False, relative=False):
-    if (not isinstance(value, str) or not value or any(ord(c) < 32 or ord(c) == 127 for c in value) or
-            len(value.encode('utf-8')) >= MAX_PATH):
+    if (not isinstance(value, str) or not value or any(ord(c) < 32 or ord(c) == 127 for c in value)):
         raise ValueError('binding-protocol-path')
+    try:
+        if len(value.encode('utf-8')) >= MAX_PATH:
+            raise ValueError('binding-protocol-path')
+    except UnicodeEncodeError:
+        raise ValueError('binding-protocol-path') from None
     if absolute or relative:
         parts = value.split('/')
         if absolute:
@@ -551,6 +612,8 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
         raise ValueError('binding-protocol-header')
     if set(identities) != {record['path'] for record in preserved}:
         raise ValueError('binding-protocol-identity')
+    covered, required, concrete = layout_requirements(config, [*records, *preserved])
+    validate_required_layout(layout, concrete, [*records, *preserved])
     nodes, roots, replacements = {}, {}, {}
     for entry in layout:
         protocol_text(entry['path'], absolute=True)
@@ -594,9 +657,9 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
                                                symlinks=True).glob('libsystemd-*.so')]
                  if entry.get('library_directory') else entry['paths'])
         installed = 0
-        for name in paths:
-            if not Path(name).exists():
-                continue
+        selected = set(paths) & {alias for record in records for alias in record.get('aliases', [])}
+        selected.update(name for name in paths if Path(name).exists())
+        for name in sorted(selected):
             canonical = str(trusted(name, symlinks=True))
             if canonical not in measured or measured[canonical]['role'] != entry['role']:
                 raise ValueError('binding-protocol-inventory')
@@ -604,22 +667,33 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
                     trusted(entry['source'], symlinks=True)):
                 raise ValueError('binding-protocol-inventory')
             installed += 1
-            root(name, 'alias')
+            # Below an aliased directory the lexical leaf is a proof, not a
+            # second dentry in the private tree. Its concrete link and target
+            # dependencies are declared below, without following private links.
+            if Path(name) in concrete:
+                root(name, 'alias')
         if not installed and not entry.get('optional', False):
             raise ValueError('missing-executable')
     for entry in config.get('preserved_executables', []):
         if entry['path'] not in {record['path'] for record in preserved}:
             raise ValueError('binding-protocol-inventory')
     for name in config.get('reserved_directories', []):
-        root(name, 'reserved')
+        if Path(name) in concrete or name == '/usr':
+            root(name, 'reserved')
         root(trusted(name, directory=True, symlinks=True), 'reserved')
-    covered = {Path(record['path']).parent for record in [*records, *preserved]} | {PAYLOAD}
-    covered.update(trusted(name, directory=True, symlinks=True)
-                   for name in config.get('reserved_directories', []))
-    for directory in tuple(covered):
-        covered.update(parent for parent in directory.parents if parent != Path('/'))
     for directory in sorted(covered, key=str):
         root(directory, 'covered')
+    for path, (kind, _) in concrete.items():
+        if kind != 'link':
+            continue
+        try:
+            trusted(path, directory=True, symlinks=True)
+        except ValueError as error:
+            if str(error) != 'unexpected-file-type':
+                raise
+            root(path, 'alias')
+        else:
+            root(path, 'covered')
     if len(roots) > MAX_ROWS:
         raise ValueError('binding-protocol-limit')
     for path, (kind, source) in roots.items():
@@ -640,9 +714,13 @@ def binding_protocol(config, records, preserved, identities, layout, generation,
                 raise ValueError('binding-protocol-coverage')
             parent = parent.parent
     proof_paths = [path for path, (kind, _) in roots.items() if kind != 'marker']
+    proof_paths.extend(map(str, required))
     proof_paths.extend(replacements.values())
     proof_paths.extend(record.get('source', record['path']) for record in records)
     proofs = required_proofs(proof_paths)
+    final_proofs = {Path(path): (kind, link) for kind, path, link in proofs}
+    if any(final_proofs.get(path) != proof for path, proof in required.items()):
+        raise ValueError('binding-proof-changed')
     rows = [f'ONPC-KIOSK\t{PROTOCOL_VERSION}\t{config["backend"]}\t{role}\t{generation.name}\n']
     rows += [f'root\t{kind}\t{path}\t{source}\n' for path, (kind, source) in sorted(roots.items())]
     rows += [f'node\t{kind}\t{path}\t{link}\n' for path, (kind, link) in sorted(nodes.items())]
@@ -784,6 +862,10 @@ def prepare(role):
     if any([entry['kind'] for entry in layout if entry['path'] == path] != ['file']
            for path in identities):
         raise ValueError('preserved-executable-layout')
+    # Check the actual post-inventory layout before manager matching or writes,
+    # even when a measured substitution source remains available elsewhere.
+    _, _, concrete = layout_requirements(config, [*records, *preserved])
+    validate_required_layout(layout, concrete, [*records, *preserved])
     manifest = {'records': records, 'preserved': preserved, 'layout': layout}
     digest = hashlib.sha256(config_bytes + policy + json.dumps(manifest, sort_keys=True).encode()).hexdigest()
     if role == 'gate':

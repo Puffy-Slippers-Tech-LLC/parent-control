@@ -105,24 +105,32 @@ Unrelated sibling directories owned by a non-root user or writable by a group
 or by everyone become empty private directories in the kiosk view. Non-root
 ownership requires masking even without write bits, because the owner can
 change those permissions. Untrusted sibling files/symlinks, special types,
-names containing manifest separators and unavailable sibling metadata are
+names or link text that cannot be represented by the bounded UTF-8 protocol
+(including separators and control characters), and unavailable sibling metadata are
 omitted. Their contents and aliases are never bound into the kiosk. This handles
 unknown applications generically, including root-owned mode-0775 data and
 user-owned mode-0755 data, without changing the host. Group root receives no
 trust exception. Required executable files, lexical aliases, their trusted
 ancestors, reserved directories and every native bind must retain their ownership
 and write prohibitions; their failures must never become sibling omissions.
+Inventory retains selected lexical aliases, including installed optional routes.
+The layout uses their full component/target proof closure, scanning only concrete
+directories. A lexical child below a directory link is an explicit proof rather
+than an impossible second private dentry. Every measured destination and concrete
+required node must have its unique intended layout kind/link before manager
+matching or generation writes. Final publication rechecks the complete proof
+closure against the layout's required types and link text; transient disappearance,
+retargeting or metadata failure refuses rather than forgetting the dependency.
 
 Closed aggregate directory classifications identify mask/omit/refusal action,
 reason, entry kind, ownership, access, required/sibling scope and broad system
 area without names or paths. The feedback collector projects these and the
 preceding admission stages under the
 [admission diagnostic contract](Logging-and-Feedback.md#kiosk-admission-diagnostics).
-The candidate still misclassifies late required-alias ancestry drift, and a
-non-UTF-8 sibling can fail binding publication. These reproduced gaps, native
-isolation of the generic candidate and retained-manager availability after
-ambient layout changes remain unfinished in the
-[kiosk prompt plan](../Kiosk-Prompt.md).
+The classification and publication repairs have host coverage recorded in the
+[kiosk prompt plan](../Kiosk-Prompt.md). Native installed isolation and
+retained-manager availability after ambient layout changes keep their separate
+acceptance obligations there.
 
 The manager must have the expected UID, enforcing label and exact private
 generation before GDM admission. A stale manager requires reboot; configuration
@@ -334,8 +342,8 @@ Host namespace/mount/label doubles are engineering evidence only. The
 retains exact selectors, failing-then-passing evidence, fixture/source identities,
 explicit child timeouts, runner cleanup, resource review and final package builds.
 No installed acceptance is earned here or at 002ab; 003/004/007 and 011a retain
-their full affected-target obligations. The original 002a classification,
-alias-closure, completeness, publication and metadata-race assertions remain open.
+their full affected-target obligations. Classification, alias-closure,
+completeness, publication and metadata-race host controls belong to 002a.
 
 ## Roles, services and dialogs
 

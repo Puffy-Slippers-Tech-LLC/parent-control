@@ -197,8 +197,8 @@ refusal classifications for ownership, access, entry kind, required/sibling
 scope, broad system area and the closed reason. Untrusted sibling files/links,
 special types, separator names and unavailable metadata can be omitted
 without exposing their contents; required inputs must still fail closed. The
-candidate's incomplete alias ancestry classification and non-UTF-8 publication
-handling remain open in [task 002a](../Kiosk-Prompt-Tasks/002a-classification.md).
+alias ancestry and UTF-8 publication repairs passed host acceptance in
+[task 002a](../Kiosk-Prompt.md#ambient-classification-and-required-input-controls--002a).
 Native binding currently exports only its failed stage; bounded native cause
 production and projection remain with tasks 002b/002 of that plan. Neither
 classification record includes the entry name or full path.

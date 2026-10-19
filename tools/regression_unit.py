@@ -882,6 +882,15 @@ from regression_ui import Bucket
 # Generic sibling cases add private FIFOs/symlinks and restore deliberately
 # read-only fixture modes on every outcome. They open no FIFO, mount or bus;
 # ownership, metadata-race and directory observations remain process-local.
+# Classification/required-closure cases reuse those private trees and actual
+# manager/gate publication, with deterministic lstat/readlink/enumeration faults.
+# Selected-alias metadata and disappearance/reappearance affect only fixture
+# children; broken diagnostic pipes are private and closed on every outcome.
+# Healthy directory-alias publication also reuses the existing bounded native
+# consumer (5-second probe, 30-second module compiler deadline), synchronously
+# reaped with descriptor-balance assertions. No ambient special file is opened,
+# and no new socket, cache, external service, cleanup/UI inventory entry or
+# shared owner is added.
 # Preparation diagnostic shutdown checks own private broken pipes and bounded,
 # waited Python children with bytecode writes disabled. Preparation is a local
 # double; no host account, PAM, mount, policy or shared cache is accessed.

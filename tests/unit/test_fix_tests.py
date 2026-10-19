@@ -20,6 +20,14 @@ def failure(prompt, *categories):
     return {'prompt': prompt, 'categories': list(categories)}
 
 
+def test_missing_handoff_reports_the_runner_infrastructure_error(tmp_path):
+    (tmp_path / 'last-test.log').write_text(
+        'Started run-tests session: example\n'
+        'Test runner infrastructure failed: ValueError: invalid resume checkpoint\n')
+    with pytest.raises(ValueError, match='ValueError: invalid resume checkpoint; see last-test.log'):
+        fix_tests.handoff(tmp_path)
+
+
 def test_failure_context_survives_original_report_and_command_removal(tmp_path):
     import repair_evidence
     storage = tmp_path / 'output/test-runs'

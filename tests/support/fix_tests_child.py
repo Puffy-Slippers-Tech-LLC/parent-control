@@ -57,6 +57,16 @@ def main():
             print('Started run-tests session: harmless', flush=True)
         if kind == 'test' and mode == 'agent-script':
             script = json.loads((root / 'script.json').read_text())
+            if 'checkpoint' in script:
+                sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+                from test_checkpoint import Checkpoint
+                try:
+                    checkpoint = Checkpoint(root, script['checkpoint'], resume='--resume' in args)
+                except ValueError as error:
+                    print(f'Test runner infrastructure failed: ValueError: {error}', flush=True)
+                    return 1
+                checkpoint.event(category, dict(kind='finished', nodeid='earlier-pass'), set())
+                checkpoint.save()
             marker = root / 'script-tests'
             index = int(marker.read_text()) if marker.exists() else 0
             marker.write_text(str(index + 1))
@@ -134,8 +144,15 @@ def main():
               'fixed' if (app_mode or mode == 'agent-repeat') and count >= 1 else
               'test_fixed')
     if mode == 'agent-script':
-        status = json.loads((root / 'script.json').read_text())['agents'][count]
+        script = json.loads((root / 'script.json').read_text())
+        status = script['agents'][count]
         blocked = status == 'blocked'
+        if 'replace_checkpoint' in script:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+            from test_checkpoint import Checkpoint
+            checkpoint = Checkpoint(root, script['replace_checkpoint'])
+            if script.get('invalid_checkpoint'):
+                (checkpoint.store.path / checkpoint.name).write_text('{}')
     reply = Path(args[args.index('--output-last-message') + 1])
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': status,

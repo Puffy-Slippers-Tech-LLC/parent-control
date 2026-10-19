@@ -127,6 +127,60 @@ def test_resume_interrupted_clean_verification_repeats_the_whole_pass(checkout):
     assert '--resume' in tests[-2]['args'] and '--resume' not in tests[-1]['args']
 
 
+@pytest.mark.parametrize('replacement', [[('ui', [])], [('unit', ['-k', 'unrelated'])]])
+def test_repair_replays_original_selection_after_another_run_replaces_checkpoint(checkout, replacement):
+    root, _ = checkout
+    (root / 'tests/unit').mkdir(parents=True)
+    (root / 'tests/unit/test_selected.py').write_text('def test_selected(): pass\n')
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['failed-case', None],
+        checkpoint=[('unit', ['-k', 'selected', '-q'])], replace_checkpoint=replacement)))
+    run, _ = fix_tests.select(root, categories=('unit', '-k', 'selected', '-q'))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    tests = [call for call in calls if call['kind'] == 'test']
+    original = ['--stop-on-error', 'unit', '-k', 'selected', '-q', '--vm', vm_name()]
+    assert [call['args'] for call in tests] == [
+        original, ['--resume', *original[:-2], '--resume-case=failed-case', *original[-2:]], original]
+    assert len([call for call in calls if call['kind'] == 'agent']) == 1
+    assert 'replaying the requested category from the start with its original selectors' in output.getvalue()
+    from test_checkpoint import Checkpoint
+    checkpoint = Checkpoint(root, [('unit', ['-k', 'selected', '-q'])], resume=True)
+    assert checkpoint.passed('unit') == {'earlier-pass'}
+
+
+def test_repair_does_not_reset_an_invalid_checkpoint(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['failed-case'], checkpoint=[('unit', [])],
+        replace_checkpoint=[('unit', [])], invalid_checkpoint=True)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test']
+    assert 'invalid resume checkpoint' in output.getvalue()
+    assert 'replaying the requested category' not in output.getvalue()
+
+
+def test_vm_repair_does_not_reset_checkpoints_after_selection_mismatch(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['failed-case'], checkpoint=[('system', [])],
+        replace_checkpoint=[('system', ['--area', 'other'])])))
+    run, _ = fix_tests.select(root, categories=('system',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'test']
+    assert 'resume selection differs from checkpoint' in output.getvalue()
+    assert 'replaying the requested category' not in output.getvalue()
+
+
 def test_host_and_vm_repair_runs_have_independent_owners_and_cancellation(checkout):
     root, spawned = checkout
     host, host_started = fix_tests.select(root, categories=('host',))

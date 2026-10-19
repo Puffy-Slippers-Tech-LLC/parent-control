@@ -19,6 +19,7 @@ else:
     from test_storage import directory
 
 EXCLUDE = 'ONPC_TEST_COMPLETED_CASES'
+RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 
 
 def request_record(root, namespace, value=None):
@@ -123,9 +124,6 @@ class Checkpoint:
                                or type(entry.get('complete')) is not bool
                                for entry in state['categories'].values())):
                     raise ValueError('invalid resume checkpoint')
-                if any(kind not in state['categories'] or state['categories'][kind]['args'] != args
-                       for kind, args in logical.items()):
-                    raise ValueError('resume selection differs from checkpoint; start without --resume to reset it')
                 for entry in state['categories'].values():
                     passed = completed_cases(json.dumps(entry['passed']), replay_oversized=True)
                     if len(passed) != len(entry['passed']):
@@ -140,6 +138,12 @@ class Checkpoint:
                 if (type(state.get('round', 1)) is not int or state.get('round', 1) < 1
                         or state.get('pending') not in (None, 'all', *state['categories'])):
                     raise ValueError('invalid resume repair progress')
+                # Only fully validated state can identify a different selection.
+                # Repair launchers may replay that selection from scratch, but
+                # malformed progress must retain its refusal and evidence.
+                if any(kind not in state['categories'] or state['categories'][kind]['args'] != args
+                       for kind, args in logical.items()):
+                    raise ValueError(RESUME_SELECTION_MISMATCH)
                 self.state = state
                 if self.dirty:
                     self.store.save(fd, self.state, name=self.name)

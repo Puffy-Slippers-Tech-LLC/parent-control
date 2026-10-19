@@ -66,6 +66,21 @@ def test_resume_checks_every_repeated_category_selection(tmp_path):
         Checkpoint(tmp_path, [('unit', ['-k', 'changed']), selection[1]], resume=True)
 
 
+@pytest.mark.parametrize('invalid', ['passed', 'round', 'pending'])
+def test_changed_selection_does_not_mask_invalid_saved_progress(tmp_path, invalid):
+    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    if invalid == 'passed':
+        checkpoint.entry('unit')['passed'] = [None]
+    else:
+        checkpoint.state[invalid] = 0 if invalid == 'round' else 'missing-category'
+    checkpoint.save()
+    path = checkpoint.store.path / checkpoint.name
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match='invalid resume'):
+        Checkpoint(tmp_path, [('ui', [])], resume=True)
+    assert path.read_bytes() == original
+
+
 @pytest.mark.parametrize('replacement', ['symlink', 'hardlink', 'mode', 'malformed'])
 def test_checkpoint_refuses_unsafe_or_malformed_state(tmp_path, replacement):
     checkpoint = Checkpoint(tmp_path, [('unit', [])])

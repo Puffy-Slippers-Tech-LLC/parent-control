@@ -19,7 +19,8 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from regression_session import FRAME_DIRECTORY, busy, lock
-from test_commands import repair_inventory as requested_inventory
+from test_commands import host_only_selection, repair_inventory as requested_inventory
+from test_checkpoint import RESUME_SELECTION_MISMATCH
 from detached_launcher import (
     Stopped, atomic, private_directory, current_run, environment, agent_command,
     compact_log, TAIL_BYTES,
@@ -227,7 +228,9 @@ def handoff(run, *, root=None):
     paths = [line.removeprefix('Failure handoff: ') for line in lines
              if line.startswith('Failure handoff: ')]
     if not paths:
-        raise ValueError('test runner did not produce a failure handoff; see last-test.log')
+        errors = [line for line in lines if line.startswith('Test runner infrastructure failed: ')]
+        detail = ('; ' + errors[-1][:2000]) if errors else ''
+        raise ValueError('test runner did not produce a failure handoff' + detail + '; see last-test.log')
     value = json.loads(Path(paths[-1]).read_text())
     if (not isinstance(value, dict) or not isinstance(value.get('prompt'), str)
             or not value['prompt'].strip() or not isinstance(value.get('categories'), list)):
@@ -539,6 +542,17 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 if status_line is not None:
                     print(status_line, flush=True)
                 return None
+            mismatch = 'Test runner infrastructure failed: ValueError: ' + RESUME_SELECTION_MISMATCH
+            if (resume and host_only_selection([(category, [])])
+                    and mismatch in read_tail(run / 'last-test.log').splitlines()):
+                # Another public invocation can replace the scope's checkpoint
+                # while an agent repairs a failure. Its passes cannot be reused;
+                # replay our unchanged selectors once without saved progress.
+                # VM/mixed requests span stores not all validated on refusal.
+                print('fix-tests: runner checkpoint selection changed; replaying the requested '
+                      'category from the start with its original selectors.', flush=True)
+                resume = False
+                continue
             if STALE_RETENTION in read_tail(run / 'last-test.log'):
                 if recovered:
                     raise ValueError('test runner remained stale after automatic recovery; '

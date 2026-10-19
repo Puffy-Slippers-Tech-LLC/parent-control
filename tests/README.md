@@ -329,6 +329,12 @@ and remaining cases without repeating its completed passes. Failures without a
 case ID replay the original category selection without saved passes, including
 diagnostic execution and its subsequent repair verification. Each newly entered
 category and each fresh verification pass starts without `--resume`.
+If another invocation replaces a host category's runner checkpoint between
+attempts, the repair launcher replays the same category and original selectors
+once without saved passes. Only a validated checkpoint selection mismatch
+permits this replay; invalid or unsafe state still stops with the runner's error.
+VM and mixed requests retain the mismatch refusal because they can span
+additional checkpoint stores that have not yet been validated.
 `--rounds X` defaults to 1, running only round 1.
 With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X
 in the top frame. Each verification round runs `run-tests all`; failures trigger

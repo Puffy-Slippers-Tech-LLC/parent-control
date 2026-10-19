@@ -106,6 +106,11 @@ Repair failure-context checks extend fix_tests with tiny pytest-private report,
 queue and command files plus a process-local artifact-reader double. No live
 Polkit, VM, bus, display, shared path/cache or new child lifetime is introduced;
 its existing compatible unit classification remains appropriate.
+Checkpoint replacement regressions reuse fix_tests_cleanup_safety's private
+trees and finite, waited test/agent doubles. No shared checkpoint, live service
+or new child lifetime is added; its compatible unit/cleanup classifications hold.
+test_test_checkpoint's validation-order checks use its existing private files
+only; its compatible unit classification is unchanged.
 
 FLOW13 short-daily checks extend accessible_e2e_ui/toggle with in-memory UI
 doubles, pytest-private recorder evidence and bounded waited Perl workers.

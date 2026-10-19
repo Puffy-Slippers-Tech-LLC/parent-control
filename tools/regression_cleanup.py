@@ -191,6 +191,8 @@ from regression_resources import HOST_WORKERS
 # Host/VM repair-session overlap uses private workflow directories and waited
 # test/agent doubles. The fixture cancels only its recorded owners; fix_tests
 # remains compatible in both cleanup and unit scheduling, with no live VM/GUI.
+# Checkpoint replacement/refusal checks reuse its private trees and the same
+# finite, waited test/agent doubles; no shared state or new cleanup owner is added.
 # Upgrade asset checks share those private file/child lifetimes. They add no
 # live resource or cleanup owner; compatible unit and cleanup scheduling applies.
 # Unavailable-Fedora-release checks reuse those files and process-local doubles;

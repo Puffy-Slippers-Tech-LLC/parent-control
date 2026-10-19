@@ -270,8 +270,9 @@ agent session starts an empty history. Sessions predating this feature leave
 the pane empty; never infer prose by filtering rendered command output.
 Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
-The top-left `Tasks: x/y` counts completed tasks in this run plus one against
-the run's task limit. For zero or negative `--tasks`, y is the number completed
+The top-left `Tasks: x/y` counts completed tasks in this run against
+the run's task limit; an active task does not count until completion.
+For zero or negative `--tasks`, y is the number completed
 in this run plus the remaining tasks, so an unlimited run shows a numeric total.
 Plan/E2E observers read remaining counts from the current queue, including when
 reconnecting to a backend started before numeric totals were recorded.

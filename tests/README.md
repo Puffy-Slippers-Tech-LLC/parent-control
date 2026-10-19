@@ -1071,7 +1071,7 @@ Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
 rule. Mouse wheels scroll the panel under the pointer by default.
 `write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
-launcher runtime plus one, and y is this runtime's task maximum, refreshed when
+launcher runtime, and y is this runtime's task maximum, refreshed when
 another invocation adjusts `--tasks`. The counter stays pinned during pane scrolling.
 Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue

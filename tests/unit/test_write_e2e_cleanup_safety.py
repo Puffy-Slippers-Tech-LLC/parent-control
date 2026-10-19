@@ -1318,18 +1318,18 @@ def test_attached_adjustments_control_next_boundary(
     initial_total = json.loads((run / 'limits.json').read_text())['tasks']
     if initial_total is None:
         initial_total = 2
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{initial_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{initial_total}']
     assert select_vm(root, adjustment) == (run, False)
     adjusted_total = json.loads((run / 'limits.json').read_text())['tasks']
     display_total = adjusted_total if adjusted_total is not None else 2
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 1/{display_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{display_total}']
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed + 1}/{display_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed}/{display_total}']
     if completed:
         assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
             workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
@@ -1351,13 +1351,13 @@ def test_concurrent_limit_replacements_preserve_completed_work(
            {'result': reply(task_id='002'), 'wait': True})
     run, _ = select_vm(root, ['--tasks', '2'])
     wait_for(root / 'agent-ready-3')
-    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/2']
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/2']
     with ThreadPoolExecutor(max_workers=4) as pool:
         attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {
         'tasks': 1, 'started': 3, 'completed': 1, 'remaining': 2}
-    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 2/1']
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/1']
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()

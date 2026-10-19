@@ -67,8 +67,19 @@ def _identity(fd, regular):
     # Fixed kernel metadata lookup only, never a supplied path or source reopen.
     with open(f'/proc/self/fdinfo/{fd}', encoding='ascii') as stream:
         mounts = [int(line.split(':', 1)[1]) for line in stream if line.startswith('mnt_id:')]
-    if len(mounts) != 1 or mounts[0] <= 0:
+    if len(mounts) != 1 or mounts[0] < 0:
         raise ValueError('preparation-mount-identity')
+    if mounts[0] == 0:
+        # The internal shmem mount of a memfd can have no visible mount ID.
+        # Only immutable anonymous records may use that identity. Directory
+        # and named-file identities never inherit this exception or authority.
+        required = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
+        try:
+            seals = fcntl.fcntl(fd, fcntl.F_GET_SEALS) if regular and before.st_nlink == 0 else -1
+        except OSError:
+            seals = -1
+        if seals < 0 or seals & required != required:
+            raise ValueError('preparation-mount-identity')
 
     def fields(info):
         return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,

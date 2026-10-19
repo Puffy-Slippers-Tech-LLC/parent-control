@@ -98,11 +98,14 @@ static inline int kiosk_preparation_equal(const struct kiosk_material_json *a, u
     return 1;
 }
 /* Bounded stable record read, canonical encoding and duplicate rejection. */
-static inline int kiosk_preparation_json_fd(struct kiosk_material_json *j, int fd, uint64_t deadline)
+static inline int kiosk_preparation_json_fd_format(struct kiosk_material_json *j, int fd,
+    uint64_t deadline, int runtime)
 {
+    const char domain[] = "ONPC-KIOSK-RUNTIME";
+    size_t prefix = runtime ? sizeof(domain) + 8U : 0;
     struct stat before, after; char *bytes = NULL; int result = -1;
     if (kiosk_receipt_before(deadline) || fstat(fd, &before) || !S_ISREG(before.st_mode) ||
-        before.st_size <= 0 || (uint64_t)before.st_size > KIOSK_RECEIPT_BYTES) return -1;
+        before.st_size <= (off_t)prefix || (uint64_t)before.st_size > KIOSK_RECEIPT_BYTES + prefix) return -1;
     bytes = malloc((size_t)before.st_size);
     if (!bytes) return -1;
     for (size_t offset = 0; offset < (size_t)before.st_size;) {
@@ -113,14 +116,28 @@ static inline int kiosk_preparation_json_fd(struct kiosk_material_json *j, int f
         if (n <= 0) goto done;
         offset += (size_t)n;
     }
-    struct kiosk_receipt_json canonical = {bytes, bytes + before.st_size, deadline, 0};
+    if (runtime) {
+        uint64_t size = 0;
+        if (memcmp(bytes, domain, sizeof(domain))) goto done;
+        for (unsigned i = 0; i < 8; i++) size = (size << 8) | (unsigned char)bytes[sizeof(domain) + i];
+        if (size != (uint64_t)before.st_size - prefix) goto done;
+    }
+    struct kiosk_receipt_json canonical = {bytes + prefix, bytes + before.st_size, deadline, 0};
     if (fstat(fd, &after) || !kiosk_host_same(&before, &after) ||
         kiosk_receipt_json_value(&canonical, 0) || canonical.p != canonical.end ||
-        kiosk_material_json_parse(j, bytes, (size_t)before.st_size, deadline)) goto done;
+        kiosk_material_json_parse(j, bytes + prefix, (size_t)before.st_size - prefix, deadline)) goto done;
     result = 0;
 done:
     free(bytes); return result;
 }
+
+/* Channel results remain bare canonical JSON. Only the independently checked
+ * supporting-copy manifest uses its established domain/length framing. */
+static inline int kiosk_preparation_json_fd(struct kiosk_material_json *j, int fd, uint64_t deadline)
+{ return kiosk_preparation_json_fd_format(j, fd, deadline, 0); }
+
+static inline int kiosk_preparation_runtime_fd(struct kiosk_material_json *j, int fd, uint64_t deadline)
+{ return kiosk_preparation_json_fd_format(j, fd, deadline, 1); }
 /* No kernel symlink traversal, including intermediate components. The root is
  * already the independently selected original /usr or acquired retained clone. */
 static inline int kiosk_preparation_open(int usr, const char *path, int readable, uint64_t deadline)
@@ -539,7 +556,7 @@ static inline int kiosk_preparation_initial(struct kiosk_preparation_plan *p, un
             !strcmp(manifest_label, "system_u:object_r:onpc_kiosk_runtime_t:s0"))) &&
         !kiosk_host_sha256_library_until(manifest_fd, named.st_size, digest, crypto, p->deadline) &&
         kiosk_material_equal(digest, kiosk_material_property(j, runtime, "manifest")) &&
-        !kiosk_preparation_json_fd(&disk, manifest_fd, p->deadline) &&
+        !kiosk_preparation_runtime_fd(&disk, manifest_fd, p->deadline) &&
         !kiosk_material_schema(&disk, 1, "format|backend|records|copies", 4);
     const char *keys[] = {"format", "backend", "records", "copies"};
     for (unsigned i = 0; ok && i < 4; i++) ok = kiosk_preparation_equal(&disk, kiosk_material_get(&disk, 1, keys[i]), j, kiosk_material_get(j, runtime, keys[i]), 0);

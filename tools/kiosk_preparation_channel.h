@@ -78,7 +78,17 @@ static int kiosk_preparation_identity(int fd, unsigned char out[96], int regular
         if (sscanf(line, "mnt_id: %llu", &mount) == 1) found++;
     }
     int failed = ferror(stream); fclose(stream);
-    if (failed || found != 1 || !mount || fstat(fd, &after) != 0) return -1;
+    if (failed || found != 1 || fstat(fd, &after) != 0) return -1;
+    /* Linux may report mnt_id 0 for the internal shmem mount backing a
+     * memfd. This is record identity only, never source/mount authority. The
+     * sole zero-ID exception is an anonymous, completely sealed regular
+     * record; named files and all source/target directories still need a
+     * positive mount identity. Stable inode metadata remains checked below. */
+    if (!mount) {
+        int seals = regular && before.st_nlink == 0 ? fcntl(fd, F_GET_SEALS) : -1;
+        int required = F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL;
+        if (seals < 0 || (seals & required) != required) return -1;
+    }
     uint64_t a[] = {before.st_dev, before.st_ino, before.st_mode, before.st_uid,
         before.st_gid, before.st_size, before.st_nlink, before.st_mtim.tv_sec,
         before.st_mtim.tv_nsec, before.st_ctim.tv_sec, before.st_ctim.tv_nsec, mount};
@@ -178,7 +188,7 @@ static int kiosk_preparation_send_packet(int channel, const struct kiosk_prepara
     }
 }
 
-static int kiosk_preparation_send(int channel, const struct kiosk_preparation_input *input,
+static inline int kiosk_preparation_send(int channel, const struct kiosk_preparation_input *input,
     const int *fds, uint64_t deadline_ns)
 {
     struct kiosk_preparation_input checked;

@@ -1081,6 +1081,11 @@ from regression_ui import Bucket
 # tmpfs mounts and anonymous descriptors, all detached/closed before probe exit.
 # They add no host policy, live bus/service/display, VM, shared cache or new
 # cleanup/UI owner. Their bounded CPU/disk use permits compatible unit overlap.
+# Fresh startup uses pytest-private source/copy trees, bounded waited native
+# compilers and one identity-owned preparation child in private user/mount
+# namespaces. Its recursive mounts and descriptors die with each waited probe;
+# policy/PAM observations are local doubles. It opens no live bus, display,
+# service, VM or shared cache and adds no cleanup/UI inventory owner.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof
@@ -1088,6 +1093,7 @@ kiosk_initial_realization kiosk_view_receipt kiosk_preparation_channel
 kiosk_material_authority kiosk_preparation_child
 kiosk_preparation_service kiosk_preparation_entry
 kiosk_preparation_plan kiosk_native_realization kiosk_policy_authority kiosk_view_publication
+kiosk_fresh_startup
 native_history_routes native_update_runner system_native_update
 native_transaction_inputs native_transaction_preflight native_transaction_routes native_transaction_staging
 system_trusted_fixtures

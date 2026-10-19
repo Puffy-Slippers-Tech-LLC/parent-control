@@ -2536,6 +2536,10 @@ apply_kiosk_mac(const char *backend, const char *role)
     return result;
 }
 
+/* 006c composes the complete fresh transaction for the native fixture. Live
+ * manager/gate dispatch remains paired on the existing path until 006d. */
+#include "kiosk_fresh_startup.h"
+
 static int
 kiosk_confinement(pam_handle_t *pamh)
 {

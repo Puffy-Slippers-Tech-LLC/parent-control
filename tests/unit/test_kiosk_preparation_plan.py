@@ -16,7 +16,7 @@ import pytest
 
 from tests.unit.test_kiosk_material_authority import material_case
 from tests.support.paths import ROOT
-from tools import kiosk_view_receipt as receipt, test_storage
+from tools import kiosk_confinement as preparation, kiosk_view_receipt as receipt, test_storage
 
 
 def encode(value):
@@ -135,7 +135,7 @@ def initial_case(material_case):
             target.chmod(record['mode'])
             group.append(dict(index=index, name=name, identity=identity(target)))
     manifest = dict(format=1, backend='apparmor', records=runtime, copies=runtime_copies)
-    manifest_bytes = encode(manifest)
+    manifest_bytes = preparation.runtime_canonical(manifest)
     (scratch / 'runtime.json').write_bytes(manifest_bytes)
     (scratch / 'runtime.json').chmod(0o600)
     fd = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY)
@@ -191,6 +191,47 @@ def test_initial_plan_has_independent_native_and_supporting_copies(plan_probe, i
     assert result.returncode == 0, result.stderr
     assert '/usr/bin/tool\tfile\t3\t1\tnative' in result.stdout
     assert (initial_case['scratch'] / 'native-0').stat().st_ino != (initial_case['host'] / 'usr/bin/tool').stat().st_ino
+
+
+@pytest.mark.parametrize('fault', [
+    'bare-json', 'domain', 'domain-terminator', 'truncated-frame', 'short-length',
+    'long-length', 'zero-length', 'overflow-length', 'trailing', 'noncanonical', 'duplicate-key',
+])
+def test_initial_runtime_manifest_requires_exact_production_framing(plan_probe, initial_case, fault):
+    case = initial_case
+    runtime = case['result']['plan']['runtime']
+    manifest = {key: runtime[key] for key in ('format', 'backend', 'records', 'copies')}
+    path = case['scratch'] / 'runtime.json'
+    framed = preparation.runtime_canonical(manifest)
+    domain = b'ONPC-KIOSK-RUNTIME\0'
+    prefix = len(domain) + 8
+    body = framed[prefix:]
+    if fault == 'bare-json':
+        malformed = body
+    elif fault == 'domain':
+        malformed = b'X' + framed[1:]
+    elif fault == 'domain-terminator':
+        malformed = domain[:-1] + b'X' + framed[len(domain):]
+    elif fault == 'truncated-frame':
+        malformed = framed[:prefix - 1]
+    elif fault in ('short-length', 'long-length', 'zero-length', 'overflow-length'):
+        length = {'short-length': len(body) - 1, 'long-length': len(body) + 1,
+                  'zero-length': 0, 'overflow-length': 2**64 - 1}[fault]
+        malformed = domain + length.to_bytes(8, 'big') + body
+    elif fault == 'trailing':
+        malformed = framed + b'X'
+    else:
+        malformed_body = b' ' + body if fault == 'noncanonical' else b'{"backend":"apparmor",' + body[1:]
+        malformed = domain + len(malformed_body).to_bytes(8, 'big') + malformed_body
+    path.write_bytes(malformed)
+    # Rebind every independently checked disk identity/hash so these controls
+    # reach framing/canonical decoding, rather than failing an earlier stale
+    # manifest assertion. Actual copy and material authorities stay unchanged.
+    runtime['manifest'] = hashlib.sha256(malformed).hexdigest()
+    runtime['manifest_identity'] = identity(path)
+    case['result']['ticket']['members']['runtime.json'] = identity(path)[:2]
+    observed = run(plan_probe, case)
+    assert observed.returncode == 1, observed.stderr
 
 
 def add_initial_ambient(case, kind):

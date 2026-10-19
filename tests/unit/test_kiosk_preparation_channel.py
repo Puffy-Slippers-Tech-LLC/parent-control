@@ -5,7 +5,10 @@ native sender are synchronously reaped; pytest owns disk scratch. Identity
 controls use independently opened private files rather than trusting a receipt.
 """
 import array
+import builtins
 from contextlib import contextmanager
+import fcntl
+import io
 import os
 from pathlib import Path
 import socket
@@ -22,6 +25,125 @@ from tools import test_storage
 ROOT = Path(__file__).resolve().parents[2]
 MATERIAL = bytes(range(32))
 VIEW = bytes(reversed(range(32)))
+
+
+@pytest.fixture(scope='module')
+def native_anonymous_identity(tmp_path_factory):
+    directory = tmp_path_factory.mktemp('kiosk-anonymous-identity')
+    source = directory / 'identity.c'
+    binary = directory / 'identity'
+    source.write_text(r'''
+#define _GNU_SOURCE
+#include <stdlib.h>
+#include <stdarg.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+static int record_fd;
+static const char *fdinfo;
+static int identity_open(const char *path, int flags, ...) {
+    char expected[64]; snprintf(expected, sizeof(expected), "/proc/self/fdinfo/%d", record_fd);
+    mode_t mode = 0;
+    if (flags & O_CREAT) { va_list args; va_start(args, flags); mode = va_arg(args, int); va_end(args); }
+    return open(!strcmp(path, expected) ? fdinfo : path, flags, mode);
+}
+#define open identity_open
+#include "kiosk_preparation_channel.h"
+#undef open
+int main(int argc, char **argv) {
+    if (argc != 7) return 90;
+    record_fd = atoi(argv[1]); fdinfo = argv[2];
+    if (atoi(argv[6]) && fcntl(record_fd, F_SETFD, FD_CLOEXEC)) return 91;
+    unsigned char identity[96];
+    int accepted = kiosk_preparation_identity(record_fd, identity, atoi(argv[3])) == 0;
+    if (accepted != atoi(argv[4])) return 92;
+    if (accepted) {
+        for (unsigned i = 88; i < 96; i++) if (identity[i]) return 93;
+        struct stat actual;
+        if (fstat(record_fd, &actual) || actual.st_nlink || !S_ISREG(actual.st_mode)) return 94;
+        if (fcntl(record_fd, F_GET_SEALS) != atoi(argv[5])) return 95;
+    }
+    return 0;
+}
+''', encoding='utf-8')
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                    '-Wno-unused-function', '-I', str(ROOT / 'tools'), str(source),
+                    '-o', str(binary)], check=True, timeout=30, capture_output=True,
+                   pass_fds=test_storage.scratch_descriptors())
+    return binary
+
+
+@pytest.mark.parametrize('kind', [
+    'sealed', 'unsealed', 'missing-write', 'missing-grow', 'missing-shrink', 'missing-seal',
+    'unlinked-file', 'named-file', 'directory', 'writable', 'inheritable',
+])
+def test_zero_mount_identity_only_admits_completely_sealed_anonymous_records(
+        native_anonymous_identity, tmp_path, monkeypatch, kind):
+    required = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
+    missing = {'missing-write': fcntl.F_SEAL_WRITE, 'missing-grow': fcntl.F_SEAL_GROW,
+               'missing-shrink': fcntl.F_SEAL_SHRINK, 'missing-seal': fcntl.F_SEAL_SEAL}
+    writer = reader = -1
+    regular = kind != 'directory'
+    try:
+        if kind in ('unlinked-file', 'named-file', 'directory'):
+            path = tmp_path / 'object'
+            if regular:
+                path.write_bytes(b'ordinary-record')
+            else:
+                path.mkdir()
+            reader = os.open(path, os.O_RDONLY | os.O_CLOEXEC)
+            if kind == 'unlinked-file':
+                path.unlink()
+            seals = -1
+        else:
+            writer = os.memfd_create('onpc-identity-control', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+            os.write(writer, b'independently-observed-record')
+            requested_seals = 0 if kind == 'unsealed' else required & ~missing.get(kind, 0)
+            fcntl.fcntl(writer, fcntl.F_ADD_SEALS, requested_seals)
+            reader = os.open(f'/proc/self/fd/{writer}',
+                             (os.O_RDWR if kind == 'writable' else os.O_RDONLY) | os.O_CLOEXEC)
+            os.close(writer)
+            writer = -1
+            assert os.fstat(reader).st_nlink == 0
+            seals = fcntl.fcntl(reader, fcntl.F_GET_SEALS)
+            assert seals & required == requested_seals
+        if kind == 'inheritable':
+            os.set_inheritable(reader, True)
+        actual = independent_identity(reader)
+        # Exercise the zero-ID branch on every supported kernel. All object,
+        # access-mode, seal and descriptor observations remain actual kernel
+        # observations. The full fresh transaction separately witnesses its
+        # real anonymous mount ID, without this finite fdinfo double.
+        zero_info = tmp_path / 'zero-fdinfo'
+        zero_info.write_text('mnt_id:\t0\n', encoding='ascii')
+        fdinfo_path = f'/proc/self/fdinfo/{reader}'
+        original_open = builtins.open
+
+        def zero_mount_info(path, *args, **kwargs):
+            if path == fdinfo_path:
+                return io.StringIO('mnt_id:\t0\n')
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, 'open', zero_mount_info)
+        accepted = kind == 'sealed'
+        if accepted:
+            assert channel_input._identity(reader, regular) == (*actual[:-1], 0)
+        else:
+            with pytest.raises(ValueError, match='preparation-(mount-identity|descriptor-kind)'):
+                channel_input._identity(reader, regular)
+        completed = subprocess.run(
+            [str(native_anonymous_identity), str(reader), str(zero_info), str(int(regular)),
+             str(int(accepted)), str(seals), str(int(kind != 'inheritable'))],
+            capture_output=True, timeout=5,
+            pass_fds=(reader, *test_storage.scratch_descriptors()))
+        assert completed.returncode == 0, (kind, completed.stdout, completed.stderr)
+        assert independent_identity(reader) == (*actual[:-1], 0)
+    finally:
+        if reader >= 0:
+            os.close(reader)
+        if writer >= 0:
+            os.close(writer)
 
 
 @pytest.fixture(scope='module')

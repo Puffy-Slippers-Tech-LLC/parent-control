@@ -9,7 +9,7 @@ do not rebuild those APIs or count their component passes as this acceptance.
 
 ## Reading and implementation route
 
-Read the [master](../Kiosk-Prompt.md), [006c](006c-fresh-startup.md), 006's current
+Read the [master](../Kiosk-Prompt.md), [006c](../Kiosk-Prompt.md#fresh-kiosk-startup--006c), 006's current
 allocation, and the reviewed [manager, source, receipt and decision
 boundaries](../SystemDesign/Kiosk-Confinement.md#planned-retained-view-admission-proof).
 Start at `kiosk_confinement()` in

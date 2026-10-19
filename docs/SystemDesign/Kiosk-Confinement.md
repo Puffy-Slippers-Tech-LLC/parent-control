@@ -635,8 +635,9 @@ supplies new generation-stage or immutable-pin acceptance.
 
 ### Planned retained-view admission proof
 
-This is **005's reviewed composition**, still unimplemented. It qualifies only
-the retained-view change above. Current `manager_generation()` checks the leader's
+This is **005's reviewed composition**. Its retained-manager/gate dispatch remains
+unimplemented; the staged fresh-manager transaction is described below. It
+qualifies only the retained-view change above. Current `manager_generation()` checks the leader's
 four UIDs, marker and label through a pidfd, then closes it before native binding;
 it does not prove a retained mount source or the complete admission interval.
 The stronger engineering `manager_boundary()` is an observation recipe, not a
@@ -649,6 +650,23 @@ Their finite host fixtures do not compose the receipt, binding, ready and MAC
 transaction below. The [active implementation brief](../Kiosk-Prompt-Tasks/006-generation-implementation.md#in-progress-implementation-checkpoint)
 records the remaining integration boundaries. Live admission still uses the
 legacy digest/binding route; its lock inode checks now repeat before MAC.
+
+The staged [fresh-startup coordinator](../../tools/kiosk_fresh_startup.h) now
+composes one preparation child, independent policy/material/host authority,
+verified copies and runtime ticket, actual recursive binding, M/V/pins/ready,
+final proofs, setup-descriptor closure and preloaded MAC. Its native fixture
+calls that complete transaction; live manager/gate dispatch stays paired on the
+legacy route until 006d. After creating the private namespace and before any
+helper or overlay, it independently matches original root/runtime inodes before
+adopting namespace-local descriptors. No host source is refreshed after attachment.
+The channel permits a zero mount ID only for a read-only, close-on-exec,
+unlinked regular record with all four immutable seals; directories and named
+sources retain positive mount identity. Runtime manifests retain their existing
+domain/length framing and full-file hash; channel results remain bare canonical
+JSON. Ambiguous scratch retains its owner, and completed records survive a
+post-ready refusal. These host controls supply no live retained-manager,
+loaded-policy bootstrap or installed acceptance; 006d, 006 and 007a/007 retain
+those obligations.
 
 Additional unwired 006 APIs now provide the closed
 [receipt encoding/parser](../../tools/kiosk_view_receipt.h), its
@@ -693,8 +711,8 @@ reap the helper successfully and independently verify the named copies before
 binding or publication. Retained results preserve all original V slots and build
 fresh descriptor-relative parents from the selected clone. Neither result is
 V/I or ready. The production PAM caller still uses the legacy route; complete
-transaction/binding/publication integration and composed witnesses remain
-unfinished. These guards and preparation plans grant no admission or installed
+retained-transaction integration and combined witnesses remain unfinished.
+The staged initial coordinator supplies no live dispatch or installed
 proof.
 
 Further unwired native owners now check
@@ -711,11 +729,11 @@ that marker and private masks. Policy authority captures the original attested
 pair and repeats enforcement without executing a process after attachment.
 Completion records provide exact flat membership, no-replace publication,
 boot/source/marker binding and retryable ownership-based incomplete cleanup.
-The caller must still compose these owners with live manager acquisition,
+The retained caller must still compose these owners with live manager acquisition,
 checked completed-record selection, one helper, final proofs, descriptor closure
 and MAC. A parsed ready record or a completed-pin flag supplies no independent
-mount or manager authority. Full transaction and bootstrap qualification remain
-006; the production PAM caller still uses the legacy route.
+mount or manager authority. The combined transaction and bootstrap qualification
+remain 006; the production PAM caller still uses the legacy route.
 
 **Authority and ordered acquisition.** Keep one native owner in the actual PAM
 caller. Its acquisition, helper, binding and final checks share a bounded

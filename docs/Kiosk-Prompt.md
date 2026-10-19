@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006c — [Compose fresh kiosk startup](Kiosk-Prompt-Tasks/006c-fresh-startup.md)**.
+Next task: **006d — [Connect retained kiosk reuse](Kiosk-Prompt-Tasks/006d-retained-reuse.md)**.
 
 ## Outcome
 
@@ -22,8 +22,8 @@ security refusal to suppress GDM's fallback presentation.
 ## Current integration handoff
 
 Task 006 made substantive progress in five sessions and remains unfinished.
-The remaining work is split into [fresh startup](Kiosk-Prompt-Tasks/006c-fresh-startup.md)
-(006c), [retained reuse and paired production dispatch](Kiosk-Prompt-Tasks/006d-retained-reuse.md)
+The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) passed host
+acceptance. Continue with [retained reuse and paired production dispatch](Kiosk-Prompt-Tasks/006d-retained-reuse.md)
 (006d), then [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
 The original 006 Scope and all installed obligations remain required. Its
 existing components are preserved in unfinished checkpoint commit `2f728697`;
@@ -1228,7 +1228,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-a731tvdg/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -1285,13 +1285,117 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[006 checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-a731tvdg/evidence.zip),
-whose identity is recorded in the active 006 brief. Original bundle SHA-256:
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip),
+whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
 that rotated during this task now point readers to their preserved bundle;
 no earlier row gains new acceptance. Changed-document links and whitespace pass;
 every other queue row retains its status, order, Scope and Requires.
+
+### Fresh kiosk startup — 006c
+
+Host acceptance passed on 2026-10-19 UTC. The production native owner now exposes
+one complete fresh-manager coordinator in `kiosk_fresh_startup.h`: original host
+and policy authority, one bounded preparation child, independent material/routes
+and scratch-ticket verification, descriptor-relative realization and recursive
+read-only coverage, combined M/V/pins/copies/ready publication, final authority
+and lock proofs, setup-FD closure, capability/environment handling and preloaded
+MAC transition. The original absolute deadline covers the whole transaction.
+Successful child reap precedes scratch acceptance; unresolved child or ambiguous
+scratch ownership stays available for explicit recovery. A post-ready refusal
+preserves completed records. Namespace-local lookup roots are reanchored to
+independently verified original inodes before preparation or overlay attachment.
+
+Composition exposed two existing wire-format mismatches. Linux's zero mount ID
+is admitted only for anonymous regular read-only CLOEXEC records with all four
+kernel seals; source/directory mount authority stays strict. The native runtime
+manifest decoder now verifies the producer's exact framed canonical JSON,
+including its length and terminator, while channel results retain their raw
+canonical JSON format. Focused negative controls preserve both boundaries.
+The package compiler also required the legacy compatibility sender to be inline;
+its behavior and enabled warnings are unchanged.
+
+The exact final affected selection passed **2,667/2,667** cases in
+`20261019T190301Z-5b525a22` (source-input digest
+`e0f192631bad4ebbea7a994c5acfa9ae52c1acdd46b7678750c40f9a380afcaa`).
+Run through `tools/run-tests unit`, with `-q`, these exact module selectors were:
+
+```text
+tests/unit/test_kiosk_fresh_startup.py
+tests/unit/test_kiosk_preparation_channel.py
+tests/unit/test_kiosk_preparation_child.py
+tests/unit/test_kiosk_preparation_service.py
+tests/unit/test_kiosk_preparation_entry.py
+tests/unit/test_kiosk_preparation_plan.py
+tests/unit/test_kiosk_native_realization.py
+tests/unit/test_kiosk_policy_authority.py
+tests/unit/test_kiosk_view_publication.py
+tests/unit/test_kiosk_material_authority.py
+tests/unit/test_kiosk_host_proof.py
+tests/unit/test_kiosk_confinement.py
+tests/unit/test_pam_runtime_cap.py
+tests/unit/test_kiosk_pin_native.py
+tests/unit/test_kiosk_pin_storage.py
+tests/unit/test_kiosk_initial_realization.py
+tests/unit/test_kiosk_view_receipt.py
+tests/unit/test_kiosk_required_material.py
+tests/unit/test_regression_unit.py
+tests/unit/test_regression_resources.py
+tests/unit/test_e2e_plan.py
+tests/unit/test_e2e_inventory.py
+tests/unit/test_coverage_generation.py
+tests/unit/test_e2e_case_composition.py
+```
+
+The new module's **21 complete transactions** execute the real preparation
+service and native coordinator in private user/mount namespaces. Independent
+kernel/file observations check exact finite source coverage and nested mounts,
+actual recursive read-only enforcement, copied inodes, publication order,
+setup-FD closure and caller-FD preservation. Controls refuse bad helper
+identity/order/results, same-byte copy/source inode replacement, required drift
+before and after attachment, malformed/partial publication, original-deadline
+exhaustion, environment failure and final MAC failure/readback/deadline. They
+also prove ambient narrowing, owned scratch cleanup, unresolved-owner retention
+and completed-record preservation. Six additional controls exercise native
+SELinux preloading/enforcement/transition/readback with finite API doubles.
+PAM/account/policy/MAC doubles make these engineering host proofs: no loaded-policy,
+full SELinux-labelled composed transaction, live dispatch or installed acceptance
+is claimed. Production manager and gate dispatch remain paired on the legacy
+route until 006d. Combined race/bootstrap proof remains 006 and installed proof
+remains 007a/007.
+
+Independent GPT-6.1 Sol High source review accepted the coordinator and its
+namespace reanchor correction. All three workers finished before final acceptance.
+The new module's scheduling review covers pytest-private files, owned bounded
+children and private user/mount namespaces; it uses no shared service, cache,
+UI or VM. Applicable unit/resource/cleanup/UI inventories pass in the final run.
+Intermediate failures and corrections are retained, including the actual sealed
+record's zero mount ID, framed-manifest mismatch and the fixture's corrected
+namespace-local cleanup baseline. Assertions were preserved.
+
+`make build` passed DEB and RPM after the final packaged edit. Package-source
+digest: `e75e25709b2b7e5292965e867091dbe152849b34f5fe738b5b102d5bc4290a85`.
+DEB SHA-256: `d9f86a71e4155ab24536603dce4053c5585de5fc58a3264407092691e30c0466`;
+RPM SHA-256: `d86503687f29db0d13cde4bd85c820545c52d800c89d755907db71bcfa7aa8ed`.
+Native coordinator SHA-256:
+`0c4cb947bef132cae67715f8892acb4f0d536405a28b1645a090c7602efb7cb9`.
+Package outputs and `output/rpm/build.log` remain local build evidence; these
+unregistered build outputs are outside the test-bundle selection contract.
+
+After queue/pointer/brief close-out, the four documentation modules listed above
+passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
+(five documents, 267 links), as did whitespace review.
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-ql454mdg/evidence.zip)
+retains **645 files**, including every available original 006/006a/006b checkpoint
+receipt, all this task's intermediate test failures, the final affected pass and
+the post-close-out documentation pass.
+SHA-256: `da80012b27ea7604a355da48f6e37fc5d6a7142f573defd6147449657584cee4`.
+Historical checkpoint links now point to their carried-forward contents; original
+hashes and counts remain historical and grant no new acceptance.
+Runner, build and export cleanup finished. No installation, VM or live-policy
+change occurred. Only 006c closes; 006's original scope, saved handoff and
+unfinished status remain intact.
 
 ### Remaining execution and acceptance
 

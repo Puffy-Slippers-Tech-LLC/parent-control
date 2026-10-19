@@ -197,6 +197,7 @@ PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
 	tools/kiosk_preparation_channel.h tools/kiosk_preparation_child.h \
 	tools/kiosk_preparation_plan.h tools/kiosk_native_realization.h \
 	tools/kiosk_policy_authority.h tools/kiosk_view_publication.h \
+	tools/kiosk_fresh_startup.h \
 	tools/kiosk_preparation_input.py tools/kiosk_view_receipt.py \
 	tools/kiosk_preparation_service.py \
 	tools/kiosk_confinement_policy.py packaging/kiosk_confinement.py \

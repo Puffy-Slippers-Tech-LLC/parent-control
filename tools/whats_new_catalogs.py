@@ -216,9 +216,10 @@ def markdown_signature(text):
     protected = Counter(re.findall(r'https?://[^\s<>\)\]"\']+', text))
     protected.update(re.findall(r'`+[^`\n]+`+', text))
     protected.update(re.findall(r'%\([^)]+\)[a-zA-Z]|\{[A-Za-z_][A-Za-z0-9_]*\}', text))
-    # Version literals use ASCII syntax. Unicode word boundaries would hide an
-    # unchanged version beside Japanese text or a Korean grammatical particle.
-    protected.update(re.findall(r'(?<![\w.])v?[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}\b',
+    # Version literals use ASCII syntax, but localized suffixes can use any
+    # script (e.g. Basque v1.1eko). Refuse partial numeric matches while allowing
+    # letters immediately after the complete version.
+    protected.update(re.findall(r'(?<![\w.])v?[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?![0-9]|\.[0-9])',
                                 text, flags=re.ASCII))
     protected.update(re.findall(r'<[^>]+>', text))
     protected['Oh No! Parent Control'] = text.count('Oh No! Parent Control')

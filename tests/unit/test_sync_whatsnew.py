@@ -209,12 +209,13 @@ def test_protected_markdown_operands_and_structure(operand, replacement):
 
 @pytest.mark.parametrize('translated', [
     'v1.1のバグ修正', 'v1.1의 버그 수정', '版本v1.1修复',
-    'نسخهٔ v1.1', 'виправлення v1.1',
+    'نسخهٔ v1.1', 'виправлення v1.1', 'v1.1eko akats-konponketa',
 ])
 def test_version_literals_allow_adjacent_localized_text_but_still_refuse_changes(translated):
     catalogs.validate_content('v1.1 bug fix', translated)
-    with pytest.raises(ValueError, match='protected literals'):
-        catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', 'v1.2'))
+    for changed in ('v1.2', 'v1.10', 'v1.1.2', 'v1.1.2.3'):
+        with pytest.raises(ValueError, match='protected literals'):
+            catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', changed))
     with pytest.raises(ValueError, match='protected literals'):
         catalogs.validate_content('v1.1 bug fix', translated.replace('v1.1', ''))
 

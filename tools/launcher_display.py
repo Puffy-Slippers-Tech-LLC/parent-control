@@ -13,7 +13,7 @@ from rich.cells import get_character_cell_size
 from rich.text import Text
 
 from launcher_chat import ChatEditor, TASK_STATUSES, read_state, send_input, task_info as read_task_info
-from launcher_render import LauncherDisplay, clean, retained_tail
+from launcher_render import LauncherDisplay, clean, retained_tail, style_task_counts
 
 
 def clock_duration(seconds):
@@ -574,13 +574,9 @@ class TaskDisplay(LauncherDisplay):
         left_width = max(1, min(width - 2, round((width - 1) * self.ratio))) if width >= 3 else 1
         right_width = max(1, width - left_width - 1)
         self.top_divider_column = self.divider_column = left_width + 1
-        totals = Text('Total Tasks: ')
         completed, unfinished, total = self.task_totals or ('—', '—', '—')
-        totals.append(str(completed), style='green')
-        totals.append('/')
-        totals.append(str(unfinished), style='#0098ff')
-        totals.append('/')
-        totals.append(str(total))
+        totals = Text(f'Total Tasks: {completed}/{unfinished}/{total}')
+        style_task_counts(totals)
         totals.append('\nTotal Duration: ' + total_duration)
         total_rows = totals.wrap(self.console, right_width, overflow='fold')[:max(0, height - 4)]
         pinned, history = self.overview()

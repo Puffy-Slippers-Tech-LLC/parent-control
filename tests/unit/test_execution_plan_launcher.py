@@ -488,13 +488,13 @@ def test_task_counter_uses_numeric_remaining_total_and_live_limits(tmp_path, lim
     budget.initialize(limit, remaining=5)
     steps = [dict(key='current', lines=['Current task'])]
     total = 3 if limit > 0 else 5
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}']
+    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}/{total}']
     assert budget.admit()
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}']
+    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 0/{total}/{total}']
     budget.complete()
-    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 1/{total}']
+    assert task_progress(tmp_path, steps)[0]['lines'] == [f'Tasks: 1/{total - 1}/{total}']
     budget.set_limit(0)
-    assert task_progress(tmp_path, steps)[0]['lines'] == ['Tasks: 1/5']
+    assert task_progress(tmp_path, steps)[0]['lines'] == ['Tasks: 1/4/5']
     assert task_progress(tmp_path, steps)[1:] == steps
 
 
@@ -513,9 +513,9 @@ def test_unlimited_plan_counter_excludes_previously_completed_tasks(rig, monkeyp
 
     monkeypatch.setattr(workflow, 'execute', execute)
     assert rig.worker() == 0
-    assert counters == (['Tasks: 0/1'] if already_complete else ['Tasks: 0/2', 'Tasks: 1/2'])
+    assert counters == (['Tasks: 0/1/1'] if already_complete else ['Tasks: 0/2/2', 'Tasks: 1/1/2'])
     assert task_progress(rig.run, [])[0]['lines'] == [
-        'Tasks: 1/1' if already_complete else 'Tasks: 2/2']
+        'Tasks: 1/0/1' if already_complete else 'Tasks: 2/0/2']
 
 
 def test_active_budget_replacement_and_closed_refusal(tmp_path):
@@ -729,14 +729,14 @@ def test_reattached_observer_counts_legacy_unlimited_run_without_changing_budget
 
     def follow(run, **options):
         view = options['view']
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 0/2']
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 0/2/2']
         assert (run / 'limits.json').read_text() == original
         # Later task completion and explicit limits use current plan data.
         complete(rig.plan, '001')
         budget.complete()
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/2']
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/1/2']
         budget.set_limit(3)
-        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/3']
+        assert view.progress(run, [], [])[0]['lines'] == ['Tasks: 1/2/3']
         return 0
 
     monkeypatch.setattr(workflow.launcher, 'select', select)
@@ -748,7 +748,7 @@ def test_e2e_observer_counts_legacy_unlimited_run(tmp_path, monkeypatch):
     import launcher_view
     TaskBudget(tmp_path).initialize(0)
     monkeypatch.setattr(launcher_view, 'e2e_totals', lambda: (17, 9, 26))
-    assert view_for('write-e2e').progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 0/9']
+    assert view_for('write-e2e').progress(tmp_path, [], [])[0]['lines'] == ['Tasks: 0/9/9']
 
 
 @pytest.mark.parametrize('action', ['attach', 'limit', 'stop'])
@@ -1849,17 +1849,20 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
     display = TaskDisplay(terminal, run=tmp_path, input_mode=mode, terminal_size=lambda: terminal.size)
     try:
         display.task_info = dict(explanation='\n'.join(f'Purpose {n}' for n in range(60)), status='Reviewing.')
-        display.update([dict(key='count', pinned=True, lines=['Tasks: 1/2']),
+        display.update([dict(key='count', pinned=True, lines=['\033[32mTasks: 4/13/17\033[0m']),
                         dict(key='task', lines=['Current task', 'Current session'])], [])
         display.write('Execution output\n')
         visible = terminal.visible()
-        assert visible.splitlines()[0].split('│')[0].strip() == 'Tasks: 1/2'
+        assert visible.splitlines()[0].split('│')[0].strip() == 'Tasks: 4/13/17'
         row = display.previous[0]
         assert row.get_style_at_offset(display.console, 0).bold
         completed_style = row.get_style_at_offset(display.console, len('Tasks: '))
         assert completed_style.color.name == 'green'
         assert not completed_style.bold
-        assert row.get_style_at_offset(display.console, len('Tasks: 1/')).color is None
+        unfinished_style = row.get_style_at_offset(display.console, len('Tasks: 4/'))
+        assert unfinished_style.color.name == '#808080'
+        assert not unfinished_style.bold
+        assert row.get_style_at_offset(display.console, len('Tasks: 4/13/')).color.name == 'default'
         assert 'Execution output' in visible and 'Current task' in visible
         assert 'Chat' not in visible and 'Enter: send' not in visible
         # Pane controls work immediately; m remains a selection-mode shortcut.
@@ -1911,8 +1914,8 @@ def test_plan_totals_refresh_whole_queue_without_output_or_pointer_updates(tmp_p
         row = display.previous[0]
         start = row.plain.index('Total Tasks: ') + len('Total Tasks: ')
         assert row.get_style_at_offset(display.console, start).color.name == 'green'
-        assert row.get_style_at_offset(display.console, start + 2).color.name == '#0098ff'
-        assert row.get_style_at_offset(display.console, start + 4).color is None
+        assert row.get_style_at_offset(display.console, start + 2).color.name == '#808080'
+        assert row.get_style_at_offset(display.console, start + 4).color.name == 'default'
         valid = queue.read_text()
         queue.write_text('Partial rewrite')
         display.refresh_chat()

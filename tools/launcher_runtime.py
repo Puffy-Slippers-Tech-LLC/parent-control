@@ -171,5 +171,6 @@ def task_progress(run, steps, *, remaining=None):
                 limit = completed + remaining()
             except (OSError, ValueError):
                 pass  # Editable plan metadata must never prevent attachment.
+    unfinished = max(0, limit - completed) if isinstance(limit, int) else '—'
     return [{'key': 'runtime-tasks', 'pinned': True,
-             'lines': [f'Tasks: {completed}/{limit}']}, *steps]
+             'lines': [f'Tasks: {completed}/{unfinished}/{limit}']}, *steps]

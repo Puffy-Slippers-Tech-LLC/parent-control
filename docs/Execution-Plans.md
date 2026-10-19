@@ -193,8 +193,9 @@ totals at top right, execution details and optional input at bottom left, curren
 task summary and status/issues at bottom right. Task entries in the
 overview and task summary use bold task labels, such as `Task 4-5c:`; the
 top-left counter also uses bold `Tasks:` with normal-weight numeric counts.
-Its completed count (`x` in `Tasks: x/y`) is green, matching the completed
-count in the top-right totals.
+Its `Tasks: x/y/z` counts use the same colors as the top-right totals:
+completed (`x`) in green, unfinished (`y`) in explicit grey (`#808080`),
+and total (`z`) in the normal text color.
 Completed task entries in the top-left overview start with a green `✓`
 checkmark and use green text.
 The title is followed by one space and the task's elapsed duration in parentheses,
@@ -272,9 +273,10 @@ agent session starts an empty history. Sessions predating this feature leave
 the pane empty; never infer prose by filtering rendered command output.
 Plan/E2E sessions offer conversation input; repair offers input
 for developer decisions; `run-tests` has no agent sessions or composer.
-The top-left `Tasks: x/y` counts completed tasks in this run against
-the run's task limit; an active task does not count until completion.
-For zero or negative `--tasks`, y is the number completed
+The top-left `Tasks: x/y/z` counts completed, unfinished and total tasks
+in this run against the run's task limit; an active task remains unfinished
+until completion. Unfinished is the total minus completed, with a minimum of zero.
+For zero or negative `--tasks`, z is the number completed
 in this run plus the remaining tasks, so an unlimited run shows a numeric total.
 Plan/E2E observers read remaining counts from the current queue, including when
 reconnecting to a backend started before numeric totals were recorded.
@@ -295,8 +297,10 @@ when the session finishes.
 The top and lower splits share one 75:25 width ratio. Dragging either vertical
 divider resizes both frames together; their dividers stay aligned during dragging
 and terminal resizing. The top-right `Total Tasks: x/y/z` shows completed
-tasks in green, unfinished tasks in explicit blue (`#0098ff`) and the total in
+tasks in green, unfinished tasks in explicit grey (`#808080`) and the total in
 the normal text color.
+Both counters use the shared count styling function, overriding retained ANSI
+colors so completed and unfinished counts stay distinct.
 These counts cover the plan's entire active queue, excluding deferred future
 work, regardless of `--tasks`, and refresh automatically as the queue changes.
 Displays without a Markdown plan show unavailable counts as dashes.

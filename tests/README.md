@@ -1070,9 +1070,10 @@ composer owns Cancel/Escape/Ctrl+C; the output pane has no termination shortcut.
 Pending blocker questions appear above the composer: send a suggested number
 or type your own instructions. Multiple observers share the existing first-answer
 rule. Mouse wheels scroll the panel under the pointer by default.
-`write-e2e` pins `Tasks: x/y` above this history: x is tasks completed in this
-launcher runtime, and y is this runtime's task maximum, refreshed when
-another invocation adjusts `--tasks`. The counter stays pinned during pane scrolling.
+`write-e2e` pins `Tasks: x/y/z` above this history: x is tasks completed in this
+launcher runtime, y is unfinished tasks and z is this runtime's task maximum,
+refreshed when another invocation adjusts `--tasks`.
+The counter stays pinned during pane scrolling.
 Category and session transitions update immediately. Routine overall counts refresh at most
 once every five seconds, while detailed test progress and agent output continue
 in the lower pane. Child output cannot move the cursor into the upper pane.

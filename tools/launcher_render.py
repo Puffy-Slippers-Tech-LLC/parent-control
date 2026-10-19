@@ -48,6 +48,16 @@ def clean(value):
     return CONTROL.sub('', str(value))
 
 
+def style_task_counts(text):
+    """Apply the shared overview/totals palette, overriding retained ANSI colors."""
+    counter = re.match(r'^(?:Total )?Tasks: (\d+|—)/(\d+|—)(?:/(\d+|—))?', text.plain)
+    if counter:
+        text.stylize('not bold default', counter.start(1), counter.end())
+        text.stylize('green', *counter.span(1))
+        if counter.group(3) is not None:
+            text.stylize('#808080', *counter.span(2))
+
+
 class LauncherDisplay:
     """Two panes owned by the observer, never by its streaming children.
 
@@ -306,9 +316,7 @@ class LauncherDisplay:
         label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
         if label:
             text.stylize('bold', *label.span(1))
-        counter = re.match(r'^Tasks: (\d+)/', text.plain)
-        if counter:
-            text.stylize('green', *counter.span(1))
+        style_task_counts(text)
 
     def wrapped(self, lines, width, *, task_labels=False):
         rows = []

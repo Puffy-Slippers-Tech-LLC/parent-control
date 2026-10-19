@@ -5495,6 +5495,19 @@ def test_selinux_entrypoint_mappings_preserve_fixed_execution_routes():
                 assert f'(allow {domain} {typ} (file (execute_no_trans)))' not in generated
 
 
+def test_retained_gate_namespace_handles_stay_in_the_trusted_caller():
+    policy = module(ROOT / 'tools/kiosk_confinement_policy.py')
+    generated = policy.selinux(policy.executables('fedora'))
+    # setns needs a real namespace descriptor. The trusted caller may inspect
+    # nsfs inodes; payload roles gain no namespace write or escape authority.
+    assert [line for line in generated.splitlines() if ' nsfs_t ' in line] == [
+        '(allow xdm_t nsfs_t (file (read open)))']
+    assert '(allow xdm_t self (capability (sys_admin sys_chroot)))' in generated
+    assert [line for line in generated.splitlines()
+            if ' xdm_t onpc_kiosk_runtime_t ' in line and 'ioctl' in line] == [
+        '(allow xdm_t onpc_kiosk_runtime_t (dir (ioctl)))']
+
+
 def test_retained_manager_policy_keeps_reexec_inside_the_same_mount_boundary():
     """The identity proof depends on policy as well as repeated proc reads.
 
@@ -6334,24 +6347,44 @@ def test_bootstrap_source_trust_preserves_exact_owned_links_and_rejects_writable
                                  'link-group', 'completed', 'marker', 'nested-inode',
                                  'nested-mount', 'writable', 'extra-mount', 'manager-link',
                                  'marker-material', 'marker-backend', 'marker-view',
-                                 'marker-mode', 'marker-owner'])
+                                 'marker-mode', 'marker-owner', 'ambient-omitted',
+                                 'ambient-link-omitted', 'ambient-permission',
+                                 'ambient-stale-mount', 'ambient-required',
+                                 'ambient-native', 'ambient-runtime', 'ambient-vendor',
+                                 'ambient-payload', 'manager-ambient',
+                                 'ambient-directory-masked', 'ambient-directory-populated',
+                                 'ambient-directory-mode', 'ambient-directory-owner',
+                                 'ambient-directory-group', 'ambient-directory-nlink',
+                                 'ambient-directory-foreign-device', 'ambient-directory-stale-mount',
+                                 'ambient-directory-nonambient', 'ambient-directory-required'])
 def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources_and_manager(
         census_model, tmp_path, monkeypatch, fault):
-    """Real private dentries; only proc mounts, root identity and record paths are doubled."""
+    """Real private dentries, with finite proc, root, record and permission doubles."""
     helper = census_model
     manager, gate = tmp_path / 'manager', tmp_path / 'gate'
+    ambient_directory = bool(fault and fault.startswith('ambient-directory-'))
     paths = {'executable': '/usr/lib/systemd/systemd',
              'library': '/usr/lib/systemd/libsystemd-shared.so',
              'link': '/usr/lib/systemd/user/masked.service',
-             'nested': '/usr/lib/vendor/nested.so'}
+             'nested': '/usr/lib/vendor/nested.so',
+             'ambient': '/usr/lib/games' if ambient_directory else '/usr/bin/VGAuthService'}
     marker_path = '/usr/share/oh-no-parent-control/confinement/retained-view'
+    ambient_kind = 'directory' if ambient_directory else (
+        'link' if fault == 'ambient-link-omitted' else 'file')
     def actual(process, path):
         return process / 'root' / path.lstrip('/')
     for path in paths.values():
         original, retained = actual(manager, path), actual(gate, path)
         original.parent.mkdir(parents=True, exist_ok=True)
         retained.parent.mkdir(parents=True, exist_ok=True)
-        if path == paths['link']:
+        if path == paths['ambient'] and ambient_directory:
+            original.mkdir(mode=0o755)
+            retained.mkdir(mode=0o755)
+            if fault == 'ambient-directory-populated':
+                (retained / 'unexpected').write_bytes(b'not an empty mask\n')
+            elif fault == 'ambient-directory-mode':
+                retained.chmod(0o750)
+        elif path == paths['link'] or (path == paths['ambient'] and ambient_kind == 'link'):
             original.symlink_to('/dev/null')
             retained.symlink_to('/dev/null')
         else:
@@ -6369,17 +6402,30 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
             result[3 if fault == 'link-owner' else 4] = 1002
         if fault == 'marker-owner' and path == actual(gate, marker_path):
             result[3] = 1002
+        if ambient_directory and path == actual(gate, paths['ambient']):
+            if fault in ('ambient-directory-owner', 'ambient-directory-group'):
+                result[3 if fault == 'ambient-directory-owner' else 4] = 1002
+            elif fault == 'ambient-directory-nlink':
+                result[8] = 3
+            elif fault == 'ambient-directory-foreign-device':
+                result[0] += 1
         return result
     monkeypatch.setattr(helper, 'bootstrap_object', observe)
     material_bytes = b'{"private":"material"}\n'
     material = hashlib.sha256(b'ONPC-KIOSK-MATERIAL\0' +
                               len(material_bytes).to_bytes(8, 'big') + material_bytes).hexdigest()
     lines = ['\t'.join(['ONPC-KIOSK-RECEIPT', '2', 'V', 'apparmor', 'manager', material, '-', 'a' * 64])]
-    nodes = [('/usr', 'tree', 'skeleton'), (paths['executable'], 'file', 'native'),
-             (paths['library'], 'file', 'native'), (paths['link'], 'link', 'vendor')]
-    for slot, (path, kind, source_class) in enumerate(nodes):
+    ambient_class = fault.removeprefix('ambient-') if fault in (
+        'ambient-native', 'ambient-runtime', 'ambient-vendor', 'ambient-payload') else 'ambient'
+    if fault == 'ambient-directory-nonambient':
+        ambient_class = 'vendor'
+    nodes = [('/usr', 'tree', 1, 'skeleton'), (paths['executable'], 'file', 1, 'native'),
+             (paths['library'], 'file', 1, 'native'), (paths['link'], 'link', 1, 'vendor'),
+             (paths['ambient'], ambient_kind,
+              int(fault in ('ambient-required', 'ambient-directory-required')), ambient_class)]
+    for slot, (path, kind, required, source_class) in enumerate(nodes):
         info = observe(actual(manager, path))
-        lines.append('\t'.join(map(str, ['N', path, kind, 1, source_class, 'initial',
+        lines.append('\t'.join(map(str, ['N', path, kind, required, source_class, 'initial',
             'manager', slot, *info[:2], *info[:2], info[5], info[6], info[7], info[2],
             info[3], info[4], info[8], helper.guest.sha(actual(manager, path)) if kind == 'file' else '-',
             '-', '/dev/null' if kind == 'link' else '-', int(kind != 'link')])))
@@ -6418,7 +6464,10 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
     monkeypatch.setattr(helper, 'Path', translated)
     mounts = {path: {'id': 41 + slot, 'options': ['ro'], 'filesystem': 'private',
                      'superoptions': ['ro']} for slot, path in enumerate(
-                         ['/usr', paths['executable'], paths['library'], paths['nested']])}
+                         ['/usr', paths['executable'], paths['library'], paths['nested'],
+                          paths['ambient']])}
+    if ambient_kind == 'link':
+        del mounts[paths['ambient']]
     def mounted(process):
         result = {path: dict(value) for path, value in mounts.items()}
         if process == gate:
@@ -6426,12 +6475,67 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
                 del result[paths['nested']]
             elif fault == 'extra-mount':
                 result['/usr/foreign'] = dict(result['/usr'])
+            if fault in ('ambient-omitted', 'ambient-required', 'ambient-native',
+                         'ambient-runtime', 'ambient-vendor', 'ambient-payload'):
+                del result[paths['ambient']]
+            if ambient_directory and fault != 'ambient-directory-stale-mount':
+                del result[paths['ambient']]
         return result
     monkeypatch.setattr(helper, 'bootstrap_mounts', mounted)
     source = helper.bootstrap_view(manager)
     invocation_marker = observe(gate_marker) + [helper.guest.sha(gate_marker)]
     assert observe(actual(gate, paths['link']))[:2] != observe(actual(manager, paths['link']))[:2]
-    if fault in ('executable', 'library', 'nested-inode'):
+    assert (observe(actual(gate, paths['ambient']))[:2] ==
+            observe(actual(manager, paths['ambient']))[:2]) is (ambient_kind == 'file')
+    if ambient_directory:
+        if fault == 'ambient-directory-masked':
+            result = helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
+            assert result['masked_ambient'] == [paths['ambient']]
+            assert result['omitted_ambient'] == []
+            assert paths['ambient'] not in result['objects']
+            assert paths['ambient'] not in result['mounts']
+            assert paths['ambient'] in source['objects']
+            assert paths['ambient'] in source['mounts']
+            assert result['sources'] == source['sources']
+            assert result['coverage'] == source['coverage']
+            assert result['completed'] == source['completed']
+            assert result['invocation_view'] == 'c' * 64 and result['view'] == view
+        else:
+            reason = 'mounted-source-inode' if fault in (
+                'ambient-directory-nonambient', 'ambient-directory-required') else 'ambient-directory-mask'
+            with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:' + reason):
+                helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
+        assert helper.bootstrap_view(manager) == source
+        return
+    if fault == 'ambient-permission':
+        inaccessible = actual(gate, paths['ambient'])
+        failure = PermissionError(13, 'private ambient leaf inaccessible', str(inaccessible))
+        def denied(path, *, follow=False):
+            if path == inaccessible:
+                raise failure
+            return observe(path, follow=follow)
+        with monkeypatch.context() as guard:
+            guard.setattr(helper, 'bootstrap_object', denied)
+            with pytest.raises(PermissionError) as caught:
+                helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
+        assert caught.value is failure
+        assert helper.bootstrap_view(manager) == source
+        return
+    if fault == 'manager-ambient':
+        actual(manager, paths['ambient']).unlink()
+        # Narrowing belongs to I only; the original V must still be observable.
+        with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:mounted-source-missing'):
+            helper.bootstrap_view(manager)
+        return
+    if fault and fault.startswith('ambient-'):
+        actual(gate, paths['ambient']).unlink()
+        if fault not in ('ambient-omitted', 'ambient-link-omitted', 'ambient-stale-mount'):
+            # Neither required ambient nor nonambient sources may disappear,
+            # even when their old bind mount is absent from the invocation.
+            with pytest.raises(helper.guest.GuestError, match='kiosk-bootstrap:mounted-source-missing'):
+                helper.bootstrap_view(gate, source=source, invocation_marker=invocation_marker)
+            return
+    elif fault in ('executable', 'library', 'nested-inode'):
         path = actual(gate, paths['nested' if fault == 'nested-inode' else fault])
         contents = path.read_bytes()
         path.unlink()
@@ -6462,13 +6566,14 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
         gate_marker.chmod(0o644)
     elif fault == 'writable':
         actual(gate, paths['executable']).chmod(0o777)
-    if fault not in (None, 'manager-link'):
+    if fault not in (None, 'manager-link', 'ambient-omitted', 'ambient-link-omitted'):
         reasons = {'executable': 'mounted-source-inode', 'library': 'mounted-source-inode',
                    'link-text': 'mounted-link', 'link-owner': 'source-writable',
                    'link-group': 'source-writable', 'completed': 'retained-view-not-manager-source',
                    'marker': 'invocation-marker-changed', 'nested-inode': 'nested-coverage',
                    'nested-mount': 'nested-coverage', 'writable': 'source-writable',
                    'extra-mount': 'unexpected-nested-mount',
+                   'ambient-stale-mount': 'unexpected-nested-mount',
                    'marker-material': 'view-header',
                    'marker-backend': 'view-header',
                    'marker-view': 'invocation-marker-changed', 'marker-mode': 'marker-trust',
@@ -6480,8 +6585,27 @@ def test_bootstrap_gate_observer_accepts_fresh_links_but_preserves_bound_sources
     assert result['invocation_view'] == 'c' * 64 and result['view'] == view
     assert result['marker'] != source['marker']
     assert result['sources'] == source['sources']
+    assert result['masked_ambient'] == []
     assert result['objects'][paths['link']] != source['objects'][paths['link']]
-    assert helper.bootstrap_view(manager) == source
+    if fault in ('ambient-omitted', 'ambient-link-omitted'):
+        assert result['omitted_ambient'] == [paths['ambient']]
+        assert paths['ambient'] not in result['objects']
+        assert paths['ambient'] not in result['mounts']
+        assert paths['ambient'] in source['objects']
+        assert (paths['ambient'] in source['mounts']) is (ambient_kind == 'file')
+    else:
+        assert result['omitted_ambient'] == []
+        assert result['objects'][paths['ambient']] == source['objects'][paths['ambient']]
+    manager_result = helper.bootstrap_view(manager)
+    if fault == 'ambient-omitted':
+        # Removing the gate hard link changes the real shared inode's ctime
+        # and link count, while the manager dentry remains the original source.
+        manager_ambient = manager_result['objects'][paths['ambient']]
+        assert manager_ambient[:2] == source['objects'][paths['ambient']][:2]
+        assert manager_result == dict(source, objects=dict(source['objects'], **{
+            paths['ambient']: manager_ambient}))
+    else:
+        assert manager_result == source
     if fault == 'manager-link':
         path = actual(manager, paths['link'])
         # Hold the old dentry so inode reuse cannot mask the replacement.

@@ -2303,6 +2303,7 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
     mounts = {path: value for path, value in mounts.items()
               if path == '/usr' or path.startswith('/usr/')}
     objects, coverage, sources, expected_mounts = {}, {}, {}, set()
+    omitted_ambient, masked_ambient = [], []
     for line in lines[1:]:
         guest.require(time.monotonic() < deadline, 'kiosk-bootstrap:view-observation-timeout')
         values = line.split('\t')
@@ -2313,7 +2314,30 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
             if kind in ('absent', 'empty-directory'):
                 continue
             actual = root / path.lstrip('/')
-            info = bootstrap_object(actual)
+            try:
+                info = bootstrap_object(actual)
+            except FileNotFoundError:
+                # I may narrow V by omitting optional ambient leaves. Required
+                # objects, trusted sources and nested tree coverage stay exact;
+                # the original manager observation never permits omissions.
+                guest.require(invocation_marker is not None and source is not None and
+                              kind in ('file', 'link') and required == '0' and
+                              source_class == 'ambient', 'kiosk-bootstrap:mounted-source-missing')
+                omitted_ambient.append(path)
+                continue
+            if (invocation_marker is not None and source is not None and kind == 'directory' and
+                    required == '0' and source_class == 'ambient' and
+                    info[:2] != list(map(int, values[10:12]))):
+                # A masked ambient directory is an empty private skeleton
+                # dentry, never a replacement source or a new mount. Nested
+                # coverage below remains mandatory even for ambient owners.
+                guest.require(stat.S_ISDIR(info[2]) and info[2] & 0o7777 == 0o755 and
+                              info[3:5] == [0, 0] and info[8] == 2 and
+                              info[0] == bootstrap_object(root / 'usr')[0] and
+                              path not in mounts and not any(actual.iterdir()),
+                              'kiosk-bootstrap:ambient-directory-mask')
+                masked_ambient.append(path)
+                continue
             objects[path] = info
             # Gate skeleton parents are newly made. Every actual retained leaf
             # and every nested directory source must retain the original inode.
@@ -2359,6 +2383,7 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
               'marker': marker_info, 'completed': completed,
               'directory': bootstrap_object(directory),
               'objects': objects, 'coverage': coverage, 'sources': sources,
+              'omitted_ambient': omitted_ambient, 'masked_ambient': masked_ambient,
               'root': bootstrap_object(root, follow=True)[:5], 'usr': bootstrap_object(root / 'usr'),
               'ready': ready, 'mounts': mounts}
     if source is None:

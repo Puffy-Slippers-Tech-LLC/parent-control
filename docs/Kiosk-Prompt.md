@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **006e3 — [Qualify Fedora native bootstrap](Kiosk-Prompt-Tasks/006e3-bootstrap-fedora.md)**.
+Next task: **006e — [Qualify native bootstrap permissions on both backends](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md)**.
 
 ## Outcome
 
@@ -26,7 +26,8 @@ The [fresh startup transaction](#fresh-kiosk-startup--006c) (006c) and
 [retained reuse and paired production dispatch](#retained-kiosk-reuse--006d)
 (006d) passed their host acceptance. [006e1's bootstrap host repairs](#bootstrap-host-repairs--006e1)
 are complete. [Ubuntu's complete bootstrap history](#ubuntu-native-bootstrap--006e2)
-also passed. Continue with the complete Fedora history in 006e3 and
+also passed for its recorded inputs. [Fedora's complete bootstrap history](#fedora-native-bootstrap--006e3)
+now passed. Continue with
 [006e's both-target acceptance reconciliation](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md)
 before resuming
 [006's combined failure witnesses and final host acceptance](Kiosk-Prompt-Tasks/006-generation-implementation.md).
@@ -52,7 +53,7 @@ and all unfinished 006 composition work are preserved.
 
 After the final policy/logger edits, **2,175/2,175** focused host checks and both
 package builds passed; **313/313** documentation checks passed. The verified
-[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[1,332-file cumulative archive](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains all five attempts, exact input manifests, host receipts and cleanup;
 SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`.
 The [006e checkpoint](Kiosk-Prompt-Tasks/006e-bootstrap-permissions.md#fifth-attempt-and-developer-requested-suspension)
@@ -117,7 +118,7 @@ Only 006e1 closes; 006e2 is next and 006e/006 retain their complete scope.
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T214004Z-7622e598`. The verified
-[1,397-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-yq4xgv20/evidence.zip)
+[1,397-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains all 1,332 checkpoint records, this task's first failures and focused pass,
 final affected acceptance and both documentation passes. SHA-256:
 `34bd4e9ea353bd00159faf32eecdafa65fa2b67d4a8a13055c35bc1d7802dc24`.
@@ -189,7 +190,7 @@ No subagent remains. Only 006e2 closes; 006e3, 006e and 006 retain all obligatio
 
 Post-close-out documentation checks passed **313/313** in
 `20261019T220533Z-1c67037c`. Changed-document links and whitespace review passed.
-The verified [3,166-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+The verified [3,166-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains all 1,397 prior records, both installed failures, the final complete
 receipt and frozen input tree, the focused test-label failure, final host and
 documentation passes, and cleanup journals. SHA-256:
@@ -197,6 +198,102 @@ documentation passes, and cleanup journals. SHA-256:
 Export verification and owned cleanup finished. Normal retention retired the
 older `0v50uz9y` export; its historical links now resolve to the same carried
 records in this bundle, preserving their original counts/hashes as history.
+
+### Fedora native bootstrap — 006e3
+
+Installed acceptance passed on `onpc-Fedora44` on 2026-10-19 UTC through the
+registered enforcement case **292**, `test_kiosk_native_bootstrap_permissions`.
+Report `20261019T225347Z-6ce6fdca` and allocation `onpc-system-gkwido1s` retain
+the complete **80.849-second** test (5.6 minutes including preparation).
+Product, infrastructure, collection and cleanup all passed. The closing baseline
+audit passed; independent pinned-VM status confirmed it off.
+
+All six original assertion families passed under enforcing SELinux: exact
+package/boot/config/policy/attestation/native/frozen-input binding; actual
+`init_t` manager-side and `xdm_t` retained gate PAM; independent proc/task/pidfd,
+namespace, required source-inode and recursive read-only coverage observations;
+both copied systemd/executor ELFs through both manager routes; live notify-reload
+reexec, allowed service, exact fresh shell/unconfined kernel denials and all
+write/namespace/escape restrictions; and caller/setup FD ownership with unchanged
+policy/PAM. Manager PID **3172**, starttime **4033**, invocation
+`e3fbb87249d542a5b906243f8df55538`, mount namespace, M/V, original dentries and
+completed records survived reexec. Boot: `9fe2ac1a-ca80-4079-9735-bfdb8ef34a54`.
+This is finite engineering acceptance, not public request-form acceptance.
+
+Three failed installed attempts preceded the pass:
+`20261019T220920Z-6c70b703` / `onpc-system-rb92ffo1`,
+`20261019T222432Z-70dfa8d6` / `onpc-system-phm8q33w`, and
+`20261019T223300Z-913838a7` / `onpc-system-j0j3r3ob`.
+Owned live diagnosis established missing trusted-caller permissions for real
+read-only namespace FDs, mount-namespace entry's `sys_chroot`, and receiving
+`open_tree`'s `O_PATH` directory FD through `SCM_RIGHTS`. SELinux maps that last
+receive to directory `ioctl`; the independent read-only-versus-`O_PATH` transfer
+probe reproduced truncation only for the latter. The generator adds only those
+`xdm_t` grants. No payload, runtime-file `ioctl`, permissive-domain or unknown
+executable/socket grant was added. Native FD truncation/extra/CLOEXEC checks stay
+strict. All three runner restorations passed.
+
+The instrumented receipts independently establish libc logger renewal at the
+same verified FD/type/peer/endpoint, with original caller FDs preserved and only
+the admission lease added. The final receipt also exercises renewal in both
+fresh PAM entrypoints. The older fifth attempt still lacks the after-table
+needed to classify its exact mismatch; this newer evidence does not rewrite it.
+
+After the policy repair, focused maintenance admitted the production gate but
+exposed two engineering-oracle errors: optional ambient leaves may be absent
+and optional ambient directories may be empty private masks in invocation I.
+The observer now records those exact outcomes, requiring empty masks to have
+trusted 0755 root/root metadata, two links, the private skeleton filesystem and
+no bind mount. Required/nonambient sources, stale/unknown mounts, original
+manager observations and every nested coverage row remain strict. Twenty added
+ambient controls plus the policy control passed within **1,532/1,532** focused
+confinement/resource checks in `20261019T225222Z-42b240f7`; the final independent
+review found no blocker. Coverage was regenerated. `make build` passed DEB and
+RPM after the final packaged edit; later changes affect test inputs only.
+Maintenance managers, children, FDs, VM, build scratch and all subagents finished
+owned cleanup before installed acceptance.
+
+Final RPM SHA-256:
+`cd745e9fac973cf5d5ad4ef9e0e532f1193282d16a8239868aa48704aa56b753`.
+Package-source SHA-256 (369 files):
+`bcda4f815706156ee9398dee76a0c1899aec1c1f71b740e51236d7a5ae4e62b7`.
+Frozen selected inputs (36 entries; all 33 unique current sources matched):
+`5fab5fa6c5c6e05473a0818e5855afe4522c71977bfb50bb5d54247e80687160`.
+Loaded policy/config SHA-256 respectively:
+`1eeb290cc432dba0e630f3144cf7af9c423dbba8cdbce43fb1d53cbee8f14080` /
+`b3226152b555dc479a43704a2206a5e4aca67e96a5b79a459aa5773dd7f5c594`.
+Observer SHA-256:
+`9c4adfebb21fecf9cd351064f688e556ac7e51e5b83226e7ab298d9a350fda3a`.
+
+006e2 remains the complete historical Ubuntu pass for its recorded inputs.
+The rebuilt Ubuntu DEB is
+`52c48852c09ccd67e39f36d71a2f83861dcfe60a80c740f98e89bebb4c848a10`.
+Read-only comparison found identical bytes for all 485 regular product members
+and seven control files, and identical paths/types/modes/owners/sizes/link targets
+for all 816 payload members; archive timestamps were excluded. Their ordered
+product/control byte digests are respectively
+`9f94d0f7344f702c1d865f6876706e4241617e993ee209696feddba826fc244c` /
+`f208262e96d67950b0b32483bb7481a1a329c581c1e458b16566604b9c38b27d`.
+The AppArmor generator branch is unchanged. However, the shared observer is one
+changed frozen input: Ubuntu's older stricter pass does not qualify the new
+omission/mask observation. **006e must repeat the complete Ubuntu case with final
+inputs and reconcile both receipts before closing.** No both-target completion
+is claimed here; every other row keeps its original status and scope.
+
+Post-close-out documentation checks passed **313/313** in
+`20261019T230137Z-eff318a3`. The verified
+[4,057-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
+retains all 3,166 earlier records, the second/third failures and final complete
+Fedora receipt, their frozen source closures/packages, the exported first JUnit,
+and final focused host/documentation receipts. SHA-256:
+`8fba1cc186832130b3b53c88aa8e62fb63521c5fe3467a8d084859a290fedba8`.
+Export verification and owned retirement cleanup finished. Normal retention
+retired the first raw allocation and intermediate host reports before export;
+its JUnit preserves exact candidate/frozen binding, and its unchanged frozen
+closure is carried from 006e2. Those retired raw records are historical findings,
+not reusable acceptance. Earlier archive links now resolve to carried-forward
+contents while retaining their original counts/hashes. Local DEB/RPM build
+outputs and `output/rpm/build.log` remain outside this bundle selection.
 
 ## Smaller execution slices
 
@@ -1434,7 +1531,7 @@ Source-only ambient errors may omit or mask only the fresh invocation; original
 source indices and manager dentries remain unchanged, with no host-source reopen.
 
 The exact eight-module selection passed **1,701/1,701** cases in
-[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[20261019T105420Z-4442a354](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 (report retained in the cumulative bundle),
 including **157 selection** and **53 current-material** cases, existing native
 pin/storage and confinement/PAM callers, and both scheduling inventories.
@@ -1491,7 +1588,7 @@ and is closed.
 The original verified cumulative host bundle retained those reports, the final
 affected run, original fixture failures and all available 006a host evidence
 (162 files). Its contents are now carried forward in the
-[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip),
+[carried-forward checkpoint bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip),
 whose current identity is recorded at 006c below. Original bundle SHA-256:
 `70b2aa0b52b76360f11685455cd5f8a1fd095fd2e67979d3e09278c1509e7a78`.
 Export verification and owned cleanup completed. Historical 006a report links
@@ -1592,7 +1689,7 @@ unregistered build outputs are outside the test-bundle selection contract.
 After queue/pointer/brief close-out, the four documentation modules listed above
 passed **313/313** in `20261019T190633Z-b665fed2`. Changed-document links passed
 (five documents, 267 links), as did whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains **645 files**, including every available original 006/006a/006b checkpoint
 receipt, all this task's intermediate test failures, the final affected pass and
 the post-close-out documentation pass.
@@ -1694,7 +1791,7 @@ After queue/pointer/brief close-out, the same four documentation modules listed
 in 006c passed **313/313** in `20261019T193722Z-ad511616`. Changed-document links
 passed (four documents, 257 links after adding the bundle reference), as did
 whitespace review.
-The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+The verified [cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains **701 files**: all 669 carried-forward records, the four filename
 reproductions, final affected acceptance and post-close-out documentation checks.
 SHA-256: `f51c3f4637591345a4af04d93f2016f71ee809302272f9fa553a7f3c3f017c72`.
@@ -1743,7 +1840,7 @@ needed at this checkpoint; 006's final build remains required after 006e.
 
 The post-handoff documentation selection passed **313/313** in
 `20261019T195047Z-c35b2061`. The verified
-[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[756-file cumulative host bundle](../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains every prior receipt, both fixture-selection failures and all corrected
 verification above. SHA-256:
 `14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.

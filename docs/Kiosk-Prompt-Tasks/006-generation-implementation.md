@@ -107,7 +107,7 @@ Its unchanged expected source-clone refusal passed **1/1** in
 `20261019T194716Z-3b8b717b`. These were proven fixture-selection defects; no
 production behavior or assertion was changed to accept them.
 
-The intermediate [723-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+The intermediate [723-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains all 701 previous files and both failed development runs, including the
 three strengthened publication passes. SHA-256:
 `f4f1b75f9d2ec42718b6196725b95baa1c83f6682cc2a9174f0e7b0c68f0828e`.
@@ -145,7 +145,7 @@ The original acceptance, deadline, generation bound, other queue scopes and
 
 Post-handoff documentation checks passed **313/313** in
 `20261019T195047Z-c35b2061`. The verified final
-[756-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[756-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 contains every prior receipt, both fixture-selection failures, the final
 wrong-clone pass, cumulative 3,283-case pass and documentation pass. SHA-256:
 `14900f5f8579ccdbc357622dceda0e324decc8a56e8951edcc33b04dfb1efcc8`.
@@ -323,7 +323,7 @@ Unwired headers/modules still need package/install/dependency entries when their
 production callers are connected; their contents are outside the package digest.
 
 The second checkpoint bundle, now carried forward in the
-[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip),
+[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip),
 contained all 293 retained files, including the first checkpoint bundle's complete
 contents, the 2,351-case run, narrow development passes and final **313/313**
 documentation pass `20261019T113334Z-98d82122`. Original bundle SHA-256:
@@ -427,7 +427,7 @@ order; `sha256sum` output hashed again) is
 `e8c71214d4d6ad3b157d829081246818cf0d5323aded58809471f9deefc26be3`.
 
 The third checkpoint bundle, now carried forward in the
-[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip),
+[carried-forward cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip),
 contained all **341** retained files, including every prior checkpoint receipt,
 the nine fixture failures, their passing retry, cumulative pass and final focused
 verification. Original bundle SHA-256:
@@ -537,7 +537,7 @@ and its required witnesses remain unrun.
 
 The post-checkpoint documentation selection passed **313/313** in
 `20261019T120809Z-aea7856e`. The
-[carried-forward verified cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[carried-forward verified cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 contains all **391** files from the intermediate bundle and these two final
 reports. SHA-256:
 `707662e101bf5865870d4de9a9769ca60ef8a4b2900d113865bd019f186d89bc`.
@@ -645,7 +645,7 @@ The new headers remain unwired: the unchanged DEB hash is consistent with no
 new production caller. The package-source map now includes their contents.
 
 The verified intermediate
-[449-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[449-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 contains every file from the prior 419-file bundle, including the six fixture
 failures, plus the final intent, realization and affected-suite reports.
 SHA-256: `b1a910eaf94f91c3d49b65dde16444a9fafc9dad1430c74f4d04d541e5567572`.
@@ -654,7 +654,7 @@ order, scope and dependencies remain unchanged; no acceptance credit is claimed.
 
 Post-checkpoint documentation verification passed **313/313** in
 `20261019T123312Z-00b1e4e4`. The verified final
-[461-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[461-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 contains all 449 intermediate files plus that report. SHA-256:
 `53076e7482ab2e589a725bb39ae9aaa84cdfeb8c786235ebee9603dca5e8b5c5`.
 Runner, build and export cleanup finished; all subagents are complete. No

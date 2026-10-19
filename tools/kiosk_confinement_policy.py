@@ -316,6 +316,17 @@ def selinux(entries):
     # Admission reads the existing manager's MainPID through systemd's public
     # API. This grants inspection only, never starting or stopping a unit.
     allow('xdm_t', 'systemd_unit_file_t', 'service', 'status')
+    # Retained admission pins a real namespace FD before the bounded clone
+    # worker enters the proved manager namespace. nsfs inodes have their own
+    # type, independent of the manager's proc files. Read-only handles belong
+    # to the trusted pre-gate caller and clone worker, never a kiosk payload.
+    # getattr is already supplied by the metadata inspection below.
+    allow('xdm_t', 'nsfs_t', 'file', 'read open')
+    # open_tree returns an O_PATH directory handle over SCM_RIGHTS. SELinux's
+    # file_receive hook maps that mode to ioctl, even without an ioctl syscall.
+    # Permit only the trusted gate caller's private runtime directory handles;
+    # the native receiver still rejects truncation, extra FDs and lost CLOEXEC.
+    allow('xdm_t', runtime, 'dir', 'ioctl')
     # The independent /usr skeleton checks every sibling's owner/mode before
     # pinning it. Distro packages can add siblings with otherwise unrelated
     # labels; metadata inspection must not depend on which are installed.
@@ -323,8 +334,10 @@ def selinux(entries):
     for cls in ('file', 'dir'):
         allow('xdm_t', 'file_type', cls, 'getattr')
     # The root GDM PAM caller, before entering the gate, owns the private mount
-    # namespace and its read-only bind tree. No kiosk role gains this capability.
-    allow('xdm_t', 'self', 'capability', 'sys_admin')
+    # namespace and its read-only bind tree. Entering the proved source mount
+    # namespace in the bounded clone worker also requires sys_chroot. No kiosk
+    # role gains either capability.
+    allow('xdm_t', 'self', 'capability', 'sys_admin sys_chroot')
     for sandbox in ('bwrap', 'glycin-bwrap'):
         allow(domains[sandbox], 'self', 'capability', 'sys_admin sys_chroot mknod setuid setgid setpcap')
         allow(domains[sandbox], 'self', 'cap_userns', 'sys_admin sys_chroot mknod setuid setgid setpcap')

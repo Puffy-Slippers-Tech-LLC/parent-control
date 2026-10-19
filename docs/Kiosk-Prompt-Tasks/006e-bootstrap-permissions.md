@@ -8,16 +8,24 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 Requires 006d, 006e1, 006e2 and 006e3. The queue now separates
 [host completion](../Kiosk-Prompt.md#bootstrap-host-repairs--006e1), the complete
 [Ubuntu history](../Kiosk-Prompt.md#ubuntu-native-bootstrap--006e2) and complete
-[Fedora history](006e3-bootstrap-fedora.md). This original consumer remains
+[Fedora history](../Kiosk-Prompt.md#fedora-native-bootstrap--006e3). This original consumer remains
 unchecked and keeps its Scope and all six per-target assertion families below.
 It is suspended without installed acceptance credit.
 
-006e1's host acceptance and 006e2's complete Ubuntu installed history are complete.
-Their references retain exact inputs, first failures, repairs and cleanup. Ubuntu
-now has an actual enforcing AppArmor bootstrap receipt for its final policy and
-observer. Resume 006e3; Fedora's logging observation still needs classification
-from its instrumented receipt. All six assertion families below remain required
-on both targets, with exact final-input applicability reconciled here afterward.
+006e1's host acceptance and both per-target tasks are complete for their recorded
+inputs. Their references retain failures, repairs, exact applicability and cleanup.
+Fedora's final complete pass is `20261019T225347Z-6ce6fdca` /
+`onpc-system-gkwido1s`, with all six assertion families and restoration passed.
+Its selected-input digest is
+`5fab5fa6c5c6e05473a0818e5855afe4522c71977bfb50bb5d54247e80687160`.
+006e3's SELinux-only production repairs preserve Ubuntu product/control bytes,
+but the shared observer is one changed frozen input. The historical Ubuntu
+receipt does not qualify its new optional-ambient omission/mask checks.
+**Repeat the complete Ubuntu case with final inputs**, then reconcile the final
+exact package/policy/test inputs and all six assertions against both complete
+receipts. Reuse Fedora only while its exact inputs remain applicable. The older
+fifth Fedora logger mismatch remains historically unclassified; the newer
+instrumented tables prove verified logger renewal without allowing unknown FDs.
 
 After those prerequisites pass, reconcile their complete installed receipts
 against the final exact package, policy, selected test inputs and every assertion.
@@ -164,7 +172,7 @@ Host receipts: **2,835/2,835** native/registration/resource checks in
 `20261019T203625Z-4c789fed`, and **1,340/1,340** confinement checks in
 `20261019T203711Z-64f5ee15`. The later native/observer edits passed the 1,857-case
 selection above. The verified
-[1,103-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[1,103-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 retains the earlier host history, all three installed failures, exact package and
 selected-input manifests, and completed cleanup receipts. SHA-256:
 `2e5535deac51fac35b1c25d27f0f1d219a6657cb1ae92cf475d75aa41a7eabeb`.
@@ -193,7 +201,7 @@ Fifteen private socket controls cover that setup and its failure cleanup.
 Fourth-attempt reports are `20261019T205513Z-ddef791f` (Ubuntu,
 `onpc-system-com9n4_g`) and `20261019T205513Z-2479f924` (Fedora,
 `onpc-system-22ip0a3s`); both runner restorations passed. The verified
-[1,205-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip)
+[1,205-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip)
 now includes them and the earlier bundle's full history. SHA-256:
 `48064ff93e14a5f1c9d7ed75d08249fb4f5d7bb19327fe52acf924218b392b74`.
 The later Ubuntu maintenance diagnostic stopped only its recorded manager;
@@ -245,7 +253,7 @@ original installed assertion. All VM, fixture, child and worker ownership is
 closed. This checkpoint and its commit grant no acceptance.
 
 Final checkpoint archive: the verified
-[1,332-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-n1v6mwv7/evidence.zip),
+[1,332-file cumulative bundle](../../output/test-runs/host/exports/onpc-evidence-bundle-grueagxn/evidence.zip),
 SHA-256 `deb29c21587c0275cd0ce0368f54b03c3d61b027f1c8de6a42948a6ecd3dfce0`,
 contains all five installed attempts, selected-input/package manifests, latest
 2,175-case host pass, the **313/313** documentation pass

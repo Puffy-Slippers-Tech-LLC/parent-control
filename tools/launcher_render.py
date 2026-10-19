@@ -301,14 +301,21 @@ class LauncherDisplay:
         end = len(rows) - self.offsets[pane]
         return rows[max(0, end - height):end] if height else []
 
+    @staticmethod
+    def style_task_label(text):
+        label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
+        if label:
+            text.stylize('bold', *label.span(1))
+        counter = re.match(r'^Tasks: (\d+)/', text.plain)
+        if counter:
+            text.stylize('green', *counter.span(1))
+
     def wrapped(self, lines, width, *, task_labels=False):
         rows = []
         for line in lines:
             text = line.copy() if isinstance(line, Text) else Text.from_ansi(line)
             if task_labels:
-                label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
-                if label:
-                    text.stylize('bold', *label.span(1))
+                self.style_task_label(text)
             if self.is_rule(text):
                 rows.append(Text('─' * width, style='dim'))
             else:

@@ -243,9 +243,7 @@ class TaskDisplay(LauncherDisplay):
         for line in lines:
             if self.tty:
                 text = Text.from_ansi(line)
-                label = re.match(r'^(?:✓ )?(Tasks:|Task [\w.-]+:)', text.plain)
-                if label:
-                    text.stylize('bold', *label.span(1))
+                self.style_task_label(text)
                 self.console.print(text, soft_wrap=True)
             else:
                 self.stream.write(clean(line) + '\n')

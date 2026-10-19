@@ -1854,6 +1854,12 @@ def test_nonchat_shared_panes_resize_and_scroll_without_composer(tmp_path, mode)
         display.write('Execution output\n')
         visible = terminal.visible()
         assert visible.splitlines()[0].split('│')[0].strip() == 'Tasks: 1/2'
+        row = display.previous[0]
+        assert row.get_style_at_offset(display.console, 0).bold
+        completed_style = row.get_style_at_offset(display.console, len('Tasks: '))
+        assert completed_style.color.name == 'green'
+        assert not completed_style.bold
+        assert row.get_style_at_offset(display.console, len('Tasks: 1/')).color is None
         assert 'Execution output' in visible and 'Current task' in visible
         assert 'Chat' not in visible and 'Enter: send' not in visible
         # Pane controls work immediately; m remains a selection-mode shortcut.

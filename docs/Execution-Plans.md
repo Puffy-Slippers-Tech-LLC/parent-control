@@ -193,6 +193,8 @@ totals at top right, execution details and optional input at bottom left, curren
 task summary and status/issues at bottom right. Task entries in the
 overview and task summary use bold task labels, such as `Task 4-5c:`; the
 top-left counter also uses bold `Tasks:` with normal-weight numeric counts.
+Its completed count (`x` in `Tasks: x/y`) is green, matching the completed
+count in the top-right totals.
 Completed task entries in the top-left overview start with a green `✓`
 checkmark and use green text.
 The title is followed by one space and the task's elapsed duration in parentheses,

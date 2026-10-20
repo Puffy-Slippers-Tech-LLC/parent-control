@@ -605,7 +605,7 @@ static void invocation_sources(void) {
 }
 static void release_pam(void) {for(int slot=1;slot>=0;slot--)if(pam_data[slot]){pam_cleanup[slot](NULL,(void *)pam_data[slot],PAM_SUCCESS);pam_data[slot]=NULL;}}
 static const char *expected_stage(const char *name) {
-    if(!strcmp(name,"healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"ambient-mask") || !strcmp(name,"same-reexec") ||
+    if(!strcmp(name,"healthy") || !strcmp(name,"measurement-production-healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"ambient-mask") || !strcmp(name,"same-reexec") ||
         !strcmp(name,"same-fd-reexec") || !strcmp(name,"exit-after-decision") ||
         !strcmp(name,"stable-two-tasks") || !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero") ||
         !strcmp(name,"retained-concurrent-writers") || !strcmp(name,"sequential-healthy") || !strcmp(name,"host-lookup-aliases"))return "armed";
@@ -630,6 +630,7 @@ static const char *expected_stage(const char *name) {
     if(!strcmp(name,"post-attach-required-drift"))return "final-host";
     if(!strcmp(name,"inactive"))return "manager";
     if(!strcmp(name,"helper-exit") || !strcmp(name,"helper-timeout"))return "measurement";
+    if(!strncmp(name,"measurement-",12))return "measurement";
     if(!strcmp(name,"result-malformed"))return "retained-plan";
     if(!strcmp(name,"cleanup-failure"))return "staging";
     return "source-clone";
@@ -836,6 +837,14 @@ int main(int argc,char **argv) {
     struct kiosk_fresh_startup *transaction=&owner->retained.common;
     if(!transaction->stage || strcmp(transaction->stage,expected_stage(mode)))fprintf(stderr,"retained-boundary mode=%s expected=%s actual=%s\n",mode,expected_stage(mode),transaction->stage?transaction->stage:"-");
     require(transaction->stage && !strcmp(transaction->stage,expected_stage(mode)),"exact-fault-applicability-boundary");
+    if(!strncmp(mode,"measurement-",12) && !positive) {
+        const char *reason=!strcmp(mode,"measurement-helper-refusal")?"unexpected-preserved-executable":
+            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"command-failed";
+        require(transaction->failure.stage && !strcmp(transaction->failure.stage,"measurement") &&
+            !strcmp(transaction->failure.reason,reason) && transaction->failure.error==-1 &&
+            !transaction->measurement.count && !manager_acquisitions && !clone_seen && !invocation_attached && !mac_calls,
+            "checked-measurement-cause-before-manager-or-material-mismatch");
+    }
     require(transaction->child.started && transaction->child.reaped && transaction->child.pidfd<0 && transaction->child.channel<0 &&
         transaction->closed && owner->closed && transaction->armed==positive,"helper-reaped-transaction-closed-and-arm-state");
     require(transaction->deadline>0 && transaction->child.deadline_ns==transaction->deadline*1000ULL,"original-transaction-deadline-never-renewed");
@@ -919,6 +928,7 @@ def _native(helper):
     marker = '#define KIOSK_ACCOUNT_NAME'
     source = source.replace(marker, PLATFORM + '\n' + marker, 1)
     source = source.replace('#define pam_get_item fixture_item', '#define pam_get_item retained_item')
+    source = source.replace('#define pam_syslog fixture_syslog', '')
     source = source.replace('#define dlopen fixture_dlopen', '#define dlopen retained_dlopen')
     source = source.replace('#define dlsym fixture_dlsym', '#define dlsym retained_dlsym')
     source = source.replace('#define dlclose fixture_dlclose', '#define dlclose retained_dlclose')
@@ -1022,6 +1032,8 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
     'stale-ready', 'forged-ready', 'missing-source', 'foreign-source', 'inactive',
     'manager', 'invocation', 'namespace', 'foreign-reexec', 'exit-after-clone',
     'helper-exit', 'helper-timeout', 'result-malformed', 'deadline', 'cleanup-failure',
+    'measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
+    'measurement-attestation-refusal', 'measurement-production-healthy',
     'capabilities-inherited', 'capabilities-zero', 'capabilities-get-before', 'capabilities-set',
     'capabilities-ambient', 'capabilities-get-after', 'capabilities-inheritable-drift',
     'capabilities-effective-drift', 'capabilities-permitted-drift',
@@ -1059,6 +1071,17 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     witness = json.loads((directory / 'transaction-witness.json').read_text())
     helper_started = json.loads((directory / 'helper-started').read_text())
     assert helper_started['deadline'] == witness['helper_deadline'] == witness['deadline'] * 1000
+    if mode.startswith('measurement-'):
+        assert (directory / 'measurement-command').read_text() == mode
+        if mode.endswith('-refusal'):
+            reason = ('unexpected-preserved-executable' if mode == 'measurement-helper-refusal' else
+                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'command-failed')
+            assert f'onpc.pam kiosk native-view outcome=denied role=gate stage=measurement reason={reason} errno=-1' in completed.stderr.splitlines()
+            assert not (directory / 'invocation-receipt').exists()
+        if mode == 'measurement-helper-refusal':
+            assert (directory / 'measurement-inventory').read_text() == 'real-preserved-inventory'
+        if mode in ('measurement-config-refusal', 'measurement-policy-refusal'):
+            assert (directory / 'measurement-attestation').read_text() == 'actual-policy-digest-refusal'
     if mode.startswith('receipt-'):
         assert (directory / 'receipt-fault').read_text() == mode.removeprefix('receipt-')
         assert witness['stage'] == 'retained-plan'

@@ -120,8 +120,42 @@ def measure(role, deadline_ns):
     service._before(deadline_ns)
     snapshot = c.required_material(config_bytes, policy_bytes, attestation)
     return snapshot, config_bytes, b'ONPC-KIOSK-ACCOUNT\t1\t4242\t4242\t1\n4242\n'
+production_measure = service.measure
 service.measure = measure
 mode = (base / 'mode').read_text()
+if mode in ('measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
+            'measurement-production-healthy', 'measurement-attestation-refusal'):
+    service.measure = production_measure
+    service._account = lambda deadline: b'ONPC-KIOSK-ACCOUNT\t1\t4242\t4242\t1\n4242\n'
+    spec = importlib.util.spec_from_file_location('private_policy_integration',
+        Path(@TOOLS@).parent / 'packaging/kiosk_confinement.py')
+    integration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(integration)
+    saved_policy = json.loads((host / 'var/lib/oh-no-parent-control/kiosk-confinement.json').read_text())
+    if mode in ('measurement-config-refusal', 'measurement-policy-refusal'):
+        saved_policy['loaded_' + ('config' if mode == 'measurement-config-refusal' else 'policy') + '_sha256'] = '0' * 64
+    # Integration-command/account/MAC boundaries remain finite doubles. Execute
+    # the real service measure -> required_material -> preserved_inventory path.
+    def integration_verify(args, **kwargs):
+        assert args == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify']
+        assert kwargs['env'] == c.ENV and kwargs['check'] and kwargs['capture_output'] and kwargs['text']
+        assert 0 < kwargs['timeout'] <= 5
+        (base / 'measurement-command').write_text(mode)
+        try:
+            digests = integration.verify_policy(saved_policy)
+        except ValueError as error:
+            assert error.args == ('policy-load-incomplete-reconfigure-required',)
+            (base / 'measurement-attestation').write_text('actual-policy-digest-refusal')
+            raise service.subprocess.CalledProcessError(1, args, stderr='private attestation detail') from error
+        return SimpleNamespace(stdout='invalid attestation\n' if mode == 'measurement-attestation-refusal' else ' '.join(digests) + '\n')
+    service.subprocess.run = integration_verify
+    if mode == 'measurement-helper-refusal':
+        inventory = c.preserved_inventory
+        def invalid_inventory(config):
+            (base / 'measurement-inventory').write_text('real-preserved-inventory')
+            return inventory(dict(config, preserved_executables=[dict(
+                path='/usr/bin/ambient', mode=0o644, label=None)]))
+        c.preserved_inventory = invalid_inventory
 if mode == 'helper-exit':
     sys.exit(17)
 if mode == 'helper-timeout':
@@ -257,7 +291,7 @@ static void writer_barrier(const char *phase) {
     writer_barriers++;contend();
 }
 static int ready_expected(void) {
-    return !strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"concurrent-writers") ||
+    return !strcmp(mode,"healthy") || !strcmp(mode,"measurement-production-healthy") || !strcmp(mode,"ambient-narrow") || !strcmp(mode,"concurrent-writers") ||
         !strncmp(mode,"writer-",7) ||
         !strcmp(mode,"mac-failure") || !strcmp(mode,"mac-cleanup-cut") || !strcmp(mode,"mac-readback") || !strcmp(mode,"mac-deadline") ||
         !strcmp(mode,"environment-failure") || !strcmp(mode,"post-attach-required-drift") ||
@@ -265,6 +299,9 @@ static int ready_expected(void) {
 }
 static void require(int ok, const char *stage) {
     if (!ok) { fprintf(stderr,"fresh-witness:%s:%s\n",stage,strerror(errno)); exit(2); }
+}
+static void fixture_syslog(const pam_handle_t *p,int priority,const char *format,...) {
+    (void)p;(void)priority;va_list a;va_start(a,format);vfprintf(stderr,format,a);fputc('\n',stderr);va_end(a);
 }
 static void unpack_required(void) {
     char before[19],after[19];
@@ -682,7 +719,9 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #define move_mount fixture_move_mount
 #define mount_setattr fixture_mount_setattr
 #define recvmsg fixture_recvmsg
+#define pam_syslog fixture_syslog
 #include "kiosk_confinement.h"
+#undef pam_syslog
 #include "kiosk_fresh_startup.h"
 #undef open
 #undef lstat
@@ -875,13 +914,24 @@ int main(int argc,char **argv) {
     require(startup.deadline==deadline &&
         kiosk_fresh_startup_until(&startup,NULL,lock,lease,deadline+1000000)!=0 && startup.deadline==deadline,
         "original-deadline-and-single-attempt");
-    int positive=!strcmp(mode,"healthy") || !strcmp(mode,"ambient-narrow") ||
+    int positive=!strcmp(mode,"healthy") || !strcmp(mode,"measurement-production-healthy") || !strcmp(mode,"ambient-narrow") ||
         !strcmp(mode,"concurrent-writers") || !strncmp(mode,"writer-",7) || !strcmp(mode,"generation-three");
     if((result==0)!=positive) fprintf(stderr,"fresh-result mode=%s result=%d stage=%s child-started=%d reaped=%d phase=%u pidfd=%d channel=%d\n",mode,result,startup.stage?startup.stage:"-",
         startup.child.started,startup.child.reaped,startup.child.phase,startup.child.pidfd,startup.child.channel);
     require((result==0)==positive,"complete-transaction-result");
     completion_boundary(&startup);
     struct kiosk_failure primary=startup.failure, cleanup=startup.cleanup_failure;
+    if(!strcmp(mode,"measurement-config-refusal") || !strcmp(mode,"measurement-policy-refusal") ||
+        !strcmp(mode,"measurement-helper-refusal") || !strcmp(mode,"measurement-attestation-refusal")) {
+        const char *cause=!strcmp(mode,"measurement-helper-refusal")?"unexpected-preserved-executable":
+            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"command-failed";
+        require(startup.stage && !strcmp(startup.stage,"measurement") && primary.stage &&
+            !strcmp(primary.stage,"measurement") && !strcmp(primary.reason,cause) && primary.error==-1 &&
+            !startup.measurement.count && !startup.ticket_adopted && !startup.ready && !ready_commits && !mac_calls,
+            "checked-measurement-refusal-before-native-authority-or-material-selection");
+        struct kiosk_view diagnostic={0};diagnostic.failure=primary;
+        kiosk_native_diagnostic(NULL,&diagnostic,"manager");
+    }
     if(!strcmp(mode,"publication-cleanup-cut")) {
         require(fault_hits==1 && cleanup_hits==1 && !startup.recovered && startup.pin.attached &&
             startup.pin.parent>=0 && kiosk_fresh_close(&startup)!=0,
@@ -1089,6 +1139,8 @@ def fresh_scene(tmp_path):
 
 @pytest.mark.parametrize('mode', [
     'healthy', 'ambient-narrow', 'helper-exit', 'helper-result-exit', 'helper-timeout', 'helper-order',
+    'measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
+    'measurement-attestation-refusal', 'measurement-production-healthy',
     'helper-identity', 'result-malformed', 'ticket-parent', 'ticket-malformed', 'copy-replacement', 'source-replacement',
     'required-drift', 'measurement-required-drift', 'bind-required-drift', 'post-attach-required-drift', 'publication-cut',
     'publication-cleanup-cut',
@@ -1166,7 +1218,20 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         assert (actual.st_dev, actual.st_ino) == (member_identity.st_dev, member_identity.st_ino)
     generations = [path for path in (directory / 'runtime').iterdir()
                    if len(path.name) == 64 and path.name not in retained_generations]
-    if mode.startswith('writer-') or mode in ('healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-cleanup-cut', 'mac-readback', 'mac-deadline',
+    if mode in ('measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
+                'measurement-attestation-refusal', 'measurement-production-healthy'):
+        assert (directory / 'measurement-command').read_text() == mode
+        if mode.endswith('-refusal'):
+            reason = ('unexpected-preserved-executable' if mode == 'measurement-helper-refusal' else
+                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'command-failed')
+            assert completed.stderr.splitlines() == [
+                f'onpc.pam kiosk native-view outcome=denied role=manager stage=measurement reason={reason} errno=-1']
+            assert not helper_result.exists()
+        if mode == 'measurement-helper-refusal':
+            assert (directory / 'measurement-inventory').read_text() == 'real-preserved-inventory'
+        if mode in ('measurement-config-refusal', 'measurement-policy-refusal'):
+            assert (directory / 'measurement-attestation').read_text() == 'actual-policy-digest-refusal'
+    if mode.startswith('writer-') or mode in ('healthy', 'measurement-production-healthy', 'ambient-narrow', 'environment-failure', 'mac-failure', 'mac-cleanup-cut', 'mac-readback', 'mac-deadline',
                 'post-attach-required-drift', 'concurrent-writers', 'ready-lock-replaced', 'ready-lease-replaced',
                 'premac-lock-replaced', 'premac-lease-replaced', 'ready-durability-cut', 'generation-three',
                 'ready-material-replaced', 'ready-view-replaced', 'ready-pins-replaced', 'ready-account-drift'):

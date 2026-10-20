@@ -272,8 +272,23 @@ static int kiosk_preparation_send_phase(int channel, const struct kiosk_preparat
 struct kiosk_preparation_response {
     struct kiosk_preparation_input input;
     int fds[KIOSK_PREPARATION_MAX_FDS];
-    unsigned count;
+    unsigned count, refusal;
 };
+
+/* Measurement-only diagnostic, never an admission assertion. Keep the numbered
+ * vocabulary identical to REFUSAL_REASONS in kiosk_preparation_input.py. The
+ * role and original deadline bind a descriptor-free refusal to this exchange;
+ * all other bytes must be zero. No helper-supplied text is retained. */
+static const char *kiosk_preparation_refusal_reason(unsigned cause)
+{
+    static const char *const reasons[] = {NULL,
+        "verification", "command-failed", "command-timeout", "os-error",
+        "invalid-caller", "unowned-account", "unknown-backend", "policy-snapshot-not-attested",
+        "unexpected-preserved-executable", "missing-executable", "untrusted-path",
+        "untrusted-ancestor", "source-changed", "unexpected-executable-mode",
+        "preserved-executable-label", "non-native-executable"};
+    return cause && cause < sizeof(reasons) / sizeof(reasons[0]) ? reasons[cause] : NULL;
+}
 
 /* Closed canonical account snapshot from the one bounded NSS helper. Native
  * independently checks the package-owned UID marker before using this identity.
@@ -367,6 +382,9 @@ static void kiosk_preparation_response_close(struct kiosk_preparation_response *
  * Only measurement permits backend=0 and material/view=NULL for discovery.
  * Discovery does not authenticate config or material: callers must independently
  * attest current inputs and compare the exact payload before selection.
+ * Returns -2 only for a checked measurement refusal, -1 for invalid/unavailable
+ * transport, and 0 for success. A refusal owns no descriptors and never counts
+ * as a completed measurement. Close/reset the response after every outcome.
  */
 static int kiosk_preparation_receive_phase(int channel, unsigned phase, unsigned role,
     unsigned backend, const unsigned char *material, const unsigned char *view,
@@ -378,7 +396,7 @@ static int kiosk_preparation_receive_phase(int channel, unsigned phase, unsigned
     unsigned count = kiosk_preparation_phase_count(phase, role);
     socklen_t length = sizeof(type), address_length = sizeof(struct sockaddr_un);
     struct sockaddr_un address;
-    if (!response || response->count || !count ||
+    if (!response || response->count || response->refusal || !count ||
         (phase != 1 && (!backend || !material || !view)) || backend > 2 ||
         getsockopt(channel, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_SEQPACKET ||
         getsockname(channel, (struct sockaddr *) &address, &address_length) ||
@@ -419,7 +437,19 @@ static int kiosk_preparation_receive_phase(int channel, unsigned phase, unsigned
             else { close(fd); invalid = 1; }
         }
     }
-    if (invalid || records != 1 || message.msg_flags & (MSG_TRUNC | MSG_CTRUNC) ||
+    if (invalid || message.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) goto done;
+    if (phase == 1 && !backend && !material && !view && !records && !received.count && bytes == 32 &&
+        !memcmp(received.input.packet, "ONPCERR1", 8)) {
+        unsigned char expected[32] = {0};
+        unsigned cause = ((unsigned) received.input.packet[10] << 8) | received.input.packet[11];
+        memcpy(expected, "ONPCERR1", 8); expected[8] = (unsigned char) role; expected[9] = 1;
+        expected[10] = (unsigned char) (cause >> 8); expected[11] = (unsigned char) cause;
+        kiosk_preparation_u64(expected + 16, deadline_ns);
+        if (kiosk_preparation_refusal_reason(cause) && !memcmp(expected, received.input.packet, sizeof(expected)) &&
+            !kiosk_preparation_before(deadline_ns)) { response->refusal = cause; result = -2; }
+        goto done;
+    }
+    if (records != 1 ||
         received.count != count || bytes != (ssize_t) (96 + 96 * count) ||
         memcmp(received.input.packet, "ONPCPRE2", 8) || received.input.packet[8] != phase ||
         received.input.packet[9] != role ||

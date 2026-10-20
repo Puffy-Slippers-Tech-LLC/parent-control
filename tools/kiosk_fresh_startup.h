@@ -516,8 +516,12 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     s->stage = "helper-launch";
     if (kiosk_fresh_locks(lock, lease) || kiosk_preparation_launch(&s->child, "manager", lock, lease, deadline)) goto done;
     s->stage = "measurement";
-    if (kiosk_preparation_child_measurement(&s->child, 1, &s->measurement) ||
-        s->child.account.uid != s->uid ||
+    if (kiosk_preparation_child_measurement(&s->child, 1, &s->measurement)) {
+        if (s->child.refusal) kiosk_failure(&s->failure, "measurement",
+            kiosk_preparation_refusal_reason(s->child.refusal), -1);
+        goto done;
+    }
+    if (s->child.account.uid != s->uid ||
         kiosk_publication_read(s->measurement.fds[0], &s->material_bytes, &s->material_size, deadline) ||
         kiosk_publication_read(s->measurement.fds[1], &s->config_bytes, &s->config_size, deadline)) goto done;
     s->stage = "authority";

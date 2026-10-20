@@ -1,7 +1,7 @@
 # Kiosk entry and unexpected password prompt
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **007a1 — [Implement canonical retained-view histories](Kiosk-Prompt-Tasks/007a1-retained-history-host.md)**.
+Next task: **007a1c — [Distinguish retained material refusal evidence](Kiosk-Prompt-Tasks/007a1c-material-refusal-witness-host.md)**.
 
 ## Outcome
 
@@ -28,12 +28,19 @@ production transactions and all prerequisite evidence are preserved. The host
 fixtures retain their explicit policy/account/bus doubles; actual bootstrap
 permissions use the applicable complete [006e receipts](#bootstrap-permission-reconciliation--006e)
 from both systems. This supplies no new installed public-form history.
-Continue only when selected with [007a1](Kiosk-Prompt-Tasks/007a1-retained-history-host.md).
+The partial [007a1](Kiosk-Prompt-Tasks/007a1-retained-history-host.md) composition
+is suspended for the remaining native diagnostic prerequisite
+[007a1c](Kiosk-Prompt-Tasks/007a1c-material-refusal-witness-host.md).
+[007a1b's accepted transport](#preparation-refusal-transport--007a1b) now carries
+closed measurement causes through the native-owned channel. Material-mismatch
+classification and exact per-call observers remain with 007a1c.
 [007a1a's accepted lifetime helper](#owned-retained-manager-history-lifetime--007a1a)
 now supplies ownership across public exits and later admissions. 007a1 keeps
 every mutation, refusal, registration and host-acceptance obligation and remains
-unchecked. No canonical retained-history selector exists yet; the lifetime's
-host safety controls grant no installed public-history acceptance.
+unchecked. Partial histories now use IDs 293 (ambient) and 294 (required), but
+neither has task acceptance or installed qualification. The required history
+cannot yet observe its distinct production refusal causes. The lifetime's host
+safety controls grant no installed public-history acceptance.
 
 Prerequisite-insertion verification passed **313/313** documentation checks in
 `20261020T002405Z-2bcd792c` (historical report retired by normal retention)
@@ -63,7 +70,7 @@ finished. Installed Ubuntu acceptance remains unrun in this split session.
 ### Owned retained-manager history lifetime — 007a1a
 
 Host acceptance passed **1,884/1,884** in
-[`20261020T003722Z-b8351487`](../output/test-runs/host/reports/20261020T003722Z-b8351487/report.md).
+`20261020T003722Z-b8351487` (historical report retired by normal retention).
 The exact maintained `tools/run-tests unit` selection, with `-q`, was:
 
 ```text
@@ -141,10 +148,124 @@ Runner and `tools/cleanup-e2e --host-only` cleanup passed. The attempted subagen
 could not start; no subagent owns resources. Only 007a1a closes; 007a1 and every
 installed assertion remain unfinished. Git close-out belongs to the controller.
 Post-close-out consistency passed **313/313** in
-[`20261020T003754Z-4ab9a2f2`](../output/test-runs/host/reports/20261020T003754Z-4ab9a2f2/report.md).
+`20261020T003754Z-4ab9a2f2` (historical report retired by normal retention).
 Changed-document links and whitespace checks passed. The two earlier planning
-reports above expired under normal retention and are explicitly historical;
-the required final acceptance and close-out reports remain retained.
+reports and the acceptance/close-out reports above subsequently expired under
+normal retention and are explicitly historical. This does not grant current
+retained-history acceptance.
+
+### Retained-history checkpoint and diagnostic prerequisites — 007a1
+
+007a1 remains unchecked. Its partial ambient and required histories register
+IDs **293** and **294**, freeze the guest/host source closure and compose the
+accepted cross-entry manager owner. Eleven ambient visits cover empty addition/
+removal, cross-kind and link replacement/restoration, mode/owner changes and
+actual unlink/reappearance. Required branches keep native/config/policy/privilege
+refusal, exact restoration, normal reboot and public recovery together. Private
+host controls cover the finite mutations, raw pin observations, ownership,
+interruption/refusal, collector provenance and first-failure preservation.
+
+At this checkpoint, actual production source prevented accepting that composition: helper stdio is
+closed onto `/dev/null`, measurement errors carry no detailed failure response,
+and material mismatch shares generic `completed-record/refused` with other record
+failures. Native diagnostics use `pam_syslog()` while the older stale observer
+reads stderr. The explicit unchecked prerequisites 007a1b and 007a1c supply the
+bounded failure transport and exact material/per-call observer proof. Their
+briefs retain the source map and expected outcomes. No earlier attestation failure
+or generic refusal can satisfy the unchanged stale-material assertion.
+
+The affected 18-module host selection in `20261020T005232Z-f1d82427` passed
+**3,870/3,875**, with five failures from concatenating two different checkpoint
+sequence types. After the collector correction and expanded finite export
+controls, the native-update runner plus four documentation modules passed
+**363/363** in `20261020T005509Z-cad6e3ea`. The earlier six mechanical failures
+in `20261020T004646Z-3ea33461` were corrected before the larger selection.
+The exact selections and input limits remain in the unfinished brief.
+These are partial engineering results, not 007a1 host acceptance or installed
+qualification. Generated coverage, resource inventories, links and whitespace
+checks passed. No package/build input changed; no build is needed here.
+
+The verified [5,893-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-u6_k_s4b/evidence.zip)
+preserves all 5,855 earlier records and all 38 files from these three reports,
+including first failures and corrected checks. SHA-256:
+`3668868ab4c589f7000ce751d154b72b39ea17b3dcfc09b9651cb57d6e4df656`.
+All three successful subagents finished before verification; the earlier failed
+spawn owns no resources. Runner, verified export retirement and
+`tools/cleanup-e2e --host-only` cleanup completed. No VM, installation, live policy/service, staging,
+commit or push operation occurred. At that checkpoint, 007a1b was the first unchecked pointer; only
+the new prerequisite block and the consumer's permitted Requires chain changed.
+Every existing row's completion, relative order and Scope are preserved.
+
+### Preparation refusal transport — 007a1b
+
+Host acceptance passed **878/878** in `20261020T011057Z-b5039e8b` on
+2026-10-20 UTC. The exact `tools/run-tests unit` selection, with `-q`, was:
+
+```text
+tests/unit/test_kiosk_preparation_channel.py
+tests/unit/test_kiosk_preparation_child.py
+tests/unit/test_kiosk_preparation_service.py
+tests/unit/test_kiosk_preparation_entry.py
+tests/unit/test_kiosk_fresh_startup.py
+tests/unit/test_kiosk_retained_startup.py
+tests/unit/test_kiosk_login.py
+tests/unit/test_regression_unit.py
+tests/unit/test_regression_resources.py
+```
+
+The checked exchange now admits one descriptor-free, 32-byte measurement refusal,
+bound to the expected role and original deadline. Sixteen numbered causes map
+to native-owned constant tokens; unknown exceptions collapse to `verification`.
+Helper stdio stays on `/dev/null`. Success framing, independent account/material
+authority, poisoned phase state, exact-child reap and descriptor closure remain
+unchanged. Invalid, unknown, wrong-role, truncated, descriptor-bearing, late and
+result-substituted refusals supply no detailed cause and never grant admission.
+
+Real `serve()`/`measure()` dispatch reaches the production integration
+`verify_policy()` digest check and actual preserved-helper inventory in both
+fresh and retained compositions. Unit controls mutate private config/policy
+bytes; composed controls change the private saved attestation pair. The command
+process boundary, account/PAM/MAC and bus remain explicit fixture doubles.
+Healthy production measurement still completes admission with its existing
+borrowed-FD and setup-closure proofs. Measurement causes remain distinct from
+pre-service validation and later native authority/completed-record failures;
+007a1c retains material-specific classification and per-call observers.
+
+Input closure includes the six changed channel/child/input/service/fresh/retained
+owners, their existing confinement/material/policy/receipt/realization dependencies,
+the real packaging policy verifier, and the selected fixtures and launcher owners.
+The final report's initial informational source-input SHA-256 is
+`c531a20c9ab0c26b6cfa3c1e0fce3e97f6a728a6009231178b0d499f075d5c40`.
+The earlier **502/502** pass in `20261020T010334Z-1f4f1af9` preceded fixture
+strengthening and is superseded by this final selection.
+
+`make build` passed DEB and RPM after the last packaged edit; its owned scratch
+was removed. Package-source SHA-256:
+`32166624a0d0938e8bdd5a9ab706980f9738ecbcdcb3e609e00ac8113d5aa4a5`.
+DEB SHA-256: `1bb25e0b007ba6dea087209d00ec62f95d12a440092362ec501c5bb03ad02ba8`;
+RPM SHA-256: `d960713fc44e49a398dd85c72c9886f5ae48910733d87357bc83426a4490ddd7`.
+Build artifacts and `output/rpm/oh-no-parent-control-1.4.inputs.json` retain the
+package input inventory outside the test-report bundle.
+
+Resource review retains the existing private files, anonymous sockets, process-local
+alarms and bounded/reaped native children; applicable inventory checks passed.
+Coverage generation succeeded after waiting for the test owner's release.
+Runner/fixture cleanup and `tools/cleanup-e2e --host-only` passed. Both subagent
+starts failed before acquiring resources; none remains. No installation, VM,
+live policy/service, staging, commit or push operation occurred. Only 007a1b
+closes; every other row's status, order, Scope and Requires remain unchanged.
+After queue/pointer/brief close-out, the maintained four-module
+[documentation consistency selection](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
+passed **313/313** in `20261020T011813Z-552591a3`. Its initial informational
+digest is `cbb8e86b98ab2c733651552f058ab053240f3c6617f6006dcf111d8932f84a2f`;
+only prose changed after the accepted host selection. Changed-document links
+and whitespace review passed.
+The verified [5,929-file cumulative bundle](../output/test-runs/host/exports/onpc-evidence-bundle-8m3iz5qs/evidence.zip)
+retains all 5,893 earlier records and the three new reports, including exact
+selectors and resource schedules. SHA-256:
+`246aaa48a2081bde3c4d5e4cac7ff65378a9ca262e0f424b8cf5ba757998dfe7`.
+Export verification and owned retirement cleanup finished. Git close-out remains
+with the controller.
 
 ### Bootstrap qualification checkpoint — 006e
 

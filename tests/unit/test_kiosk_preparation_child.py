@@ -50,6 +50,12 @@ int main(int argc, char **argv) {
     char command;
     if (recv(3, &command, 1, 0) != 1) return 93;
     if (command == 'H') for (;;) pause();
+    if (command == 'R') {
+        unsigned char refusal[32] = {0}; memcpy(refusal, "ONPCERR1", 8);
+        refusal[8] = !strcmp(argv[2], "manager") ? 1 : 2; refusal[9] = 1; refusal[11] = 9;
+        kiosk_preparation_u64(refusal + 16, r.deadline);
+        return send(3, refusal, sizeof(refusal), MSG_NOSIGNAL) == sizeof(refusal) ? 17 : 97;
+    }
     if (command == 'P' || command == 'M') {
         int writer = memfd_create("account", MFD_CLOEXEC | MFD_ALLOW_SEALING);
         const char account[] = "ONPC-KIOSK-ACCOUNT\t1\t1000\t1000\t2\n1000\n1001\n";
@@ -120,7 +126,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[3], "overflow")) deadline = UINT64_MAX;
     if (!strcmp(argv[3], "too-long")) deadline = start / 1000U + 61000000U;
     if (!strcmp(argv[3], "timeout")) deadline = start / 1000U + 250000U;
-    const char *role = !strcmp(argv[3], "bad-exit") ? "gate" :
+    const char *role = !strcmp(argv[3], "bad-exit") || !strcmp(argv[3], "refusal-gate") ? "gate" :
         !strcmp(argv[3], "bad-role") ? "outside" : "manager";
     if (!strcmp(argv[3], "same-lock")) { close(lease); lease = dup(lock); fcntl(lease, F_SETFD, FD_CLOEXEC); }
     if (!strcmp(argv[3], "writable-lock")) fchmod(lock, 0660);
@@ -138,9 +144,21 @@ int main(int argc, char **argv) {
     if (fstat(lock, &locked) || fstat(lease, &admitted) || !report.isolated || !report.explicit ||
         report.lock != locked.st_ino || report.lease != admitted.st_ino || report.deadline != deadline * 1000U) return 97;
     int protocol = !strcmp(argv[3], "protocol") || !strcmp(argv[3], "protocol-material");
-    char command = !strcmp(argv[3], "timeout") ? 'H' : protocol ?
+    int refusal = !strncmp(argv[3], "refusal-", 8);
+    char command = refusal ? 'R' : !strcmp(argv[3], "timeout") ? 'H' : protocol ?
         (!strcmp(argv[3], "protocol-material") ? 'M' : 'P') : 'E';
     if (send(child.channel, &command, 1, MSG_NOSIGNAL) != 1) return 98;
+    if (refusal) {
+        struct kiosk_preparation_response response; kiosk_preparation_response_init(&response);
+        if (kiosk_preparation_child_measurement(&child, child.role, &response) == 0 ||
+            response.count || response.refusal != 9 || child.refusal != 9 || child.phase ||
+            strcmp(kiosk_preparation_refusal_reason(child.refusal), "unexpected-preserved-executable") ||
+            kiosk_preparation_child_measurement(&child, child.role, &response) == 0) return 107;
+        kiosk_preparation_response_close(&response);
+        if (kiosk_preparation_cancel_until(&child, now() + 2000000000ULL) ||
+            !child.reaped || child.pidfd >= 0 || child.channel >= 0 || descriptors() != before) return 108;
+        puts("refusal isolated no-leak"); close(stray); close(lock); close(lease); return 0;
+    }
     if (protocol) {
         struct kiosk_preparation_response response; kiosk_preparation_response_init(&response);
         unsigned char material[32] = {1}, view[32] = {0};
@@ -193,7 +211,7 @@ int main(int argc, char **argv) {
 
 @pytest.mark.parametrize('mode', ['healthy', 'closed-stdio', 'protocol', 'protocol-material',
                                 'bad-exit', 'timeout', 'expired', 'overflow', 'too-long',
-                                'bad-role', 'same-lock', 'writable-lock'])
+                                'bad-role', 'same-lock', 'writable-lock', 'refusal-manager', 'refusal-gate'])
 def test_native_helper_owns_one_child_and_no_other_setup_descriptors(preparation_driver, tmp_path, mode):
     paths = [tmp_path / 'lock', tmp_path / 'lease']
     for path in paths:
@@ -204,7 +222,9 @@ def test_native_helper_owns_one_child_and_no_other_setup_descriptors(preparation
                             timeout=6, capture_output=True, text=True,
                             pass_fds=test_storage.scratch_descriptors())
     assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
-    if mode == 'protocol-material':
+    if mode.startswith('refusal-'):
+        assert result.stdout == 'refusal isolated no-leak\n'
+    elif mode == 'protocol-material':
         assert result.stdout == 'poisoned no-leak\n'
     elif mode in ('healthy', 'closed-stdio', 'protocol', 'bad-exit', 'timeout'):
         assert result.stdout.startswith('finished ' + ('0' if mode in ('healthy', 'closed-stdio', 'protocol') else '-1'))

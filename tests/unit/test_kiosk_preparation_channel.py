@@ -439,8 +439,17 @@ int main(int argc, char **argv) {
     struct kiosk_preparation_response response; kiosk_preparation_response_init(&response);
     int measured = kiosk_preparation_receive_phase(channel, 1, role, 0, NULL, NULL, deadline, &response);
     if (!strcmp(argv[4], "refuse")) {
-        if (!measured || response.count || before != descriptors()) return 92;
+        if (!measured || response.count || response.refusal || before != descriptors()) return 92;
         puts("refused no-leak"); return 0;
+    }
+    if (!strncmp(argv[4], "cause-", 6)) {
+        unsigned cause = (unsigned) atoi(argv[4] + 6);
+        if (!measured || response.count || response.refusal != cause || before != descriptors() ||
+            !kiosk_preparation_refusal_reason(cause)) return 103;
+        puts(kiosk_preparation_refusal_reason(cause));
+        kiosk_preparation_response_close(&response);
+        if (response.refusal || before != descriptors()) return 104;
+        return 0;
     }
     if (measured || response.count != 3 || identity(originals[0], response.fds[0], 1) ||
         identity(originals[1], response.fds[1], 1)) return 93;
@@ -465,7 +474,7 @@ int main(int argc, char **argv) {
     if (kiosk_preparation_send_phase(channel, &input, selection, deadline)) return 98;
     int final = kiosk_preparation_receive_phase(channel, 3, role, 1, material, view, deadline, &response);
     if (!strcmp(argv[4], "result-refuse")) {
-        if (!final || response.count || before != descriptors()) return 102;
+        if (!final || response.count || response.refusal || before != descriptors()) return 102;
         puts("refused no-leak"); return 0;
     }
     if (final) return 99;
@@ -522,6 +531,87 @@ def phase_packet(phase, role, fds, deadline, view=bytes(32)):
 
 
 @pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('reason', channel_input.REFUSAL_REASONS)
+def test_measurement_cause_is_closed_native_vocabulary(native_exchange, tmp_path, role, reason):
+    with duplex_objects(tmp_path) as (paths, _fds):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        try:
+            deadline = time.monotonic_ns() + 3_000_000_000
+            baseline = fd_count()
+            exchange = channel_input.PreparationExchange(left, role=role, deadline_ns=deadline)
+            exchange.send_refusal(reason)
+            for operation in (lambda: exchange.send_refusal(reason), exchange.receive_selection,
+                              lambda: exchange.send_result(0)):
+                with pytest.raises(ValueError, match='preparation-phase'):
+                    operation()
+            completed = subprocess.run([str(native_exchange), str(right.fileno()),
+                '1' if role == 'manager' else '2', str(deadline),
+                'cause-' + str(channel_input.REFUSAL_REASONS.index(reason) + 1),
+                *(str(path) for path in paths)], timeout=5, capture_output=True,
+                pass_fds=(right.fileno(), *test_storage.scratch_descriptors()))
+            assert completed.returncode == 0, (completed.returncode, completed.stdout, completed.stderr)
+            assert completed.stdout == reason.encode() + b'\n'
+            assert fd_count() == baseline
+        finally:
+            left.close()
+            right.close()
+
+
+@pytest.mark.parametrize('fault', ['unknown', 'zero', 'magic', 'role', 'stage', 'reserved',
+    'tail', 'deadline', 'short', 'extra', 'truncated', 'rights', 'many-rights', 'late'])
+def test_unchecked_refusal_never_supplies_a_native_cause(native_exchange, tmp_path, fault):
+    with duplex_objects(tmp_path) as (paths, fds):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        try:
+            deadline = time.monotonic_ns() + (-1 if fault == 'late' else 3_000_000_000)
+            packet = bytearray(b'ONPCERR1' + bytes((1, 1)) + struct.pack('!H', 9) + bytes(4) +
+                               struct.pack('!Q', deadline) + bytes(8))
+            offsets = dict(magic=0, role=8, stage=9, reserved=12, tail=24, deadline=23)
+            if fault in offsets:
+                packet[offsets[fault]] ^= 1
+                if fault == 'role':
+                    packet[8] = 2
+            elif fault in ('unknown', 'zero'):
+                packet[10:12] = struct.pack('!H', 65535 if fault == 'unknown' else 0)
+            elif fault == 'short':
+                packet.pop()
+            elif fault == 'extra':
+                packet.append(0)
+            elif fault == 'truncated':
+                packet.extend(bytes(channel_input.MAX_BYTES))
+            send(left, packet, [fds['configuration']] * (32 if fault == 'many-rights' else 1)
+                 if fault in ('rights', 'many-rights') else [])
+            completed = subprocess.run([str(native_exchange), str(right.fileno()), '1', str(deadline),
+                'refuse', *(str(path) for path in paths)], timeout=5, capture_output=True,
+                pass_fds=(right.fileno(), *test_storage.scratch_descriptors()))
+            assert completed.returncode == 0, (completed.returncode, completed.stdout, completed.stderr)
+            assert completed.stdout == b'refused no-leak\n'
+        finally:
+            left.close()
+            right.close()
+
+
+@pytest.mark.parametrize('fault', ['unknown', 'expired'])
+def test_refusal_sender_fails_closed_without_a_packet(monkeypatch, fault):
+    left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    try:
+        exchange = channel_input.PreparationExchange(left, role='manager',
+            deadline_ns=time.monotonic_ns() + 3_000_000_000)
+        if fault == 'expired':
+            monkeypatch.setattr(channel_input.time, 'monotonic_ns', lambda: exchange.deadline_ns)
+        with pytest.raises(TimeoutError if fault == 'expired' else ValueError):
+            exchange.send_refusal('verification' if fault == 'expired' else '/private/arbitrary-text')
+        right.setblocking(False)
+        with pytest.raises(BlockingIOError):
+            right.recv(1024)
+        with pytest.raises(ValueError, match='preparation-phase'):
+            exchange.send_refusal('verification')
+    finally:
+        left.close()
+        right.close()
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
 def test_one_duplex_exchange_matches_independently_opened_native_objects(native_exchange, tmp_path, role):
     with duplex_objects(tmp_path) as (paths, fds):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -537,6 +627,8 @@ def test_one_duplex_exchange_matches_independently_opened_native_objects(native_
             exchange.send_measurement(backend='apparmor', material=MATERIAL,
                                       material_receipt=fds['material_receipt'], configuration=fds['configuration'],
                                       account=fds['account'])
+            with pytest.raises(ValueError, match='preparation-phase'):
+                exchange.send_refusal('verification')
             with exchange.receive_selection() as selection:
                 assert selection.view == (bytes(32) if role == 'manager' else VIEW)
                 assert tuple(selection.descriptors) == channel_input.PHASE_SLOTS[2, role]
@@ -683,7 +775,7 @@ def test_python_selection_refusal_closes_received_descriptors(tmp_path, role, fa
 
 
 @pytest.mark.parametrize('role', ['manager', 'gate'])
-@pytest.mark.parametrize('fault', ['material', 'view', 'backend', 'phase', 'rights', 'kind'])
+@pytest.mark.parametrize('fault', ['material', 'view', 'backend', 'phase', 'rights', 'kind', 'refusal'])
 def test_native_result_requires_exact_selected_bindings(native_exchange, tmp_path, role, fault):
     with duplex_objects(tmp_path) as (paths, fds):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -707,6 +799,10 @@ def test_native_result_requires_exact_selected_bindings(native_exchange, tmp_pat
                 packet[offsets[fault]] ^= 1
             elif fault == 'rights':
                 descriptors.append(fds['configuration'])
+            elif fault == 'refusal':
+                packet = b'ONPCERR1' + bytes((1 if role == 'manager' else 2, 1, 0, 9)) + bytes(4) + \
+                         struct.pack('!Q', deadline) + bytes(8)
+                descriptors = []
             else:
                 descriptors[0] = fds['target_root']
                 packet[96:192] = struct.pack('!12Q', *independent_identity(descriptors[0]))

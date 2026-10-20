@@ -1005,6 +1005,12 @@ from regression_ui import Bucket
 # process-local logind/systemd, transport and public-observer doubles. Composed
 # two-entry/recovery checks run no live manager, VM, bus, display or subprocess;
 # the existing scope/kiosk-entry/runner cleanup modules remain compatible.
+# system_kiosk_ambient_history, system_kiosk_required_history and
+# system_retained_history use only tiny pytest-private file/checkpoint trees,
+# in-memory account/PAM/journal/manager/transport/public-entry doubles and
+# synchronous fsyncs. No live manager, VM, mount, package, bus, display, network,
+# child process or shared cache is acquired. Compatible unit overlap applies;
+# the cleanup and UI inventories acquire no module or resource owner.
 # Overlay reminder facade/journey/registration safety uses process-local API,
 # transport and clock doubles, tiny pytest-private replies and bounded waited
 # Perl workers. No live settings, bus, display, VM, shared cache or new cleanup
@@ -1123,6 +1129,10 @@ from regression_ui import Bucket
 # that same parent-death-protected manager child and pidfd-bounded reap, not a new
 # process owner. No shared path/cache/service or new cleanup/UI inventory owner
 # is introduced; compatible unit overlap still holds.
+# Measurement-refusal controls reuse these same private trees, anonymous
+# channels, process-local alarms and bounded/reaped native children. No shared
+# service, cache, display, persistent fixture or cleanup owner is added; the
+# existing probe/compile admission and compatible classifications remain valid.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof
@@ -1226,7 +1236,8 @@ session_limit_check setup_entrypoint setup_privileges shell_overview storage_mig
 support_architecture support_shell system_accounts_cleanup_safety system_agent
 system_agent_cleanup_safety system_assertions system_caller system_caller_cleanup_safety
 system_diagnostics system_enforcement system_enforcement_cleanup_safety system_guest
-system_info system_kiosk_scope system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
+system_info system_kiosk_scope system_kiosk_ambient_history system_kiosk_required_history
+system_retained_history system_probe_decision system_probe_sandbox_cleanup_safety system_qualification
 system_remote_accounts system_runner system_runner_cleanup_safety system_snapshots systemd_unit
 terminal_cleanup_safety test_account_password test_activity test_artifacts test_launchers
 test_retention_cleanup_safety test_runner_policy test_storage_cleanup_safety thunder ui_artifacts_cleanup_safety

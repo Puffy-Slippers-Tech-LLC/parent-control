@@ -22,7 +22,7 @@
 
 struct kiosk_preparation_child {
     int channel, pidfd, started, reaped;
-    unsigned role, phase, backend;
+    unsigned role, phase, backend, refusal;
     unsigned char material[32], view[32];
     uint64_t deadline_ns;
     struct kiosk_preparation_account account;
@@ -127,8 +127,12 @@ static int kiosk_preparation_child_measurement(struct kiosk_preparation_child *c
     if (!child || !child->started || child->reaped || child->channel < 0 ||
         child->phase != 1 || role != child->role) return -1;
     child->phase = 0;
-    if (kiosk_preparation_receive_phase(child->channel, 1, role, 0, NULL, NULL,
-            child->deadline_ns, response)) return -1;
+    int received = kiosk_preparation_receive_phase(child->channel, 1, role, 0, NULL, NULL,
+        child->deadline_ns, response);
+    if (received) {
+        if (received == -2) child->refusal = response->refusal;
+        return -1;
+    }
     if (kiosk_preparation_account_read(response->fds[2], child->deadline_ns, &child->account)) {
         kiosk_preparation_response_close(response);
         return -1;

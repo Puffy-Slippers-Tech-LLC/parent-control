@@ -2,7 +2,9 @@
 
 Acceptance: host
 
-Requires 006 and [007a1a](../Kiosk-Prompt.md#owned-retained-manager-history-lifetime--007a1a). Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
+Requires 006, [007a1a](../Kiosk-Prompt.md#owned-retained-manager-history-lifetime--007a1a),
+[007a1b](../Kiosk-Prompt.md#preparation-refusal-transport--007a1b) and
+[007a1c](007a1c-material-refusal-witness-host.md). Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
 only when that consumer becomes active under the
 [master's split route](../Kiosk-Prompt.md#smaller-execution-slices).
 
@@ -18,12 +20,85 @@ saved receipt with `RetainedManagerHistory.cleanup()`. The
 retains exact callables, refusal/recovery controls, finite host selectors and
 evidence limits. Use these owners without copying entry or lifecycle mechanics.
 
-No canonical ambient/required-drift selector has been registered.
+Partial canonical selectors are now registered as enforcement IDs **293**
+(`test_kiosk_retained_ambient_history`, `retained-ambient`) and **294**
+(`test_kiosk_retained_required_history`, `retained-required`). They have no task
+acceptance or installed qualification. The current source cannot supply the
+required distinct diagnostic evidence; resume only after 007a1b/007a1c.
 Existing case 290 is masked-sibling isolation, not the missing cross-admission
 history. Existing native-update `stale_admission()` requires an actual stale
 manager reason; config/policy attestation negatives cannot replace it. Resume
-this task after 007a1a with every deliverable and acceptance assertion below
+this task after all declared prerequisites with every deliverable and acceptance assertion below
 unchanged. 007a2/007a3 and 0071/0072 still require full installed histories.
+
+## Partial implementation and return condition
+
+`system_runner.run_retained_phase()` composes the accepted lifetime helper,
+durable append-only host checkpoints, separate public visits, per-branch public
+refusal and normal reboot/reentry. Guest owners are
+`system_kiosk_ambient_history.py` and `system_kiosk_required_history.py`; their
+finite checkpoint inventories join the existing redacted collector. Selected
+inputs freeze the complete guest import closure and the host plan/public-entry
+closure. New host controls use private files and explicit command/UI doubles.
+
+Actual-source review found that `kiosk_preparation_launch()` closes helper stdio
+onto `/dev/null`, so the partial required observer's helper-text captures cannot
+work. A genuine material mismatch shares generic `completed-record/refused`
+with other failures, while native diagnostics use `pam_syslog()` and the old
+stale-admission observer reads stderr. 007a1b/007a1c own those independent native
+diagnostic/observer repairs and builds. Preserve closed descriptors and strict
+stale-material assertions. No generic refusal or earlier attestation failure
+supplies acceptance.
+
+007a1b now supplies the accepted closed measurement-refusal channel. Reuse its
+native `measurement` causes; the remaining material-specific classification and
+per-call observer repair still belong to 007a1c. This grants no acceptance to
+these partial histories.
+
+After those prerequisites, reconcile their actual diagnostic API with this
+partial composition, finish remaining bounded fixture/ownership repairs and
+run the full affected host/resource/documentation selection. Independently review
+all mutation expectations, original pin/view and live-app observations, and
+recovery cuts; source review or doubles alone do not prove installed histories.
+Do not close this task or any consumer before its own complete acceptance.
+
+### Checkpoint verification, without acceptance credit
+
+The retained report `20261020T005232Z-f1d82427` passed 3,870/3,875 checks through
+`tools/run-tests unit`, with `-q`, selecting exactly:
+
+```text
+tests/unit/test_system_kiosk_ambient_history.py
+tests/unit/test_system_kiosk_required_history.py
+tests/unit/test_system_retained_history.py
+tests/unit/test_system_kiosk_scope.py
+tests/unit/test_system_runner.py
+tests/unit/test_system_runner_cleanup_safety.py
+tests/unit/test_system_guest.py
+tests/unit/test_system_snapshots.py
+tests/unit/test_system_native_update.py
+tests/unit/test_native_update_runner.py
+tests/unit/test_kiosk_confinement.py
+tests/unit/test_e2e_kiosk_entry.py
+tests/unit/test_regression_unit.py
+tests/unit/test_regression_cleanup.py
+tests/unit/test_e2e_plan.py
+tests/unit/test_e2e_inventory.py
+tests/unit/test_coverage_generation.py
+tests/unit/test_e2e_case_composition.py
+```
+
+Its five collector sequence-type failures were repaired without changing any
+assertion. The final native-update runner (including expanded finite checkpoint
+export variants) and the last four documentation modules above passed 363/363
+in `20261020T005509Z-cad6e3ea`; final source-input digest
+`1dad8a73de38b40ec34589b9bcfddb1555f320991a9f6955d3a9a892449b7151`.
+The [master checkpoint](../Kiosk-Prompt.md#retained-history-checkpoint-and-diagnostic-prerequisites--007a1)
+retains the cumulative bundle, first failures, exact native diagnostic gap and
+ownership limits. These doubles/private-file checks supply no actual required
+refusal diagnostic, loaded policy/logind qualification or installed-history pass.
+After 007a1b/007a1c, rerun the changed composed controls and all task-required
+host checks; 007a1 remains unchecked with its original Scope unchanged.
 
 ## Implementation and acceptance
 

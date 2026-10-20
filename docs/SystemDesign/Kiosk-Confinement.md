@@ -679,6 +679,18 @@ it changes neither import search nor bytecode caches. Anonymous zero-mount-ID
 records require read-only CLOEXEC descriptors, zero links and all four immutable
 seals; directories and named sources retain positive mount identity.
 
+Before a successful measurement, that same anonymous channel may instead carry
+one 32-byte `ONPCERR1` refusal: the expected role, measurement-stage number,
+closed cause number and original absolute deadline, with all reserved bytes zero
+and no descriptors. Native validates the complete packet and maps the number to
+its own constant diagnostic token; unknown, malformed, wrong-role, late or
+descriptor-bearing messages supply no cause. Refusals cannot substitute for a
+selection or result and always poison the one-child exchange. They convey no
+backend, material, account or admission authority. Helper stdio remains closed
+onto `/dev/null`; successful framing, setup-FD closure and exact-child recovery
+are unchanged. The [diagnostic contract](Logging-and-Feedback.md#kiosk-admission-diagnostics)
+owns the finite causes and their privacy limits.
+
 The fresh coordinator verifies current material/routes and independently named
 copies before combining M/V/pins/copies/ready publication. Runtime manifests keep
 their domain/length framing and full-file hash; channel results remain canonical

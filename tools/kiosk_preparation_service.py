@@ -19,7 +19,7 @@ import time
 
 import kiosk_confinement as confinement
 import kiosk_view_receipt as receipt
-from kiosk_preparation_input import PreparationExchange
+from kiosk_preparation_input import PreparationExchange, REFUSAL_REASONS
 
 
 MAX_BYTES = receipt.MAX_BYTES
@@ -339,9 +339,27 @@ def _label(fd, backend):
 def serve(channel, *, role, deadline_ns):
     """Consume one native-owned transaction; never renew its absolute deadline."""
     with _deadline(deadline_ns):
-        snapshot, configuration, account = measure(role, deadline_ns)
-        material = receipt.material_canonical(snapshot['record'])
         exchange = PreparationExchange(channel, role=role, deadline_ns=deadline_ns)
+        try:
+            snapshot, configuration, account = measure(role, deadline_ns)
+            material = receipt.material_canonical(snapshot['record'])
+        except Exception as error:
+            reason = 'verification'
+            if isinstance(error, ValueError) and error.args and type(error.args[0]) is str:
+                candidate = confinement.MATERIAL_FAILURE_REASONS.get(error.args[0], error.args[0])
+                if candidate in REFUSAL_REASONS:
+                    reason = candidate
+            elif isinstance(error, subprocess.TimeoutExpired):
+                reason = 'command-timeout'
+            elif isinstance(error, subprocess.CalledProcessError):
+                reason = 'command-failed'
+            elif isinstance(error, OSError):
+                reason = 'os-error'
+            try:
+                exchange.send_refusal(reason)
+            except Exception:
+                pass  # An unavailable/expired channel never replaces the original failure.
+            raise
         with _record(material, deadline_ns) as material_fd, _record(configuration, deadline_ns) as config_fd, \
                 _record(account, deadline_ns) as account_fd:
             exchange.send_measurement(backend=snapshot['record']['backend'],

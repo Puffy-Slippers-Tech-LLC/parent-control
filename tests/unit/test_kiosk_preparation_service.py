@@ -6,10 +6,14 @@ hash, membership and trust checks. Native admission/publication is not claimed.
 """
 from contextlib import nullcontext
 import fcntl
+import hashlib
 import importlib.util
 import os
 import signal
+import socket
 import stat
+import struct
+import subprocess
 import sys
 import time
 from types import SimpleNamespace
@@ -37,6 +41,102 @@ def load_service(helper, monkeypatch):
 
 def deadline():
     return time.monotonic_ns() + 10_000_000_000
+
+
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('error,reason', [
+    (ValueError('unexpected-preserved-executable'), 'unexpected-preserved-executable'),
+    (ValueError('material-source-changed'), 'source-changed'),
+    (ValueError('/private/account/exception-text'), 'verification'),
+    (RuntimeError('/private/account/exception-text'), 'verification'),
+    (subprocess.CalledProcessError(17, ['/private/command'], output='private-output'), 'command-failed'),
+    (subprocess.TimeoutExpired(['/private/command'], 5, output='private-output'), 'command-timeout'),
+    (OSError(13, '/private/account/exception-text'), 'os-error'),
+])
+def test_measurement_failure_sends_only_closed_cause_and_preserves_original(
+        private_store, monkeypatch, role, error, reason):
+    service = load_service(private_store.helper, monkeypatch)
+    def fail(*_args):
+        raise error
+    monkeypatch.setattr(service, 'measure', fail)
+    before = len(os.listdir('/proc/self/fd'))
+    left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    try:
+        budget = deadline()
+        with pytest.raises(type(error)) as raised:
+            service.serve(left, role=role, deadline_ns=budget)
+        assert raised.value is error
+        packet, ancillary, flags, _ = right.recvmsg(1024, socket.CMSG_SPACE(20))
+        assert packet == (b'ONPCERR1' + bytes((1 if role == 'manager' else 2, 1)) +
+                          struct.pack('!H', kiosk_preparation_input.REFUSAL_REASONS.index(reason) + 1) +
+                          bytes(4) + struct.pack('!Q', budget) + bytes(8))
+        assert ancillary == [] and flags == 0
+        assert signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0)
+    finally:
+        left.close()
+        right.close()
+    assert len(os.listdir('/proc/self/fd')) == before
+
+
+def test_refusal_send_failure_cannot_replace_measurement_error(private_store, monkeypatch):
+    service = load_service(private_store.helper, monkeypatch)
+    error = ValueError('unexpected-preserved-executable')
+    def fail(*_args):
+        raise error
+    monkeypatch.setattr(service, 'measure', fail)
+    left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    right.close()
+    with left, pytest.raises(ValueError) as raised:
+        service.serve(left, role='manager', deadline_ns=deadline())
+    assert raised.value is error
+
+
+@pytest.mark.parametrize('fault,reason', [('config', 'command-failed'), ('policy', 'command-failed'),
+    ('attestation-output', 'policy-snapshot-not-attested'), ('helper-mode', 'unexpected-preserved-executable')])
+def test_real_measurement_dispatch_reports_attestation_and_helper_inventory(
+        material_host, monkeypatch, fault, reason):
+    scene = material_host
+    service = load_service(scene.helper, monkeypatch)
+    config, policy, _attestation = scene.inputs()
+    calls = []
+    spec = importlib.util.spec_from_file_location('private_measurement_policy_integration',
+                                                ROOT / 'packaging/kiosk_confinement.py')
+    integration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(integration)
+    saved = dict(backend='apparmor', loaded_config_sha256=hashlib.sha256(config).hexdigest(),
+                 loaded_policy_sha256=hashlib.sha256(policy).hexdigest())
+    monkeypatch.setattr(service, '_account', lambda budget: b'owned-account-not-sent-on-refusal')
+    monkeypatch.setattr(service.os, 'geteuid', lambda: 0)
+    if fault in ('config', 'policy'):
+        path = scene.payload / ('config.json' if fault == 'config' else 'onpc-kiosk.apparmor')
+        path.write_bytes(path.read_bytes() + b'\n')
+    elif fault == 'helper-mode':
+        scene.physical('/usr/lib/helper').chmod(0o4755)
+    def verify(args, **kwargs):
+        calls.append((args, kwargs))
+        # Only the subprocess boundary is doubled. The actual integration
+        # digest check and preparation measurement/inventory stay real.
+        try:
+            digests = integration.verify_policy(saved)
+        except ValueError as error:
+            assert error.args == ('policy-load-incomplete-reconfigure-required',)
+            raise subprocess.CalledProcessError(1, args, stderr='private command diagnostic') from error
+        return SimpleNamespace(stdout='invalid attestation\n' if fault == 'attestation-output' else ' '.join(digests) + '\n')
+    monkeypatch.setattr(service.subprocess, 'run', verify)
+    left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    try:
+        budget = deadline()
+        with pytest.raises((ValueError, subprocess.CalledProcessError)):
+            service.serve(left, role='manager', deadline_ns=budget)
+        packet = right.recv(1024)
+        assert packet[10:12] == struct.pack('!H', kiosk_preparation_input.REFUSAL_REASONS.index(reason) + 1)
+        assert len(packet) == 32
+        assert calls[0][0] == ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify']
+        assert calls[0][1]['env'] == scene.helper.ENV
+        assert 0 < calls[0][1]['timeout'] <= 5
+    finally:
+        left.close()
+        right.close()
 
 
 @pytest.mark.parametrize('fault', [None, 'limit', 'marker', 'root', 'primary-root-id',

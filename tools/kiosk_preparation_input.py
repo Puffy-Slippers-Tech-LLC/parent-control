@@ -36,6 +36,14 @@ SLOTS = {
 # v1 remains a compatibility-only one-way transport. Production's one child
 # uses these three packets, in order, with the very same absolute deadline.
 PHASE_MAGIC = b'ONPCPRE2'
+# Numbered wire vocabulary shared with kiosk_preparation_channel.h. Unknown
+# exceptions collapse to verification; exception text never crosses the socket.
+REFUSAL_REASONS = (
+    'verification', 'command-failed', 'command-timeout', 'os-error',
+    'invalid-caller', 'unowned-account', 'unknown-backend', 'policy-snapshot-not-attested',
+    'unexpected-preserved-executable', 'missing-executable', 'untrusted-path',
+    'untrusted-ancestor', 'source-changed', 'unexpected-executable-mode',
+    'preserved-executable-label', 'non-native-executable')
 PHASE_SLOTS = {
     (1, 'manager'): ('material_receipt', 'configuration', 'account'),
     (1, 'gate'): ('material_receipt', 'configuration', 'account'),
@@ -225,6 +233,32 @@ class PreparationExchange:
                     (material_receipt, configuration, account), self.deadline_ns)
         self.backend, self.material = backend, material
         self._phase = 2
+
+    def send_refusal(self, reason):
+        """End measurement with one bounded diagnostic and no descriptors."""
+        if self._phase != 1:
+            raise ValueError('preparation-phase')
+        self._phase = -1
+        if type(reason) is not str or reason not in REFUSAL_REASONS:
+            raise ValueError('preparation-refusal')
+        _channel(self.channel)
+        packet = (b'ONPCERR1' + bytes(({'manager': 1, 'gate': 2}[self.role], 1)) +
+                  struct.pack('!H', REFUSAL_REASONS.index(reason) + 1) + bytes(4) +
+                  struct.pack('!Q', self.deadline_ns) + bytes(8))
+        while True:
+            remaining = _before(self.deadline_ns)
+            try:
+                sent = self.channel.send(packet, socket.MSG_NOSIGNAL | socket.MSG_DONTWAIT)
+                if sent != len(packet):
+                    raise ValueError('preparation-short-send')
+                _before(self.deadline_ns)
+                return
+            except InterruptedError:
+                continue
+            except BlockingIOError:
+                _, writable, _ = select.select([], [self.channel], [], remaining)
+                if not writable:
+                    raise TimeoutError('preparation-deadline')
 
     def receive_selection(self):
         if self._phase != 2:

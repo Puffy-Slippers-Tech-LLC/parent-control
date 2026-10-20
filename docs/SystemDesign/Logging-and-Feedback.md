@@ -237,6 +237,21 @@ state and cannot change admission or cleanup results. Host fixture witnesses
 cover cause production; installed behavior and archive composition keep their
 separate acceptance obligations.
 
+The native preparation exchange also reports a checked helper refusal at
+`stage=measurement`, always with `errno=-1`. Its numbered causes map only to
+`verification`, `command-failed`, `command-timeout`, `os-error`, `invalid-caller`,
+`unowned-account`, `unknown-backend`, `policy-snapshot-not-attested`,
+`unexpected-preserved-executable`, `missing-executable`, `untrusted-path`,
+`untrusted-ancestor`, `source-changed`, `unexpected-executable-mode`,
+`preserved-executable-label` or `non-native-executable`. Unlisted exceptions map
+to `verification`; exception text, captured output, paths, account names and
+command arguments never cross the channel. Native accepts this diagnostic only
+before successful measurement and within the original role/deadline binding.
+Invalid or unavailable packets retain the ordinary native refusal. Earlier
+helper-entry validation and later native authority/completed-record failures
+do not acquire a measurement cause. These producer records grant no new feedback
+collector or installed-history qualification.
+
 Before a feedback snapshot, the independent
 `collect_kiosk_admission_diagnostics()` reader projects exact reviewed native
 PAM, login-helper and preparation records. It runs even without a surviving

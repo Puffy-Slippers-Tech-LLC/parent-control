@@ -7,7 +7,7 @@ evidence remains in the baseline and Git. There is no legacy or staged queue.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | R01a | [Choose the execution and activation boundary](Kiosk-Prompt-Tasks/R01a-execution.md) | Baseline | Actual first-exec/search/activation audit and one concrete cross-platform execution boundary | 20–30 min |
+| [x] | R01a | [Choose the execution and activation boundary](SystemDesign/Kiosk-Confinement.md#r01a-execution-and-activation-decision) | Baseline | Actual first-exec/search/activation audit and one concrete cross-platform execution boundary | Review passed: actual GDM/manager credentials, closed unit/bus consumers, execution ledger and R02 witnesses; [551 close-out checks](../output/test-runs/host/reports/20261020T053102Z-ea70a1b1/report.md), 169 links valid. No runtime resources; integrated R01 review remains pending. |
 | [ ] | R01b | [Choose the effective authentication policy](Kiosk-Prompt-Tasks/R01b-authentication.md) | R01a | Kiosk-scoped passwordless PAM route, effective denial and ordinary-account preservation | 15–30 min |
 | [ ] | R01c | [Settle approval and visit lifetime](Kiosk-Prompt-Tasks/R01c-approval.md) | R01a, R01b | Request/agent/session association and explicit cancellation/commit ordering | 20–30 min |
 | [ ] | R01d | [Settle configuration and quarantine ownership](Kiosk-Prompt-Tasks/R01d-configuration.md) | R01b | Capability-based visibility repair, optional provisioning and administrator-safe quarantine ownership | 20–30 min |
@@ -74,6 +74,7 @@ native-language work must be rechecked against the selected design.
 
 Longer rows name their indivisible review, native transaction or installed
 history in both queue and brief. An exception never combines otherwise independent
-implementation work. Estimates are not timeout overrides. All rows remain
-unchecked: this breakdown executes no task, rewrites no checkpoint and grants no
-acceptance. Preserve obsolete machinery only until its proven replacement is ready.
+implementation work. Estimates are not timeout overrides. The breakdown itself
+executes no task, rewrites no checkpoint and grants no acceptance; checked rows
+record subsequent completed acceptance. Preserve obsolete machinery only until
+its proven replacement is ready.

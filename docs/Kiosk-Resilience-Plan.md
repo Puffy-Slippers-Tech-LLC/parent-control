@@ -1,7 +1,7 @@
 # Reliable kiosk entry with explicit confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **R01a — [Choose the execution and activation boundary](Kiosk-Prompt-Tasks/R01a-execution.md)**.
+Next task: **R01b — [Choose the effective authentication policy](Kiosk-Prompt-Tasks/R01b-authentication.md)**.
 
 ## Outcome
 

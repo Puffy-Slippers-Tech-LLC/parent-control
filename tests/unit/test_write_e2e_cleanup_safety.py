@@ -821,7 +821,20 @@ def test_escalation_survives_restart_and_new_task_resets_with_attempt_history_in
     for call, effort in zip(invocations, ['high', 'high', 'xhigh', 'high'], strict=True):
         assert f'model_reasoning_effort="{effort}"' in call['args']
     assert 'You are the GPT-6.1-Sol Extra High coordinator' in invocations[2]['prompt']
-    assert 'agents.enabled=false' in invocations[2]['args']
+    # Higher-effort repair forbids ordinary delegation but retains the mandatory
+    # core-backend review exception (docs/Execution-Plans.md).
+    config = tomllib.loads('\n'.join(
+        invocations[2]['args'][i + 1]
+        for i, arg in enumerate(invocations[2]['args']) if arg == '-c'))
+    assert config['features']['multi_agent'] is True
+    assert config['features']['multi_agent_v2'] is False
+    assert config['agents']['enabled'] is True
+    assert config['agents']['max_concurrent_threads_per_session'] == 1
+    assert config['agents']['max_depth'] == 1
+    assert config['agents']['backend_reviewer']['config_file'] == str(
+        ROOT / 'tools/backend_reviewer.toml')
+    assert not {'e2e_adviser', 'plan_worker', 'plan_monitor'} & config['agents'].keys()
+    assert 'Ordinary delegation is disabled' in invocations[2]['prompt']
     assert 'You are the GPT-6.1-Sol High coordinator' in invocations[3]['prompt']
     records = [json.loads(line) for line in (second / 'agent-usage.jsonl').read_text().splitlines()]
     assert [(row['session'], row['task_id'], row['model']) for row in records] == [

@@ -934,6 +934,9 @@ def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_
 @pytest.mark.parametrize('tty', [False, True])
 def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypatch, tty):
     from launcher_progress import publish_progress
+    # The shared exit contract places timing after the retained overview.
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '12:01')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 100.0)
     monkeypatch.setenv('TERM', 'xterm-256color')
     run = tmp_path / 'run'
     run.mkdir()
@@ -974,7 +977,8 @@ def test_follow_refreshes_retained_frames_and_preserves_logs(tmp_path, monkeypat
         assert text.index('final summary') < text.index('\033[?1049l')
     else:
         assert text.count('Overall - 50%') == 2  # Live update, then the required exit recap.
-        assert text.rstrip().endswith('Round 1: Category: unit (1/4) | Overall - 50%')
+        assert text.endswith('Round 1: Category: unit (1/4) | Overall - 50%\n'
+                             'Ended: 12:01\nDuration: 0m\n')
         assert '\033[?1049' not in text
 
 

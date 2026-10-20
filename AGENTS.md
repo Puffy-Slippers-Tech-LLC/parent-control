@@ -66,11 +66,13 @@
 - For distro/DE-specific work, determine whether the cause is generic. Fix generic
   causes in shared code; isolate platform-specific behavior and check affected
   supported platforms.
-- Choose GPT-6.1 Sol Medium for settled implementation and GPT-6.1 Sol High for
-  unresolved security, concurrency, ownership, difficult diagnosis or broad
-  correctness review. Prefer Sol High over Astra Low; use bounded Astra High
-  advice when an applicable workflow requires it. The
-  [launcher policies](tests/README.md#scripted-repair-loop) specialize these defaults
+- [For product backend code involving core functionalities]:
+  - Choose GPT-6.1 Sol High for settled implementation.
+  - Choose GPT-6.1 Sol xHigh for unresolved security, concurrency, ownership, difficult diagnosis or broad
+  correctness review.
+  - Use bounded Astra xHigh advice when an applicable workflow requires it.
+  - Use Astra xHigh subagent for indepdent review.
+- The [launcher policies](tests/README.md#scripted-repair-loop) specialize these defaults
   for test repair and E2E implementation. Prefer quality, then allowance.
 
 ## Tests and acceptance

@@ -404,6 +404,59 @@ def test_inspection_verifies_whole_bundle_before_returning_member(evidence):
         evidence.inspect(root / 'result.json')
 
 
+def test_verified_record_reuses_one_open_archive_for_bounded_reads(evidence, monkeypatch):
+    root = evidence.allocate({'first.json': b'first proof', 'second.json': b'second proof'})
+    output = Path(evidence.publish([root])['path'])
+    verify = bundle.verify_stream
+    calls = []
+
+    def counted(stream):
+        calls.append(stream)
+        return verify(stream)
+
+    monkeypatch.setattr(bundle, 'verify_stream', counted)
+    with evidence.exports.inspection() as state:
+        record = next(item for item in state['paths'] if item['path'] == str(output.parent))
+        with bundle.verified_record(record, os.geteuid(), checkout=evidence.checkout) as (verified, read):
+            assert verified['files'] == 2
+            assert read(str(root / 'first.json')) == b'first proof'
+            assert read(str(root / 'second.json'), offset=7, count=5) == b'proof'
+            assert read(str(root / 'first.json'), offset=100) == b''
+            for options in ({'offset': -1}, {'offset': True}, {'count': -1}, {'count': bundle.MAX_READ + 1}):
+                with pytest.raises(ValueError, match='inspection byte range'):
+                    read(str(root / 'first.json'), **options)
+            with pytest.raises(ValueError, match='not in the manifest'):
+                read(str(root / 'unselected.json'))
+        assert len(calls) == 1
+        with pytest.raises(ValueError):
+            read(str(root / 'first.json'))
+
+
+@pytest.mark.parametrize('change', ['between-reads', 'scope-exit', 'receipt', 'replacement'])
+def test_verified_record_refuses_mutation_during_read_scope(evidence, change):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    output = Path(evidence.publish([root])['path'])
+    with evidence.exports.inspection() as state:
+        record = next(item for item in state['paths'] if item['path'] == str(output.parent))
+        with pytest.raises(ValueError, match='changed during inspection'):
+            with bundle.verified_record(record, os.geteuid(), checkout=evidence.checkout) as (_, read):
+                assert read(str(root / 'result.json')) == b'exact proof'
+                if change == 'receipt':
+                    receipt = output.parent / 'receipt.json'
+                    receipt.write_bytes(receipt.read_bytes() + b' ')
+                elif change == 'replacement':
+                    data = output.read_bytes()
+                    output.unlink()
+                    output.write_bytes(data)
+                    output.chmod(0o600)
+                else:
+                    with output.open('ab') as stream:
+                        stream.write(b'changed')
+                if change == 'between-reads':
+                    read(str(root / 'result.json'))
+                    pytest.fail('changed archive returned a member')
+
+
 @pytest.mark.parametrize('options', [{'offset': -1}, {'count': -1}, {'count': 16 * 1024 ** 2 + 1},
                                    {'offset': True}, {'member': '../../escape'},
                                    {'member': 'files/00000000'}])

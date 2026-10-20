@@ -1614,6 +1614,10 @@ def buckets(nodeids):
 # classifications and cleanup/UI inventories remain unchanged.
 # Recovery-diagnostic export/rotation checks reuse those private journals and
 # bounded ZIP fixtures, with no new shared resources or subprocesses.
+# Verified multi-member reads keep one descriptor open only within each test's
+# private archive scope. Mutation controls and verification counters use tiny
+# local files and process-local doubles; unit compatibility is unchanged and
+# cleanup/UI inventories gain no resources or modules.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local
 # scratch, preserving isolation without touching shared host scratch ownership.
 # Native transaction input, preflight, route and staging checks use tiny private

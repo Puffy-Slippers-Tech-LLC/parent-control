@@ -1655,6 +1655,58 @@ def test_real_activation_binds_exact_sources_policy_and_new_boot(tmp_path, monke
             runner.guest_command(RUN, 'activation-state', 'rebooted')] * 2
 
 
+@pytest.mark.parametrize('fault', [None, 'missing-activation', 'activation',
+                                  'extra-before', 'extra-after'])
+def test_full_selection_activation_verifies_entire_frozen_host_manifest(tmp_path, monkeypatch, fault):
+    import guest_inputs
+    import kiosk_entry
+    selection = runner.resolve_selection()
+    runner.stage_selected_inputs(selection, tmp_path / 'input')
+    inputs = json.loads((tmp_path / 'input/selected-inputs.json').read_bytes())
+    identity = inputs['host_files']
+    assert set(runner.KIOSK_ACTIVATION_HOST_INPUTS) < identity.keys()
+    extra = 'tests/integration/system_kiosk_ambient_history.py'
+    assert extra in identity
+    if fault == 'missing-activation':
+        del identity[runner.KIOSK_ACTIVATION_HOST_INPUTS[0]]
+    elif fault == 'activation':
+        identity[runner.KIOSK_ACTIVATION_HOST_INPUTS[0]] = '0' * 64
+    (tmp_path / 'input/selected-inputs.json').write_text(json.dumps(inputs))
+    original_read = guest_inputs.read
+    reads = 0
+
+    def read(root, source):
+        nonlocal reads
+        data = original_read(root, source)
+        if source == extra:
+            reads += 1
+            if (fault == 'extra-before' and reads == 1 or
+                    fault == 'extra-after' and reads == 2):
+                return data + b'\n# changed source\n'
+        return data
+
+    monkeypatch.setattr(guest_inputs, 'read', read)
+    before = {'boot_sha256': 'a' * 64}
+    vm, lease = Mock(), Mock(state={'run': RUN})
+    vm.call.side_effect = [json.dumps(before).encode(), b'', json.dumps(before).encode()]
+    entry = Mock(return_value={'boot_sha256': 'a' * 64})
+    monkeypatch.setattr(kiosk_entry, 'observe_activation', entry)
+    if fault:
+        with pytest.raises(runner.Error, match='kiosk-activation:host-inputs-changed'):
+            runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'installed')
+        assert not (tmp_path / 'guest-results/gdm-installed.json').exists()
+        if fault != 'extra-after':
+            vm.call.assert_not_called()
+            entry.assert_not_called()
+        else:
+            entry.assert_called_once()
+    else:
+        runner.observe_kiosk_activation(vm, lease, tmp_path, selection, 'installed')
+        retained = json.loads((tmp_path / 'guest-results/gdm-installed.json').read_bytes())
+        assert retained['host_files'] == identity
+        entry.assert_called_once_with(vm, lease, 'installed')
+
+
 @pytest.mark.parametrize('fault', [None, 'installed', 'rebooted'])
 def test_real_gdm_stays_in_the_native_install_reboot_attempt(tmp_path, monkeypatch, fault):
     case = runner.KIOSK_ACTIVATION_CASE

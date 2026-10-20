@@ -1592,6 +1592,20 @@ def kiosk_activation_host_inputs():
             for source in KIOSK_ACTIVATION_HOST_INPUTS}
 
 
+def kiosk_activation_host_inputs_unchanged(recorded):
+    """Verify the activation closure and every additional frozen suite input.
+
+    Combined selections also bind retained-history helpers in host_files. Their
+    presence is not source drift, but their bytes must still match the manifest.
+    Missing activation inputs continue to fail the exact dictionary comparison.
+    """
+    from guest_inputs import read
+    current = dict(kiosk_activation_host_inputs())
+    for source in recorded.keys() - current.keys():
+        current[source] = hashlib.sha256(read(ROOT, source)).hexdigest()
+    return current == recorded
+
+
 def native_update_host_inputs():
     from guest_inputs import read
     return {**kiosk_activation_host_inputs(),
@@ -1619,7 +1633,7 @@ def observe_kiosk_activation(vm, lease, directory, selection, phase):
     from kiosk_entry import observe_activation
     semantic = PHASE_SEMANTICS.get(phase, phase)
     inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
-    require(kiosk_activation_host_inputs() == inputs['host_files'],
+    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']),
             'kiosk-activation:host-inputs-changed')
     before = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
     if semantic == 'installed':
@@ -1629,7 +1643,7 @@ def observe_kiosk_activation(vm, lease, directory, selection, phase):
     after = json.loads(vm.call(guest_command(lease.state['run'], 'activation-state', semantic)))
     require(before == after and observed['boot_sha256'] == before['boot_sha256'],
             'kiosk-activation:boot-or-policy-changed')
-    require(kiosk_activation_host_inputs() == inputs['host_files'],
+    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']),
             'kiosk-activation:host-inputs-changed')
     if semantic == 'rebooted':
         installed_phase = phase.removesuffix('rebooted') + 'installed'
@@ -2143,7 +2157,7 @@ def run_sibling_phase(vm, lease, directory, selection):
     """One uninterrupted public entry, replacement, restoration and exit."""
     from kiosk_entry import native_update_station
     inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
-    require(kiosk_activation_host_inputs() == inputs['host_files'],
+    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']),
             'kiosk-sibling:host-inputs-changed')
     command = ['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
                'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
@@ -2164,7 +2178,7 @@ def run_sibling_phase(vm, lease, directory, selection):
             output = directory / 'guest-results'
             output.mkdir(mode=0o700, exist_ok=True)
             receipt.update(host_files=inputs['host_files'],
-                           host_inputs_unchanged=kiosk_activation_host_inputs() == inputs['host_files'],
+                           host_inputs_unchanged=kiosk_activation_host_inputs_unchanged(inputs['host_files']),
                            selected_inputs_sha256=baseline.digest(directory / 'input/selected-inputs.json'))
             (output / 'station-sibling-isolation.json').write_bytes(baseline.encode(receipt))
     require(receipt.get('normal_exit') and receipt.get('fixture_cleanup') == 'passed' and
@@ -2176,7 +2190,7 @@ def run_required_phase(vm, lease, directory, selection):
     from kiosk_entry import native_update_station, observe_station_refusal
     from test_account_password import read_password
     inputs = json.loads((directory / 'input/selected-inputs.json').read_bytes())
-    require(kiosk_activation_host_inputs() == inputs['host_files'], 'kiosk-required:host-inputs-changed')
+    require(kiosk_activation_host_inputs_unchanged(inputs['host_files']), 'kiosk-required:host-inputs-changed')
     command = ['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
                'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
                PAYLOAD + '/system_kiosk_confinement.py']
@@ -2216,7 +2230,7 @@ def run_required_phase(vm, lease, directory, selection):
         output = directory / 'guest-results'
         output.mkdir(mode=0o700, exist_ok=True)
         receipt.update(host_files=inputs['host_files'],
-            host_inputs_unchanged=kiosk_activation_host_inputs() == inputs['host_files'],
+            host_inputs_unchanged=kiosk_activation_host_inputs_unchanged(inputs['host_files']),
             selected_inputs_sha256=baseline.digest(directory / 'input/selected-inputs.json'))
         (output / 'station-required-ancestor.json').write_bytes(baseline.encode(receipt))
     require(receipt['refusal'].get('safe_return') and receipt['recovery'].get('normal_exit') and

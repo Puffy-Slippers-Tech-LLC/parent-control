@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C01c — [Map automation and package consumers](Kiosk-Prompt-Tasks/C01c-consumer-map.md)**.
+Next task: **C01 — [Define the v1.3 session-confinement boundary](Kiosk-Prompt-Tasks/C01-boundary.md)**.
 
 ## Outcome
 

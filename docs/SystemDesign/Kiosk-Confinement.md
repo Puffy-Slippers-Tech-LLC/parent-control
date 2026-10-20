@@ -917,6 +917,154 @@ installed acceptance is required or claimed. All three read-only source/review
 agents finished and were closed. The maintained test runner finished its owned
 cleanup; no task-owned VMs, processes or temporary source artifacts remain.
 
+##### C01c automation and package consumer lineage
+
+Source review on 2026-10-20 used release pin
+`188be907c46b1cd0dabae06ac898c43e75beb05e` and checked-in HEAD
+`c7c32f1757a47a26d8165eb743ab4425cdfe83fb`. The four Git inventory commands
+recorded in C01a were empty at entry: **no staged, unstaged or untracked old-plan
+additions exist in this checkout**. C01a/C01b's release/main interface tables
+remain the source lineage; this extension follows their committed consumers.
+Post-release source is a cleanup input, not accepted replacement work. Historical
+controller/visit/startup reports do not supply missing source or qualification.
+
+The tables name receiving tasks in the [queue](../Kiosk-Prompt-Queue.md).
+C02 slices own their immediately affected tests, imports and registrations;
+C03/C04 audit the remainder. No row authorizes broken intermediate consumers,
+whole-file rollback of shared code, deletion of historical evidence or changes
+to another plan's completion. The [test documentation map](../TestAutomation/README.md)
+owns test-layer/status meanings; the [master](../Kiosk-Session-Confinement-Plan.md)
+owns the replacement behavior and threat scope.
+
+###### Package inputs, generated definitions and lifecycle callers
+
+| Source owner / concrete caller | Retained behavior and removal/port boundary | Receiving task / test consumers |
+| --- | --- | --- |
+| [Makefile](../../Makefile): `PACKAGE_SOURCE_FILES`, `KIOSK_SOURCES`, `BROKER_SOURCES`, `COMMON_SOURCES`, `EXTENSION_SOURCES`, `PRODUCT_USER_SERVICES`; [package_inputs.py](../../tools/package_inputs.py) `paths/copy/digest` → `build_package.py`, `build_rpm.py`, `packaging/check_package.py` | Keep the explicit common DEB/RPM input map, frozen source and missing-input checks. The added native/private-preparation block is absent from the release pin. Remove its obsolete C/header/Python/policy members with their consumers; keep main's feature modules/assets, catalogues and packaging improvements. The empty `data/kiosk-runtime` directories add no payload. | C02a/C02c2 prepare; C02 activates; C02d/e remove. C03a audits `test_package_inputs.py`, `test_package_payload.py`, `test_rpm_packaging.py` in `tests/unit/`. |
+| Makefile `_install-product-files` → `kiosk_session.c`, `kiosk_bwrap.c`, preparation and integration helpers; desktop/session/unit/drop-in callers in C01a | Builds `kiosk-session`, eight role variants (`app`, `notifications`, `notification-client`, `wellbeing`, `cleanup`, `audio`, `packages`, `dbus`) and `kiosk-bwrap`; installs three preparation-support modules and the integration helper. Reconstruct release session selection, then move every live caller before deleting wrappers. Keep shared request/logout, vendor authentication, notifications, ordinary-user audio/Wellbeing, RPM diagnostics and WebKit/Glycin feature consumers. | C02a prepares commands; C02 activates; C02d removes native/runtime source; C02e removes remaining wiring. `test_kiosk_login.py`, `test_kiosk_confinement.py`, `test_kiosk_rendering.py`, payload/RPM tests. |
+| [kiosk_confinement_policy.py](../../tools/kiosk_confinement_policy.py) `generate` → Makefile → runtime preparation and lifecycle loader | Generates `config.json` runtime/executable/domain inventories, `generation`, distro MAC policy, `user-units/*/90-kiosk-confinement.conf`, Ubuntu Snap masks and two private session-data D-Bus definitions. Retire discarded private graph/material/inventory definitions and generated copies; preserve required isolation and functional service activation through the rebuilt owners. Feature assets cease being admission predicates without ceasing to be package assets. | C02c/C02c2 prepare required integration/migration; C02 switches; C02d/e remove. C03a1 audits mechanism fixtures; package activation/payload and rendering tests retain feature obligations. |
+| Makefile `ACTIVATION_MANIFEST_PATHS`, `_generate-package-activation-manifest`; [package_activation.py](../../packaging/package_activation.py) `activation_for`; DEB rules and [RPM `%files`](../../rpm/oh-no-parent-control.spec.in) | Current classifier selects reboot for kiosk wrappers/support/confinement tree, compositor/WirePlumber drop-ins, login helper and PAM inputs. Port to justified replacement activation, including removed manifest members. Keep final packaged-byte manifests, shared builders and unrelated broker/child-trust/fapolicyd/Wellbeing activation. A former support-module reboot assertion is not a new lifecycle requirement. | C02c2 prepares classification/migration; C02 activates; C02e closes residual paths. C03a: `test_package_activation.py` (three preparation-support assertions), package payload/RPM tests; C04a maps affected installed histories. |
+| [stage_distribution.py](../../packaging/stage_distribution.py) `pam_profile/pam_stack`, [fedora_pam.py](../../packaging/fedora_pam.py), distro `pam_restore/pam_enable/pam_remove` fragments → native PAM and session-limit helper | Port kiosk-only integration selectively. Preserve ordinary-account vendor policy/authselect profile/features, child time checks and the non-kiosk administrative user-bus bridge. The packaged historical GDM PreSession hook is also copied/removed by lifecycle code; its presence is not a working GDM 50 boundary. | C02c prepares native/distro integration; C02 activates; C02e removes unconsumed hook/profile wiring. C03a: Fedora PAM, kiosk login, runtime-cap, session-limit and package composition/removal tests. |
+| [provision.py](../../tools/provision.py) account, `configure_account_access`, AccountsService session/cache/visibility methods → `postinst.in` `create_account`, AccountsService start-pre drop-in | Pin already supplies account UID/home/admin-group checks, broker UID, bus policy, icon and basic session/time setup. Main adds saved visible Wayland routing, metadata preservation, cache migration and UID-bound native expiry quarantine. Retain ownership, passwordless availability and ordinary-user independence; assess strict version gating separately from those results. Do not restore the shared provisioner wholesale. | C02c1 prepares routing/account behavior; C02c2 owns expiry/cache recovery and rollback; C02 cutover. C03a: `test_provision.py`, package configuration/removal, first-configure/account host fixtures; C04a installation/reboot histories. |
+| [kiosk_confinement.py](../../packaging/kiosk_confinement.py) `install/install_locked/load` → [postinst](../../packaging/lifecycle/postinst.in), loader service | Current path audits exact PAM text/control flow/module inventories, publishes guards/MAC attestation, then releases quarantine. Preserve effective policy, ordinary callbacks, retry/rollback and original useful causes. Exact unknown-module refusal and private loaded-material attestation are implementation assertions to replace, not customer requirements. | C02c prepares PAM; C02c2 prepares owned state; C02 switches; C02d/e remove old implementation. C03a package/PAM composition; C04a first-configuration, PAM variants and admission histories. |
+| [prerm](../../packaging/lifecycle/prerm.in) `check-remove/remove`; postinst abort-remove; [postrm](../../packaging/lifecycle/postrm.in) `finish_remove`; [render_lifecycle.py](../../packaging/render_lifecycle.py) `embedded_confinement_finish_remove` | Current removal refuses live/foreign state, publishes durable vendor-only PAM denials before policy unload, and restores originals after account absence. Preserve safe removal, rollback and retry outcomes. The renderer embeds the **entire integration helper source** into postrm; installed-helper deletion alone leaves this build dependency. Replace the finite migration/finalizer before removing source, template tokens or generated distro scripts. | C02c2 prepares complete configure/remove/abort/post-erase/retry handling; C02 activates; C02e removes old embedding/wiring. `tests/support/package_scripts.py:use_real_kiosk_confinement` and finalizer source rewriting, package configuration/removal/RPM tests; C04a installed removal/fault/update helpers. |
+
+###### Host fixtures and registration closure
+
+Paths in this table are under `tests/unit/` unless another directory is named.
+The native source families and individual header test owners are enumerated in
+C01a; these rows also account for their shared/generated fixtures.
+
+| Consumer / source owner and callers | Preserve versus retire/port | Receiving task |
+| --- | --- | --- |
+| Material/storage/selection: `test_kiosk_pin_storage.py`, `test_kiosk_required_material.py`, `test_kiosk_material_selection.py`, `test_kiosk_retained_projection.py`, `test_kiosk_initial_realization.py`; [kiosk_material.py](../../tests/support/kiosk_material.py), [kiosk_material_selection.py](../../tests/support/kiosk_material_selection.py) | Preserve applicable ownership, bounded work, foreign-state preservation and actual consumed-input protection. Retire exact runtime membership, cosmetic/catalogue admission bytes, private copied `/usr`, generation limits, ambient masks and inode equality after harmless replacement. Package asset-presence coverage survives separately. The old assertion that `InitialPreparation` is unwired is a staging assertion, not a customer result. | Immediate C02a/d/e repairs; remaining C03a1 audit. |
+| Authority/channel/plan/realization/receipt/publication tests in C01a; [kiosk_material_authority.py](../../tests/support/kiosk_material_authority.py), [kiosk_preparation_plan.py](../../tests/support/kiosk_preparation_plan.py); fresh/retained startup tests and [kiosk_fresh_startup.py](../../tests/support/kiosk_fresh_startup.py) | Remove unused native probes, serializers, copy tickets, sealed protocol/view/pin formats and malformed-record matrices with discarded source. Port surviving cleanup/diagnostic outcomes. Retained fixtures derive C/Python text by replacement from fresh fixtures; both must move together. Namespace composition with PAM/MAC doubles supplies no installed entry proof. | C02d/e immediate source/fixture closure; C03a1 remaining audit. |
+| `test_kiosk_login.py:native_module/native` and boundary observer; mixed `test_kiosk_confinement.py`; `test_fedora_pam.py`, `test_provision.py`, package configuration/removal/RPM tests; [package_scripts.py](../../tests/support/package_scripts.py) | Preserve ordinary authentication/administrator denial, dedicated routing, account ownership and complete rollback/removal/retry. Port exact native stage/guard lines, strict module inventory and attestation/order assertions to rebuilt responsibilities. `test_kiosk_confinement.py` mixes retained and obsolete coverage; whole-file deletion loses required checks. | C02c1/c2/c and C02 repair their own changes; C03a residual audit. C03a's named `tests/support/kiosk_pam.py` does not exist: use the concrete inline native fixtures and package-machine owner here. |
+| `test_core.py`, `test_broker_properties.py`, `test_broker_state_machine.py`, `test_service_contract.py`; component `test_authorization_lifecycle.py`, `test_private_dbus_service.py`; support broker/DBus doubles | Preserve role/target checks, genuine selected-parent authority, session/disconnect cancellation, no late/duplicate grant, transactions/rollback and shared overlay semantics. Current consumers use direct request signatures; no visit-token/private-view fixture protocol exists to delete. Transport cancellation and broker no-grant tests protect distinct layers; neither establishes the post-authentication gap's resolution. | C02b1/b immediate compatible changes; C03b full chain audit. |
+| Request estimate/selection/model/preferences/rendering/What's New units; UI `test_request_form_component.py`, `test_request_layout.py`, `test_language_settings.py`, feedback/About/identity/preview tests; [request_component_preview.py](../../tests/ui/request_component_preview.py), [preview.py](../../tests/support/preview.py) | Preserve current features and both kiosk/overlay parameters, agent-locale job ownership and normal exit. UI `ScriptedAgentLocale` bypasses native authentication and `ComponentWindow._logout` records an event: these prove host controls only. Current C-only-locale rejection is a known compatibility assertion to change with its implementation owner, not authority to weaken fallback or essential authentication failure checks. | C02b immediate changes; C03 residual shared-form audit; C09a owns fallback gaps identified by C01b. |
+| `test_package_inputs.py`, `test_package_payload.py`, `test_package_activation.py`, `test_rpm_packaging.py`, `test_guest_inputs.py` | Keep feature packaging and immutable input closure; port removed preparation-support reboot/path assertions. Guest-input regression currently requires standalone `system_kiosk_confinement.py` in installed setup's closure; change it with actual consumers, not by dropping the assertion while imports survive. | C02 immediate package/closure repairs; C03a package audit; C04a installed helper closure. |
+
+[regression_unit.py](../../tools/regression_unit.py) explicitly classifies 21
+separate native runtime mechanism modules above, in addition to mixed package,
+login, broker and feature modules. Delete obsolete names **and isolation
+rationales** when source/tests disappear. [regression_ui.py](../../tools/regression_ui.py)
+owns request/layout/feedback/preview groups; [regression_cleanup.py](../../tools/regression_cleanup.py)
+separately classifies kiosk language/reminder/Chinese lifecycle safety modules
+also present in unit inventory. Preserve fixture grouping and review changed
+processes, namespaces, mounts, descriptor lifetime and scratch inheritance under
+the [parallelism owner](../../tests/README.md#host-test-parallelism-review).
+`test_regression_unit.py` checks the complete partition; exclusive fallback is
+not completed review. [test_commands.py](../../tools/test_commands.py)
+`CATEGORIES/suite_inventory` discovers leaves; there is no kiosk/C-series
+category. Coverage is generated by `tools/generate_test_coverage.py` from its
+inventories, not edited as an independent register.
+
+###### Installed engineering and public-journey consumers
+
+Maintained `tools/run-tests --help`, `--list`, `system --help/--list` and
+`e2e --help/--list` were inspected. Listing needs no VM. Registered IDs below
+identify **existing** bindings, not acceptance commands for the replacement.
+Changed or missing candidate qualification is **pending**; C04 must compare exact
+source/package/input/provider/target scope before any reuse. No replacement
+C-series selector is registered by this review.
+
+| Owner / registered consumer | Required result versus old mechanism coupling | Receiving task / qualification boundary |
+| --- | --- | --- |
+| [system IDs](../../tests/integration/system_case_ids.py), `tests/system/test_install_smoke.py`, `test_removal.py`; integration first-configure/accounts/removal helpers and `system_pam_variants.py` | Cases 4/5 retain interruption/retry and visible account/real entry across reboot; 6–25 retain remove/reinstall, rollback, post-erase and identity-refusal histories (8 is RPM-only); 283–286 retain finite vendor/profile/administrator/pending-update PAM variants. Port private generation/PAM guard/attestation witnesses; preserve ordinary-user policy, exact owned restoration and foreign-state refusal. | C02 owns immediately changed tests; C04a audits registrations/composition and helper sources. Host porting grants no live result. |
+| `tests/system/test_enforcement.py` → integration `system_kiosk_confinement.py`, `system_kiosk_admission.py`, `system_kiosk_platform.py`, `system_kiosk_scope.py`, `system_kiosk_ambient_history.py`, `system_kiosk_required_history.py` | IDs 267–271 cover execution/admission/platform/callback/shared scope; 290–294 cover sibling/required/bootstrap/retained ambient/retained required histories. Retain normal-use/ordinary-account positives, deliberate reachable-route protection, original causes and owned restoration. Retire exact all-role MAC census, private helper substitution, retained view/manager equality, global material hashes, ambient masks and stale-generation reboot as mandatory outcomes. Engineering injections remain separate from public use. | C02d/e direct consumers; C04a remaining installed audit; C04c proof alignment. C06 and later protection tasks decide actual route defenses; registration alone cannot make a refusal acceptable. |
+| Integration `system_native_update.py`, `system_session_expiry.py`, `system_runner.py`; session-expiry tests | Preserve shared child runtime-cap/time, offline recovery and PAM scope (281/282), authenticated administrative bridge behavior, earlier-release/update policy and usable reentry. Native dependency case 289 has an isolated complete retained-session history; port generation-refusal/private-manager witnesses without deleting the update outcome. | C02c/C02c2 directly affected changes; C04a map, C04b baseline composition; later C09c1/lifecycle histories qualify actual changed activation. |
+| [kiosk_entry.py](../../tests/e2e/kiosk_entry.py) `enter_station`, `observe_activation`, `native_update_station`, `KioskEntryJourney`; `parent_setup_qualification.py`, graphical smoke dispatch | Public GDM entry requires fresh account/focus/boot proof, one Enter, independent form/return. `confinement_census` separately calls the old system helper from entry, installation activation and native-update contexts; remove/port these transitive engineering calls with their producer. A working form or engineering census cannot replace the other when required. | C04a helper/engineering closure; C04b maps exact operations; C04u/f adapt and qualify changed entry/approval on both targets. |
+| [scenarios.json](../../tests/e2e/scenarios.json): 47/48/49, 50/51/52, 192 → request exit, `restricted_station.py`, `kiosk_about.py`; shared `request_flow.py`, `kiosk_approved_flow.py`, `request_composition.py` | Retain Cancel/close/approved exit, usable restricted station, genuine approval/denial/Cancel with preserved choices, safe About and fresh reentry. `KioskRequestJourney` checks balances/choices through public results, without private receipt authority. 50–52 additionally attempt Overview/grid/terminal and observe the unchanged restricted form; those outcomes survive independently of native framework details. | C04b maps finite baseline selectors; C04u/f qualify changed shared operation; C04 verifies readiness before C05u/f customer histories. These existing ready inventory labels are not qualification of the rebuilt candidate. |
+| Remaining request/overlay/choice/time/app/revocation/language/reminder/lifecycle consumers through [catalogue](../TestAutomation/E2E-Building-Blocks.md#kiosk-child-overlay-and-the-shared-request-form) and [recipes](../TestAutomation/E2E-Scenario-Recipes.md); `fresh_kiosk_restart.py` case 259 and Chinese lifecycle | Keep child identity, soft/hard app effects, expiry/revocation, both surfaces' shared choices, per-child language, genuine native prompt language and real install/reboot/reentry. Entry/approval fragments are transitive dependencies of these journeys. Host language/agent doubles or a 50–52 pass cannot establish this complete core downstream journey or every feature binding. | C04b traces exact finite baseline needs and pending gaps; C04u/f shared qualification; C04 readiness, C05 baseline and C10 final maps. Additional independent missing operations need the selected consumer's prerequisite route, not hidden work in one qualifier. |
+| Engineering `check_e2e_kiosk_preferences_confinement`, `check_e2e_kiosk_feedback_confinement`, `check_e2e_kiosk_notification_wellbeing` → respective journeys/guest helpers | Preferences checks exposed actions, draft preservation and an old strict census. Feedback owns a broker fault/restoration plus usable unsent editor/privacy and census. Notification/Wellbeing checks a preview and ordinary-user settings restoration via `system_wellbeing_qualification.py`; it supplies no natural-reminder customer credit. Port mechanism witnesses; retain exposed-action, feature, fault ownership and restoration outcomes. | C04a maps engineering dependencies; C04b records applicable operations; C04c reconciles proof claims. Later exposed-action/fallback/recovery tasks qualify their exact scope. |
+
+Source closure also includes `system_runner.stage_selected_inputs`,
+`system_guest`, `system_removal` and `tests/integration/guest_inputs.py:Bundle`:
+selected test-area imports and declared non-Python/native inputs are frozen,
+including function-local imports. Obsolete imports cannot remain as inert
+copies. `system_guest.installed/verify_pam/collect_native_checkpoints` and
+`system_removal.verify_loaded_confinement` also consume the old graph.
+Generated engineering inputs include temporary native-mode PAM services,
+namespace callback stacks, copied interpreters, units and fault wrappers.
+Port their source definitions and host doubles (`test_system_runner`,
+`test_system_snapshots`, `test_native_update_runner` and affected
+`test_system_*` modules) alongside producer removal. Retained ambient case 293
+currently binds 11 mutations to one manager/view; required case 294 binds four
+native/config/policy/privilege branches. Port or retire complete histories,
+including runner phases/checkpoints, rather than leaving renamed assertions.
+E2E's `InstalledJourney/JourneyPlan` → `UiObservations` → `AccessibleUI`
+shares `tests/support/application_ui.py` with host automation. Perl
+`onpc_gdm::enter_station`, `onpc_request_flow::prepare/approve`,
+`onpc_password::enter_kiosk_mate_password`, graphical smoke dispatch and
+`e2e_worker.distribution_inputs` are copied/validated worker consumers, not just
+Python imports. Port shared mechanics once; retain public IDs, current owner,
+single-use input, secret-recipient and uncertain-result guards under the
+[UI mandate](../Mandates/UI-Automation-Mandate.MD). REQUEST01–06/08–13,
+AUTH01/02 and FLOW request fragments retain their exact catalogue qualification
+limits. Unsupported native-gesture exclusions remain exclusions.
+
+Qualification wrappers use `named_input(package_source=True)` (and the declared
+fixture/upgrade profile where applicable); `test_commands` prepares absent
+inputs through the maintained builder. `KioskEntryQualification` also checks
+frozen package, baseline and installation-recipe identity before restoring its
+snapshot. A version name, unchanged function name, legacy bundle or historical
+pass cannot qualify changed bytes. Current input definitions/imports may be
+ported; already-created artifacts have separate ownership below.
+
+###### Installed state, retained evidence and C01 sizing handoff
+
+| State/evidence owner | Preservation or migration boundary |
+| --- | --- |
+| [Lifecycle](Lifecycle.md#startup-login-and-update-lifecycle), [removal](Package-Removal.md#pam-and-kiosk-ownership), integration helper | C02c2 owns migration of `kiosk-confinement.json` original/generated PAM, backend/UID/protocol/previous/prelease/removing/attestation records, durable removal marker/PAM denials, identity-bound runtime locks and old private generations. Account absence and owned restoration must precede retiring barriers; live/foreign/replaced objects stay protected. Source deletion is no permission to erase installed records. |
+| Provisioner/account lifecycle | Preserve `package-created-kiosk-uid`, reserved home/mail ownership, UID-bound `kiosk-configuration-account.json` original expiry and `quarantined/releasing` recovery. AccountsService's `.onpc-kiosk-visibility-v1` slot/xattr carries inode/UID/digest ownership; do not sweep its cache. Preserve native administrator policy, original Fedora authselect ownership, ordinary preferences/logs, child trust/fapolicyd baseline and uninstall rollback snapshots under their existing owners. C02c1/c2 port selectively. |
+| [Storage mandate](../Mandates/Test-Storage-Mandate.md), [retention](../../tests/README.md#aggregate-output-retention), [plan evidence](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery) | Preserve verified inputs, runner reports, accepted bundles/locators, controller checkpoints, recordings and VM baselines under their owners. Replacing a source fixture/selector does not authorize artifact purge, journal edits or baseline deletion. Ordinary bounded retention and exact owned recovery remain in force. This task allocated no VM or installed state. |
+| [Proof](../Kiosk-Confinement-Proof.md), confinement/lifecycle/specification prospective prose, [Reliability plan](../Reliability-Plan.md#task-boundaries-after-audit), E2E catalogue/recipes/coverage owners | C01 settles combined source/design conflicts; C04c reconciles obsolete R-series/receipt/private-view obligations and current descriptions after cutover, retaining original historical claims and known proof loss. Reliability 006a/006b map cases 290/291 only after the new boundary/protection review; locale/readiness consumers 008a/008c retain actual job/cancellation behavior. This review closes no row in those plans. |
+
+Finite risks for C01: lifecycle migration spans configured, partial PAM
+publication, removing, post-erase/account-absent, legacy-prelease and expiry/cache
+recovery states. Source allowlist, staged DEB/RPM payloads/manifests, RPM `%files`,
+embedded finalizer and package-machine rewrites must move together.
+`test_kiosk_confinement.py` exceeds 7,300 lines and mixes retained behavior with
+discarded mechanisms; fresh/retained fixtures generate interdependent C/Python
+sources. Frozen installed-area imports and copied worker definitions broaden
+the removal closure beyond direct callers. These are sizing risks for the
+receiving task when selected, not authority to resize/reorder future rows now.
+No new independent prerequisite is needed to complete this finite source map.
+
+C01c acceptance: **review passed**, with no declared targets. Independent
+GPT-6.1 Sol High review corrected the concrete installed-helper caller list
+(PAM variants under installation; both retained histories under enforcement)
+and confirmed no remaining actionable findings. Usability priority: **passed**;
+Threat scope: **passed**, for the source-map scope. Markdown links, plan
+structure, the four maintained host consistency modules and
+`test_execution_plan_launcher.py` passed (639 tests). This changes documentation
+only; product, test registrations, generated input definitions, qualification
+status and installed state remain untouched. These paths are outside package
+inputs; no build or installed result is required or claimed. All three source
+agents and the independent reviewer finished and were closed. The maintained
+runner completed its owned cleanup; no task-owned VMs, processes or temporary
+source artifacts remain.
+
 #### Single decision/rejection ledger — execution contribution
 
 This is the single integrated ledger from R01a–R01e and R01. Causes below are

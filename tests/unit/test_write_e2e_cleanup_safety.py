@@ -10,6 +10,7 @@ import signal
 import subprocess
 import time
 import re
+import tomllib
 
 import pytest
 
@@ -237,7 +238,19 @@ def test_three_completed_tasks_commit_then_optimize_before_fourth_task(
     assert '## Ask 1' in invocation['prompt'] and '## Ask 2' in invocation['prompt']
     assert invocation['thread_start']['model'] == 'gpt-6.1-sol'
     assert 'model_reasoning_effort="high"' in invocation['args']
-    assert 'features.multi_agent=false' in invocation['args']
+    # Optimization forbids ordinary delegation but must retain the mandatory
+    # core-backend review exception (docs/Execution-Plans.md).
+    config = tomllib.loads('\n'.join(
+        invocation['args'][i + 1] for i, arg in enumerate(invocation['args']) if arg == '-c'))
+    assert config['features']['multi_agent'] is True
+    assert config['features']['multi_agent_v2'] is False
+    assert config['agents']['enabled'] is True
+    assert config['agents']['max_concurrent_threads_per_session'] == 1
+    assert config['agents']['max_depth'] == 1
+    assert config['agents']['backend_reviewer']['config_file'] == str(
+        ROOT / 'tools/backend_reviewer.toml')
+    assert not {'e2e_adviser', 'plan_worker', 'plan_monitor'} & config['agents'].keys()
+    assert 'No ordinary delegation; the shared mandatory backend_reviewer remains required' in invocation['prompt']
     staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
                             capture_output=True, text=True, check=True).stdout
     assert staged.strip() == 'unrelated'

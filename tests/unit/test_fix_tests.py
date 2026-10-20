@@ -913,6 +913,10 @@ def test_diff_has_syntax_colors_line_numbers_and_changed_backgrounds():
 
 
 def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_path, monkeypatch):
+    # The shared launcher exit contract appends timing after the intact log.
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '12:01')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 100.0)
+    footer = '\nEnded: 12:01\nDuration: 0m\n'
     run = tmp_path / 'run'
     run.mkdir()
     original = 'x' * 65535 + 'é\n\033[32mretained café\033[0m\n'
@@ -920,11 +924,11 @@ def test_follow_keeps_unicode_across_reads_and_reattaches_at_complete_lines(tmp_
     fix_tests.atomic(run / 'result.json', {'status': 0})
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
-    assert output.getvalue() == original
+    assert output.getvalue() == original + footer
     monkeypatch.setattr(detached_launcher, 'TAIL_BYTES', len('é\n\033[32mretained café\033[0m\n'.encode()) - 1)
     output = io.StringIO()
     assert fix_tests.follow(run, output) == 0
-    assert output.getvalue() == '\033[32mretained café\033[0m\n'
+    assert output.getvalue() == '\033[32mretained café\033[0m\n' + footer
 
 
 @pytest.mark.parametrize('tty', [False, True])

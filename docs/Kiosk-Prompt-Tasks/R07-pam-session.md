@@ -6,7 +6,8 @@ Required tasks: R06.
 Estimate: 20–30 minutes.
 
 Read the [master](../Kiosk-Resilience-Plan.md), its R01 contract and R06 recovery
-result, the [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+result, the [selected authentication policy](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),
+the [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [account boundary](../SystemDesign/Kiosk-Confinement.md#admission-and-account-integrity).
 
 ## Purpose and route

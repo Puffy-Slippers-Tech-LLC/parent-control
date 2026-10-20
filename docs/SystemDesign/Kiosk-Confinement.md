@@ -215,8 +215,9 @@ compatibility fixtures from injected unsafe security negatives.
 
 ### Architecture decisions required before the entry proof
 
-The replan did not settle these decisions. R01a's execution choice is recorded
-below; the remaining decisions and their integration are still pending. R01 must
+The replan did not settle these decisions. R01a's execution choice and R01b's
+authentication choice are recorded below; the remaining decisions and their
+integration are still pending. R01 must
 review one concrete supported design, its source/API basis and a finite proof
 plan before R02a starts. The
 [task breakdown](../Kiosk-Resilience-Plan.md#task-boundaries) allocates these
@@ -264,6 +265,180 @@ actionable diagnostic, legitimate-use positive control and negative control. The
 [early proof](../Kiosk-Resilience-Plan.md#acceptance) must test the selected
 mechanisms on both platforms before broad integration; documentation is no proof
 that these decisions have been implemented or work.
+
+### R01b effective authentication decision
+
+**Selected, prospective policy:** retain GDM's effective `auth` and `account`
+policy, including its existing decision about empty credentials. Select a
+kiosk-only session stack before the vendor desktop session stack. The package
+does not add `nullok`, an early authentication-success rule, an autologin
+service or a second authentication attempt with weaker policy. Passwordless
+entry uses the package-owned kiosk identity's empty password only when the
+existing GDM authentication stack accepts it and account management allows
+access. A locked/nonempty credential, effective access denial or administrator
+expiry is not repaired by deleting a password, changing policy or asking the
+child for a kiosk password. This decision changes neither shipped policy nor
+test expectations; R01 integrates and independently reviews it before R02a.
+
+#### Current source and public mechanism
+
+| Audited source/caller | Current behavior and selected consequence |
+| --- | --- |
+| [Shared profiles](../../data/pam-configs/oh-no-parent-control-kiosk-only), [time profile](../../data/pam-configs/oh-no-parent-control-session-limits), [Ubuntu lifecycle fragments](../../packaging/ubuntu.inc) | `pam-auth-update --package` adds account/session routing and child-time enforcement. Its kiosk/admin skips cover only product time modules, not the rest of authentication or account management. Neither profile grants empty-token authentication. Preserve that separation and ordinary child exhaustion enforcement. |
+| [Fedora profile owner](../../packaging/fedora_pam.py) `configure`, `selection`, `verify_pam`; [stager](../../packaging/stage_distribution.py) `pam_profile`, `pam_stack`; [Fedora lifecycle fragments](../../packaging/fedora.inc) | The custom authselect profile copies the selected base, retains features and prepends the shared product rules with `wheel` replacing `sudo`. Both preinstall and first profile creation currently reject `without-nullok`. Keep the feature and original selection intact; the replacement must evaluate the effective kiosk route, not assume every unfamiliar profile is incompatible or that absence of that feature proves permission. Never use `--force` or edit generated system/password/fingerprint/smartcard stacks behind authselect. |
+| [PAM packaging](../../packaging/kiosk_confinement.py) `pam_lines`, `validate_stack`, `guarded_sessions`, `audit_manager_credentials`, `rendered`, `verify_pam`, `install_locked` | Current rendering keeps vendor auth/account rules, appends the final session gate, skips two callback names and rejects unfamiliar session modules, manager auth additions and exact-byte drift. Replace this session inventory with the branch below. Exact before/after records remain transaction/rollback evidence, not an entry policy decision about harmless formatting. Preserve administrator edits and reconcile package updates through the lifecycle owner. |
+| [Native PAM](../../tools/pam_oh_no_parent_control.c) `kiosk_identity`, `kiosk_account_check`, `pam_sm_acct_mgmt`, `pam_sm_authenticate`, `pam_sm_setcred`, `pam_sm_open_session`, `pam_sm_close_session`; [login check](../../tools/oh-no-parent-control-login-check) `main`, `verify_session`, `verify_confinement` | The login helper checks integration, service and saved/actual session routing; it does not evaluate passwords, shadow expiry or arbitrary PAM access rules. Normal native authentication enforces child time, not a kiosk password exemption. Account/session modes bind the GDM handle and route; the manager credential mode rejects authentication but permits kiosk setcred. Close currently returns success and PAM-data cleanup releases ownership. Keep route/integrity checks distinct from actual authentication/account results and strengthen lifetime handling in R02a rather than claiming the helper proves policy. |
+
+The public basis is Linux-PAM's separate management groups and
+[include/substack and return-action semantics](https://github.com/linux-pam/linux-pam/blob/v1.7.1/doc/man/pam.conf-syntax.xml).
+PAM itself evaluates the selected auth/account rules, nested includes, substacks
+and control flow; the product must not approximate their outcome with a module
+name or a text signature. The
+[pam_unix contract](https://www.man7.org/linux/man-pages/man8/pam_unix.8.html)
+separates empty-password authentication from account/password expiry. The
+[authselect base template](https://github.com/authselect/authselect/blob/1.5.0/profiles/sssd/system-auth)
+shows `without-nullok` removing the Unix empty-token option; other auth rules
+and account checks still contribute to the effective result. These are source
+bases, not qualification of the installed Ubuntu/Fedora builds.
+
+The [GDM 50.1 worker](https://github.com/GNOME/gdm/blob/50.1/daemon/gdm-session-worker.c)
+`gdm_session_worker_authenticate_user` and `gdm_session_worker_authorize_user`
+pass `PAM_DISALLOW_NULL_AUTHTOK` when `password_is_required`; remote displays
+set that requirement. Preserve those flags and the supported local-display
+boundary. Its account path can invoke `pam_chauthtok` on
+`PAM_NEW_AUTHTOK_REQD`, so a kiosk-only password-group guard must reject token
+changes before a password-changing callback can prompt or write. Ordinary
+accounts retain that flow. Teardown closes only a fully opened session, deletes
+established credentials and calls `pam_end`; partially completed open therefore
+needs explicit PAM-data recovery, not reliance on GDM calling close.
+
+#### Selected dispatch and callback lifetime
+
+Keep `PAM_SERVICE=gdm-password` for the real GDM transaction and
+`PAM_SERVICE=systemd-user` for its separate manager transaction. Do not switch
+to `gdm-autologin`, rename policy services or copy just selected access modules:
+service-sensitive administrator rules must retain their context. Preserve all
+effective GDM auth/account includes, ordering, control actions and module data.
+Account/access policy remains deliberately consumed trusted administrator code,
+including an unfamiliar policy module. `PAM_NEW_AUTHTOK_REQD`, expiry, access
+denial and authentication failure cannot become success in a product wrapper.
+An unavailable/malformed policy check is a setup fault, not proof that an
+administrator denied access or that the child attempted an escape.
+
+Before GDM's vendor auth rules, a native kiosk-only prerequisite validates the
+owned local identity and empty credential state without publishing shadow data.
+It installs an empty-credential conversation for that handle using
+[PAM_CONV via pam_set_item](https://github.com/linux-pam/linux-pam/blob/v1.7.1/libpam/pam_item.c).
+Secret prompts receive only the empty response; other credential challenges
+cannot solicit input from the child. Preserve the original conversation in
+handle-owned data for safe restoration/cleanup and bound repeated challenges
+within the entry deadline. This guard never authenticates on its own: all
+vendor auth/account results and flags still decide access. A policy requiring
+a password or another factor remains unsatisfied, with a clear refusal instead
+of an unexpected kiosk password dialog. No ordinary-account or Polkit handle
+receives this conversation. The kiosk password-group guard rejects both token
+change phases; it never clears a lock, resets expiry or provisions a new secret.
+
+Session dispatch is package-owned and bound to the verified kiosk identity,
+actual service and the PAM handle. Ordinary accounts delegate to the original
+session group unchanged. The kiosk uses a protected session-policy substack,
+required core setup and the final native gate in fixed outer control flow.
+The policy substack preserves the original non-optional rules and their native
+control flow, including unfamiliar modules and effective session access denials.
+Only ordinary `optional` desktop callbacks are excluded; extended return-action
+controls, `required`, `requisite` and `sufficient` are not guessed to be optional.
+Preserve include/substack boundaries and jump slots when replacing optional
+callbacks with a kiosk-only inert result, rather than deleting lines and moving
+jump destinations. Resolve nested session includes into protected kiosk-specific
+counterparts; ordinary accounts keep the originals. Native PAM evaluates policy
+results; `done`, `die`, `reset` and jumps inside the policy substack cannot skip
+the outer required core/final gate. No module-name inventory decides admission.
+An optional-only stack whose result itself controls access must retain that
+effective policy, rather than being silently converted to success. This is a
+policy-preservation obligation, not permission to assume all unknown code is a
+desktop effect. R02a must exercise both account and required session denial and
+native control-flow equivalence. Preserve local source edits and reconcile them
+without overwriting administrator policy.
+
+The finite GDM substack establishes login audit identity, resource limits and
+keyring bookkeeping as needed, logind/runtime ownership through `pam_systemd`,
+the selected manager and R01a's first-exec boundary. Fedora retains the ordered
+vendor SELinux close/open setup needed for the GDM worker and pending exec
+transition. The manager substack establishes its own required limits/audit/MAC
+setup without recursively starting another manager. Do not duplicate core
+setup already supplied by the policy substack. Desktop keyring daemons and
+optional namespace/session effects do not execute on the kiosk branch. Required
+administrator integrations remain deliberately consumed policy/setup, with their
+children included in the pre-boundary proof; neither their unfamiliar name nor
+a failed optional effect is a reason to reject entry. The exact packaged core
+rules and policy projection must be source-reviewed and exercised by R02a;
+including an unfiltered `common-session`, `password-auth` or `system-auth`
+session group would reopen excluded callbacks. If a required integration exposes
+an actual escape, isolate that reachable effect while retaining its access
+decision; never turn its failure into success or add a name exception.
+
+GDM's credential establishment/deletion continues the same effective auth
+transaction, including required policy credentials and their paired cleanup;
+do not replace `pam_setcred` with unconditional success. Auth/account callbacks
+are trusted policy execution, not optional session integration. Any children
+they create are part of R01a's pre-boundary proof, including failures; a pending
+final-exec label does not confine them retroactively. For the kiosk manager,
+retain a dedicated inert credential path for establish/reinitialize/refresh/
+delete calls and an authentication failure, so neither vendor optional auth
+callbacks nor implicit `other` credentials execute for that manager. Ordinary
+manager auth/setcred behavior stays on the original branch. This manager is
+not a second way to log in and its account policy still runs.
+
+Open, failed-open recovery, close, delete-cred and `pam_end` use the selected
+branch for the same handle. Record which required setup completed and release
+only its owned state in the appropriate paired callback/destructor; preserve
+the first failure and incomplete cleanup. Never rediscover a different branch
+from changed account metadata during teardown. Required setup and policy results
+cannot be ignored to admit the session. Optional excluded callbacks need no
+kiosk open or close call; ordinary accounts retain both. R01c owns visit and
+approval association; R01d owns account fields and quarantine release.
+
+#### Parent authentication and proof allocation
+
+Selected-parent approval remains the independent system Polkit transaction:
+[the authorizer](../../broker/oh_no_parent_control/authorization.py)
+`PolkitAuthorizer.check` passes the broker-validated approver and requesting
+system-bus identity, and the [admin rule](../../data/polkit-1/rules.d/00-oh-no-parent-control-session.rules)
+restricts the challenge to that parent. Kiosk entry success supplies no approval
+or reusable management authority. Preserve the vendor Polkit PAM policy and
+native conversation; product forms never receive the parent's password.
+The [role policy](../../tools/kiosk_confinement_policy.py) `selinux` and
+`apparmor` retains Fedora's live setuid `polkit-agent-helper-1`, transition to
+`policykit_auth_t` and `unix_chkpwd`/`chkpwd_t` path; Ubuntu retains its vendor
+root-helper service and password profile. No blanket NNP or nosuid mount may
+disable those privileges, and no product copy/relabel of the vendor helper is
+an acceptable substitute. A wrong password, denial or Cancel changes no grant
+and leaves the confined form available for a fresh request.
+
+[R02b](../Kiosk-Prompt-Tasks/R02b-pam-fixture.md) supplies an administrator-owned
+benign unfamiliar `optional` session callback in the ordinary vendor include tree,
+alongside successful required setup, with finite open/close effects. Separate
+ordinary child and administrator controls prove the callback actually ran.
+For the kiosk, prove the session branch did not invoke
+that desktop callback, no early unconfined child appeared, and passwordless
+entry, genuine selected-parent approval, Cancel, exit and reentry still work.
+No fixture-name exception or weakened policy is permitted. R02a also pairs the
+same effective access/expiry/empty-token policy with allowed and denied controls,
+including a required session access denial, no secret prompt/token change,
+setcred and failed-open teardown.
+R03/R04 execute these complete histories on each platform; the selectors remain
+unimplemented until R02 registers them.
+
+[R07](../Kiosk-Prompt-Tasks/R07-pam-session.md) extends that proven route to valid
+local auth/account include/substack/module variation, harmless comments,
+whitespace, case and continuations accepted by native PAM, authselect features,
+actual caller groups/umasks and saved-session repair. Pair each policy variation
+with its effective denial and unchanged ordinary-role control. Unknown names,
+formatting and excluded desktop effects alone are never entry vetoes. Native
+PAM errors remain distinguishable from policy denial. R07 does not defer the
+unfamiliar-callback or Fedora privilege proof from R02–R04. Historical parser,
+exact-byte and module-list tests retain their old scope until R01 explicitly
+maps them; R01b grants review credit only and creates no runtime resources.
 
 ### R01a execution and activation decision
 
@@ -394,8 +569,9 @@ trusted pre-exec setup and `sd-pam` teardown authority separately from descendan
 application authority. The kiosk-only session branch must select required
 callbacks before vendor optional session callbacks execute, including manager
 PAM. Unknown optional callback names neither run unrestricted nor reject entry;
-R01b must settle effective policy and callback selection before R01 accepts this
-design. A pending exec label or a late launcher cannot satisfy that obligation.
+[R01b's decision](#r01b-effective-authentication-decision) preserves effective
+policy while selecting those callbacks. R01 must review the composition.
+A pending exec label or a late launcher cannot satisfy that obligation.
 
 For every actually consumed input, establish the relevant kiosk/child UIDs,
 supplementary groups, POSIX ACLs, ancestor traversal/replacement authority and
@@ -428,6 +604,9 @@ restoration; a safety refusal grants no positive availability credit.
 | Host unit/generator/D-Bus/plugin activation; current trailing-colon unit path and generated known-name masks | **Exclude consumption; confine exposed control routes.** An unfamiliar automatic external-launch provider must not acquire kiosk launch authority or veto normal entry. Reload cannot reopen it. | Unfamiliar fixture automatically activates and exposes its action for an ordinary account; kiosk still approves / same public action cannot launch an outside application in kiosk, including after reload/reentry. “This action is unavailable at the request station.” `launch-route-excluded`. |
 | Exact retained manager/material equality, contention and inherited caller state; retained gate and preparation locks | **Recover, not exact-manager refusal.** Serialize and wait within one deadline; renew only a proven owned inactive/failed instance with no live visit. Preserve healthy/live/foreign instances. No reboot for unrelated drift. R01c/R01e choose competing-visit handling and deadline. | Reentry, valid inherited GIDs/umask and owned stale renewal succeed / foreign/live replacement remains untouched, no partial startup escapes. “The request station is starting; try again when ready.” `startup-wait` / `owned-renewal-failed` / `session-conflict`; retain original cause. |
 | Pre-boundary callbacks and teardown; vendor PAM rewriting, final gate, PAM-data cleanup | **Select kiosk callbacks and preserve confined lifetime.** Final exec cannot repair an earlier unrestricted callback child. R01b retains effective administrator denial while excluding optional session integration by branch, not module-name exceptions. | Unfamiliar benign callback demonstrably works for ordinary accounts; kiosk still enters/approves/exits / no callback-created unconfined kiosk launch and no orphan authority after failed open, close or delete-cred. “The request station could not finish starting or closing; retry.” `session-boundary-unavailable`; unfinished owned cleanup prevents renewal credit. |
+| Effective GDM authentication/account/session policy; native PAM results, shared profiles and Fedora authselect selection | **Honor effective denial.** Run preserved policy with its real service/items/control flow. No global `nullok`, alternate auth service, success bypass or automatic removal of administrator expiry/credentials. An unfamiliar module or harmless source change is not denial. Product quarantine recovery belongs to R01d. | Existing policy permits empty-token kiosk entry and ordinary child/admin authentication stays unchanged / effective empty-token prohibition, locked credential, account or required session access denial, and administrator expiry remain denied; restore the fixture and obtain usable entry. “This computer's sign-in policy does not allow the request station.” `authentication-policy-denied` / `account-policy-denied`; report the failing management group and restoration outcome without credentials or identity data. |
+| Required policy/setup evaluation unavailable; PAM loader/result and login helper integration checks | **Report a setup failure, not administrator denial.** Retry transient prerequisites within R01e's budget; never grant success through a fallback stack. Missing required enforcement cannot be degraded, while optional callback failure/name/text alone cannot establish this predicate. | Valid include/substack/formatting and unfamiliar benign callback controls enter / actual required module/load or core setup failure prevents unrestricted entry, restoration permits entry. “The request station could not check a required sign-in setting; retry after setup is repaired.” `authentication-policy-unavailable`; preserve original cause and owned cleanup result. |
+| Selected-parent Polkit authorization and vendor privileged helper; authorizer, admin rule and role policy | **Retain genuine authentication independently of kiosk entry.** No reusable approval, different-parent fallback, global null-token change, blanket NNP/nosuid or copied/relabelled Fedora helper. A denied request leaves the form usable. | Selected parent's genuine credential grants once on Ubuntu and Fedora / wrong password, Cancel, other identity or unavailable required helper grants nothing; a fresh permitted request succeeds after restoration. “Request denied” for denial; Cancel returns silently; unavailable authentication offers retry/exit. `parent-authentication-denied` / `parent-authentication-unavailable`; retain finite causes only. |
 
 #### Proof handoff and unresolved integration
 
@@ -451,7 +630,7 @@ complete early proof on Ubuntu/Fedora, including Fedora's privileged helper.
 All selectors for this replacement proof are still **unimplemented** here.
 
 R01 must resolve the remaining cross-boundary obligations before implementation:
-R01b's effective account/authentication and callback policy; R01c's exact
+composition of R01b's selected account/authentication and callback policy; R01c's exact
 visit/agent/controller authority and approval cancellation/commit ordering;
 R01d's provisioning/quarantine ownership; R01e's single readiness/recovery budget,
 safe manager renewal and update activation classes. In particular, the fixed

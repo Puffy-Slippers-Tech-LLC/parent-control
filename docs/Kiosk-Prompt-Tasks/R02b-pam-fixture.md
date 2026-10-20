@@ -6,7 +6,8 @@ Required tasks: R02a — runnable entry/approval transaction.
 Estimate: 15–30 minutes.
 
 Read the [master early proof](../Kiosk-Resilience-Plan.md#acceptance), accepted
-PAM decision, [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+[PAM decision](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),
+[task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [shared support guide](../../tests/support/README.md).
 
 ## Session boundary and deliverable

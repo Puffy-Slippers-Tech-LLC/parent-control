@@ -101,6 +101,10 @@ protocol, and write_e2e/fix_tests cleanup modules' finite, recorded agent/test
 children. Repeated rejection and restart spend at most the existing five-session
 budget per fixture. No real model, VM, display, bus, network, shared cache or
 new cleanup owner is introduced; compatible unit/cleanup classifications remain.
+Stale-controller and rejected-completion regressions use private source files,
+checkpoint/response trees and process-local agent/Git/cleanup doubles. They add
+no subprocess or shared mutation; compatible unit scheduling and the existing
+cleanup/UI inventories remain appropriate.
 
 Repair failure-context checks extend fix_tests with tiny pytest-private report,
 queue and command files plus a process-local artifact-reader double. No live

@@ -35,7 +35,23 @@ evidence after their temporary briefs are removed.
 The selected row's Estimate cell is planning/close-out bookkeeping: it may be
 updated with timing or concise evidence without changing Scope or Requires.
 Shared transition and restart guards normalize that cell and the selected task
-link, including older checkpoints; every other row field remains protected.
+link, including older checkpoints. They also permit destination-only repairs of
+simple inline Markdown evidence links in the Estimate cells of tasks already
+complete in the retained queue baseline. Link labels, surrounding evidence text,
+timing, link count and every other predecessor field remain protected; unfinished
+rows receive no such exception. Compare both the saved and current structures
+using the retained completion baseline, without rewriting checkpoints.
+
+Before repairing an expired evidence link, verify that its replacement retains
+the same result, exact inputs/scope and cleanup record. Prefer a verified retained
+bundle or accepted result and its command log over a short-lived report link.
+A destination repair changes no acceptance or completion and needs no manual
+replan, metadata commit or `--reconcile` operation. Broader wording, task, scope,
+dependency or order changes still follow the explicit reconciliation contract.
+Do not recreate an expired report or suppress a link failure to avoid that
+contract. If a running controller predates this rule, preserve its queue baseline
+and record the verified replacements in the current brief; return `continue`
+for a fresh controller at the session boundary under the restart rule below.
 
 Each brief includes `Acceptance: installed`, `Acceptance: host`,
 `Acceptance: review` or `Acceptance: reconciliation` on its own line. Installed
@@ -167,6 +183,9 @@ keeps the original task, queue and acceptance baseline and uses the existing
 session allowance; it grants no completion credit, promotion or extra sessions.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
 the normal session cap with a resumable checkpoint and diagnostic handoff.
+If ordinary-plan validation sources change during a rejected session, the
+controller stops at that boundary with the response retained instead of spending
+more sessions under stale guards. A fresh run loads the repaired validation.
 Provider refusals, failed agent processes, missing grants, ownership/cleanup
 failures and Git close-out failures retain their explicit stop/recovery policies;
 they are never converted into automatic response retries.
@@ -176,6 +195,12 @@ queue and cleanup requirements before resuming Git close-out. It completes owned
 nested cleanup first and counts the recovered task against the new run's limit;
 it starts no new model session for an already valid completion. A changed scope,
 dependency, acceptance declaration or unrelated completion still refuses recovery.
+A fresh controller also revalidates a previously rejected completion when its
+exact response survives in the inactive run, including after the session cap.
+The response must match that run's rejection reference and have no agent-error
+record. Every current acceptance, queue and cleanup guard still applies; an
+invalid or mismatched response keeps its corrective handoff. Recovery preserves
+the original checkpoint, queue baseline and session counts.
 
 If Codex rejects a turn with `cyberPolicy`, execution stops without automatically
 retrying or changing models, prompts or permissions. Ordinary plan launchers

@@ -281,6 +281,49 @@ def test_rejected_result_retries_are_bounded_and_retain_original_baseline(rig, m
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
+def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, monkeypatch):
+    attempts = []
+    sources = {'execution_plan.py': 'original'}
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append(state['task_sessions'])
+        sources['execution_plan.py'] = 'repaired'
+        return response(state)  # The running controller still rejects it.
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'closeout', lambda *_: pytest.fail('rejected completion reached Git'))
+    original = rig.plan.state()
+    assert rig.worker() == 1
+    assert attempts == [1]
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert 'validation code changed' in state['reason']
+    assert 'fresh run' in state['reason'] and 'session limit reached' not in state['reason']
+    assert state['task_sessions'] == 1 and state['session_limit'] == 5
+    assert state['queue_before'] == original and rig.plan.state() == original
+    assert state['result_recovery']['reason']
+    assert json.loads((rig.run / 'rejected-agent-result.json').read_text()) == response(state)
+    assert rig.cleanups == [rig.run, rig.run]
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+@pytest.mark.parametrize('changed', [
+    'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
+])
+def test_response_validator_sources_detects_content_changes_only(tmp_path, monkeypatch, changed):
+    names = ('plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py')
+    for name in names:
+        (tmp_path / name).write_text('original')
+    monkeypatch.setattr(workflow, '__file__', str(tmp_path / 'plan_launcher.py'))
+    original = workflow.response_validator_sources()
+    (tmp_path / changed).write_text('original')
+    assert workflow.response_validator_sources() == original
+    (tmp_path / changed).write_text('repaired')
+    current = workflow.response_validator_sources()
+    assert {name for name in names if current[name] != original[name]} == {changed}
+
+
 @pytest.mark.parametrize('legacy', [False, True])
 def test_rejected_handoff_resumes_after_stop_with_unchanged_task_and_guards(rig, monkeypatch, legacy):
     state = state_for(rig.plan, in_flight=True, task_sessions=1)
@@ -856,7 +899,110 @@ def test_estimate_normalization_keeps_other_queue_fields_guarded(tmp_path, ident
         plan.validate_recovery(state)
 
 
-def test_retained_completion_recovers_estimate_closeout_without_another_session(rig, monkeypatch):
+def completed_evidence_plan(root):
+    plan = prepare(root, count=3)
+    queue = queue_estimates(plan)
+    complete(plan, '001')
+    evidence = ('15–30 min; 551/551 [checks](../output/test-runs/host/reports/old/report.md), '
+                '313/313 [consistency](../output/test-runs/host/reports/older/report.md); cleanup complete')
+    queue.write_text(queue.read_text().replace('finite scope 001 | 15–30 min',
+                                               f'finite scope 001 | {evidence}'))
+    return plan, queue, evidence
+
+
+@pytest.mark.parametrize('finished', [False, True])
+@pytest.mark.parametrize('legacy', [False, True])
+def test_completed_evidence_destinations_allow_transition_and_recovery(tmp_path, finished, legacy):
+    plan, queue, evidence = completed_evidence_plan(tmp_path)
+    state = state_for(plan, in_flight=True)
+    if legacy:
+        state['queue_structure'] = plan.structure()  # Literal pre-normalization checkpoint.
+    checkpoint = json.dumps(state, sort_keys=True)
+    replacement = evidence.replace('../output/test-runs/host/reports/old/report.md',
+                                   '../output/test-runs/host/plans/plan/run/agent-result.json').replace(
+        '../output/test-runs/host/reports/older/report.md',
+        '../output/test-runs/host/plans/plan/run/agent-commands.log')
+    queue.write_text(queue.read_text().replace(evidence, replacement))
+    if finished:
+        complete(plan, '002')
+    plan.validate_transition(state['queue_before'], '002', complete=finished,
+                             structure=state['queue_structure'])
+    assert plan.validate_recovery(state)['002'] is finished
+    # New snapshots retain the exact evidence URLs, and old state is untouched.
+    assert next(row for row in plan.structure() if row[2] == '001')[6] == replacement
+    assert json.dumps(state, sort_keys=True) == checkpoint
+
+
+@pytest.mark.parametrize('defect', [
+    'label', 'count', 'prose', 'timing', 'unfinished-estimate', 'scope', 'requires',
+    'task-link', 'order', 'completion', 'code', 'image', 'title', 'pipe', 'placeholder',
+])
+def test_completed_evidence_repair_preserves_every_other_obligation(tmp_path, defect):
+    plan, queue, evidence = completed_evidence_plan(tmp_path)
+    if defect in ('code', 'image', 'title'):
+        extra = {'code': '`[literal](old.md)`', 'image': '![image](old.md)',
+                 'title': '[complex](old.md "retained title")'}[defect]
+        queue.write_text(queue.read_text().replace(evidence, evidence + '; ' + extra))
+    if defect == 'unfinished-estimate':
+        queue.write_text(queue.read_text().replace('finite scope 003 | 15–30 min',
+                                                   'finite scope 003 | [checks](old.md)'))
+    state = state_for(plan, in_flight=True)
+    text = queue.read_text()
+    if defect == 'label':
+        text = text.replace('[checks]', '[different claim]')
+    elif defect == 'count':
+        text = text.replace(evidence, evidence + '; [extra](new.md)')
+    elif defect == 'prose':
+        text = text.replace('cleanup complete', 'cleanup unnecessary')
+    elif defect == 'timing':
+        text = text.replace('15–30 min; 551/551', '1 min; 551/551')
+    elif defect == 'unfinished-estimate' or defect in ('code', 'image', 'title'):
+        text = text.replace('old.md', 'new.md')
+    elif defect in ('scope', 'requires', 'task-link'):
+        fields = {'scope': ('finite scope 001', 'reduced scope'),
+                  'requires': ('| — | finite scope 001', '| Baseline | finite scope 001'),
+                  'task-link': ('[Task 001](001.md)', '[Task 001](different.md)')}
+        text = text.replace(*fields[defect])
+    elif defect == 'order':
+        lines = text.splitlines()
+        first = next(i for i, line in enumerate(lines) if line.startswith('| [x] | 001 |'))
+        last = next(i for i, line in enumerate(lines) if line.startswith('| [ ] | 003 |'))
+        lines[first], lines[last] = lines[last], lines[first]
+        text = '\n'.join(lines) + '\n'
+    elif defect == 'completion':
+        text = text.replace('| [x] | 001 |', '| [ ] | 001 |')
+    elif defect == 'pipe':
+        text = text.replace('/old/report.md)', '/old/report.md|injected)')
+    elif defect == 'placeholder':
+        text = text.replace('../output/test-runs/host/reports/old/report.md',
+                            '<completed evidence destination>')
+    queue.write_text(text)
+    with pytest.raises(ValueError):
+        plan.validate_transition(state['queue_before'], '002', complete=False,
+                                 structure=state['queue_structure'])
+    with pytest.raises(ValueError):
+        plan.validate_recovery(state)
+
+
+def test_completed_evidence_repair_survives_retained_restart(rig, monkeypatch):
+    # Use the normal restart route with a literal old queue snapshot.
+    plan, queue, evidence = completed_evidence_plan(rig.root / 'evidence-plan')
+    previous = rig.root / 'previous'
+    previous.mkdir()
+    state = state_for(plan, in_flight=True, task_sessions=2, total_sessions=4)
+    state['queue_structure'] = plan.structure()
+    workflow.launcher.atomic(previous / 'checkpoint.json', state)
+    original = (previous / 'checkpoint.json').read_bytes()
+    queue.write_text(queue.read_text().replace(evidence, evidence.replace('/old/', '/retained/')))
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
+    recovered = workflow.initial_state(plan, rig.spec, rig.root)
+    assert recovered['task_id'] == '002' and recovered['task_sessions'] == 2
+    assert recovered['total_sessions'] == 4 and recovered.get('pending_completion') is None
+    assert (previous / 'checkpoint.json').read_bytes() == original
+
+
+@pytest.mark.parametrize('rejection', [None, 'retained', 'source'])
+def test_retained_completion_recovers_estimate_closeout_without_another_session(rig, monkeypatch, rejection):
     previous = rig.root / 'previous'
     previous.mkdir()
     queue = queue_estimates(rig.plan)
@@ -870,12 +1016,26 @@ def test_retained_completion_recovers_estimate_closeout_without_another_session(
     queue.write_text(queue.read_text().replace('finite scope 001 | 15–30 min',
                                                'finite scope 001 | Acceptance and cleanup passed'))
     (rig.root / 'docs/001.md').unlink()
+    if rejection:
+        state.update(phase='recover', in_flight=False, task_sessions=5, total_sessions=6,
+                     reason='task session limit reached; resume with a fresh run')
+        workflow.retain_result_rejection(previous, workflow.SessionResultRejected(
+            'task scope or prerequisites changed; retain the queue for review', result),
+            label=rig.spec.name, checkpoint=state)
+        if rejection == 'source':
+            # An interruption while retaining rejection leaves the canonical
+            # response as its reference; no older rejected copy may be adopted.
+            state['result_recovery']['response'] = str(previous / 'agent-result.json')
+            (previous / 'rejected-agent-result.json').write_text('stale rejection')
+            workflow.launcher.atomic(previous / 'checkpoint.json', state)
     retained = (previous / 'checkpoint.json').read_bytes()
     monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: previous)
     recovered = workflow.initial_state(rig.plan, rig.spec, rig.root)
     assert (previous / 'checkpoint.json').read_bytes() == retained
     assert recovered['pending_completion'] == result and not recovered['in_flight']
-    assert recovered['task_sessions'] == 2 and recovered['total_sessions'] == 3
+    assert recovered['task_sessions'] == (5 if rejection else 2)
+    assert recovered['total_sessions'] == (6 if rejection else 3)
+    assert 'result_recovery' not in recovered
     assert recovered['handoff'] == result['handoff']
     events = []
     monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda root, run: events.append(('cleanup', run)))
@@ -894,6 +1054,71 @@ def test_retained_completion_recovers_estimate_closeout_without_another_session(
     final = json.loads((rig.run / 'checkpoint.json').read_text())
     assert final['phase'] == 'complete' and 'pending_completion' not in final
     assert rig.plan.next_task().id == '002'
+
+
+def test_rejected_completion_recovers_predecessor_evidence_repairs(rig, monkeypatch):
+    plan, queue, evidence = completed_evidence_plan(rig.root / 'evidence-plan')
+    state = state_for(plan, phase='recover', in_flight=False, task_sessions=5, total_sessions=6)
+    state['queue_structure'] = plan.structure()  # Literal older controller snapshot.
+    result = response(state)
+    workflow.launcher.atomic(rig.run / 'agent-result.json', result)
+    workflow.retain_result_rejection(rig.run, workflow.SessionResultRejected(
+        'task scope or prerequisites changed; retain the queue for review', result),
+        label=rig.spec.name, checkpoint=state)
+    original = (rig.run / 'checkpoint.json').read_bytes()
+    queue.write_text(queue.read_text().replace(evidence, evidence.replace('/old/', '/retained/')))
+    complete(plan, '002')
+    (plan.root / 'docs/002.md').unlink()
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    recovered = workflow.initial_state(plan, rig.spec, rig.root)
+    assert recovered['pending_completion'] == result and 'result_recovery' not in recovered
+    assert recovered['queue_before'] == state['queue_before']
+    assert recovered['queue_structure'] == state['queue_structure']
+    assert recovered['task_sessions'] == 5 and recovered['total_sessions'] == 6
+    assert (rig.run / 'checkpoint.json').read_bytes() == original
+
+
+@pytest.mark.parametrize('defect', [
+    'wrong-task', 'failed-check', 'unfinished-cleanup', 'scope', 'targets', 'agent-error',
+    'different-response', 'foreign-reference', 'missing-source', 'missing-retained',
+])
+def test_rejected_completion_recovery_preserves_response_and_acceptance_guards(rig, monkeypatch, defect):
+    state = state_for(rig.plan, phase='recover', in_flight=False, task_sessions=5)
+    result = response(state)
+    if defect == 'wrong-task':
+        result['task_id'] = '002'
+    elif defect == 'failed-check':
+        result['checks'][0]['result'] = 'failed'
+    elif defect == 'unfinished-cleanup':
+        result['cleanup_complete'] = False
+    workflow.launcher.atomic(rig.run / 'agent-result.json', result)
+    workflow.retain_result_rejection(rig.run, workflow.SessionResultRejected('old guard', result),
+                                     label=rig.spec.name, checkpoint=state)
+    complete(rig.plan, '001')
+    if defect == 'scope':
+        queue = rig.root / rig.plan.queue
+        queue.write_text(queue.read_text().replace('finite scope 001', 'reduced scope'))
+    elif defect == 'targets':
+        (rig.root / 'docs/001.md').write_text('Acceptance: host\nTargets: other\n')
+    elif defect == 'agent-error':
+        workflow.launcher.atomic(rig.run / 'agent-error.json', {'message': 'provider refused'})
+    elif defect == 'different-response':
+        workflow.launcher.atomic(rig.run / 'agent-result.json', dict(result, summary='Different turn'))
+    elif defect == 'foreign-reference':
+        state['result_recovery']['response'] = str(rig.root / 'foreign/agent-result.json')
+    elif defect in ('missing-source', 'missing-retained'):
+        (rig.run / ('agent-result.json' if defect == 'missing-source'
+                    else 'rejected-agent-result.json')).unlink()
+    workflow.launcher.atomic(rig.run / 'checkpoint.json', state)
+    original = (rig.run / 'checkpoint.json').read_bytes()
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    recovered = workflow.initial_state(rig.plan, rig.spec, rig.root)
+    assert 'pending_completion' not in recovered
+    assert recovered['result_recovery'] == state['result_recovery']
+    assert recovered['queue_before'] == state['queue_before']
+    assert recovered['task_sessions'] == 5
+    assert (rig.run / 'checkpoint.json').read_bytes() == original
+    assert not rig.calls and TaskBudget(rig.run).read()['completed'] == 0
 
 
 @pytest.mark.parametrize('defect', ['wrong-task', 'failed-check', 'unfinished-cleanup', 'scope'])
@@ -1972,7 +2197,7 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     tools.mkdir()
     source = Path(workflow.__file__).parent
     for name in ['execute-plan', 'plan_launcher.py', 'detached_launcher.py', 'execution_plan.py',
-                 'launcher_git.py', 'launcher_progress.py', 'launcher_question.py',
+                 'document_checks.py', 'launcher_git.py', 'launcher_progress.py', 'launcher_question.py',
                  'launcher_runtime.py', 'test_storage.py']:
         shutil.copy2(source / name, tools / name)
     result = subprocess.run([sys.executable, '-B', str(tools / 'execute-plan'), '--plan', 'docs/plan.md', '--check'],
@@ -2052,7 +2277,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
     tools.mkdir()
     source = Path(workflow.__file__).parent
     names = [
-        'execute-plan', 'plan_launcher.py', 'execution_plan.py', 'detached_launcher.py',
+        'execute-plan', 'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'detached_launcher.py',
         'launcher_git.py', 'launcher_runtime.py', 'launcher_progress.py',
         'launcher_question.py', 'launcher_view.py', 'launcher_display.py',
         'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py',
@@ -2185,6 +2410,26 @@ def test_prerequisite_repair_recognizes_exact_multilevel_block_without_accepting
     assert state['task_id'] == '002' and 'unfinished' in state['handoff']
     deferred = workflow.defer_to_prerequisite(plan, state)
     assert deferred['consolidation_obligations'] == state['consolidation_obligations']
+
+
+def test_prerequisite_repair_allows_only_completed_evidence_destinations(tmp_path):
+    plan, state = prerequisite_plan(tmp_path)
+    queue = queue_estimates(plan)
+    old = '15–30 min; [checks](../output/test-runs/host/old/report.md)'
+    text = queue.read_text().replace('finite scope 001 | 15–30 min', f'finite scope 001 | {old}')
+    queue.write_text(text)
+    # Upgrade this no-Estimate fixture to the literal older snapshot shape.
+    for row in state['queue_structure']:
+        row.insert(6, old if row[2] == '001' else '15–30 min')
+    original = json.dumps(state, sort_keys=True)
+    queue.write_text(text.replace('/old/report.md', '/retained/agent-commands.log'))
+    assert plan.prerequisite_repair(state).id == 'pre-a'
+    assert json.dumps(state, sort_keys=True) == original
+    queue.write_text(queue.read_text().replace('[checks]', '[new claim]'))
+    assert plan.prerequisite_repair(state) is None
+    queue.write_text(text.replace('../output/test-runs/host/old/report.md',
+                                  '<completed evidence destination>'))
+    assert plan.prerequisite_repair(state) is None
 
 
 @pytest.mark.parametrize('defect', [

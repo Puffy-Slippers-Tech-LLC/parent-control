@@ -5,6 +5,8 @@ import hashlib
 from pathlib import Path
 import re
 
+from document_checks import without_code
+
 
 def queue_state(root, plan, queue, *, validate_pointer=True):
     text = (root / queue).read_text().split('## Deferred future work', 1)[0]
@@ -45,8 +47,26 @@ def plan_namespace(path):
     return hashlib.sha256(path.encode()).hexdigest()
 
 
-def closeout_structure(rows, selected):
-    """Normalize selected-row bookkeeping, including pre-normalization checkpoints."""
+def evidence_references(text):
+    """Compare simple inline references using their literal non-destination parts.
+
+    Code spans, images and more complex Markdown remain literal: unsupported
+    syntax must not turn an unrelated edit into an evidence-reference repair.
+    """
+    masked = without_code(text)
+    links = re.finditer(r'(?<![!\\])\[[^\[\]\\\n]+\]\(([^()\s<>\\|]+)\)', masked)
+    parts, position = [], 0
+    for match in links:
+        start, end = match.span(1)
+        parts.append(text[position:start])
+        position = end
+    # A tuple preserves link count and cannot collide with a literal placeholder
+    # in unsupported Markdown. This comparison value never enters snapshots.
+    return (*parts, text[position:])
+
+
+def closeout_structure(rows, selected, *, completed=()):
+    """Normalize bookkeeping using only completion captured before this task."""
     normalized = []
     for original in rows:
         row = original.copy()
@@ -54,6 +74,8 @@ def closeout_structure(rows, selected):
             row[3] = '<selected task link>'
             if len(row) > 7:  # Optional Estimate column, before the trailing delimiter.
                 row[6] = '<selected task estimate>'
+        elif row[2] in completed and len(row) > 7:
+            row[6] = evidence_references(row[6])
         normalized.append(row)
     return normalized
 
@@ -140,7 +162,7 @@ class Plan:
     def state(self):
         return {task.id: task.complete for task in self.tasks()}
 
-    def structure(self, *, selected=None):
+    def structure(self, *, selected=None, completed=()):
         text = (self.root / self.queue).read_text().split('## Deferred future work', 1)[0]
         rows = []
         for line in text.splitlines():
@@ -148,17 +170,18 @@ class Plan:
                 fields = [field.strip() for field in line.split('|')]
                 fields[1] = '[ ]'
                 rows.append(fields)
-        return closeout_structure(rows, selected)
+        return closeout_structure(rows, selected, completed=completed)
 
     def validate_recovery(self, state):
-        """Only an interrupted selected row may have partially closed out."""
+        """Allow selected close-out and completed evidence-reference repair only."""
         _, after = queue_state(self.root, self.path, self.queue, validate_pointer=False)
         before = state['queue_before']
+        completed = {key for key, done in before.items() if done is True}
         if (list(after) != list(before)
                 or any(after[key] != done for key, done in before.items() if key != state['task_id'])
                 or (state.get('queue_structure') is not None and
-                    self.structure(selected=state['task_id']) !=
-                    closeout_structure(state['queue_structure'], state['task_id']))):
+                    self.structure(selected=state['task_id'], completed=completed) !=
+                    closeout_structure(state['queue_structure'], state['task_id'], completed=completed))):
             raise ValueError('interrupted plan changed outside its selected task; inspect retained handoff')
         return after
 
@@ -195,10 +218,11 @@ class Plan:
         position = ids.index(consumer)
         if ids[max(0, position - len(added)):position] != added:
             return None
-        saved = closeout_structure(saved, consumer)
-        # Existing rows retain every field; only the consumer's Requires field
-        # may change. Its link is already masked in the saved structure.
-        current = {row[2]: row for row in self.structure(selected=consumer)}
+        completed = {key for key, done in before.items() if done is True}
+        saved = closeout_structure(saved, consumer, completed=completed)
+        # Existing obligations remain fixed after bookkeeping normalization;
+        # only the consumer's Requires field may change for this insertion.
+        current = {row[2]: row for row in self.structure(selected=consumer, completed=completed)}
         for original in saved:
             row = current[original[2]].copy()
             if original[2] == consumer:
@@ -232,11 +256,12 @@ class Plan:
 
     def validate_transition(self, before, task_id, *, complete, structure=None):
         after = self.state()
+        completed = {key for key, done in before.items() if done is True}
         expected = dict(before)
         if complete:
             expected[task_id] = True
         if list(after) != list(expected) or after != expected:
             raise ValueError('only the selected task may change completion; preserve task order and scope')
-        if (structure is not None and self.structure(selected=task_id) !=
-                closeout_structure(structure, task_id)):
+        if (structure is not None and self.structure(selected=task_id, completed=completed) !=
+                closeout_structure(structure, task_id, completed=completed)):
             raise ValueError('task scope or prerequisites changed; retain the queue for review')

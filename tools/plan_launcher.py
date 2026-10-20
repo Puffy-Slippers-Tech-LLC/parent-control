@@ -204,6 +204,34 @@ def defer_to_prerequisite(plan, state):
                         + state.get('handoff', ''))
 
 
+def recover_rejected_completion(plan, state, previous):
+    """Revalidate the exact rejected response under the fresh controller's guards."""
+    recovery = state.get('result_recovery')
+    if (not recovery or state.get('in_flight') or state.get('pending_completion')
+            or (previous / 'agent-error.json').exists()):
+        return
+    response = previous / 'agent-result.json'
+    retained = Path(recovery.get('response', ''))
+    if retained not in (response, previous / 'rejected-agent-result.json'):
+        return
+    try:
+        if retained != response and retained.read_bytes() != response.read_bytes():
+            return  # A preceding rejection cannot authorize a different response.
+        result = read_session_result(previous)
+        if not isinstance(result, dict) or result.get('status') != 'task_complete':
+            return
+        # A completed turn may have removed its temporary brief. Apply the same
+        # retained-metadata rule as interrupted completion, without changing state
+        # until all acceptance, queue and cleanup guards have passed.
+        candidate = dict(state, pending_completion=result, in_flight=False)
+        validate_session_result(result, lambda result: validate_result(plan, candidate, result))
+    except (FileNotFoundError, SessionResultRejected):
+        return  # Still needs its coordinator; preserve the original rejection.
+    state.pop('result_recovery')
+    state.update(pending_completion=result, in_flight=False,
+                 summary=result['summary'], handoff=result['handoff'])
+
+
 def initial_state(plan, spec, directory):
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
@@ -228,6 +256,7 @@ def initial_state(plan, spec, directory):
                 if state['reason'] in (str(error), str(error.__cause__)):
                     state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
                                  result_recovery=result_rejection(error, previous / 'agent-result.json'))
+        recover_rejected_completion(plan, state, previous)
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             if saved.get('task') and saved.get('phase') != 'complete':
                 if not any(saved.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery')):
@@ -516,6 +545,13 @@ def execute(root, spec, run, owner):
     return read_session_result(run)
 
 
+def response_validator_sources():
+    """Detect repairs that this process cannot load by retrying an agent turn."""
+    return {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+            for name in ('plan_launcher.py', 'execution_plan.py', 'document_checks.py',
+                         'launcher_runtime.py')}
+
+
 def worker(root, run, owner, spec, state):
     from launcher_chat import task_info_instructions
     from launcher_display import clock_duration
@@ -526,6 +562,7 @@ def worker(root, run, owner, spec, state):
     budget = TaskBudget(run)
     status, reason = 0, 'queue complete'
     try:
+        validator_sources = response_validator_sources()
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if state.get('pending_completion'):
@@ -587,6 +624,10 @@ def worker(root, run, owner, spec, state):
                 state['session_limit'] = max(state['session_limit'], state['task_sessions'] + 1)
             if not admitted and not budget.admit():
                 reason = 'task limit reached'
+                break
+            if state.get('result_recovery') and response_validator_sources() != validator_sources:
+                status, reason = 1, ('launcher validation code changed during the session; '
+                                     'resume with a fresh run to revalidate the retained response')
                 break
             if state['task_sessions'] >= state['session_limit']:
                 status, reason = 1, 'task session limit reached; resume with a fresh run'

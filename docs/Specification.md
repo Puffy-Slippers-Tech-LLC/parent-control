@@ -122,23 +122,23 @@ pending-authentication cancellation, grant calculation and rollback, still apply
 The [Broker lifetime decision](SystemDesign/Broker.md#prospective-kiosk-approval-lifetime)
 owns the mechanism and current implementation gap.
 
-- Leaving, locking or switching away from a request-station visit cancels its
+- [ONPC-CORE-KIOSKVISIT-001] Leaving, locking or switching away from a request-station visit cancels its
   request until the broker has finished authentication and all checks and is
   ready to make the first policy change. This includes time spent checking usage
   after the parent has entered a correct password. If cancellation wins, that
   request grants nothing, changes no access policy and closes no apps. Returning
   requires a new request and genuine parent authentication.
-- Once the broker accepts that checked request for policy changes, the original
+- [ONPC-CORE-KIOSKVISIT-002] Once the broker accepts that checked request for policy changes, the original
   request may finish even if the visit ends. Success grants only the originally
   selected child's requested access; failures retain the existing rollback rules.
   A correct password alone, a vanished prompt or a confirmation screen does not
   establish that this boundary was crossed. Events at the boundary follow the
   broker's observed order, as defined in the linked decision.
-- A later visit receives neither the old prompt nor its success screen or
+- [ONPC-CORE-KIOSKVISIT-003] A later visit receives neither the old prompt nor its success screen or
   approval authority. It may see time actually granted to the child. A fresh
   request needs fresh authentication after the original operation and cleanup
   finish, and after the normal cooldown if the original request succeeded.
-- Another sign-in attempt preserves an already open request-station session.
+- [ONPC-CORE-KIOSKVISIT-004] Another sign-in attempt preserves an already open request-station session.
   It waits within the entry deadline, then starts its own visit after release or
   returns to sign-in explaining that the station is already open, with retry
   available. It never takes over a pending request or closes someone else's session.

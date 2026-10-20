@@ -7,7 +7,7 @@ R09c1 — separate compatible visibility-repair fixture.
 Estimate: 15–30 minutes.
 
 Read the [master F family](../Kiosk-Resilience-Plan.md#acceptance), R05a's repair,
-accepted activation classes,
+[accepted activation classes](../SystemDesign/Lifecycle.md#changed-input-activation-decisions),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and maintained lifecycle/fixture owners.
 

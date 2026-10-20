@@ -6,7 +6,7 @@ Required tasks: R08a — optional provisioning completion.
 Estimate: 20–30 minutes.
 
 Read the [master family B](../Kiosk-Resilience-Plan.md#acceptance),
-[native-language contract](../SystemDesign/Localization.md#translation-lifecycle-and-shared-ui),
+[native-language contract and selected fallback](../SystemDesign/Localization.md#r01e-native-authentication-fallback-decision),
 [approval lifetime](../SystemDesign/Broker.md#prospective-kiosk-approval-lifetime)
 and [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
 

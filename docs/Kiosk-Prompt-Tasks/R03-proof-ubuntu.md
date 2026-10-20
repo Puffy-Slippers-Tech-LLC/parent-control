@@ -20,7 +20,8 @@ owned-instance renewal. Run the master's unfamiliar PAM and automatically
 activated service fixtures, first proving their ordinary-account effects; usable
 kiosk entry and genuine approval must coexist with excluding or confining the
 service's launch route. Verify form/authentication readiness within the declared
-entry/recovery budget. Capture actual caller credentials and the original cause
+entry/recovery budget under the [measurement contract](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget).
+Capture actual caller credentials and the original cause
 of any rejected entry rather than accepting a transport timeout classification.
 
 Prove the permitted actual first exec, pre-boundary children, manager/service

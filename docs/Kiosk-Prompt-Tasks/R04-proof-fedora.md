@@ -18,7 +18,8 @@ reentry, unrelated-layout and cosmetic variations, and one bounded owned renewal
 Include the same unfamiliar PAM and automatically activated service fixtures
 with effective ordinary-account controls, usable kiosk approval and exclusion or
 confinement of the service's launch route. Validate form/authentication readiness
-within the declared entry/recovery budget.
+within the declared entry/recovery budget under the
+[measurement contract](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget).
 Prove first exec, pre-boundary children, manager/service routes, credential/session
 teardown and the preserved privileged Polkit helper. Explicitly distinguish
 unavailable approval from successful confinement; disabling privilege transitions

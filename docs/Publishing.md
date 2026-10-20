@@ -617,6 +617,12 @@ and migration from releases that predate this mechanism.
 
 ### Activation levels
 
+The table below describes the **current shipped classifier**. The kiosk
+replacement's [R01e activation decision](SystemDesign/Lifecycle.md#changed-input-activation-decisions)
+selects safe owned renewal where it can replace a blanket reboot. R05 implements
+that mapping only after the both-platform early proof; this prospective decision
+does not change present package actions or their regression assertions.
+
 | Level | Package action | Reboot marker |
 | --- | --- | --- |
 | `none` | Nothing | No |

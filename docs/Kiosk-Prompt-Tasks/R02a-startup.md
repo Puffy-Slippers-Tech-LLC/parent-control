@@ -7,6 +7,7 @@ Estimate: 30–60 minutes.
 
 Read the [master](../Kiosk-Resilience-Plan.md#acceptance), accepted design/ledger,
 [authentication dispatch and proof controls](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),
+[readiness/renewal/activation decision](../SystemDesign/Lifecycle.md#r01e-readiness-and-activation-decision),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and complete native/policy/session/packaging callers selected by R01.
 

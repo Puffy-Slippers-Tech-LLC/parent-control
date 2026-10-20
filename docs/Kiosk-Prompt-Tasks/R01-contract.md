@@ -11,6 +11,10 @@ Read the [master](../Kiosk-Resilience-Plan.md), the
 [confinement owner](../SystemDesign/Kiosk-Confinement.md), relevant
 [lifecycle](../SystemDesign/Lifecycle.md#startup-login-and-update-lifecycle) and
 [broker authorization](../SystemDesign/Broker.md#broker-interface-and-roles).
+R01e's [selected readiness and activation decision](../SystemDesign/Lifecycle.md#r01e-readiness-and-activation-decision)
+owns prerequisite classes, state/renewal rules, the measured deadline and input
+activation mapping; review their composition here rather than resettling them
+without a concrete finding.
 Follow the master’s shared execution and review contracts.
 
 ## Session boundary

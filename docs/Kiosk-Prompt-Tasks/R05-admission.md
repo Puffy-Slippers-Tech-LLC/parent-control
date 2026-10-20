@@ -12,6 +12,8 @@ callers, preparation/material/policy owners and packaging activation paths
 affected by the chosen replacement.
 Include the provisioning/visibility/quarantine callers allocated by R01 and the
 [prospective lifecycle contract](../SystemDesign/Lifecycle.md#prospective-configuration-and-activation-recovery).
+Use the [selected changed-input activation classes](../SystemDesign/Lifecycle.md#changed-input-activation-decisions)
+when replacing current package classifications.
 
 ## Session boundary
 

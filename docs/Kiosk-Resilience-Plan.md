@@ -1,7 +1,7 @@
 # Reliable kiosk entry with explicit confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **R01e — [Settle readiness and activation recovery](Kiosk-Prompt-Tasks/R01e-readiness.md)**.
+Next task: **R01 — [Review the integrated admission contract](Kiosk-Prompt-Tasks/R01-contract.md)**.
 
 ## Outcome
 

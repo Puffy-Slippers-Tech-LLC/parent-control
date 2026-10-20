@@ -656,6 +656,231 @@ validate the proposed budget against representative observations. Human time
 entering parent credentials is separate. A successful unit start alone is not
 readiness, and genuine approval still needs a public proof.
 
+### R01e readiness and activation decision
+
+**Selected, prospective design; review only.** One native lifecycle transaction
+owns admission, infrastructure reuse/renewal and recovery on both platforms. Its
+fixed unprivileged controller operates only the admitted form/agent generations;
+the broker owns per-child operational readiness and approval authority. These
+are parts of one transaction, not competing lifecycle writers. R02a supplies the
+thin runnable route, R06a completes infrastructure recovery, R06b isolates child
+readiness and R08b supplies native-language fallback. R01 still owns integrated
+independent architecture review. No runtime behavior or acceptance changes here.
+
+#### Audited readiness path and prerequisite classes
+
+[Service construction and registration](../../broker/oh_no_parent_control/service.py)
+currently run `production_dependencies → _compose_broker → _start_policy` before
+`main.on_bus_acquired` calls `register`. `Broker.__init__` only composes adapters
+and locks. `_start_policy` first calls `AccountsService.sync_execution_policy`,
+then `Broker.refresh_enabled_extensions`, attempts cap cleanup, installs signal
+subscriptions and starts periodic reconciliation. Any uncaught construction or
+registration error ends startup with failure; a bus-name owner or successful
+systemd job alone is therefore insufficient evidence of operational readiness.
+Diagnostics-only registration deliberately skips policy and is not request-ready.
+
+| Prerequisite / current source | Protected operation and selected failure boundary |
+| --- | --- |
+| Configuration, migration exclusion, account/caller identities and bus object registration; `Service`, `Broker._load_config`, package launcher | Shared authority: without valid configuration, known roles and a serving broker, no grant or management mutation. Preserve migration/reboot exclusions and read-only diagnostics where safe. Retry only a demonstrated transient service/transport failure. |
+| `AccountsService._sync_execution_policy` in [adapters.py](../../broker/oh_no_parent_control/adapters.py) | Shared aggregate native enforcement: reads live filters and root-owned wildcard preferences for discovered accounts, then validates/reconciles the aggregate. A failure to establish that aggregate is global for policy mutations; do not replace it with an empty/partial success. Existing explicitly isolated rule-rendering warnings retain the [application contract](Applications.md#live-filter-and-execution-rules). An unavailable home is not itself this failure: policy preferences do not live in that home. |
+| `Broker.refresh_enabled_extensions` in [core.py](../../broker/oh_no_parent_control/core.py) | Per-child countdown/lock integration: current code loops eligible enabled children, loads preferences and calls `set_enabled(..., recover_global_switch=True)`. The first exception is wrapped as `BackendFailure`, aborting registration and preventing healthy B's discovery/request too. R06b removes that cross-child dependency, not the requirement to enforce A's saved policy. |
+| `ExtensionManager.set_enabled` in [extension_manager.py](../../broker/oh_no_parent_control/extension_manager.py) | Verifies account/home and shared installed payload, reads enabled/disabled/global-switch settings, then uses live Shell or an offline private bus. Live enable checks configured **and active** state; offline enable verifies durable settings for next login. Subcommands have individual 10-second timeouts; these do not currently form an aggregate budget. Missing/unavailable A home, unsafe A runtime bus, dconf or A activation/rollback failure affects A. Missing shared payload/schema/tool or broken shared service must be classified by its actual failed operation, never guessed from the wrapper error. |
+| `Broker.set_parent_control` and extension rollback | Enabling/disabling is an administrator mutation with setting verification, AccountsService writes, preference save and rollback. Per-child startup isolation must not turn a failed toggle/rollback into success or project new policy for another child. Recovery of saved enablement must serialize with changes for that child and reread the desired state. |
+| `clear_live_session_runtime_caps` and diagnostic/rescan observations | Cap cleanup is already best-effort at startup; a failed observation is not proof of missing confinement. Preserve its cause and existing enforcement. Signal/rescan machinery needed to maintain live policy must still start; diagnostic timing/export failure cannot gate requests. |
+| Form `_preferences_saved → KioskAgentLocale.prepare → _agent_prepared → RequestAccess` | Current [agent helper](../../kiosk/oh_no_parent_control_kiosk/agent_locale.py) discovers locales with a five-second command, rejects C-only results before queueing, writes an environment and waits up to 30 seconds for `RestartUnit`/matching `JobRemoved`. The [form](../../kiosk/oh_no_parent_control_kiosk/main.py) warms it while idle, retries required preparation and reports errors without dispatch. Job success caches presentation, not Polkit registration. R08b removes the translation veto while retaining operational identity/association checks. |
+
+R06b must finish shared enforcement reconciliation before admitting mutations,
+but collect each eligible child's extension outcome independently. Store bounded
+in-memory readiness keyed by verified account identity and current desired-policy
+revision, not a home pathname or cached UID alone. A failed account remains
+discoverable with an accurate unavailable-operation result; never delete it from
+managed discovery, clear its saved enablement, relax its filters/limits/grants,
+or report its extension as active. Block new approval and enforcement-changing
+operations for A until their required A integration is verified; unrelated
+read-only discovery and healthy B's operations continue. Do not apply this new
+gate to the existing control-disabled kiosk API as an accidental policy change;
+classify the operation's actual required enforcement under the Broker contract.
+
+Attempt each child's refresh once without letting A consume B's readiness
+budget: use bounded workers with per-child serialization, cancel/settle each
+owned helper before another for that child, and keep the D-Bus loop responsive.
+Retry a transient affected-child failure at most once in the current recovery
+transaction, within the shared remaining budget. Recovery is triggered by a
+new public operation for that child after its dependency returns; no unbounded
+poll/restart loop. Revalidate account eligibility, policy revision and home/bus
+authority before retry and before publishing ready. Offline settings prove only
+next-login configuration; a live Shell requires the existing active-state check.
+An uncertain rollback leaves A unavailable, never marked repaired. Preserve
+existing A policy and the live activation/rollback checks; this work cannot
+declare a live session safely enforced merely because settings were saved.
+There is no existing broker safety action that repairs a live session's absent
+countdown/lock extension: PAM checks future authentication, not ongoing desktop
+use. R06b must not invent a successful degraded state or remove live verification
+to obtain isolation. Demonstrated live enforcement loss remains a failed product
+result, with its actual required repair resolved in R01's integrated review
+before implementing that path; this decision selects no new session-kill policy.
+
+Finite R06b/R09b3 control: make enabled child A's home unavailable **before broker
+startup**, with no live A desktop/session, retain the first A cause, enter the
+station and genuinely approve
+healthy enabled B. A cannot receive a false successful enforcement/approval
+result. Restore A, retry its public operation, verify its saved policy, live
+activation when applicable and genuine approval without restarting B or erasing
+either child's state. Pair this with a permanent aggregate/backend failure:
+no policy-mutating readiness, bounded unavailable result and safe retry/exit;
+restoring the actual shared prerequisite permits a fresh request. Registration
+or an error-only form is not the B-success control. This finite change neither
+isolates arbitrary corrupt aggregate policy nor redesigns all broker failures.
+
+#### Lifecycle ownership, states and renewal
+
+The native owner serializes against admission, configuration, activation and
+recovery under the existing protected lock/lease ordering. It records boot,
+account identity, transaction nonce, phase, deadline, renewal-used bit, exact
+manager `InvocationID`/process-start identity and live pidfd, bus owner and owned
+objects. Broker/controller/visit pins follow the
+[approval association](Broker.md#visit-requester-and-agent-association). Records
+are protected recovery authority, not frontend tokens or automatic diagnostic
+payloads. No saved PID, ready file or unit name alone authorizes mutation.
+
+| State | Entry evidence and permitted next action |
+| --- | --- |
+| **fresh** | No prior owned infrastructure or unresolved transaction, required setup verified. Claim serialization, record intent before allocating, then prepare. |
+| **preparing** | Exactly one owned startup with the original budget. Await required manager/private bus/confinement/form and agent startup; do not publish ready from exec/job success. Repeated callbacks join this transaction without allocating again. |
+| **ready** | Healthy owned infrastructure, serving policy-ready broker and usable form for a healthy selected child; agent generation pinned and startup completed. Authentication remains provisional until the genuine native exchange below; neither this state nor a marker proves registration. With no live visit, infrastructure may be reused after identity/activation revalidation. |
+| **in-use** | One exact admitted live logind session/visit owns the controller/form/agent globally across seats. Freeze relevant infrastructure and agent generation through the Broker's cancellation/effect-admission boundary. Exit/switch invalidates the visit; drain old work before returning infrastructure to ready or beginning a new activation. |
+| **failed** | Failed required operation, deadline exhaustion or unknown ownership; retain first cause and cleanup result. No unrestricted fallback, automatic replay of an approval or immediate fresh retry loop. A deliberate later Retry starts a new transaction only after prior work is settled. |
+| **recovering** | One recorded renewal of proven owned stale/failed infrastructure, with no owning public visit or admitted commit still draining. Close admission, settle old work, retire only exact owned state, then prepare once under the original budget. Failed renewal returns failed. |
+
+Healthy reuse checks the selected boundary and actual consumers, not old `/usr`
+identity or cosmetic bytes. Every activation still creates new visit/form/agent
+generations. A new competing login waits for normal release; it never attaches
+to an existing form or prompt. Only returning to the **same** admitted logind
+session may reattach to its healthy physical infrastructure after old requests
+drain, with fresh visit authority as R01c requires. On expiry return to sign-in
+with already-open/retry. Preserve a healthy other-seat session, foreign manager,
+changed identity or ambiguous ownership even if a process looks stale.
+
+For renewal, subscribe to systemd/logind ownership and session changes before
+reading, then reread under admission serialization. Correlate sessions to the
+exact kiosk account and distinguish manager bookkeeping from public graphical,
+TTY and SSH sessions; an all-host session count is not a public-visit witness.
+Closing public sessions remain occupied until their owned teardown drains. The
+current caller's opening admission may proceed only before its public execution
+and with no older owner. Never use global `TerminateUser`, a blanket UID signal,
+global failed-state reset, or change linger/logind policy.
+
+Request orderly shutdown on the **pinned manager's unique bus connection** with
+`StartUnit('exit.target', 'replace-irreversibly')`, subscribing before dispatch
+and correlating its job result. Do not use `Manager.Exit`: that is the immediate
+forced-exit primitive, not the orderly service shutdown used here. This follows
+systemd 259's [exit command dispatch](https://github.com/systemd/systemd/blob/v259/src/systemctl/systemctl-start-special.c)
+and [manager method implementation](https://github.com/systemd/systemd/blob/v259/src/core/dbus-manager.c).
+If its bus is unavailable, native recovery
+may send SIGTERM through the already verified manager pidfd: systemd user
+managers start `exit.target` on SIGTERM. Do not send a name-addressed stop/restart
+to a possibly replaced `user@UID` invocation. Wait for that invocation, its
+recorded services and PAM teardown to end; if they do not drain in time, preserve
+the unresolved owner and fail safely, without escalating to a guessed-process
+kill. Recheck no public owner/replacement before new startup. This uses
+[systemd's manager API](https://www.freedesktop.org/software/systemd/man/259/org.freedesktop.systemd1.html),
+[user-manager signal semantics](https://www.freedesktop.org/software/systemd/man/259/systemd.html#SIGTERM)
+and [logind session identities](https://www.freedesktop.org/software/systemd/man/259/org.freedesktop.login1.html);
+R02a must include the protected exit target/teardown in its finite graph.
+These public APIs provide observations and shutdown, not an atomic
+compare-and-stop by unit invocation; serialization plus connection/pidfd pins
+is required to preserve replacements.
+
+Publish recovery phase/ownership before destructive steps and retain the
+renewal-used bit through interruption. A successor may finish only matching
+owned teardown/publication, preserving the original cause and deadline; it cannot
+adopt a replacement or reset the renewal allowance. After reboot old monotonic
+deadlines cannot authorize work: validate current setup and start a new entry,
+recovering only proven leftover objects. Missing/changed recovery authority means
+preserve/conflict, not sweep. Release locks needed by a draining PAM callback
+before waiting for that callback, while keeping the admission fence and durable
+recovery ownership; R02a must prove this ordering without deadlock. Cleanup may
+outlive admission only to settle recorded owned resources; it cannot admit a
+late form or mint a new entry budget.
+
+#### One measured entry and recovery budget
+
+Select **180 seconds of cumulative machine work** from the first native kiosk
+authentication/account admission through usable form and the first genuine
+selected-parent authentication prompt. Use a monotonic absolute deadline shared
+by PAM, native owner, controller and broker; callbacks, child helpers, bus/service
+waits, configuration-lock contention, locale fallback and the one renewal all
+consume its remaining time. Each subcall timeout is capped by that remainder;
+no nested 25/60/120/30/5-second allowance may restart or extend it. Existing
+production per-helper clocks and the broker unit's 180-second startup timeout
+do **not** implement this end-to-end rule.
+
+Pause accounting only while the usable form awaits explicit human selection/
+submission or the genuine prompt awaits credentials; automatic preparation
+continues to consume budget, including during those screens. Record these
+intervals separately, never classify a pending dependency as human waiting.
+Measure elapsed monotonic time minus only the union of those quiescent human
+intervals; simultaneous helpers consume wall time once, not a sum of CPU times.
+The first actual native prompt ends the entry-readiness measurement; subsequent
+credential entry belongs to the existing user-driven authentication contract.
+R02a must establish the stock agent's real prompt/interaction boundary and
+R03/R04 must witness it through the public native prompt. A pending
+`CheckAuthorization` call alone is not evidence of a visible prompt and cannot
+pause or complete readiness accounting; qualify the actual route before claiming
+the budget. No new password collector or custom agent is authorized.
+Carry remaining time into the first real request: an idle form cannot earn a
+new agent-startup budget. The native challenge, with the original visit/agent
+pins, establishes operational authentication under
+[R01c's exchange rule](Broker.md#visit-requester-and-agent-association); no
+invented agent-list API, startup log, synthetic password check or successful job
+can substitute. Unfulfilled challenges retry only within the remaining budget;
+denial, dismissal and approval are terminal, never readiness retries. Human
+credential time has no new product idle timeout. Subsequent healthy requests
+use the existing transaction contract; actual infrastructure loss requires a
+new explicit recovery transaction and fresh authentication, never replay.
+
+180 seconds is a design bound, **not an observed performance claim**. It allows
+the existing longest 120-second trust wait within one overall limit rather than
+adding every service timeout. R03/R04 must retain monotonic admission, form,
+first prompt and terminal/recovery observations, explicit human intervals,
+remaining budget at each retry and first cause for fresh entry, healthy reuse
+and stale renewal. Report both wall time and machine time. Each complete early
+history must reach form/prompt within this bound, then complete genuine approval;
+an expired/failed fixture is not a pass. R01 reviews this choice; evidence that
+the supported route cannot meet it requires a bounded design revision and
+revalidation, not silently increasing test timeouts. Later R06/R09 histories
+include interrupted renewal, contention, dependency restart and permanent loss.
+
+#### Changed-input activation decisions
+
+The current [classifier](../../packaging/package_activation.py) and
+[postinst](../../packaging/lifecycle/postinst.in) retain their shipped semantics:
+`activation_for/changed_impacts` compare installed manifests; configuration may
+restart the broker, then reset the verified kiosk's failed manager unit, and
+retain comparison records on failure. This is not automatic stale-manager
+renewal. The following is the replacement classification for R05, using the
+same finite manifest mechanism, not a runtime whole-host digest inventory.
+
+| Changed input | Selected activation and exact limit |
+| --- | --- |
+| Unrelated packages/host siblings, cosmetic assets, native translation availability or optional feature failure | **No admission action.** Apply presentation defaults on next use; running UI may retain cached artwork/text until reopened. No manager renewal/reboot or exact-material veto. |
+| Nonresident provisioning/diagnostic helpers; monitored Polkit rules/actions | **No resident restart solely for these bytes.** Next invocation/request consumes them under existing authority. A real change to a completed required check must revalidate that check; classify its effects, not just the filename. |
+| Broker code, contract/unit and aggregate rule inputs | **Owned process renewal** (`process-restart` in the current manifest): reload required service configuration and reconcile actual policy. Cancel/drain unadmitted checks under R01c; an admitted original commit must settle before planned replacement. Unexpected loss never replays it. Form retries freshly against the new owner; no machine reboot solely for broker code. |
+| Kiosk-only manager/unit graph, private bus configuration, fixed launchers and protected entrypoint snapshots | **Owned infrastructure renewal** at next safe entry, only after the owned visit/commit and PAM teardown drain. A live visit keeps its valid pinned payload; incompatible/security-critical changes fence new admission until activation completes. Do not hot-reexec into mixed graphs, preserve an exact old manager forever or terminate a foreign/live owner to activate. |
+| Shared request form/common UI, agent locale launcher, GNOME Kiosk/session payload and Shell-only child extension | **Session renewal** for resident consumers; newly opened processes load new code. Close/drain owned old form/agent connections first, use a fresh visit/request and preserve vendor privilege paths. Ordinary child sessions renew by normal logout/login, never a forced cross-account logout. Shared files take the union of their consumers' requirements. |
+| Compatible AccountsService update with visibility drift | R05a's **one owned capability-based repair**, then public read-back/entry. Coordinate its service restart outside active dependent transactions; no exact version veto or reboot solely for cache visibility. Simulation remains separate from an actual dependency-update history. |
+| Other relevant distro library/service updates | Consume trusted installed inputs by their actual residency and public activation needs: next process, kiosk-owned renewal or normal session renewal. Do not snapshot every distro file or infer reboot from a version/digest change. R09c names the actual changed dependency and its loaded-state evidence. |
+| PAM already loaded in GDM/ordinary processes, MAC transition/boot ordering, fapolicyd backend requiring display-manager restart, or resident ordinary-user Wellbeing manager helper | **Reboot only when the required old enforcement/resident code cannot safely drain through owned kiosk/session renewal.** Preserve ordinary desktops; current same-boot trust-backend deferral is a concrete example. Record which loaded policy/process cannot activate, its required effect and the post-boot witness. A PAM/login-helper filename alone no longer justifies blanket reboot; retained old GDM PAM code or a shared enforcement boundary does. |
+
+Keep successfully configured inputs and pending activation distinct. Neither
+reboot nor successful account-gate release repairs incomplete package setup.
+Preserve product-specific reboot exclusions until justified activation; unrelated
+packages' markers do not block kiosk requests. R05 updates classifier/tests and
+the [publishing activation owner](../Publishing.md#package-update-activation)
+only after the new route passes R03/R04. R09c and final F receipts bind actual
+changed inputs, activation, fresh/reused public entry, approval and restoration.
+No current manifest assertion is changed by this design review.
+
 ### R01d configuration and quarantine decision
 
 **Selected, prospective design; review only.** Keep the fixed-account

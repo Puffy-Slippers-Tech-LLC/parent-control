@@ -6,7 +6,8 @@ Required tasks: R06a — bounded lifecycle recovery and deadline.
 Estimate: 20–30 minutes.
 
 Read the [master](../Kiosk-Resilience-Plan.md#allow-recover-and-reject), accepted
-readiness decision, [lifecycle target](../SystemDesign/Lifecycle.md#prospective-configuration-and-activation-recovery)
+readiness decision, [prerequisite classification and finite A/B control](../SystemDesign/Lifecycle.md#audited-readiness-path-and-prerequisite-classes),
+[shared deadline](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget)
 and [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
 
 ## Session boundary and deliverable

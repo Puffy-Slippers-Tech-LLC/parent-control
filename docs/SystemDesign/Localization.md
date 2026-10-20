@@ -513,6 +513,52 @@ Family B requires real approval with the C/C.UTF-8-only fixture on both targets;
 host locale/preparation failures are bounded engineering controls. This is a
 planned correction, not current installed acceptance.
 
+### R01e native authentication fallback decision
+
+**Selected prospective behavior for R08b; no implementation here.** Locale
+discovery, a translated native catalogue and non-C locale availability are
+optional presentation. If discovery fails, selects no usable translated locale,
+or the native catalogue is absent, use the stock agent with a validated
+`C.UTF-8` locale when available, otherwise `C`, and its native/source text.
+On discovery failure the unconditional `C` fallback needs no successful second
+inventory. Missing catalogues already permit gettext source fallback; do not
+add a catalogue-inventory admission check. Keep the child's saved language and
+translated product message where available; do not generate locales, change
+system settings or synthesize a translated password dialog.
+
+Only the fixed controller's locale-only launcher may prepare those values;
+R01a's closed environment boundary still applies. Distinguish environment/
+translation preparation failure from inability to start and associate the agent.
+If writing optional locale state fails, start the protected default launcher
+without consuming that failed file; do not reuse arbitrary old environment bytes
+or an old generation as proof. The operational service still must start under
+the exact [visit/agent association](Broker.md#visit-requester-and-agent-association).
+Failed jobs, stale callbacks, replacement agents, foreign registrations and lost
+service owners remain unavailable/cancelled, with safe retry/exit and a fresh
+genuine request after recovery. Locale changes cannot replace an agent while
+authentication or post-authentication checking is pending.
+
+Warm-up, fallback and any required retry consume
+[R01e's shared 180-second machine-work budget](Lifecycle.md#one-measured-entry-and-recovery-budget),
+not successive locale/job/challenge allowances. A successful matching job remains
+startup evidence; the genuine selected-parent Polkit exchange establishes
+operational authentication. Keep its public registration/authorization protocol
+and vendor privileged helper unchanged, including Fedora's SELinux transitions.
+This follows the [Polkit authority interface](https://www.freedesktop.org/software/polkit/docs/latest/eggdbus-interface-org.freedesktop.PolicyKit1.Authority.html);
+no agent-enumeration API or password probe is introduced.
+
+The [single ledger](Kiosk-Confinement.md#single-decisionrejection-ledger--execution-contribution)
+maps `test_agent_locale_refuses_c_only_hosts_without_starting_approval` from
+translation refusal to fallback with real authentication. R08b adapts that
+engineering regression only after R01's integrated mapping/review, retaining
+failed-job, identity, cancellation and dispatch assertions. C-only/C.UTF-8-only,
+missing native catalogue and failed discovery are separate finite controls;
+unavailable agent is their operational negative. R09a composes family B, and
+both installed targets must complete genuine approval and restore their inputs.
+R03/R04 measure the early route's form/prompt deadline; later B acceptance proves
+the translated-presentation failure controls. No refusal-only result receives
+availability credit.
+
 ## Formatting, layout and accessibility
 
 Language selects message presentation. It does not change time zones, midnight

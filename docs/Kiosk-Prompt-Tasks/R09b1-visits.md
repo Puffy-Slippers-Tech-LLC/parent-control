@@ -8,6 +8,8 @@ Estimate: 20–30 minutes.
 Read the [master D family](../Kiosk-Resilience-Plan.md#acceptance), delivered
 R06a/R06 lifecycle interfaces, [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [composition preflight](../TestAutomation/E2E-Building-Blocks.md#composition-preflight).
+Use the [selected lifecycle states](../SystemDesign/Lifecycle.md#lifecycle-ownership-states-and-renewal)
+and [readiness measurement](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget).
 
 ## Session boundary and deliverable
 

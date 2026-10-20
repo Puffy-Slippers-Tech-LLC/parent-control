@@ -6,7 +6,7 @@ Required tasks: R09b2 — shared approval/result and session-history composition
 Estimate: 15–30 minutes.
 
 Read the [master E family](../Kiosk-Resilience-Plan.md#acceptance), R06b's
-delivered per-child readiness/recovery interfaces, [lifecycle owner](../SystemDesign/Lifecycle.md#prospective-configuration-and-activation-recovery),
+delivered per-child readiness/recovery interfaces, [finite readiness control and limits](../SystemDesign/Lifecycle.md#audited-readiness-path-and-prerequisite-classes),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
 and [composition preflight](../TestAutomation/E2E-Building-Blocks.md#composition-preflight).
 

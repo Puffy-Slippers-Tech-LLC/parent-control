@@ -6,7 +6,8 @@ Required tasks: R05 — integrated production admission/activation boundary.
 Estimate: 20–30 minutes.
 
 Read the [master](../Kiosk-Resilience-Plan.md#allow-recover-and-reject), accepted
-lifecycle decision, [lifecycle owner](../SystemDesign/Lifecycle.md#retained-material-activation-and-recovery),
+lifecycle decision, [selected states and ownership](../SystemDesign/Lifecycle.md#lifecycle-ownership-states-and-renewal),
+[one readiness budget](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget),
 [cleanup safety](../../tests/README.md#cleanup-safety-prerequisites) and
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract).
 

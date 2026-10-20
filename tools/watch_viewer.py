@@ -12,6 +12,65 @@ APPLICATION_ID = 'org.onpc.E2EWatch'
 TITLE = 'Test watch'
 
 
+class ResourceUsage:
+    """Host utilization sampled once per second, without external commands."""
+
+    def __init__(self, proc=Path('/proc'), block=Path('/sys/block'), clock=time.monotonic):
+        self.proc, self.block, self.clock = proc, block, clock
+        self.previous_cpu = self.previous_disks = None
+        self.last = None
+        self.label = ''
+
+    def text(self):
+        now = self.clock()
+        if self.last is not None and now - self.last < 1:
+            return self.label
+        interval = now - self.last if self.last is not None else 0
+        self.last = now
+        cpu = memory = disk = None
+        try:
+            # Guest counters are already included in user/nice; count them once.
+            ticks = list(map(int, (self.proc / 'stat').read_text().splitlines()[0].split()[1:9]))
+            total, idle = sum(ticks), ticks[3] + ticks[4]
+            if self.previous_cpu is not None:
+                elapsed, resting = total - self.previous_cpu[0], idle - self.previous_cpu[1]
+                if elapsed > 0 and 0 <= resting <= elapsed:
+                    cpu = 100 * (elapsed - resting) / elapsed
+            self.previous_cpu = total, idle
+        except (OSError, ValueError, IndexError):
+            self.previous_cpu = None
+        try:
+            values = {key: int(value.split()[0]) for key, value in
+                      (row.split(':', 1) for row in (self.proc / 'meminfo').read_text().splitlines())}
+            if values['MemTotal'] > 0:
+                memory = 100 * (1 - values['MemAvailable'] / values['MemTotal'])
+        except (OSError, ValueError, IndexError, KeyError):
+            pass
+        try:
+            disks = {}
+            for row in (self.proc / 'diskstats').read_text().splitlines():
+                fields = row.split()
+                # Whole physical devices only: exclude partitions, loop devices
+                # and stacked virtual mappings of the same underlying disks.
+                if (self.block / fields[2] / 'device').exists():
+                    disks[tuple(fields[:3])] = int(fields[6]), int(fields[10])
+            if self.previous_disks is not None and interval > 0:
+                # Match Resources' Drive Activity: max(read time, write time)
+                # per interval, capped at 100%. Summarize with the busiest disk.
+                activity = [max(0, read - self.previous_disks[key][0],
+                                write - self.previous_disks[key][1]) / (interval * 10)
+                            for key, (read, write) in disks.items() if key in self.previous_disks]
+                if activity:
+                    disk = max(activity)
+            self.previous_disks = disks
+        except (OSError, ValueError, IndexError):
+            self.previous_disks = None
+        def percentage(value):
+            return f'{max(0, min(100, value)):3.0f}%' if value is not None else '   —'
+        self.label = f'CPU: {percentage(cpu)} | Memory: {percentage(memory)} | Disk: {percentage(disk)}'
+        return self.label
+
+
 def viewer_entries(entries, *, scope='all', vm_ids=None, current_vms=None):
     """Keep checkout UI workers, followed by one source per VM in ID order."""
     result, vms = {}, {}
@@ -312,8 +371,20 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             self.checkout_buttons['all'] = all_tab
             all_tab.connect('toggled', self.select_checkout, 'all')
             self.checkout_bar.append(all_tab)
+            self.resources = ResourceUsage()
+            self.resource_status = Gtk.Label(xalign=1,
+                                             hexpand=True, margin_start=12, margin_end=8)
+            self.resource_status.add_css_class('monospace')
+            self.resource_status.set_width_chars(len('CPU: 100% | Memory: 100% | Disk: 100%'))
+            set_automation_id(self.resource_status, 'watch-resource-status')
+            self.resource_status.set_tooltip_text(
+                'Host CPU and memory usage; highest physical disk read/write activity (Resources style).')
+            self.refresh_resources()
+            footer = Gtk.Box(spacing=8)
+            footer.append(self.checkout_bar)
+            footer.append(self.resource_status)
             body.append(self.pane)
-            body.append(self.checkout_bar)
+            body.append(footer)
             self.window.set_child(body)
             initial = checkouts if checkouts is not None else {ROOT: ROOT.name}
             for index, (root, label) in enumerate(initial.items()):
@@ -569,7 +640,16 @@ def application(feeds=None, feed=None, output=None, vm_feeds=None, *, checkouts=
             elif shown:
                 scope['bodies'][selected].append(self.cells[shown[0]][0])
 
+        def refresh_resources(self):
+            resource_text = self.resources.text()
+            if self.resource_status.get_text() != resource_text:
+                markup = resource_text
+                for name in ('CPU', 'Memory', 'Disk'):
+                    markup = markup.replace(name + ':', f'<b>{name}:</b>')
+                self.resource_status.set_markup(markup)
+
         def tick(self):
+            self.refresh_resources()
             if self.discovery is not None:
                 discovered = self.discovery.poll()
                 for root, label in (discovered or {}).items():

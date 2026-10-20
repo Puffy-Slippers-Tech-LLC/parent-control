@@ -2091,6 +2091,13 @@ only its own terminal. Finished tabs retain their output and remain selectable.
 Related Git worktrees are discovered automatically; launch `tools/watch` from an
 unrelated checkout to add it to the same window. Branch names update after Git
 branch switches; checkout paths identify separate tabs even when labels match.
+The footer's right-aligned resource line refreshes every second with host CPU,
+memory and disk activity percentages. Fixed-width percentage fields keep labels
+and separators stationary as values change; labels are bold and values use normal
+weight. Disk follows Resources' Drive Activity
+calculation (the greater of read and write time over the sample interval),
+showing the busiest physical disk and excluding partitions and virtual mappings.
+Unavailable measurements show a dash until a valid sample is available.
 The left terminal follows active VM `fix-tests`, then host `fix-tests` output before `run-tests`,
 using VS Code Light+ colors, wrapping and vertical scrollback. The initial
 horizontal split is 25%/75%, adjustable by dragging. The right viewer has one

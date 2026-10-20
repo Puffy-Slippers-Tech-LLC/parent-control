@@ -2,6 +2,7 @@
 from tests.support.vm_registry import vm_name
 
 import json
+import re
 
 import pytest
 
@@ -24,6 +25,9 @@ def test_checkout_tabs_grid_idle_fallback_and_session_singleton(
             return {}
 
     wait(lambda: ui.showing('watch-window') and bool(evidence().get('keys')), 'checkout viewer opens')
+    wait(lambda: re.fullmatch(r'CPU: {1,3}\d+% \| Memory: {1,3}\d+% \| Disk: {1,3}\d+%',
+                             ui.text('watch-resource-status')),
+         'footer publishes live host utilization after its first one-second sample')
     keys = evidence()['keys']
     for name, key in keys.items():
         assert ui.text('watch-checkout-tab-' + key) == name

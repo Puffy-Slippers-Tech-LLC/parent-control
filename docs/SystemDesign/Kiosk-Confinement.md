@@ -680,6 +680,121 @@ receipts below are not active requirements, selected mechanisms or acceptance
 for this rebuilt candidate. Public baseline use precedes new protections, and
 final acceptance remains both-platform installed evidence.
 
+##### C01a session source lineage
+
+Source review on 2026-10-20 compared the exact release commit
+`188be907c46b1cd0dabae06ac898c43e75beb05e` with checked-in HEAD
+`8755a6709bb06807d4e7267737c0b963f73da2d7`. Both objects resolve locally;
+the release pin, rather than the branch tip, supplies the release column below.
+At entry, `git status --porcelain=v1 --untracked-files=all --ignored=no`,
+`git diff --name-only --cached`, `git diff --name-only` and
+`git ls-files --others --exclude-standard` were empty. Thus there is **no active
+staged, unstaged or untracked old-plan source delta in this checkout**. The
+post-release confinement mechanisms below are committed cleanup inputs, not
+accepted replacement work. This inventory does not recreate absent old-plan work.
+
+In particular, there is no tracked or working startup replacement, native agent
+or session controller corresponding to `kiosk_startup_open`. The leftover
+`data/kiosk-runtime/session-services` and `data/kiosk-runtime/user-units`
+directories contain no files; they supply no graph or package input. Current
+generated user-unit overrides and D-Bus masks come from
+`tools/kiosk_confinement_policy.py`, not that tree. The historical R02a report in
+[verification limits](#verification-scope-and-evidence-limits) must not be used
+as a current source map. Production still selects fresh/retained private views.
+Likewise, “unwired” comments on `required_material` and `InitialPreparation` in
+the Python helper are stale: the production preparation service calls them.
+
+All rows below have an empty active delta. “Added” means absent at the release
+pin and present in committed HEAD. Actions name receiving tasks already in the
+[queue](../Kiosk-Prompt-Queue.md), not changes made by this review or a final
+protection design. C01b owns full feature/approval classification; C01c owns the
+complete package and automation consumer audit; C01 decides the combined boundary.
+Test owners identify source consumers, not tests run or acceptance transferred.
+
+| Release source / functions | Checked-in equivalent and confinement responsibility | Required behavior / main feature to preserve | Disposition and receiving task; direct test owner |
+| --- | --- | --- | --- |
+| `data/wayland-sessions/oh-no-parent-control.desktop`: direct `gnome-session --session oh-no-parent-control`; `data/gnome-session/sessions/oh-no-parent-control.session`: `Kiosk=true` | Same desktop now selects `/usr/libexec/oh-no-parent-control-kiosk-session`; `.session` still selects the dedicated GNOME Kiosk session without XDG autostart. `tools/kiosk_session.c:main` clears the startup environment and executes `gnome-session --no-reexec --session=oh-no-parent-control`. | Passwordless dedicated request station, compositor and shared form; no ordinary desktop launch. | Reconstruct release session entry in C02a; C02 activates it; C02d removes superseded wrappers after consumers move. `tests/unit/test_kiosk_login.py`, `tests/unit/test_kiosk_confinement.py`. |
+| `data/systemd/user/gnome-session@oh-no-parent-control.target.d/session.conf`, `oh-no-parent-control-app.service`: compositor/app required, agent wanted; direct `/usr/bin/oh-no-parent-control` | Target adds notification service and Apport conflicts. App invokes native `app` role, which runs `/usr/bin/python3 -I /usr/bin/oh-no-parent-control`; shutdown/exit integration remains in the app service. | Current request UI, language, preferences, diagnostics, notification presentation and successful/cancelled exit; preserve main's app implementation. | C02a prepares session wiring; C01b classifies feature commands; C02 switches and C02d/e remove obsolete launch/wiring. `tests/unit/test_kiosk_login.py`, `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_package_configuration.py`. |
+| `data/systemd/user/oh-no-parent-control-polkit-agent.service`: forking `/usr/bin/mate-polkit`; release Fedora staging already substitutes the native vendor agent | Shared HEAD unit is `Type=simple`, directly running `/usr/libexec/polkit-mate-authentication-agent-1`; retains environment-file, ordering and restart integration. No new product-native agent exists. | Genuine vendor authentication and selected-parent presentation; a running unit alone proves neither registration nor approval. | C02a/C02b preserve the authentication path; C01b follows `KioskAgentLocale` and approval callers; C02e retires obsolete coupling. `tests/unit/test_kiosk_login.py`, `tests/unit/test_rpm_packaging.py`. |
+| No release notification/Wellbeing units or native role launcher | Added `oh-no-parent-control-notifications.service`, `oh-no-parent-control-wellbeing.service`, `data/dbus-1/services/com.puffyslippers.OhNoParentControl.Wellbeing.service`; `kiosk_session.c:main` also implements `notifications`, `notification-client`, `wellbeing`, `cleanup`, `audio`, `packages`, `dbus`. Compositor/WirePlumber drop-ins select fixed cleanup/audio paths. | Main notification/reminder and Wellbeing behavior, package diagnostics, ordinary-user audio/Wellbeing environment. The audio/Wellbeing roles explicitly bypass kiosk environment filtering for other UIDs. | C01b maps feature calls; C02a adapts required entry commands; C02d/e delete confinement-only wrappers/drop-ins after replacement, without deleting shared features. `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_rendering.py`; C01c completes registration coverage. |
+| `tools/oh-no-parent-control-login-check`: shell allow for `gdm-password` / `systemd-user` | Isolated Python `main`, `read_session`, `verify_session`, `verify_confinement`, `busctl`: checks native integration and saved/actual Wayland routing, repairs an incorrect saved preference and denies that attempt. Called by native `run_kiosk_check` for account, session and integrity modes. | Dedicated account routing, ordinary-account independence, bounded diagnostics and retry after repair; this helper does not authenticate passwords or evaluate arbitrary PAM policy. | C02c1 prepares account/routing, C02c prepares PAM callers, C02 activates; C02d/e remove obsolete integration checks. `tests/unit/test_kiosk_login.py`, `tests/unit/test_fedora_pam.py`. |
+| `data/gdm3/PreSession/Default`: checks `USER`/`LOGNAME` and `GDMSESSION` | Identical file at both commits; still packaged as the historical GDM hook. It is not the current native entry boundary; GDM 50 does not invoke it and `GDMSESSION` is too late for PAM selection. | Dedicated session routing, rather than entitlement to preserve a nonfunctional hook. | C01c accounts for install/removal wiring; C02 selects actual entry and C02e removes unconsumed legacy wiring. `tests/unit/test_kiosk_login.py`, `tests/unit/test_package_configuration.py`, `tests/unit/test_package_removal.py`; [lifecycle owner](Lifecycle.md#startup-login-and-update-lifecycle). |
+| `tools/provision.py`: `account`, `atomic_write`, `accounts_service_user_path`, `accounts_service_set_icon_file`, `main` | Same shared file adds `accounts_service_set_kiosk_session`, `accounts_service_provision_kiosk`, `accounts_service_cache_kiosk`, `repair_kiosk_visibility`, visibility transaction/recovery/version checks, and `configure_account_access` / `kiosk_account_expiry` / `_configuration_account_record`. Owns saved visible Wayland account, UID/home/admin-group validation and expiry quarantine. | Passwordless package-owned account, retained metadata/custom icon, public AccountsService routing, disabled kiosk time limits, broker `kiosk_uid` configuration and ordinary accounts. Do not restore this whole file from release. | C02c1 prepares selective provisioning; C02c2 handles quarantine/visibility state migration and owned rollback; C02 activates. `tests/unit/test_provision.py`, `tests/unit/test_package_configuration.py`, `tests/unit/test_system_first_configure.py`, `tests/unit/test_system_kiosk_accounts.py`. |
+| `data/pam-configs/oh-no-parent-control-kiosk-only`: account `pam_exec` login check; shared session-limits profile and native child-time module already exist | Kiosk-only profile now requires native `kiosk` in account and session groups. `packaging/fedora_pam.py:configure`, `selection`, saved authselect ownership remain; HEAD `verify_pam` requires both native stages and excludes the old helper. `stage_distribution.py:pam_profile`, `pam_stack` generate the distro stack. | Shared Malcontent/time checks, administrator/kiosk skips limited to product modules, original authselect profile/features and ordinary authentication policy. | C02c selectively reconstructs kiosk integration; C02 activates; C02e cleans obsolete wiring. `tests/unit/test_fedora_pam.py`, `tests/unit/test_pam_runtime_cap.py`, `tests/unit/test_session_limit_check.py`, `tests/unit/test_rpm_packaging.py`. |
+| `tools/pam_oh_no_parent_control.c`: `run_session_limit_check`, account `systemd.runtime_max_sec=infinity` for graphical services; no kiosk-specific native branches | Adds `kiosk_identity`, `kiosk_account_check`, `run_kiosk_check`; `pam_sm_acct_mgmt`, `pam_sm_open_session`, `pam_sm_authenticate`, `pam_sm_setcred`, `pam_sm_close_session` dispatch kiosk account/session/integrity/admission/confinement/manager-credentials modes. Routing and admission leases live in PAM data and their destructors. | Ordinary child login/unlock time enforcement and graphical runtime-cap clearing, non-graphical limits, normal credential no-ops; keep separate from kiosk replacement. | C02c prepares selective native branches; C02 cutover; C02d deletes obsolete includes/branches after all consumers move. `tests/unit/test_kiosk_login.py`, `tests/unit/test_pam_runtime_cap.py`, `tests/unit/test_session_limit_check.py`. |
+| `tools/session_limit_check.py`: `main`, `is_confirmed_unrestricted`, `authentication_outcome` already implement the shared account skip / graphical authentication-time check | HEAD adds `is_systemd_user_bus_bridge`: only real/effective root, exact `login` service, verified non-kiosk account and public systemd transient-service properties can exempt the administrative user-bus bridge from the two product time modules. Native `run_session_limit_check` retains the authentication route; the PAM account profile calls the helper separately. | Ordinary child login/unlock checks and authenticated administrative bus access after time exhaustion; the bridge exception explicitly excludes kiosk and skips no other PAM policy. | C02c preserves this shared post-release behavior selectively; C01c follows both helper callers and distro-generated profile wiring. `tests/unit/test_session_limit_check.py`, `tests/unit/test_pam_runtime_cap.py`. |
+| No release `packaging/kiosk_confinement.py` | Added `admission_barrier`, `pam_lines`, `validate_stack`, `guarded_sessions`, `audit_manager_credentials`, `rendered`, `verify_pam`, `install_locked`, `load`, `check_remove`, `remove`, `finish_remove`: exact vendor/generated PAM snapshots, module inventory/callback guards, locks, MAC policy attestation and durable removal denial/finalization. | Ordinary PAM callbacks/policy, safe owned installation/rollback/removal and useful causes. Exact module inventory/private admission protocol are mechanisms, not baseline behavior. | C02c prepares PAM replacement; C02c2 migrates owned records; C02 activates; C02d/e remove old source/wiring. `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_package_configuration.py`, `tests/unit/test_package_removal.py`. |
+| No release `tools/kiosk_confinement.h` | Added `kiosk_confinement` dispatcher, `kiosk_admission_transaction`, `release_kiosk_transaction`, locks/removal marker and native primitives. Production manager calls `kiosk_fresh_startup_until`; gate calls `kiosk_retained_startup_until`. Current transaction budget is 60 seconds, failed-cleanup budget five seconds. | Identity-safe admission/lifecycle ownership and useful diagnostics; do not preserve private-view proof or its timeouts as new requirements. | C02c/C02c2 prepare replacement entry/cleanup, C02 disconnects, C02d removes old machinery. `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py`. |
+| No release fresh/retained native transactions | Added `kiosk_fresh_startup.h:kiosk_fresh_startup_until`, `kiosk_retained_startup.h:kiosk_retained_startup_until`; `kiosk_manager_admission.h:kiosk_manager_acquire_until` / selection/recheck and `kiosk_retained_record.h:kiosk_retained_record_open_until` / recheck bind live manager and retained source. These are production dependencies, not merely regression probes. | Preserve legitimate repeated entry, foreign/live-session safety and owned cleanup, without inheriting manager-clone/source-generation requirements. | C02a/C02c/C02c2 prepare replacement responsibilities; C02 cutover; C02d removes these files and direct consumers. `tests/unit/test_kiosk_fresh_startup.py`, `test_kiosk_retained_startup.py`, `test_kiosk_manager_admission.py`, `test_kiosk_retained_record.py` in `tests/unit/`. |
+| No release host/material/policy/view native graph | Added `kiosk_host_proof.h`, `kiosk_material_authority.h`, `kiosk_policy_authority.h`, `kiosk_preparation_plan.h`, `kiosk_native_realization.h`, `kiosk_view_receipt.h`, `kiosk_view_publication.h`: capture/recheck paths, decode and verify material/policy/plan, realize mounts and publish receipts. All are reached by fresh/retained startup. | Main feature code/assets remain available as ordinary installed inputs; exact cosmetic bytes, ambient inventory and private receipts are not required customer behavior. | C02d deletion inventory after C02; C03a1 reconciles mechanism assertions. Direct `tests/unit/test_kiosk_host_proof.py`, `test_kiosk_material_authority.py`, `test_kiosk_policy_authority.py`, `test_kiosk_preparation_plan.py`, `test_kiosk_native_realization.py`, `test_kiosk_view_receipt.py`, `test_kiosk_view_publication.py`. |
+| No release preparation channel/private creation graph | Added `kiosk_preparation_channel.h`, `kiosk_preparation_child.h`, `kiosk_private_creation.h`: bounded descriptor/channel exchange, child lifetime and proven-new-object initialization, used by active preparation, pinning, publication and realization. | Ownership/identity-safe cleanup and no takeover of foreign objects; the channel/pin format itself is disposable. | C02c2 preserves necessary cleanup outcomes; C02d removes old graph/consumers. `tests/unit/test_kiosk_preparation_channel.py`, `test_kiosk_preparation_child.py`, `test_kiosk_pin_native.py`, `test_kiosk_pin_storage.py`, plus `test_kiosk_confinement.py` / `test_kiosk_login.py`. |
+| No release Python preparation/material graph | Added `tools/kiosk_confinement.py:main` → `prepare_native_channel` → `native_preparation_service` → `kiosk_preparation_service.py:serve` → `measure` / `required_material`; manager uses `InitialPreparation`, gate uses `retained_plan`, `RetainedSourceProjection`, `select_retained_material`. `kiosk_preparation_input.py:PreparationExchange` and `kiosk_view_receipt.py` supply exchange/receipt formats. `runtime_input_specs` includes exact code, units, cosmetic assets and catalogues. | Preserve feature payload, normal system loading, optional presentation fallback, bounded errors and cleanup. Do not carry global runtime inventory or cosmetic admission votes into release reconstruction. | C02d removes old preparation/material/copy/receipt code after C02; C03a1 audits tests. `tests/unit/test_kiosk_preparation_entry.py`, `test_kiosk_preparation_service.py`, `test_kiosk_preparation_child.py`, `test_kiosk_preparation_channel.py`, `test_kiosk_required_material.py`, `test_kiosk_initial_realization.py`, `test_kiosk_retained_projection.py`, `test_kiosk_material_selection.py`, `test_kiosk_rendering.py`. |
+| No release legacy private binding or bubblewrap replacement | `kiosk_confinement.h:prepare_kiosk_confinement`, `bind_kiosk_executables`, `apply_kiosk_mac` and old protocol parser remain for direct/synthetic probe consumers, outside the current dispatcher. Python `prepare(role)` remains a selectable positional CLI branch. Added `tools/kiosk_bwrap.c:main` substitutes a private executable view for the vendor sandbox helper. | Main in-app report editor/media capability and genuine authentication must survive; neither old probe protocol nor private bubblewrap substitution is a feature. | C02d removes implementations and synthetic consumers after activation; C01b maps UI helper use and C01c inventories package/test inputs. `tests/unit/test_kiosk_confinement.py`, `tests/unit/test_kiosk_login.py`, `tests/unit/test_kiosk_rendering.py`; installed `tests/integration/system_kiosk_confinement.py`. |
+| No release confinement policy generator or loader service | Added `tools/kiosk_confinement_policy.py:executables`, `routes`, `apparmor`, `selinux`, `generate`; `data/systemd/oh-no-parent-control-kiosk-confinement.service` calls the integration loader. Generates roles, policy, config, private user-unit overrides and session-data D-Bus masks consumed by both preparation and lifecycle. | Actual required isolation and supported vendor privilege path, ordinary-account services and feature availability; generated graph is not a release baseline. | C02c/C02c2 prepare required integration/migration, C02 activates, C02d/e delete obsolete policy definitions and wiring. `tests/unit/test_kiosk_confinement.py`, `test_kiosk_rendering.py`, `test_package_activation.py`, `test_package_payload.py`; C01c completes build/install/removal inventory. |
+
+The complete current native route is PAM kiosk identity/options → admission and
+routing leases → `kiosk_confinement` → manager fresh / gate retained transaction
+→ native channel child and Python `serve` → measured material and selected plan
+→ native realization/publication and final MAC operation. The PAM-owned
+transaction retains unresolved cleanup ownership; ordinary PAM paths do not
+enter that graph. Whole-file rollback of the PAM module, provisioner, frontend,
+Makefile or distro integration would cross the required feature boundary.
+
+##### C01a cross-component handoff and open questions
+
+- **C01b:** follow native roles into `kiosk/oh-no-parent-control`,
+  `oh_no_parent_control_kiosk.main`, `notifications.py`, `agent_locale.py`
+  (`KioskAgentLocale`, `polkit-agent.env`, `RestartUnit`/`JobRemoved`),
+  `session_logout.py` and `child/wellbeingService.js`. Trace the current broker
+  `RequestAccess` / `RequestOwnAccess`, account/language and diagnostic methods
+  independently of historical visit/controller proposals. Determine which current
+  launcher/agent checks are feature requirements and which are obsolete
+  confinement coupling. C01a supplies no approval-protocol decision.
+- **C01c:** start at `Makefile:PACKAGE_SOURCE_FILES`, `PRODUCT_USER_SERVICES` and
+  `_install-product-files`: the native role builds, PAM shared object, installed
+  `oh-no-parent-control-kiosk-{confinement,support,confinement-integration}` and
+  generated `share/oh-no-parent-control/confinement` are actual inputs. Follow
+  `packaging/render_lifecycle.py` (including `embedded_confinement_finish_remove`),
+  `stage_distribution.py:pam_profile` / `pam_stack`, distro fragment tokens
+  `pam_restore`, `pam_enable`, `pam_remove`, `create_account`, and
+  `package_activation.py` rather than treating empty `data/kiosk-runtime` as a
+  payload. Map copied/generated definitions as well as direct source imports.
+  Installed consumer entry points include `tests/integration/system_kiosk_confinement.py`,
+  `system_kiosk_admission.py`, `system_kiosk_platform.py`, `system_kiosk_scope.py`,
+  `system_kiosk_required_history.py`, `system_kiosk_ambient_history.py` and
+  `system_pam_variants.py` in that directory; preserve their customer outcomes
+  separately from private-implementation assertions.
+- **C02c1/C02c2:** account state includes the UID marker
+  `/var/lib/oh-no-parent-control/package-created-kiosk-uid`, the UID-bound
+  `kiosk-configuration-account.json` expiry transaction, AccountsService's fixed
+  `.onpc-kiosk-visibility-v1` slot/xattr and the ignored-failure start-pre repair
+  drop-in. Decide selective state migration with the existing
+  [lifecycle](Lifecycle.md#startup-login-and-update-lifecycle) and
+  [removal](Package-Removal.md#pam-and-kiosk-ownership) owners; do not delete
+  installed records as source cleanup.
+- **C02c/C02c2:** integration state `kiosk-confinement.json` records original and
+  generated PAM bytes, backend, kiosk UID, admission protocol and optional
+  previous/removing/prelease-boot fields; `kiosk-confinement-removing` and
+  `fedora-authselect.json` protect removal/profile restoration. C01c must map
+  postinst install/release ordering, prerm check/remove and postrm embedded
+  finalization. Preserve foreign edits and ordinary-user policy during cutover.
+- **C01:** settle reconstruction versus retention at the shared PAM, launcher,
+  provisioner and policy-generation functions only after C01b/C01c. Source
+  absence is established, not a missing runtime prerequisite: no startup graph,
+  native controller/agent or `kiosk_startup_open` implementation can be retained
+  from this checkout. The current private graph's breadth is a sizing/removal
+  risk, not permission to import it into the new baseline. Later protection
+  review must justify actual child-accessible routes separately.
+
+C01a acceptance is source review only, with no declared targets. It changes no
+product code, protection design, generated inputs or installed state. Usability
+priority: **passed**; Threat scope: **passed**, for the lineage/disposition scope.
+Independent GPT-6.1 Sol High review passed after correcting the PreSession test
+owners and adding the shared session-limit helper's lineage and administrative
+bridge behavior. No actionable review findings remain. No product or installed
+acceptance is claimed. All read-only source/review agents finished; no task-owned
+processes, VMs or temporary source artifacts require cleanup.
+
 #### Single decision/rejection ledger — execution contribution
 
 This is the single integrated ledger from R01a–R01e and R01. Causes below are
@@ -1029,11 +1144,18 @@ positive controls; public E2E checks establish observable customer results.
 
 ## Verification scope and evidence limits
 
-R02a's replacement is in progress. The working source adds protected PAM policy
+The following R02a work report is historical. At the C01a source baseline
+recorded [above](#c01a-session-source-lineage), its startup/controller/visit
+replacement is absent; the production dispatcher still calls fresh/retained
+startup. This report is not evidence that those reported edits exist in this
+checkout or that their tests apply to it.
+
+The superseded R02a report described source adding protected PAM policy
 substacks and empty-credential conversation, a package-owned unit graph/private
 bus, fixed controller/agent launchers and broker visit/effect-admission controls.
-The production native dispatcher now calls `kiosk_startup_open`; old fresh and
-retained view machinery remains in private regression probes. The candidate
+It reported a native dispatcher calling `kiosk_startup_open` with old fresh and
+retained view machinery in private regression probes. That is not the current
+source route. The historical candidate
 connects protected `AdmitKioskSession` proof, the original shared entry budget,
 finite configuration/code snapshots and one owned renewal. The first independent
 integrated Astra xHigh review withheld completion. The revised candidate changes

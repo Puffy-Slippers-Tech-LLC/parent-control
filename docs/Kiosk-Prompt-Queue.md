@@ -2,13 +2,13 @@
 
 The [master](Kiosk-Session-Confinement-Plan.md) owns usability-first requirements,
 the pinned release-only confinement baseline, threat scope and acceptance.
-All rows are open; no former R-series completion transfers. C01a–C04 are the
+No former R-series completion transfers. C01a–C04 are the
 highest-priority source/rebuild/automation cleanup block. New protections wait
 for both baseline journeys. Main's non-confinement features remain current.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | C01a | [Map release and active session source](Kiosk-Prompt-Tasks/C01a-source-map.md) | Baseline | Map release session/native/account confinement against checked-in code and old-plan active changes | 20–30 min |
+| [x] | C01a | Map release and active session source | Baseline | Map release session/native/account confinement against checked-in code and old-plan active changes | [Source map and resolved independent review](SystemDesign/Kiosk-Confinement.md#c01a-session-source-lineage); exact pin/HEAD compared, active delta empty, historical startup mismatch recorded; no installed claim; owned cleanup complete |
 | [ ] | C01b | [Map feature and approval source](Kiosk-Prompt-Tasks/C01b-feature-map.md) | C01a | Classify committed and active frontend/broker coupling while preserving main product behavior | 20–30 min |
 | [ ] | C01c | [Map automation and package consumers](Kiosk-Prompt-Tasks/C01c-consumer-map.md) | C01b | Map committed and active build, lifecycle and test consumers to explicit cleanup owners | 20–30 min |
 | [ ] | C01 | [Define the v1.3 session-confinement boundary](Kiosk-Prompt-Tasks/C01-boundary.md) | C01c | Set selective replacement boundaries, preserve main features and review the removal map | 20–30 min |

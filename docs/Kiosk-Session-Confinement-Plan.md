@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C01a — [Map release and active session source](Kiosk-Prompt-Tasks/C01a-source-map.md)**.
+Next task: **C01b — [Map feature and approval source](Kiosk-Prompt-Tasks/C01b-feature-map.md)**.
 
 ## Outcome
 

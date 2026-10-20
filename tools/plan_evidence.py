@@ -356,9 +356,14 @@ def _references(plan, result, state):
               if re.match(r'^\| \[[ x]\] \| ' + re.escape(state['task_id']) + r' \|', line)]
     found = set()
     for text in texts:
-        values = re.findall(r'\]\(([^)]+)\)|`([^`]+)`', text)
-        values = [a or b for a, b in values]
-        values += re.findall(r'(?:/[^\s`<>\[\]()]+)?output/test-runs/[^\s`<>\[\](),;]+', text)
+        # Consume delimited references before bare prose so their exact paths
+        # (including spaces or punctuation) cannot generate partial duplicates.
+        # Literal terminal sentence punctuation requires a link or code span.
+        references = re.finditer(
+            r'\[[^\]\n]*\]\(([^)]+)\)|`([^`]+)`|'
+            r'((?:/[^\s`<>\[\]()]+)?output/test-runs/[^\s`<>\[\](),;]+)', text)
+        values = [link or code or bare.rstrip('.:!?\'"')
+                  for link, code, bare in (match.groups() for match in references)]
         for value in values:
             value = value.split('#', 1)[0]
             if 'output/test-runs/' not in value:

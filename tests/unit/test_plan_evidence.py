@@ -104,6 +104,66 @@ def test_git_retry_reuses_only_the_exact_verified_result(campaign):
         proof.preserve(campaign.plan, run, state, dict(result, summary='changed'))
 
 
+@pytest.mark.parametrize('reference', [
+    '{path}. Controller source is unchanged.',
+    '{path}: passed!',
+    '"{path}".',
+    '{path}#checks; owned cleanup complete.',
+    '[report]({path}).',
+    '`{path}`.',
+])
+def test_prose_report_references_publish_exact_evidence(campaign, reference):
+    run, state, result, report = campaign.accepted('first')
+    source = report / 'result.md'
+    result['checks'][0]['evidence'] = reference.format(path=source)
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        accepted['bundle'], member=str(source)) == b'Exact report for first'
+
+
+@pytest.mark.parametrize('reference', ['[report]({path}).', '`{path}`.'])
+@pytest.mark.parametrize('filename', ['result.md.', 'result.md,', 'result, exact.md'])
+def test_delimited_report_paths_preserve_literal_punctuation(campaign, reference, filename):
+    run, state, result, report = campaign.accepted('first')
+    source = report / filename
+    (report / 'result.md').rename(source)
+    result['checks'][0]['evidence'] = reference.format(path=source)
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+    accepted = proof.preserve(campaign.plan, run, state, result)
+    assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+        accepted['bundle'], member=str(source)) == b'Exact report for first'
+
+
+def test_link_labels_are_not_evidence_sources(campaign):
+    _, state, result, report = campaign.accepted('first')
+    source = report / 'result.md'
+    result['checks'][0]['evidence'] = f'[{report / "label-only.md"}]({source}).'
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+
+
+def test_queue_prose_and_relative_links_preserve_one_exact_source(campaign):
+    _, state, result, report = campaign.accepted('first')
+    source = report / 'result.md'
+    queue = campaign.plan.root / campaign.plan.queue
+    relative = os.path.relpath(source, queue.parent)
+    queue.write_text('| [x] | first | task | Baseline | scope | '
+                     f'Passed: {source}. [report]({relative}). |\n')
+    result['checks'][0]['evidence'] = 'See queue for retained evidence.'
+    assert proof._references(campaign.plan, result, state) == [str(source)]
+
+
+def test_missing_prose_report_still_refuses_publication(campaign):
+    run, state, result, report = campaign.accepted('first')
+    result['checks'][0]['evidence'] = f'Missing report: {report / "missing.md"}.'
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    with pytest.raises(FileNotFoundError, match='missing.md'):
+        proof.preserve(campaign.plan, run, state, result)
+    assert not proof.locator(campaign.plan).exists()
+
+
 def test_renewed_acceptance_retains_both_exact_attempts(campaign):
     run, state, result, _ = campaign.accepted('first')
     old = proof.preserve(campaign.plan, run, state, result)

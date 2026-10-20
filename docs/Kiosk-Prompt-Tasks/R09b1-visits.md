@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R09a — registered entry/approval/restoration operations.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master D family](../Kiosk-Resilience-Plan.md#acceptance), delivered
 R06a/R06 lifecycle interfaces, [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)

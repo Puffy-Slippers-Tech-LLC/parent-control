@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R09c — shared update/visibility and earlier history composition.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master G family](../Kiosk-Resilience-Plan.md#acceptance), R01's accepted
 ledger/legacy mapping,

@@ -4,7 +4,8 @@ Acceptance: host
 
 Required tasks: R09a — shared entry/approval/restoration; R09b1 — visits/renewal;
 R09b2 — approval orderings; R09b3 — cross-child readiness.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master E family](../Kiosk-Resilience-Plan.md#acceptance), delivered
 R06 recovery/approval contract,

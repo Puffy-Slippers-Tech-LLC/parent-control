@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R02a — runnable entry/approval transaction.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master early proof](../Kiosk-Resilience-Plan.md#acceptance), accepted
 [PAM decision](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),
@@ -16,8 +17,13 @@ Extract one administrator-owned unfamiliar benign PAM session integration from
 R02. Use maintained fixture/preparation ownership and complete affected PAM,
 ordinary-role and station callers. Specify its finite input and automatic
 session effect, an ordinary-account control proving it is effective, and a kiosk
-control requiring usable entry plus genuine approval. Use the selected policy
-boundary without a fixture/module-name exception. R02c owns host-service activation.
+control requiring usable entry plus genuine approval. Use the selected
+policy-neutral projection with native control-flow/handle-data equivalence,
+without a fixture/module-name exception. Policy-relevant optional-only
+success/denial controls retain native execution/results. The
+[integrated proof](../SystemDesign/Kiosk-Confinement.md#finite-early-proof-and-implementation-limits)
+distinguishes trusted vendor policy helpers from confined kiosk descendants;
+no child-reachable unconfined launch effect may pass. R02c owns host-service activation.
 
 ## Acceptance and close-out
 

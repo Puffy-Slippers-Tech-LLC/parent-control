@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R09d — delivered A–G fixture/history operations.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master H family](../Kiosk-Resilience-Plan.md#acceptance), R08's
 original-cause interfaces, [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract),

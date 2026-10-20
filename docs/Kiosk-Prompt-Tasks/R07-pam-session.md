@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R06.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md), its R01 contract and R06 recovery
 result, the [selected authentication policy](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),

@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R09b2 — shared approval/result and session-history composition.
-Estimate: 15–30 minutes.
+Estimate: 45–60 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master E family](../Kiosk-Resilience-Plan.md#acceptance), R06b's
 delivered per-child readiness/recovery interfaces, [finite readiness control and limits](../SystemDesign/Lifecycle.md#audited-readiness-path-and-prerequisite-classes),

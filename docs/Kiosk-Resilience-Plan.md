@@ -1,7 +1,7 @@
 # Reliable kiosk entry with explicit confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **R01 — [Review the integrated admission contract](Kiosk-Prompt-Tasks/R01-contract.md)**.
+Next task: **R02a — [Implement the minimal startup transaction](Kiosk-Prompt-Tasks/R02a-startup.md)**.
 
 ## Outcome
 
@@ -271,7 +271,8 @@ follows; obsolete mechanisms do not survive as hidden prerequisites:
 | Reliability 006a/006b and cases 290/291 | R01 maps legacy masking/refusal assertions to unrelated-host tolerance and protection of actually child-writable consumed inputs. The reliability briefs require that accepted mapping before execution; empty views, exact manager retention and group-write bits alone are not successor requirements. Existing tests/evidence keep their historical scope until explicitly adapted. |
 | Native-locale refusal and standalone confinement proof | R01 maps the C-only locale refusal expectation to specification-preserving fallback; R08 implements it. The [proof catalogue](Kiosk-Confinement-Proof.md#evidence-scope) retains historical scope, including contention/generation refusal. R12 reconciles it with final-candidate evidence; successful refusal is not availability acceptance. |
 
-R01 explicitly maps changed behavioral expectations before tests are edited.
+R01's [accepted integrated mapping](SystemDesign/Kiosk-Confinement.md#accepted-mapping-of-legacy-assertions)
+records changed behavioral expectations before the allocated later test edits.
 Preserve safety requirements; retire implementation assertions when their
 mechanism is replaced. Never change expectations merely to pass. New work must
 name a demonstrated failure or direct regression risk, finite deliverable and
@@ -287,7 +288,9 @@ model guidance. Preserve mandatory **GPT-6 Astra XHigh review and revision for
 each product fix**, and apply it to R01's architecture too. Review actual
 reachability, availability consequences and both platforms; resolve actionable
 findings and revalidate material revisions. Test counts cannot replace the
-public result.
+public result. R01's [review receipt](SystemDesign/Kiosk-Confinement.md#r01-architecture-review-receipt)
+records the explicit session model override used for that architecture review;
+future product fixes retain this master's review requirement.
 
 `tools/kiosk-prompt --check` validates the master and briefs without execution.
 Only a later explicit execution request starts `tools/kiosk-prompt --tasks 1`

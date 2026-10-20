@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R07 — policy-preserving authentication/session integration.
-Estimate: 15–30 minutes.
+Estimate: 30–60 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master family B](../Kiosk-Resilience-Plan.md#acceptance),
 [configuration decision](../SystemDesign/Lifecycle.md#r01d-configuration-and-quarantine-decision),

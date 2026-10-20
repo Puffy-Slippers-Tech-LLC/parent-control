@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R08b — operational authentication-language fallback.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master family B](../Kiosk-Resilience-Plan.md#acceptance),
 [shared frontend flows](../SystemDesign/Frontends.md#main-flows)

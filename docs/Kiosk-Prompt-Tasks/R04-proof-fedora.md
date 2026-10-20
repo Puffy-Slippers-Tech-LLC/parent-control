@@ -3,7 +3,9 @@
 Acceptance: installed
 Targets: onpc-Fedora44
 
-Estimate: 30–60 minutes; session exception for the complete early architecture proof.
+Estimate: 60–120 minutes; session exception for the complete early architecture proof.
+Use the [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review);
+R02 refines the range from registered complete histories, preserving acceptance.
 
 Requires R02 and R03. Read the [master](../Kiosk-Resilience-Plan.md#acceptance),
 accepted design, R02's exact selector and R03's candidate/input receipt. Apply
@@ -20,8 +22,13 @@ with effective ordinary-account controls, usable kiosk approval and exclusion or
 confinement of the service's launch route. Validate form/authentication readiness
 within the declared entry/recovery budget under the
 [measurement contract](../SystemDesign/Lifecycle.md#one-measured-entry-and-recovery-budget).
-Prove first exec, pre-boundary children, manager/service routes, credential/session
-teardown and the preserved privileged Polkit helper. Explicitly distinguish
+Prove first exec, classify pre-boundary trusted policy helpers' vendor authority
+and paired cleanup separately from confined kiosk manager/service/application
+descendants, and require no child-reachable unconfined launch effect under the
+[integrated proof](../SystemDesign/Kiosk-Confinement.md#finite-early-proof-and-implementation-limits).
+Prove credential/session teardown and the preserved privileged Polkit helper;
+do not assume an immediate transition of the multithreaded GDM worker.
+Explicitly distinguish
 unavailable approval from successful confinement; disabling privilege transitions
 is not a solution.
 

@@ -4,7 +4,8 @@ Acceptance: host
 
 Required tasks: R09b — shared lifetime/recovery composition;
 R09c1 — separate compatible visibility-repair fixture.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master F family](../Kiosk-Resilience-Plan.md#acceptance), R05a's repair,
 [accepted activation classes](../SystemDesign/Lifecycle.md#changed-input-activation-decisions),

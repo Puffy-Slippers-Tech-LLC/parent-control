@@ -10,7 +10,7 @@ Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
 Coordination: the [kiosk resilience plan](../Kiosk-Resilience-Plan.md#scope-reconciliation)
 owns the compatibility redesign's input protection and recovery qualification.
-Before execution, require R01's accepted mapping from legacy refusal assertions
+Before execution, require R01's [accepted mapping](../SystemDesign/Kiosk-Confinement.md#accepted-mapping-of-legacy-assertions) from legacy refusal assertions
 to the [prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target);
 if absent, keep this row unchecked. Review its
 [historical baseline](../Kiosk-Resilience-Plan.md#implementation-baseline);

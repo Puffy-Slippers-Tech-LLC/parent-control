@@ -4,7 +4,8 @@ Acceptance: host
 
 Required tasks: R09a — A–C compatibility; R09b — cumulative D/E histories;
 R09c — cumulative F histories; R09d — G escape/policy; R09e — H diagnostics.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master acceptance](../Kiosk-Resilience-Plan.md#acceptance), R01's
 settled decision contract, delivered R02–R08 results and the

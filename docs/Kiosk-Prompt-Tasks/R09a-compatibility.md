@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R08 — integrated fallback/recovery diagnostics.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master A–C families](../Kiosk-Resilience-Plan.md#acceptance), R01's
 ledger, delivered R02–R08 callables and

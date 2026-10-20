@@ -341,7 +341,8 @@ success alone does not cross it. After admission, only that original approved
 request may finish despite departure, under the existing transaction and rollback
 rules. The [specification](../Specification.md#prospective-kiosk-visit-lifetime)
 owns the visible result. R01 integrates and independently reviews this decision
-before R02a; no implementation or installed acceptance is claimed here.
+in the [integrated contract](Kiosk-Confinement.md#r01-integrated-admission-contract);
+no implementation or installed acceptance is claimed here.
 
 #### Audited implementation gap
 
@@ -412,9 +413,15 @@ Before reusing the fixed agent unit, cancel/drain old requests and prove the old
 owned agent process and its bus connections have ended. Pin the new unit/process
 before requesting authentication. A completed systemd job or `Type=simple`
 process is only startup evidence, not proof of successful registration. The
-genuine selected-parent Polkit exchange establishes operational authentication;
-an unfulfilled challenge may wait only within the original readiness budget and
-the same visit/agent pins. Never retry approval, dismissal or denial as startup.
+genuine selected-parent Polkit exchange establishes operational authentication.
+Under the [revised observable timing boundary](Lifecycle.md#one-measured-entry-and-recovery-budget),
+automatic preparation and dispatch/retry consume the original readiness budget
+and retain the same visit/agent pins. A dispatched native exchange remains
+user-driven, with lifecycle cancellation and no new idle timeout; pending time
+is not proof of prompt visibility or human waiting. An unfulfilled returned
+challenge may retry only with remaining budget. Never retry approval, dismissal
+or denial as startup. Installed acceptance independently observes the actual
+prompt within the end-to-end bound; no job or pending call qualifies it.
 Do not invent a registration-enumeration API, use log text as readiness, or
 substitute a password collector/probe. R02a–R04 must prove the shipped agent's
 session association and actual prompt on each platform, including the absence
@@ -515,7 +522,7 @@ visit; preserve other users' apps and live/foreign sessions. Engineering failure
 controls on each side of termination retain existing rollback assertions and
 must not relabel a failed transaction as cancellation or success. R01c itself
 accepts only this source-grounded decision and documentation consistency, with
-no runtime state; integrated architecture review remains R01's obligation.
+no runtime state; R01's integrated contract records the architecture review.
 
 ## Related design
 

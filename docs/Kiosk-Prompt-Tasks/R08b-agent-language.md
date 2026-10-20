@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R08a — optional provisioning completion.
-Estimate: 20–30 minutes.
+Estimate: 45–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master family B](../Kiosk-Resilience-Plan.md#acceptance),
 [native-language contract and selected fallback](../SystemDesign/Localization.md#r01e-native-authentication-fallback-decision),

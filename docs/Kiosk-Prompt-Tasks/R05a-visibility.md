@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R04 — both-platform early architecture proof.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#target-design), R01's accepted
 configuration decision in the [lifecycle owner](../SystemDesign/Lifecycle.md#r01d-configuration-and-quarantine-decision)

@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R09b — delivered recovery/history composition.
-Estimate: 15–30 minutes.
+Estimate: 45–60 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master F family](../Kiosk-Resilience-Plan.md#acceptance), R05a's
 capability/schema repair, maintained provisioning/AccountsService fixtures,

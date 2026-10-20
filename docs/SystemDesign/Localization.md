@@ -540,9 +540,11 @@ authentication or post-authentication checking is pending.
 
 Warm-up, fallback and any required retry consume
 [R01e's shared 180-second machine-work budget](Lifecycle.md#one-measured-entry-and-recovery-budget),
-not successive locale/job/challenge allowances. A successful matching job remains
-startup evidence; the genuine selected-parent Polkit exchange establishes
-operational authentication. Keep its public registration/authorization protocol
+not successive locale/job/challenge allowances. That contract distinguishes
+bounded automatic preparation/dispatch from the user-driven native exchange and
+independently measured prompt latency; pending authentication is not a visible
+prompt signal. A successful matching job remains startup evidence; the genuine
+selected-parent Polkit exchange establishes operational authentication. Keep its public registration/authorization protocol
 and vendor privileged helper unchanged, including Fedora's SELinux transitions.
 This follows the [Polkit authority interface](https://www.freedesktop.org/software/polkit/docs/latest/eggdbus-interface-org.freedesktop.PolicyKit1.Authority.html);
 no agent-enumeration API or password probe is introduced.

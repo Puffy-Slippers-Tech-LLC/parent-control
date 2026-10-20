@@ -3,7 +3,9 @@
 Acceptance: installed
 Targets: onpc-Ubuntu26.04
 
-Estimate: 30–60 minutes; session exception for the complete early architecture proof.
+Estimate: 60–120 minutes; session exception for the complete early architecture proof.
+Use the [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review);
+R02 refines the range from registered complete histories, preserving acceptance.
 
 Requires R02. Read the [master](../Kiosk-Resilience-Plan.md#acceptance), accepted
 R01 design and R02 selector/input handoff. Apply the
@@ -24,8 +26,11 @@ entry/recovery budget under the [measurement contract](../SystemDesign/Lifecycle
 Capture actual caller credentials and the original cause
 of any rejected entry rather than accepting a transport timeout classification.
 
-Prove the permitted actual first exec, pre-boundary children, manager/service
-execution and teardown remain confined; then exercise alternate-desktop/SSH and
+Prove the permitted actual first exec and classify pre-boundary trusted policy
+helpers' vendor authority and paired cleanup separately from confined kiosk
+manager/service/application descendants, with no child-reachable unconfined
+launch effect, under the [integrated proof](../SystemDesign/Kiosk-Confinement.md#finite-early-proof-and-implementation-limits).
+Then exercise alternate-desktop/SSH and
 exposed launch-path controls. An ordinary child/admin account retains
 authentication and access.
 The form must remain usable after denied/cancelled parent authentication.

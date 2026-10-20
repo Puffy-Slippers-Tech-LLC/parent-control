@@ -4,7 +4,8 @@ Acceptance: host
 
 Required tasks: R04 — both-platform proof; R05a — visibility repair;
 R05b — quarantine ownership/release.
-Estimate: 30–60 minutes.
+Estimate: 120–180 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#target-design), R01's
 decision ledger and both early-proof receipts. Read full native fresh/retained

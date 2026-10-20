@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R02a — entry/activation boundary; R02b — companion PAM fixture.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master early proof](../Kiosk-Resilience-Plan.md#acceptance), accepted
 activation design, [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract),

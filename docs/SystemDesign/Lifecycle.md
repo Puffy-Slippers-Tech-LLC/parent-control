@@ -664,8 +664,9 @@ fixed unprivileged controller operates only the admitted form/agent generations;
 the broker owns per-child operational readiness and approval authority. These
 are parts of one transaction, not competing lifecycle writers. R02a supplies the
 thin runnable route, R06a completes infrastructure recovery, R06b isolates child
-readiness and R08b supplies native-language fallback. R01 still owns integrated
-independent architecture review. No runtime behavior or acceptance changes here.
+readiness and R08b supplies native-language fallback. The
+[R01 integrated review](Kiosk-Confinement.md#r01-integrated-admission-contract)
+composes these decisions. No runtime behavior or acceptance changes here.
 
 #### Audited readiness path and prerequisite classes
 
@@ -715,10 +716,13 @@ existing A policy and the live activation/rollback checks; this work cannot
 declare a live session safely enforced merely because settings were saved.
 There is no existing broker safety action that repairs a live session's absent
 countdown/lock extension: PAM checks future authentication, not ongoing desktop
-use. R06b must not invent a successful degraded state or remove live verification
-to obtain isolation. Demonstrated live enforcement loss remains a failed product
-result, with its actual required repair resolved in R01's integrated review
-before implementing that path; this decision selects no new session-kill policy.
+use. R01 bounds R06b's isolation change to the unavailable-home-at-startup control
+below, with no live A session. For an already live affected child, retain the
+existing verified activation/rollback attempt and an unavailable result if it
+fails; do not claim restored enforcement, grant access or introduce a new
+session-kill policy. A demonstrated live enforcement loss remains a product
+failure requiring its concrete repair before that history can pass. It is not a
+new supported degraded state or a reason to fail healthy B's independent request.
 
 Finite R06b/R09b3 control: make enabled child A's home unavailable **before broker
 startup**, with no live A desktop/session, retain the first A cause, enter the
@@ -806,50 +810,71 @@ late form or mint a new entry budget.
 #### One measured entry and recovery budget
 
 Select **180 seconds of cumulative machine work** from the first native kiosk
-authentication/account admission through usable form and the first genuine
-selected-parent authentication prompt. Use a monotonic absolute deadline shared
-by PAM, native owner, controller and broker; callbacks, child helpers, bus/service
-waits, configuration-lock contention, locale fallback and the one renewal all
-consume its remaining time. Each subcall timeout is capped by that remainder;
-no nested 25/60/120/30/5-second allowance may restart or extend it. Existing
-production per-helper clocks and the broker unit's 180-second startup timeout
-do **not** implement this end-to-end rule.
+authentication/account admission. PAM, native owner, controller and broker share
+one remaining budget: callbacks, helpers, bus/service waits, configuration-lock
+contention, locale fallback and the one renewal cannot start fresh clocks.
+Cap each automatic subcall by that remainder. A usable form may pause the clock
+only while it awaits explicit human selection/submission with no automatic work
+pending. Charge automatic preparation even while the form is visible; concurrent
+helpers consume elapsed wall time once. Carry the remainder into the first real
+request; an idle form earns no new agent-startup allowance.
 
-Pause accounting only while the usable form awaits explicit human selection/
-submission or the genuine prompt awaits credentials; automatic preparation
-continues to consume budget, including during those screens. Record these
-intervals separately, never classify a pending dependency as human waiting.
-Measure elapsed monotonic time minus only the union of those quiescent human
-intervals; simultaneous helpers consume wall time once, not a sum of CPU times.
-The first actual native prompt ends the entry-readiness measurement; subsequent
-credential entry belongs to the existing user-driven authentication contract.
-R02a must establish the stock agent's real prompt/interaction boundary and
-R03/R04 must witness it through the public native prompt. A pending
-`CheckAuthorization` call alone is not evidence of a visible prompt and cannot
-pause or complete readiness accounting; qualify the actual route before claiming
-the budget. No new password collector or custom agent is authorized.
-Carry remaining time into the first real request: an idle form cannot earn a
-new agent-startup budget. The native challenge, with the original visit/agent
-pins, establishes operational authentication under
-[R01c's exchange rule](Broker.md#visit-requester-and-agent-association); no
-invented agent-list API, startup log, synthetic password check or successful job
-can substitute. Unfulfilled challenges retry only within the remaining budget;
-denial, dismissal and approval are terminal, never readiness retries. Human
-credential time has no new product idle timeout. Subsequent healthy requests
-use the existing transaction contract; actual infrastructure loss requires a
-new explicit recovery transaction and fresh authentication, never replay.
+**R01 observable-boundary revision:** the stock MATE agent/Polkit API exposes no
+visible-prompt notification to this broker. `RestartUnit`, a running agent and a
+pending `CheckAuthorization` do not establish that a prompt exists. Enforcing a
+deadline through that unseen boundary could cancel a parent already typing;
+calling all of that interval human waiting would conceal missing readiness.
+Therefore production enforces the 180-second deadline through usable form,
+bounded owned agent startup and dispatch of the genuine native check. An
+unfulfilled returned challenge may retry only within that same remainder, under
+the original visit/agent pins. Expiry before a dispatch/retry cancels and settles
+owned work; denial, dismissal and approval remain terminal.
 
-180 seconds is a design bound, **not an observed performance claim**. It allows
-the existing longest 120-second trust wait within one overall limit rather than
-adding every service timeout. R03/R04 must retain monotonic admission, form,
-first prompt and terminal/recovery observations, explicit human intervals,
-remaining budget at each retry and first cause for fresh entry, healthy reuse
-and stale renewal. Report both wall time and machine time. Each complete early
-history must reach form/prompt within this bound, then complete genuine approval;
-an expired/failed fixture is not a pass. R01 reviews this choice; evidence that
-the supported route cannot meet it requires a bounded design revision and
-revalidation, not silently increasing test timeouts. Later R06/R09 histories
-include interrupted renewal, contention, dependency restart and permanent loss.
+Each dispatched native exchange retains the existing user-driven authentication
+contract without a new idle timeout. While it is pending, visit/sender/agent/
+service loss still cancels it; a late result cannot revive it. Its pending time
+is recorded as **native exchange, prompt not observable**, not human waiting,
+successful registration or request readiness. A hung but still owned exchange
+may require the public prompt Cancel or session exit; neither a pending call nor
+the production handoff qualifies availability. Do not introduce a custom agent,
+password collector, agent-list API, log-based readiness or synthetic password
+check. This is a deliberate runtime observability limit, not an assertion that
+the stock API enforces a visible-prompt deadline.
+
+Installed acceptance keeps the stronger **180-second admission-to-visible-prompt
+machine-time bound**, independently observed through the public form and native
+prompt. Pause only the union of observed quiescent human-selection intervals;
+automatic work and dispatch-to-prompt latency count. The actual prompt ends this
+measurement and parent credential-entry time is separate. R02 registers these
+observations; R03/R04 require form/prompt in budget and genuine approval for fresh
+entry, healthy reuse and stale renewal. A missing/late prompt fails availability,
+even if the production exchange is still pending; safe cancellation, restoration
+and a fresh approved request must follow. Host jobs cannot supply this evidence.
+Record admission, form, dispatch, prompt and terminal/recovery monotonic times,
+human intervals, remaining budget, wall time and first cause.
+
+180 seconds is a design bound, **not an observed performance claim**. It includes
+the existing longest 120-second trust wait rather than summing helper clocks;
+the broker unit's startup timeout does not implement it. The retained failed
+Ubuntu case 293 (report `20261020T015724Z-9595ee55`, exact member in the
+[retained accepted bundle](../../output/test-runs/host/plans/eef8d83fd673614a6f0e83adad07b9c3981f98c1618cb827f4a2bf6bd84b72a2/accepted-evidence.json))
+took about 8.2 minutes including roughly 295 seconds of snapshot
+preparation and a 161-second failed test; it produced no usable form or prompt,
+so supplies no successful entry latency. R02 refines history scheduling from
+actual registered inputs; R03/R04 validate this bound without silently increasing
+timeouts. Later R06/R09 include interrupted renewal, contention, dependency
+restart and permanent loss. Subsequent healthy requests retain the transaction
+contract; infrastructure loss requires explicit recovery and fresh authentication.
+
+Pre-GDM package configuration has no login admission clock yet. Its required
+setup/owned repair uses one separately recorded 180-second machine-work budget
+for that configuration invocation, excluding package download/build time and
+explicit administrator decisions. No nested setter/restart/recovery extends it;
+expiry retains the closed configuration gate and first cause for a later explicit
+retry. A later login starts its own single entry budget. If login waits for an
+already running configuration, that wait consumes the login remainder too; it
+cannot restart or take over configuration. Gate release proves required setup,
+not the later public form/prompt result.
 
 #### Changed-input activation decisions
 
@@ -890,7 +915,8 @@ configuration quarantine out of native account expiry into a durable
 product-owned native admission gate. Keep native expiry and effective
 administrator policy authoritative. Optional icon work has no vote on setup
 completion. These choices implement nothing and claim no installed acceptance;
-R01 still owns integrated architecture review and revision.
+the [R01 integrated review](Kiosk-Confinement.md#r01-integrated-admission-contract)
+composes this decision with authentication and readiness.
 
 #### Audited configuration path
 

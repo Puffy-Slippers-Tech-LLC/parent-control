@@ -4,7 +4,8 @@ Acceptance: host
 
 Required tasks: R08a — provisioning-icon fallback; R08b — native agent language;
 R08c — optional runtime features.
-Estimate: 20–30 minutes.
+Estimate: 60–90 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md), delivered R07/R08a–R08c inputs,
 the [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract),

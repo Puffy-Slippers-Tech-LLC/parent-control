@@ -14,7 +14,8 @@ The scenario catalogue includes ordinary configuration, contention and missing
 enforcement as well as attacks. Those conditions are not inherently hostile.
 In particular, historical contention refusal in scenario 29 and generation refusal
 in scenario 25 cannot qualify normal-use availability. R01 maps retained
-assertions to the successor allow/recover/reject contract before reuse; R12
+assertions through the [accepted integrated mapping](SystemDesign/Kiosk-Confinement.md#accepted-mapping-of-legacy-assertions)
+before reuse; R12
 reconciles this page against the final inputs and evidence. Preserve historical
 results while distinguishing retired mechanisms and outstanding installed proof.
 

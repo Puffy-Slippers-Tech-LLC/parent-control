@@ -3,9 +3,11 @@
 Acceptance: host
 
 Required tasks: R01 — independently reviewed architecture and ledger.
-Estimate: 30–60 minutes.
+Estimate: 180–300 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
-Read the [master](../Kiosk-Resilience-Plan.md#acceptance), accepted design/ledger,
+Read the [master](../Kiosk-Resilience-Plan.md#acceptance), accepted
+[integrated design/ledger](../SystemDesign/Kiosk-Confinement.md#r01-integrated-admission-contract),
 [authentication dispatch and proof controls](../SystemDesign/Kiosk-Confinement.md#r01b-effective-authentication-decision),
 [readiness/renewal/activation decision](../SystemDesign/Lifecycle.md#r01e-readiness-and-activation-decision),
 [task contract](../TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
@@ -30,7 +32,8 @@ the two unfamiliar integration fixtures; R02 owns complete proof composition.
 ## Acceptance and close-out
 
 Run registered affected native/PAM/preparation/session/package host checks,
-including actual production-call composition, cancellation and owned failure
+including native optional-only success/denial, policy-neutral projection with
+handle-data continuity, actual production-call composition, cancellation and owned failure
 cleanup. Record test-double limits; host success grants no installed proof.
 Apply resource review and the master's mandatory product review/revision, then
 `make build` after the final packaged edit. Update existing design limits and

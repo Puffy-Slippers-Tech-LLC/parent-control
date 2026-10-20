@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R06a — infrastructure renewal; R06b — per-child broker readiness.
-Estimate: 20–30 minutes.
+Estimate: 60–120 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#allow-recover-and-reject),
 accepted lifecycle design and full manager/admission/recovery callers. Follow

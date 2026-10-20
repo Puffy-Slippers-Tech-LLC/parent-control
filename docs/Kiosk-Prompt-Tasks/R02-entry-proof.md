@@ -4,10 +4,12 @@ Acceptance: host
 
 Required tasks: R02a — runnable startup transaction; R02b — unfamiliar PAM fixture;
 R02c — automatic-service fixture.
-Estimate: 15–30 minutes.
+Estimate: 45–75 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#acceptance), R01's
-accepted design/ledger and complete affected native, policy, session and packaging
+[accepted integrated design/ledger](../SystemDesign/Kiosk-Confinement.md#r01-integrated-admission-contract)
+and complete affected native, policy, session and packaging
 functions. Use the [test map](../TestAutomation/README.md) to locate maintained
 fixture, resource and UI contracts before changing supporting operations.
 

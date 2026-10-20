@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R05 — integrated production admission/activation boundary.
-Estimate: 20–30 minutes.
+Estimate: 90–150 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#allow-recover-and-reject), accepted
 lifecycle decision, [selected states and ownership](../SystemDesign/Lifecycle.md#lifecycle-ownership-states-and-renewal),

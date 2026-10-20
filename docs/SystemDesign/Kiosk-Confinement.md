@@ -219,10 +219,9 @@ The replan did not settle these decisions. R01a's execution, R01b's
 authentication, R01c's approval and R01d's
 [configuration choice](Lifecycle.md#r01d-configuration-and-quarantine-decision),
 plus R01e's [readiness and activation choice](Lifecycle.md#r01e-readiness-and-activation-decision),
-are recorded in their owners; their integration is still pending. R01 must
-review one concrete supported design, its source/API basis and a finite proof
-plan before R02a starts. The
-[task breakdown](../Kiosk-Resilience-Plan.md#task-boundaries) allocates these
+are recorded in their owners. The [integrated contract](#r01-integrated-admission-contract)
+composes them, records review revisions and maps the finite proof before R02a.
+The [task breakdown](../Kiosk-Resilience-Plan.md#task-boundaries) allocates these
 decisions to R01a–R01e and integrated review to R01; they are not additional
 hardening projects:
 
@@ -300,8 +299,8 @@ Competing logins preserve the owning live/foreign session, wait within R01e's
 entry deadline and return an explicit already-open/retry result if it remains
 occupied. R01e owns infrastructure recovery/deadlines, R02a the runnable slice,
 R06 its recovery composition and R09b2/R10c2/R11c2 the two ordered race histories.
-R01 still owns integrated independent architecture review; this is review-only
-design, with no implemented or installed acceptance credit.
+The [integrated contract](#r01-integrated-admission-contract) reviews this
+composition; it grants no implemented or installed acceptance credit.
 
 ### R01b effective authentication decision
 
@@ -315,7 +314,8 @@ existing GDM authentication stack accepts it and account management allows
 access. A locked/nonempty credential, effective access denial or administrator
 expiry is not repaired by deleting a password, changing policy or asking the
 child for a kiosk password. This decision changes neither shipped policy nor
-test expectations; R01 integrates and independently reviews it before R02a.
+test expectations; the [integrated contract](#r01-integrated-admission-contract)
+reviews its composition before R02a.
 
 #### Current source and public mechanism
 
@@ -382,20 +382,25 @@ session group unchanged. The kiosk uses a protected session-policy substack,
 required core setup and the final native gate in fixed outer control flow.
 The policy substack preserves the original non-optional rules and their native
 control flow, including unfamiliar modules and effective session access denials.
-Only ordinary `optional` desktop callbacks are excluded; extended return-action
-controls, `required`, `requisite` and `sufficient` are not guessed to be optional.
+Only policy-neutral `optional` desktop callback slots are excluded; extended
+return-action controls, `required`, `requisite` and `sufficient` are not guessed
+to be optional.
 Preserve include/substack boundaries and jump slots when replacing optional
 callbacks with a kiosk-only inert result, rather than deleting lines and moving
 jump destinations. Resolve nested session includes into protected kiosk-specific
 counterparts; ordinary accounts keep the originals. Native PAM evaluates policy
 results; `done`, `die`, `reset` and jumps inside the policy substack cannot skip
 the outer required core/final gate. No module-name inventory decides admission.
-An optional-only stack whose result itself controls access must retain that
-effective policy, rather than being silently converted to success. This is a
-policy-preservation obligation, not permission to assume all unknown code is a
-desktop effect. R02a must exercise both account and required session denial and
-native control-flow equivalence. Preserve local source edits and reconcile them
-without overwriting administrator policy.
+An optional-only stack whose result itself controls access must execute natively,
+including successful and denying controls. A callback's return cannot generally
+be obtained separately from its effects. Prove exclusion neutral against the
+complete native control flow and required handle-data/setup dependencies; syntax
+or an unfamiliar name alone proves neither. Where neutrality is unproven,
+deliberately consume the trusted administrator callback and retain its effective
+result and paired cleanup. Do not convert it to success, reject its name or
+silently remove shared PAM state. R02a must exercise account/session denial,
+optional-only success/denial and native control-flow equivalence. Preserve local
+source edits without overwriting administrator policy.
 
 The finite GDM substack establishes login audit identity, resource limits and
 keyring bookkeeping as needed, logind/runtime ownership through `pam_systemd`,
@@ -403,11 +408,12 @@ the selected manager and R01a's first-exec boundary. Fedora retains the ordered
 vendor SELinux close/open setup needed for the GDM worker and pending exec
 transition. The manager substack establishes its own required limits/audit/MAC
 setup without recursively starting another manager. Do not duplicate core
-setup already supplied by the policy substack. Desktop keyring daemons and
-optional namespace/session effects do not execute on the kiosk branch. Required
-administrator integrations remain deliberately consumed policy/setup, with their
-children included in the pre-boundary proof; neither their unfamiliar name nor
-a failed optional effect is a reason to reject entry. The exact packaged core
+setup already supplied by the policy substack. Policy-neutral desktop keyring,
+namespace and session effects are excluded. Trusted policy-relevant integrations,
+including optional-only policy, remain deliberately consumed administrator
+policy/setup with their children included in the pre-boundary proof. Neither
+their unfamiliar name nor a failed policy-neutral optional effect is a reason
+to reject entry. The exact packaged core
 rules and policy projection must be source-reviewed and exercised by R02a;
 including an unfiltered `common-session`, `password-auth` or `system-auth`
 session group would reopen excluded callbacks. If a required integration exposes
@@ -419,7 +425,17 @@ transaction, including required policy credentials and their paired cleanup;
 do not replace `pam_setcred` with unconditional success. Auth/account callbacks
 are trusted policy execution, not optional session integration. Any children
 they create are part of R01a's pre-boundary proof, including failures; a pending
-final-exec label does not confine them retroactively. For the kiosk manager,
+final-exec label does not confine them retroactively. On Fedora these trusted
+GDM policy helpers retain vendor worker authority, not the future app domain;
+this design does not invent an immediate multithreaded GDM `setcon` transition.
+Close kiosk unit/bus/environment consumer routes before session effects and
+grant no public pre-boundary display, handler or general-manager launch route.
+Classify trusted policy helpers separately from kiosk application descendants,
+recording their authority and paired lifetime. Trusted administrator code is
+part of the stated trusted base, not assumed child-controlled code. An actual
+child-visible escape effect still must be isolated without changing its policy
+decision; failure to do that fails the early gate, rather than qualifying a
+normal entry refusal. For the kiosk manager,
 retain a dedicated inert credential path for establish/reinitialize/refresh/
 delete calls and an authentication failure, so neither vendor optional auth
 callbacks nor implicit `other` credentials execute for that manager. Ordinary
@@ -456,9 +472,10 @@ and leaves the confined form available for a fresh request.
 benign unfamiliar `optional` session callback in the ordinary vendor include tree,
 alongside successful required setup, with finite open/close effects. Separate
 ordinary child and administrator controls prove the callback actually ran.
-For the kiosk, prove the session branch did not invoke
-that desktop callback, no early unconfined child appeared, and passwordless
-entry, genuine selected-parent approval, Cancel, exit and reentry still work.
+For the kiosk, prove generic policy-neutral projection excluded
+that desktop callback, no child-reachable unconfined launch effect appeared,
+and passwordless entry, genuine selected-parent approval, Cancel, exit and
+reentry still work.
 No fixture-name exception or weakened policy is permitted. R02a also pairs the
 same effective access/expiry/empty-token policy with allowed and denied controls,
 including a required session access denial, no secret prompt/token change,
@@ -488,7 +505,8 @@ Use narrow private mounts only for necessary entrypoint labels and excluded
 configuration searches. Do not reconstruct `/usr`, clone the previous manager's
 filesystem, inventory unrelated directories or maintain a universal executable
 allowlist. This choice is a contribution to R01, not integrated architecture
-approval, a shipped change or installed acceptance.
+approval by itself, a shipped change or installed acceptance; see the
+[integrated decision](#r01-integrated-admission-contract).
 
 #### Audited current path and inherited authority
 
@@ -605,9 +623,12 @@ inodes globally. Ubuntu uses its verified immediate profile transition. Preserve
 trusted pre-exec setup and `sd-pam` teardown authority separately from descendant
 application authority. The kiosk-only session branch must select required
 callbacks before vendor optional session callbacks execute, including manager
-PAM. Unknown optional callback names neither run unrestricted nor reject entry;
-[R01b's decision](#r01b-effective-authentication-decision) preserves effective
-policy while selecting those callbacks. R01 must review the composition.
+PAM. Unknown optional callback names neither grant child-reachable unrestricted
+launch authority nor reject entry. Policy-relevant trusted helpers keep the
+vendor authority and paired lifetime described by
+[R01b's decision](#r01b-effective-authentication-decision), which preserves
+effective policy while selecting those callbacks. The integrated contract reviews that
+composition, including deliberately consumed trusted policy helpers.
 A pending exec label or a late launcher cannot satisfy that obligation.
 
 For every actually consumed input, establish the relevant kiosk/child UIDs,
@@ -627,8 +648,8 @@ adopting a stale active visit. This is not an image-generation/cache framework.
 
 #### Single decision/rejection ledger — execution contribution
 
-This is the ledger R01b–R01e and R01 extend, not a second policy table. Causes
-below are proposed sanitized diagnostic categories, not newly registered events.
+This is the single integrated ledger from R01a–R01e and R01. Causes below are
+proposed sanitized diagnostic categories, not newly registered events.
 Each negative needs its permitted control and a public usable-entry result after
 restoration; a safety refusal grants no positive availability credit.
 
@@ -640,7 +661,7 @@ restoration; a safety refusal grants no positive availability credit.
 | Loaded enforcement/entrypoint; `enforcing`, native MAC application and policy authority | **Retain essential-boundary refusal after owned repair.** The failed operation must establish confinement; optional inventory/attestation diagnostics are not substitutes. Preserve Fedora helper privilege. | Actual wrapper/manager/form/approval succeed / required MAC operation fails, no unrestricted exec, restored enforcement permits entry. “The request station's protection could not start; retry after setup is repaired.” `execution-boundary-unavailable`. |
 | Host unit/generator/D-Bus/plugin activation; current trailing-colon unit path and generated known-name masks | **Exclude consumption; confine exposed control routes.** An unfamiliar automatic external-launch provider must not acquire kiosk launch authority or veto normal entry. Reload cannot reopen it. | Unfamiliar fixture automatically activates and exposes its action for an ordinary account; kiosk still approves / same public action cannot launch an outside application in kiosk, including after reload/reentry. “This action is unavailable at the request station.” `launch-route-excluded`. |
 | Exact retained manager/material equality, contention and inherited caller state; retained gate and preparation locks | **Recover, not exact-manager refusal.** Serialize and wait within one deadline; renew only a proven owned inactive/failed instance with no live visit. Preserve healthy/live/foreign instances. No reboot for unrelated drift. R01c selects exclusive live-session ownership and wait/return-to-sign-in for competitors; R01e sets the deadline/recovery. | Reentry, valid inherited GIDs/umask and owned stale renewal succeed / foreign/live replacement remains untouched, no partial startup escapes. “The request station is starting; try again when ready.” Occupied: “The request station is already open; return to it or retry after it closes.” `startup-wait` / `owned-renewal-failed` / `session-conflict`; retain original cause. |
-| Pre-boundary callbacks and teardown; vendor PAM rewriting, final gate, PAM-data cleanup | **Select kiosk callbacks and preserve confined lifetime.** Final exec cannot repair an earlier unrestricted callback child. R01b retains effective administrator denial while excluding optional session integration by branch, not module-name exceptions. | Unfamiliar benign callback demonstrably works for ordinary accounts; kiosk still enters/approves/exits / no callback-created unconfined kiosk launch and no orphan authority after failed open, close or delete-cred. “The request station could not finish starting or closing; retry.” `session-boundary-unavailable`; unfinished owned cleanup prevents renewal credit. |
+| Pre-boundary callbacks and teardown; vendor PAM rewriting, final gate, PAM-data cleanup | **Select neutral effects; preserve native trusted policy and paired lifetime.** Final exec cannot repair an earlier child-reachable unrestricted launch. R01b retains effective administrator decisions/handle data and trusted vendor helper authority; only proven policy-neutral effects are excluded, without module-name exceptions. | Unfamiliar benign callback demonstrably works for ordinary accounts; kiosk still enters/approves/exits / no child-reachable unconfined launch effect or orphan authority after failed open, close or delete-cred. Classify trusted helpers separately from confined app descendants. “The request station could not finish starting or closing; retry.” `session-boundary-unavailable`; unfinished cleanup prevents renewal credit. |
 | Effective GDM authentication/account/session policy; native PAM results, shared profiles and Fedora authselect selection | **Honor effective denial.** Run preserved policy with its real service/items/control flow. No global `nullok`, alternate auth service, success bypass or automatic removal of administrator expiry/credentials. An unfamiliar module or harmless source change is not denial. Product quarantine recovery belongs to R01d. | Existing policy permits empty-token kiosk entry and ordinary child/admin authentication stays unchanged / effective empty-token prohibition, locked credential, account or required session access denial, and administrator expiry remain denied; restore the fixture and obtain usable entry. “This computer's sign-in policy does not allow the request station.” `authentication-policy-denied` / `account-policy-denied`; report the failing management group and restoration outcome without credentials or identity data. |
 | Required policy/setup evaluation unavailable; PAM loader/result and login helper integration checks | **Report a setup failure, not administrator denial.** Retry transient prerequisites within R01e's budget; never grant success through a fallback stack. Missing required enforcement cannot be degraded, while optional callback failure/name/text alone cannot establish this predicate. | Valid include/substack/formatting and unfamiliar benign callback controls enter / actual required module/load or core setup failure prevents unrestricted entry, restoration permits entry. “The request station could not check a required sign-in setting; retry after setup is repaired.” `authentication-policy-unavailable`; preserve original cause and owned cleanup result. |
 | Selected-parent Polkit authorization and vendor privileged helper; authorizer, admin rule and role policy | **Retain genuine authentication independently of kiosk entry.** No reusable approval, different-parent fallback, global null-token change, blanket NNP/nosuid or copied/relabelled Fedora helper. A denied request leaves the form usable. | Selected parent's genuine credential grants once on Ubuntu and Fedora / wrong password, Cancel, other identity or unavailable required helper grants nothing; a fresh permitted request succeeds after restoration. “Request denied” for denial; Cancel returns silently; unavailable authentication offers retry/exit. `parent-authentication-denied` / `parent-authentication-unavailable`; retain finite causes only. |
@@ -679,16 +700,172 @@ do not add its name to masks or assume child code execution. R03/R04 run the
 complete early proof on Ubuntu/Fedora, including Fedora's privileged helper.
 All selectors for this replacement proof are still **unimplemented** here.
 
-R01 must resolve the remaining cross-boundary obligations before implementation:
-composition of R01b's selected account/authentication and callback policy with
+The integrated contract below resolves composition of R01b's selected
+account/authentication and callback policy with
 [R01c's selected visit/agent/controller authority and effect-admission ordering](#r01c-approval-and-visit-decision);
 [R01d's selected provisioning/quarantine ownership](Lifecycle.md#r01d-configuration-and-quarantine-decision);
 [R01e's single readiness/recovery budget, safe manager renewal and update activation classes](Lifecycle.md#r01e-readiness-and-activation-decision).
-In particular, the fixed
-controller's manager methods, logind association and sanitized agent restart
-must compose with R01c without giving the form general manager access. R01 owns
-the mandatory independent architecture review, legacy-assertion mapping and any
-revision of this choice. R01a creates no runtime resources and claims review only.
+The fixed controller's manager methods, logind association and sanitized agent
+restart confer no general manager access on the form. R01a creates no runtime
+resources and claims review only.
+
+### R01 integrated admission contract
+
+**Selected prospective design; no product implementation or installed proof.**
+Keep the R01a exclusive unit graph/private bus and platform MAC boundaries,
+R01b effective native policy, R01c exact visit and first-write ordering, R01d
+separate setup gate and R01e owned lifecycle/readiness classifications. The
+single ledger above owns admission dispositions. The following joins their
+authorities; it adds no host cleanliness or executable-name inventory.
+
+| Actual path | Authority, result and boundary |
+| --- | --- |
+| Package configuration → account creation/provisioning | R05b bootstraps the native gate before creation; only proven owned native records/home may be completed. Required config/bus/PAM/enforcement setup precedes ready publication. Native expiry/credentials remain administrator authority. |
+| AccountsService visibility → optional icon → quarantine release | R05a preserves schema/metadata and verifies public visible/saved/routing results. R08a isolates icon failure and continues required setup. Only the exact configuration transaction releases its product gate; optional success is unnecessary and required failure cannot be hidden. |
+| GDM selection → auth/account → routing | Existing GDM policy and flags decide empty-token/access permission. The native prerequisite checks ownership/setup without authenticating on its own. Wrong desktop/TTY/SSH routes remain closed; harmless policy syntax and actual inherited groups/umask are tolerated. |
+| Session policy → manager PAM → final GDM exec | Policy-relevant callbacks retain native results and paired cleanup; exclude only proven neutral effects. The single-threaded manager executor enters its immediate role. Ubuntu constrains GDM at its final gate; Fedora's pending wrapper exec context does not retroactively confine trusted policy helpers. |
+| Wrapper → compositor/form → service activation | Closed unit/generator/config/plugin consumers and the private configured bus precede first exec. The wrapper cannot use standard-bus fallback. Controller calls operate only pinned form/agent units and validated locale values; app/services cannot create arbitrary commands or bypass through the manager private socket. |
+| Form → selected parent authentication | Broker verifies the gate-created exact session, process/bus/role and fresh visit/agent generations; primary Display must equal that admission. Stock Polkit and live vendor privilege helpers supply genuine selected-parent authentication on both platforms. Kiosk sign-in confers no approval/management authority. |
+| Authentication → reads → first policy write | The independently dispatching observer covers usage/preflight/all snapshots. Cancellation wins until one broker claim immediately before the first write. Only that admitted original request may finish under unchanged arithmetic/rollback; a later visit adopts no prompt, result or authority. |
+| Exit/switch → drain → next entry/update | Native lifecycle owner fences admission and pins exact manager/bus/objects; the controller cannot renew infrastructure. Drain admitted commits and paired PAM cleanup before owned renewal; preserve foreign/live state. Healthy reuse creates new visit/form/agent generations. R01e owns changed-input activation. |
+
+The configuration gate proves required setup, not broker readiness or permission
+to override account policy. Trace broker failure to the actual prerequisite:
+aggregate enforcement/identity loss stops its mutations; offline child A's
+unavailable integration cannot stop healthy B. R06b's finite control has no live
+A session. Live extension loss remains a failed product result, with no new
+degraded-enforcement or forced-logout policy. Artwork, fonts, old catalogues,
+audio, notifications and rich reporting belong to R08c fallback; provisioning
+icon and native authentication language belong to R08a/b. They cannot veto a
+usable core form, genuine approval or release after successful required setup.
+
+R01 review corrected two overclaims before implementation. PAM policy results
+cannot generally be separated from callback effects: preserve policy-relevant
+optional-only execution/shared handle data under trusted vendor authority, and
+do not assume an immediate Fedora worker transition. The stock agent supplies
+no visible-prompt notification for the broker clock: the
+[revised budget](Lifecycle.md#one-measured-entry-and-recovery-budget) separates
+bounded production preparation/dispatch from user-driven native exchange and
+independently measured public prompt latency. Dispatch proves no readiness.
+Pre-GDM configuration has a separately bounded invocation because no admission
+clock exists yet. These are explicit design revisions, not test-time discoveries.
+
+#### Accepted mapping of legacy assertions
+
+This mapping authorizes the allocated later adaptations, after their replacement
+boundary passes R03/R04. It edits no test and grants no installed credit. Keep
+case IDs, meaningful safety negatives, ordinary-user controls, exact restoration
+and historical evidence. The source audits delivered by R01a–R01e remain the
+cumulative audit; integration does not repeat unchanged source audits.
+
+| Existing assertion/source | Successor behavior and owner |
+| --- | --- |
+| Reliability 006a / case 290; `prepare_siblings`, `sibling_private_views`, `verify_sibling_isolation` in `system_kiosk_confinement.py` | Keep unrelated 0775/0777 and child-owned siblings, inert host canaries, host replacement, ordinary-user access and usable passwordless reentry. Retire empty private directories/omitted files and exact manager/PID/namespace/generation equality. R09a/R10a/R11a and reliability 006a may share only exact applicable proof; neither closes the other's row. |
+| Reliability 006b / case 291; `prepare_required_ancestor`, `verify_required_refusal`, `verify_required_gdm_refusal` | Turn the current root:root ancestor `chmod g+w` into an administrator-only positive only after verifying effective groups/ACLs and replacement authority; its mode alone proves no child control. Separately establish actual child write authority on one consumed input and show ordinary startup would consume it. Exclude/recover its input/route first; refuse whole entry only for the ledger's unrecoverable essential boundary. Restore exactly and require usable entry. R09d/R10b/R11b and reliability 006b retain ordinary-user controls. |
+| Exact material, ambient scan limits, alias/parent metadata; fresh/retained preparation and cases 292–294 | Unrelated layout/counts/names/metadata have no admission vote. Cosmetic drift degrades; consumed-code aliases still need trustworthy resolution. Preserve identity checks where they authorize owned publication, not universal host equality. R05/R08/R09a adapt affected assertions; failed historical case 293 remains failed. |
+| Exact PAM bytes/module inventory, manager credentials and callback guards | Retain effective native policy, original-service context, ordinary-role results, control-flow/handle continuity and teardown. Retire text/name identity as policy. R02a/b prove projection and the trusted policy boundary; R07 extends valid local variation with effective-denial controls. |
+| `test_agent_locale_refuses_c_only_hosts_without_starting_approval` in `test_request_time_estimate.py` | R08b replaces C-only refusal with validated C.UTF-8/C fallback and genuine native authentication. Keep failed-job, stale/foreign agent, late callback, cancellation and no-dispatch-on-operational-failure assertions. Missing catalogue and failed discovery are separate controls; installed B passes on both targets. |
+| [Standalone catalogue](../Kiosk-Confinement-Proof.md#evidence-scope) 13–24 and 30–32 | Keep exposed launch/handler/management, child-writable consumed-code and privileged-helper defenses. Rebase private-image, arbitrary direct-exec and known-service-mask mechanics onto selected consumers/roles with permitted controls. Stronger arbitrary-code fixtures remain engineering evidence, not new attacker assumptions or admission predicates. R09d maps reused assertions; R12 reconciles the catalogue without enlarging historical claims. |
+| Catalogue 25/29; stale generation and lock contention refusal | Keep serialization, identity-safe cleanup and no unrestricted fallback. Replace normal-use material/contention rejection with bounded wait/one owned renewal and usable recovery. Live/foreign conflict preserves its owner and explains retry. R06a/R09b1/b and final D/E own the histories; refusal supplies no availability credit. |
+| Catalogue 26–28; policy/attestation loss, interrupted setup and reboot | Retain actual missing-enforcement refusal and no partial-unpack adoption. R05b's separate gate replaces product shadow expiry; R01e classifies changed inputs instead of blanket reboot by filename. Administrator policy remains effective. The protected R05b queue phrase “owned expiry release” is legacy scheduling wording, not permission to restore shadow expiry. |
+
+#### Finite early proof and implementation limits
+
+R02a implements the one production transaction and host-checks actual caller
+composition. R02b supplies an unfamiliar benign policy-neutral optional callback
+with ordinary child/admin open/close controls, alongside optional-only native
+success/denial controls. R02c supplies an unfamiliar administrator-owned service
+with automatic activation and a working ordinary-account external-launch UI.
+R02 registers exact finite inputs/callables for the following complete histories
+on **each** Ubuntu/AppArmor and Fedora/enforcing SELinux target. All replacement
+selectors are **unimplemented** until that registration.
+
+1. Fresh entry and healthy reuse: passwordless usable child/parent form, genuine
+   selected-parent approval, wrong-password/Cancel recovery, exit and reentry.
+   Observe actual GDM/manager UID/GID/fsuid/fsgid/groups/umask and first wrapper
+   exec; a root:root-only preparation witness is inapplicable.
+2. One unrelated-host mutation and one missing cosmetic resource, each through
+   usable entry/approval/reentry and restoration. No exact manager/private view
+   or old material identity is required.
+3. Both unfamiliar fixtures with effective ordinary controls, kiosk approval,
+   no child-reachable unconfined callback effect/external-launch route, then
+   reload/reentry and exact restoration. Fixture-name masks and entry refusal
+   cannot qualify. Apply the generic policy-neutral projection, not a fixture
+   exception; if neutrality is unproven preserve native policy execution. Review
+   the finite callback/dependency slice and native control-flow slots; this is
+   not a proposed automatic classifier for arbitrary PAM code or module names.
+4. One owned stale/failed renewal: no live public owner, pinned orderly shutdown,
+   settled services/PAM teardown and fresh usable entry/approval within the
+   original budget. A paired live/foreign control remains untouched. Wider
+   interruption/repeated-visit permutations stay with R06/R09b1.
+5. Permitted dedicated route plus alternate-desktop/TTY/SSH, exposed handler and
+   account/management negatives; empty-token/access/expiry/session denial paired
+   with unchanged ordinary authentication and restored entry. Classify trusted
+   pre-boundary policy helpers' vendor authority separately from confined kiosk
+   app/service descendants, including failed open, setcred/delete-cred, close
+   and PAM-end. Fedora must retain the actual privileged helper/chkpwd route.
+
+R02a host controls cover pending cancellation, both delayed usage/first-write
+orderings and rollback with a dispatching observer. R09b2 owns their complete
+installed Parent-observed original-result/reentry histories; R06 composes renewal
+and competing visits. Later work cannot defer the minimal visit/agent/admission
+mechanism from R02a; R03/R04 need not run all later race permutations.
+Record separate production-deadline and actual public prompt measurements,
+candidate/package/selected-input identities, original causes and restoration.
+A shared correction invalidates only affected proof, which must pass again
+before R04 closes the gate. A broken required boundary, missed prompt budget or
+unexplained normal rejection keeps the gate failed; host counts cannot replace it.
+
+The ledger's causes and customer explanations are design intent, not registered
+events or new product strings. Product work must use maintained public routes,
+translate new strings, review platform reachability and build packaged changes.
+
+#### Implementation estimates after integrated review
+
+Ranges include reading, product review/revision, affected checks, final builds
+and cleanup; they are forecasts, not measured replacement runtime. R01 preserves
+nonselected queue cells under the close-out guard. These ranges and affected
+briefs supersede provisional allowances; reconcile each selected Estimate on
+selection. Extract independent work before execution when needed, preserving
+indivisible histories/transactions and acceptance instead of cutting scope.
+
+| Tasks | Revised minutes | Mechanism basis |
+| --- | --- | --- |
+| R02a | 180–300 | Native/PAM/controller/approval transaction and failure teardown; startup exception, independent fixtures already extracted. |
+| R02b / R02c / R02 | 45–75 / 60–90 / 45–75 | Policy/activation fixtures, restoration and complete proof registration. |
+| R03 / R04 | 60–120 each | Public entry/approval, variations/renewal and actual boundary witnesses. |
+| R05a / R05b / R05 | 60–90 / 180–300 / 120–180 | Schema/public-result repair; native-lock/creation/gate transaction; integration/deletion and activation. |
+| R06a / R06b / R06 | 90–150 / 90–150 / 60–120 | Pinned interrupted renewal, per-child readiness workers and visit/race composition. |
+| R07 | 60–90 | Native PAM variation, effective-denial and ordinary-role controls. |
+| R08a / R08b / R08c / R08 | 30–60 / 45–90 / 45–75 / 60–90 | Provisioning, locale/agent ordering, runtime defaults and original-cause composition. |
+| R09a / R09b1 / R09b2 / R09b3 | 60–90 / 60–90 / 60–90 / 45–60 | Compatibility, visits/renewal, ordered approval and offline-A/healthy-B histories. |
+| R09b / R09c1 / R09c / R09d / R09e / R09 | 45–75 / 45–60 / 45–75 / 60–90 / 45–75 / 60–90 | Dependency/visibility/real-update/boundary/diagnostic registration and final combinations. |
+
+R02 refines R03/R04 from registered-history measurements; R09 refines R10/R11.
+No corrected successful form/prompt timing exists yet. Retained case 293's
+roughly eight-minute failed attempt includes preparation overhead and supplies
+no successful entry measurement or reason to relax the
+[180-second public prompt bound](Lifecycle.md#one-measured-entry-and-recovery-budget).
+
+#### R01 architecture review receipt
+
+Review accepted on 2026-10-20. Independent boundary and lifecycle reviews found
+the prompt-observability and PAM-policy overclaims, pre-GDM clock ambiguity and
+unresolved live-child safety wording. The revisions above address each finding;
+a separate independent final review passed the revised owners and early-proof
+briefs with **no unresolved architecture blocker**. It confirmed actual first
+exec/trusted helper versus kiosk descendant authority, Fedora privileged approval,
+fixed controller/private activation, exact visit/agent association, cancellation
+versus first-write admission, owned renewal, gate/readiness and activation.
+
+The user's explicit session model instruction selected **GPT-6.1 Sol High** for
+independent review in place of the master's Astra default; no escalation occurred.
+All three read-only reviewers finished without product/VM mutations or owned
+runtime resources. The coordinator accepted their findings and owns this decision.
+Documentation validation and task close-out are recorded in R01's queue row.
+This accepts the integrated design and finite proof plan only. Product changes,
+registered replacement selectors and both-platform installed proof remain with
+R02a onward; historical refusal/host evidence supplies none of that acceptance.
 
 ## Roles, services and dialogs
 

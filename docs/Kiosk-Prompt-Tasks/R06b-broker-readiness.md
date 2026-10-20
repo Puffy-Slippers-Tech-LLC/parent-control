@@ -3,7 +3,8 @@
 Acceptance: host
 
 Required tasks: R06a — bounded lifecycle recovery and deadline.
-Estimate: 20–30 minutes.
+Estimate: 90–150 minutes; [R01 mechanism estimate](../SystemDesign/Kiosk-Confinement.md#implementation-estimates-after-integrated-review).
+Size independent work before execution; this forecast does not expand the session exception or reduce acceptance.
 
 Read the [master](../Kiosk-Resilience-Plan.md#allow-recover-and-reject), accepted
 readiness decision, [prerequisite classification and finite A/B control](../SystemDesign/Lifecycle.md#audited-readiness-path-and-prerequisite-classes),
@@ -17,7 +18,10 @@ construction through D-Bus registration, `Service._start_policy()`,
 `Broker.refresh_enabled_extensions()`, `ExtensionManager.set_enabled()` and
 necessary account/configuration/failure callers. Implement R01's finite
 classification and bounded recovery so child A's unavailable home/extension
-does not prevent a genuine approved request for healthy child B.
+does not prevent a genuine approved request for healthy child B. The finite
+control makes A unavailable before startup with no live A session. Retain live
+activation/rollback checks and accurate failure reporting; this work selects no
+new degraded live-enforcement state or forced-logout policy.
 
 Preserve required enforcement and actionable unavailable-operation reporting for
 A; restore A and verify recovery. Separate an actual global enforcement failure

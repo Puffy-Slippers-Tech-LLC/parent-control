@@ -711,6 +711,15 @@ private source staging, one checked preparation result and actual fresh-parent
 binding produce invocation-only I, preserving V's slots and origins. No manager
 record is changed and no completed-generation slot is consumed.
 
+If strict current-M record selection refuses, a read-only diagnostic path may
+verify the marker-named old M against the current attested config/policy, reuse
+the complete old-record/copy verifier and prove the original manager's executable,
+marker and actual recursive sources. Only after repeating current host/routes/
+policy, lock/deadline and same-manager checks does a different verified M produce
+the specific [stale-material cause](Logging-and-Feedback.md#kiosk-admission-diagnostics).
+This path always refuses; it cannot select preparation inputs or admit from old M.
+Record or source inconsistency remains distinguishable from a material mismatch.
+
 After identity-owned staging detach, final original-host/routes/policy checks,
 strict actual invocation coverage and the same pinned manager's source/topology
 proof precede setup-FD closure and MAC. The original manager pidfd/proc/bus stay

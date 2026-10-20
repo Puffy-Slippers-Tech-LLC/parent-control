@@ -126,9 +126,10 @@ static inline int kiosk_retained_marker_until(struct kiosk_retained_record *r, i
         valid = bytes[named.st_size - 1] == '\n' && !memchr(bytes, 0, (size_t)named.st_size) &&
             !strchr(text, '\n') && !kiosk_receipt_fields(text, fields, 5) &&
             !strcmp(fields[0], "ONPC-KIOSK-VIEW") && !strcmp(fields[1], "1") &&
-            !strcmp(fields[2], a->backend) && !strcmp(fields[3], a->digest) && kiosk_receipt_hex(fields[4]);
+            !strcmp(fields[2], a->backend) && kiosk_receipt_hex(fields[3]) &&
+            (initial == 2 || !strcmp(fields[3], a->digest)) && kiosk_receipt_hex(fields[4]);
         if (valid) {
-            strcpy(r->material, a->digest); strcpy(r->view, fields[4]);
+            strcpy(r->material, fields[3]); strcpy(r->view, fields[4]);
             r->marker_info = named; r->marker_size = (size_t)named.st_size;
             memcpy(r->marker_bytes, bytes, r->marker_size);
             r->marker = fcntl(marker, F_DUPFD_CLOEXEC, 3); valid = r->marker >= 0;
@@ -409,6 +410,42 @@ done:
     if (root >= 0) close(root);
     for (unsigned i = 0; i < count; i++) free(members[i].name);
     free(members); free(material); free(view); free(pins); free(ready);
+    if (result) kiosk_retained_record_close(r);
+    return result;
+}
+
+/* Diagnostic-only old-M proof. Mode 2 reads a trusted marker's digest without
+ * treating it as current material. Decode that old M against the independently
+ * attested current config/policy, then reuse the complete strict record/copy
+ * verifier. Success grants no admission: the coordinator must still prove the
+ * original manager and its actual source tree before reporting a mismatch. */
+static inline int kiosk_retained_record_previous_until(struct kiosk_retained_record *r,
+    struct kiosk_material_authority *previous, int runtime, int manager_usr, int manager_marker,
+    struct kiosk_material_authority *current, const void *config, size_t config_size,
+    const void *policy, size_t policy_size, const char *boot, void *crypto, uint64_t deadline)
+{
+    int root = -1, fd = -1, result = -1;
+    char *material = NULL; size_t size = 0;
+    struct stat marker;
+    char digest[65], view[65];
+    kiosk_retained_record_init(r); r->deadline = deadline;
+    if (!current || deadline != current->deadline || kiosk_pin_before(deadline) ||
+        kiosk_retained_marker_until(r, manager_usr, manager_marker, current, 2) ||
+        !strcmp(r->material, current->digest)) goto done;
+    marker = r->marker_info; strcpy(digest, r->material); strcpy(view, r->view);
+    root = openat(runtime, view, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (root < 0 || (fd = openat(root, "material.json", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)) < 0 ||
+        kiosk_publication_read(fd, &material, &size, deadline) ||
+        kiosk_material_decode_until(previous, material, size, config, config_size, policy, policy_size, crypto, deadline) ||
+        strcmp(previous->digest, digest) || strcmp(previous->backend, current->backend)) goto done;
+    kiosk_retained_record_close(r);
+    if (kiosk_retained_record_open_until(r, runtime, manager_usr, manager_marker, previous, boot, crypto, deadline) ||
+        !kiosk_host_same(&marker, &r->marker_info) || strcmp(view, r->view)) goto done;
+    result = 0;
+done:
+    if (fd >= 0) close(fd);
+    if (root >= 0) close(root);
+    free(material);
     if (result) kiosk_retained_record_close(r);
     return result;
 }

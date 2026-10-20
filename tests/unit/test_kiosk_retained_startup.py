@@ -74,6 +74,7 @@ static unsigned receipt_checks;
 #define completion_cuts (clone_state[7])
 static unsigned changed_start_reads, field_fault_reads, closure_checks;
 static unsigned crypto_references;
+static unsigned material_witness_cut;
 static int sequential_child;
 #define writer_checks (clone_state[4])
 #define replacement_checks (clone_state[5])
@@ -145,6 +146,11 @@ static ssize_t retained_getline(char **line,size_t *capacity,FILE *stream) {
 }
 static int retained_openat(int dir,const char *path,int flags,...) {
     mode_t permission=0;if(flags&O_CREAT){va_list a;va_start(a,flags);permission=va_arg(a,int);va_end(a);}
+    if(gate_phase && !strcmp(path,"mountinfo") &&
+        (!strcmp(mode,"required-drift-final-manager") || !strcmp(mode,"required-drift-expired"))) {
+        require(!material_witness_cut,"one-diagnostic-source-proof-cut");material_witness_cut++;
+        if(!strcmp(mode,"required-drift-expired"))forced_elapsed=1;
+    }
     if(fault("boot") && !strcmp(path,"/proc/sys/kernel/random/boot_id"))return synthetic("changed-boot\n");
     if(fault("starttime") && !strcmp(path,"stat")) {
         char text[4096];int fd=openat(dir,path,flags);ssize_t n=fd<0?-1:read(fd,text,sizeof(text)-1);if(fd>=0)close(fd);
@@ -265,7 +271,8 @@ static int bus_read(struct sd_bus_message *m,const char *signature,...){
     else *(const char **)out=fault("unit-cgroup")?"/different-unit":unit_cgroup;return 1;}
 static int bus_array(struct sd_bus_message *m,char type,const void **out,size_t *size){
     (void)m;require(type=='y',"invocation-id-type");static unsigned char bytes[16];memset(bytes,0,16);
-    bytes[0]=(clone_seen && !strcmp(mode,"invocation")) || fault("invocation")?2:1;*out=bytes;*size=16;return 1;}
+    bytes[0]=(clone_seen && !strcmp(mode,"invocation")) || fault("invocation") ||
+        (material_witness_cut && !strcmp(mode,"required-drift-final-manager"))?2:1;*out=bytes;*size=16;return 1;}
 static void *retained_dlopen(const char *path,int flags){
     void *library=!strcmp(path,"libsystemd.so.0")?(void *)4:fixture_dlopen(path,flags);
     if(gate_phase && library && !strcmp(path,"libcrypto.so.3")){retained_crypto=library;crypto_references++;}return library;}
@@ -626,7 +633,8 @@ static const char *expected_stage(const char *name) {
         if(!strcmp(fault_phase,"clone"))return "source-clone";
         return !strcmp(fault_kind,"executable")?"completed-record":"manager";
     }
-    if(!strcmp(name,"required-drift") || strstr(name,"ready") || strstr(name,"source"))return "completed-record";
+    if(!strcmp(name,"required-drift"))return "manager-material";
+    if(!strncmp(name,"required-drift-",15) || strstr(name,"ready") || strstr(name,"source"))return "completed-record";
     if(!strcmp(name,"post-attach-required-drift"))return "final-host";
     if(!strcmp(name,"inactive"))return "manager";
     if(!strcmp(name,"helper-exit") || !strcmp(name,"helper-timeout"))return "measurement";
@@ -665,6 +673,11 @@ static void manager_loop(int out,int in,int reexecuted) {
             require(task_live && write(task_release[1],"x",1)==1 && pthread_join(extra_task,NULL)==0,"original-extra-task-retired-before-proof");
             close(task_release[0]);close(task_release[1]);close(task_ready[0]);close(task_ready[1]);task_live=0;
             require(write(out,"j",1)==1,"original-extra-task-exit-acknowledged");continue;
+        }
+        if(token=='s') {
+            char path[PATH_MAX];snprintf(path,sizeof(path),"%s/host/usr/bin/native",base);
+            require(umount2(path,MNT_DETACH)==0 && write(out,"s",1)==1,
+                "independently-remove-actual-required-manager-mount");continue;
         }
         require(token=='x',"finite-manager-command");require(write(out,&token,1)==1,"manager-exit-barrier");break;
     }
@@ -769,13 +782,18 @@ int main(int argc,char **argv) {
         snprintf(path,sizeof(path),"%s/host/usr/bin/ambient-tree",base);
         require(chmod(path,0777)==0,"same-origin-ambient-directory-trust-loss");
     }
-    if(!strcmp(mode,"required-drift"))require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"host-required-drift");
-    if(!strcmp(mode,"absent-ready") || !strcmp(mode,"stale-ready") || !strcmp(mode,"forged-ready") || !strcmp(mode,"missing-source") || !strcmp(mode,"foreign-source")) {
+    if(!strncmp(mode,"required-drift",14))require(pwrite(original_source,"X",1,100)==1 && fsync(original_source)==0,"host-required-drift");
+    if(!strcmp(mode,"required-drift-old-topology"))manager_command('s');
+    const char *record_mode=!strncmp(mode,"required-drift-",15)?mode+15:mode;
+    if(!strcmp(record_mode,"absent-ready") || !strcmp(record_mode,"stale-ready") || !strcmp(record_mode,"forged-ready") || !strcmp(record_mode,"missing-source") || !strcmp(record_mode,"foreign-source") || !strcmp(record_mode,"malformed-material")) {
         char runtime[PATH_MAX];snprintf(runtime,sizeof(runtime),"%s/runtime",base);DIR *d=opendir(runtime);require(d!=NULL,"completed-generation-list");struct dirent *e;char selected[65]={0};
         while((e=readdir(d)))if(strlen(e->d_name)==64){require(!*selected,"single-manager-record");strcpy(selected,e->d_name);}closedir(d);require(*selected,"completed-manager-record");
-        snprintf(path,sizeof(path),"%s/runtime/%s/%s",base,selected,strstr(mode,"source")?"native-0":"ready");
-        if(!strcmp(mode,"absent-ready") || !strcmp(mode,"missing-source"))require(unlink(path)==0,"owned-record-removal-fault");
-        else if(!strcmp(mode,"foreign-source")) {
+        snprintf(path,sizeof(path),"%s/runtime/%s/%s",base,selected,strstr(record_mode,"source")?"native-0":!strcmp(record_mode,"malformed-material")?"material.json":"ready");
+        if(!strcmp(record_mode,"absent-ready") || !strcmp(record_mode,"missing-source"))require(unlink(path)==0,"owned-record-removal-fault");
+        else if(!strcmp(record_mode,"malformed-material")) {
+            int fault=open(path,O_WRONLY|O_CLOEXEC);require(fault>=0 && pwrite(fault,"X",1,0)==1 && fsync(fault)==0 && close(fault)==0,"malformed-old-material-with-real-current-drift");
+        }
+        else if(!strcmp(record_mode,"foreign-source")) {
             char foreign[PATH_MAX];snprintf(foreign,sizeof(foreign),"%s/foreign-native",base);
             int original=open(path,O_RDONLY|O_CLOEXEC),replacement=open(foreign,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0755);
             require(original>=0 && replacement>=0,"foreign-copy-fault-descriptors");char bytes[8192];ssize_t n;
@@ -783,7 +801,7 @@ int main(int argc,char **argv) {
             require(n==0 && fchmod(replacement,0755)==0 && close(original)==0 && close(replacement)==0 && rename(foreign,path)==0,"same-byte-foreign-copy-inode-fault");
         }else {
             int fault=open(path,O_RDWR|O_CLOEXEC);char bytes[1024];ssize_t n=fault<0?-1:pread(fault,bytes,sizeof(bytes),0);
-            require(n>0,"owned-ready-fault-read");unsigned field=!strcmp(mode,"stale-ready")?5:4;char *p=bytes;
+            require(n>0,"owned-ready-fault-read");unsigned field=!strcmp(record_mode,"stale-ready")?5:4;char *p=bytes;
             for(unsigned i=0;i<field;i++){p=memchr(p,'\t',(size_t)(bytes+n-p));require(p!=NULL,"canonical-ready-fault-field");p++;}
             *p=*p=='0'?'1':'0';require(pwrite(fault,p,1,p-bytes)==1 && fsync(fault)==0 && close(fault)==0,"syntactically-valid-stale-or-forged-ready-fault");
         }
@@ -837,9 +855,19 @@ int main(int argc,char **argv) {
     struct kiosk_fresh_startup *transaction=&owner->retained.common;
     if(!transaction->stage || strcmp(transaction->stage,expected_stage(mode)))fprintf(stderr,"retained-boundary mode=%s expected=%s actual=%s\n",mode,expected_stage(mode),transaction->stage?transaction->stage:"-");
     require(transaction->stage && !strcmp(transaction->stage,expected_stage(mode)),"exact-fault-applicability-boundary");
+    if(!strcmp(mode,"required-drift")) {
+        require(transaction->failure.stage && !strcmp(transaction->failure.stage,"manager-material") &&
+            !strcmp(transaction->failure.reason,"stale-manager-reboot-required") && transaction->failure.error==-1 &&
+            manager_acquisitions==1 && !clone_seen && !invocation_attached && !mac_calls,
+            "only-proven-old-record-original-manager-source-and-new-material-produce-stale-cause");
+    } else require(!transaction->failure.reason || strcmp(transaction->failure.reason,"stale-manager-reboot-required"),
+        "malformed-foreign-record-and-earlier-failures-cannot-produce-material-witness");
+    if(!strcmp(mode,"required-drift-final-manager") || !strcmp(mode,"required-drift-expired"))
+        require(material_witness_cut==1 && manager_acquisitions==1 && !clone_seen,
+            "late-manager-or-deadline-cut-reached-diagnostic-only-source-proof");
     if(!strncmp(mode,"measurement-",12) && !positive) {
         const char *reason=!strcmp(mode,"measurement-helper-refusal")?"unexpected-preserved-executable":
-            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"command-failed";
+            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"attestation-command-failed";
         require(transaction->failure.stage && !strcmp(transaction->failure.stage,"measurement") &&
             !strcmp(transaction->failure.reason,reason) && transaction->failure.error==-1 &&
             !transaction->measurement.count && !manager_acquisitions && !clone_seen && !invocation_attached && !mac_calls,
@@ -986,6 +1014,7 @@ def retained_scene(fresh_scene):
     text = text.replace("record.get('role') == 'manager'", "record.get('role') in ('manager', 'gate')")
     text = text.replace("if mode == 'helper-timeout':\n    import signal", "if mode == 'helper-timeout':\n    (base / 'timeout-waiting').write_text('waiting')\n    import signal")
     text = text.replace('encode_result = service._canonical', RECEIPT_MUTATIONS + '\nencode_result = service._canonical')
+    text = text.replace("if mode in ('measurement-config-refusal',", "if mode.startswith('required-drift') or mode in ('measurement-config-refusal',", 1)
     helper.write_text(text)
     source = directory / 'retained.c'
     source.write_text(_native(helper))
@@ -1029,6 +1058,9 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
 @pytest.mark.parametrize('mode', [
     'healthy', 'ambient-narrow', 'ambient-mask', 'same-reexec', 'same-fd-reexec', 'exit-after-decision',
     'wrong-clone', 'missing-nested-clone', 'required-drift', 'post-attach-required-drift', 'absent-ready',
+    'required-drift-absent-ready', 'required-drift-stale-ready', 'required-drift-forged-ready',
+    'required-drift-missing-source', 'required-drift-foreign-source', 'required-drift-malformed-material',
+    'required-drift-old-topology', 'required-drift-final-manager', 'required-drift-expired',
     'stale-ready', 'forged-ready', 'missing-source', 'foreign-source', 'inactive',
     'manager', 'invocation', 'namespace', 'foreign-reexec', 'exit-after-clone',
     'helper-exit', 'helper-timeout', 'result-malformed', 'deadline', 'cleanup-failure',
@@ -1075,7 +1107,7 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
         assert (directory / 'measurement-command').read_text() == mode
         if mode.endswith('-refusal'):
             reason = ('unexpected-preserved-executable' if mode == 'measurement-helper-refusal' else
-                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'command-failed')
+                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'attestation-command-failed')
             assert f'onpc.pam kiosk native-view outcome=denied role=gate stage=measurement reason={reason} errno=-1' in completed.stderr.splitlines()
             assert not (directory / 'invocation-receipt').exists()
         if mode == 'measurement-helper-refusal':
@@ -1085,6 +1117,11 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     if mode.startswith('receipt-'):
         assert (directory / 'receipt-fault').read_text() == mode.removeprefix('receipt-')
         assert witness['stage'] == 'retained-plan'
+    if mode.startswith('required-drift'):
+        assert (directory / 'measurement-command').read_text() == mode
+        assert not (directory / 'invocation-receipt').exists()
+        stale = 'onpc.pam kiosk native-view outcome=denied role=gate stage=manager-material reason=stale-manager-reboot-required errno=-1'
+        assert (stale in completed.stderr.splitlines()) == (mode == 'required-drift')
     if mode == 'sequential-healthy':
         first = json.loads((directory / 'sequential-first-witness.json').read_text())
         assert first['stage'] == witness['stage'] == 'armed'

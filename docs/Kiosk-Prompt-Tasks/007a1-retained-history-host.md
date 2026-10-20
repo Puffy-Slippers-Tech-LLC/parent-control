@@ -4,7 +4,7 @@ Acceptance: host
 
 Requires 006, [007a1a](../Kiosk-Prompt.md#owned-retained-manager-history-lifetime--007a1a),
 [007a1b](../Kiosk-Prompt.md#preparation-refusal-transport--007a1b) and
-[007a1c](007a1c-material-refusal-witness-host.md). Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
+[007a1c](../Kiosk-Prompt.md#retained-material-refusal-witness--007a1c). Staged prerequisite of [007a](007a-generation-ubuntu.md), inserted
 only when that consumer becomes active under the
 [master's split route](../Kiosk-Prompt.md#smaller-execution-slices).
 
@@ -23,8 +23,9 @@ evidence limits. Use these owners without copying entry or lifecycle mechanics.
 Partial canonical selectors are now registered as enforcement IDs **293**
 (`test_kiosk_retained_ambient_history`, `retained-ambient`) and **294**
 (`test_kiosk_retained_required_history`, `retained-required`). They have no task
-acceptance or installed qualification. The current source cannot supply the
-required distinct diagnostic evidence; resume only after 007a1b/007a1c.
+acceptance or installed qualification. Accepted 007a1b/007a1c now supply the
+required distinct native diagnostic and exact journal observers; resume the
+remaining full composition and acceptance below.
 Existing case 290 is masked-sibling isolation, not the missing cross-admission
 history. Existing native-update `stale_admission()` requires an actual stale
 manager reason; config/policy attestation negatives cannot replace it. Resume
@@ -41,19 +42,16 @@ finite checkpoint inventories join the existing redacted collector. Selected
 inputs freeze the complete guest import closure and the host plan/public-entry
 closure. New host controls use private files and explicit command/UI doubles.
 
-Actual-source review found that `kiosk_preparation_launch()` closes helper stdio
-onto `/dev/null`, so the partial required observer's helper-text captures cannot
-work. A genuine material mismatch shares generic `completed-record/refused`
-with other failures, while native diagnostics use `pam_syslog()` and the old
-stale-admission observer reads stderr. 007a1b/007a1c own those independent native
-diagnostic/observer repairs and builds. Preserve closed descriptors and strict
-stale-material assertions. No generic refusal or earlier attestation failure
-supplies acceptance.
-
-007a1b now supplies the accepted closed measurement-refusal channel. Reuse its
-native `measurement` causes; the remaining material-specific classification and
-per-call observer repair still belong to 007a1c. This grants no acceptance to
-these partial histories.
+007a1b supplies the accepted closed measurement-refusal channel, preserving
+helper stdio on `/dev/null`. 007a1c adds the verified
+`manager-material/stale-manager-reboot-required` witness and
+`measurement/attestation-command-failed` for the actual verifier call.
+`system_native_update.pam_refusal()`/`journal_refusal()` bind native journal
+causes to the actual call, source, boot and source/receipt clocks; the required
+history composes them for internal and later public refusals. Reuse the
+[accepted API/input map](../Kiosk-Prompt.md#retained-material-refusal-witness--007a1c).
+No generic refusal, stderr capture or earlier attestation cause supplies the
+native-material assertion. This grants no acceptance to these partial histories.
 
 After those prerequisites, reconcile their actual diagnostic API with this
 partial composition, finish remaining bounded fixture/ownership repairs and

@@ -626,20 +626,111 @@ def test_partial_witness_setup_closes_first_owned_descriptor(private, tmp_path, 
 
 
 def test_stale_admission_requires_own_exact_reason(private, monkeypatch):
-    monkeypatch.setattr(history.guest, 'commands', SimpleNamespace(sequence=0, directory=None))
-    def refused(*args, **kwargs):
-        os.write(2, b'onpc.kiosk confinement outcome=failed reason=stale-manager-reboot-required\n')
-        return 125, b'{"pam": 14}'
-    monkeypatch.setattr(history.confinement, 'first_exec', refused)
-    history.stale_admission(None, lambda *_: None)
+    start = dict(boot='b' * 32, realtime_us=100, monotonic_us=10)
+    end = dict(start, realtime_us=200, monotonic_us=20)
+    monkeypatch.setattr(history, 'refusal_window', Mock(side_effect=[start, end]))
+    monkeypatch.setattr(history.confinement, 'first_exec', lambda *args, **kwargs:
+                        (125, b'{"pam": 14, "pid": 42, "exe": "/usr/bin/python3.14"}'))
+    raw = '\n'.join(json.dumps(row) for row in material_refusal_journal())
+    monkeypatch.setattr(history.guest, 'run', Mock(return_value=raw))
+    result = history.stale_admission(None, lambda *_: None)
+    assert result['call'] == dict(pid=42, exe='/usr/bin/python3.14')
     assert b'stale-manager-reboot-required' in (private / 'native-update-output/stale-admission.txt').read_bytes()
 
 
 def test_generic_pam_refusal_cannot_prove_stale_generation(private, monkeypatch):
-    monkeypatch.setattr(history.guest, 'commands', SimpleNamespace(sequence=0, directory=None))
-    monkeypatch.setattr(history.confinement, 'first_exec', lambda *args, **kwargs: (125, b'{"pam": 14}'))
+    monkeypatch.setattr(history.confinement, 'first_exec', lambda *args, **kwargs:
+                        (125, b'{"pam": 14, "pid": 42, "exe": "/usr/bin/python3.14"}'))
+    monkeypatch.setattr(history.guest, 'run', Mock(return_value=''))
+    monkeypatch.setattr(history.time, 'monotonic', Mock(side_effect=[0, 6]))
     with pytest.raises(history.guest.GuestError, match='stale-manager-reason'):
         history.stale_admission(None, lambda *_: None)
+
+
+def material_refusal_journal():
+    source = dict(_UID='0', _PID='42', _EXE='/usr/bin/python3.14', _TRANSPORT='syslog',
+                  _BOOT_ID='b' * 32)
+    prefix = 'pam_oh_no_parent_control(gdm-password:session): '
+    return [dict(source, MESSAGE=prefix + 'onpc.pam kiosk native-view outcome=denied role=gate '
+                 'stage=manager-material reason=stale-manager-reboot-required errno=-1',
+                 _SOURCE_REALTIME_TIMESTAMP='109', __REALTIME_TIMESTAMP='110', __MONOTONIC_TIMESTAMP='11'),
+            dict(source, MESSAGE=prefix + 'onpc.pam kiosk execution-boundary outcome=denied '
+                 'stage=manager-material', _SOURCE_REALTIME_TIMESTAMP='119',
+                 __REALTIME_TIMESTAMP='120', __MONOTONIC_TIMESTAMP='12')]
+
+
+@pytest.mark.parametrize('fault', [None, 'uid', 'pid', 'exe', 'transport', 'boot', 'old',
+    'future', 'old-monotonic', 'future-monotonic', 'role', 'stage', 'reason', 'generic',
+    'earlier-boundary', 'wrong-service', 'missing-wrapper', 'duplicate', 'split-call',
+    'malformed-time', 'missing-time', 'array-message', 'delayed-old-source',
+    'future-source', 'source-after-receipt', 'missing-source', 'malformed-source',
+    'backward-source'])
+def test_material_refusal_requires_exact_source_call_clocks_and_actual_stage(fault):
+    rows = material_refusal_journal()
+    field_faults = {'uid': ('_UID', '1000'), 'pid': ('_PID', '99'),
+        'exe': ('_EXE', '/tmp/foreign'), 'transport': ('_TRANSPORT', 'stdout'),
+        'boot': ('_BOOT_ID', 'c' * 32), 'old': ('__REALTIME_TIMESTAMP', '100'),
+        'future': ('__REALTIME_TIMESTAMP', '201'),
+        'old-monotonic': ('__MONOTONIC_TIMESTAMP', '10'),
+        'future-monotonic': ('__MONOTONIC_TIMESTAMP', '21'),
+        'malformed-time': ('__REALTIME_TIMESTAMP', []), 'array-message': ('MESSAGE', []),
+        'delayed-old-source': ('_SOURCE_REALTIME_TIMESTAMP', '99'),
+        'future-source': ('_SOURCE_REALTIME_TIMESTAMP', '201'),
+        'source-after-receipt': ('_SOURCE_REALTIME_TIMESTAMP', '111'),
+        'malformed-source': ('_SOURCE_REALTIME_TIMESTAMP', [])}
+    if fault in field_faults:
+        field, value = field_faults[fault]
+        rows[0][field] = value
+    elif fault == 'missing-time':
+        del rows[0]['__MONOTONIC_TIMESTAMP']
+    elif fault == 'missing-source':
+        del rows[0]['_SOURCE_REALTIME_TIMESTAMP']
+    elif fault == 'backward-source':
+        rows[1]['_SOURCE_REALTIME_TIMESTAMP'] = '108'
+    elif fault == 'role':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].replace('role=gate', 'role=manager')
+    elif fault == 'stage':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].replace('stage=manager-material', 'stage=completed-record')
+    elif fault == 'reason':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].replace('stale-manager-reboot-required', 'manager-generation-stale')
+    elif fault == 'generic':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].replace('stale-manager-reboot-required', 'refused')
+    elif fault == 'earlier-boundary':
+        rows[1]['__MONOTONIC_TIMESTAMP'] = '10'
+    elif fault == 'wrong-service':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].replace('gdm-password', 'systemd-user')
+    elif fault == 'missing-wrapper':
+        rows[0]['MESSAGE'] = rows[0]['MESSAGE'].split(': ', 1)[1]
+    elif fault == 'duplicate':
+        rows.append(rows[0])
+    elif fault == 'split-call':
+        rows[1]['_PID'] = '43'
+    result = history.refusal_markers('\n'.join(json.dumps(row) for row in rows),
+        dict(boot='b' * 32, realtime_us=100, monotonic_us=10),
+        dict(boot='b' * 32, realtime_us=200, monotonic_us=20),
+        stage='manager-material', reason='stale-manager-reboot-required',
+        call=dict(pid=42, exe='/usr/bin/python3.14'))
+    assert bool(result) is (fault is None)
+
+
+@pytest.mark.parametrize('fault', [None, 'source', 'comm', 'split-call', 'ambiguous'])
+def test_public_material_refusal_is_one_actual_gdm_worker_call(fault):
+    rows = material_refusal_journal()
+    for row in rows:
+        row.update(_EXE='/usr/libexec/gdm-session-worker', _COMM='gdm-session-wor')
+    if fault == 'source':
+        rows[0]['_EXE'] = '/home/foreign/gdm-session-worker'
+    elif fault == 'comm':
+        rows[0]['_COMM'] = 'python3'
+    elif fault == 'split-call':
+        rows[1]['_PID'] = '43'
+    elif fault == 'ambiguous':
+        rows += [dict(row, _PID='43') for row in rows]
+    result = history.refusal_markers('\n'.join(json.dumps(row) for row in rows),
+        dict(boot='b' * 32, realtime_us=100, monotonic_us=10),
+        dict(boot='b' * 32, realtime_us=200, monotonic_us=20),
+        stage='manager-material', reason='stale-manager-reboot-required')
+    assert bool(result) is (fault is None)
 
 
 def test_fresh_phase_requires_retired_phase_and_changed_boot(monkeypatch):

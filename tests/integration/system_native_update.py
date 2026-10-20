@@ -740,35 +740,130 @@ def controls(account, backend, record, stage):
     observe_launch(pwd.getpwnam('onpc-child-jordan').pw_uid, True, variant='trusted-hard')
 
 
+GDM_WORKERS = ('/usr/libexec/gdm-session-worker', '/usr/lib/gdm3/gdm-session-worker',
+               '/usr/lib/gdm/gdm-session-worker')
+
+
+def refusal_window():
+    """Checkpoint source clocks before an owned call or a later public visit."""
+    return {'boot': BOOT.read_text().strip().replace('-', ''),
+            'realtime_us': time.time_ns() // 1000,
+            'monotonic_us': time.monotonic_ns() // 1000}
+
+
+def refusal_markers(raw, window, end, *, stage, reason, call=None):
+    """Pair native PAM causes with their own final result, using journal metadata.
+
+    Message text is untrusted without the journal's root/syslog producer fields.
+    An internal call supplies its actual PID/executable; a public visit requires
+    the distribution GDM worker. No helper stderr or generic refusal is evidence.
+    """
+    groups = {}
+    cause = re.compile(r'onpc\.pam kiosk native-view outcome=denied role=gate stage=' +
+                       re.escape(stage) + r' reason=' + re.escape(reason) + r' errno=-1')
+    boundary = 'onpc.pam kiosk execution-boundary outcome=denied stage=' + stage
+    for line in raw.splitlines():
+        try:
+            row = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(row, dict):
+            continue
+        pid, exe = row.get('_PID'), row.get('_EXE')
+        if not (row.get('_UID') == '0' and row.get('_TRANSPORT') == 'syslog' and
+                row.get('_BOOT_ID') == window['boot'] == end['boot'] and
+                isinstance(pid, str) and pid.isdecimal() and int(pid) > 0 and
+                isinstance(exe, str)):
+            continue
+        if call is not None:
+            if pid != str(call['pid']) or exe != call['exe']:
+                continue
+        elif exe not in GDM_WORKERS or row.get('_COMM') != 'gdm-session-wor':
+            continue
+        # For the local syslog datagram route journald obtains the source time
+        # from SCM_TIMESTAMP. Receipt clocks alone would admit a delayed old
+        # datagram. Do not substitute the client-controlled SYSLOG_TIMESTAMP.
+        stamps = [row.get('_SOURCE_REALTIME_TIMESTAMP'), row.get('__REALTIME_TIMESTAMP'),
+                  row.get('__MONOTONIC_TIMESTAMP')]
+        if not all(isinstance(value, str) and value.isdecimal() for value in stamps):
+            continue
+        source, realtime, monotonic = map(int, stamps)
+        if not (window['realtime_us'] < source <= realtime <= end['realtime_us'] and
+                window['monotonic_us'] < monotonic <= end['monotonic_us']):
+            continue
+        message = row.get('MESSAGE')
+        if not isinstance(message, str):
+            continue
+        wrapper = re.fullmatch(r'pam_oh_no_parent_control\(gdm-password:session\): (.+)',
+                               message)
+        if wrapper is None:
+            continue
+        message = wrapper[1]
+        kind = ('cause' if cause.fullmatch(message) else
+                'native' if message == boundary else None)
+        if kind:
+            groups.setdefault((pid, exe), []).append(dict(kind=kind, source_us=source,
+                receipt_us=realtime,
+                monotonic_us=monotonic, pid=int(pid), exe=exe, boot=window['boot'],
+                role='gate', stage=stage, reason=reason if kind == 'cause' else None))
+    complete = []
+    for markers in groups.values():
+        causes = [row for row in markers if row['kind'] == 'cause']
+        results = [row for row in markers if row['kind'] == 'native']
+        if len(causes) == len(results) == 1 and all(
+                causes[0][key] <= results[0][key]
+                for key in ('source_us', 'receipt_us', 'monotonic_us')):
+            complete.append([causes[0], results[0]])
+    # Multiple matching calls are ambiguous rather than interchangeable evidence.
+    return complete[0] if len(complete) == 1 else []
+
+
+def journal_refusal(window, *, stage, reason, call=None, timeout=5, diagnostic=None):
+    deadline = time.monotonic() + timeout
+    while True:
+        raw = guest.run(['journalctl', '-b', '--since=@' +
+                         str(window['realtime_us'] // 1000000), '--no-pager', '-o', 'json'],
+                        timeout=30)
+        if diagnostic is not None:
+            # Update only the exclusively reserved attempt-private capture.
+            descriptor = os.open(diagnostic, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW)
+            with os.fdopen(descriptor, 'w') as stream:
+                stream.write(raw)
+        markers = refusal_markers(raw, window, refusal_window(), stage=stage,
+                                  reason=reason, call=call)
+        if markers:
+            return markers
+        guest.require(time.monotonic() < deadline, 'native-update:stale-manager-reason')
+        time.sleep(0.25)
+
+
+def pam_refusal(account, directory, *, stage, reason, diagnostic=None):
+    window = refusal_window()
+    status, data = confinement.first_exec(account, directory,
+        ['/usr/libexec/gdm-wayland-session', '--help'], armed=False)
+    result = json.loads(data)
+    guest.require(status == 125 and type(result.get('pam')) is int and result['pam'] != 0,
+                  'native-update:stale-manager-admitted')
+    guest.require(type(result.get('pid')) is int and result['pid'] > 0 and
+                  isinstance(result.get('exe'), str) and result['exe'].startswith('/'),
+                  'native-update:refusal-call-identity')
+    markers = journal_refusal(window, stage=stage, reason=reason, call=result,
+                              diagnostic=diagnostic)
+    return {'window': window, 'call': {'pid': result['pid'], 'exe': result['exe']},
+            'markers': markers}
+
+
 def stale_admission(account, record):
-    """Bind exact preparation refusal text to this one real final-session call."""
+    """Require the actual material mismatch from this one real PAM call."""
     directory = private() / 'native-update-output'
     directory.mkdir(mode=0o700, exist_ok=True)
     path = directory / 'stale-admission.txt'
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    original = os.dup(2)
-    first_sequence = guest.commands.sequence
-    try:
-        os.dup2(descriptor, 2)
-        status, data = confinement.first_exec(account, private(),
-            ['/usr/libexec/gdm-wayland-session', '--help'], armed=False)
-    finally:
-        os.dup2(original, 2)
-        os.close(original)
-        os.close(descriptor)
-    guest.require(status == 125 and json.loads(data).get('pam', 0) != 0,
-                  'native-update:stale-manager-admitted')
-    diagnostic = path.read_bytes()
-    # Fedora's vendor-caller subprocess has its own owned Commands stderr.
-    if guest.commands.directory is not None:
-        for sequence in range(first_sequence + 1, guest.commands.sequence + 1):
-            source = guest.commands.directory / f'command-{sequence:04d}-stderr.txt'
-            if source.exists():
-                diagnostic += source.read_bytes()
-    guest.require(b'reason=stale-manager-reboot-required' in diagnostic or
-                  b'reason=manager-generation-stale' in diagnostic,
-                  'native-update:stale-manager-reason')
+    os.close(descriptor)
+    result = pam_refusal(account, private(), stage='manager-material',
+                         reason='stale-manager-reboot-required', diagnostic=path)
     record('onpc.native-update.admission', 'stale-manager-reboot-required')
+    return result
 
 
 def retain_upgrade(record):

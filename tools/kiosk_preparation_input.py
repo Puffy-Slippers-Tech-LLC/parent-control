@@ -43,7 +43,7 @@ REFUSAL_REASONS = (
     'invalid-caller', 'unowned-account', 'unknown-backend', 'policy-snapshot-not-attested',
     'unexpected-preserved-executable', 'missing-executable', 'untrusted-path',
     'untrusted-ancestor', 'source-changed', 'unexpected-executable-mode',
-    'preserved-executable-label', 'non-native-executable')
+    'preserved-executable-label', 'non-native-executable', 'attestation-command-failed')
 PHASE_SLOTS = {
     (1, 'manager'): ('material_receipt', 'configuration', 'account'),
     (1, 'gate'): ('material_receipt', 'configuration', 'account'),

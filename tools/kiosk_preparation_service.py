@@ -173,10 +173,14 @@ def measure(role, deadline_ns):
     if os.geteuid() != 0 or role not in ('manager', 'gate'):
         raise ValueError('invalid-caller')
     identity = _account(deadline_ns)
-    attestation = subprocess.run(
-        ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
-        env=confinement.ENV, check=True, capture_output=True, text=True,
-        timeout=min(5, _before(deadline_ns)))
+    try:
+        attestation = subprocess.run(
+            ['/usr/libexec/oh-no-parent-control-kiosk-confinement-integration', 'verify'],
+            env=confinement.ENV, check=True, capture_output=True, text=True,
+            timeout=min(5, _before(deadline_ns)))
+    except subprocess.CalledProcessError as error:
+        # Only this actual attestation call owns the specific closed cause.
+        raise ValueError('attestation-command-failed') from error
     paths = [confinement.PAYLOAD / 'config.json']
     fd = confinement.runtime_open(confinement.trusted(paths[0]))
     try:

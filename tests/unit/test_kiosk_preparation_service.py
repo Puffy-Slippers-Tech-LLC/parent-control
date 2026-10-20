@@ -91,7 +91,7 @@ def test_refusal_send_failure_cannot_replace_measurement_error(private_store, mo
     assert raised.value is error
 
 
-@pytest.mark.parametrize('fault,reason', [('config', 'command-failed'), ('policy', 'command-failed'),
+@pytest.mark.parametrize('fault,reason', [('config', 'attestation-command-failed'), ('policy', 'attestation-command-failed'),
     ('attestation-output', 'policy-snapshot-not-attested'), ('helper-mode', 'unexpected-preserved-executable')])
 def test_real_measurement_dispatch_reports_attestation_and_helper_inventory(
         material_host, monkeypatch, fault, reason):

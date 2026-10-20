@@ -243,7 +243,9 @@ The native preparation exchange also reports a checked helper refusal at
 `unowned-account`, `unknown-backend`, `policy-snapshot-not-attested`,
 `unexpected-preserved-executable`, `missing-executable`, `untrusted-path`,
 `untrusted-ancestor`, `source-changed`, `unexpected-executable-mode`,
-`preserved-executable-label` or `non-native-executable`. Unlisted exceptions map
+`preserved-executable-label`, `non-native-executable` or `attestation-command-failed`.
+The last cause is emitted only by the actual integration-policy verification
+command; other command failures retain `command-failed`. Unlisted exceptions map
 to `verification`; exception text, captured output, paths, account names and
 command arguments never cross the channel. Native accepts this diagnostic only
 before successful measurement and within the original role/deadline binding.
@@ -251,6 +253,16 @@ Invalid or unavailable packets retain the ordinary native refusal. Earlier
 helper-entry validation and later native authority/completed-record failures
 do not acquire a measurement cause. These producer records grant no new feedback
 collector or installed-history qualification.
+
+Retained admission reports `stage=manager-material` with
+`reason=stale-manager-reboot-required` only after current required material is
+independently verified and differs from the trusted original manager's material.
+The diagnostic path verifies the old material against current attested config/
+policy, complete record/copies, original manager/executable/marker and actual
+recursive source topology, then rechecks current authority and that same manager.
+It never supplies admission authority. Missing, malformed, foreign, replaced or
+inconsistent records and manager/source failures retain their own refusal;
+generic `completed-record/refused` cannot prove stale material.
 
 Before a feedback snapshot, the independent
 `collect_kiosk_admission_diagnostics()` reader projects exact reviewed native

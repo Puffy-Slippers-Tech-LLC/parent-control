@@ -1133,6 +1133,10 @@ from regression_ui import Bucket
 # channels, process-local alarms and bounded/reaped native children. No shared
 # service, cache, display, persistent fixture or cleanup owner is added; the
 # existing probe/compile admission and compatible classifications remain valid.
+# Material-refusal witnesses reuse that same owned manager/helper lifetime and
+# private namespace, including an intentional private source-mount detach.
+# Journal observers use only private records and clock/transport doubles; no
+# live journal, process, service or new cleanup/UI inventory resource is used.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

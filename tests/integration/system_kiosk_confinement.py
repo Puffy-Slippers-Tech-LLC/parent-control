@@ -1238,12 +1238,14 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
                 os.write(descriptor, Path(target).read_bytes())
             handle = ctypes.c_void_p()
             conv = Conversation()
+            diagnostic_executable = os.readlink('/proc/self/exe')
             status = pam.pam_start_confdir(service.encode(), account.pw_name.encode(),
                 ctypes.byref(conv), os.fsencode(directory), ctypes.byref(handle))
             if status == 0:
                 status = pam.pam_open_session(handle, 0)
             if status:
-                os.write(write_fd, json.dumps({'pam': status}).encode())
+                os.write(write_fd, json.dumps({'pam': status, 'pid': os.getpid(),
+                    'exe': diagnostic_executable}).encode())
                 os._exit(125)
             if witness:
                 event = {'phase': 'admitted', 'pid': os.getpid(),
@@ -2304,6 +2306,7 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
               if path == '/usr' or path.startswith('/usr/')}
     objects, coverage, sources, expected_mounts = {}, {}, {}, set()
     omitted_ambient, masked_ambient = [], []
+    ambient_paths, required_ancestry = set(), set()
     for line in lines[1:]:
         guest.require(time.monotonic() < deadline, 'kiosk-bootstrap:view-observation-timeout')
         values = line.split('\t')
@@ -2311,6 +2314,11 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
             guest.require(len(values) == 23, 'kiosk-bootstrap:node-fields')
             path, kind, required, source_class, acquisition, role = values[1:7]
             guest.require(path == '/usr' or path.startswith('/usr/'), 'kiosk-bootstrap:node-path')
+            if required == '1':
+                required_ancestry.add(path)
+                required_ancestry.update(str(parent) for parent in Path(path).parents)
+            elif required == '0' and source_class == 'ambient' and kind in ('file', 'directory', 'link'):
+                ambient_paths.add(path)
             if kind in ('absent', 'empty-directory'):
                 continue
             actual = root / path.lstrip('/')
@@ -2383,6 +2391,10 @@ def bootstrap_view(process, *, source=None, invocation_marker=None):
               'marker': marker_info, 'completed': completed,
               'directory': bootstrap_object(directory),
               'objects': objects, 'coverage': coverage, 'sources': sources,
+              # Required ancestry cannot inherit the ambient trust relaxation.
+              # Derive this classification from the digest-bound original V,
+              # including leaves omitted/masked in the fresh invocation.
+              'ambient_paths': sorted(ambient_paths - required_ancestry),
               'omitted_ambient': omitted_ambient, 'masked_ambient': masked_ambient,
               'root': bootstrap_object(root, follow=True)[:5], 'usr': bootstrap_object(root / 'usr'),
               'ready': ready, 'mounts': mounts}

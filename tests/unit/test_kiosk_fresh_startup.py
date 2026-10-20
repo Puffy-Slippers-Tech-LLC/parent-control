@@ -924,7 +924,7 @@ int main(int argc,char **argv) {
     if(!strcmp(mode,"measurement-config-refusal") || !strcmp(mode,"measurement-policy-refusal") ||
         !strcmp(mode,"measurement-helper-refusal") || !strcmp(mode,"measurement-attestation-refusal")) {
         const char *cause=!strcmp(mode,"measurement-helper-refusal")?"unexpected-preserved-executable":
-            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"command-failed";
+            !strcmp(mode,"measurement-attestation-refusal")?"policy-snapshot-not-attested":"attestation-command-failed";
         require(startup.stage && !strcmp(startup.stage,"measurement") && primary.stage &&
             !strcmp(primary.stage,"measurement") && !strcmp(primary.reason,cause) && primary.error==-1 &&
             !startup.measurement.count && !startup.ticket_adopted && !startup.ready && !ready_commits && !mac_calls,
@@ -1223,7 +1223,7 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         assert (directory / 'measurement-command').read_text() == mode
         if mode.endswith('-refusal'):
             reason = ('unexpected-preserved-executable' if mode == 'measurement-helper-refusal' else
-                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'command-failed')
+                      'policy-snapshot-not-attested' if mode == 'measurement-attestation-refusal' else 'attestation-command-failed')
             assert completed.stderr.splitlines() == [
                 f'onpc.pam kiosk native-view outcome=denied role=manager stage=measurement reason={reason} errno=-1']
             assert not helper_result.exists()

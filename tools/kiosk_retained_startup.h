@@ -141,6 +141,43 @@ static inline int kiosk_retained_final_proofs(struct kiosk_retained_startup *g, 
     return !kiosk_fresh_locks(lock, lease) && !kiosk_pin_before(s->deadline) ? 0 : -1;
 }
 
+/* A failed strict current-M lookup is not itself a stale-material witness.
+ * Prove the old completed record, original executable/marker, actual recursive
+ * sources and same manager, then repeat current-host authority. Never clone,
+ * select a helper input, publish, or continue admission using this old M. */
+static inline void kiosk_retained_material_refusal_until(struct kiosk_retained_startup *g,
+    int lock, int lease)
+{
+    struct kiosk_fresh_startup *s = &g->common;
+    struct kiosk_material_authority previous = {0};
+    unsigned long long source_mount;
+    if (kiosk_retained_record_previous_until(&g->record, &previous, s->runtime,
+            g->manager.usr, g->marker, &s->authority, s->policy.config, s->policy.config_size,
+            s->policy.policy, s->policy.policy_size, s->boot, s->crypto, s->deadline) ||
+        kiosk_manager_select(&g->manager, g->record.manager_executable, g->marker,
+            previous.digest, g->record.receipt.digest, &s->failure)) goto done;
+    g->mountinfo = openat(g->manager.proc, "mountinfo", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK);
+    if (g->mountinfo < 0 || kiosk_pin_fd_mount(g->manager.usr, &source_mount) ||
+        kiosk_pin_topology_until(g->mountinfo, source_mount, "/usr", g->record.inventory.entries,
+            g->record.inventory.count, s->deadline, &s->failure) ||
+        kiosk_realization_verify_source_until(g->manager.usr, &g->record.receipt, &previous,
+            KIOSK_FRESH_MARKER, g->record.inventory.entries, g->record.inventory.count,
+            g->record.ambient, s->crypto, s->deadline, &s->failure) ||
+        kiosk_retained_record_recheck_until(&g->record, g->manager.usr, g->marker,
+            &previous, s->crypto, s->deadline) ||
+        kiosk_fresh_runtime_current(s) ||
+        kiosk_host_proof_recheck(&s->account, s->account.specs, s->account.requested) ||
+        kiosk_material_verify_host_until(&s->authority, &s->host) ||
+        kiosk_material_verify_routes_until(&s->authority, &s->host) ||
+        kiosk_policy_recheck_until(&s->policy, s->deadline) ||
+        kiosk_manager_recheck(&g->manager, &s->failure) || kiosk_fresh_locks(lock, lease) ||
+        kiosk_pin_before(s->deadline)) goto done;
+    s->stage = "manager-material";
+    kiosk_failure(&s->failure, s->stage, "stale-manager-reboot-required", -1);
+done:
+    kiosk_material_free(&previous);
+}
+
 static inline int kiosk_retained_startup_until(struct kiosk_retained_startup *g, pam_handle_t *pamh,
     int lock, int lease, uint64_t deadline)
 {
@@ -202,9 +239,13 @@ static inline int kiosk_retained_startup_until(struct kiosk_retained_startup *g,
             deadline, &s->failure)) goto done;
     s->stage = "completed-record";
     g->marker = kiosk_preparation_open(g->manager.usr, KIOSK_FRESH_MARKER, 1, deadline);
-    if (g->marker < 0 || kiosk_retained_record_open_until(&g->record, s->runtime, g->manager.usr,
-            g->marker, &s->authority, s->boot, s->crypto, deadline) ||
-        kiosk_manager_select(&g->manager, g->record.manager_executable, g->marker,
+    if (g->marker < 0) goto done;
+    if (kiosk_retained_record_open_until(&g->record, s->runtime, g->manager.usr,
+            g->marker, &s->authority, s->boot, s->crypto, deadline)) {
+        kiosk_retained_material_refusal_until(g, lock, lease);
+        goto done;
+    }
+    if (kiosk_manager_select(&g->manager, g->record.manager_executable, g->marker,
             s->material, g->record.receipt.digest, &s->failure) ||
         kiosk_fresh_hex(g->record.receipt.digest, view)) goto done;
     s->stage = "source-clone";

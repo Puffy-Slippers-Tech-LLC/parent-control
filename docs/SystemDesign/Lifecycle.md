@@ -40,6 +40,12 @@ service from becoming ready. Clearing stale session caps is best-effort:
 unavailable sessions may be skipped, and an exception at this stage is logged
 without preventing registration.
 
+This current global extension-refresh dependency can strand an otherwise healthy
+kiosk request when another enabled child's home is unavailable, for example an
+unmounted encrypted home. The resilience target's
+[broker readiness decision](#prospective-configuration-and-activation-recovery)
+must address that cause; a generic unavailable-service result is not its resolution.
+
 Local executable or wildcard-directory rendering failures use the
 [application-rule isolation contract](Applications.md#live-filter-and-execution-rules):
 the broker installs the remaining rules, retains saved choices for retry, and
@@ -613,6 +619,63 @@ outlives preparation ownership. See [current view and trust boundaries](Kiosk-Co
 and the [prospective target](../Kiosk-Resilience-Plan.md#target-design) for the
 separate replacement lifecycle. No automatic manager renewal has shipped as a
 result of this replanning.
+
+### Prospective configuration and activation recovery
+
+This is the resilience target, not current shipped behavior. R01's
+[architecture decisions](Kiosk-Confinement.md#architecture-decisions-required-before-the-entry-proof)
+cover configuration and provisioning through visibility repair, quarantine
+release, entry, approval, teardown and subsequent entry. A rejection audit
+starting only at GDM misses configuration failures that leave the account expired.
+
+R01 also classifies broker startup prerequisites by the enforcement they protect.
+Read `Service._start_policy()`, `Broker.refresh_enabled_extensions()`,
+`ExtensionManager.set_enabled()` and their complete account/configuration callers.
+Distinguish global enforcement failures from another child's unavailable home or
+extension activation. R06b implements bounded per-account isolation/recovery so a
+healthy selected child can still receive a genuine approved request. Preserve
+required enforcement and accurate unavailable-operation reporting for the affected
+child; neither silently skipping its enforcement nor disabling the whole broker
+without a concrete global dependency satisfies this target. Family E pairs child
+A's unavailable home at broker startup with a successful request for healthy
+child B, then restores A and verifies recovery. Keep this a finite readiness
+repair, not a redesign of every broker failure path.
+
+Current [package configuration](../../packaging/lifecycle/postinst.in) quarantines
+the kiosk before provisioning and releases it after successful configuration.
+`accounts_service_provision_kiosk()` calls `accounts_service_set_icon_file()` in
+[provisioning](../../tools/provision.py); an icon failure can abort that path.
+The target treats icon assignment as optional: record the cause, skip the failed
+assignment and allow the display default while completing required setup. The
+fallback must not require another successful icon API call. Release product-owned
+quarantine only when required enforcement/configuration is ready and ownership
+of the quarantined field is established. Preserve the captured prior expiry and
+any later administrator denial; product-owned temporary expiry is not itself
+administrator policy. Interrupted or ambiguous ownership needs bounded
+reconciliation and an accurate setup diagnostic, never a guessed reset.
+R01 must address a later administrator write of the same expiry value used by
+quarantine: equality with the saved value does not establish who wrote it.
+Choose an ownership mechanism that preserves both bounded product recovery and
+effective administrator denial; the current expiry snapshot alone is insufficient.
+
+The current AccountsService cache-repair adapter uses exact daemon/RPM versions.
+R01 must replace version identity as the admission authority with narrowly
+verified capability/schema behavior or a maintained public repair route; R05a
+implements that choice. Preserve unowned account fields, transaction ownership
+and ordinary users. Do not write an unknown cache schema blindly, but an
+unfamiliar version alone cannot veto configuration or otherwise usable entry.
+If necessary visibility cannot be restored, diagnose the actual failed public
+result and exhausted safe repair, separately from optional icon assignment.
+
+R01 also maps changed inputs to no action, safe owned renewal, session renewal
+or a justified reboot. Retaining the old manager is not a requirement; preserving
+live/foreign sessions is. Identify what actual enforcement cannot safely activate
+without reboot rather than carrying forward every current classification.
+Use one declared end-to-end entry/recovery deadline, including readiness of the
+form and authentication path; retries cannot restart that budget. R03/R04
+validate the proposed budget against representative observations. Human time
+entering parent credentials is separate. A successful unit start alone is not
+readiness, and genuine approval still needs a public proof.
 
 ### Package activation and session renewal
 

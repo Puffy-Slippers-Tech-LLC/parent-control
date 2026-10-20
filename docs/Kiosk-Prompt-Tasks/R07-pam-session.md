@@ -22,10 +22,12 @@ callers through the [lifecycle owner](../SystemDesign/Lifecycle.md).
 
 ## Finite deliverable
 
-Implement only the R01 mapping for valid PAM include/module variation, harmless
-formatting, actual GDM credentials/umasks and saved-session repair. Preserve
-explicit denial, expiry and parent denial/cancellation; never enable global
-null-token authentication or bypass ordinary accounts. Isolate unnecessary
+Extend the R02–R04 proven PAM boundary only according to R01's mapping for valid
+include/module variation, harmless formatting, actual GDM credentials/umasks and
+saved-session repair. Preserve effective administrator denial/expiry and parent
+denial/cancellation, distinguishing product-owned quarantine. Honor R01's
+kiosk-scoped empty-token policy decision; never enable global null-token
+authentication or bypass ordinary accounts. Isolate unnecessary
 callbacks instead of treating unknown module names/configuration as hostile.
 For every remaining entry rejection, complete the master's rejection ledger:
 concrete reachable risk or actual essential setup/administrator policy, failed
@@ -37,8 +39,10 @@ Do not introduce basename-only security or a universal host executable allowlist
 Use registered affected checks in `test_kiosk_login.py`, `test_fedora_pam.py`,
 `test_system_pam_variants.py`, native entry tests and relevant package tests;
 inspect actual registration and select the lowest effective maintained scope.
-Pair tolerated variation with explicit-denial and unchanged ordinary-role
-controls. Public installed proof remains R10/R11; host counts grant none.
+Retain the unfamiliar benign callback early-proof regression. Pair tolerated
+variation with effective explicit-denial and unchanged ordinary-role controls;
+unknown names or harmless byte differences are not policy denials. Full installed
+variation coverage remains R10/R11; host counts grant none.
 Apply the master's mandatory Astra review/revision gate to product fixes, run
 `make build` after the final packaged-input edit, and translate new product
 strings into every supported language. Preserve owned cleanup and pre-existing

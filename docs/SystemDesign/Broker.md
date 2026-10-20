@@ -333,6 +333,36 @@ Account read-back and successful fapolicyd compile/reload commands are the curre
 verification boundary. There is no active-generation acknowledgement in the
 production adapter; see [notification recovery](Applications.md#notification-recovery-and-acknowledgement-limit).
 
+### Prospective kiosk approval lifetime
+
+The kiosk resilience programme assigns this decision to R01c, integrated/reviewed
+by R01 before R02a. Current
+`_PendingAuthorization.run()` removes lifecycle subscriptions when authentication
+finishes. `_request_access()` subsequently queries usage, revalidates identities
+and preferences, performs termination preflight and applies the grant; its caller
+check observes bus-name existence, not the original visit's continued activity.
+The [specification](../Specification.md#requesting-and-approving-access)
+currently requires cancellation while authentication is pending. A successful
+authentication and a committed grant are distinct events.
+
+R01 must define the point after which an approved original request may complete
+despite a session transition, and the ordering between cancellation and that point.
+Record the observable behavior in the specification and the chosen mechanism here
+before its implementation consumers. Bind the originating visit, request, target
+and approver through slow usage queries and irreversible effects; a later visit
+cannot adopt its prompt, result or authority. Preserve cancellation of pending
+authentication, account revalidation and existing transaction failure semantics.
+Do not describe bus-name liveness as proof of visit identity.
+
+R02a uses the chosen identity/lifetime mechanism in its entry slice; R06 completes
+recovery integration and race controls. Family D verifies both sides: cancellation
+that wins grants nothing; an approval that has crossed the defined boundary can
+affect only its original request under the declared completion semantics. Include
+a delayed post-authentication usage query, switch/exit and reentry, with a fresh
+request succeeding afterward. These are finite race controls, not permission to
+change grant arithmetic or add reusable authorization. This section records a
+required decision and proof, not an implemented lifetime guarantee.
+
 ## Related design
 
 - For grant arithmetic, read [calculations and usage identities](Screen-Time.md#grant-arithmetic-and-usage-identities); for screen-time activation, read [enablement](Screen-Time.md#screen-time-model).

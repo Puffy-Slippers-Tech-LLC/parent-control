@@ -473,8 +473,10 @@ directory. Its systemd user unit consumes this through `EnvironmentFile`.
 native system catalogues (including `zh_CN`/`zh_TW`). The public `locale -a`
 inventory supplies an installed non-C UTF-8 locale for `LC_ALL`, preferring the
 selected language. When that libc locale is unavailable, `LANGUAGE` still selects
-the native catalogue under another installed UTF-8 locale. C locales cannot be
-used here because GNU gettext ignores `LANGUAGE` in them. No locales are generated.
+the native catalogue under another installed UTF-8 locale. The current helper
+rejects C-only inventories because GNU gettext ignores `LANGUAGE` in C locales;
+this is a limitation of translated presentation, not evidence that native
+authentication is unavailable. No locales are generated.
 These settings apply only to that service's process; the product process,
 user manager environment, child desktop and OS settings are unchanged.
 The kiosk calls the user manager's public `RestartUnit` method and waits for
@@ -496,6 +498,20 @@ The child overlay continues to use its desktop's agent. A language change
 during authentication does not recreate the prompt; request controls keep the
 child fixed until that request finishes. External text coverage depends on
 installed system translations.
+
+The [request-station specification](../Specification.md#requesting-and-approving-access)
+requires normal authentication even when system translations are absent.
+The [resilience programme's R08b](../Kiosk-Prompt-Tasks/R08b-agent-language.md) must
+remove the current translation prerequisite: C/C.UTF-8-only hosts, missing
+native catalogues and failed locale discovery use a safe native or untranslated
+prompt. Separate cosmetic preparation from an operational, correctly associated
+agent; a failed job or stale agent identity cannot be treated as readiness.
+Retain the selected parent's genuine authentication and the original recovery
+deadline. Map the existing `test_agent_locale_refuses_c_only_hosts_without_starting_approval`
+expectation to fallback under R01's ledger before changing that regression.
+Family B requires real approval with the C/C.UTF-8-only fixture on both targets;
+host locale/preparation failures are bounded engineering controls. This is a
+planned correction, not current installed acceptance.
 
 ## Formatting, layout and accessibility
 

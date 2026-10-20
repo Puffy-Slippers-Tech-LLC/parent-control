@@ -32,7 +32,7 @@ that every condition is still uncovered. Check current coverage before adding wo
 | `5b15f17d`, earlier accounting fix `d4df2187` | Healthy estimate reads can conceal a failing resume query/replay stage; cached deadlines and recorded-use estimates differ during activity/inactivity. Check original budgets, operation-specific incidents and real native accounting across those transitions. | 001, 003a/003 |
 | `f0e4dc77` | Positive time after approval did not guarantee that one authentication returned the exhausted retained desktop. Native admission state, trusted Unlock ordering and preserved work must be observed together. | 004 family; 011 |
 | `0690f1de`, `f0e4dc77` | Package triggers depend on previously denied kiosk admission and an exhausted user's surviving manager. The administrative bridge is not an ordinary login. Reuse existing denied-kiosk qualification and add only the retained zero-time trigger history. | 005a/005; existing core-installation owner |
-| `83d502b3` | Unrelated packages can ship root-owned group-writable data directories. Entry must work without exposing mutable contents or trusting required executables' writable ancestors. | 006a/006b |
+| `83d502b3` | Unrelated packages can ship root-owned group-writable data directories. Entry must tolerate them and host replacement while preserving host data. Protect actually child-writable consumed inputs; unrelated mutable contents and trusted-administrator-only group write are not admission faults. | 006a/006b, after the kiosk R01 mapping |
 | `4e08dcdb` | Generated policy checks missed an actual Fedora renderer device-mapping failure before the form appeared. Require native rendering with enforcing security and accurate device-path evidence; software rendering cannot qualify a GPU mapping. | 007a/007b/007; 010 |
 | `6987d0ce`, `925438ba`, `75f608f6` | Inventory-dependent preparation and asynchronous warm-up/logout can make a real station slow or unusable. Immediately submitted requests and repeated entry/exit must preserve readiness, deadlines and owned resources. This plan does not inherit the performance-improvement objective. | 008 family |
 | `75f608f6`, `5414b496` | Durable-write shortcuts after failure, stale locale completion and failed selector persistence need failure/retry coverage. Diagnostic failures must not change the operation, and later success must not erase its original cause. | 008c/008a, 009a/009, 010 family |
@@ -76,6 +76,15 @@ Daily accounting, retained unlock and package triggers keep the journeys needed
 for their motivating state. Inventory work uses three functional entry/exit
 cycles; repeated retained recovery uses two cycles without synthetic load.
 Task 012 reconciles only active conditions and affected reruns.
+
+The [kiosk resilience plan](Kiosk-Resilience-Plan.md#scope-reconciliation) owns
+the replacement admission architecture. Reliability 006a/006b cannot execute
+until its R01 maps the legacy assertions to the new behavioral contract.
+Neither empty private views, identical retained managers nor mode-bit-only
+refusal survives as an implicit requirement. Cases 290/291 and their receipts
+retain their original historical scope until explicitly adapted; registration
+alone is no successor acceptance. Reuse exact applicable results without
+concurrent overlapping work or closing the other plan's tasks.
 
 Each task owns implementation, affected checks and cleanup. Installed tasks
 require both `onpc-Ubuntu26.04` and `onpc-Fedora44` with exact package, baseline

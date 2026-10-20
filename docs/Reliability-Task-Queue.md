@@ -22,6 +22,11 @@ composition, and child diagnostic isolation from process-exit/cleanup isolation.
 Each consumer names its remaining slice. Independent incident families depend
 only on the shared capabilities they actually consume.
 
+Rows 006a/006b require the kiosk plan's accepted R01 behavioral mapping before
+execution, as specified in their briefs. Until then they remain unchecked.
+Their stable IDs and legacy selector names do not preserve obsolete masking or
+mode-bit-only rejection requirements.
+
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
 | [ ] | 001a | [Broker usage-query retry budgets](Reliability-Tasks/001a-usage-query-budgets.md) | Baseline | Mixed native-error classifications, attempt limits and overdue helper dispatch | 15–30 min |
@@ -40,8 +45,8 @@ only on the shared capabilities they actually consume.
 | [ ] | 004 | [Single-authentication retained unlock recovery](Reliability-Tasks/004-retained-unlock.md) | 004a | Natural exhaustion, real approval and one authorized usable return; stale authority refused | 45–75 min (session exception) |
 | [ ] | 005a | [Administrative bridge identity boundary](Reliability-Tasks/005a-bridge-identity.md) | Baseline | Positive verified bridge and negative identity/command PAM controls | 15–30 min |
 | [ ] | 005 | [Package triggers with exhausted retained users](Reliability-Tasks/005-package-triggers.md) | 004, 005a | Native administrative user-bus access succeeds while ordinary time/admission restrictions remain | 45–75 min (session exception) |
-| [ ] | 006a | [Writable sibling masking](Reliability-Tasks/006a-sibling-masking.md) | Baseline | Mode-0775/0777 private empty views and retained isolation after host replacement | 30–60 min (session exception) |
-| [ ] | 006b | [Required executable ancestor refusal](Reliability-Tasks/006b-required-path-refusal.md) | Baseline | Safety control for sibling masking: required ancestor refusal, restoration and native recovery | 30–60 min (session exception) |
+| [ ] | 006a | [Tolerate unrelated writable siblings](Reliability-Tasks/006a-sibling-masking.md) | Baseline | R01-mapped usable entry/reentry across unrelated 0775/0777 host fixtures and replacement, preserving host data and confinement | 30–60 min (session exception) |
+| [ ] | 006b | [Protect consumed inputs from child writes](Reliability-Tasks/006b-required-path-refusal.md) | Baseline | R01-mapped child-writable consumed-input protection, administrator-only group-write positive, restoration and usable recovery | 30–60 min (session exception) |
 | [ ] | 007a | [Renderer mapping permission regression](Reliability-Tasks/007a-renderer-policy.md) | Baseline | Changed dri_device_t mapping grant and unchanged exclusions/transitions at host scope | 15–30 min |
 | [ ] | 007b | [Native renderer startup regression](Reliability-Tasks/007b-native-renderers.md) | 007a | Usable enforcing kiosk startup on the incident renderer path with exact device-mapping evidence | 30–60 min (session exception) |
 | [ ] | 007 | [Renderer crash and kiosk reentry](Reliability-Tasks/007-renderer-roles.md) | 007a | Owned abnormal app exit, bounded usable GDM return and fresh confined entry | 30–60 min (session exception) |

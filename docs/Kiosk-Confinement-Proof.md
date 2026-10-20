@@ -2,7 +2,23 @@
 
 Test and design links refer to files in this repository. Recording numbers identify persistent test case IDs. Each case has one shared recording of the batch’s VM feeds; RPM-only case 8 runs on Fedora.
 
-| Scenario ID | Offense Scenario | Confinement Defense |
+## Evidence scope
+
+This table describes existing defenses and historical qualification of particular
+inputs. It is not final-candidate acceptance of the
+[kiosk resilience programme](Kiosk-Resilience-Plan.md#acceptance). Engineering
+probes, public journeys and recordings retain their original scope; a source link
+or a passing refusal does not establish usable entry on the replacement design.
+
+The scenario catalogue includes ordinary configuration, contention and missing
+enforcement as well as attacks. Those conditions are not inherently hostile.
+In particular, historical contention refusal in scenario 29 and generation refusal
+in scenario 25 cannot qualify normal-use availability. R01 maps retained
+assertions to the successor allow/recover/reject contract before reuse; R12
+reconciles this page against the final inputs and evidence. Preserve historical
+results while distinguishing retired mechanisms and outstanding installed proof.
+
+| Scenario ID | Scenario | Confinement Defense |
 | --- | --- | --- |
 | 1 | At sign-in, select the request-station account but choose a normal desktop instead. | Dedicated-session routing is checked and repaired with denial of the current attempt; the final PAM boundary separately constrains the executable GDM actually starts. Proof: [system login admission](../tests/integration/system_kiosk_admission.py#L363) (<a href="https://youtu.be/duVHThWD3kY" target="_blank" rel="noopener noreferrer">Recording</a>) and [system final-exec matrix](../tests/integration/system_kiosk_confinement.py#L1984) (<a href="https://youtu.be/o3RAs4ijrzk" target="_blank" rel="noopener noreferrer">Recording</a>). |
 | 2 | Choose an older X11 session for the request station. | Saved transport must be Wayland, and session opening checks the PAM transport. The installed wrong-transport test proves account-stage denial, repair and successful fresh retry; it does not itself open an X11 session. Proof: [system admission matrix](../tests/integration/system_kiosk_admission.py#L363) (<a href="https://youtu.be/duVHThWD3kY" target="_blank" rel="noopener noreferrer">Recording</a>). |

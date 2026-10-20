@@ -194,6 +194,11 @@ use safe defaults; unavailable optional services/renderers disable their feature
 while preserving the usable core request form and parent approval. Python,
 scripts, JavaScript, units and plugin configuration remain executable authority;
 their concrete reachable injection risks cannot be reclassified as cosmetic.
+Assess write authority on consumed paths using the relevant identities, group
+membership and ACLs. A group-write bit, including on a root-group directory,
+does not by itself establish child control. Unrelated writable data needs no
+empty private view. Exclude a child-writable consumed input or its launch route;
+reject entry only if the essential boundary cannot be recovered.
 
 Healthy retained reuse becomes an optimization. A single lifecycle owner may
 renew a proven owned stale/failed instance with bounded recovery, serialization,
@@ -207,6 +212,56 @@ immutable backing bytes; neither blind validator deletion nor a guessed kernel
 transition is a complete design.
 The plan's [acceptance](../Kiosk-Resilience-Plan.md#acceptance) separates normal
 compatibility fixtures from injected unsafe security negatives.
+
+### Architecture decisions required before the entry proof
+
+These decisions remain unresolved by the replan. R01 must select and document
+one concrete supported design, its source/API basis and a finite proof plan before
+R02a starts. The [task breakdown](../Kiosk-Resilience-Plan.md#task-boundaries)
+allocates these decisions to R01a–R01e and integrated review to R01; they are not
+additional hardening projects:
+
+- **Execution and activation authority:** identify the boundary at GDM's actual
+  first execution, any earlier PAM children, the manager and its descendants,
+  and open/setcred/close-session cleanup. Trace consumed unit paths, dependencies,
+  drop-ins, user/environment generators, D-Bus activation and module/plugin
+  searches, including reload. Decide which are excluded, deliberately consumed
+  or confined. A private directory prepended to default searches, XDG autostart
+  suppression or masks for known service names alone do not close automatic
+  activation. Unknown unrelated services neither start unrestricted kiosk
+  applications nor cause admission rejection.
+- **Authentication policy:** identify effective account/access and empty-token
+  policy separately from optional session callbacks and harmless PAM text.
+  Choose a kiosk-scoped passwordless route that honors explicit administrator
+  denial and preserves ordinary accounts. Unknown module names alone are not
+  denial. Prove genuine parent authentication, including Fedora's privileged
+  helper; blanket no-new-privileges/nosuid assumptions cannot disable that path.
+- **Session and approval identity:** specify how request bus/process identity,
+  the authentication agent and the exact logind session remain associated
+  across manager reuse or renewal and competing visits. Resolve the broker's
+  sessionless/primary-display fallback for this route. A new visit cannot adopt
+  another visit's pending approval. Preserve the existing
+  [pending-authentication cancellation contract](Broker.md#authorization-and-grant-transactions)
+  and settle the [approval/commit ordering](Broker.md#prospective-kiosk-approval-lifetime),
+  including transitions during post-authentication work. Specify when an approved
+  original request may complete and when cancellation prevents writes; no late
+  result can revive a cancelled request or supply authority to another visit.
+- **Configuration and activation lifetime:** resolve the
+  [prospective lifecycle decisions](Lifecycle.md#prospective-configuration-and-activation-recovery),
+  including product quarantine versus administrator expiry, visibility repair,
+  optional provisioning, cross-account broker startup prerequisites, update
+  activation classes and the original recovery deadline. Readiness means a usable
+  form with an available authentication path, including
+  [native-language fallback](Localization.md#translation-lifecycle-and-shared-ui),
+  not merely an active unit or a running process.
+
+Record every retained rejection in one ledger here, including pre-GDM failures
+that leave the station unavailable. Each needs its exact trigger and source,
+reachable risk or effective policy/setup fault, insufficient recovery alternatives,
+actionable diagnostic, legitimate-use positive control and negative control. The
+[early proof](../Kiosk-Resilience-Plan.md#acceptance) must test the selected
+mechanisms on both platforms before broad integration; documentation is no proof
+that these decisions have been implemented or work.
 
 ## Roles, services and dialogs
 

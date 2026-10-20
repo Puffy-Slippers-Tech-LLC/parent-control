@@ -3,6 +3,8 @@
 Acceptance: installed
 Targets: onpc-Fedora44
 
+Estimate: 30–60 minutes; session exception for the complete early architecture proof.
+
 Requires R02 and R03. Read the [master](../Kiosk-Resilience-Plan.md#acceptance),
 accepted design, R02's exact selector and R03's candidate/input receipt. Apply
 the [VM mandate](../Mandates/VM-Mandate.MD), [UI mandate](../Mandates/UI-Automation-Mandate.MD)
@@ -13,9 +15,14 @@ and maintained installed runner/storage/cleanup contracts.
 Run the equivalent entire early-proof history through actual Fedora GDM and
 enforcing SELinux: passwordless usable form, real parent approval, Cancel/exit/
 reentry, unrelated-layout and cosmetic variations, and one bounded owned renewal.
-Prove first exec, manager/service routes, credential/session teardown and the
-preserved privileged Polkit helper. Explicitly distinguish unavailable approval
-from successful confinement; disabling privilege transitions is not a solution.
+Include the same unfamiliar PAM and automatically activated service fixtures
+with effective ordinary-account controls, usable kiosk approval and exclusion or
+confinement of the service's launch route. Validate form/authentication readiness
+within the declared entry/recovery budget.
+Prove first exec, pre-boundary children, manager/service routes, credential/session
+teardown and the preserved privileged Polkit helper. Explicitly distinguish
+unavailable approval from successful confinement; disabling privilege transitions
+is not a solution.
 
 Require working allowed controls before alternate-desktop/SSH and reachable
 external-launch denials. Preserve ordinary account authentication, failed/cancelled

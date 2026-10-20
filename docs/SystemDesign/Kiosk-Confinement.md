@@ -108,6 +108,17 @@ is attached recursively over `/usr` in a private mount namespace. Package
 unlink/rename cannot detach these private dentries and expose replacement bytes.
 Versioned systemd libraries remain coherent across manager reexecution.
 
+New private runtime/view roots, generation members, Python copies/manifests and
+skeleton nodes receive explicit root:root ownership and their declared modes.
+Creation checks root effective/filesystem UID, then initializes only the
+identity-proven new object, chown before final chmod, without changing caller
+credentials or umask. Symlink ownership initialization never follows its target.
+Existing and retained objects remain validation-only. Python initialization
+failure recovers only its recorded new inode; unknown, replaced or mounted state
+stays intact and cleanup failure cannot replace the original error. Lock files
+retain their separate UID, mode and single-link contract, which permits an
+inherited nonzero group.
+
 Unrelated sibling directories owned by a non-root user or writable by a group
 or by everyone become empty private directories in the kiosk view. Non-root
 ownership requires masking even without write bits, because the owner can

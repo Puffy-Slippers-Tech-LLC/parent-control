@@ -1686,6 +1686,56 @@ def test_final_pam_probe_enters_real_vendor_caller_without_policy_changes(
     assert list(tmp_path.iterdir()) == [tmp_path / service]
 
 
+@pytest.mark.parametrize('service,gid', [('gdm-password', 41002), ('systemd-user', 0)])
+@pytest.mark.parametrize('pam_status', [0, 7])
+def test_first_exec_caller_credentials_and_receipt_precede_native_pam(
+        census_model, tmp_path, monkeypatch, service, gid, pam_status):
+    """Credential doubles prove order; installed probes own actual vendor IDs."""
+    import ctypes
+    helper = census_model
+    events = []
+    account = SimpleNamespace(pw_name='private-kiosk', pw_gid=41002)
+    status = tmp_path / 'self/status'
+    status.parent.mkdir()
+    status.write_text('Uid:\t0 0 0 0\nGid:\t' + ' '.join([str(gid)] * 4) + '\nUmask:\t0022\n')
+    monkeypatch.setattr(helper, 'PROC', tmp_path)
+    monkeypatch.setattr(helper.os, 'setgroups', lambda groups: events.append(('groups', groups)))
+    monkeypatch.setattr(helper.os, 'setgid', lambda value: events.append(('gid', value)))
+    monkeypatch.setattr(helper.os, 'umask', lambda value: events.append(('umask', value)))
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    try:
+        def start(*args):
+            assert events == [('groups', []), ('gid', gid), ('umask', 0o022)]
+            with pytest.raises(BlockingIOError):
+                os.read(read_fd, 4096)
+            events.append(('start', service))
+            return 0
+        def opened(handle, flags):
+            receipt = json.loads(os.read(read_fd, 4096))
+            assert receipt == {'phase': 'caller', 'pid': os.getpid(),
+                'context': {'uid': [0] * 4, 'gid': [gid] * 4, 'umask': 0o022}}
+            events.append(('open', service))
+            return pam_status
+        pam = SimpleNamespace(pam_start_confdir=start, pam_open_session=opened)
+        assert helper.first_exec_pam_session(pam, ctypes.c_void_p(), ctypes.c_void_p(),
+            tmp_path, account, service, {'events': write_fd}) == pam_status
+        assert events[-2:] == [('start', service), ('open', service)]
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+@pytest.mark.parametrize('field,value', [('uid', [0, 0, 0, 1]), ('gid', [0, 0, 0, 41002]),
+                                        ('gid', [41002, 41002, 41002, 0]), ('umask', 0o777)])
+def test_first_exec_caller_rejects_wrong_filesystem_credentials_before_pam(
+        census_model, monkeypatch, field, value):
+    helper = census_model
+    context = {'uid': [0] * 4, 'gid': [41002] * 4, 'umask': 0o022}
+    context[field] = value
+    with pytest.raises(helper.guest.GuestError, match='pre-pam-credentials'):
+        helper.first_exec_validate_context(context, SimpleNamespace(pw_gid=41002), 'gdm-password')
+
+
 def test_first_exec_pidfd_failure_reaps_its_own_child_and_closes_pipe(census_model, monkeypatch):
     import signal
 
@@ -3030,9 +3080,30 @@ def test_preserved_password_helper_reinstall_keeps_generation_and_refreshes_inod
     assert changed_records != records
 
 
+def compatibility_creation_metadata(helper, monkeypatch):
+    # Compatibility-route metadata double. Caller-independent allocation has
+    # dedicated nonzero-GID/umask controls in test_kiosk_pin_storage; this older
+    # fixture supplies root ownership only for its synthetic installed tree.
+    proxy = SimpleNamespace(**{name: getattr(os, name) for name in dir(os)})
+    def descriptor_metadata(fd):
+        info = os.fstat(fd)
+        values = {name: getattr(info, name) for name in dir(info) if name.startswith('st_')}
+        return SimpleNamespace(**dict(values, st_uid=0, st_gid=0))
+    def named_metadata(path, **kwargs):
+        info = os.stat(path, **kwargs)
+        values = {name: getattr(info, name) for name in dir(info) if name.startswith('st_')}
+        return SimpleNamespace(**dict(values, st_uid=0, st_gid=0))
+    proxy.fstat, proxy.stat = descriptor_metadata, named_metadata
+    proxy.fchown = lambda fd, uid, gid: None
+    proxy.chown = lambda *args, **kwargs: None
+    monkeypatch.setattr(helper, 'os', proxy)
+    monkeypatch.setattr(helper, 'private_root_credentials', lambda: None)
+
+
 @pytest.fixture
 def preserved_password_preparation(tmp_path, monkeypatch):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
+    compatibility_creation_metadata(helper, monkeypatch)
     real_directory_layout, real_trusted = helper.directory_layout, helper.trusted
     real_inventory, real_source_record = helper.inventory, helper.source_record
     payload, runtime = tmp_path / 'payload', tmp_path / 'runtime'
@@ -5109,6 +5180,7 @@ def test_post_layout_owned_cleanup_and_bounds_preparation(
 
 def test_directory_skeleton_preserves_links_without_following_them(tmp_path, monkeypatch):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
+    compatibility_creation_metadata(helper, monkeypatch)
     tree = tmp_path / 'tree'
     layout = [
         {'path': '/usr/bin', 'kind': 'tree'},
@@ -5145,6 +5217,7 @@ def test_directory_skeleton_preserves_links_without_following_them(tmp_path, mon
     'unexpected', 'missing'])
 def test_private_tree_validation_rejects_changed_entries_and_ancestors(tmp_path, monkeypatch, fault):
     helper = module(ROOT / 'tools/kiosk_confinement.py')
+    compatibility_creation_metadata(helper, monkeypatch)
     tree = tmp_path / 'tree'
     layout = [{'path': '/usr/bin', 'kind': 'tree'},
               {'path': '/usr/bin/program', 'kind': 'file'}]

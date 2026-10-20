@@ -1144,6 +1144,14 @@ from regression_ui import Bucket
 # Nonzero group/SGID controls are bounded metadata doubles, not subordinate-ID
 # mappings. No shared path/cache, service, bus/display or new cleanup/UI owner is
 # added; the existing compatible unit classifications remain appropriate.
+# Python private-creation controls use the same private trees and owned probe
+# lifetimes. Ownership/credential doubles preserve inherited group differences;
+# cumulative native/helper probes retain real modes and caller umasks in private
+# namespaces. Pre-PAM ordering controls use private pipes and credential doubles,
+# without changing this process's credentials. Python entry controls use real
+# anonymous channels and finally-restored process-local umasks, with named-lock
+# metadata doubles. No cleanup or UI inventory entry
+# or shared resource is added; the existing scheduling admission still applies.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

@@ -1125,6 +1125,55 @@ def bootstrap_logger_transition(original, current, before, after, *, path=Path('
         for value in extra.values()), 'kiosk-bootstrap:setup-descriptor-leak')
 
 
+def first_exec_caller_context(account, service):
+    """Establish the vendor caller's creation context before any PAM callback.
+
+    GDM keeps root user credentials but selects the account's primary group.
+    The systemd executor opens PAM while it still has root's group. Both use
+    the vendor default 0022 mask, independently of the harness's launch mask.
+    Read all four kernel credential fields; effective GID alone cannot witness
+    the filesystem GID used by the helper's allocations.
+    """
+    guest.require(service in ('gdm-password', 'systemd-user'),
+                  'kiosk-bootstrap:caller-service')
+    os.setgroups([])
+    os.setgid(account.pw_gid if service == 'gdm-password' else 0)
+    os.umask(0o022)
+    status = dict(line.split(':', 1) for line in
+                  (PROC / 'self/status').read_text().splitlines() if ':' in line)
+    result = {'uid': [int(value) for value in status['Uid'].split()],
+              'gid': [int(value) for value in status['Gid'].split()],
+              'umask': int(status['Umask'].strip(), 8)}
+    first_exec_validate_context(result, account, service)
+    return result
+
+
+def first_exec_validate_context(context, account, service):
+    expected_gid = account.pw_gid if service == 'gdm-password' else 0
+    guest.require(service in ('gdm-password', 'systemd-user') and
+                  set(context) == {'uid', 'gid', 'umask'} and
+                  context['uid'] == [0] * 4 and context['gid'] == [expected_gid] * 4 and
+                  context['umask'] == 0o022 and
+                  (service != 'gdm-password' or expected_gid > 0),
+                  'kiosk-bootstrap:pre-pam-credentials')
+
+
+def first_exec_pam_session(pam, handle, conv, directory, account, service, witness):
+    """Publish the pre-call observation even when native admission refuses."""
+    context = first_exec_caller_context(account, service)
+    status = pam.pam_start_confdir(service.encode(), account.pw_name.encode(),
+        ctypes.byref(conv), os.fsencode(directory), ctypes.byref(handle))
+    if status:
+        return status
+    if witness:
+        encoded = (json.dumps({'phase': 'caller', 'pid': os.getpid(),
+                              'context': context}, sort_keys=True) + '\n').encode()
+        guest.require(len(encoded) <= 4096 and
+                      os.write(witness['events'], encoded) == len(encoded),
+                      'kiosk-bootstrap:caller-event')
+    return pam.pam_open_session(handle, 0)
+
+
 def first_exec(account, directory, command, *, fd_mode=None, service='gdm-password', armed=True,
                expected_selinux='Enforcing', witness=None):
     """A real PAM final-session call followed by the caller's actual exec.
@@ -1239,10 +1288,7 @@ def first_exec(account, directory, command, *, fd_mode=None, service='gdm-passwo
             handle = ctypes.c_void_p()
             conv = Conversation()
             diagnostic_executable = os.readlink('/proc/self/exe')
-            status = pam.pam_start_confdir(service.encode(), account.pw_name.encode(),
-                ctypes.byref(conv), os.fsencode(directory), ctypes.byref(handle))
-            if status == 0:
-                status = pam.pam_open_session(handle, 0)
+            status = first_exec_pam_session(pam, handle, conv, directory, account, service, witness)
             if status:
                 os.write(write_fd, json.dumps({'pam': status, 'pid': os.getpid(),
                     'exe': diagnostic_executable}).encode())
@@ -2612,6 +2658,13 @@ def bootstrap_pam_witness(account, directory, command, record, *, service='gdm-p
             close(fd)
         os.write(start_write, b'B')
         close(start_write)
+        caller = lifecycle_event(events_read)
+        record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.caller',
+               json.dumps(caller, sort_keys=True))
+        guest.require(set(caller) == {'phase', 'pid', 'context'} and caller['phase'] == 'caller' and
+                      type(caller['pid']) is int and caller['pid'] > 1,
+                      'kiosk-bootstrap:caller-protocol')
+        first_exec_validate_context(caller['context'], account, service)
         event = lifecycle_event(events_read)
         record('onpc.kiosk.bootstrap.' + service + '.' + Path(command[0]).name + '.admission',
                json.dumps(event, sort_keys=True))
@@ -2619,7 +2672,7 @@ def bootstrap_pam_witness(account, directory, command, record, *, service='gdm-p
         if service == 'gdm-password':
             expected_event.add('invocation_marker')
         guest.require(set(event) == expected_event and event['phase'] == 'admitted' and
-                      type(event['pid']) is int and event['pid'] > 1,
+                      type(event['pid']) is int and event['pid'] == caller['pid'],
                       'kiosk-bootstrap:admission-protocol')
         # Only a PID supplied by this direct child's private channel can be
         # observed. It is never signalled; the owned wrapper reaps it.

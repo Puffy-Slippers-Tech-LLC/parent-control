@@ -294,12 +294,9 @@ def make_skeleton(target_root, layout, backend, deadline_ns):
         if any(nodes.get(str(parent), {}).get('kind') != 'tree' for parent in Path(path).parents
                if parent not in (Path('/usr'), Path('/'))):
             raise ValueError('retained-layout')
-    os.mkdir('tree', mode=0o700, dir_fd=target_root)
-    tree = os.open('tree', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
-                   dir_fd=target_root)
+    tree = confinement.private_create(target_root, 'tree', 0o755, directory=True)
     try:
         _label(tree, backend)
-        os.fchmod(tree, 0o755)
         for path, node in sorted(nodes.items(), key=lambda item: (item[0].count('/'), item[0])):
             _before(deadline_ns)
             if node['kind'] == 'absent':
@@ -314,18 +311,14 @@ def make_skeleton(target_root, layout, backend, deadline_ns):
                     parent = child
                 name, kind = parts[-1], node['kind']
                 if kind == 'link':
-                    os.symlink(node['link'], name, dir_fd=parent)
+                    confinement.private_symlink(parent, name, node['link'])
                     confinement.runtime_label('/proc/self/fd/' + str(parent) + '/' + name, backend)
                 else:
                     directory = kind in ('tree', 'directory', 'empty-directory')
-                    if directory:
-                        os.mkdir(name, mode=0o700, dir_fd=parent)
-                    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
-                    flags |= os.O_DIRECTORY if directory else os.O_CREAT | os.O_EXCL
-                    child = os.open(name, flags, 0o600, dir_fd=parent)
+                    child = confinement.private_create(parent, name, 0o755 if directory else 0o644,
+                                                       directory=directory)
                     try:
                         _label(child, backend)
-                        os.fchmod(child, 0o755 if directory else 0o644)
                     finally:
                         os.close(child)
             finally:

@@ -16,7 +16,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import tempfile
 import re
 import secrets
 
@@ -398,18 +397,19 @@ def directory_layout(config, records, *, material_proofs=None, source_assertions
 
 
 def make_tree(destination, layout):
-    destination.mkdir(mode=0o755)
-    destination.chmod(0o755)
+    os.close(private_create_path(destination, 0o755, directory=True))
     for entry in sorted(layout, key=lambda item: (item['path'].count('/'), item['path'])):
         path = destination / Path(entry['path']).relative_to('/usr')
         if entry['kind'] == 'link':
-            path.symlink_to(entry['link'])
+            parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            try:
+                private_symlink(parent, path.name, entry['link'])
+            finally:
+                os.close(parent)
         elif entry['kind'] in ('tree', 'directory', 'empty-directory'):
-            path.mkdir(mode=0o755)
-            path.chmod(0o755)
+            os.close(private_create_path(path, 0o755, directory=True))
         else:
-            path.touch(mode=0o644)
-            path.chmod(0o644)
+            os.close(private_create_path(path, 0o644))
 
 
 def verify_tree(root, layout):
@@ -919,6 +919,142 @@ def runtime_owned_stat(info, kind, *, private=False):
         raise ValueError('runtime-untrusted-object')
 
 
+def private_root_credentials():
+    """Creation requires root filesystem identity, without changing the caller."""
+    rows = [line.split()[1:] for line in Path('/proc/self/status').read_text().splitlines()
+            if line.startswith('Uid:')]
+    if os.geteuid() != 0 or len(rows) != 1 or len(rows[0]) != 4 or rows[0][3] != '0':
+        raise ValueError('runtime-untrusted-object')
+
+
+def private_initialize(fd, mode):
+    """Initialize only a caller-proven new file/directory before final assertions.
+
+    Existing objects are validation-only. The allocating caller owns exclusive
+    creation and named identity; this operation never repairs retained inputs.
+    """
+    private_root_credentials()
+    before, mount = os.fstat(fd), runtime_mount_id(fd)
+    directory = stat.S_ISDIR(before.st_mode)
+    if (not (directory or stat.S_ISREG(before.st_mode)) or before.st_uid != 0 or
+            not directory and before.st_nlink != 1 or type(mode) is not int or
+            mode & ~0o777):
+        raise ValueError('runtime-untrusted-object')
+    os.fchown(fd, 0, 0)
+    os.fchmod(fd, mode)
+    after = os.fstat(fd)
+    if (runtime_identity(after)[:2] != runtime_identity(before)[:2] or
+            stat.S_IFMT(after.st_mode) != stat.S_IFMT(before.st_mode) or
+            after.st_uid != 0 or after.st_gid != 0 or stat.S_IMODE(after.st_mode) != mode or
+            not directory and after.st_nlink != 1 or runtime_mount_id(fd) != mount):
+        raise ValueError('runtime-publication-replaced')
+
+
+def _private_remove_new(parent, name, identity, *, directory=False, fd=-1):
+    """Recover one identity-recorded allocation even if initialization failed."""
+    own_fd = fd < 0
+    if own_fd:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC |
+                     (os.O_DIRECTORY if directory else os.O_NONBLOCK), dir_fd=parent)
+    try:
+        info = os.fstat(fd)
+        named = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        expected = stat.S_ISDIR if directory else stat.S_ISREG
+        if (not expected(info.st_mode) or info.st_uid != 0 or
+                not directory and info.st_nlink != 1 or
+                runtime_identity(info)[:2] != tuple(identity) or
+                runtime_identity(named)[:2] != tuple(identity) or
+                runtime_mount_id(fd) != runtime_mount_id(parent) or
+                directory and runtime_members(fd)):
+            raise ValueError('runtime-publication-replaced')
+        # No normalized group/mode is required: this is the exact new inode,
+        # not ordinary interrupted-publication recovery or retained reuse.
+        if directory:
+            os.rmdir(name, dir_fd=parent)
+        else:
+            os.unlink(name, dir_fd=parent)
+    finally:
+        if own_fd:
+            os.close(fd)
+
+
+def private_create(parent, name, mode, *, directory=False):
+    """Exclusively allocate and initialize one child; return its owned descriptor."""
+    private_root_credentials()
+    if not isinstance(name, str) or not name or name in ('.', '..') or '/' in name or '\0' in name:
+        raise ValueError('runtime-publication-name')
+    runtime_owned_stat(os.fstat(parent), 'directory')
+    fd, identity = -1, None
+    try:
+        if directory:
+            os.mkdir(name, mode=0o700, dir_fd=parent)
+            identity = runtime_identity(os.stat(name, dir_fd=parent, follow_symlinks=False))[:2]
+        fd = os.open(name, os.O_NOFOLLOW | os.O_CLOEXEC |
+                     (os.O_RDONLY | os.O_DIRECTORY if directory else
+                      os.O_RDWR | os.O_CREAT | os.O_EXCL), 0o600, dir_fd=parent)
+        opened = runtime_identity(os.fstat(fd))[:2]
+        if identity is None:
+            identity = opened
+        if opened != identity or runtime_mount_id(fd) != runtime_mount_id(parent):
+            raise ValueError('runtime-publication-replaced')
+        private_initialize(fd, mode)
+        if runtime_identity(os.stat(name, dir_fd=parent, follow_symlinks=False))[:2] != identity:
+            raise ValueError('runtime-publication-replaced')
+        result, fd = fd, -1
+        return result
+    except BaseException as error:
+        if identity is not None:
+            try:
+                _private_remove_new(parent, name, identity, directory=directory, fd=fd)
+            except BaseException as cleanup_error:
+                error.add_note('private-creation-cleanup-failed: ' + type(cleanup_error).__name__)
+        raise
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def private_symlink(parent, name, target):
+    """Create a root:root link without following or chmodding its target."""
+    private_root_credentials()
+    if not isinstance(name, str) or not name or name in ('.', '..') or '/' in name or '\0' in name:
+        raise ValueError('runtime-publication-name')
+    runtime_owned_stat(os.fstat(parent), 'directory')
+    os.symlink(target, name, dir_fd=parent)
+    identity = None
+    try:
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        identity = runtime_identity(before)[:2]
+        if not stat.S_ISLNK(before.st_mode) or before.st_uid != 0:
+            raise ValueError('runtime-untrusted-object')
+        os.chown(name, 0, 0, dir_fd=parent, follow_symlinks=False)
+        after = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        runtime_owned_stat(after, 'link')
+        if runtime_identity(after)[:2] != identity or os.readlink(name, dir_fd=parent) != target:
+            raise ValueError('runtime-publication-replaced')
+    except BaseException as error:
+        if identity is not None:
+            try:
+                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if (not stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or
+                        runtime_identity(info)[:2] != identity):
+                    raise ValueError('runtime-publication-replaced')
+                os.unlink(name, dir_fd=parent)
+            except BaseException as cleanup_error:
+                error.add_note('private-creation-cleanup-failed: ' + type(cleanup_error).__name__)
+        raise
+
+
+def private_create_path(path, mode, *, directory=False):
+    """Compatibility route only; production creation uses pinned parent FDs."""
+    path = Path(path)
+    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        return private_create(parent, path.name, mode, directory=directory)
+    finally:
+        os.close(parent)
+
+
 def runtime_open(path, *, directory=False):
     """Open every lexical component beneath /, refusing symlink ancestry.
 
@@ -1196,20 +1332,25 @@ class RuntimeCopyPublication:
         self.name = None
         self.owned = {}
         self.published = False
+        initialized = False
         try:
             runtime_owned_stat(os.fstat(self.parent), 'directory', private=True)
             runtime_file_label(self.parent, backend, expected=(RUNTIME_CONTEXT.decode()
                                                               if backend == 'selinux' else None))
             self.parent_identity = runtime_identity(os.fstat(self.parent))[:2]
             self.mount = runtime_mount_id(self.parent)
+            private_root_credentials()
             self.name = '.runtime-' + secrets.token_hex(16)
             os.mkdir(self.name, mode=0o700, dir_fd=self.parent)
             self.identity = runtime_identity(os.stat(self.name, dir_fd=self.parent,
                                                      follow_symlinks=False))[:2]
             self.fd = os.open(self.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
                               os.O_CLOEXEC, dir_fd=self.parent)
-            if runtime_identity(os.fstat(self.fd))[:2] != self.identity:
+            if (runtime_identity(os.fstat(self.fd))[:2] != self.identity or
+                    runtime_mount_id(self.fd) != self.mount):
                 raise ValueError('runtime-publication-replaced')
+            private_initialize(self.fd, 0o700)
+            initialized = True
             runtime_owned_stat(os.fstat(self.fd), 'directory', private=True)
             runtime_file_label(self.fd, backend, expected=(RUNTIME_CONTEXT.decode()
                                                           if backend == 'selinux' else None),
@@ -1218,7 +1359,11 @@ class RuntimeCopyPublication:
             if hasattr(self, 'identity'):
                 error.runtime_scratch_ticket = self.ticket()
                 try:
-                    reclaim_runtime_scratch(self.root, self.ticket())
+                    if initialized:
+                        reclaim_runtime_scratch(self.root, self.ticket())
+                    else:
+                        _private_remove_new(self.parent, self.name, self.identity,
+                                            directory=True, fd=self.fd)
                 except BaseException as cleanup_error:
                     error.add_note('runtime-scratch-cleanup-failed: ' + type(cleanup_error).__name__)
             self.close()
@@ -1258,15 +1403,25 @@ class RuntimeCopyPublication:
 
     def _new_file(self, name):
         self._check_root()
+        private_root_credentials()
         fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW |
                      os.O_CLOEXEC, 0o600, dir_fd=self.fd)
         try:
             self.owned[name] = runtime_identity(os.fstat(fd))[:2]
+            if runtime_mount_id(fd) != self.mount:
+                raise ValueError('runtime-publication-replaced')
+            private_initialize(fd, 0o600)
             return fd
         except BaseException as error:
             # The new name remains unknown unless its inode was recorded. Do
             # not invent ownership to remove it, but never leak its descriptor.
             error.runtime_scratch_ticket = self.ticket()
+            if name in self.owned:
+                try:
+                    _private_remove_new(self.fd, name, self.owned[name], fd=fd)
+                    del self.owned[name]
+                except BaseException as cleanup_error:
+                    error.add_note('private-creation-cleanup-failed: ' + type(cleanup_error).__name__)
             os.close(fd)
             raise
 
@@ -2363,7 +2518,6 @@ def prepare(role):
     stage = 'identity'
     if os.geteuid() != 0 or role not in ('manager', 'gate'):
         raise ValueError('invalid-caller')
-    os.umask(0o077)
     account = pwd.getpwnam(ACCOUNT)
     marker = trusted('/var/lib/oh-no-parent-control/package-created-kiosk-uid')
     if (account.pw_uid == 0 or stat.S_IMODE(marker.stat().st_mode) != 0o600 or
@@ -2428,23 +2582,24 @@ def prepare(role):
             raise ValueError('generation-limit-reboot-required')
         if sum(Path(record.get('source', record['path'])).stat().st_size for record in records) > 512 * 1024 * 1024:
             raise ValueError('executable-inventory-too-large')
-        temporary = Path(tempfile.mkdtemp(prefix='.prepare-', dir=RUNTIME))
+        temporary = RUNTIME / ('.prepare-' + secrets.token_hex(16))
+        os.close(private_create_path(temporary, 0o700, directory=True))
         try:
             for index, record in enumerate(records):
                 destination = temporary / str(index)
                 # Independent inodes are essential: SELinux labels on a hardlink
                 # would relabel the distribution's original executable.
-                with open(record.get('source', record['path']), 'rb') as source, destination.open('xb') as target:
+                target_fd = private_create_path(destination, 0o644 if record['role'] in ('blocked', 'library') else 0o755)
+                with os.fdopen(target_fd, 'wb') as target, open(record.get('source', record['path']), 'rb') as source:
                     shutil.copyfileobj(source, target)
-                os.chmod(destination, 0o644 if record['role'] in ('blocked', 'library') else 0o755)
                 if hashlib.sha256(destination.read_bytes()).hexdigest() != record['sha256']:
                     raise ValueError('copy-changed')
                 label(destination, record['role'], config['backend'])
-            (temporary / 'generation').write_text(digest + '\n')
-            os.chmod(temporary / 'generation', 0o644)
+            with os.fdopen(private_create_path(temporary / 'generation', 0o644), 'w') as stream:
+                stream.write(digest + '\n')
             make_tree(temporary / 'tree', layout)
-            (temporary / 'records.json').write_text(json.dumps(manifest, sort_keys=True))
-            os.chmod(temporary / 'records.json', 0o600)
+            with os.fdopen(private_create_path(temporary / 'records.json', 0o600), 'w') as stream:
+                stream.write(json.dumps(manifest, sort_keys=True))
             temporary.rename(generation)
         finally:
             if temporary.exists():
@@ -2469,8 +2624,8 @@ def prepare(role):
     verify_tree(invocation / 'tree', layout)
     for path in (invocation / 'tree', *(invocation / 'tree').rglob('*')):
         runtime_label(path, config['backend'], verify=True)
-    fd, name = tempfile.mkstemp(prefix='.bindings-', dir=invocation)
-    pending = Path(name)
+    pending = invocation / ('.bindings-' + secrets.token_hex(16))
+    fd = private_create_path(pending, 0o600)
     try:
         with os.fdopen(fd, 'wb') as stream:
             stream.write(bindings)
@@ -2548,7 +2703,6 @@ def prepare_native_channel(role, channel_text, deadline_text):
     now = time.monotonic_ns()
     if not now < deadline_ns <= now + 60_000_000_000:
         raise TimeoutError('preparation-deadline')
-    os.umask(0o077)
     seen = set()
     for fd, path in NATIVE_LOCKS:
         info, named = os.fstat(fd), path.lstat()

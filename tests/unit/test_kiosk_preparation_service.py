@@ -274,6 +274,176 @@ def test_skeleton_has_fresh_empty_files_and_preserves_absence(private_store, mon
         os.close(fd)
 
 
+def modeled_creation(fixture, monkeypatch, *, filesystem_gid, effective_gid=0):
+    """Supplement the shared fixture with an independent credential model.
+
+    New children begin with the modeled filesystem GID until an explicit chown.
+    Opening mode-000 directories models root's access before initialization;
+    inode identity, final modes and the process umask remain real. Actual root
+    access under 0777 is covered by complete fresh/retained transactions. These
+    controls do not claim real nonzero-GID credentials or loaded-policy proof.
+    """
+    helper, calls = fixture.helper, []
+    original_open, original_mkdir, original_fchmod = helper.os.open, helper.os.mkdir, helper.os.fchmod
+
+    def allocated(path):
+        fixture.overrides[str(path)] = dict(st_uid=0, st_gid=filesystem_gid)
+
+    def mkdir(name, mode=0o777, *, dir_fd=None):
+        original_mkdir(name, mode=mode, dir_fd=dir_fd)
+        allocated(fixture.fd_path(dir_fd) / name)
+
+    def open_file(name, flags, mode=0o777, *, dir_fd=None):
+        directory = fixture.fd_path(dir_fd) / name if dir_fd is not None else name
+        permissions = None
+        if flags & os.O_DIRECTORY:
+            permissions = stat.S_IMODE(os.stat(directory, follow_symlinks=False).st_mode)
+            os.chmod(directory, permissions | 0o500)
+        try:
+            fd = original_open(name, flags, mode, dir_fd=dir_fd)
+        finally:
+            if permissions is not None:
+                os.chmod(directory, permissions)
+        if flags & os.O_CREAT:
+            allocated(fixture.fd_path(fd))
+        return fd
+
+    def fchown(fd, uid, gid):
+        path = fixture.fd_path(fd)
+        calls.append(('chown', path.name, uid, gid))
+        fixture.overrides[str(path)] = dict(st_uid=uid, st_gid=gid)
+
+    def fchmod(fd, mode):
+        calls.append(('chmod', fixture.fd_path(fd).name, mode))
+        original_fchmod(fd, mode)
+
+    def symlink(target, name, *, dir_fd=None):
+        os.symlink(target, name, dir_fd=dir_fd)
+        allocated(fixture.fd_path(dir_fd) / name)
+
+    def chown(name, uid, gid, *, dir_fd=None, follow_symlinks=True):
+        assert follow_symlinks is False
+        path = fixture.fd_path(dir_fd) / name
+        calls.append(('link-chown', name, uid, gid))
+        fixture.overrides[str(path)] = dict(st_uid=uid, st_gid=gid)
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail('allocation changed caller credentials or umask')
+
+    monkeypatch.setattr(helper, 'private_root_credentials', lambda: None)
+    monkeypatch.setattr(helper.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(helper.os, 'getegid', lambda: effective_gid)
+    for name in ('umask', 'setuid', 'seteuid', 'setgid', 'setegid', 'setresuid', 'setresgid', 'setgroups'):
+        monkeypatch.setattr(helper.os, name, forbidden)
+    for name, method in (('mkdir', mkdir), ('open', open_file), ('fchown', fchown),
+                         ('fchmod', fchmod), ('symlink', symlink), ('chown', chown)):
+        monkeypatch.setattr(helper.os, name, method)
+    return calls
+
+
+@pytest.mark.parametrize('mask', [0o022, 0o077, 0o777])
+@pytest.mark.parametrize('effective_gid,filesystem_gid', [(0, 37), (19, 37), (37, 0)])
+def test_skeleton_initializes_every_new_node_without_changing_caller_context(
+        private_store, monkeypatch, mask, effective_gid, filesystem_gid):
+    calls = modeled_creation(private_store, monkeypatch, filesystem_gid=filesystem_gid,
+                             effective_gid=effective_gid)
+    service = load_service(private_store.helper, monkeypatch)
+    target = private_store.host / 'link-target'
+    target.write_bytes(b'unchanged-target')
+    target.chmod(0o640)
+    before = target.stat()
+    layout = [dict(path='/usr/bin', kind='tree'), dict(path='/usr/bin/native', kind='file'),
+              dict(path='/usr/masked', kind='empty-directory'),
+              dict(path='/usr/alias', kind='link', link=str(target))]
+    fd = os.open(private_store.store, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    old_mask = os.umask(mask)
+    try:
+        service.make_skeleton(fd, layout, 'apparmor', deadline())
+        assert os.umask(old_mask) == mask
+    finally:
+        os.umask(old_mask)
+        os.close(fd)
+    tree = private_store.store / 'tree'
+    for path in [tree, *tree.rglob('*')]:
+        info = service.os.stat(path, follow_symlinks=False)
+        assert info.st_uid == info.st_gid == 0
+        expected = 0o777 if stat.S_ISLNK(info.st_mode) else 0o755 if stat.S_ISDIR(info.st_mode) else 0o644
+        assert stat.S_IMODE(info.st_mode) == expected
+    for name in ('tree', 'bin', 'native', 'masked'):
+        events = [call[0] for call in calls if call[1] == name]
+        assert events == ['chown', 'chmod']
+    assert [call for call in calls if call[0] == 'link-chown'] == [('link-chown', 'alias', 0, 0)]
+    assert target.read_bytes() == b'unchanged-target'
+    assert target.stat() == before
+
+
+@pytest.mark.parametrize('kind', ['tree', 'file', 'link'])
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_skeleton_failed_initialization_recovers_only_current_new_node(
+        private_store, monkeypatch, kind, interrupted):
+    modeled_creation(private_store, monkeypatch, filesystem_gid=37)
+    service = load_service(private_store.helper, monkeypatch)
+    error = KeyboardInterrupt('creation-cut') if interrupted else OSError('creation-cut')
+    original = service.os.chown if kind == 'link' else service.os.fchown
+
+    def fail(object, *args, **kwargs):
+        name = object if kind == 'link' else private_store.fd_path(object).name
+        if name == 'item':
+            raise error
+        return original(object, *args, **kwargs)
+
+    monkeypatch.setattr(service.os, 'chown' if kind == 'link' else 'fchown', fail)
+    layout = [dict(path='/usr/item', kind=kind, **({'link': '/unfollowed'} if kind == 'link' else {}))]
+    fd = os.open(private_store.store, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    before = len(os.listdir('/proc/self/fd'))
+    try:
+        with pytest.raises(type(error)) as raised:
+            service.make_skeleton(fd, layout, 'apparmor', deadline())
+        assert raised.value is error
+        assert list((private_store.store / 'tree').iterdir()) == []
+        assert len(os.listdir('/proc/self/fd')) == before
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize('replacement', [False, True])
+def test_skeleton_foreign_or_replaced_new_name_is_preserved(private_store, monkeypatch, replacement):
+    modeled_creation(private_store, monkeypatch, filesystem_gid=37)
+    helper = private_store.helper
+    service = load_service(helper, monkeypatch)
+    initialize, create = helper.private_initialize, helper.private_create
+    foreign = private_store.store / 'tree/item'
+
+    def replace(fd, mode):
+        if private_store.fd_path(fd).name == 'item':
+            foreign.rename(foreign.with_name('displaced-item'))
+            foreign.write_bytes(b'foreign-state')
+            foreign.chmod(0o640)
+            private_store.overrides[str(foreign)] = dict(st_uid=21, st_gid=37)
+        return initialize(fd, mode)
+
+    def collide(parent, name, mode, *, directory=False):
+        if name == 'item':
+            foreign.write_bytes(b'foreign-state')
+            foreign.chmod(0o640)
+            private_store.overrides[str(foreign)] = dict(st_uid=21, st_gid=37)
+        return create(parent, name, mode, directory=directory)
+
+    monkeypatch.setattr(helper, 'private_initialize' if replacement else 'private_create',
+                        replace if replacement else collide)
+    fd = os.open(private_store.store, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        with pytest.raises(ValueError if replacement else FileExistsError) as raised:
+            service.make_skeleton(fd, [dict(path='/usr/item', kind='file')], 'apparmor', deadline())
+        assert foreign.read_bytes() == b'foreign-state'
+        assert stat.S_IMODE(foreign.stat().st_mode) == 0o640
+        assert service.os.stat(foreign).st_uid == 21
+        if replacement:
+            assert any('cleanup-failed' in note for note in raised.value.__notes__)
+    finally:
+        os.close(fd)
+
+
 @pytest.mark.parametrize('layout', [
     [dict(path='/usr/../escape', kind='file')],
     [dict(path='/usr/alias', kind='link', link='target'), dict(path='/usr/alias/file', kind='file')],

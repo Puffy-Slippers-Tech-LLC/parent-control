@@ -1064,7 +1064,7 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
 
 
 @pytest.mark.parametrize('mode', [
-    'native-private-0777',
+    'full-private-0777',
     'private-source-open-cut', 'private-invocation-open-cut',
     'private-source-identity-cut', 'private-invocation-identity-cut',
     'private-source-chown-cut', 'private-source-chmod-cut',
@@ -1106,9 +1106,8 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
   + [f'{phase}-{kind}' for phase in ('acquire', 'final', 'closure') for kind in ('same-reexec', 'fd-reexec')])
 def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     directory, binary = retained_scene
-    native_private = mode == 'native-private-0777'
+    native_private = mode == 'full-private-0777'
     if native_private:
-        (directory / 'native-private-mask').touch()
         mode = 'healthy'
     completed = subprocess.run([str(binary), mode, str(directory)],
                                capture_output=True, text=True, timeout=30,
@@ -1119,6 +1118,9 @@ def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
         f'{mode}: returncode={completed.returncode}\n{completed.stdout}\n{completed.stderr}\n'
         + (errors.read_text() if errors.exists() else ''))
     assert completed.stdout == 'verified\n'
+    if native_private:
+        fresh.assert_helper_private_creation(directory, 'manager')
+        fresh.assert_helper_private_creation(directory, 'gate')
     witness = json.loads((directory / 'transaction-witness.json').read_text())
     helper_started = json.loads((directory / 'helper-started').read_text())
     assert helper_started['deadline'] == witness['helper_deadline'] == witness['deadline'] * 1000

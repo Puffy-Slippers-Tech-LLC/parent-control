@@ -27,12 +27,17 @@ def private_store(tmp_path, monkeypatch):
     host, store = tmp_path / 'host', tmp_path / 'store'
     host.mkdir(mode=0o755)
     store.mkdir(mode=0o700)
-    overrides, labels = {}, {}
+    overrides, labels, owners = {}, {}, {}
     raw_os = os
+    context = SimpleNamespace(filesystem_gid=77, sgid=False)
 
     def metadata(info, path):
         values = {name: getattr(info, name) for name in dir(info) if name.startswith('st_')}
+        # Package inputs and fixture ancestry model root-owned installed state.
+        # New private children inherit the modeled filesystem GID until the
+        # product explicitly initializes their ownership. Never erase that gap.
         values.update(st_uid=0, st_gid=0)
+        values.update(owners.get((info.st_dev, info.st_ino), {}))
         # The test launcher owns fixture ancestors. The product still checks
         # every real child mode, inode, timestamp, link count and membership.
         if path == tmp_path or path in tmp_path.parents:
@@ -45,6 +50,43 @@ def private_store(tmp_path, monkeypatch):
 
     def fstat(fd):
         return metadata(raw_os.fstat(fd), fd_path(fd))
+
+    def fchown(fd, uid, gid):
+        assert (uid, gid) == (0, 0)
+        info = raw_os.fstat(fd)
+        owners.setdefault((info.st_dev, info.st_ino), {}).update(st_uid=uid, st_gid=gid)
+
+    def fchmod(fd, mode):
+        raw_os.fchmod(fd, mode)
+        info = raw_os.fstat(fd)
+        owners.setdefault((info.st_dev, info.st_ino), {}).pop('st_mode', None)
+
+    def mkdir(path, mode=0o777, *, dir_fd=None):
+        raw_os.mkdir(path, mode=mode, dir_fd=dir_fd)
+        info = raw_os.stat(path, dir_fd=dir_fd, follow_symlinks=False)
+        born_mode = info.st_mode | (stat.S_ISGID if context.sgid else 0)
+        # Root can open a mode-000 new directory. Model that capability only;
+        # preserve its actual masked metadata until explicit initialization.
+        raw_os.chmod(path, 0o700, dir_fd=dir_fd)
+        owners[(info.st_dev, info.st_ino)] = dict(st_mode=born_mode, st_uid=0,
+                                                st_gid=context.filesystem_gid)
+
+    def open_file(path, flags, *args, **kwargs):
+        fd = raw_os.open(path, flags, *args, **kwargs)
+        if flags & os.O_CREAT and flags & os.O_EXCL:
+            info = raw_os.fstat(fd)
+            owners[(info.st_dev, info.st_ino)] = dict(st_uid=0, st_gid=context.filesystem_gid)
+        return fd
+
+    def symlink(target, name, *, dir_fd=None):
+        raw_os.symlink(target, name, dir_fd=dir_fd)
+        info = raw_os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        owners[(info.st_dev, info.st_ino)] = dict(st_uid=0, st_gid=context.filesystem_gid)
+
+    def chown(path, uid, gid, *, dir_fd=None, follow_symlinks=True):
+        assert (uid, gid, follow_symlinks) == (0, 0, False)
+        info = raw_os.stat(path, dir_fd=dir_fd, follow_symlinks=False)
+        owners[(info.st_dev, info.st_ino)] = dict(st_uid=uid, st_gid=gid)
 
     def stat_path(path, *, dir_fd=None, follow_symlinks=True):
         actual = Path(path)
@@ -78,9 +120,14 @@ def private_store(tmp_path, monkeypatch):
 
     proxy = SimpleNamespace(**{name: getattr(raw_os, name) for name in dir(raw_os)})
     proxy.fstat, proxy.stat = fstat, stat_path
+    proxy.fchown, proxy.chown, proxy.fchmod, proxy.mkdir = fchown, chown, fchmod, mkdir
+    proxy.open, proxy.symlink = open_file, symlink
     proxy.getxattr, proxy.setxattr = getxattr, setxattr
     proxy.listxattr = lambda fd: []
     monkeypatch.setattr(helper, 'os', proxy)
+    # Credential/ownership metadata double only. Actual multi-GID credentials
+    # and loaded policy remain installed acceptance, outside this host fixture.
+    monkeypatch.setattr(helper, 'private_root_credentials', lambda: None)
     monkeypatch.setattr(helper, 'runtime_policy_label', policy_label)
     actual_open = helper.runtime_open
 
@@ -92,7 +139,7 @@ def private_store(tmp_path, monkeypatch):
     monkeypatch.setattr(helper, 'runtime_open', source_open)
     return SimpleNamespace(helper=helper, host=host, store=store, overrides=overrides,
                            labels=labels, fd_path=fd_path, label_key=label_key,
-                           policy_label=policy_label, actual_open=actual_open)
+                           policy_label=policy_label, actual_open=actual_open, context=context)
 
 
 def named_fixture(fixture):
@@ -422,6 +469,216 @@ def test_constructor_label_failure_cleans_its_recorded_empty_scratch(private_sto
     with pytest.raises(OSError, match='injected-label-failure'):
         helper.RuntimeCopyPublication(fixture.store, 'selinux', named_fixture(fixture))
     assert not list(fixture.store.iterdir())
+
+
+@pytest.mark.parametrize('mask', [0o000, 0o022, 0o077, 0o777])
+@pytest.mark.parametrize('group', ['filesystem-only', 'effective-only', 'sgid'])
+def test_python_publication_initializes_each_new_inode_independent_of_caller_metadata(
+        private_store, monkeypatch, mask, group):
+    """Metadata/credential doubles: real multi-GID and MAC proof is installed."""
+    fixture, helper = private_store, private_store.helper
+    specs = named_fixture(fixture)
+    records, assertions = helper.measure_runtime_inputs(specs, 'apparmor')
+    fixture.context.filesystem_gid = 0 if group == 'effective-only' else 77
+    fixture.context.sgid = group == 'sgid'
+    changed = []
+    chown, chmod = helper.os.fchown, helper.os.fchmod
+
+    def owner(fd, uid, gid):
+        changed.append(('owner', fixture.fd_path(fd)))
+        chown(fd, uid, gid)
+
+    def mode(fd, value):
+        assert helper.os.fstat(fd).st_gid == 0
+        changed.append(('mode', fixture.fd_path(fd)))
+        chmod(fd, value)
+
+    monkeypatch.setattr(helper.os, 'fchown', owner)
+    monkeypatch.setattr(helper.os, 'fchmod', mode)
+    credentials = (os.getresuid(), os.getresgid(), Path('/proc/self/status').read_text().split('Uid:')[1].splitlines()[0])
+    previous = os.umask(mask)
+    try:
+        with helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs) as attempt:
+            receipt = attempt.copy(records, assertions)
+            for path in [fixture.store / attempt.name, *(fixture.store / attempt.name).iterdir()]:
+                info = helper.os.stat(path, follow_symlinks=False)
+                assert (info.st_uid, info.st_gid) == (0, 0)
+                expected = (0o700 if path.is_dir() else 0o600 if path.name == 'runtime.json' else
+                            records[next(copy['index'] for copy in receipt['copies'] if copy['name'] == path.name)]['mode'])
+                assert stat.S_IMODE(info.st_mode) == expected
+            assert sum(action == 'owner' for action, _ in changed) == len(receipt['copies']) + 2
+        assert os.umask(mask) == mask
+        assert credentials == (os.getresuid(), os.getresgid(), Path('/proc/self/status').read_text().split('Uid:')[1].splitlines()[0])
+    finally:
+        os.umask(previous)
+    assert not list(fixture.store.iterdir())
+
+
+@pytest.mark.parametrize('where', ['root', 'copy', 'manifest'])
+@pytest.mark.parametrize('operation', ['fchown', 'fchmod'])
+def test_failed_ownership_initialization_recovers_exact_new_objects(
+        private_store, monkeypatch, where, operation):
+    fixture, helper = private_store, private_store.helper
+    specs = named_fixture(fixture)
+    records, assertions = helper.measure_runtime_inputs(specs, 'apparmor')
+    actual = getattr(helper.os, operation)
+    failure = OSError('injected-private-initialization')
+    failed = []
+
+    def initialize(fd, *args):
+        path = fixture.fd_path(fd)
+        selected = (path.name.startswith('.runtime-') if where == 'root' else
+                    path.name == ('runtime.json' if where == 'manifest' else '0'))
+        if selected and not failed:
+            failed.append(path)
+            raise failure
+        return actual(fd, *args)
+
+    monkeypatch.setattr(helper.os, operation, initialize)
+    with pytest.raises(OSError, match='injected-private-initialization') as caught:
+        with helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs) as attempt:
+            attempt.copy(records, assertions)
+    assert caught.value is failure and failed
+    assert not getattr(failure, '__notes__', [])
+    assert not list(fixture.store.iterdir())
+
+
+@pytest.mark.parametrize('fault', ['unknown', 'replacement', 'foreign'])
+def test_failed_root_initialization_preserves_ambiguous_state_and_original_failure(
+        private_store, monkeypatch, fault):
+    fixture, helper = private_store, private_store.helper
+    failure = OSError('first-initialization-failure')
+    paths = []
+
+    def initialize(fd, *args):
+        path = fixture.fd_path(fd)
+        paths.append(path)
+        if fault == 'unknown':
+            (path / 'unknown').write_bytes(b'preserve')
+        elif fault == 'replacement':
+            path.rename(path.with_name('displaced'))
+            path.mkdir()
+        else:
+            fixture.overrides[str(path)] = {'st_uid': 1234}
+        raise failure
+
+    monkeypatch.setattr(helper.os, 'fchown', initialize)
+    with pytest.raises(OSError) as caught:
+        helper.RuntimeCopyPublication(fixture.store, 'apparmor', named_fixture(fixture))
+    assert caught.value is failure
+    assert failure.__notes__ == ['runtime-scratch-cleanup-failed: ValueError']
+    assert paths[0].is_dir()
+    if fault == 'unknown':
+        assert (paths[0] / 'unknown').read_bytes() == b'preserve'
+    elif fault == 'replacement':
+        assert paths[0].with_name('displaced').is_dir()
+
+
+@pytest.mark.parametrize('where', ['root', 'copy'])
+def test_new_allocation_mount_substitution_refuses_before_initialization(
+        private_store, monkeypatch, where):
+    fixture, helper = private_store, private_store.helper
+    specs = named_fixture(fixture)
+    records, assertions = helper.measure_runtime_inputs(specs, 'apparmor')
+    actual = helper.runtime_mount_id
+    writes = []
+
+    def mount(fd):
+        path = fixture.fd_path(fd)
+        selected = path.name.startswith('.runtime-') if where == 'root' else path.name == '0'
+        return 'foreign-mount' if selected else actual(fd)
+
+    if where == 'root':
+        monkeypatch.setattr(helper.os, 'fchown', lambda fd, *args: writes.append(fixture.fd_path(fd)))
+        monkeypatch.setattr(helper, 'runtime_mount_id', mount)
+        with pytest.raises(ValueError, match='runtime-publication-replaced'):
+            helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs)
+    else:
+        attempt = helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs)
+        try:
+            monkeypatch.setattr(helper.os, 'fchown', lambda fd, *args: writes.append(fixture.fd_path(fd)))
+            monkeypatch.setattr(helper, 'runtime_mount_id', mount)
+            with pytest.raises(ValueError, match='runtime-publication-replaced'):
+                attempt._new_file('0')
+        finally:
+            attempt.close()
+    assert writes == []
+
+
+def test_private_store_does_not_hide_missing_group_initialization(private_store, monkeypatch):
+    fixture, helper = private_store, private_store.helper
+    monkeypatch.setattr(helper.os, 'fchown', lambda *args: None)
+    with pytest.raises(ValueError, match='runtime-publication-replaced'):
+        helper.RuntimeCopyPublication(fixture.store, 'apparmor', named_fixture(fixture))
+    assert not list(fixture.store.iterdir())
+
+
+@pytest.mark.parametrize('euid,fsuid,allowed', [(0, 0, True), (0, 77, False), (77, 0, False)])
+def test_private_creation_requires_effective_and_filesystem_root(euid, fsuid, allowed, monkeypatch):
+    helper = load_helper()
+    monkeypatch.setattr(helper, 'os', SimpleNamespace(geteuid=lambda: euid))
+    monkeypatch.setattr(helper, 'Path', lambda path: SimpleNamespace(
+        read_text=lambda: 'Uid:\t0\t0\t0\t' + str(fsuid) + '\n'))
+    if allowed:
+        helper.private_root_credentials()
+    else:
+        with pytest.raises(ValueError, match='runtime-untrusted-object'):
+            helper.private_root_credentials()
+
+
+@pytest.mark.parametrize('entry', ['publication', 'copy', 'file', 'directory', 'link'])
+def test_rejected_python_credentials_cannot_allocate_or_initialize(private_store, monkeypatch, entry):
+    fixture, helper = private_store, private_store.helper
+    specs = named_fixture(fixture)
+    attempt = helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs) if entry == 'copy' else None
+    parent = helper.runtime_open(fixture.store, directory=True)
+    before = set(fixture.store.rglob('*'))
+    def refuse():
+        raise ValueError('runtime-untrusted-object')
+    monkeypatch.setattr(helper, 'private_root_credentials', refuse)
+    monkeypatch.setattr(helper.os, 'mkdir', lambda *args, **kwargs: pytest.fail('credentials allowed mkdir'))
+    monkeypatch.setattr(helper.os, 'symlink', lambda *args, **kwargs: pytest.fail('credentials allowed symlink'))
+    monkeypatch.setattr(helper.os, 'fchown', lambda *args: pytest.fail('credentials allowed chown'))
+    actual_open = helper.os.open
+    def opened(path, flags, *args, **kwargs):
+        assert not flags & os.O_CREAT, 'credentials allowed file creation'
+        return actual_open(path, flags, *args, **kwargs)
+    monkeypatch.setattr(helper.os, 'open', opened)
+    try:
+        with pytest.raises(ValueError, match='runtime-untrusted-object'):
+            if entry == 'publication':
+                helper.RuntimeCopyPublication(fixture.store, 'apparmor', specs)
+            elif entry == 'copy':
+                attempt._new_file('0')
+            elif entry == 'link':
+                helper.private_symlink(parent, 'new', '/dev/null')
+            else:
+                helper.private_create(parent, 'new', 0o700 if entry == 'directory' else 0o600,
+                                      directory=entry == 'directory')
+        assert set(fixture.store.rglob('*')) == before
+    finally:
+        if attempt:
+            attempt.close()
+        os.close(parent)
+
+
+@pytest.mark.parametrize('directory', [False, True])
+def test_private_allocator_never_initializes_an_existing_named_object(private_store, monkeypatch, directory):
+    fixture, helper = private_store, private_store.helper
+    target = fixture.store / 'existing'
+    target.mkdir() if directory else target.write_bytes(b'foreign existing bytes')
+    before = target.lstat()
+    parent = helper.runtime_open(fixture.store, directory=True)
+    monkeypatch.setattr(helper.os, 'fchown', lambda *args: pytest.fail('existing object normalized'))
+    try:
+        with pytest.raises(FileExistsError):
+            helper.private_create(parent, target.name, 0o700 if directory else 0o600, directory=directory)
+    finally:
+        os.close(parent)
+    after = target.lstat()
+    assert (before.st_dev, before.st_ino, before.st_mode) == (after.st_dev, after.st_ino, after.st_mode)
+    if not directory:
+        assert target.read_bytes() == b'foreign existing bytes'
 
 
 def test_atomic_publication_refuses_existing_directory_and_generation_limit(private_store):

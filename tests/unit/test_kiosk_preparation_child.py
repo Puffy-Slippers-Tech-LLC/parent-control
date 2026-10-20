@@ -31,13 +31,17 @@ def preparation_driver(tmp_path_factory):
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/mman.h>
+#include <sys/fsuid.h>
 #include <unistd.h>
 #include "kiosk_preparation_channel.h"
-struct report { uint64_t deadline, lock, lease; int isolated, explicit; };
+struct report { uint64_t deadline, lock, lease; int isolated, explicit; uid_t uids[4]; gid_t gids[4]; mode_t mask; };
 int main(int argc, char **argv) {
     if (argc != 5 || strcmp(argv[1], "--native-channel") || strcmp(argv[3], "3")) return 90;
     struct stat locked, admitted;
     struct report r = {.deadline = strtoull(argv[4], NULL, 10), .isolated = 1, .explicit = 1};
+    if (getresuid(r.uids, r.uids+1, r.uids+2) || getresgid(r.gids, r.gids+1, r.gids+2)) return 98;
+    r.uids[3] = (uid_t)setfsuid((uid_t)-1); r.gids[3] = (gid_t)setfsgid((gid_t)-1);
+    r.mask = umask(0777); umask(r.mask);
     if (fstat(4, &locked) || fstat(5, &admitted)) return 91;
     r.lock = locked.st_ino; r.lease = admitted.st_ino;
     for (int fd = 0; fd < 3; fd++) {
@@ -96,9 +100,10 @@ int main(int argc, char **argv) {
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/fsuid.h>
 #include "kiosk_preparation_channel.h"
 #include "kiosk_preparation_child.h"
-struct report { uint64_t deadline, lock, lease; int isolated, explicit; };
+struct report { uint64_t deadline, lock, lease; int isolated, explicit; uid_t uids[4]; gid_t gids[4]; mode_t mask; };
 static uint64_t now(void) {
     struct timespec t; if (clock_gettime(CLOCK_MONOTONIC, &t)) exit(89);
     return (uint64_t) t.tv_sec * 1000000000ULL + t.tv_nsec;
@@ -121,6 +126,12 @@ int main(int argc, char **argv) {
     }
     int before = descriptors();
     struct kiosk_preparation_child child; kiosk_preparation_child_init(&child);
+    uid_t original_uids[4]; gid_t original_gids[4];
+    if (getresuid(original_uids, original_uids+1, original_uids+2) ||
+        getresgid(original_gids, original_gids+1, original_gids+2)) return 110;
+    original_uids[3] = (uid_t)setfsuid((uid_t)-1); original_gids[3] = (gid_t)setfsgid((gid_t)-1);
+    if (!strcmp(argv[3], "caller-context")) umask(0777);
+    mode_t original_mask = umask(0777); umask(original_mask);
     uint64_t start = now(), deadline = start / 1000U + 2000000U;
     if (!strcmp(argv[3], "expired")) deadline = start / 1000U - 1;
     if (!strcmp(argv[3], "overflow")) deadline = UINT64_MAX;
@@ -140,6 +151,10 @@ int main(int argc, char **argv) {
     if (poll(&ready, 1, 1500) != 1) return 95;
     struct report report;
     if (recv(child.channel, &report, sizeof(report), MSG_DONTWAIT) != sizeof(report)) return 96;
+    mode_t current_mask = umask(original_mask);
+    if (memcmp(report.uids, original_uids, sizeof(original_uids)) ||
+        memcmp(report.gids, original_gids, sizeof(original_gids)) ||
+        report.mask != original_mask || current_mask != original_mask) return 111;
     struct stat locked, admitted;
     if (fstat(lock, &locked) || fstat(lease, &admitted) || !report.isolated || !report.explicit ||
         report.lock != locked.st_ino || report.lease != admitted.st_ino || report.deadline != deadline * 1000U) return 97;
@@ -209,7 +224,7 @@ int main(int argc, char **argv) {
     return driver
 
 
-@pytest.mark.parametrize('mode', ['healthy', 'closed-stdio', 'protocol', 'protocol-material',
+@pytest.mark.parametrize('mode', ['healthy', 'caller-context', 'closed-stdio', 'protocol', 'protocol-material',
                                 'bad-exit', 'timeout', 'expired', 'overflow', 'too-long',
                                 'bad-role', 'same-lock', 'writable-lock', 'refusal-manager', 'refusal-gate'])
 def test_native_helper_owns_one_child_and_no_other_setup_descriptors(preparation_driver, tmp_path, mode):
@@ -226,8 +241,8 @@ def test_native_helper_owns_one_child_and_no_other_setup_descriptors(preparation
         assert result.stdout == 'refusal isolated no-leak\n'
     elif mode == 'protocol-material':
         assert result.stdout == 'poisoned no-leak\n'
-    elif mode in ('healthy', 'closed-stdio', 'protocol', 'bad-exit', 'timeout'):
-        assert result.stdout.startswith('finished ' + ('0' if mode in ('healthy', 'closed-stdio', 'protocol') else '-1'))
+    elif mode in ('healthy', 'caller-context', 'closed-stdio', 'protocol', 'bad-exit', 'timeout'):
+        assert result.stdout.startswith('finished ' + ('0' if mode in ('healthy', 'caller-context', 'closed-stdio', 'protocol') else '-1'))
         assert 'isolated 1' in result.stdout
         if mode == 'timeout':
             assert 'retained 1' in result.stdout

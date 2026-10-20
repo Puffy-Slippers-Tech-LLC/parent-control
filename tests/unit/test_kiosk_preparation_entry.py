@@ -130,6 +130,57 @@ def test_main_routes_exact_native_child_arguments(entry, monkeypatch, role):
     assert calls == [(role, '3', deadline)]
 
 
+@pytest.mark.parametrize('role', ['manager', 'gate'])
+@pytest.mark.parametrize('mask', [0o022, 0o077, 0o777])
+def test_fixed_python_entry_preserves_caller_context_through_service(entry, monkeypatch, role, mask):
+    """Real anonymous channel/context; finite named-lock metadata doubles."""
+    import socket
+    from contextlib import ExitStack
+
+    helper, calls = entry.helper, []
+    absolute = time.monotonic_ns() + 5_000_000_000
+    with ExitStack() as owned:
+        locks = []
+        for name in ('preparation', 'admission'):
+            fd = os.open(entry.scene.store / name, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+            owned.callback(os.close, fd)
+            locks.append((fd, SimpleNamespace(lstat=lambda fd=fd: helper.os.fstat(fd))))
+        channel, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        owned.callback(peer.close)
+        owned.callback(channel.close)
+        monkeypatch.setattr(helper, 'NATIVE_LOCKS', locks)
+
+        def selected_channel(*, fileno):
+            assert fileno == 3
+            return channel
+
+        monkeypatch.setattr(socket, 'socket', selected_channel)
+        monkeypatch.setattr(helper.os, 'umask', lambda *_: pytest.fail('entry changed caller umask'))
+
+        def context():
+            return {line.split(':', 1)[0]: line.split(':', 1)[1].split()
+                    for line in Path('/proc/self/status').read_text().splitlines()
+                    if line.startswith(('Uid:', 'Gid:', 'Groups:', 'Umask:'))}
+
+        def serve(selected, *, role, deadline_ns):
+            assert selected is channel and context() == before
+            assert not os.get_inheritable(selected.fileno())
+            calls.append((role, deadline_ns))
+
+        monkeypatch.setattr(helper, 'native_preparation_service',
+                            lambda deadline: SimpleNamespace(serve=serve) if deadline == absolute else
+                            pytest.fail('entry renewed deadline'))
+        previous = os.umask(mask)
+        try:
+            before = context()
+            helper.prepare_native_channel(role, '3', str(absolute))
+            assert context() == before
+            assert calls == [(role, absolute)]
+            assert channel.fileno() == -1
+        finally:
+            os.umask(previous)
+
+
 @pytest.mark.parametrize('arguments', [[], ['--native-channel'],
     ['--native-channel', 'manager', '3'], ['--native-channel', 'manager', '3', '4', 'extra']])
 def test_main_refuses_incomplete_native_arguments(entry, monkeypatch, arguments):

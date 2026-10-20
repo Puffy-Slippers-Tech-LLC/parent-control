@@ -17,7 +17,7 @@ and [historical bootstrap receipts](../Kiosk-Prompt.md#bootstrap-permission-reco
 Their old caller ordering cannot qualify this corrected boundary.
 
 Read [system design](../System-Design.md), its kiosk confinement module,
-[007a2b](007a2b-helper-private-creation.md), [execution](../Execution-Plans.md),
+[007a2b](../Kiosk-Prompt.md#helper-private-creation--007a2b), [execution](../Execution-Plans.md),
 [approval](../Approval-Tools.md), [test ownership](../TestAutomation/README.md),
 and applicable failure/cleanup/storage contracts. Before any VM operation read
 the [VM mandate](../Mandates/VM-Mandate.MD); retain registered-target authority,

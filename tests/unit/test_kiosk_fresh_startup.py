@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 
@@ -29,10 +30,11 @@ import copy, hashlib, importlib.util, json, os, socket, sys, traceback
 from types import SimpleNamespace
 from pathlib import Path
 base = Path(@BASE@)
-# This prerequisite proves native initialization. The Python allocation owner
-# retains its own caller-context work in 007a2b; isolate that boundary explicitly.
-if (base / 'native-private-mask').exists():
-    os.umask(0o022)
+def caller_context():
+    return {line.split(':', 1)[0]: line.split(':', 1)[1].split()
+            for line in Path('/proc/self/status').read_text().splitlines()
+            if line.startswith(('Uid:', 'Gid:', 'Groups:', 'Umask:'))}
+original_context = caller_context()
 diagnostic_open = os.open
 def report_error(kind, error, tb):
     fd = diagnostic_open(str(base / 'helper-error'), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
@@ -47,7 +49,9 @@ def report_error(kind, error, tb):
 sys.excepthook = report_error
 with open(base / 'helper-started', 'x') as report:
     json.dump(dict(pid=os.getpid(), deadline=int(sys.argv[4]),
-                   lock=os.fstat(4).st_ino, lease=os.fstat(5).st_ino), report)
+                   lock=os.fstat(4).st_ino, lease=os.fstat(5).st_ino,
+                   context=original_context), report)
+os.chmod(base / 'helper-started', 0o600)
 sys.path.insert(0, @TOOLS@)
 import kiosk_confinement as c
 import kiosk_preparation_service as service
@@ -115,6 +119,19 @@ c.trusted = lambda p, **kw: logical(trusted(physical(p), **kw))
 runtime_open = c.runtime_open
 c.runtime_open = lambda p, **kw: runtime_open(physical(p), **kw)
 c.RUNTIME = base / 'runtime'
+make_skeleton = service.make_skeleton
+def capture_skeleton(target, layout, backend, deadline):
+    make_skeleton(target, layout, backend, deadline)
+    tree = Path(raw_readlink('/proc/self/fd/' + str(target))) / 'tree'
+    nodes = []
+    for path in [tree, *tree.rglob('*')]:
+        info = raw_stat(path, follow_symlinks=False)
+        nodes.append(dict(path=str(path.relative_to(tree)), uid=info.st_uid, gid=info.st_gid,
+                          mode=info.st_mode, size=info.st_size))
+    output = base / ('helper-skeleton-' + sys.argv[2] + '.json')
+    output.write_text(json.dumps(nodes))
+    output.chmod(0o600)
+service.make_skeleton = capture_skeleton
 config_bytes = (host / @CONFIG@).read_bytes()
 config = json.loads(config_bytes)
 policy_bytes = (host / @POLICY@).read_bytes()
@@ -235,10 +252,18 @@ def capture_result(record, deadline_ns):
     data = encode_result(record, deadline_ns)
     with open(base / 'helper-result.json', 'wb') as output:
         output.write(data)
+    os.chmod(base / 'helper-result.json', 0o600)
+    if isinstance(record, dict) and record.get('role') in ('manager', 'gate'):
+        role_result = base / ('helper-result-' + record['role'] + '.json')
+        role_result.write_bytes(data)
+        role_result.chmod(0o600)
     return data
 service._canonical = capture_result
 with socket.socket(fileno=int(sys.argv[3])) as channel:
     service.serve(channel, role=sys.argv[2], deadline_ns=int(sys.argv[4]))
+context = base / ('helper-context-' + sys.argv[2] + '.json')
+context.write_text(json.dumps(dict(before=original_context, after=caller_context())))
+context.chmod(0o600)
 '''
 
 
@@ -1178,6 +1203,48 @@ def _put(path, data, mode):
     path.chmod(mode)
 
 
+def assert_helper_private_creation(directory, role):
+    """Real kernel metadata under the unchanged native-to-Python caller mask.
+
+    The one-ID user namespace cannot establish nonzero filesystem-group proof;
+    the supplemental allocation controls model that independent boundary.
+    """
+    context = json.loads((directory / f'helper-context-{role}.json').read_text())
+    assert context['before'] == context['after']
+    assert context['before']['Umask'] == ['0777']
+    assert context['before']['Uid'] == context['before']['Gid'] == ['0'] * 4
+    skeleton = json.loads((directory / f'helper-skeleton-{role}.json').read_text())
+    assert len(skeleton) > 1
+    assert {node['path'] for node in skeleton} >= {'.', 'bin', 'bin/native', 'bin/script'}
+    for node in skeleton:
+        assert node['uid'] == node['gid'] == 0
+        expected = 0o755 if stat.S_ISDIR(node['mode']) else 0o777 if stat.S_ISLNK(node['mode']) else 0o644
+        assert stat.S_IMODE(node['mode']) == expected
+        if stat.S_ISREG(node['mode']):
+            assert node['size'] == 0
+    result = json.loads((directory / f'helper-result-{role}.json').read_text())
+    if result['ticket'] is not None:
+        # Native publication renames the Python-owned scratch. Every copied
+        # inode and manifest must keep the explicit private allocation policy.
+        generations = [path for path in (directory / 'runtime').iterdir() if len(path.name) == 64]
+        assert len(generations) == 1
+        assert stat.S_IMODE(generations[0].stat().st_mode) == 0o700
+        encoded = (generations[0] / 'runtime.json').read_bytes()
+        domain = b'ONPC-KIOSK-RUNTIME\0'
+        assert encoded.startswith(domain)
+        length = int.from_bytes(encoded[len(domain):len(domain) + 8], 'big')
+        payload = encoded[len(domain) + 8:]
+        assert len(payload) == length
+        manifest = json.loads(payload)
+        copy_modes = {copy['name']: manifest['records'][copy['index']]['mode']
+                      for copy in manifest['copies']}
+        for member in generations[0].iterdir():
+            info = member.stat()
+            assert info.st_uid == os.getuid() and info.st_gid == os.getgid()
+            expected = copy_modes.get(member.name, 0o755 if member.name == 'native-0' else 0o600)
+            assert stat.S_IMODE(info.st_mode) == expected
+
+
 @pytest.fixture
 def fresh_scene(tmp_path):
     host = tmp_path / 'host'
@@ -1229,7 +1296,7 @@ def fresh_scene(tmp_path):
 
 
 @pytest.mark.parametrize('mode', [
-    'native-private-0777', 'native-private-new-runtime-0777',
+    'full-private-0777', 'full-private-new-runtime-0777',
     'private-marker-chown-cut', 'private-marker-chmod-cut',
     'healthy', 'ambient-narrow', 'helper-exit', 'helper-result-exit', 'helper-timeout', 'helper-order',
     'measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
@@ -1251,10 +1318,9 @@ def fresh_scene(tmp_path):
 ])
 def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
     directory, binary = fresh_scene
-    native_private = mode.startswith('native-private-')
+    native_private = mode.startswith('full-private-')
     if native_private:
-        (directory / 'native-private-mask').touch()
-        if mode == 'native-private-new-runtime-0777':
+        if mode == 'full-private-new-runtime-0777':
             (directory / 'runtime').rmdir()
         mode = 'healthy'
     (directory / 'mode').write_text(mode)
@@ -1292,6 +1358,8 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         'helper-started:' + (helper_started.read_text() if helper_started.exists() else 'helper-not-entered') + '\n'
         'helper-result:' + result_summary)
     assert completed.stdout == ('retained\n' if mode in ('ticket-parent', 'ticket-malformed') else 'verified\n')
+    if native_private:
+        assert_helper_private_creation(directory, 'manager')
     for name, original in borrowed.items():
         displaced = directory / ('original-' + name)
         selected = displaced if displaced.exists() else directory / name

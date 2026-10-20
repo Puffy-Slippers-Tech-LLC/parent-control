@@ -13,7 +13,7 @@ when that consumer is selected. Preserve existing queue order and acceptance.
 Qualify the same cumulative native/helper correction under actual enforcing
 SELinux, including the real pre-PAM GDM caller context. Read
 [007a2d](007a2d-bootstrap-ubuntu.md) and its complete owning-contract/source
-route, [007a2b](007a2b-helper-private-creation.md), the
+route, [007a2b](../Kiosk-Prompt.md#helper-private-creation--007a2b), the
 [original entry checkpoint](../Kiosk-Prompt.md#ubuntu-retained-ambient-checkpoint--007a2),
 and [Fedora bootstrap history](../Kiosk-Prompt.md#fedora-native-bootstrap--006e3).
 Older root-group bootstrap passes do not establish corrected caller acceptance;

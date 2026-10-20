@@ -9,6 +9,7 @@ import fcntl
 import json
 from pathlib import Path
 import time
+import tomllib
 
 import detached_launcher as launcher
 from launcher_render import clean
@@ -178,6 +179,10 @@ class AppSession:
         self.task = state['task_id']
         update_task_info(run, self.task, {})
         self.model = command[command.index('--model') + 1]
+        self.effort = ''
+        for index, value in enumerate(command):
+            if index and command[index - 1] == '-c' and value.partition('=')[0].strip() == 'model_reasoning_effort':
+                self.effort = tomllib.loads(value)['model_reasoning_effort']
         self.schema = json.loads(Path(command[command.index('--output-schema') + 1]).read_text())
         self.prompt = (run / 'prompt.txt').read_text()
         self.thread = self.turn = None
@@ -211,6 +216,7 @@ class AppSession:
         state = {
             'session': self.session, 'task_session': self.task_session,
             'task_id': self.task, 'status': status, 'started_at': self.started_at,
+            'model': self.model, 'effort': self.effort,
             'progress_key': self.progress_key}
         if status == 'running' and self.turn_started_at is not None:
             state['turn_started_at'] = self.turn_started_at

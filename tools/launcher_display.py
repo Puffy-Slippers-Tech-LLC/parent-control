@@ -681,7 +681,8 @@ class TaskDisplay(LauncherDisplay):
                 row.pad_right(max(0, description_width - row.cell_len))
                 description_rows[index] = row + Text('█' if start <= index < start + thumb else '░', style='dim')
         info += description_rows
-        hint = Text('Enter: send · Shift+Enter: newline', style='dim')
+        hint = Text(' '.join(filter(None, (self.chat_state.get('model'),
+                                          self.chat_state.get('effort')))), style='dim')
         hint.truncate(left_width, overflow='crop')
         if self.editor.error:
             hint = Text(self.editor.error, style='red')
@@ -700,7 +701,7 @@ class TaskDisplay(LauncherDisplay):
             bottom = [Text('╰' + '─' * (left_width - 2) + '╯', style='dim')]
         if self.input_mode == 'chat':
             # Shade the full composer, including padding, without carrying its
-            # background into the adjacent status pane or the shortcut hint.
+            # background into the adjacent status pane or the model/effort line.
             for row in [border, *editor_rows, *bottom]:
                 row.stylize('#333333 on #f4f4f4')
         left += ([border] + editor_rows + bottom + ([hint] if show_hint else [])

@@ -356,6 +356,10 @@ Plan/E2E observers read remaining counts from the current queue, including when
 reconnecting to a backend started before numeric totals were recorded.
 The conversation composer uses a light gray background with dark text across
 its full textbox, including padding and border, like the standard agent chatbox.
+Below the textbox, show the current session's model name and reasoning effort
+(for example, `gpt-6.1-sol high`) in the same dim font as the former keyboard hint,
+replacing `Enter: send · Shift+Enter: newline`. Read these values from the session
+state so observer reconnection preserves them; leave unavailable values blank.
 The conversation composer shows a blinking underscore cursor at the current
 insertion position, including while another pane is selected or output scrolls.
 Hovering over its text area requests an I-beam mouse pointer in terminals that

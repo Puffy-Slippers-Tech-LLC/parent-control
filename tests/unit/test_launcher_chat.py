@@ -30,7 +30,8 @@ def conversation(tmp_path):
     (tmp_path / 'prompt.txt').write_text('Implement the task.')
     launcher.atomic(tmp_path / 'controller.json', [{'key': 'runtime-1', 'lines': ['Task 001', 'Session [1]']}])
     schema = Path(__file__).parents[2] / 'tools/write_e2e_response.schema.json'
-    command = ['/opt/codex', '--model', 'gpt-6.1-sol', '--output-schema', str(schema)]
+    command = ['/opt/codex', '--model', 'gpt-6.1-sol', '-c', 'model_reasoning_effort="high"',
+               '--output-schema', str(schema)]
     output = io.StringIO()
     cleanups = []
     session = AppSession(tmp_path, tmp_path, command, AgentRenderer(output),
@@ -1250,8 +1251,9 @@ def test_typing_anywhere_grows_and_shrinks_composer_without_changing_explanation
 
 
 @pytest.mark.parametrize('width,height', [(120, 36), (200, 40), (40, 20), (120, 7), (120, 5)])
-def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(tmp_path, width, height):
+def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(conversation, tmp_path, width, height):
     display, terminal = display_fixture(tmp_path)
+    display.refresh_chat()
     terminal.resize(width, height)
     for draft in ('', 'first\nsecond\nthird', '\n'.join(['long draft'] * 80), ''):
         display.editor.text = draft
@@ -1267,7 +1269,8 @@ def test_composer_keeps_complete_bottom_border_when_draft_and_terminal_resize(tm
         assert left[border_index - 1].startswith('│ ')
         assert left[border_index - 1].endswith(' │')
         if height > 5:
-            assert left[border_index + 1].startswith('Enter:')
+            assert left[border_index + 1].startswith('gpt-6.1-sol high')
+            assert display.previous[border_index + 1].get_style_at_offset(display.console, 0).dim
 
 
 def test_chat_ctrl_c_does_not_signal_output_and_uses_mailbox(tmp_path):

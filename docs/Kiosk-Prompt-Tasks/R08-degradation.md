@@ -32,8 +32,7 @@ R08a/R08b own the complete provisioning/locale audits and implementation. Inspec
 their delivered required-setup/release and ready-agent/request interfaces at this
 composition boundary; expand into those complete callers if ambiguity or a new
 failure requires it. Preserve their mapped locale/job-ordering expectations.
-Read the [portal boundary](../Mandates/Do-Not-Touch-Portal-Mandate.md) before
-touching feedback API-related application code; this task authorizes no submission.
+This task authorizes no submission.
 
 ## Cumulative fallback guarantees
 

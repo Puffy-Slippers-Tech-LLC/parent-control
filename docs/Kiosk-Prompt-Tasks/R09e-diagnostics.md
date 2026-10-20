@@ -20,9 +20,7 @@ healthy events do not erase the original cause. Reuse existing collection/export
 operations; diagnostic collection alone supplies no usable-entry acceptance.
 
 R09 owns H's separate A–F combinations and the final complete matrix. Do not
-split this diagnostic history across restored attempts or send feedback. Read
-the [portal boundary](../Mandates/Do-Not-Touch-Portal-Mandate.md) before any
-feedback API-related application edit.
+split this diagnostic history across restored attempts or send feedback.
 
 ## Acceptance and close-out
 

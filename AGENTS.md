@@ -66,8 +66,6 @@
 - For distro/DE-specific work, determine whether the cause is generic. Fix generic
   causes in shared code; isolate platform-specific behavior and check affected
   supported platforms.
-- Read [Do Not Touch Portal](docs/Mandates/Do-Not-Touch-Portal-Mandate.md) when
-  touching feedback API-related application code.
 - Choose GPT-6.1 Sol Medium for settled implementation and GPT-6.1 Sol High for
   unresolved security, concurrency, ownership, difficult diagnosis or broad
   correctness review. Prefer Sol High over Astra Low; use bounded Astra High

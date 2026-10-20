@@ -26,7 +26,6 @@ original-cause collection and mixed recovery belong to R08.
 
 Select registered affected resource/startup/form unit/UI checks through maintained
 launchers. Verify safe defaults, core request/approval dispatch and preserved
-denial/cancellation behavior. Read the [portal boundary](../Mandates/Do-Not-Touch-Portal-Mandate.md)
-before feedback API-related application changes; no submission is authorized.
+denial/cancellation behavior. No submission is authorized.
 Apply master product review/revision, supported translations and final packaged-input
 `make build`; record inputs for R08/R09a, update relevant owners and finish cleanup.

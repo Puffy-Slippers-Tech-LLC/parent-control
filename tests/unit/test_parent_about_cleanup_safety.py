@@ -114,9 +114,9 @@ def test_installed_wrong_role_prompt_refuses_the_parent_secret_needle():
 @pytest.mark.parametrize('fault', ['missing-return', 'stale-return', 'wrong-child', 'weak-match',
                                   'alternate', 'wrong-alternate', 'weak-alternate'])
 def test_terminal_evidence_refuses_missing_or_reused_return(tmp_path, monkeypatch, fault):
-    if fault == 'missing-return':
+    if fault in ('missing-return', 'stale-return'):
         # Exercise the semantic result contract with otherwise complete evidence,
-        # so an unrelated fixture refusal cannot satisfy the missing-return check.
+        # so an unrelated fixture refusal cannot satisfy the return checks.
         plan = parent_about.PLAN
         details = []
         observations = []
@@ -131,9 +131,16 @@ def test_terminal_evidence_refuses_missing_or_reused_return(tmp_path, monkeypatc
         screens = installed_journey.matched_screens(tmp_path, plan, observations)
         assert [screen['stage'] for screen in screens] == list(plan.screen_tags)
         assert screens[-1]['stage'] == 'parent-returned'
-        details.pop()
-        result.write_text(json.dumps({'result': 'ok', 'details': details}))
-        with pytest.raises(EvidenceError, match='^parent:missing-screens$'):
+        if fault == 'missing-return':
+            details.pop()
+            result.write_text(json.dumps({'result': 'ok', 'details': details}))
+            expected_error = '^parent:missing-screens$'
+        else:
+            # Keep the worker's return marker and every earlier observation:
+            # neither can stand in for a fresh terminal UI observation.
+            assert observations.pop()['stage'] == 'parent-returned'
+            expected_error = '^parent:ui-evidence$'
+        with pytest.raises(EvidenceError, match=expected_error):
             installed_journey.matched_screens(tmp_path, plan, observations)
         return
 

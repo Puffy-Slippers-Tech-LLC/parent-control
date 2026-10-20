@@ -1,10 +1,14 @@
-"""Interactive Polkit checks cancelled when their requesting session goes away.
+"""Interactive approvals cancelled until their first policy effect is admitted.
 
 Each check runs in its broker worker's own GLib context. Authorization replies
-and lifecycle signals are serialized there; no thread can approve a check after
-that context has marked it cancelled. The broker retains its transaction lock
-until this adapter has finished local cancellation and attempted remote cleanup.
+and lifecycle signals are serialized there. After authentication, synchronous
+backend work leaves lifecycle events queued in that context; admission consumes
+them and rereads the original caller/session before claiming the first effect.
+The broker retains its transaction lock through admission, transaction completion
+and any required remote authentication cleanup.
 """
+
+from contextlib import contextmanager
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 
@@ -34,6 +38,7 @@ class PolkitAuthorizer:
     def __init__(self, connection):
         self.connection = connection
 
+    @contextmanager
     def check(self, request_kind, sender, correlation_id, target_label,
               approver_username, message):
         try:
@@ -51,10 +56,17 @@ class PolkitAuthorizer:
             1,  # AllowUserInteraction; no retained authorization.
             f"oh-no-parent-control-{correlation_id}",
         ))
-        return _PendingAuthorization(
+        pending = _PendingAuthorization(
             self.connection, sender, correlation_id, parameters,
             wait_for_agent=request_kind == "kiosk",
-        ).run()
+        )
+        pending.context.push_thread_default()
+        try:
+            pending.run()
+            yield pending
+        finally:
+            pending.close()
+            pending.context.pop_thread_default()
 
 
 class _PendingAuthorization:
@@ -68,6 +80,10 @@ class _PendingAuthorization:
         self.cancellable = Gio.Cancellable()
         self.subscriptions = []
         self.session_path = None
+        self.user_path = None
+        self.display = None
+        self.admitted = False
+        self.closed = False
         self.started = False
         self.auth_done = False
         self.cancel_done = False
@@ -113,12 +129,19 @@ class _PendingAuthorization:
                     "org.freedesktop.login1.NoUserForPID"):
                 return None  # Sessionless callers can use a bus-registered agent.
             raise
+        self.user_path = user_path
+        self._subscribe(LOGIN_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
+                        user_path, LOGIN_USER_INTERFACE, self._display_changed)
+        self.display = self._read_display()
+        session_id, path = self.display
+        return path if session_id else None
+
+    def _read_display(self):
         display, = self._read(
-            LOGIN_NAME, user_path, PROPERTIES_INTERFACE, "Get",
+            LOGIN_NAME, self.user_path, PROPERTIES_INTERFACE, "Get",
             GLib.Variant("(ss)", (LOGIN_USER_INTERFACE, "Display")), "(v)",
         )
-        session_id, path = display
-        return path if session_id else None
+        return display
 
     def _session_unavailable(self):
         properties, = self._read(
@@ -144,7 +167,6 @@ class _PendingAuthorization:
         return None
 
     def run(self):
-        self.context.push_thread_default()
         try:
             self._subscribe(DBUS_NAME, DBUS_INTERFACE, "NameOwnerChanged",
                             DBUS_PATH, self.sender, self._owner_changed)
@@ -170,8 +192,7 @@ class _PendingAuthorization:
                     return self.outcome
             # Dispatch any lifecycle events queued during the initial reads
             # before launching a password prompt.
-            while self.context.pending():
-                self.context.iteration(False)
+            self._drain_lifecycle()
             if self.cancel_reason:
                 return self.outcome
             self.agent_deadline = GLib.get_monotonic_time() + AGENT_STARTUP_GRACE_MS * 1000
@@ -188,13 +209,47 @@ class _PendingAuthorization:
                     error_type=error_code(error),
                 )
             return self.outcome
-        finally:
-            if self.retry_source is not None:
-                self.retry_source.destroy()
-                self.retry_source = None
-            for subscription in self.subscriptions:
-                self.connection.signal_unsubscribe(subscription)
-            self.context.pop_thread_default()
+
+    def _drain_lifecycle(self):
+        while self.context.pending():
+            self.context.iteration(False)
+
+    def admit(self):
+        """Claim this checked approval once, in the worker's observed order."""
+        if self.closed or self.admitted:
+            return False
+        self._drain_lifecycle()
+        if self.outcome != "approved" or self.cancel_reason:
+            return False
+        try:
+            alive, = self._read(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "NameHasOwner",
+                                GLib.Variant("(s)", (self.sender,)), "(b)")
+            if not alive:
+                self._cancel("caller-disconnected")
+            if self.user_path is not None and self._read_display() != self.display:
+                self._cancel("session-state-unavailable")
+            if self.session_path is not None:
+                reason = self._session_unavailable()
+                if reason:
+                    self._cancel(reason)
+        except GLib.Error:
+            self._cancel("session-state-unavailable")
+        # A transition during a read wins even if the final snapshot is active
+        # again. Cancellation is monotonic; this check never adopts a new session.
+        self._drain_lifecycle()
+        if self.cancel_reason:
+            return False
+        self.admitted = True
+        return True
+
+    def close(self):
+        self.closed = True
+        if self.retry_source is not None:
+            self.retry_source.destroy()
+            self.retry_source = None
+        for subscription in self.subscriptions:
+            self.connection.signal_unsubscribe(subscription)
+        self.subscriptions.clear()
 
     def _start_check(self):
         self.started = True
@@ -238,6 +293,18 @@ class _PendingAuthorization:
     def _session_lock(self, *_args):
         self._cancel("session-locked")
 
+    def _display_changed(self, _connection, _sender, _path, _interface, _signal,
+                         parameters):
+        _interface_name, changed, invalidated = parameters.unpack()
+        if "Display" in changed and changed["Display"] != self.display:
+            self._cancel("session-state-unavailable")
+        elif "Display" in invalidated:
+            try:
+                if self._read_display() != self.display:
+                    self._cancel("session-state-unavailable")
+            except GLib.Error:
+                self._cancel("session-state-unavailable")
+
     def _session_removed(self, _connection, _sender, _path, _interface, _signal,
                          parameters):
         _session_id, path = parameters.unpack()
@@ -245,7 +312,7 @@ class _PendingAuthorization:
             self._cancel("session-removed")
 
     def _cancel(self, reason):
-        if self.cancel_reason or self.auth_done:
+        if self.cancel_reason or self.admitted or self.closed:
             return
         self.cancel_reason = reason
         self.outcome = "cancelled"

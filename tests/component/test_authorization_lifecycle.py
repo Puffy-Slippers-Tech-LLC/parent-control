@@ -7,7 +7,7 @@ retry timers belong to each worker context and are destroyed before teardown.
 No real agent, host session, shared socket or new storage owner is introduced.
 """
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import logging
 import threading
 from types import SimpleNamespace
@@ -24,7 +24,7 @@ from oh_no_parent_control.adapters import (
 from oh_no_parent_control.authorization import (
     PolkitAuthorizer, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
 )
-from oh_no_parent_control.core import Busy
+from oh_no_parent_control.core import BackendFailure, Busy, RateLimited
 from tests.support.broker import Accounts, Preferences, make_broker
 from tests.support.dbus import open_bus, close_connection, spin_until
 
@@ -65,6 +65,7 @@ class Authorities:
         self.fallback = False
         self.sessionless = False
         self.no_display = False
+        self.display = ("child", SESSION)
         self.snapshot_error = False
         self.resolve_error = False
         self.cancel_mode = "cancel"
@@ -87,7 +88,7 @@ class Authorities:
         elif method == "Get":
             assert parameters.unpack() == (authorization.LOGIN_USER_INTERFACE, "Display")
             invocation.return_value(GLib.Variant("(v)", (
-                GLib.Variant("(so)", ("", "/") if self.no_display else ("child", SESSION)),
+                GLib.Variant("(so)", ("", "/") if self.no_display else self.display),
             )))
         elif method == "GetAll":
             assert path == SESSION
@@ -141,6 +142,15 @@ class Authorities:
                                         list(invalidated),
                                     )))
 
+    def change_display(self, display, *, invalidated=False):
+        self.display = display
+        self.connection.emit_signal(None, USER, PROPERTIES_INTERFACE, "PropertiesChanged",
+                                    GLib.Variant("(sa{sv}as)", (
+                                        authorization.LOGIN_USER_INTERFACE,
+                                        {} if invalidated else {"Display": GLib.Variant("(so)", display)},
+                                        ["Display"] if invalidated else [],
+                                    )))
+
     def reply(self, item=None, *, authorized=False, challenge=False, details=None, error=False):
         item = self.checks[-1] if item is None else item
         item["done"] = True
@@ -186,7 +196,7 @@ def lifecycle(dbusmock_system):
                              alive=CallerCredentials(broker_bus).alive)
         threads = []
 
-        def start(surface="child", connection=None):
+        def start(surface="child", connection=None, *, duration=300, allow_soft=True):
             connection = connection or (caller if surface == "child" else kiosk)
             state = {"done": False}
 
@@ -194,10 +204,10 @@ def lifecycle(dbusmock_system):
                 try:
                     if surface == "child":
                         state["result"] = broker.request_own_access(
-                            1001, connection.get_unique_name(), 1003, 300, True)
+                            1001, connection.get_unique_name(), 1003, duration, allow_soft)
                     else:
                         state["result"] = broker.request_access(
-                            991, connection.get_unique_name(), 1001, 1003, 300, True)
+                            991, connection.get_unique_name(), 1001, 1003, duration, allow_soft)
                 except Exception as error:
                     state["error"] = error
                 finally:
@@ -458,3 +468,158 @@ def test_sessionless_agent_can_authenticate_and_disconnect_still_cancels(lifecyc
     spin_until(lambda: pending["done"])
     assert pending["result"][1:] == ("cancelled", 0)
     assert len(lifecycle.authorities.cancellations) == 1
+
+
+@contextmanager
+def pause_operation(monkeypatch, adapter, method, *, at_call=1):
+    """Pause one existing owned worker; always release it before fixture cleanup."""
+    entered, release = threading.Event(), threading.Event()
+    original = getattr(adapter, method)
+    calls = 0
+
+    def paused(*args):
+        nonlocal calls
+        value = original(*args)
+        calls += 1
+        if calls == at_call:
+            entered.set()
+            assert release.wait(5), "test did not release its broker operation"
+        return value
+
+    monkeypatch.setattr(adapter, method, paused)
+    try:
+        yield entered, release
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("duration, stage", [
+    (300, "usage"),
+    *((duration, stage) for duration in (0, 300) for stage in (
+        "preflight", "get_limit_type", "get_daily_limit", "get_filter", "get_extension",
+    )),
+])
+def test_postauthentication_departure_through_last_snapshot_cancels_without_effects(
+        lifecycle, monkeypatch, surface, duration, stage):
+    authority = lifecycle.authorities
+    adapter = (lifecycle.broker._timer_usage if stage == "usage" else
+               lifecycle.broker._running_apps if stage == "preflight" else lifecycle.accounts)
+    method = "query_usage_as" if stage == "usage" else stage
+    at_call = 2 if stage == "get_extension" and duration else 1
+    with pause_operation(monkeypatch, adapter, method, at_call=at_call) as (entered, release):
+        pending = lifecycle.start(surface, duration=duration, allow_soft=False)
+        spin_until(lambda: len(authority.checks) == 1)
+        authority.reply(authorized=True)
+        spin_until(entered.is_set)
+        # Both transitions precede the final authoritative read. Even an
+        # already-active returned session must not revive the earlier approval.
+        authority.change({"Active": False})
+        authority.change({"Active": True})
+        release.set()
+        spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "cancelled"
+    assert not any(event[0].startswith("set_") for event in lifecycle.accounts.events)
+    assert not any(call[0] == "terminate" for call in lifecycle.broker._running_apps.calls)
+    assert authority.cancellations == []  # Authentication already completed.
+    fresh = lifecycle.start(surface, duration=duration, allow_soft=False)
+    spin_until(lambda: len(authority.checks) == 2)
+    assert authority.checks[0]["parameters"][4] != authority.checks[1]["parameters"][4]
+    authority.reply(authorized=True)
+    spin_until(lambda: fresh["done"])
+    assert fresh["result"][1] == "approved"
+    assert pending["result"][0] != fresh["result"][0]
+    assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+def test_postauthentication_disconnect_cannot_apply_approval(lifecycle, monkeypatch, surface):
+    authority = lifecycle.authorities
+    with pause_operation(monkeypatch, lifecycle.broker._timer_usage, "query_usage_as") as (entered, release):
+        pending = lifecycle.start(surface)
+        spin_until(lambda: authority.checks)
+        authority.reply(authorized=True)
+        spin_until(entered.is_set)
+        close_connection(lifecycle.caller if surface == "child" else lifecycle.kiosk)
+        release.set()
+        spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "cancelled"
+    assert not any(event[0].startswith("set_") for event in lifecycle.accounts.events)
+    assert authority.cancellations == []
+
+
+@pytest.mark.parametrize("trigger", ("display-replaced", "display-invalidated", "display-restored",
+                                     "snapshot-error", "monitor-lost", "lock-at-final-read"))
+def test_final_admission_keeps_original_session_and_fails_closed(lifecycle, monkeypatch, trigger):
+    authority = lifecycle.authorities
+    authority.fallback = True
+    with pause_operation(monkeypatch, lifecycle.broker._timer_usage, "query_usage_as") as (entered, release):
+        pending = lifecycle.start("kiosk")
+        spin_until(lambda: authority.checks)
+        authority.reply(authorized=True)
+        spin_until(entered.is_set)
+        if trigger.startswith("display"):
+            authority.change_display(("other", OTHER_SESSION), invalidated=trigger == "display-invalidated")
+            if trigger == "display-restored":
+                authority.change_display(("child", SESSION))
+        elif trigger == "snapshot-error":
+            authority.snapshot_error = True
+        elif trigger == "lock-at-final-read":
+            # GetAll captures an active snapshot and then publishes a lock.
+            authority.on_snapshot = lambda: authority.change({"LockedHint": True})
+        else:
+            lifecycle.server.call_sync(
+                DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "ReleaseName",
+                GLib.Variant("(s)", (LOGIN_NAME,)), GLib.VariantType.new("(u)"),
+                Gio.DBusCallFlags.NONE, 3000, None)
+        release.set()
+        spin_until(lambda: pending["done"])
+    assert pending["result"][1] == "cancelled"
+    assert not any(event[0].startswith("set_") for event in lifecycle.accounts.events)
+    assert authority.cancellations == []
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("fail_extension", (False, True))
+def test_admitted_request_completes_once_or_rolls_back_after_departure(
+        lifecycle, monkeypatch, surface, fail_extension):
+    authority = lifecycle.authorities
+    old_extension = lifecycle.accounts.extension
+    lifecycle.accounts.fail_extension = fail_extension
+    lifecycle.broker._running_apps.terminated = 1
+    with pause_operation(monkeypatch, lifecycle.accounts, "set_daily_limit") as (entered, release):
+        pending = lifecycle.start(surface, allow_soft=False)
+        spin_until(lambda: authority.checks)
+        authority.reply(authorized=True)
+        spin_until(entered.is_set)  # The first policy write has been admitted.
+        authority.change({"LockedHint": True})
+        release.set()
+        spin_until(lambda: pending["done"])
+    assert lifecycle.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert authority.cancellations == []
+    if fail_extension:
+        assert isinstance(pending["error"], BackendFailure)
+        assert lifecycle.accounts.extension == old_extension
+        assert lifecycle.broker._last_request == {}
+    else:
+        assert pending["result"][1] == "approved"
+        assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1
+        with pytest.raises(RateLimited):
+            if surface == "child":
+                lifecycle.broker.request_own_access(1001, lifecycle.caller.get_unique_name(),
+                                                  1003, 300, True)
+            else:
+                lifecycle.broker.request_access(991, lifecycle.kiosk.get_unique_name(),
+                                               1001, 1003, 300, True)
+
+
+@pytest.mark.parametrize("no_display", (False, True))
+def test_sessionless_child_approval_retains_bus_agent_compatibility(lifecycle, no_display):
+    lifecycle.authorities.sessionless = not no_display
+    lifecycle.authorities.fallback = no_display
+    lifecycle.authorities.no_display = no_display
+    pending = lifecycle.start()
+    spin_until(lambda: lifecycle.authorities.checks)
+    lifecycle.authorities.reply(authorized=True)
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1:] == ("approved", 300)

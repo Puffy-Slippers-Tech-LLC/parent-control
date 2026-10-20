@@ -5,6 +5,7 @@ state; failure flags and callbacks are explicit test inputs.
 """
 
 from datetime import datetime
+from contextlib import contextmanager
 from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.config import validate
@@ -17,7 +18,9 @@ class Authorizer:
         self.outcome = outcome
         self.calls = []
         self.callback = callback
+        self.pending = None
 
+    @contextmanager
     def check(self, request_kind, sender, correlation_id, target_label, approver_username,
               message):
         self.calls.append((
@@ -26,7 +29,28 @@ class Authorizer:
         ))
         if self.callback:
             self.callback()
-        return self.outcome
+        self.pending = Approval(self.outcome)
+        try:
+            yield self.pending
+        finally:
+            self.pending.closed = True
+
+
+class Approval:
+    def __init__(self, outcome):
+        self.outcome = outcome
+        self.admitted = False
+        self.closed = False
+
+    def cancel(self):
+        if not self.admitted and not self.closed:
+            self.outcome = "cancelled"
+
+    def admit(self):
+        if self.outcome != "approved" or self.admitted or self.closed:
+            return False
+        self.admitted = True
+        return True
 
 
 class Accounts:

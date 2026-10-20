@@ -37,8 +37,8 @@ The broker is divided into these layers:
   serialization of approval/revocation, and rollback transactions
 - `adapters.py`: caller credentials, AccountsService, logind/systemd,
   and Malcontent timer access
-- `authorization.py`: interactive Polkit checks and silent cancellation when
-  the requesting connection or session becomes unavailable
+- `authorization.py`: scoped interactive Polkit approval and silent cancellation
+  until the requesting connection/session passes final effect admission
 - `preferences.py`: current schema, strict normalization, and atomic per-child
   storage
 - `catalog.py`: launcher discovery in the selected child's XDG and system
@@ -243,17 +243,23 @@ kiosk session runs the maintained MATE Polkit agent as a restartable user
 service; agent failure denies the in-flight attempt without permanently ending
 the request station.
 
-Pending authorization belongs to the requesting bus connection and its logind
+An unadmitted approval belongs to the requesting bus connection and its logind
 session. The broker resolves the process's session, falling back to the owning
 user manager's primary graphical `Display` for apps launched as user services,
 as Polkit does. An already locked/inactive/closing session cannot start a prompt.
-While a prompt is pending, the broker watches that session's lock, activity,
-closing/removal events, loss of logind, and disappearance of the original bus
-name. These cancel only that request through Polkit's public
-`CancelCheckAuthorization`, using the original broker connection and cancellation
-ID. The local GIO wait is cancelled as well; a late approval cannot revive the
-request. Authentication otherwise remains user-driven without an idle timeout.
+Through effect admission, the broker retains subscriptions for that session's
+lock, activity, closing/removal events, loss of logind, and disappearance of the
+original bus name. While authentication is pending, these cancel only that
+request through Polkit's public `CancelCheckAuthorization`, using the original
+broker connection and cancellation ID. The local GIO wait is cancelled as well;
+a late approval cannot revive the request. After authentication, cancellation
+locally invalidates the approval and discards the outstanding read result;
+there is no remote check left to cancel. Authentication otherwise remains
+user-driven without an idle timeout.
 Sessionless callers with a bus-registered agent retain disconnect cancellation.
+For user-manager fallback, the original `User.Display` is also monitored and
+rechecked; its replacement is cancellation, never permission to adopt another
+session. Existing sessionless resolution remains compatible with both callers.
 
 Agent Cancel is identified by the nonempty `polkit.dismissed` detail in
 Polkit's public authorization result. Its `is_challenge` flag describes whether
@@ -276,7 +282,7 @@ be true. It does not change that saved toggle or activate the child extension.
 Both installed request forms nevertheless disable submission when that toggle
 is false. This UI guard is narrower than the kiosk D-Bus method's authorization.
 
-After approval, the broker confirms that the requesting bus name still exists
+After authentication, the broker confirms that the requesting bus name still exists
 and revalidates the child, approver, and preferences after authentication,
 after the identity-scoped usage query, and immediately before writes. A
 nonblocking broker lock permits only one app-policy save, approval, revocation,
@@ -287,6 +293,20 @@ The shipped interval is five seconds and is keyed by the requesting UID in
 broker memory. All children selected by the same kiosk therefore share its
 cooldown; different child callers have separate entries. Broker restart clears
 this transient history. The check runs before the authentication prompt.
+
+C02b1 keeps the worker's private GLib context and lifecycle subscriptions alive
+through usage, running-app preflight and all four reversible account snapshot
+reads. These synchronous reads leave lifecycle events queued. Immediately before
+the first possible policy write, the broker revalidates the original accounts
+and preferences, drains queued events, rereads the original caller/session and
+fallback display, and drains again. A departure followed by return still cancels
+the old request. One worker-local admission latch then permits only the original
+transaction to finish under the existing write/termination/rollback rules.
+No blocking read occurs between the final lifecycle drain and that latch.
+This orders observed events within the worker; it is not an atomic operation
+with logind. Cancellation before admission triggers neither policy/rollback
+writes, app termination nor successful-request cooldown. Subscriptions and retry
+sources are disposed before the transaction slot is released on every exit.
 
 `SetParentControl`, both request-preference methods and `SetRequestMuted` do not take
 that shared lock. The parent serializes its own saves, and approval checks for
@@ -335,34 +355,35 @@ production adapter; see [notification recovery](Applications.md#notification-rec
 
 ### Prospective kiosk approval lifetime
 
-**R01c decision, prospective:** keep cancellation effective until a single broker
+**Lifetime outcome implemented by C02b1; installed qualification pending:** keep cancellation effective until a single broker
 effect-admission point immediately before the first policy write. Authentication
 success alone does not cross it. After admission, only that original approved
 request may finish despite departure, under the existing transaction and rollback
 rules. The [specification](../Specification.md#prospective-kiosk-visit-lifetime)
-owns the visible result. R01 integrates and independently reviews this decision
-in the [integrated contract](Kiosk-Confinement.md#r01-integrated-admission-contract);
-no implementation or installed acceptance is claimed here.
+owns the visible result. The current implementation uses the scoped approval
+described above. The former R-series association/controller design retained below
+is historical, superseded by the
+[selective replacement boundary](Kiosk-Confinement.md#c01-selective-replacement-boundary);
+it supplies no additional implementation requirement or acceptance credit.
+C04c owns reconciliation of those remaining historical mechanism descriptions.
 
 #### Audited implementation gap
 
-Current `_PendingAuthorization.run()` watches the sender and session only through
-authentication. `_authorization_finished()` sets `auth_done`, after which
-`_cancel()` ignores transitions; `run()` then removes its subscriptions.
-`_request_access()` subsequently performs the approver-scoped usage query (up to
-30 seconds), account/preference revalidation, running-app preflight and `_apply()`'s
-four account snapshot reads before its first write. Its caller check is only
-`CallerCredentials.alive()` / `NameHasOwner`, not continued visit activity.
-Extending subscriptions without replacing the authentication-only latch would
-therefore leave the same gap. The usage helper's separate bus connection and
-approver credentials are data-query authority, never the originating visit.
+Before C02b1, authentication completion set `auth_done`, disabled cancellation
+and removed lifecycle subscriptions before the approver-scoped usage query,
+preflight and four account snapshots. The surviving caller check proved only
+bus-name ownership. C02b1 replaces that authentication-only lifetime with the
+scoped approval and mandatory `_apply(..., admit=...)` boundary described above.
+The usage helper's separate bus connection and approver credentials remain
+data-query authority, never the originating request's lifetime authority.
 
 `_session_for_caller()` resolves system-bus sender PID through `GetSessionByPID`.
 Only `NoSessionForPID` falls back through `GetUserByPID` to `User.Display`; an absent
-user or empty display permits a sessionless check today. It pins neither process
-start identity nor agent generation and does not watch later display changes.
-These current limits and the existing cancellation regression remain historical
-facts; this decision changes no source, tests or their expectations.
+user or empty display permits a sessionless check today. C02b1 subscribes to and
+rechecks the original fallback display through admission. It introduces neither
+process-start/agent-generation pinning nor the historical private visit protocol.
+Host checks cover this boundary; installed histories remain pending in the
+active C-series queue.
 
 #### Visit, requester and agent association
 

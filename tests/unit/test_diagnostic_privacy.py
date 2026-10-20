@@ -99,7 +99,8 @@ def test_termination_failure_survives_broker_translation_and_customer_export(
         with events.operation() as operation:
             with pytest.raises(BackendFailure, match="account update failed"):
                 broker._apply(uid, {"daily_time_limit_minutes": 60}, desired,
-                              (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+                              (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", (),
+                              admit=lambda: True)
     # The strict filter remains and no new grant is published after failure.
     assert broker._accounts.filter == desired
     assert broker._accounts.extension == (1, 2)
@@ -289,7 +290,8 @@ def test_failed_provenance_collection_cannot_prevent_rollback(monkeypatch, caplo
     desired = (False, ("org.example.Game",))
     with pytest.raises(BackendFailure) as caught:
         broker._apply(1001, {"daily_time_limit_minutes": 60}, desired,
-                      (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+                      (123456, 60), "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", (),
+                      admit=lambda: True)
     assert caught.value.__cause__ is primary
     assert broker._accounts.extension == (1, 2)
     assert broker._accounts.filter == desired
@@ -337,7 +339,7 @@ def test_primary_failure_is_retained_before_rollback_replaces_it(monkeypatch, ca
     with pytest.raises(RollbackFailure) as caught:
         broker._apply(1001, {"daily_time_limit_minutes": 60},
                       (False, ("org.example.Game",)), (123456, 60),
-                      "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", ())
+                      "e17d2f81-4a96-47cd-a0aa-1b4b871bdd72", (), admit=lambda: True)
     events.record_exception(caught.value)
     decoded = [events.decode(record.onpc_payload) for record in caplog.records]
     rollback = next(index for index, value in enumerate(decoded)

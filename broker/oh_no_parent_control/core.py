@@ -15,6 +15,7 @@ import re
 import threading
 import time
 import uuid
+from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Protocol
@@ -87,9 +88,15 @@ class TimeStatus:
     calculated_active_extension_seconds: int
 
 
+class Approval(Protocol):
+    outcome: str
+
+    def admit(self) -> bool: ...
+
+
 class Authorizer(Protocol):
     def check(self, request_kind: str, sender: str, correlation_id: str, target_label: str,
-              approver_username: str, message: str) -> str: ...
+              approver_username: str, message: str) -> AbstractContextManager[Approval]: ...
 
 
 class Accounts(Protocol):
@@ -1324,6 +1331,7 @@ class Broker:
         correlation_id = str(uuid.uuid4())
         if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
+        authorization_scope = ExitStack()
         try:
             config = self._load_config()
             if request_kind == "kiosk":
@@ -1377,18 +1385,19 @@ class Broker:
                 "target": "$(target-account)",
                 "duration": format_requested_duration(duration_seconds, translations),
             }).render(translations)
-            outcome = self._authorizer.check(
+            approval = authorization_scope.enter_context(self._authorizer.check(
                 request_kind, sender, correlation_id, target.label, approver.username,
                 message,
-            )
+            ))
+            outcome = approval.outcome
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise BackendFailure("authorizer returned an invalid outcome")
             if outcome != "approved":
                 LOG.info("core.027", request=correlation_id, outcome=outcome)
                 return correlation_id, outcome, 0
             if not self._caller_alive(sender):
-                LOG.warning("core.028", request=correlation_id)
-                return correlation_id, "denied", 0
+                LOG.info("core.027", request=correlation_id, outcome="cancelled")
+                return correlation_id, "cancelled", 0
             # Fail closed if the selected account changed while the parent was
             # authenticating (including an AccountType promotion to admin), or
             # if the selected approver is no longer an eligible administrator.
@@ -1418,8 +1427,8 @@ class Broker:
                 # Fail closed before consuming a result obtained under an
                 # identity which may have changed during the helper call.
                 if not self._caller_alive(sender):
-                    LOG.warning("core.028", request=correlation_id)
-                    return correlation_id, "denied", 0
+                    LOG.info("core.027", request=correlation_id, outcome="cancelled")
+                    return correlation_id, "cancelled", 0
                 if self._target(config, target_uid) != target:
                     raise AccessDenied("selected account changed during authorization")
                 if self._approver(config, approver_uid) != approver:
@@ -1446,8 +1455,8 @@ class Broker:
             # The identity-scoped query may take up to the backend timeout.
             # Revalidate again immediately before privileged account writes.
             if not self._caller_alive(sender):
-                LOG.warning("core.028", request=correlation_id)
-                return correlation_id, "denied", 0
+                LOG.info("core.027", request=correlation_id, outcome="cancelled")
+                return correlation_id, "cancelled", 0
             if self._target(config, target_uid) != target:
                 raise AccessDenied("selected account changed during authorization")
             if self._approver(config, approver_uid) != approver:
@@ -1472,16 +1481,38 @@ class Broker:
                     raise BackendFailure(
                         "blocked applications could not be stopped"
                     ) from error
-            self._apply(
+
+            def admit_effect():
+                # Preflight and all account snapshots may block. Revalidate the
+                # original selection after those reads, then let the authorizer
+                # observe queued departure events and claim the sole boundary.
+                if not self._caller_alive(sender):
+                    return False
+                if self._target(config, target_uid) != target:
+                    raise AccessDenied("selected account changed during request")
+                if self._approver(config, approver_uid) != approver:
+                    raise AccessDenied("selected approver changed during request")
+                if self._load_request_preferences(target.uid) != preferences:
+                    raise AccessDenied("preferences changed during request")
+                return approval.admit()
+
+            applied = self._apply(
                 target.uid, preferences, desired_filter,
                 (issued_at, duration), correlation_id,
                 termination_patterns if terminate_blocked_apps else None,
+                admit=admit_effect,
             )
+            if not applied:
+                LOG.info("core.027", request=correlation_id, outcome="cancelled")
+                return correlation_id, "cancelled", 0
             self._record_rate_limit(caller_uid)
             LOG.info("core.032", request=correlation_id)
             return correlation_id, "approved", duration
         finally:
-            self._request_lock.release()
+            try:
+                authorization_scope.close()
+            finally:
+                self._request_lock.release()
 
     def _load_config(self) -> Configuration:
         try:
@@ -1514,7 +1545,8 @@ class Broker:
     def _apply(self, target_uid: int,
                preferences: dict, desired_filter: tuple[bool, tuple[str, ...]],
                extension: tuple[int, int], correlation_id: str,
-               termination_patterns: tuple[str, ...] | None = None) -> None:
+               termination_patterns: tuple[str, ...] | None = None,
+               *, admit: Callable[[], bool]) -> bool:
         old_limit_type = old_daily_limit = old_filter = old_extension = None
         snapshot_complete = False
         termination_may_have_changed_processes = False
@@ -1526,8 +1558,12 @@ class Broker:
             old_daily_limit = self._accounts.get_daily_limit(target_uid)
             old_filter = self._accounts.get_filter(target_uid)
             old_extension = self._accounts.get_extension(target_uid)
-            snapshot_complete = True
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
+            # Cancellation or validation failure before admission made no
+            # changes. In particular, it must not trigger rollback writes.
+            if not admit():
+                return False
+            snapshot_complete = True
             if old_limit_type == 0 or old_daily_limit != desired_daily_limit:
                 LOG.info("core.034", request=correlation_id)
                 if old_daily_limit != desired_daily_limit:
@@ -1557,6 +1593,7 @@ class Broker:
             if self._accounts.get_extension(target_uid) != extension:
                 raise BackendFailure("extension verification failed")
             self._observe_grant(target_uid, *extension)
+            return True
         except Exception as error:
             # Preserve the primary failure even if rollback raises a different
             # error with an explicit cause that hides the original context.

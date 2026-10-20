@@ -1,7 +1,7 @@
 # Usable kiosk session confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **C02b1 — [Prepare the broker approval boundary](Kiosk-Prompt-Tasks/C02b1-broker.md)**.
+Next task: **C02b — [Separate approval and features from obsolete confinement](Kiosk-Prompt-Tasks/C02b-approval.md)**.
 
 ## Outcome
 
@@ -240,8 +240,9 @@ validation protocol or stylesheet fallback, and no active old-plan delta supplie
 them. Current form readiness protects accounts, preferences and single-flight
 requests; paint timings do not gate approval. Preserve those real feature guards,
 pending-authentication cancellation and the direct broker request interfaces.
-The post-authentication lifetime gap and C-only locale/stylesheet limitations
-remain explicit receiving-task obligations, not accepted historical fixes.
+The post-authentication lifetime boundary is prepared by C02b1, with caller and
+installed qualification obligations retained by C02b/C04. C-only locale and
+stylesheet limitations remain receiving-task obligations, not accepted historical fixes.
 
 ## Scope reconciliation
 

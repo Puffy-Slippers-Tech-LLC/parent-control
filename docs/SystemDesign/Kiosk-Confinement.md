@@ -392,7 +392,7 @@ C02a host acceptance passed on 2026-10-20: **318 checks passed** in the affected
 `test_kiosk_login.py`, `test_package_payload.py`, `test_rpm_packaging.py`,
 `test_request_time_estimate.py` and `test_regression_unit.py` modules, using
 `tools/run-tests unit` with an explicit 600-second worker deadline. The retained
-[host report](../../output/test-runs/host/reports/20261020T233410Z-8e05168e/report.md)
+[host report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json)
 records the exact selection and successful four-branch join. It verifies prepared
 commands, session identity, service/exit ownership, current agent/logout behavior,
 source exclusion and unchanged selected Ubuntu/Fedora payloads. C02 must update
@@ -419,7 +419,7 @@ are retained. No staging, commit or push was performed.
 Close-out passed all **639 metadata checks** in the four maintained consistency
 modules and `test_execution_plan_launcher.py`, with the same 600-second worker
 deadline and completed cleanup; see the retained
-[close-out report](../../output/test-runs/host/reports/20261020T233554Z-13bb7527/report.md).
+[close-out report](../../output/test-runs/host/plans/9e6d398945018fab1240008bd0d1c27837ea1d8065b0d73abfbe70631ec42477/accepted-evidence.json).
 The plan check selects C02b1 with 59 remaining tasks. The C01 report had rotated;
 its link destination alone now uses the accepted-evidence locator after the
 maintained bundle reader verified the exact original report (639/639), accepted
@@ -427,6 +427,90 @@ result, command record and completed cleanup in bundle
 `onpc-evidence-bundle-vhi564vh` (SHA-256
 `8effa470abe2dc49daa80738a20e3cf11e3ab271d1065355eca28c9ef266644a`).
 This repairs no completion claim and changes no other queue row.
+
+##### C02b1 prepared broker approval boundary
+
+The public methods remain `RequestAccess(uuub)→(ss)` for the configured kiosk
+and `RequestOwnAccess(uub)→(ssu)` for the enabled child caller. Both XML copies,
+service dispatch and frontend calls remain unchanged. No `kiosk_visits.py`,
+startup receipt or view-registration interface exists in this source to port or
+retain. The selected runtime consumes the compatible internal change directly;
+no alternate live route or unselected broker copy is introduced.
+
+`PolkitAuthorizer.check()` now owns a scoped approval through `_request_access`.
+It retains the original caller/session subscriptions after authentication,
+including the original user-manager display when used for session resolution.
+`_apply` requires an admission callback after preflight and every reversible
+snapshot read. Final account/preference revalidation and lifecycle queue drains
+precede its single admission latch; departure and return cannot revive a queued
+cancellation. A cancelled request makes no transaction or rollback writes,
+terminates no apps and consumes no success cooldown. An admitted request finishes
+only its original immutable transaction, with existing hard/soft app policy,
+grant arithmetic and rollback limits. See [Broker](Broker.md#authorization-and-grant-transactions)
+for the observed-order boundary and synchronous observer limits.
+
+This compatible producer change activates on broker process restart; C02 still
+owns runtime/account/PAM/package cutover. C02b owns shared form/agent lifetime and
+result handling, preserving locale preparation, single-flight and fresh-request
+behavior. C02e may remove only proven obsolete protocols and consumers; the
+current public methods and vendor authentication are retained. Host evidence
+does not qualify installed prompt association or complete customer histories;
+those remain with C04 and the later installed tasks.
+
+Independent Astra xHigh review passed for the owned backend/tests:
+**Usability priority: passed; Threat scope: passed**. It confirmed terminal
+cancellation, original-request values, one admission before rollback becomes
+possible, transaction ownership and scoped cleanup before lock release. Its sole
+P3 documentation finding is resolved: only a still-pending authentication needs
+remote Polkit cancellation; after authentication the approval is invalidated
+locally. No actionable backend finding remains. Review gives no test credit.
+
+The resource review retains the existing compatible unit/component
+classifications. Added cases use in-memory adapters, the existing private buses
+and fixture-owned joined workers, with bounded Event waits and unconditional
+release. They add no shared path/cache, process owner, socket, display, real
+session/service or storage allocation. No cleanup/UI inventory module changes
+are needed.
+
+Host acceptance passed on 2026-10-20: **1,040 checks passed** (937 unit and
+103 private-bus component cases) on the final packaged source. The exact
+`tools/run-tests` selection was `test_core.py`, `test_broker_state_machine.py`,
+`test_broker_properties.py`, `test_service_contract.py`,
+`test_diagnostic_privacy.py` and `test_localization.py` under `tests/unit/`, then
+`test_authorization_lifecycle.py` and `test_private_dbus_service.py` under
+`tests/component/`, with an explicit 600-second worker deadline for each category.
+The retained [host report](../../output/test-runs/host/reports/20261020T234930Z-48cb86e3/report.md)
+records the exact inputs and completed cleanup. Coverage includes all pre-write
+read gaps, rest-of-day, departure/return, display replacement and failed final
+reads, no effect/cooldown on cancellation, fresh authentication and admitted
+completion/rollback on both request surfaces. An initial model check expected
+`denied` after caller disconnect; it now expects the required `cancelled` result
+while preserving its unchanged-state assertion. Final verification passed that
+check and the three disconnect diagnostic calls, which use the existing
+cancelled-outcome event without changing retained catalogue meanings.
+
+After the final packaged edit, `make build` passed for both DEB and RPM. Retained
+outputs are `output/deb/oh-no-parent-control_1.4+local1~ubuntu26.04.1_amd64.deb`,
+`output/rpm/oh-no-parent-control-1.4-0.1.dev.fc44.x86_64.rpm` and
+`output/rpm/build.log`. This is host acceptance, with no declared targets or
+installed claim. Both agents are finished/closed; tests and build completed
+their owned cleanup. No VM, installed state, temporary source file or live
+task-owned process remains. Normal reports/build outputs are retained; no
+staging, commit or push was performed.
+
+Close-out passed all **639 metadata checks** in the four maintained consistency
+modules and `test_execution_plan_launcher.py`, with the 600-second worker
+deadline and completed cleanup; see the retained
+[close-out report](../../output/test-runs/host/reports/20261020T235017Z-b40a7fa2/report.md).
+The plan check selects C02b with 58 remaining tasks. Only C02b1 is newly checked;
+its temporary brief is removed and every other queue row is preserved.
+
+The retained C02a host/close-out report destinations above use the accepted-proof
+locator after the maintained bundle reader verified their exact 318/318 and
+639/639 results, original selections, accepted result and completed cleanup in
+`onpc-evidence-bundle-m0ie1_mm` (SHA-256
+`a1dc449a7ac35492be2ad5ba3a120e24a2a2bd837d60f84fa8dd546332fbb686`).
+Only destinations changed; predecessor completion and claims remain unchanged.
 
 ##### C01 selective replacement boundary
 
@@ -481,12 +565,12 @@ snapshots and single-flight serialization. C09a owns optional stylesheet/native
 language fallback; C02b preserves features during decoupling without claiming
 those gaps fixed. No missing historical edit is a new C01 prerequisite.
 
-The [broker's audited gap](Broker.md#audited-implementation-gap) remains open:
-authentication completion drops lifecycle cancellation before usage/preflight
-and the first write, and sender survival does not prove session activity.
-C02b1/C02b must preserve pending-authentication cancellation and address the
-required no-stale/no-duplicate-grant, original-result and fresh-request outcomes
-with coherent callers. The prospective customer lifetime requirements in the
+The [broker's audited gap](Broker.md#audited-implementation-gap) was an input to
+C02b1: authentication completion dropped lifecycle cancellation before
+usage/preflight and the first write, while sender survival did not prove session
+activity. C02b1 prepares the compatible scoped approval boundary; C02b preserves
+the form/agent result and fresh-request ownership through its caller adaptation.
+The customer lifetime requirements in the
 [specification](../Specification.md#prospective-kiosk-visit-lifetime) survive;
 the old controller, receipt, effect-admission protocol and exact private graph
 do not become mandatory architecture. C01 grants no implementation acceptance.
@@ -736,7 +820,7 @@ lock, inactivity, closing/removal or logind loss; it retains subscriptions and
 the original cancellation identity through the kiosk challenge retry. Denial and
 cancellation make no grant and consume no successful-request cooldown.
 
-**Known boundary, not an implemented visit protocol:** authentication completion
+**C01 input boundary, not an implemented visit protocol:** authentication completion
 sets `auth_done`, disables cancellation and drops lifecycle subscriptions.
 Post-authentication usage/preflight/account reads precede the first policy write;
 `NameHasOwner` proves connection survival, not continued session activity. Session
@@ -745,7 +829,9 @@ sessionless caller. See the existing [audited implementation gap](Broker.md#audi
 C01 must distinguish required pending-authentication cancellation and the
 prospective outcome from the superseded mechanism. C02b1/C02b must preserve
 required no-stale/no-duplicate-grant and fresh-request outcomes; this map neither
-accepts the gap nor chooses new visit/admission machinery.
+accepts the gap nor chooses new visit/admission machinery. C02b1's scoped
+approval now covers the broker's pre-write lifetime; the current implementation
+and its qualification limits are recorded in [Broker](Broker.md#authorization-and-grant-transactions).
 
 The master's historical frontend note describes final visit validation and a
 stylesheet fallback that are **absent from this source baseline**. There is no

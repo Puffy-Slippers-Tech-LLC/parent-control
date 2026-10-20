@@ -1,6 +1,7 @@
 import threading
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 from dataclasses import replace
 from datetime import datetime
@@ -1419,7 +1420,7 @@ class CoreTests(unittest.TestCase):
         result = make_broker(accounts=accounts, alive=lambda _s: False).request_access(
             991, ":1.2", 1001, 1003, 900, False
         )
-        self.assertEqual(result[1], "denied")
+        self.assertEqual(result[1], "cancelled")
         self.assertEqual(accounts.events, [])
 
     def test_allow_soft_omits_only_soft_targets(self):
@@ -1592,6 +1593,130 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(seconds_until_local_midnight(datetime(2026, 3, 7, 0, tzinfo=zone)), 86400)
         self.assertEqual(seconds_until_local_midnight(datetime(2026, 3, 8, 0, tzinfo=zone)), 23 * 3600)
         self.assertEqual(seconds_until_local_midnight(datetime(2026, 11, 1, 0, tzinfo=zone)), 25 * 3600)
+
+
+def submit_request(broker, surface, duration=300, allow_soft=False):
+    if surface == "child":
+        return broker.request_own_access(1001, ":1.20", 1003, duration, allow_soft)
+    return broker.request_access(991, ":1.20", 1001, 1003, duration, allow_soft)
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("duration, stage", [
+    (300, "usage"),
+    *((duration, stage) for duration in (0, 300) for stage in (
+        "preflight", "get_limit_type", "get_daily_limit", "get_filter", "get_extension",
+    )),
+])
+def test_departure_before_admission_has_no_effect_and_requires_fresh_authentication(
+        monkeypatch, surface, duration, stage):
+    accounts, preferences, auth = Accounts(), Preferences(), Authorizer()
+    preferences.values[1001]["parent_control_enabled"] = True
+    usage, apps = TimerUsage(), RunningApps()
+    broker = make_broker(auth, accounts, preferences, timer_usage=usage, running_apps=apps)
+    operation = usage if stage == "usage" else apps if stage == "preflight" else accounts
+    method = "query_usage_as" if stage == "usage" else stage
+    original = getattr(operation, method)
+    calls = 0
+    cancel_at = 2 if stage == "get_extension" and duration else 1
+
+    def leave(*args):
+        nonlocal calls
+        value = original(*args)
+        calls += 1
+        if calls == cancel_at:
+            assert not auth.pending.closed
+            auth.pending.cancel()
+        return value
+
+    monkeypatch.setattr(operation, method, leave)
+    first = submit_request(broker, surface, duration)
+    assert first[1] == "cancelled"
+    assert not auth.pending.admitted
+    assert auth.pending.closed
+    assert not any(event[0].startswith("set_") for event in accounts.events)
+    assert not any(call[0] == "terminate" for call in apps.calls)
+    assert broker._last_request == {}
+    second = submit_request(broker, surface, duration)
+    assert second[1] == "approved"
+    assert first[0] != second[0]
+    assert len(auth.calls) == 2
+    assert sum(event[0] == "set_extension" for event in accounts.events) == 1
+
+
+@pytest.mark.parametrize("stage", ("preflight", "snapshots"))
+@pytest.mark.parametrize("change", ("target", "approver", "preferences"))
+@pytest.mark.parametrize("duration", (0, 300))
+def test_slow_preflight_and_snapshots_revalidate_before_admission(
+        monkeypatch, stage, change, duration):
+    accounts, preferences, auth, apps = Accounts(), Preferences(), Authorizer(), RunningApps()
+    broker = make_broker(auth, accounts, preferences, running_apps=apps)
+    operation = apps if stage == "preflight" else accounts
+    method = "preflight" if stage == "preflight" else "get_extension"
+    original = getattr(operation, method)
+    calls = 0
+    change_at = 2 if stage == "snapshots" and duration else 1
+
+    def change_selection(*args):
+        nonlocal calls
+        value = original(*args)
+        calls += 1
+        if calls == change_at:
+            if change == "target":
+                accounts.users[1001] = replace(accounts.users[1001], is_admin=True)
+            elif change == "approver":
+                accounts.users[1003] = replace(accounts.users[1003], username="new-parent")
+            else:
+                preferences.values[1001]["daily_time_limit_minutes"] += 1
+        return value
+
+    monkeypatch.setattr(operation, method, change_selection)
+    with pytest.raises(AccessDenied):
+        submit_request(broker, "kiosk", duration)
+    assert not auth.pending.admitted
+    assert auth.pending.closed
+    assert not any(event[0].startswith("set_") for event in accounts.events)
+    assert not any(call[0] == "terminate" for call in apps.calls)
+    assert broker._last_request == {}
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("fail_extension, terminated", ((False, 0), (True, 0), (True, 1)))
+def test_departure_after_admission_finishes_original_transaction_or_rollback(
+        monkeypatch, surface, fail_extension, terminated):
+    accounts, preferences, auth = Accounts(), Preferences(), Authorizer()
+    preferences.values[1001]["parent_control_enabled"] = True
+    original_filter, original_extension = accounts.filter, accounts.extension
+    apps = RunningApps(terminated=terminated)
+    accounts.fail_extension = fail_extension
+    broker = make_broker(auth, accounts, preferences, running_apps=apps)
+    original = accounts.set_daily_limit
+
+    def leave_after_admission(uid, value):
+        assert auth.pending.admitted
+        assert not auth.pending.admit()  # This approval cannot be consumed twice.
+        auth.pending.cancel()
+        # Later selections cannot alter the admitted request's immutable values.
+        preferences.values[1001]["apps"] = {}
+        return original(uid, value)
+
+    monkeypatch.setattr(accounts, "set_daily_limit", leave_after_admission)
+    if fail_extension:
+        with pytest.raises(BackendFailure):
+            submit_request(broker, surface)
+        assert accounts.extension == original_extension
+        expected_filter = (False, ("/usr/bin/game", "org.example.Game")) if terminated else original_filter
+        assert accounts.filter == expected_filter
+        assert broker._last_request == {}
+    else:
+        assert submit_request(broker, surface)[1] == "approved"
+        assert accounts.extension[1] == 300
+        assert accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+        assert sum(event[0] == "set_extension" for event in accounts.events) == 1
+        with pytest.raises(RateLimited):
+            submit_request(broker, surface)
+    assert auth.pending.outcome == "approved"
+    assert auth.pending.closed
 
 
 if __name__ == "__main__":

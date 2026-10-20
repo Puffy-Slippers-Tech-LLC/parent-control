@@ -1,6 +1,7 @@
 """Model-based transaction checks for the broker's public policy operations."""
 
 from copy import deepcopy
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,6 +14,7 @@ from oh_no_parent_control.config import validate
 from oh_no_parent_control.core import AccessDenied, BackendFailure, Broker, BrokerError, UserAccount
 from oh_no_parent_control.preferences import default_preferences, validate_preferences
 from tests.support.configuration import valid_config
+from tests.support.broker import Approval
 
 
 CHILDREN = (1001, 1002)
@@ -37,7 +39,7 @@ class ModelAuthorizer:
         self.outcome = "approved"
 
     def check(self, *_args):
-        return self.outcome
+        return nullcontext(Approval(self.outcome))
 
 
 class ModelAccounts:
@@ -277,7 +279,7 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
         self.clock.tick()
         _id, outcome = self.broker.request_access(KIOSK, ":1.kiosk", child, 1003, 300, False)
         self.caller_alive = True
-        assert outcome == "denied"
+        assert outcome == "cancelled"
         assert self.snapshot() == before
 
     @rule(child=st.sampled_from(CHILDREN))

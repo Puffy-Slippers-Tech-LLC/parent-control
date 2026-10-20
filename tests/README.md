@@ -1919,6 +1919,13 @@ pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts bundle-read '<returned-
 Omit `--bundle` for the first bundle. The plan inventories every selected original
 path, logical/allocated size, file/allocation identity, owning journal/run and
 SHA-256; `--summary` displays allocation totals instead of the complete file list.
+Ordinary execution plans additionally use repeated `--reference` paths with a
+validated `--plan`. The shared reader resolves those references with its journal
+leases held: live files retain normal identity checks, and an absent file can use
+its exact original member in an explicitly selected verified bundle. Missing
+references return exit 3 and finite JSON `error: evidence_unavailable` plus exact
+`paths`, allowing the controller to renew acceptance. Other failures remain exit 2;
+mandatory `--source` and `--bundle` inputs never receive this renewal exception.
 It also checks source budgets and conservative simultaneous export space before
 publication. Export requires the exact plan digest and repeats these guards.
 Earlier verified bundles are flattened with new evidence; identical original

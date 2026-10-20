@@ -123,6 +123,7 @@ def main(argv=None):
         command.add_argument('--target', action='append', default=[])
         command.add_argument('--source', action='append', default=[])
         command.add_argument('--bundle', action='append', default=[])
+        command.add_argument('--reference', action='append', default=[])
         if action == 'bundle-plan':
             command.add_argument('--summary', action='store_true')
         if action == 'bundle-export':
@@ -154,12 +155,19 @@ def main(argv=None):
                 if args.plan is not None:
                     from execution_plan import Plan, plan_namespace
                     namespace = plan_namespace(Plan.load(Path(CHECKOUT), args.plan).path)
-                with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
-                                               args.source, args.bundle,
-                                               plan_namespace=namespace) as selection:
-                    result = (selection.plan() if args.action == 'bundle-plan' else
-                              evidence_bundle.export(selection, expected=args.expect,
-                                                     defer_cleanup=args.defer_cleanup))
+                try:
+                    with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
+                                                   args.source, args.bundle,
+                                                   plan_namespace=namespace,
+                                                   references=args.reference) as selection:
+                        result = (selection.plan() if args.action == 'bundle-plan' else
+                                  evidence_bundle.export(selection, expected=args.expect,
+                                                         defer_cleanup=args.defer_cleanup))
+                except evidence_bundle.EvidenceUnavailable as error:
+                    if namespace is None:
+                        raise
+                    print(json.dumps(error.payload(), sort_keys=True), file=sys.stderr)
+                    return 3
             elif args.action == 'bundle-finish':
                 result = {'cleanup_complete': True,
                           'retirement_finished': evidence_bundle.finish(CHECKOUT, uid, gid)}

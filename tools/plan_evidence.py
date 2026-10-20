@@ -78,6 +78,9 @@ SOURCE_FILES = ('agent-result.json', 'prompt.txt', 'agent-commands.log', 'checkp
                 'nested.json', 'nested-closed')
 
 
+EvidenceUnavailable = bundle.EvidenceUnavailable
+
+
 def _source(plan, run, state, result):
     """Bind and rehome the exact accepted session before publication can fail."""
     run = Path(run)
@@ -174,6 +177,9 @@ def carry(plan, run, state):
                     member=accepted['result'], count=bundle.MAX_READ)) == pending) if accepted else False
         if not exact:
             _source(plan, run, state, pending)
+    renewal = state.get('evidence_renewal')
+    if renewal:
+        _source(plan, run, renewal, renewal['result'])
     for suspended in state.get('suspended_tasks', {}).values():
         carry(plan, run, suspended)
     return state
@@ -191,7 +197,8 @@ def capture(plan, run, state):
     brief = brief if brief.is_absolute() else plan.root / brief
     recovering = (state.get('phase') == 'recover'
                   or state.get('recovery_run') and state.get('in_flight')
-                  or any(state.get(key) for key in ('pending_completion', 'git_reconciliation', 'result_recovery')))
+                  or any(state.get(key) for key in ('pending_completion', 'git_reconciliation',
+                                                   'result_recovery', 'evidence_renewal')))
     for index, value in enumerate(dict.fromkeys((plan.path, plan.queue, state['task']['brief']))):
         source = Path(value)
         source = source if source.is_absolute() else plan.root / source
@@ -442,8 +449,8 @@ def preserve(plan, run, state, result):
     _write(capsule / 'accepted-ledger.json', bundle.encoded(dict(schema=1, plan=plan.path,
         generation=generation, previous_index_sha256=_digest(old_raw), tasks=tasks)))
     sources, bundles = [str(capsule), *inputs], ([previous['bundle']] if previous else [])
-    for path in _references(plan, result, state):
-        (bundles if Path(path).name == 'evidence.zip' else sources).append(path)
+    references = [path for path in _references(plan, result, state)
+                  if path not in sources and path not in bundles]
     _parent(plan, create=True)
     sources, bundles = list(dict.fromkeys(sources)), list(dict.fromkeys(bundles))
     if state['task']['targets'] and os.geteuid() != 0:
@@ -451,20 +458,35 @@ def preserve(plan, run, state, result):
         # reader; the controller never adopts their directories or runs as root.
         command = ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts']
         operands = ['--plan', plan.path]
-        for flag, values in (('--target', state['task']['targets']), ('--source', sources), ('--bundle', bundles)):
+        for flag, values in (('--target', state['task']['targets']), ('--source', sources),
+                             ('--bundle', bundles), ('--reference', references)):
             for value in values:
                 operands.extend((flag, value))
         def helper(action, *extra):
             completed = subprocess.run([*command, action, *operands, *extra], cwd=plan.root,
                                        capture_output=True, text=True, check=False)
             if completed.returncode:
+                if completed.returncode == 3:
+                    try:
+                        failure = bundle.decoded(completed.stderr)
+                        paths = failure['paths']
+                        valid = (set(failure) == {'error', 'paths'}
+                                 and failure['error'] == 'evidence_unavailable'
+                                 and isinstance(paths, list) and 0 < len(paths) <= 256
+                                 and all(isinstance(path, str) and path in references for path in paths)
+                                 and len(set(paths)) == len(paths))
+                    except (ValueError, KeyError, TypeError):
+                        valid = False
+                    if valid:
+                        raise EvidenceUnavailable(paths)
                 raise ValueError('plan evidence: maintained artifact helper refused: ' + completed.stderr.strip())
             return bundle.decoded(completed.stdout)
         selected = helper('bundle-plan', '--summary')
         helper('bundle-export', '--expect', selected['selection_sha256'], '--defer-cleanup')
     else:
         with bundle.Selection(plan.root, os.geteuid(), os.getegid(), state['task']['targets'],
-                              sources, bundles, plan_namespace=plan_namespace(plan.path)) as selected:
+                              sources, bundles, plan_namespace=plan_namespace(plan.path),
+                              references=references) as selected:
             bundle.export(selected, expected=selected.selection_sha256, defer_cleanup=True)
     return recover(plan)
 

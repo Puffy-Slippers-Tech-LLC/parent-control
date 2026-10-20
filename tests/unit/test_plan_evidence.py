@@ -164,6 +164,129 @@ def test_missing_prose_report_still_refuses_publication(campaign):
     assert not proof.locator(campaign.plan).exists()
 
 
+@pytest.mark.parametrize('defect', ['none', 'missing-member', 'corrupt', 'live-replacement'])
+def test_rotated_reference_uses_only_exact_verified_selected_bundle(campaign, defect):
+    run, state, result, report = campaign.accepted('first')
+    original = report / 'result.md'
+    with bundle.Selection(campaign.plan.root, os.geteuid(), os.getegid(), [],
+                          [str(report)], []) as selection:
+        archived = bundle.export(selection, expected=selection.selection_sha256)['path']
+    reports = bundle.retention.Store(bundle.storage.directory('state') / 'retention-host')
+    for _ in range(3):
+        with reports.session():
+            bundle.retention.allocate(tempfile.mkdtemp, prefix='onpc-later-',
+                                      dir=bundle.storage.directory('reports'))
+    assert not original.exists()
+    referenced = original if defect != 'missing-member' else report / 'unknown.md'
+    result['checks'][0]['evidence'] = f'Exact report: `{referenced}`. Archive: `{archived}`.'
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    if defect == 'corrupt':
+        with open(archived, 'ab') as stream:
+            stream.write(b'changed archive')
+    elif defect == 'live-replacement':
+        report.mkdir(mode=0o700)
+        original.write_text('unregistered replacement')
+    if defect == 'none':
+        accepted = proof.preserve(campaign.plan, run, state, result)
+        assert bundle.inspect(campaign.plan.root, os.geteuid(), os.getegid(),
+            accepted['bundle'], member=str(original)) == b'Exact report for first'
+    else:
+        expected = proof.EvidenceUnavailable if defect == 'missing-member' else ValueError
+        with pytest.raises(expected):
+            proof.preserve(campaign.plan, run, state, result)
+        assert not proof.locator(campaign.plan).exists()
+
+
+def test_expired_references_name_every_missing_path_without_acceptance(campaign):
+    run, state, result, report = campaign.accepted('first')
+    missing = [report / 'missing.md', bundle.storage.directory('exports') /
+               'onpc-evidence-bundle-missing/evidence.zip']
+    result['checks'][0]['evidence'] = ' '.join(f'`{path}`' for path in missing)
+    (run / 'agent-result.json').write_text(json.dumps(result))
+    with pytest.raises(proof.EvidenceUnavailable) as failure:
+        proof.preserve(campaign.plan, run, state, result)
+    assert all(str(path) in str(failure.value) for path in missing)
+    assert not proof.locator(campaign.plan).exists()
+
+
+@pytest.mark.parametrize('targets', [[], ['guest']])
+def test_private_reference_access_is_deferred_only_to_authenticated_target_reader(
+        campaign, monkeypatch, targets):
+    run, state, result, report = campaign.accepted('first')
+    state['task']['targets'] = targets
+    source = str(report / 'result.md')
+    original_present = bundle.Selection.reference_present
+    def present(selection, path):
+        if str(path) == source:
+            raise PermissionError('private target allocation')
+        return original_present(selection, path)
+    monkeypatch.setattr(bundle.Selection, 'reference_present', present)
+    monkeypatch.setattr(proof, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 1000})))
+    monkeypatch.setattr(proof, 'recover', lambda _: None)
+    commands = []
+    def invoke(command, **kwargs):
+        commands.append(command)
+        assert command[:3] == ['pkexec', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts']
+        assert ['--target', 'guest'] == command[command.index('--target'):command.index('--target') + 2]
+        assert source in [command[index + 1] for index, value in enumerate(command) if value == '--reference']
+        assert kwargs['cwd'] == campaign.plan.root
+        return SimpleNamespace(returncode=0, stdout=json.dumps({'selection_sha256': 'exact'}))
+    monkeypatch.setattr(proof.subprocess, 'run', invoke)
+    if targets:
+        assert proof.preserve(campaign.plan, run, state, result) is None
+        assert [command[3] for command in commands] == ['bundle-plan', 'bundle-export']
+    else:
+        with pytest.raises(PermissionError, match='private target allocation'):
+            proof.preserve(campaign.plan, run, state, result)
+        assert not commands
+
+
+@pytest.mark.parametrize('failure', ['expired', 'permission', 'bad-json', 'foreign', 'duplicate', 'wrong-code'])
+def test_target_helper_only_renews_explicit_structured_missing_references(campaign, monkeypatch, failure):
+    run, state, result, report = campaign.accepted('first')
+    state['task']['targets'] = ['guest']
+    source = str(report / 'result.md')
+    monkeypatch.setattr(proof, 'os', SimpleNamespace(**(vars(os) | {'geteuid': lambda: 1000})))
+    monkeypatch.setattr(proof, 'recover', lambda _: None)
+    def invoke(command, **_):
+        assert '--reference' in command and source in command
+        paths = [source, source] if failure == 'duplicate' else [source]
+        if failure == 'foreign':
+            paths = [str(run / 'unselected.json')]
+        payload = bundle.encoded(dict(error='evidence_unavailable', paths=paths)).decode()
+        if failure in ('permission', 'bad-json'):
+            payload = 'test-artifacts: PermissionError' if failure == 'permission' else 'invalid JSON'
+        return SimpleNamespace(returncode=2 if failure in ('permission', 'wrong-code') else 3,
+                               stderr=payload, stdout='')
+    monkeypatch.setattr(proof.subprocess, 'run', invoke)
+    expected = proof.EvidenceUnavailable if failure == 'expired' else ValueError
+    with pytest.raises(expected):
+        proof.preserve(campaign.plan, run, state, result)
+    assert not proof.locator(campaign.plan).exists()
+
+
+def test_evidence_renewal_keeps_exact_rejected_source_across_bounded_rotation(campaign):
+    original_run, state, result, _ = campaign.accepted('first')
+    proof._source(campaign.plan, original_run, state, result)
+    renewal = dict(reason='proof expired', result=result,
+                   evidence_source=state.pop('evidence_source'))
+    state['evidence_renewal'] = renewal
+    for _ in range(5):
+        run = campaign.namespace / uuid.uuid4().hex
+        run.mkdir(mode=0o700)
+        with campaign.runs.session():
+            bundle.retention.retain(run)
+        proof.carry(campaign.plan, run, state)
+        source = Path(renewal['evidence_source']['path'])
+        assert source.parent.parent == run
+        assert json.loads((source / 'agent-result.json').read_bytes()) == result
+        assert (source / 'agent-commands.log').read_text() == 'Exact commands for first'
+    assert not original_run.exists()
+    (source / 'agent-commands.log').write_text('changed')
+    with pytest.raises(ValueError, match='retained session source changed'):
+        proof.carry(campaign.plan, run, state)
+
+
 def test_renewed_acceptance_retains_both_exact_attempts(campaign):
     run, state, result, _ = campaign.accepted('first')
     old = proof.preserve(campaign.plan, run, state, result)

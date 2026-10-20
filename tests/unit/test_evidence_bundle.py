@@ -548,6 +548,80 @@ def test_recorded_foreign_checkout_allocation_is_refused(evidence):
             pytest.fail('recorded foreign allocation accepted')
 
 
+@pytest.mark.parametrize('defect', ['none', 'unselected', 'outside', 'credential', 'parent-link', 'leaf-link', 'live-replacement'])
+def test_plan_references_reuse_only_verified_exact_archived_members(evidence, defect):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    source = root / 'result.json'
+    archive = evidence.publish([root])['path']
+    for _ in range(3):
+        evidence.allocate({'later.json': b'later'})
+    assert not source.exists()
+    namespace = 'a' * 64
+    bundle.plan_parent(evidence.checkout, namespace, create=True)
+    reference = source
+    if defect == 'unselected':
+        reference = root / 'unselected.json'
+    elif defect == 'outside':
+        reference = evidence.checkout.parent / 'outside.json'
+    elif defect == 'credential':
+        reference = root / 'credentials.json'
+    elif defect == 'parent-link':
+        root.symlink_to(evidence.checkout.parent)
+    elif defect == 'leaf-link':
+        root.mkdir(mode=0o700)
+        source.symlink_to(evidence.checkout / 'absent.json')
+    elif defect == 'live-replacement':
+        root.mkdir(mode=0o700)
+        source.write_bytes(b'replacement')
+    selection = bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [],
+                                 plan_namespace=namespace, references=[str(reference), archive])
+    if defect == 'none':
+        with selection:
+            assert selection.files[str(source)][0]['sha256'] == bundle.digest(b'exact proof')
+            assert selection.files[str(source)][1][0] == 'bundle'
+    else:
+        expected = (bundle.EvidenceUnavailable if defect == 'unselected' else
+                    OSError if defect == 'parent-link' else ValueError)
+        with pytest.raises(expected) as failure:
+            with selection:
+                pytest.fail('unsafe or unproven reference accepted')
+        if defect != 'unselected':
+            assert not isinstance(failure.value, bundle.EvidenceUnavailable)
+
+
+def test_reference_fallback_requires_plan_and_never_weakens_live_revalidation(evidence):
+    root = evidence.allocate({'result.json': b'exact proof'})
+    source = root / 'result.json'
+    archive = evidence.publish([root])['path']
+    with pytest.raises(ValueError, match='validated plan'):
+        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [],
+                              references=[str(source), archive]):
+            pytest.fail('unscoped fallback accepted')
+    namespace = 'a' * 64
+    bundle.plan_parent(evidence.checkout, namespace, create=True)
+    with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [], [], [],
+                          plan_namespace=namespace, references=[str(source), archive]) as selection:
+        assert selection.files[str(source)][1][0] == 'source'
+        source.write_bytes(b'changed after inventory')
+        with pytest.raises(ValueError, match='identity changed'):
+            bundle.export(selection, expected=selection.selection_sha256)
+
+
+@pytest.mark.parametrize('kind', ['source', 'bundle'])
+def test_missing_mandatory_inputs_never_become_renewable_references(evidence, kind):
+    root = evidence.allocate({'result.json': b'proof'})
+    path = root / 'result.json' if kind == 'source' else Path(evidence.publish([root])['path'])
+    path.unlink()
+    namespace = 'a' * 64
+    bundle.plan_parent(evidence.checkout, namespace, create=True)
+    with pytest.raises(FileNotFoundError) as failure:
+        with bundle.Selection(evidence.checkout, os.geteuid(), os.getegid(), [],
+                              [str(path)] if kind == 'source' else [],
+                              [str(path)] if kind == 'bundle' else [], plan_namespace=namespace):
+            pytest.fail('missing mandatory input accepted')
+    assert not isinstance(failure.value, bundle.EvidenceUnavailable)
+
+
 def test_public_recovery_removes_only_recorded_incomplete_stage(evidence, monkeypatch):
     root = evidence.allocate({'result.json': b'proof'})
     previous = [Path(evidence.publish([root])['path']) for _ in range(3)]

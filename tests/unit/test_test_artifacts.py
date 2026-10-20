@@ -74,8 +74,36 @@ def test_scoped_bundle_helper_derives_owner_from_validated_plan(tmp_path, monkey
         yield SimpleNamespace(plan=lambda: {'selection_sha256': 'verified'})
     monkeypatch.setattr(evidence_bundle, 'Selection', selection)
     assert HELPER['main'](['bundle-plan', '--plan', 'docs/Plan.md', '--source', '/source']) == 0
-    assert seen == {'plan_namespace': execution_plan.plan_namespace('docs/Plan.md')}
+    assert seen == {'plan_namespace': execution_plan.plan_namespace('docs/Plan.md'), 'references': []}
     assert json.loads(capsys.readouterr().out)['selection_sha256'] == 'verified'
+
+
+@pytest.mark.parametrize('failure', ['missing', 'permission', 'integrity'])
+def test_scoped_helper_distinguishes_missing_references_from_refusals(tmp_path, monkeypatch, capsys, failure):
+    import evidence_bundle
+    import execution_plan
+    from types import SimpleNamespace
+    namespace = HELPER['main'].__globals__
+    monkeypatch.setitem(namespace, 'CHECKOUT', str(tmp_path))
+    monkeypatch.setitem(namespace, 'caller', lambda: (os.geteuid(), os.getegid()))
+    monkeypatch.setattr(execution_plan.Plan, 'load', lambda *_: SimpleNamespace(path='docs/Plan.md'))
+    path = str(tmp_path / 'output/test-runs/privileged/allocations/onpc-expired/result.json')
+    def selection(*_, **kwargs):
+        assert kwargs['references'] == [path]
+        if failure == 'missing':
+            raise evidence_bundle.EvidenceUnavailable([path])
+        if failure == 'permission':
+            raise PermissionError('private')
+        raise ValueError('bundle: allocation identity or mount changed')
+    monkeypatch.setattr(evidence_bundle, 'Selection', selection)
+    status = HELPER['main'](['bundle-plan', '--plan', 'docs/Plan.md', '--reference', path])
+    captured = capsys.readouterr()
+    assert not captured.out
+    if failure == 'missing':
+        assert status == 3
+        assert json.loads(captured.err) == dict(error='evidence_unavailable', paths=[path])
+    else:
+        assert status == 2 and captured.err.startswith('test-artifacts: ')
 
 
 @pytest.mark.parametrize('path', ['/tmp/onpc-system-future/input/anything',

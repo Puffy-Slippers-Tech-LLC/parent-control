@@ -84,6 +84,24 @@ an unpublished accepted result's command and cleanup records. Failed startup
 retries its recorded allocation before admitting another retention slot; changed
 identities and exceeded budgets refuse while preserving the previous owner.
 
+When an original report has rotated, an exact original member in an explicitly
+selected, fully verified bundle can supply its proof. Live sources still undergo
+the normal ownership, identity and conflict checks. If referenced proof is absent,
+the controller preserves the exact rejected result and session records, then
+returns to the coordinator to renew affected acceptance within the existing
+session allowance. Task/queue baselines, targets, suspended work and Git ownership
+remain protected. This recovery does not adopt unknown allocations, recreate
+expired reports or forgive integrity failures; unfinished Git transactions still
+refuse renewal.
+Continuations, blocked decisions and prerequisite suspension retain the exact
+renewal source across controller restarts until renewed proof is published and
+verified; a non-completion handoff never releases that evidence.
+The shared bundle reader resolves explicit plan references under its authorized
+identity, including root-private target sources through the authenticated helper.
+It reports exact missing references separately from ownership, permission and
+integrity failures; only that missing-reference result enters renewal. Mandatory
+controller records and previously accepted publications remain strict inputs.
+
 Where detailed historical proof is already lost, destination-only repair cannot
 make a stronger claim than the retained record supports. A selected recovery
 brief may contain one finite `plan-evidence-recovery` JSON request, binding its

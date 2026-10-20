@@ -166,6 +166,17 @@ above remains required. The current combined brief replaces only the former
 single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
 {result_recovery_instructions(state.get('result_recovery'))}
+{('Acceptance evidence expired before publication. Inspect the exact retained '
+  'response, command record and captured task inputs at '
+  + state['evidence_renewal']['evidence_source']['path'] + '. '
+  + state['evidence_renewal']['reason'] + '\n'
+  'Preserve the task, queue baseline, suspended consumers, acceptance targets '
+  'and Git ownership. Reuse verified surviving proof and rerun checks whose '
+  'detailed proof is lost. The checkpoint retains any applied evidence-recovery '
+  'transaction; do not reapply it or invent an expired receipt. Restore the '
+  'captured brief and unchecked row/pointer if returning continue. Return a '
+  'new result with exact available evidence before close-out.\n')
+ if state.get('evidence_renewal') else ''}
 {('The temporary brief is missing and no exact earlier brief snapshot was retained. '
   'Restore the authorized brief and return continue with the task unchecked. '
   'The next session must capture its exact restored input before completion; '
@@ -251,7 +262,8 @@ def initial_state(plan, spec, directory):
             read_authorization=lambda request: plan_evidence_recovery.read_authorization(plan, request))
         if (state.get('consolidation_obligations') and not any(
                 state.get(key) for key in ('in_flight', 'pending_completion',
-                                          'git_reconciliation', 'pull_intent', 'result_recovery'))):
+                                          'git_reconciliation', 'pull_intent', 'result_recovery',
+                                          'evidence_renewal'))):
             for task in plan.tasks():
                 if not task.complete:
                     validate_consolidated_metadata(task_record(task), state['consolidation_obligations'])
@@ -272,11 +284,13 @@ def initial_state(plan, spec, directory):
         recover_rejected_completion(plan, state, previous)
         for saved in [state, *state.get('suspended_tasks', {}).values()]:
             if saved.get('task') and saved.get('phase') != 'complete':
-                if not any(saved.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery')):
+                if not any(saved.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
+                                                     'evidence_renewal')):
                     validate_task_metadata(plan, saved)
                 saved['session_limit'] = saved.get('task_sessions', 0) + spec.max_sessions
         if state.get('phase') != 'complete':
-            if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery')):
+            if not any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
+                                                 'evidence_renewal')):
                 try:
                     plan.validate_recovery(state)
                 except ValueError:
@@ -488,7 +502,23 @@ def closeout(plan, spec, run, state):
     # Acceptance must outlive the disposable model session, including a later
     # interrupted Git transaction. Close nested owners before recording cleanup.
     launcher.finish_nested(plan.root, run)
-    index = plan_evidence.preserve(plan, run, state, result)
+    try:
+        index = plan_evidence.preserve(plan, run, state, result)
+    except plan_evidence.EvidenceUnavailable as error:
+        if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation')):
+            raise  # Never renew acceptance across an unfinished Git transaction.
+        plan_evidence._source(plan, run, state, result)
+        state.update(phase='recover', in_flight=False, plan_queue=plan.queue,
+                     evidence_renewal=dict(reason=str(error), result=result,
+                                          evidence_source=state['evidence_source']),
+                     handoff=result['handoff'] + '\n' + str(error))
+        state.pop('pending_completion')
+        state.pop('evidence_source')
+        launcher.atomic(run / 'checkpoint.json', state)
+        print(f'{spec.name}: {error} Returning to the coordinator within the existing '
+              'session limit; no task accepted.', flush=True)
+        return False
+    state.pop('evidence_renewal', None)  # Exact renewed proof is now durably verified.
     plan_evidence.rewrite_references(plan, state, index)
     validate_result(plan, state, result)
     if spec.commit_prefix:
@@ -535,7 +565,8 @@ def closeout(plan, spec, run, state):
 
 
 def load_plan(root, path, state):
-    if state.get('git_reconciliation') or state.get('pull_intent') or state.get('result_recovery'):
+    if any(state.get(key) for key in ('git_reconciliation', 'pull_intent', 'result_recovery',
+                                     'evidence_renewal')):
         # The pull itself can leave conflicts in the master/queue. Retain their
         # validated identities so a restart can resolve them before parsing.
         master = local_path(root, path)
@@ -851,7 +882,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')
                         and not initial.get('git_reconciliation') and not initial.get('pull_intent')
-                        and not initial.get('result_recovery')):
+                        and not initial.get('result_recovery') and not initial.get('evidence_renewal')):
                     raise validation_error
                 remaining = sum(not done for done in initial['queue_before'].values())
                 initial['handoff'] = (initial.get('handoff', '') + '\nReconcile interrupted close-out: ' + str(validation_error))

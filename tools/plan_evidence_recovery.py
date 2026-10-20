@@ -80,7 +80,7 @@ def request_from_brief(plan, state):
         return None
     brief = Path(task.get('brief', ''))
     if not brief.exists() and (state.get('phase') == 'complete' or any(state.get(key) for key in (
-            'in_flight', 'pending_completion', 'git_reconciliation', 'result_recovery'))):
+            'in_flight', 'pending_completion', 'git_reconciliation', 'result_recovery', 'evidence_renewal'))):
         return None  # Ordinary interrupted completion owns a removed brief.
     try:
         relative = str(brief.relative_to(plan.root))

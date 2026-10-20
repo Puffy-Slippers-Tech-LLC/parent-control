@@ -1416,6 +1416,110 @@ def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, pub
         assert events == ['cleanup', 'proof', 'pull', 'stage', 'commit']
 
 
+@pytest.mark.parametrize('exhausted', [False, True])
+def test_missing_publication_proof_renews_acceptance_with_original_limits_and_ownership(
+        rig, monkeypatch, exhausted):
+    state = state_for(rig.plan, task_sessions=1, total_sessions=3,
+                      session_limit=1 if exhausted else 5,
+                      protected_staged=['unrelated.md'], stage_baseline={'owned.md': 'original'})
+    original = response(state)
+    state['pending_completion'] = original
+    complete(rig.plan, '001')
+    (rig.root / 'docs/001.md').unlink()
+    attempts, staged = [], []
+    source = str(rig.run / 'accepted-source/exact')
+    monkeypatch.setattr(workflow.plan_evidence, '_source',
+                        lambda plan, run, saved, result: saved.update(evidence_source={'path': source}))
+
+    def preserve(plan, run, saved, result):
+        attempts.append(result)
+        if len(attempts) == 1:
+            raise workflow.plan_evidence.EvidenceUnavailable(['/report.md'])
+
+    def execute(root, spec, run, owner):
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        assert saved['evidence_renewal']['result'] == original
+        assert saved['protected_staged'] == ['unrelated.md']
+        assert saved['stage_baseline'] == {'owned.md': 'original'}
+        assert saved['queue_before'] == state['queue_before']
+        assert 'pending_completion' not in saved and not staged
+        assert 'rerun checks whose detailed proof is lost' in (run / 'prompt.txt').read_text()
+        (rig.root / 'docs/001.md').write_text('Acceptance: host\n')
+        rig.calls.append(saved['task_sessions'])
+        return dict(original, summary='Fresh acceptance with available proof')
+
+    monkeypatch.setattr(workflow.plan_evidence, 'preserve', preserve)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'stage_task', lambda _, paths, **__: staged.extend(paths) or paths)
+    assert rig.worker(state) == (1 if exhausted else 0)
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert rig.calls == ([] if exhausted else [2])
+    assert TaskBudget(rig.run).read()['completed'] == (0 if exhausted else 1)
+    if exhausted:
+        assert saved['evidence_renewal']['result'] == original and not staged
+        monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+        restored = workflow.initial_state(rig.plan, rig.spec, rig.root)
+        assert restored['evidence_renewal'] == saved['evidence_renewal']
+        assert 'pending_completion' not in restored
+        assert restored['queue_before'] == saved['queue_before']
+        assert restored['session_limit'] == restored['task_sessions'] + rig.spec.max_sessions
+    else:
+        assert 'evidence_renewal' not in saved and len(attempts) == 2
+
+
+@pytest.mark.parametrize('transaction', ['commit_intent', 'pull_intent', 'git_reconciliation'])
+def test_unavailable_proof_does_not_renew_across_git_transaction(rig, monkeypatch, transaction):
+    state = state_for(rig.plan, **{transaction: {'retained': True}})
+    original = response(state)
+    state['pending_completion'] = original
+    complete(rig.plan, '001')
+    def preserve(*_):
+        raise workflow.plan_evidence.EvidenceUnavailable(['/expired.md'])
+    monkeypatch.setattr(workflow.plan_evidence, 'preserve', preserve)
+    with pytest.raises(workflow.plan_evidence.EvidenceUnavailable):
+        workflow.closeout(rig.plan, rig.spec, rig.run, state)
+    assert state['pending_completion'] == original
+    assert 'evidence_renewal' not in state and state[transaction] == {'retained': True}
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+@pytest.mark.parametrize('status', ['continue', 'blocked', 'prerequisite_required'])
+def test_unfinished_renewal_survives_valid_handoffs_and_fresh_controller(rig, monkeypatch, status):
+    state = state_for(rig.plan, phase='recover', task_sessions=1, total_sessions=3,
+                      session_limit=2, plan_queue=rig.plan.queue)
+    renewal = dict(reason='Exact proof expired', result=response(state),
+                   evidence_source=dict(path=str(rig.run / 'accepted-source/exact')))
+    state['evidence_renewal'] = renewal
+    def execute(root, spec, run, owner):
+        saved = json.loads((run / 'checkpoint.json').read_text())
+        if saved['task_id'] == 'pre':
+            assert saved['suspended_tasks']['001']['evidence_renewal'] == renewal
+            (run / 'stop').touch()
+            return response(saved, 'continue')
+        assert saved['evidence_renewal'] == renewal
+        if status == 'prerequisite_required':
+            insert_unlinked_prerequisite(rig.plan, '001')
+            queue = root / rig.plan.queue
+            queue.write_text(queue.read_text().replace('| — | finite scope 001', '| pre | finite scope 001'))
+        result = response(saved, status)
+        if status == 'blocked':
+            result['blocker'] = dict(explanation='A developer decision is required.',
+                question='Which route is authorized?', options=['Preserve the boundary.', 'Authorize the route.'])
+        return result
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'wait_for_answer', lambda *_, **__: None)
+    assert rig.worker(state) == (1 if status == 'continue' else 0)
+    saved = json.loads((rig.run / 'checkpoint.json').read_text())
+    consumer = saved['suspended_tasks']['001'] if status == 'prerequisite_required' else saved
+    assert consumer['evidence_renewal'] == renewal
+    assert TaskBudget(rig.run).read()['completed'] == 0
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    restored = workflow.initial_state(rig.plan, rig.spec, rig.root)
+    consumer = restored['suspended_tasks']['001'] if status == 'prerequisite_required' else restored
+    assert consumer['evidence_renewal'] == renewal
+    assert 'pending_completion' not in consumer
+
+
 @pytest.mark.parametrize('failure', ['pull', 'stage', 'commit', 'push'])
 def test_default_git_failure_retains_acceptance_and_retries_before_next_task(rig, monkeypatch, failure):
     events = []

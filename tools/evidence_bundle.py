@@ -27,6 +27,20 @@ MAX_BYTES = 1024 ** 3
 SCHEMA = 1
 
 
+class EvidenceUnavailable(FileNotFoundError):
+    """Explicit plan references lack live or exactly archived proof."""
+
+    def __init__(self, paths):
+        self.paths = list(paths)
+        super().__init__('plan evidence: exact referenced proof is unavailable: '
+                         + ', '.join(self.paths)
+                         + '. Renew the affected acceptance checks and evidence; '
+                           'do not recreate expired reports or weaken acceptance.')
+
+    def payload(self):
+        return dict(error='evidence_unavailable', paths=self.paths)
+
+
 def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True).encode()
 
@@ -148,9 +162,11 @@ def stream_bytes(stream, size, output=None):
 
 
 class Selection:
-    def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None):
+    def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None,
+                 references=()):
         self.checkout, self.uid, self.gid = Path(checkout), uid, gid
         self.targets, self.sources, self.bundles = targets, sources, bundles
+        self.references = list(references)
         self.stack = ExitStack()
         self.export_stack = self.stack.enter_context(ExitStack())
         self.reader_uid, self.reader_gid = os.geteuid(), os.getegid()
@@ -234,10 +250,13 @@ class Selection:
         return result
 
     def load(self):
-        if (not self.sources and not self.bundles) or len(self.sources) + len(self.bundles) > 256:
+        values = [*self.sources, *self.bundles, *self.references]
+        if not values or len(values) > 256:
             raise ValueError('bundle: select between one and 256 explicit sources')
-        if len(set(self.sources + self.bundles)) != len(self.sources + self.bundles):
+        if len(set(values)) != len(values):
             raise ValueError('bundle: duplicate selected source')
+        if self.references and self.plan_namespace is None:
+            raise ValueError('bundle: renewable references require a validated plan')
         for journal, uid, gid in self.catalogue():
             with identity(uid, gid):
                 publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
@@ -258,22 +277,15 @@ class Selection:
                 if measured > retention.MAX_RETAINED_BYTES:
                     raise ValueError('bundle: source journal exceeds its existing budget')
                 self.source_budgets.append(dict(journal=str(journal), allocated_bytes=measured))
-        for value in self.sources:
+        missing, archived = [], []
+        for value in self.references:
             path = path_text(value)
             privacy(path)
-            record = self.record(path)
-            # A plan accepts a complete host report, including its exact input,
-            # command and cleanup records, rather than only the linked summary.
-            if self.plan_namespace is not None and Path(record['path']).parent.name == 'reports':
-                with self.open(path):
-                    pass  # A missing named report is never replaced by siblings.
-                path = Path(record['path'])
-            with self.open(path) as (fd, info):
-                if stat.S_ISDIR(info.st_mode):
-                    self.walk(fd, path, record, depth=0)
-                else:
-                    self.add_file(fd, info, path, record)
-        for value in self.bundles:
+            if path.name == 'evidence.zip':
+                if not path.parent.name.startswith('onpc-evidence-bundle-'):
+                    raise ValueError('bundle: expected a retained evidence bundle')
+                (archived if self.reference_present(path) else missing).append(value)
+        for value in [*self.bundles, *archived]:
             path = path_text(value)
             if path.name != 'evidence.zip' or not path.parent.name.startswith('onpc-evidence-bundle-'):
                 raise ValueError('bundle: expected a retained evidence bundle')
@@ -302,6 +314,18 @@ class Selection:
                                           files=len(manifest['files'])))
                 for entry in manifest['files']:
                     self.add_entry(entry, ('bundle', value, entry['member']))
+        for value in self.sources:
+            self.load_source(path_text(value))
+        for value in self.references:
+            path = path_text(value)
+            if path.name == 'evidence.zip':
+                continue
+            if self.reference_present(path):
+                self.load_source(path)
+            elif value not in self.files:
+                missing.append(value)
+        if missing:
+            raise EvidenceUnavailable(missing)
         if not self.files:
             raise ValueError('bundle: selection contains no evidence files')
         self.manifest = dict(schema=SCHEMA, files=[], inherited=self.previous,
@@ -329,6 +353,43 @@ class Selection:
                                  limit_bytes=retention.MAX_RETAINED_BYTES)
         if self.export_budget['simultaneous_bytes'] > retention.MAX_RETAINED_BYTES:
             raise ValueError('bundle: selected export and retained exports exceed the existing budget')
+
+    def reference_present(self, path):
+        """Probe only checkout evidence without traversing a source symlink.
+
+        This runs under the reader's identity and pinned journal leases. Missing
+        paths are renewable, while inaccessible or unsafe paths still refuse.
+        Existing files must subsequently pass recorded-allocation validation.
+        """
+        for ancestor in (path, *path.parents):
+            try:
+                checkout_allocation(self.checkout, dict(path=str(ancestor)))
+            except ValueError:
+                continue
+            break
+        else:
+            raise ValueError('bundle: reference is outside checkout evidence storage')
+        try:
+            with retention.directory_descriptor(path.parent) as parent:
+                os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        return True
+
+    def load_source(self, path):
+        privacy(path)
+        record = self.record(path)
+        # A plan accepts the complete host report and its exact supporting
+        # records. Missing named reports must never be replaced by siblings.
+        if self.plan_namespace is not None and Path(record['path']).parent.name == 'reports':
+            with self.open(path):
+                pass
+            path = Path(record['path'])
+        with self.open(path) as (fd, info):
+            if stat.S_ISDIR(info.st_mode):
+                self.walk(fd, path, record, depth=0)
+            else:
+                self.add_file(fd, info, path, record)
 
     def record(self, path):
         matches = [record for root, record in self.records.items() if path.is_relative_to(root)]
@@ -404,6 +465,8 @@ class Selection:
             if {k: v for k, v in old[0].items() if k != 'member'} != {
                     k: v for k, v in entry.items() if k != 'member'}:
                 raise ValueError('bundle: conflicting evidence for an original path')
+            if old[1][0] == 'bundle' and origin[0] == 'source':
+                self.files[entry['path']] = (entry, origin)
             return
         self.files[entry['path']] = (entry, origin)
         self.total_bytes += entry['bytes']

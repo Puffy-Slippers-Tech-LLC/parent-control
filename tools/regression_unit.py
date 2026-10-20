@@ -1597,6 +1597,15 @@ def buckets(nodeids):
 # compatible unit scheduling; cleanup/UI inventories gain no module or resource.
 # Target-journal catalogue checks use private paths and process-local identity/
 # registry doubles; they neither switch credentials nor inspect real journals.
+# Publication-renewal checks retain the same private trees and synchronous
+# controller doubles. Rotated-report and corrupted/replaced-source controls use
+# tiny local archives; no new shared paths, child processes or resource owners
+# are added to either plan module's compatible scheduling classification.
+# Shared plan-reference resolution adds small private archive/source trees and
+# process-local helper/identity doubles to evidence_bundle, plan_evidence and
+# test_artifacts. Mutation controls and pinned descriptor probes add no real
+# privileged service, process owner, shared cache or socket. Existing compatible
+# classifications and cleanup/UI inventories remain unchanged.
 # Recovery-diagnostic export/rotation checks reuse those private journals and
 # bounded ZIP fixtures, with no new shared resources or subprocesses.
 # Aggregate dispatcher retention uses real stores below tmp_path and fixture-local

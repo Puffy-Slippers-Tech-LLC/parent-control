@@ -233,3 +233,11 @@ def test_ui_defaults_timeout_and_preserves_host_only_boundary(ui_run):
     args, options = selected_options(run.root, ['-m', 'chosen', '--maxfail=0'])
     assert args[:2] == options[:2] == ['--timeout', '1800s']
     assert '-m=(chosen) and not live_e2e' in options
+
+
+@pytest.mark.parametrize('timeout', [['--timeout', '240s'], ['--timeout=240s']])
+def test_ui_trailing_timeout_overrides_bucket_default(ui_run, timeout):
+    run, _ = ui_run
+    args, options = selected_options(run.root, ['tests/ui', '-q', *timeout])
+    assert args == ['tests/ui', '-q', *timeout]
+    assert options[:2] == ['--timeout', '240s']

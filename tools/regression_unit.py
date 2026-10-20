@@ -462,6 +462,11 @@ UI timeout/cancellation probes run small synthetic pytest children in private
 owned process groups, with tmp_path inputs and disabled caches. Each directly
 spawned worker and foreign sentinel is pinned/waited; no GUI, bus or shared
 process group is touched. Both unit and cleanup classifications stay compatible.
+The same finite probes cover unit/component deadlines sequentially within that
+module. Parser/dispatch checks mock execution and use private checkout trees;
+selected unit/UI checks reuse their existing private report and worker doubles.
+No live service, shared path/cache or additional concurrent resource is added;
+the existing whole-module unit and cleanup reservations remain appropriate.
 Timeout handoff qualification writes reports through shared storage beneath
 its private checkout and drives finite repair/verification callbacks, no real
 Codex agent. Descendant-exit receipts use private pidfds, never process scans.

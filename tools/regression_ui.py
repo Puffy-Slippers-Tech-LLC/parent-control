@@ -161,11 +161,12 @@ def selected_options(root, args):
     UI-only execution gets the host bucket timeout by default. The shared
     launcher combines caller marker filters with the host-only boundary.
     """
-    from test_launcher import pytest_command
-    args = list(args) if args[:1] == ['--timeout'] else [*TIMEOUT_ARGS, *args]
+    from test_launcher import pytest_command, timeout_value
+    timeout = timeout_value(args, 'ui')
+    args = list(args) if timeout is not None else [*TIMEOUT_ARGS, *args]
     command = pytest_command(root, args, 'ui')
     options = command[command.index('no:cacheprovider') + 1:command.index('--')]
-    return args, ['--timeout', args[1], *options]
+    return args, ['--timeout', timeout if timeout is not None else TIMEOUT_ARGS[1], *options]
 
 
 def serial_options(options):

@@ -87,11 +87,12 @@ def test_unit_uses_available_branches_without_extra_categories(unit_run, slots):
     assert f'maximum-active={slots}' in (run.report.directory / 'report.md').read_text()
 
 
-def test_unit_retains_exact_selectors_filters_and_category_order(unit_run):
+@pytest.mark.parametrize('timeout', [[], ['--timeout', '180s'], ['--timeout=3m']])
+def test_unit_retains_exact_selectors_filters_and_category_order(unit_run, timeout):
     run, control = unit_run
     control.nodes = control.nodes[:2]
     args = [*control.nodes, '-q', '-k', 'chosen', '-m', 'unit',
-            '--ignore=tests/unit/test_preferences.py', '--durations', '5', '--maxfail=0']
+            '--ignore=tests/unit/test_preferences.py', '--durations', '5', '--maxfail=0', *timeout]
     run.selections = [('static', ['shell']), ('unit', args), ('static', ['gjs'])]
     run.categories[:] = [regression.Category('before', 1, host=True), run.categories[0],
                          regression.Category('after', 1, host=True)]
@@ -107,7 +108,10 @@ def test_unit_retains_exact_selectors_filters_and_category_order(unit_run):
         assert '--ignore=tests/unit/test_preferences.py' in command
         assert '--durations=5' in command and '--maxfail=0' in command
         assert 'tests/unit' not in command
-        assert '--timeout' not in command
+        if timeout:
+            assert command[3:5] == ['--timeout', '3m' if '=' in timeout[0] else '180s']
+        else:
+            assert '--timeout' not in command
 
 
 @pytest.mark.parametrize('failure', ['inventory', 'setup', 'teardown'])

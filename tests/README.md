@@ -207,6 +207,15 @@ This selection adds no other categories or cleanup prerequisite inventory.
 
 Unit file/case selectors, `-k`, `-m` and scoped ignores preserve the exact
 collected IDs, and each worker must account for every assigned case once.
+Unit, component and UI selections accept `--timeout DURATION` or
+`--timeout=DURATION` before or after test paths. Durations must be positive and
+finite, with optional `s`, `m`, `h` or `d` suffixes. The runner applies the limit
+separately to collection and each scheduled worker, preserving it through
+parallel dispatch and serial failure-limit execution; it never forwards it to
+a pytest timeout plugin. Unit and component have no deadline by default.
+Direct UI keeps its 60-second default; scheduled UI keeps the bucket default
+described above. Explicit limits use the shared owned-process controller and
+bounded cleanup described above for UI.
 `-x`/`--exitfirst` and positive `--maxfail` keep one serial invocation so the
 failure limit remains selection-wide. `tools/run-unit-tests` remains the direct
 serial route for narrow iteration or diagnosis. Its execution output also appears

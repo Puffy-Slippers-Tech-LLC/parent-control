@@ -142,11 +142,12 @@ def test_ui_output_finalization_never_signals_an_already_reaped_group(tmp_path, 
 
 @pytest.mark.parametrize('cause', ['deadline', 'cancel', 'leader-exits', 'quiet-descendant',
                                   'pidfd-refused'])
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
 def test_ui_timeout_reaps_an_unresponsive_worker_and_preserves_foreign_child(
-        tmp_path, monkeypatch, cause):
+        tmp_path, monkeypatch, cause, category):
     import test_launcher
     from regression_process import Control
-    ui = tmp_path / 'tests/ui/test_stalled.py'
+    ui = tmp_path / 'tests' / category / 'test_stalled.py'
     ui.parent.mkdir(parents=True)
     script = '''import signal,subprocess,sys,time
 def test_stalled():
@@ -173,7 +174,8 @@ def test_stalled():
     python.symlink_to(sys.executable)
     monkeypatch.setattr(test_launcher, 'UI_KILL_AFTER', .2)
     command = test_launcher.pytest_command(tmp_path,
-        ['--timeout', '2s' if cause == 'deadline' else '20s', '-s', str(ui.relative_to(tmp_path))], 'ui')
+        ['-s', str(ui.relative_to(tmp_path)), '--timeout',
+         '2s' if cause == 'deadline' else '20s'], category)
     sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
     descriptor = os.pidfd_open(sentinel.pid)
     spawned = []

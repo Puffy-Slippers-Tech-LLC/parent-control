@@ -6,7 +6,7 @@ import time
 from regression import CATEGORY_NAMES, Category, Run
 from regression_inputs import identity as source_identity
 from regression_ui import selected_options, serial_options
-from test_launcher import pytest_command
+from test_launcher import pytest_command, timeout_value
 from test_commands import CATEGORIES
 
 
@@ -89,6 +89,9 @@ class SelectedRun(Run):
         else:
             command = pytest_command(self.root, args, kind)
             options = command[command.index('no:cacheprovider') + 1:command.index('--')]
+            timeout = timeout_value(args, kind)
+            if timeout is not None:
+                options = ['--timeout', timeout, *options]
         serial = self.serial_host or serial_options(options)
         if serial and self.checkpoint is None:
             reason = ('preserves the direct launcher contract' if self.serial_host else

@@ -305,6 +305,7 @@ UI-only validation (same UI buckets and resource limits as host)
 
 Unit-only validation (same unit buckets and resource limits as host)
   tools/run-tests unit
+  tools/run-tests unit 'tests/unit/test_test_launchers.py' --timeout 180s
   tools/run-tests unit 'tests/unit/test_regression*.py' -q
 
   Balances selected modules across up to four branches; fixtures stay together.
@@ -313,6 +314,13 @@ Unit-only validation (same unit buckets and resource limits as host)
   Adds no other suites, package stages, or cleanup prerequisite inventory.
   -x/--exitfirst or positive --maxfail keeps one serial unit invocation.
   Direct tools/run-unit-tests remains serial for narrow iteration/diagnosis.
+
+  Unit, component and UI accept --timeout DURATION before or after test paths,
+  including --timeout=DURATION. The runner owns this positive, finite worker
+  deadline (s/m/h/d suffixes); it is not a pytest plugin option. Parallel
+  selections apply it separately to collection and each scheduled worker.
+  Unit/component have no deadline by default. Direct UI defaults to 60s;
+  scheduled UI buckets default to 1800s. Explicit limits replace those defaults.
 
 Granular categories (all's partition)
 {listing}

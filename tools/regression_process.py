@@ -93,7 +93,7 @@ class Control:
 
     Privileged dispatchers receive STOP/EOF on inherited stdin. Their parent
     waits until the child finishes its guarded cleanup, including VM restore.
-    UI timeouts additionally retire the child's private process group, keeping
+    Worker timeouts additionally retire the child's private process group, keeping
     its leader unreaped until output draining and bounded cleanup finish.
     """
 
@@ -137,7 +137,7 @@ class Control:
         bounded_group = timeout is not None
         if bounded_group and (cooperative or not math.isfinite(timeout) or timeout <= 0
                               or not math.isfinite(kill_after) or kill_after <= 0):
-            raise ValueError('invalid owned UI timeout')
+            raise ValueError('invalid owned worker timeout')
         if cancel_signal not in (signal.SIGINT, signal.SIGTERM):
             raise ValueError('invalid owned cancellation signal')
         if self.stopped.is_set():
@@ -253,11 +253,11 @@ class Control:
                     if bounded_group and not sent and now >= deadline:
                         sent = timed_out = True
                         retirement = now + kill_after
-                        emit(b'UI worker deadline reached; terminating its owned process group.\n')
+                        emit(b'Test worker deadline reached; terminating its owned process group.\n')
                         signal_group(signal.SIGTERM)
                     if retirement is not None and not forced and now >= retirement:
                         forced = True
-                        emit(b'UI worker cleanup deadline reached; killing its owned process group.\n')
+                        emit(b'Test worker cleanup deadline reached; killing its owned process group.\n')
                         signal_group(signal.SIGKILL)
                     for key, _ in poller.select(0.1):
                         if bounded_group and key.fd == descriptor:
@@ -275,7 +275,7 @@ class Control:
                         # Finish the bounded drain without signalling that
                         # unowned session, and retain the leader until the
                         # final group signal below has completed.
-                        emit(b'UI output pipe remained open after cleanup; closing its reader.\n')
+                        emit(b'Test output pipe remained open after cleanup; closing its reader.\n')
                         for key in list(poller.get_map().values()):
                             poller.unregister(key.fileobj)
                             key.fileobj.close()
@@ -377,8 +377,9 @@ def host_run(root, category, argv, *, pipe=True):
         if category == 'ui':
             import test_retention
             env.update(test_retention.environment())
-        bounded = (dict(timeout=host.ui_timeout(argv), kill_after=host.UI_KILL_AFTER)
-                   if category == 'ui' else {})
+        timeout = host.pytest_timeout(argv, category)
+        bounded = (dict(timeout=timeout, kill_after=host.UI_KILL_AFTER)
+                   if timeout is not None else {})
         return control.run(command, cwd=root, env=env, **bounded)
 
 

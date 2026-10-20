@@ -27,12 +27,12 @@ def nonnegative(value):
     return number
 
 
-def arguments(argv, category='unit'):
+def _arguments(argv, category):
     prog = f'tools/run-{category}-tests' if category in ('unit', 'ui') else f'tools/run-tests {category}'
     help_text = ('Quote patterns and parametrized node IDs. Scoped exclusions: '
                  f'--ignore=tests/{category}/PATH_OR_PATTERN.')
-    if category == 'ui':
-        help_text += ' Put --timeout DURATION before selections/options (default 60s; s/m/h/d suffixes).'
+    if category in ('unit', 'component', 'ui'):
+        help_text += ' --timeout DURATION bounds each worker (s/m/h/d suffixes).'
     parser = ArgumentParser(
         prog=prog, description=__doc__, allow_abbrev=False, epilog=help_text)
     parser.add_argument('selectors', nargs='*', metavar='TEST_PATH',
@@ -48,7 +48,13 @@ def arguments(argv, category='unit'):
     parser.add_argument('--maxfail', type=nonnegative)
     parser.add_argument('--durations', type=nonnegative)
     parser.add_argument('--tb', choices=('auto', 'long', 'short', 'line', 'native', 'no'))
+    if category in ('unit', 'component', 'ui'):
+        parser.add_argument('--timeout', type=duration, action='append', metavar='DURATION',
+                            help='positive worker deadline; may appear before or after test paths')
     args = parser.parse_intermixed_args(argv)
+    timeouts = getattr(args, 'timeout', None) or []
+    if len(timeouts) > 1:
+        raise ValueError('specify --timeout only once')
     options = ['-q'] * args.quiet + ['-v'] * args.verbose
     for enabled, flag in ((args.exitfirst, '-x'), (args.s, '-s'),
                           (args.collect_only, '--collect-only'),
@@ -60,7 +66,12 @@ def arguments(argv, category='unit'):
         if value is not None:
             flag = '-' + name if len(name) == 1 else '--' + name
             options.append(f'{flag}={value}')
-    return args.selectors or [f'tests/{category}'], options
+    return args.selectors or [f'tests/{category}'], options, next(iter(timeouts), None)
+
+
+def arguments(argv, category='unit'):
+    selectors, options, _ = _arguments(argv, category)
+    return selectors, options
 
 
 def validate_path(root, path, category='unit'):
@@ -203,26 +214,32 @@ def prerequisites(root):
 def duration(value):
     if not re.fullmatch(r'(?:[0-9]+(?:\.[0-9]+)?)(?:[smhd])?', value):
         raise ValueError('invalid timeout duration')
-    number = float(value.rstrip('smhd'))
+    number = float(value.rstrip('smhd')) * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}.get(value[-1], 1)
     if not 0 < number < float('inf'):
         raise ValueError('timeout must be positive and finite')
     return value
 
 
-def ui_timeout(argv):
-    value = duration(argv[1]) if argv[:1] == ['--timeout'] and len(argv) > 1 else '60s'
+def timeout_value(argv, category, *, default=None):
+    _, _, value = _arguments([arg for arg in argv if not arg.startswith('--ignore=')], category)
+    return value if value is not None else default
+
+
+def pytest_timeout(argv, category):
+    value = timeout_value(argv, category, default='60s' if category == 'ui' else None)
+    if value is None:
+        return None
     return float(value.rstrip('smhd')) * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}.get(value[-1], 1)
 
 
+def ui_timeout(argv):
+    return pytest_timeout(argv, 'ui')
+
+
 def pytest_command(root, argv, category):
-    if category == 'ui' and argv[:1] == ['--timeout']:
-        if len(argv) < 2:
-            raise ValueError('timeout value required')
-        duration(argv[1])
-        argv = argv[2:]
     ignores = [arg.removeprefix('--ignore=') for arg in argv if arg.startswith('--ignore=')]
     argv = [arg for arg in argv if not arg.startswith('--ignore=')]
-    selectors, options = arguments(argv, category)
+    selectors, options, _ = _arguments(argv, category)
     if category == 'ui':
         # UI is a host-only category. Keep this boundary in the shared command
         # builder so aggregate, selected and direct launchers cannot diverge.
@@ -252,11 +269,12 @@ def run_host(root, category, argv):
     count = len(command) - command.index('--') - 1
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',
           file=sys.stderr, flush=True)
-    if category == 'ui':
+    timeout = pytest_timeout(argv, category)
+    if timeout is not None:
         from regression_process import Control
         with Control().installed() as control:
             return control.run(command, cwd=root, env=test_environment(root),
-                               timeout=ui_timeout(argv), kill_after=UI_KILL_AFTER)
+                               timeout=timeout, kill_after=UI_KILL_AFTER)
     from test_storage import scratch_descriptors
     return subprocess.run(command, env=test_environment(root),
                           pass_fds=scratch_descriptors(), check=False).returncode

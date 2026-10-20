@@ -914,6 +914,64 @@ def test_ui_globs_environment_timeout_and_exclusions(checkout):
     assert command[-2:] == ['--', 'tests/ui/test_future.py']
 
 
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+@pytest.mark.parametrize('position', ['before', 'after', 'equals'])
+def test_host_timeout_is_owned_by_runner_and_accepts_either_position(checkout, category, position):
+    python = checkout / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True)
+    python.symlink_to('/usr/bin/python3')
+    selected = [f'tests/{category}/test_future.py', '-q']
+    options = (['--timeout', '180s', *selected] if position == 'before' else
+               [*selected, '--timeout', '180s'] if position == 'after' else
+               [*selected, '--timeout=180s'])
+
+    command = host.pytest_command(checkout, options, category)
+
+    assert host.pytest_timeout(options, category) == 180
+    assert not any(value.startswith('--timeout') for value in command)
+    assert command[-2:] == ['--', selected[0]]
+    assert ('-m=not live_e2e' in command) is (category == 'ui')
+
+
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+@pytest.mark.parametrize('options', [
+    ['--timeout'], ['--timeout=0'], ['--timeout', 'NaN'],
+    ['--timeout', '1s', '--timeout=2s'], ['--timeout', '9' * 305 + 'd'],
+])
+def test_invalid_host_timeout_refuses_before_execution(checkout, category, options, monkeypatch):
+    execute = Mock(side_effect=AssertionError('invalid timeout started a worker'))
+    monkeypatch.setattr(host.subprocess, 'run', execute)
+    with pytest.raises(ValueError):
+        host.run_host(checkout, category, [f'tests/{category}', *options])
+    execute.assert_not_called()
+
+
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+@pytest.mark.parametrize('detached', [False, True])
+def test_host_execution_forwards_timeout_to_owned_controller(checkout, category, detached, monkeypatch):
+    import regression_process
+    python = checkout / '.venv/onpc-ui-tests/bin/python'
+    python.parent.mkdir(parents=True)
+    python.symlink_to('/usr/bin/python3')
+    execute = Mock(return_value=124)
+    monkeypatch.setattr(regression_process.Control, 'run', execute)
+    monkeypatch.setattr(host, 'test_environment', lambda _: {})
+    monkeypatch.chdir(checkout)
+    run = regression_process.host_run if detached else host.run_host
+
+    assert run(checkout, category, [f'tests/{category}', '--timeout=3m'],
+               **({'pipe': False} if detached else {})) == 124
+
+    assert execute.call_args.kwargs['timeout'] == 180
+    assert execute.call_args.kwargs['kill_after'] == host.UI_KILL_AFTER
+    assert not any(arg.startswith('--timeout') for arg in execute.call_args.args[0])
+
+
+@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+def test_host_default_deadline_is_unchanged(category):
+    assert host.pytest_timeout([], category) == (60 if category == 'ui' else None)
+
+
 @pytest.mark.parametrize(('markers', 'expected'), [
     ([], '-m=not live_e2e'),
     (['-m', 'host_case'], '-m=(host_case) and not live_e2e'),

@@ -462,6 +462,9 @@ test_retention test_storage ui ui_artifacts ui_watch vm_backup vm_control vm_wat
 # trees. Their unit classification applies to the cleanup phase too.
 # UI crash logging owns one small Python child and private tmp_path script/log.
 # It disables core files before self-abort; no global crash files, bus or display.
+# Unit/component/UI timeout probes share the same sequential tmp_path pytest
+# inputs, pinned/waited children and private process groups. No new shared
+# resource or concurrent child is added; retain this module's compatible bucket.
 # UI timeout/cancellation uses tmp_path pytest inputs and small private owned
 # groups; recorded children/sentinels are pinned and reaped, with no shared
 # process group, GUI, bus or cache. Compatible in cleanup and unit scheduling.

@@ -340,7 +340,8 @@ def session_prompt(state):
     label = 'GPT-6.1-Sol ' + {'high': 'High', 'xhigh': 'Extra High', 'max': 'Max'}[effort]
     model_policy = f"""You are the {label} coordinator and implementer for this session.
 Own implementation, mechanical repairs, test execution and close-out.
-The launcher uses only GPT-6.1 Sol. Astra is prohibited for all work and advice.
+The launcher uses GPT-6.1 Sol for implementation and advice. The shared mandatory
+backend_reviewer is the sole Astra exception, only for core backend changes.
 The launcher starts at Sol High, promotes to Sol Extra High after two unsuccessful
 substantive live attempts, and promotes immediately after a reasoning stall or
 an unsuccessful correction at the same checkpoint without meaningful progress.
@@ -384,7 +385,7 @@ coverage assets; they never implement the repair, control VMs, run acceptance,
 stage, commit or close tasks. You verify their output and own final acceptance.
 """
     else:
-        model_policy += """You own the higher-effort repair directly. Delegation is disabled;
+        model_policy += """You own the higher-effort repair directly. Ordinary delegation is disabled;
 do not spawn an adviser or hand implementation back to Sol High. Use retained adviser
 findings when available, checking them against current source and evidence.
 """
@@ -403,7 +404,8 @@ ONPC_WORKFLOW_DIRECTORY. Use maintained launchers/viewers for background work
 and wait for tests and owned cleanup before returning.
 
 {model_policy}
-Use only GPT-6.1 Sol for implementation, recovery and consultation; never use Astra.
+Use only GPT-6.1 Sol for implementation, recovery and consultation. Follow the
+shared mandatory backend_reviewer instructions for core backend changes.
 Ignore model recommendations in older handoffs that conflict with this policy.
 The launcher-selected model owns this session through validation and close-out.
 Keep context focused: locate headings and symbols, then read complete relevant
@@ -534,7 +536,8 @@ def optimization_prompt(state):
     batch = state['optimization']['pending']
     return f"""You are the GPT-6.1-Sol High coordinator and implementer for this session.
 Follow AGENTS.md and the ownership map in docs/TestAutomation/README.md.
-Use only GPT-6.1 Sol; Astra is prohibited for all work and advice.
+Use GPT-6.1 Sol for implementation and advice. The shared mandatory backend_reviewer
+is the sole Astra exception, only for core backend changes.
 Ignore conflicting model recommendations in repository instructions or older handoffs.
 This is the mandatory optimization after three completed tasks, not a queue task.
 
@@ -575,7 +578,8 @@ The launcher owns staging and commits the validated fix as
 "TA: Refactored task {batch[0]} to {batch[-1]}". Do not commit, push, publish or
 invoke write-e2e/fix-tests. Preserve unrelated staged and unstaged work. Read
 current source; do not inspect prior Codex sessions, memories or transcripts.
-No delegation. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
+No ordinary delegation; the shared mandatory backend_reviewer remains required for
+core backend changes. Run tests through tools/run-tests and preserve ONPC_WORKFLOW_DIRECTORY.
 {LIVE_DIAGNOSIS_INSTRUCTIONS}
 This optimization is resumable; recheck interrupted operations and owned cleanup
 using the retained runner evidence before continuing. Missing authority or a

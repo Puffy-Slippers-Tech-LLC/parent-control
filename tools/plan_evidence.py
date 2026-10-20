@@ -243,12 +243,16 @@ def _index(path):
 
 
 def _ledger(record, plan):
-    verified = bundle.inspect_record(record, os.geteuid(), checkout=plan.root)
+    with bundle.verified_record(record, os.geteuid(), checkout=plan.root) as (verified, read):
+        return _verified_ledger(record, plan, verified, read)
+
+
+def _verified_ledger(record, plan, verified, read):
+    """Validate all proof records within the archive's verified read scope."""
     candidates = []
     for entry in verified['manifest']['files']:
         if Path(entry['path']).name == 'accepted-ledger.json':
-            data = bundle.inspect_record(record, os.geteuid(), checkout=plan.root,
-                                         member=entry['path'], count=bundle.MAX_READ)
+            data = read(entry['path'], count=bundle.MAX_READ)
             value = bundle.decoded(data)
             if (not isinstance(value, dict) or set(value) != {
                     'schema', 'plan', 'generation', 'previous_index_sha256', 'tasks'}
@@ -279,8 +283,7 @@ def _ledger(record, plan):
             raise ValueError('plan evidence: exact result, commands or cleanup is missing')
         captured_brief = False
         for input_path in proof['inputs']:
-            inputs = bundle.decoded(bundle.inspect_record(record, os.geteuid(), checkout=plan.root,
-                member=input_path, count=bundle.MAX_READ))
+            inputs = bundle.decoded(read(input_path, count=bundle.MAX_READ))
             if inputs.get('task_id') != task or not isinstance(inputs.get('files'), list):
                 raise ValueError('plan evidence: invalid selected input record')
             brief = Path(inputs['task']['brief'])
@@ -294,8 +297,7 @@ def _ledger(record, plan):
                 captured_brief = captured_brief or entry['path'] == str(brief)
         if not captured_brief:
             raise ValueError('plan evidence: accepted proof lacks an exact captured task brief')
-        result = bundle.decoded(bundle.inspect_record(record, os.geteuid(), checkout=plan.root,
-                               member=proof['result'], count=bundle.MAX_READ))
+        result = bundle.decoded(read(proof['result'], count=bundle.MAX_READ))
         if (result.get('task_id') != task or result.get('status') != 'task_complete'
                 or result.get('cleanup_complete') is not True):
             raise ValueError('plan evidence: result or cleanup does not match accepted proof')
@@ -311,16 +313,19 @@ def _verify_index(plan, index):
     path = Path(index['bundle'])
     if path.parent.parent != _parent(plan):
         raise ValueError('plan evidence: accepted bundle belongs to another owner')
-    verified = bundle.inspect(plan.root, os.geteuid(), os.getegid(), str(path))
-    if (verified['sha256'] != index['sha256']
-            or verified['selection_sha256'] != index['selection_sha256']):
-        raise ValueError('plan evidence: accepted bundle changed')
     # Inspect the published allocation, not a source allocation from its manifest.
+    # _ledger verifies the whole archive once before reading its proof records.
     store = bundle.retention.Store(_parent(plan) / 'retention')
     with store.inspection() as state:
         records = [record for _, record in bundle.retention.latest_allocations([*state['history'], state])
                    if record['path'] == str(path.parent)]
-        if len(records) != 1 or _ledger(records[0], plan)[1] != index:
+        if len(records) != 1:
+            raise ValueError('plan evidence: accepted index does not match verified proof')
+        verified = _ledger(records[0], plan)[1]
+        if (verified['sha256'] != index['sha256']
+                or verified['selection_sha256'] != index['selection_sha256']):
+            raise ValueError('plan evidence: accepted bundle changed')
+        if verified != index:
             raise ValueError('plan evidence: accepted index does not match verified proof')
 
 

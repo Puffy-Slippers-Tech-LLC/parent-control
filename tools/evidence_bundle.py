@@ -712,6 +712,19 @@ def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000):
 
 def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8000):
     """Already owner-locked publication verification, including deferred recovery."""
+    if type(offset) is not int or type(count) is not int or offset < 0 or not 0 <= count <= MAX_READ:
+        raise ValueError('bundle: invalid inspection byte range')
+    with verified_record(record, uid, checkout=checkout) as (verified, read):
+        return verified if member is None else read(member, offset=offset, count=count)
+
+
+@contextmanager
+def verified_record(record, uid, *, checkout=None):
+    """Verify once, then read bounded members while the caller holds ownership.
+
+    Keep the archive descriptor open and check its identity throughout the read
+    scope. No verification result is cached across scopes or publications.
+    """
     directory = path_text(record['path'])
     if not directory.name.startswith('onpc-evidence-bundle-'):
         raise ValueError('bundle: expected a recorded evidence bundle allocation')
@@ -737,15 +750,30 @@ def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8
                     checkout_allocation(checkout, entry['allocation'])
                 if digest(encoded(manifest)) != receipt['selection_sha256']:
                     raise ValueError('bundle: selection checksum mismatch')
-                if member is None:
-                    result = dict(receipt, files=len(manifest['files']), manifest=manifest)
-                else:
-                    entries = [entry for entry in manifest['files'] if entry['path'] == member]
-                    if len(entries) != 1:
+                members = {entry['path']: entry for entry in manifest['files']}
+
+                def unchanged():
+                    if fingerprint(os.fstat(fd)) != before:
+                        raise ValueError('bundle: archive changed during inspection')
+
+                def read(member, *, offset=0, count=8000):
+                    if (type(offset) is not int or type(count) is not int or offset < 0
+                            or not 0 <= count <= MAX_READ):
+                        raise ValueError('bundle: invalid inspection byte range')
+                    if archive.fp is None:
+                        raise ValueError('bundle: verified archive is closed')
+                    unchanged()
+                    if member not in members:
                         raise ValueError('bundle: original path is not in the manifest')
-                    with archive.open(entries[0]['member']) as source:
+                    with archive.open(members[member]['member']) as source:
                         source.seek(offset)
                         result = source.read(count)
+                    unchanged()
+                    return result
+
+                unchanged()
+                yield dict(receipt, files=len(manifest['files']), manifest=manifest), read
+                unchanged()
             finally:
                 archive.close()
         if fingerprint(os.fstat(fd)) != before:
@@ -756,7 +784,6 @@ def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8
     with selection.open(directory) as (fd, _):
         if set(os.listdir(fd)) != {'receipt.json', 'evidence.zip'}:
             raise ValueError('bundle: incomplete or unexpected publication files')
-    return result
 
 
 def finish(checkout, uid, gid):

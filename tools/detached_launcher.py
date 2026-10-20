@@ -120,6 +120,24 @@ def environment():
     return result
 
 
+BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
+AGENTS.md requires an independent code review by the backend_reviewer agent
+(GPT-6 Astra xHigh) before completing the changes. This mandate applies across
+all launchers, including repair, recovery and optimization sessions. It overrides
+Sol-only and no-delegation rules only for this required review; keep the launcher's
+existing coordinator, implementation, consultation and escalation model policy.
+Do not request this review for changes outside core backend code. Give the reviewer
+the exact owned changes, relevant source/contracts and validation evidence in a
+fresh context. Pause implementation while it reviews; wait for its findings and
+close it before resuming. Resolve actionable findings and revalidate material
+revisions; obtain a fresh review of material backend revisions before completion.
+Record the review findings and resolution in the existing summary or handoff.
+A missing or failed review is incomplete work, never a completed change; use the
+launcher's existing continuation or blocker route. Review gives no test or installed
+acceptance credit. The reviewer cannot implement, test, control resources or delegate.
+"""
+
+
 def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=None, delegation=False):
     codex = shutil.which('codex')
     if codex is None:
@@ -128,10 +146,17 @@ def agent_command(root, model, effort, run=None, *, schema=None, adviser_config=
             '--sandbox', 'workspace-write', '--model', model,
             '-c', f'model_reasoning_effort="{effort}"',
             '-c', 'history.persistence="none"', '-c', 'features.memories=false',
-            '-c', f'features.multi_agent={str(adviser_config is not None or delegation).lower()}',
+            '-c', 'features.multi_agent=true',
             '-c', 'features.multi_agent_v2=false',
-            '-c', f'agents.enabled={str(adviser_config is not None or delegation).lower()}',
+            '-c', 'agents.enabled=true',
+            '-c', 'developer_instructions=' + json.dumps(BACKEND_REVIEW_INSTRUCTIONS),
+            '-c', 'agents.backend_reviewer.description="Mandatory independent review of core backend changes only; no implementation"',
+            '-c', 'agents.backend_reviewer.config_file=' + json.dumps(str(Path(__file__).with_name('backend_reviewer.toml'))),
             '--json', '--color', 'never', '--cd', str(root)]
+    if adviser_config is None and not delegation:
+        # Review-only access does not enable ordinary worker/adviser delegation.
+        command += ['-c', 'agents.max_concurrent_threads_per_session=1',
+                    '-c', 'agents.max_depth=1']
     if adviser_config is not None:
         # V1 supports a depth bound. One child slot plus the coordinator's
         # wait/close protocol keeps consultations sequential.

@@ -122,10 +122,16 @@ def session_prompt(plan, spec, state):
     return f"""Implement only task {state['task_id']}: {state['task']['title']}.
 Read AGENTS.md, docs/Execution-Plans.md, {plan.path}, and the selected brief
 {state['task']['brief']}; follow only applicable owning contracts and source.
-Your coordinator model is {spec.model} {spec.effort}. Keep this model/effort;
-there is no automatic escalation. Use GPT-6.1 Sol subagents of appropriate
-effort as needed; routine read-only monitoring uses plan_monitor (Low), routine
+Your coordinator model is {spec.model} {spec.effort}; there is no automatic
+escalation. By default, use GPT-6.1 Sol subagents of appropriate effort as needed;
+routine read-only monitoring uses plan_monitor (Low), routine
 coverage refreshes and bounded implementation use plan_worker (Medium).
+For product backend code involving core functionalities, follow AGENTS.md's
+model, effort, consultation and mandatory independent Astra xHigh review
+requirements. These take precedence over the coordinator/subagent defaults above.
+Delegate scoped implementation or review to subagents configured as required by
+AGENTS.md when the coordinator or plan_worker defaults do not meet those requirements.
+Use the shared backend_reviewer role for the mandatory independent backend review.
 Give each subagent explicit scope and disjoint write ownership. Join and close
 all subagents before acceptance, handoff or cleanup. You own the final decision.
 Preserve pre-existing work; do not stage, commit, push or run another workflow

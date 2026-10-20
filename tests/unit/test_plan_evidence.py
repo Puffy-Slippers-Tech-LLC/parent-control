@@ -104,6 +104,30 @@ def test_git_retry_reuses_only_the_exact_verified_result(campaign):
         proof.preserve(campaign.plan, run, state, dict(result, summary='changed'))
 
 
+def test_startup_verifies_cumulative_archive_once_per_recovery(campaign, monkeypatch):
+    for task in ('first', 'second', 'third'):
+        run, state, result, _ = campaign.accepted(task)
+        retained = proof.preserve(campaign.plan, run, state, result)
+    verify = bundle.verify_stream
+    checksum = bundle.file_digest
+    verifications, checksums = [], []
+
+    def counted_verify(stream):
+        verifications.append(stream)
+        return verify(stream)
+
+    def counted_checksum(fd, size):
+        checksums.append(size)
+        return checksum(fd, size)
+
+    monkeypatch.setattr(bundle, 'verify_stream', counted_verify)
+    monkeypatch.setattr(bundle, 'file_digest', counted_checksum)
+    for attempt in (1, 2):
+        assert proof.recover(campaign.plan) == retained
+        assert len(verifications) == len(checksums) == attempt
+        assert checksums[-1] == Path(retained['bundle']).stat().st_size
+
+
 @pytest.mark.parametrize('reference', [
     '{path}. Controller source is unchanged.',
     '{path}: passed!',

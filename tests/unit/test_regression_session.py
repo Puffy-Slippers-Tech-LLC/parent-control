@@ -24,6 +24,10 @@ import test_storage
 
 
 def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypatch):
+    # The shared display appends the required exit recap even for pipes.
+    # Fix its clocks so the exact output check still rejects leaked frames.
+    monkeypatch.setattr('launcher_display.time.strftime', lambda format: '01:07')
+    monkeypatch.setattr('launcher_display.time.monotonic', lambda: 5000)
     run = tmp_path / 'runner'
     destination = tmp_path / 'supervisor'
     run.mkdir()
@@ -41,7 +45,7 @@ def test_supervised_progress_is_forwarded_without_log_frames(tmp_path, monkeypat
     monkeypatch.setattr(session.time, 'sleep', advance)
     output = io.StringIO()
     assert session.follow(run, output) == 0
-    assert output.getvalue() == 'runner log\n'
+    assert output.getvalue() == 'runner log\n\nEnded: 01:07\nDuration: 0m\n'
     assert json.loads((destination / 'frame.json').read_text()) == []
 
 

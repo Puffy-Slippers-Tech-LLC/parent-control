@@ -370,17 +370,20 @@ deliberate fault and its restoration. This route leaves the maintenance guest
 available for probes and grants no acceptance; use the complete system selector
 for qualification.
 The runner freezes both guest mechanics and the public observer's host closure.
-This is installed engineering qualification; both-target receipts and exact
-candidate applicability belong to
-[the kiosk prompt plan](../../docs/Kiosk-Prompt.md#fedora-late-refusal-and-candidate-reconciliation--004).
+This is installed engineering qualification; historical both-target receipts
+remain in the [implementation baseline](../../docs/Kiosk-Resilience-Plan.md#implementation-baseline).
+The [successor acceptance](../../docs/Kiosk-Resilience-Plan.md#acceptance) owns
+current candidate applicability and compatibility qualification.
 The Fedora vendor-caller probe carries native stderr over a separate inherited
 nonblocking pipe because its real caller domain cannot write the harness's
 temporary capture files. Result and diagnostic channels stay distinct and bounded;
 no product permission is added for the engineering fixture.
 
 `enforcement` → `test_kiosk_native_bootstrap_permissions` (292) is the bounded
-real-policy bootstrap prerequisite for the
-[kiosk entry plan](../../docs/Kiosk-Prompt.md). It uses the ordinary enforcement
+real-policy bootstrap qualifier for the existing native implementation.
+Its applicability to the redesign follows the
+[scope reconciliation](../../docs/Kiosk-Resilience-Plan.md#scope-reconciliation).
+It uses the ordinary enforcement
 phase and its frozen guest input closure, with one owned manager invocation.
 It qualifies fresh manager PAM, retained gate PAM, copied systemd/executor
 entrypoints and notify-reload reexecution under the installed enforcing policy.

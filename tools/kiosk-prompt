@@ -9,7 +9,7 @@ from plan_launcher import PlanWorkflow, main
 if __name__ == '__main__':
     sys.exit(main(PlanWorkflow(
         name='kiosk-prompt',
-        plan='docs/Kiosk-Prompt.md',
+        plan='docs/Kiosk-Resilience-Plan.md',
         model='gpt-6.1-sol',
         effort='high',
         vm=True,

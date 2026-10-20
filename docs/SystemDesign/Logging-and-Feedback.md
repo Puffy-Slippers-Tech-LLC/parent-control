@@ -197,8 +197,8 @@ refusal classifications for ownership, access, entry kind, required/sibling
 scope, broad system area and the closed reason. Untrusted sibling files/links,
 special types, separator names and unavailable metadata can be omitted
 without exposing their contents; required inputs must still fail closed. The
-alias ancestry and UTF-8 publication repairs passed host acceptance in
-[task 002a](../Kiosk-Prompt.md#ambient-classification-and-required-input-controls--002a).
+alias ancestry and UTF-8 publication repairs passed historical host acceptance,
+retained in the [implementation baseline](../Kiosk-Resilience-Plan.md#implementation-baseline).
 Neither classification record includes the entry name or full path.
 
 The native PAM caller adds a separate `onpc.pam kiosk native-view` record for
@@ -207,7 +207,7 @@ records retain their format and meaning. The collector projects validated cause
 records as `kiosk.admission-journal` with `source=native-view`, keeping primary
 denial and independent cleanup failure separate. Producer coverage and host
 archive composition do not establish installed recovery acceptance under the
-[entry plan](../Kiosk-Prompt.md).
+[entry plan](../Kiosk-Resilience-Plan.md#acceptance).
 
 The producer schema is fixed, with no optional or arbitrary text fields:
 

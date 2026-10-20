@@ -8,8 +8,9 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: [Kiosk-Prompt](../Kiosk-Prompt.md) task 004 owns expanded late-denial
-and recovery qualification. Review its receipts before executing this row;
+Coordination: the [kiosk resilience plan](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+owns the compatibility redesign's refusal and recovery qualification. Review its
+[historical baseline](../Kiosk-Resilience-Plan.md#implementation-baseline) before executing this row;
 reuse only exact matching scope/candidate/target evidence. Neither plan closes
 the other's row, and overlapping work must not run concurrently.
 Session exception: native refusal, exact restoration and fresh successful entry
@@ -22,7 +23,7 @@ sibling must not allow a required executable's writable ancestor. No package
 transaction or retained-child approval journey is needed. Read the
 [directory-view contract](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
 `tools/kiosk_confinement.py`, native preparation callers and relevant complete
-`system_kiosk_confinement.py` functions. Planned selector (unimplemented):
+`system_kiosk_confinement.py` functions. Registered selector:
 `test_kiosk_required_ancestor_refusal`, area `enforcement`.
 
 Record one required executable ancestor's exact identity and original metadata,

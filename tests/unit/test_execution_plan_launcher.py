@@ -26,7 +26,7 @@ from tests.support.terminal_screen import Terminal
 
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
-    ('kiosk-prompt', 'docs/Kiosk-Prompt.md'),
+    ('kiosk-prompt', 'docs/Kiosk-Resilience-Plan.md'),
 ], ids=['reliability-plan', 'kiosk-prompt'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param

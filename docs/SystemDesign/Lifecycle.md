@@ -352,19 +352,20 @@ cannot remove a current-domain restriction. This uses libselinux's `setcon_raw`
 in the single-threaded executor, with no reverse dynamic transition. Only the
 private manager/executor entrypoints can transition to the manager role.
 The engineering census requires every kiosk thread to have a confined current
-domain; it has no `init_t` waiting-helper exception. Current-package installed
+domain; it has no `init_t` waiting-helper exception. Earlier-candidate installed
 startup, credential/teardown and active namespace engineering qualification
 passed on both targets; [Kiosk confinement](Kiosk-Confinement.md#verification-scope-and-evidence-limits)
-records the candidate scope and evidence limits separately from public acceptance.
+records that historical candidate scope and its limits. Those results do not
+qualify the current composition or the prospective redesign.
 The intermediate domain can write the inherited `kernel_t` datagram socket used
 by systemd's pre-exec handoff timestamp; that object label was measured on Fedora
 with dontaudit temporarily disabled. It also has `noatsecure` only for transition
 to the private manager, preserving the trusted system executor/PAM environment:
 otherwise libsystemd ignores `XDG_RUNTIME_DIR` and the manager exits. Other role
 transitions retain secure execution. The earlier bounded live supplemental-policy
-probe proved only manager/native-service startup and normal stop. The current
-installed qualification above separately proves final-package teardown callbacks
-and post-parent-exit denials.
+probe proved only manager/native-service startup and normal stop. The historical
+installed qualification above separately covered teardown callbacks and
+post-parent-exit denials for its recorded candidate.
 A vendor-derived `/etc/pam.d/systemd-user` override is
 verified against its `/usr/lib/pam.d` source; a vendor update requires package
 reconfiguration before admission. Pending `.dpkg-dist` or `.rpmnew` replacements
@@ -555,77 +556,63 @@ The account also has a nologin shell. Broker, D-Bus and Polkit authorization
 continue to own data access and parent approval; execution confinement grants
 no additional broker authority.
 
-GDM admission requires the running kiosk manager to have the same inventory
-generation and enforcing security label. A stale manager requires reboot;
-configuration never kills or silently replaces it. Completed generations stay
-until reboot so live executable mounts remain valid. Preparation permits at
-most four generations per boot, 32,768 directory entries and 512 MiB of
-executable/library input per generation;
-owned incomplete preparations are reclaimed under the exclusive lock. The
-installed engineering matrix in
-[system_kiosk_confinement.py](../../tests/integration/system_kiosk_confinement.py)
-is separate from public kiosk workflow acceptance. Both Ubuntu and Fedora must
-pass their current installed and graphical checks before this boundary is
-treated as release-qualified.
+Current GDM admission requires a verified live confined manager and matching
+required material/completed source receipts. Required-material drift can require
+reboot; configuration does not kill or replace the manager. Completed generations
+stay until reboot so live executable mounts remain valid. Preparation permits
+four generations per boot, 32,768 directory entries and 512 MiB of copied input
+per generation; only owned incomplete preparations are reclaimed under the
+exclusive lock. These are current implementation limits, not acceptance criteria
+for the replacement architecture. Installed engineering checks remain separate
+from usable public entry on both platforms.
 
 ### Retained material activation and recovery
 
-The [005a material/pin design](Kiosk-Confinement.md#planned-retained-material-and-immutable-pins)
-separates required material from a realized ambient layout. Its
-[005 admission proof](Kiosk-Confinement.md#planned-retained-view-admission-proof)
-settles manager identity, acquisition, concurrency and native receipts. The
-composition remains planned until 006a–007 implement and qualify it. Current
-admission still uses the whole-layout generation digest.
+The production [fresh transaction](../../tools/kiosk_fresh_startup.h) runs in
+the `systemd-user` PAM executor; the
+[retained transaction](../../tools/kiosk_retained_startup.h) runs in GDM's PAM
+caller. They now separate required material from a realized ambient layout.
+The [preparation service](../../tools/kiosk_preparation_service.py) measures
+current account, attestation and material; native independently verifies the
+measurement and realized mounts. This code is implemented. Host composition and
+older bootstrap evidence do not establish final installed entry qualification
+for the current composition on either platform.
 
-The planned retained source is the verified manager's actual read-only `/usr`
-view, held across acquisition by a native-owned recursive mount-clone descriptor.
-Detached staging placeholders cannot restore it. A new admission builds private
-parents from its selected realization and binds only checked pinned sources;
-ambient host additions/removals do not replace those sources or consume another
-generation. Required current configuration, policy, native/library/runtime
-material and privilege/alias trust remain strict. A source pin surviving manager
-exit does not authorize admission to a missing or changed manager.
+Fresh startup constructs and publishes independent copies and native realization
+receipts, attaches the private read-only `/usr`, completes owned staging cleanup
+and applies MAC. Retained entry acquires the verified manager's actual mounted
+source through pinned unit/process/namespace identities and source receipts,
+clones that source and constructs an invocation-private projection. It does not
+rewrite the manager's source record or allocate another completed generation.
+The original manager and sources are rechecked before final MAC. A surviving
+source pin, disk receipt or saved numeric PID cannot authorize admission after
+manager exit or replacement.
 
-Configuration keeps the existing shared-admission/exclusive-preparation order
-and never starts, stops or replaces a live manager. Genuine required drift
-requires successful configuration and the existing reboot boundary; partial
-package unpack is never adopted by reboot alone. An exact restoration can retry
-against the unchanged live material only after all current-input and source-pin
-checks pass. Unknown/foreign/replaced pin storage is refused, not repaired by
-signalling processes or overwriting completed state.
+Current required material includes code, policy, configuration, units and native
+privilege inputs, but also exact cosmetic assets, fonts and translation
+catalogues. The latter coupling and ambient sibling enumeration are current
+availability limitations. The [implementation baseline](../Kiosk-Resilience-Plan.md#implementation-baseline)
+and [scope reconciliation](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+replace the old task-numbered future design. They do not loosen runtime code or
+executable tests.
 
-Publication failure leaves only identity-owned incomplete records eligible for
-bounded recovery under the preparation lock. Ready receipts must describe native's
-actual realization and completed staging cleanup. A disk receipt or saved PID
-cannot substitute for a verified live source. Close invocation descriptors and
-detach only recorded owned mounts on refusal; retain completed generations until
-reboot and enforce the existing four-generation/storage/time bounds. Do not add
-a pin daemon, persistent host mount or a new general cleanup operation. Existing
-package removal/admission ownership remains unchanged.
+Configuration retains shared-admission/exclusive-preparation ordering and never
+starts, stops or replaces a live manager. Required drift currently needs
+successful configuration plus the existing reboot boundary; partial unpack is
+not adopted by reboot alone. Exact restoration may retry unchanged live material
+only through a fresh complete admission. Private host lookup descriptors retain
+the original `/usr` after attachment, so required-input checks cannot accidentally
+read the overmounted kiosk view.
 
-Retained admission binds the same system-manager unit invocation, leader pidfd,
-complete task/credential/label/namespace proof and original source realization
-through clone acquisition and the last pre-MAC validation. Same-material manager
-reexec may proceed only while those invariants remain intact. Exit or replacement
-observed before that decision denies; a surviving pin supplies lifetime only.
-An exit afterward cannot change the gate's already owned confined mounts, but
-existing session startup/exit still owns unavailable services and return to
-sign-in. There is no new manager keepalive, restart or process-stopping route.
-The shared admission lease outlives preparation ownership through the PAM handle.
-Neither lock freezes distribution unpack; current-host required-input checks use
-separate pinned original `/usr` and outside-`/usr` lookup roots after private
-attachment. A host `/` descriptor alone would cross the new overmount. Explicit
-alias walks dispatch `/usr` paths to the original descriptor.
-
-An original native realization receipt `V` and a later gate's derived receipt `I`
-have different owners. Gate omission/masking never rewrites the manager's source
-receipt, adopts host replacements or allocates another completed generation.
-Initial ready publication precedes the future manager's exec and does not assert
-its PID; reuse separately proves the actual live manager and mounted sources.
-Ready publication followed by failed MAC/exec gives no admission credit without
-that proof. Unknown ownership stays closed. Required drift retains successful
-configuration plus reboot recovery; exact restoration may retry the unchanged
-live material only after a fresh complete transaction.
+Publication and refusal recovery cover identity-owned incomplete records and
+recorded invocation mounts under the preparation lock. Completed generations,
+foreign/replaced state and live manager identities are not cleanup targets.
+Ready publication before a future manager exec does not prove a live manager;
+failed final MAC/exec supplies no admission credit. The PAM admission lease
+outlives preparation ownership. See [current view and trust boundaries](Kiosk-Confinement.md#current-private-views-and-retained-admission)
+and the [prospective target](../Kiosk-Resilience-Plan.md#target-design) for the
+separate replacement lifecycle. No automatic manager renewal has shipped as a
+result of this replanning.
 
 ### Package activation and session renewal
 

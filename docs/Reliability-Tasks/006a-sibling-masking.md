@@ -8,8 +8,9 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: [Kiosk-Prompt](../Kiosk-Prompt.md) owns the expanded generic-entry
-implementation and installed qualification. Review its task 003 receipts before
+Coordination: the [kiosk resilience plan](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+owns the compatibility redesign and its installed qualification. Review its
+[historical baseline](../Kiosk-Resilience-Plan.md#implementation-baseline) before
 executing this row; reuse only exact matching scope/candidate/target evidence.
 Neither plan closes the other's row, and overlapping work must not run concurrently.
 Session exception: private-view isolation must survive a host replacement in
@@ -23,7 +24,7 @@ retained-child approval journey is needed for these filesystem fixtures.
 Read the [directory-view contract](../SystemDesign/Kiosk-Confinement.md#native-execution-and-executable-identity),
 `tools/kiosk_confinement.py`, native preparation/binding callers and complete
 relevant `system_kiosk_confinement.py` functions. Extend canonical variants and
-existing host trust/layout tests. Planned selector (unimplemented):
+existing host trust/layout tests. Registered selector:
 `test_kiosk_writable_sibling_isolation`, area `enforcement`.
 
 Use two unrelated root-owned sibling directories, modes 0775 and 0777, with

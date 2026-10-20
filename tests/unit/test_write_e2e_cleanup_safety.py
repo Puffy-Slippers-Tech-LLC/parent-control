@@ -872,7 +872,19 @@ def test_failed_sol_xhigh_repair_promotes_real_child_transport_and_restarts_at_m
     assert invocation['thread_start']['model'] == 'gpt-6.1-sol'
     assert 'model_reasoning_effort="max"' in invocation['args']
     assert 'You are the GPT-6.1-Sol Max coordinator' in invocation['prompt']
-    assert 'features.multi_agent=false' in invocation['args']
+    # Max repair retains only the mandatory core-backend review exception,
+    # just like xHigh repair (docs/Execution-Plans.md).
+    config = tomllib.loads('\n'.join(
+        invocation['args'][i + 1] for i, arg in enumerate(invocation['args']) if arg == '-c'))
+    assert config['features']['multi_agent'] is True
+    assert config['features']['multi_agent_v2'] is False
+    assert config['agents']['enabled'] is True
+    assert config['agents']['max_concurrent_threads_per_session'] == 1
+    assert config['agents']['max_depth'] == 1
+    assert config['agents']['backend_reviewer']['config_file'] == str(
+        ROOT / 'tools/backend_reviewer.toml')
+    assert not {'e2e_adviser', 'plan_worker', 'plan_monitor'} & config['agents'].keys()
+    assert 'Ordinary delegation is disabled' in invocation['prompt']
     usage = json.loads((second / 'agent-usage.jsonl').read_text())
     assert (usage['model'], usage['reasoning_effort']) == ('gpt-6.1-sol', 'max')
     assert workflow.queue_state(root)[0] == '002'

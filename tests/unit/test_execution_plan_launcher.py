@@ -37,7 +37,7 @@ def synthetic_plan_evidence(monkeypatch):
 
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
-    ('kiosk-prompt', 'docs/Kiosk-Resilience-Plan.md'),
+    ('kiosk-prompt', 'docs/Kiosk-Session-Confinement-Plan.md'),
 ], ids=['reliability-plan', 'kiosk-prompt'])
 def plan_adapter(monkeypatch, request):
     name, plan = request.param

@@ -8,12 +8,12 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: the [kiosk resilience plan](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
 owns the compatibility redesign and its installed qualification. Before execution,
-require R01's [accepted mapping](../SystemDesign/Kiosk-Confinement.md#accepted-mapping-of-legacy-assertions) from legacy masking assertions to the
+require C03/C04's [current test mapping](../Kiosk-Session-Confinement-Plan.md#product-and-test-automation-must-match) from legacy masking assertions to the
 [prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target);
 if absent, keep this row unchecked. Review the
-[historical baseline](../Kiosk-Resilience-Plan.md#implementation-baseline);
+[historical baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline);
 reuse only exact matching scope/candidate/target evidence.
 Neither plan closes the other's row, and overlapping work must not run concurrently.
 Session exception: usable entry, host replacement, reentry and exact restoration
@@ -24,7 +24,7 @@ form one owned history on each installed target.
 Reproduce `83d502b3`'s unrelated installed-package directory condition and verify
 tolerant entry before and after a host-side replacement. No package transaction or
 retained-child approval journey is needed for these filesystem fixtures.
-Read R01's mapping, complete relevant admission/consumed-input callers and
+Read the current C03/C04 mapping, complete relevant admission/consumed-input callers and
 `system_kiosk_confinement.py` functions. Extend canonical variants and affected
 host checks. Existing case 290, `test_kiosk_writable_sibling_isolation`, area
 `enforcement`, has legacy mask/private-view assertions. Adapt or reuse it only
@@ -46,7 +46,7 @@ mode bits alone do not establish that risk.
 1. Verify both fixture identities/modes, inert host canaries and ordinary-user
    contents/access and establish that the entries are unrelated to consumed inputs.
 2. Enter the kiosk and independently observe usable passwordless entry and the
-   actual confinement boundary selected by R01.
+   actual confinement boundary reviewed by C06.
 3. Replace the recorded host fixture during the visit. Observe continued usable
    requests, exit/reentry and unchanged ordinary-user controls before restoration.
 4. Restore the exact owned mutation and complete recorded cleanup.

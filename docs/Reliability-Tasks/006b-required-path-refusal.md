@@ -8,12 +8,12 @@ Targets: onpc-Ubuntu26.04, onpc-Fedora44
 [system acceptance](../TestAutomation/E2E-Execution-Contracts.md#system-acceptance).
 Required tasks: none (Baseline).
 Estimate: 30–60 minutes.
-Coordination: the [kiosk resilience plan](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+Coordination: the [kiosk resilience plan](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
 owns the compatibility redesign's input protection and recovery qualification.
-Before execution, require R01's [accepted mapping](../SystemDesign/Kiosk-Confinement.md#accepted-mapping-of-legacy-assertions) from legacy refusal assertions
+Before execution, require C03/C04's [current test mapping](../Kiosk-Session-Confinement-Plan.md#product-and-test-automation-must-match) from legacy refusal assertions
 to the [prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target);
 if absent, keep this row unchecked. Review its
-[historical baseline](../Kiosk-Resilience-Plan.md#implementation-baseline);
+[historical baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline);
 reuse only exact matching scope/candidate/target evidence. Neither plan closes
 the other's row, and overlapping work must not run concurrently.
 Session exception: positive/negative input controls, exact restoration and usable entry
@@ -25,10 +25,10 @@ Keep one adjacent safety control for `83d502b3`: tolerating an unrelated writabl
 sibling must not admit child-controlled code through a consumed path. No package
 transaction or retained-child approval journey is needed. Read the
 [prospective boundary](../SystemDesign/Kiosk-Confinement.md#prospective-compatibility-first-target),
-R01's mapping, complete relevant consumed-input/admission callers and
+the current C03/C04 mapping, complete relevant consumed-input/admission callers and
 `system_kiosk_confinement.py` functions. Existing case 291,
 `test_kiosk_required_ancestor_refusal`, area `enforcement`, has legacy mode-bit
-and refusal assertions. Adapt or reuse it only under R01's mapping; neither its
+and refusal assertions. Adapt or reuse it only under the current C03/C04 mapping; neither its
 name nor a historical refusal establishes the new safety condition.
 
 Choose one consumed startup/code path and record its identity, original metadata
@@ -42,7 +42,7 @@ assume arbitrary code execution inside the kiosk.
 The kiosk must exclude the unsafe input, use a safe replacement or block its
 affected route before it executes. Preserve usable entry wherever that suffices.
 Whole-entry rejection is acceptable only for an essential unrecoverable boundary
-identified in R01's ledger, with its exact trigger, failed recovery alternatives
+justified by the master's deliberate smart-child breach rule, with its exact trigger, failed recovery alternatives
 and actionable diagnostic; it supplies no availability credit. Restore the exact
 mutation and require passwordless usable entry and effective confinement.
 Preserve ordinary-user contents/access throughout.

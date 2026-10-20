@@ -501,15 +501,16 @@ installed system translations.
 
 The [request-station specification](../Specification.md#requesting-and-approving-access)
 requires normal authentication even when system translations are absent.
-The [resilience programme's R08b](../Kiosk-Prompt-Tasks/R08b-agent-language.md) must
+The [optional-fallback task C09a](../Kiosk-Prompt-Tasks/C09a-optional.md) must
 remove the current translation prerequisite: C/C.UTF-8-only hosts, missing
 native catalogues and failed locale discovery use a safe native or untranslated
 prompt. Separate cosmetic preparation from an operational, correctly associated
 agent; a failed job or stale agent identity cannot be treated as readiness.
 Retain the selected parent's genuine authentication and the original recovery
 deadline. Map the existing `test_agent_locale_refuses_c_only_hosts_without_starting_approval`
-expectation to fallback under R01's ledger before changing that regression.
-Family B requires real approval with the C/C.UTF-8-only fixture on both targets;
+expectation to fallback through the current product/TA mapping before changing
+that regression. The current master requires real approval with the
+C/C.UTF-8-only fixture on both targets;
 host locale/preparation failures are bounded engineering controls. This is a
 planned correction, not current installed acceptance.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Run the kiosk entry reliability plan through the shared execution driver."""
+"""Run the kiosk session confinement plan through the shared execution driver."""
 from pathlib import Path
 import sys
 
@@ -9,7 +9,7 @@ from plan_launcher import PlanWorkflow, main
 if __name__ == '__main__':
     sys.exit(main(PlanWorkflow(
         name='kiosk-prompt',
-        plan='docs/Kiosk-Resilience-Plan.md',
+        plan='docs/Kiosk-Session-Confinement-Plan.md',
         model='gpt-6.1-sol',
         effort='high',
         vm=True,

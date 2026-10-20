@@ -86,9 +86,14 @@ required services even when saved session preferences or the command selected
 after admission would otherwise start a desktop. Its GDM executor and systemd
 user manager share the kernel execution boundary described in
 [Lifecycle](SystemDesign/Lifecycle.md). Qualification must distinguish a denied
-exec from a broken session, prove allowed workflows on both supported
-distributions, and include writable code/configuration, loader/FD execution,
-manager reexecution, policy loss and package lifecycle recovery. Compromised
+exec from a broken session and prove allowed workflows on both supported
+distributions. The [kiosk session-confinement plan](Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort)
+scopes its rebuild to deliberate ordinary routes available to a smart technical
+child, excludes professional/world-class low-level attacks, and gives usability
+highest priority. Historical loader/FD, manager-reexecution and policy-loss
+fixtures do not impose a mechanism or new gate without that reachability case.
+This narrower kiosk rebuild does not weaken broker caller/authorization checks.
+Compromised
 root, modified kernel policy and administrator credentials remain outside the
 attacker model; ordinary-user broker or service API bypasses remain in scope.
 

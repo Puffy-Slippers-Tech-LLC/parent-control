@@ -597,8 +597,8 @@ manager exit or replacement.
 Current required material includes code, policy, configuration, units and native
 privilege inputs, but also exact cosmetic assets, fonts and translation
 catalogues. The latter coupling and ambient sibling enumeration are current
-availability limitations. The [implementation baseline](../Kiosk-Resilience-Plan.md#implementation-baseline)
-and [scope reconciliation](../Kiosk-Resilience-Plan.md#scope-reconciliation)
+availability limitations. The [implementation baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline)
+and [scope reconciliation](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation)
 replace the old task-numbered future design. They do not loosen runtime code or
 executable tests.
 
@@ -616,11 +616,18 @@ foreign/replaced state and live manager identities are not cleanup targets.
 Ready publication before a future manager exec does not prove a live manager;
 failed final MAC/exec supplies no admission credit. The PAM admission lease
 outlives preparation ownership. See [current view and trust boundaries](Kiosk-Confinement.md#current-private-views-and-retained-admission)
-and the [prospective target](../Kiosk-Resilience-Plan.md#target-design) for the
+and the [prospective target](../Kiosk-Session-Confinement-Plan.md#target-design) for the
 separate replacement lifecycle. No automatic manager renewal has shipped as a
 result of this replanning.
 
 ### Prospective configuration and activation recovery
+
+The R01/R02-era mechanisms below are historical design analysis. The current
+[session-confinement plan](../Kiosk-Session-Confinement-Plan.md#target-design) instead
+starts from the pinned v1.3 confinement slice and retains main's other features.
+Do not import private graph, transaction, clock or recovery protocols from this
+section as mandatory dependencies. C01/C06 select actual bounded mechanisms
+under the master's usability and deliberate-child-breach rules.
 
 This is the resilience target, not current shipped behavior. R01's
 [architecture decisions](Kiosk-Confinement.md#architecture-decisions-required-before-the-entry-proof)
@@ -774,9 +781,15 @@ current caller's opening admission may proceed only before its public execution
 and with no older owner. Never use global `TerminateUser`, a blanket UID signal,
 global failed-state reset, or change linger/logind policy.
 
-Request orderly shutdown on the **pinned manager's unique bus connection** with
-`StartUnit('exit.target', 'replace-irreversibly')`, subscribing before dispatch
-and correlating its job result. Do not use `Manager.Exit`: that is the immediate
+First request the finite `oh-no-parent-control-quiesce.target` on the **pinned
+manager's unique bus connection**, subscribing before dispatch and correlating
+its exact successful `JobRemoved` result. This target drains the owned session
+units while retaining that manager and its private bus. Its finite GNOME stop
+paths cannot indirectly restart or stop the bus. Then dispatch conventional
+`StartUnit('exit.target', 'replace-irreversibly')` to that same unique owner.
+Final exit can close the bus before its own `JobRemoved`; its dispatch and the
+quiesce result are separate receipts. Do not invent a final job success from
+disconnect or process exit. Do not use `Manager.Exit`: that is the immediate
 forced-exit primitive, not the orderly service shutdown used here. This follows
 systemd 259's [exit command dispatch](https://github.com/systemd/systemd/blob/v259/src/systemctl/systemctl-start-special.c)
 and [manager method implementation](https://github.com/systemd/systemd/blob/v259/src/core/dbus-manager.c).
@@ -784,7 +797,13 @@ If its bus is unavailable, native recovery
 may send SIGTERM through the already verified manager pidfd: systemd user
 managers start `exit.target` on SIGTERM. Do not send a name-addressed stop/restart
 to a possibly replaced `user@UID` invocation. Wait for that invocation, its
-recorded services and PAM teardown to end; if they do not drain in time, preserve
+recorded services and PAM teardown to end, retaining the original outer
+`user@UID.service` InvocationID even after MainPID becomes zero. Final drain
+requires that exact manager pidfd to end, the unchanged outer invocation to
+become inactive/failed with an empty original cgroup, and the matching native
+manager PAM teardown receipt. An already ended pinned owner needs no signal;
+neither its PID nor a broker drain reply alone is a teardown receipt. If these
+receipts do not drain in time, preserve
 the unresolved owner and fail safely, without escalating to a guessed-process
 kill. Recheck no public owner/replacement before new startup. This uses
 [systemd's manager API](https://www.freedesktop.org/software/systemd/man/259/org.freedesktop.systemd1.html),

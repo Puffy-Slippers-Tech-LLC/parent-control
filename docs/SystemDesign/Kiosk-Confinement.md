@@ -9,14 +9,24 @@ restrictions belong to [Screen time](Screen-Time.md) and
 [Application policy](Applications.md).
 
 This module distinguishes the current implementation from the prospective
-[compatibility-first target](../Kiosk-Resilience-Plan.md#target-design).
-The [execution plan](../Kiosk-Resilience-Plan.md) owns that change's finite queue,
+[compatibility-first target](../Kiosk-Session-Confinement-Plan.md#target-design).
+The [execution plan](../Kiosk-Session-Confinement-Plan.md) owns that change's finite queue,
 acceptance and reconciliation. Replanning does not change runtime enforcement,
 tests or installed qualification.
 
+The current plan rebuilds **session confinement only** from the pinned v1.3
+release, retaining main's non-confinement kiosk features. Prospective R01–R12
+mechanism decisions retained in this module are superseded historical analysis.
+Use the [current rebuild direction](#current-session-confinement-rebuild) and
+master mandates; do not treat those older mechanisms as prerequisites.
+
 ## Security boundary and assumptions
 
-The attacker is a non-administrator child who can operate the request station
+The attacker is a smart technical, non-administrator child using ordinary
+session/desktop/terminal/SSH/remote-desktop routes and exposed kiosk actions.
+Very low-level professional/world-class exploitation is excluded under the
+[master threat scope](../Kiosk-Session-Confinement-Plan.md#mandatory-threat-scope-reasonable-child-effort).
+The child can operate the request station
 and prepare files in their own account. Engineering tests additionally plant
 kiosk-owned files, submit service requests and vary trusted configuration as
 root to challenge boundaries that the public UI does not expose. Those fixtures
@@ -136,7 +146,7 @@ intact and the original failure is retained.
 
 These compatibility anchors replace the superseded task-numbered design
 exposition. Current production behavior follows the source entry points above;
-the [implementation baseline](../Kiosk-Resilience-Plan.md#implementation-baseline)
+the [implementation baseline](../Kiosk-Session-Confinement-Plan.md#implementation-baseline)
 records the transition and its qualification limits.
 
 The native caller creates a private mount namespace and a validated,
@@ -175,7 +185,7 @@ that composition on either target.
 
 ### Prospective compatibility-first target
 
-The [target design](../Kiosk-Resilience-Plan.md#target-design) is blacklist-led and
+The [target design](../Kiosk-Session-Confinement-Plan.md#target-design) is blacklist-led and
 default-tolerant toward host configuration, with practical confinement of the
 UI-driven request station. A child normally starts with the kiosk app, not an
 arbitrary-code execution capability. Each restriction must identify a concrete
@@ -210,7 +220,7 @@ current guards. It does not claim to contain arbitrary-code compromise through
 a blacklist of executable names alone. A read-only bind alone does not prove
 immutable backing bytes; neither blind validator deletion nor a guessed kernel
 transition is a complete design.
-The plan's [acceptance](../Kiosk-Resilience-Plan.md#acceptance) separates normal
+The plan's [acceptance](../Kiosk-Session-Confinement-Plan.md#acceptance) separates normal
 compatibility fixtures from injected unsafe security negatives.
 
 ### Architecture decisions required before the entry proof
@@ -221,7 +231,7 @@ authentication, R01c's approval and R01d's
 plus R01e's [readiness and activation choice](Lifecycle.md#r01e-readiness-and-activation-decision),
 are recorded in their owners. The [integrated contract](#r01-integrated-admission-contract)
 composes them, records review revisions and maps the finite proof before R02a.
-The [task breakdown](../Kiosk-Resilience-Plan.md#task-boundaries) allocates these
+The [task breakdown](../Kiosk-Session-Confinement-Plan.md#task-boundaries) allocates these
 decisions to R01a–R01e and integrated review to R01; they are not additional
 hardening projects:
 
@@ -263,7 +273,7 @@ Record every retained rejection in one ledger here, including pre-GDM failures
 that leave the station unavailable. Each needs its exact trigger and source,
 reachable risk or effective policy/setup fault, insufficient recovery alternatives,
 actionable diagnostic, legitimate-use positive control and negative control. The
-[early proof](../Kiosk-Resilience-Plan.md#acceptance) must test the selected
+[early proof](../Kiosk-Session-Confinement-Plan.md#acceptance) must test the selected
 mechanisms on both platforms before broad integration; documentation is no proof
 that these decisions have been implemented or work.
 
@@ -468,7 +478,7 @@ disable those privileges, and no product copy/relabel of the vendor helper is
 an acceptable substitute. A wrong password, denial or Cancel changes no grant
 and leaves the confined form available for a fresh request.
 
-[R02b](../Kiosk-Prompt-Tasks/R02b-pam-fixture.md) supplies an administrator-owned
+The former R02b design proposed an administrator-owned
 benign unfamiliar `optional` session callback in the ordinary vendor include tree,
 alongside successful required setup, with finite open/close effects. Separate
 ordinary child and administrator controls prove the callback actually ran.
@@ -483,7 +493,7 @@ setcred and failed-open teardown.
 R03/R04 execute these complete histories on each platform; the selectors remain
 unimplemented until R02 registers them.
 
-[R07](../Kiosk-Prompt-Tasks/R07-pam-session.md) extends that proven route to valid
+The former R07 design extended that proposed route to valid
 local auth/account include/substack/module variation, harmless comments,
 whitespace, case and continuations accepted by native PAM, authselect features,
 actual caller groups/umasks and saved-session repair. Pair each policy variation
@@ -582,7 +592,7 @@ loader too; clearing environment only inside the product launcher is too late.
 | Session bus and automatic activation | **Deliberately consumed:** package-owned `dbus.socket`/service launches `dbus-daemon` with an explicit standalone config, not the distro session config. Use `--address=systemd:` to adopt the listening socket and a compatible service readiness/stop contract. Provide only a protected finite service directory; omit standard service-directory expansion, host includes, servicehelper and `--systemd-activation`. Private activators use fixed absolute Exec launchers, not `SystemdService`. Thus no broker-created transient-unit dependency is needed; ordinary Fedora users keep their usual bus. Reload reads the same protected configuration. See the [D-Bus daemon interface](https://dbus.freedesktop.org/doc/dbus-daemon.1.html). |
 | GDM wrapper bus and environment | **Confined/excluded:** supply the verified manager-owned bus address before GDM's first exec; bound readiness/recovery before handing it to the wrapper. Do not connect to an unverified existing bus. Deny wrapper execution of its fallback daemon/`dbus-launch` path by role, while the dedicated bus launcher may start the configured daemon. Bus loss must recover within the original entry budget or produce a precise unavailable result, never standard-config fallback. Import only sanitized controller-owned manager environment. Mask GDM's finite vendor/admin `env.d` roots in this caller's private namespace, preserving ordinary accounts; the fixed launcher's clearenv boundary otherwise arrives too late. |
 | GNOME autostart and external handlers | **Excluded:** retain `Kiosk=true` and fixed session selection, but also close bus/unit activation above. No kiosk UI exposes URI/file/application handlers, choosers, portals or a general launcher. Suppress the affected optional action, not the whole session. System-bus access remains explicit for broker, AccountsService, logind, GDM and Polkit operations; it must not expose host service launch/management APIs through a permissive proxy. |
-| Code, loader/module/plugin/config searches | **Deliberately consumed or confined:** fixed native launchers use absolute commands, Python `-I`, cleared interpreter/loader/plugin environment and protected XDG config/data-home roots. Trust distro/package native libraries and system modules only where the child cannot write them; keep writable caches/preferences data-only. No cwd/home module fallback. GTK/GIO/GJS, GNOME, driver, image/media and audio loaders require concrete search-route controls, not identity of every host sibling. Retain WirePlumber's system config/data roots and empty Lua default paths if enabled. Optional helpers without a closed search/launch boundary stay disabled until qualified; form and genuine approval remain required. |
+| Code, loader/module/plugin/config searches | **Historical R01 proposal:** fixed launchers and protected search roots. The later custom Python loading proposal is discarded; the [current rebuild direction](#current-session-confinement-rebuild) trusts installed system loading and adds only justified protection against actual child-controlled inputs, preserving main features. |
 | Agent locale and privileged authentication | **Confined, not cosmetic:** the current agent unit directly imports a kiosk-owned `polkit-agent.env`. Replace arbitrary EnvironmentFile consumption with a fixed launcher accepting only validated locale keys/values; retain the controller's required fixed agent restart. R01c/R08b own association and locale fallback. Fedora retains the live vendor helper inode, privilege mode, SELinux transition and `unix_chkpwd` route; do not impose blanket NNP/nosuid or copy/relabel the vendor helper. Ubuntu retains its vendor root-helper service. |
 
 This is a finite service/consumer contract, not a catalogue of all executable
@@ -645,6 +655,30 @@ libraries and the privileged helper remain trusted administrator/package inputs;
 no exact old-byte lifetime is claimed for them. Product publication is serialized
 with entry; R01e must settle relevant dependency updates and safe renewal without
 adopting a stale active visit. This is not an image-generation/cache framework.
+
+#### Current session-confinement rebuild
+
+The current [master](../Kiosk-Session-Confinement-Plan.md#target-design) requires starting
+from **only kiosk session confinement** at `releases/v1.3` commit
+`188be907c46b1cd0dabae06ac898c43e75beb05e`, then adding justified protections.
+All main non-confinement kiosk features and other product code stay current.
+[C01](../Kiosk-Prompt-Tasks/C01-boundary.md) maps the exact function/configuration
+boundary; [C02](../Kiosk-Prompt-Tasks/C02-rebuild.md) reconstructs that slice.
+This is additive work from the release, not subtraction from v1.4 confinement.
+
+The earlier custom Python/native-loader proposal is discarded. Trusted installed
+Python/GTK/GI code and normal lazy loading remain part of the trusted base.
+[C06](../Kiosk-Prompt-Tasks/C06-protection-review.md) reviews actual deliberate
+smart-child routes before C07/C08 add protection. Every protection-caused failed
+use must meet the master's justification and usability mandates; unfamiliar
+machine configuration alone cannot justify a veto.
+
+C03/C04 realign host and installed/E2E automation with the rebuilt source,
+preserving main feature tests and customer behavior while retiring obsolete
+mechanism assertions. Historical R01–R12 architecture and partial source/test
+receipts below are not active requirements, selected mechanisms or acceptance
+for this rebuilt candidate. Public baseline use precedes new protections, and
+final acceptance remains both-platform installed evidence.
 
 #### Single decision/rejection ledger — execution contribution
 
@@ -950,7 +984,7 @@ preferences/logs; purge deletes owned data only after integration cleanup succee
 
 The table describes current defenses and retained behavioral obligations.
 Mechanism-specific expectations are reconciled in
-[scope reconciliation](../Kiosk-Resilience-Plan.md#scope-reconciliation) when their
+[scope reconciliation](../Kiosk-Session-Confinement-Plan.md#scope-reconciliation) when their
 replacement boundary is proven; this document does not edit executable tests.
 Proof links identify maintained cases/helpers, not a claim that every current
 candidate passed. System checks need independent enforcement negatives and
@@ -982,7 +1016,7 @@ positive controls; public E2E checks establish observable customer results.
 | 22 | Turn the password helper into a privileged launcher. | Finite vendor helper transition checks credentials, label, parent and pinned executable/namespace. [Helper assertions](../../tests/integration/system_kiosk_confinement.py#L197), [public authentication](../../tests/e2e/restricted_station.py). |
 | 23 | Change the station desktop or manage parent policy. | Root routing/Polkit and independent broker roles protect those operations. [Routing recovery](../../tests/integration/system_kiosk_admission.py#L363), [broker matrix](../../tests/system/test_authorization.py#L114). |
 | 24 | Use package replacement/reexec to acquire new unrestricted code. | Current private directory dentries preserve code/library inputs; manager thread boundaries remain checked. [Replacement/reexec assertions](../../tests/integration/system_kiosk_confinement.py#L1510). |
-| 25 | Retain a manager across required configuration changes. | Current exact material/receipt checks can require reboot. Availability and safe renewal replace that mechanism under the [new acceptance contract](../Kiosk-Resilience-Plan.md#acceptance). [Existing configuration check](../../tests/integration/system_kiosk_confinement.py#L2015), [generation refusal helper](../../tests/integration/system_native_update.py#L743) remain current tests. |
+| 25 | Retain a manager across required configuration changes. | Current exact material/receipt checks can require reboot. Availability and safe renewal replace that mechanism under the [new acceptance contract](../Kiosk-Session-Confinement-Plan.md#acceptance). [Existing configuration check](../../tests/integration/system_kiosk_confinement.py#L2015), [generation refusal helper](../../tests/integration/system_native_update.py#L743) remain current tests. |
 | 26 | Enter with missing/stale/disabled/permissive security policy. | Required loaded enforcement/attestation deny unsafe admission; restoring owned policy permits recovery. This does not prove administrator policy removal from a live session. [Policy-loss assertions](../../tests/integration/system_kiosk_confinement.py#L1710). |
 | 27 | Enter during interrupted configuration or before required reboot. | Account expiry remains until configuration completes; restart surface exposes no usable policy controls. [Configuration/reboot histories](../../tests/system/test_install_smoke.py#L36). |
 | 28 | Reboot after partial package unpack to adopt unconfigured files. | Successful-load digest pair must match configuration/policy. [Attestation-drift assertions](../../tests/integration/system_kiosk_confinement.py#L1659). |
@@ -994,6 +1028,43 @@ positive controls; public E2E checks establish observable customer results.
 | 34 | Substitute account records, aliases or cleanup inputs. | Alias ancestry and lifecycle identity/ownership/link/mount checks refuse foreign state rather than adopting/deleting it. [Alias assertions](../../tests/integration/system_kiosk_confinement.py#L1615), [removal cases](../../tests/system/test_removal.py). |
 
 ## Verification scope and evidence limits
+
+R02a's replacement is in progress. The working source adds protected PAM policy
+substacks and empty-credential conversation, a package-owned unit graph/private
+bus, fixed controller/agent launchers and broker visit/effect-admission controls.
+The production native dispatcher now calls `kiosk_startup_open`; old fresh and
+retained view machinery remains in private regression probes. The candidate
+connects protected `AdmitKioskSession` proof, the original shared entry budget,
+finite configuration/code snapshots and one owned renewal. The first independent
+integrated Astra xHigh review withheld completion. The revised candidate changes
+renewal receipts, actual child group write authority, durable bounded cleanup,
+retained-session inactivity, trusted PAM mount teardown and placeholder ownership.
+The second integrated review found those corrections addressed but withheld
+completion for finite executable-consumer coverage, the form's typed inactivity
+race, uncertain old-caller inspection and a refreshed controller operation cap.
+Their corrections require fresh independent review and complete affected validation.
+The third integrated review additionally found unchecked intermediate alias hops,
+old committed-result display after broker-observed departure/rapid return, and
+legacy root/policy mode checks preceding effective child-authority checks.
+The fourth integrated review found the revised alias/form/protected-state/expiry
+paths coherent but withheld completion for an unchecked live interpreted
+notification script and Python's global system-site/module route, plus the
+broker's mode-only GDM caller veto. These production compositions remain open
+despite 411 passing focused host controls and both package builds against the
+preceding candidate. The remaining 2,767 affected regressions also passed with
+owned cleanup complete. The native-owned GDM caller correction subsequently
+passed 300 focused authority/transaction/approval cases and both builds; it still
+required fresh integrated review. The proposed custom Python loading mechanism
+was never implemented and is now discarded. The new
+[source rebuild](../Kiosk-Prompt-Tasks/C02-rebuild.md) replaces this development
+direction; historical partial results do not qualify it.
+Host tests replace OS calls with private PAM configurations or finite
+bus/account doubles; they do not prove actual GDM credentials, loaded enforcing
+policy, agent registration or paired installed native teardown. No replacement
+installed selector is qualified by those results. The new
+[TA cleanup](../Kiosk-Prompt-Tasks/C04-installed-ta.md) maps actual retained
+behavior to rebuilt-source checks; neither partial source nor old review
+completes the new plan.
 
 Persistent identities remain in [system case IDs](../../tests/integration/system_case_ids.py):
 4 covers first-configuration interruption/retry, 5 account classification and
@@ -1065,5 +1136,5 @@ changed inputs or a demonstrated defect follow affected validation.
 Source review and host checks cannot replace installed enforcement and usable
 public entry. Changed distro code, plugins, PAM flow, policy, native launchers
 and executable inputs require affected qualification. The new plan's
-[acceptance](../Kiosk-Resilience-Plan.md#acceptance) requires both platforms and
+[acceptance](../Kiosk-Session-Confinement-Plan.md#acceptance) requires both platforms and
 does not transfer historical passes to the replacement design.

@@ -4006,6 +4006,7 @@ def native_mount_binding(tmp_path_factory):
 #include <syslog.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/fsuid.h>
 static const char *manifest, *fault, *fixture_root, *caller, *drift_source;
 static const char *diagnostic_mode;
 static unsigned diagnostic_attempts;
@@ -4125,7 +4126,7 @@ static void mutate_source(const char *path) {
     }
     printf("mutation:%u\n", source_checks);
 }
-static int fixture_open(const char *path, int flags) {
+static int fixture_open(const char *path, int flags, ...) {
     /* Fedora's GDM domain permits identity inspection but denies reading nsfs.
      * Model that independent policy boundary for setup AND owned cleanup. */
     if (strcmp(path, "/proc/self/ns/mnt") == 0 && !(flags & O_PATH)) {
@@ -4134,7 +4135,9 @@ static int fixture_open(const char *path, int flags) {
     }
     if (strcmp(path, "/usr") == 0 && cloned) return dup(clone_source);
     if (strcmp(path, manifest) == 0) path = manifest;
-    return open(physical(path), flags);
+    mode_t mode = 0;
+    if (flags & O_CREAT) { va_list args; va_start(args, flags); mode = va_arg(args, unsigned); va_end(args); }
+    return open(physical(path), flags, mode);
 }
 static int fixture_openat(int fd, const char *path, int flags, ...) {
     char parent[PATH_MAX]; fd_name(fd, parent);
@@ -4242,9 +4245,16 @@ static int fixture_unshare(int flags) {
     return flags == CLONE_NEWNS ? 0 : -1;
 }
 static int fixture_mkdir(const char *path, mode_t mode) { return mkdir(physical(path), mode); }
+/* This legacy binding fixture already models root ownership and mount syscalls.
+ * Keep creation under the same bounded double; real namespace transactions own
+ * kernel credential/creation proof. Never chown the host fixture to root. */
+static int fixture_fchown(int fd, uid_t uid, gid_t gid) {
+    (void)fd; return uid == 0 && gid == 0 ? 0 : -1;
+}
 static int fixture_statx(int fd, const char *path, int flags, unsigned mask, struct statx *info) {
     (void) fd; (void) flags; (void) mask;
     char buffer[PATH_MAX];
+    if (!*path && (flags & AT_EMPTY_PATH)) { fd_name(fd, buffer); path = logical(buffer); }
     int descriptor;
     if (sscanf(path, "/proc/self/fd/%d", &descriptor) == 1) { fd_name(descriptor, buffer); path = logical(buffer); }
     memset(info, 0, sizeof(*info)); info->stx_mask = STATX_MNT_ID; info->stx_mnt_id = 1;
@@ -4354,7 +4364,10 @@ static int fixture_detach(const char *path, int flags) {
 #define clock_gettime fixture_clock
 #define kill fixture_kill
 #define waitpid fixture_waitpid
-''' + preparation + functions + r'''
+#define fchown fixture_fchown
+#define geteuid() ((uid_t)0)
+#define setfsuid(uid) ((int)0)
+''' + (ROOT / 'tools/kiosk_private_creation.h').read_text() + preparation + functions + r'''
 int main(int argc, char **argv) {
     char backend[32];
     struct kiosk_view view;
@@ -4933,7 +4946,7 @@ def test_post_layout_owned_cleanup_and_bounds(native_mount_binding, tmp_path, fa
         assert killed == (reaped if fault == 'helper-timeout' else [])
     if fault in ('setup-none', 'setup-selinux-none'):
         options = next(line.removeprefix('tmpfs-options:') for line in operations if line.startswith('tmpfs-options:'))
-        expected = 'mode=0700,size=536870912,nr_inodes=32776'
+        expected = 'mode=0700,uid=0,gid=0,size=536870912,nr_inodes=32776'
         if fault == 'setup-selinux-none':
             expected += ',fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0'
         assert options == expected

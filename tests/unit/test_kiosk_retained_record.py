@@ -49,6 +49,7 @@ def retained_probe(tmp_path_factory):
 #include <sys/syscall.h>
 #include <sys/xattr.h>
 #include <dirent.h>
+#include "kiosk_private_creation.h"
 #define KIOSK_VIEW_ROWS 32768U
 #define KIOSK_VIEW_BYTES (64U * 1024U * 1024U)
 static void require(int ok) {if(!ok){perror("retained-fixture");exit(2);}}

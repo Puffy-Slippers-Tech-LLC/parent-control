@@ -38,6 +38,7 @@ PREAMBLE = r'''
 #include <signal.h>
 #include <dirent.h>
 #include <sys/xattr.h>
+#include "kiosk_private_creation.h"
 static void require(int value, const char *stage) {
     if (!value) { fprintf(stderr, "realization-witness:%s:%s\n", stage, strerror(errno)); exit(1); }
 }

@@ -279,12 +279,17 @@ static inline int kiosk_publication_write(struct kiosk_publication *p, const cha
     struct kiosk_publication_member *member = &p->members[p->count++];
     member->name = owned_name;
     int result = -1;
-    if (fstat(fd, &member->info)) goto done;
+    struct stat named;
+    unsigned long long mount;
+    if (fstat(fd, &member->info) ||
+        fstatat(p->root, name, &named, AT_SYMLINK_NOFOLLOW) ||
+        named.st_dev != member->info.st_dev || named.st_ino != member->info.st_ino ||
+        kiosk_pin_fd_mount(fd, &mount) || mount != p->mount ||
+        kiosk_private_initialize(fd, 0600, 1)) goto done;
     if (selinux) {
         const char context[] = "system_u:object_r:onpc_kiosk_runtime_t:s0";
         if (fsetxattr(fd, "security.selinux", context, sizeof(context), 0)) goto done;
     }
-    if (fchmod(fd, 0600)) goto done;
     size_t offset = 0;
     while (offset < size) {
         if (kiosk_pin_before(p->deadline)) goto done;

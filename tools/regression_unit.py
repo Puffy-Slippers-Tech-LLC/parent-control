@@ -1137,6 +1137,13 @@ from regression_ui import Bucket
 # private namespace, including an intentional private source-mount detach.
 # Journal observers use only private records and clock/transport doubles; no
 # live journal, process, service or new cleanup/UI inventory resource is used.
+# Native private-creation controls extend kiosk_confinement, pin_native,
+# view_publication, fresh/retained_startup and login using their existing private
+# compiler/probe children and namespace or metadata doubles. Restrictive umasks
+# are confined to owned probes (or restored in finally for the real PAM fixture).
+# Nonzero group/SGID controls are bounded metadata doubles, not subordinate-ID
+# mappings. No shared path/cache, service, bus/display or new cleanup/UI owner is
+# added; the existing compatible unit classifications remain appropriate.
 REVIEWED = frozenset("""
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof

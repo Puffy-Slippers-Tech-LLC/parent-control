@@ -196,8 +196,8 @@ kiosk_account_check(pam_handle_t *pamh)
     if (login == NULL)
         return PAM_BUF_ERR;
     login->account_result = PAM_SYSTEM_ERR;
-    login->fd = open(KIOSK_LOGIN_LOCK_PATH,
-                     O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0600);
+    login->fd = kiosk_private_lock_open(KIOSK_LOGIN_LOCK_PATH,
+                                         KIOSK_LOGIN_LOCK_OWNER, O_NONBLOCK);
     if (login->fd < 0 || fstat(login->fd, &info) != 0 ||
         !S_ISREG(info.st_mode) || info.st_uid != KIOSK_LOGIN_LOCK_OWNER ||
         (info.st_mode & 07777) != 0600 || info.st_nlink != 1) {
@@ -211,6 +211,12 @@ kiosk_account_check(pam_handle_t *pamh)
         pam_syslog(pamh, LOG_WARNING,
                    "onpc.pam kiosk confinement stage=lock outcome=busy");
         return PAM_PERM_DENIED;
+    }
+    if (kiosk_lock_identity(login->fd, KIOSK_LOGIN_LOCK_PATH, KIOSK_LOGIN_LOCK_OWNER) != 0) {
+        release_kiosk_login(pamh, login, 0);
+        pam_syslog(pamh, LOG_ERR,
+                   "onpc.pam kiosk confinement stage=lock outcome=unsafe");
+        return PAM_SYSTEM_ERR;
     }
     result = pam_set_data(pamh, KIOSK_LOGIN_DATA, login, release_kiosk_login);
     if (result != PAM_SUCCESS) {

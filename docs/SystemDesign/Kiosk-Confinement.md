@@ -625,6 +625,19 @@ uses exact restoration/retry for an owned incomplete attempt or successful
 configuration plus reboot for genuine required drift, under
 [lifecycle](Lifecycle.md#retained-material-activation-and-recovery).
 
+Native named creation explicitly initializes proven new objects before capturing
+their final assertions. Effective root and filesystem UID root are both required;
+filesystem GID, SGID inheritance and the caller's umask do not define private
+root:root ownership or final modes. Descriptor initialization chowns before its
+final chmod and retains named/opened identity, mount and cleanup proofs. Successful
+exclusive creation or mkdir under the trusted parent and preparation lock is
+required; existing runtime roots, locks, generations and retained sources remain
+validation-only. Native-view roots retain their existing UID/mode reuse policy;
+new roots use root:root. Locks retain their UID, single-link and exact-0600 policy,
+which intentionally permits an inherited nonzero group because group access is
+disabled. No caller credential or umask change is needed. Anonymous sealed
+records, socketpairs and detached clones retain their separate contracts.
+
 **Independent implementation witnesses.** These finite acceptance families belong
 to 006a/006b; their linked host close-outs record implemented selectors and exact
 evidence limits. Descriptor selection does not establish composed native binding

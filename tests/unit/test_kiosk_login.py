@@ -583,21 +583,86 @@ def test_real_pam_serializes_logins_and_releases_lock_on_abort(native):
         assert native.pam.pam_open_session(retry, 0) == 0
 
 
-@pytest.mark.parametrize("fault", ["symlink", "mode", "directory"])
-def test_real_pam_refuses_unsafe_lock_paths(native, fault):
+@pytest.mark.parametrize('mask', [0o077, 0o777])
+def test_real_pam_initializes_only_new_locks_despite_umask(native, mask):
+    native.admission.unlink(missing_ok=True)
+    libc = ctypes.CDLL(None)
+    libc.setfsuid.argtypes = libc.setfsgid.argtypes = [ctypes.c_uint]
+    libc.setfsuid.restype = libc.setfsgid.restype = ctypes.c_uint
+    credentials = (os.getresuid(), os.getresgid(), os.getgroups(),
+                   libc.setfsuid(0xffffffff), libc.setfsgid(0xffffffff))
+    parent = native.directory.stat()
+    inherited_gid = parent.st_gid if parent.st_mode & 0o2000 else credentials[4]
+    with native.transaction() as handle:
+        previous = os.umask(mask)
+        try:
+            assert native.pam.pam_acct_mgmt(handle, 0) == 0
+            assert os.umask(mask) == mask
+            assert (os.getresuid(), os.getresgid(), os.getgroups(),
+                    libc.setfsuid(0xffffffff), libc.setfsgid(0xffffffff)) == credentials
+            for path in (native.lock, native.admission):
+                info = path.stat()
+                assert info.st_mode & 0o7777 == 0o600
+                assert info.st_uid == credentials[3]
+                assert info.st_gid == inherited_gid
+                assert info.st_nlink == 1
+        finally:
+            os.umask(previous)
+
+
+def test_real_pam_reuses_valid_lock_without_changing_metadata(native):
+    paths = (native.lock, native.admission)
+    for path in paths:
+        path.write_bytes(b'unchanged-private-lock')
+        path.chmod(0o600)
+    before = [path.stat() for path in paths]
+    with native.transaction() as handle:
+        previous = os.umask(0o777)
+        try:
+            assert native.pam.pam_acct_mgmt(handle, 0) == 0
+            assert os.umask(0o777) == 0o777
+        finally:
+            os.umask(previous)
+    for path, original in zip(paths, before):
+        after = path.stat()
+        assert (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode,
+                after.st_nlink, after.st_ctime_ns) == (
+                    original.st_dev, original.st_ino, original.st_uid, original.st_gid, original.st_mode,
+                    original.st_nlink, original.st_ctime_ns)
+        assert path.read_bytes() == b'unchanged-private-lock'
+
+
+@pytest.mark.parametrize("fault", ["symlink", "mode", "zero-mode", "directory", "hardlink"])
+def test_real_pam_refuses_unsafe_lock_paths(native, tmp_path, fault):
+    sibling = tmp_path / 'extra-lock-link'
     if fault == "symlink":
         native.lock.symlink_to(native.directory / "status")
-    elif fault == "mode":
-        native.lock.touch(mode=0o666)
-    else:
+    elif fault in ("mode", "zero-mode"):
+        native.lock.write_bytes(b'unsafe-mode-lock')
+        native.lock.chmod(0 if fault == 'zero-mode' else 0o666)
+    elif fault == 'directory':
         native.lock.mkdir()
+    else:
+        native.lock.write_bytes(b'linked-private-lock')
+        native.lock.chmod(0o600)
+        os.link(native.lock, sibling)
+    before = native.lock.lstat()
     try:
         with native.transaction() as handle:
             assert native.pam.pam_acct_mgmt(handle, 0) != 0
         assert native.calls() == []
+        after = native.lock.lstat()
+        assert (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode,
+                after.st_nlink, after.st_ctime_ns) == (
+                    before.st_dev, before.st_ino, before.st_uid, before.st_gid, before.st_mode,
+                    before.st_nlink, before.st_ctime_ns)
     finally:
         if fault == "directory":
             native.lock.rmdir()
+        elif fault == 'hardlink':
+            sibling.unlink()
+        elif fault == 'zero-mode':
+            native.lock.chmod(0o600)
 
 
 def test_real_pam_bounds_and_reaps_helper_timeout(native):
@@ -753,9 +818,8 @@ static int kiosk_lock_identity(int fd, const char *path, uid_t owner) {
     if (fd != 7 || strcmp(path, KIOSK_CONFINEMENT_LOCK) || owner != 0) exit(2);
     puts("lock-verified"); return 0;
 }
-static int fixture_open(const char *path, int flags, ...) {
-    if (strcmp(path, KIOSK_CONFINEMENT_LOCK) != 0 ||
-        flags != (O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC)) exit(2);
+static int kiosk_private_lock_open(const char *path, uid_t owner, int nonblock) {
+    if (strcmp(path, KIOSK_CONFINEMENT_LOCK) != 0 || owner != 0 || nonblock != 0) exit(2);
     puts("lock-open"); return 7;
 }
 static int fixture_fstat(int fd, struct stat *info) {
@@ -882,7 +946,6 @@ static int kiosk_retained_close(struct kiosk_retained_startup *gate) {
 #define pam_get_data fixture_get_data
 #define pam_set_data fixture_set_data
 #define geteuid() 0
-#define open fixture_open
 #define fstat fixture_fstat
 #define flock fixture_flock
 #define close fixture_close

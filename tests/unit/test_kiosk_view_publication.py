@@ -18,6 +18,127 @@ DIGEST = 'a' * 64
 
 
 @pytest.fixture(scope='module')
+def private_initializer_probe(tmp_path_factory):
+    """Bounded credential doubles, separate from real single-GID namespaces.
+
+    These model nonzero filesystem groups and SGID inheritance; they do not
+    claim actual GDM credential or installed-policy qualification.
+    """
+    directory = tmp_path_factory.mktemp('private-initializer')
+    source, binary = directory / 'probe.c', directory / 'probe'
+    source.write_text(r'''
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/fsuid.h>
+#include <sys/stat.h>
+#include <unistd.h>
+static struct stat object;
+static uid_t effective_uid, filesystem_uid;
+static gid_t effective_gid, filesystem_gid;
+static unsigned changes, chowns, chmods, queries;
+static const char *fault;
+static uid_t uid(void) {return effective_uid;}
+static int fsuid(uid_t value) {
+    if(value!=(uid_t)-1)exit(3);queries++;return (int)filesystem_uid;
+}
+static int metadata(int fd,struct stat *out) {
+    if(fd!=123)exit(3);
+    if(!strcmp(fault,"stat")){errno=EIO;return -1;}
+    *out=object;return 0;
+}
+static int owner(int fd,uid_t uid,gid_t gid) {
+    if(fd!=123||uid||gid||chmods)exit(3);
+    chowns++;
+    if(!strcmp(fault,"chown")){errno=EPERM;return -1;}
+    object.st_uid=uid;object.st_gid=gid;object.st_mode&=~06000;
+    changes++;return 0;
+}
+static int permissions(int fd,mode_t mode) {
+    if(fd!=123)exit(3);chmods++;
+    if(!strcmp(fault,"chmod")){errno=EPERM;return -1;}
+    object.st_mode=(object.st_mode&S_IFMT)|mode;changes++;
+    if(!strcmp(fault,"replacement"))object.st_ino++;
+    if(!strcmp(fault,"group-drift"))object.st_gid=77;
+    return 0;
+}
+#define geteuid uid
+#define setfsuid fsuid
+#define fstat metadata
+#define fchown owner
+#define fchmod permissions
+#include "kiosk_private_creation.h"
+static void require(int value) {if(!value)exit(2);}
+int main(int argc,char **argv) {
+    require(argc==6);fault=argv[1];
+    mode_t mask=(mode_t)strtoul(argv[2],NULL,8), mode=(mode_t)strtoul(argv[3],NULL,8);
+    int directory=atoi(argv[4]),root_group=atoi(argv[5]);
+    effective_uid=filesystem_uid=0;effective_gid=0;filesystem_gid=42;
+    if(!strcmp(fault,"effective-only")){effective_gid=42;filesystem_gid=0;}
+    if(!strcmp(fault,"fsuid"))filesystem_uid=42;
+    if(!strcmp(fault,"euid"))effective_uid=42;
+    object=(struct stat){.st_dev=1,.st_ino=2,.st_uid=0,
+        .st_gid=!strcmp(fault,"sgid")?77:filesystem_gid,
+        .st_mode=(directory?S_IFDIR:S_IFREG)|(mode&~mask),.st_nlink=directory?2:1};
+    if(directory&&!strcmp(fault,"sgid"))object.st_mode|=S_ISGID;
+    if(!strcmp(fault,"foreign-uid"))object.st_uid=88;
+    if(!strcmp(fault,"hardlink"))object.st_nlink=3;
+    if(!strcmp(fault,"symlink"))object.st_mode=S_IFLNK|0777;
+    struct stat before=object;uid_t e=effective_uid,f=filesystem_uid;
+    gid_t g=effective_gid,h=filesystem_gid;
+    int result=kiosk_private_initialize(123,mode,root_group);
+    require(effective_uid==e&&filesystem_uid==f&&effective_gid==g&&filesystem_gid==h&&queries<=1);
+    int refuse=!strcmp(fault,"fsuid")||!strcmp(fault,"euid")||!strcmp(fault,"foreign-uid")||
+        !strcmp(fault,"symlink")||(!directory&&!strcmp(fault,"hardlink"))||!strcmp(fault,"stat");
+    if(refuse)require(result&&changes==0&&chowns==0&&chmods==0);
+    else if(!strcmp(fault,"chown"))require(result&&chowns==1&&chmods==0&&changes==0);
+    else if(!strcmp(fault,"chmod"))require(result&&chowns==(unsigned)root_group&&chmods==1);
+    else if(!strcmp(fault,"replacement")||!strcmp(fault,"group-drift"))require(result);
+    else require(!result&&object.st_uid==0&&object.st_gid==(root_group?0:before.st_gid)&&
+        (object.st_mode&07777)==mode&&chowns==(unsigned)root_group&&chmods==1);
+    return 0;
+}
+''')
+    result = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                             '-Wno-unused-function', '-Wno-misleading-indentation',
+                             '-I', str(ROOT / 'tools'), str(source), '-o', str(binary)],
+                            capture_output=True, text=True, timeout=30,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+    return binary
+
+
+@pytest.mark.parametrize('group', ['filesystem-only', 'effective-only', 'sgid'])
+@pytest.mark.parametrize('mask', ['0000', '0022', '0077', '0777'])
+@pytest.mark.parametrize('mode,directory', [('0600', '0'), ('0444', '0'), ('0700', '1')])
+def test_private_initializer_ignores_group_inheritance_and_mask(
+        private_initializer_probe, group, mask, mode, directory):
+    result = subprocess.run([str(private_initializer_probe), group, mask, mode, directory, '1'],
+                            capture_output=True, text=True, timeout=5,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('fault', ['fsuid', 'euid', 'foreign-uid', 'hardlink', 'symlink',
+                                  'stat', 'chown', 'chmod', 'replacement', 'group-drift'])
+def test_private_initializer_refuses_unsupported_or_failed_initialization(private_initializer_probe, fault):
+    result = subprocess.run([str(private_initializer_probe), fault, '0777', '0600', '0', '1'],
+                            capture_output=True, text=True, timeout=5,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+
+
+def test_private_initializer_can_preserve_existing_per_object_group_policy(private_initializer_probe):
+    result = subprocess.run([str(private_initializer_probe), 'filesystem-only', '0777', '0600', '0', '0'],
+                            capture_output=True, text=True, timeout=5,
+                            pass_fds=test_storage.scratch_descriptors())
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.fixture(scope='module')
 def publication_probe(tmp_path_factory):
     directory = tmp_path_factory.mktemp('kiosk-publication')
     source, binary = directory / 'probe.c', directory / 'probe'
@@ -43,6 +164,7 @@ def publication_probe(tmp_path_factory):
 #include <sys/syscall.h>
 #include <sys/xattr.h>
 #include <dirent.h>
+#include "kiosk_private_creation.h"
 #include "kiosk_view_receipt.h"
 #define KIOSK_VIEW_ROWS 32768U
 #define KIOSK_VIEW_BYTES (64U * 1024U * 1024U)
@@ -116,8 +238,20 @@ int main(int argc,char **argv) {
     int root=open("store/scratch",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);require(parent>=0&&root>=0);
     struct kiosk_publication publication;
     require(kiosk_publication_open_until(&publication,parent,root,"scratch",NULL,0,deadline)==0);
+    mode_t caller_mask=umask(!strcmp(mode,"private-0777")?0777:0022);
     require(kiosk_publication_write(&publication,"material","material-token",14,0)==0);
     require(kiosk_publication_write(&publication,"copies","copy-token",10,0)==0);
+    if(!strcmp(mode,"private-0777")) {
+        struct stat info;
+        require(fstatat(root,"material",&info,AT_SYMLINK_NOFOLLOW)==0&&
+            info.st_uid==0&&info.st_gid==0&&(info.st_mode&07777)==0600);
+        require(fstatat(root,"copies",&info,AT_SYMLINK_NOFOLLOW)==0&&
+            info.st_uid==0&&info.st_gid==0&&(info.st_mode&07777)==0600);
+        require(umask(0777)==0777);umask(caller_mask);
+        require(kiosk_publication_abort_until(&publication,deadline)==0);
+        kiosk_publication_close(&publication);require(close(root)==0&&close(parent)==0);return 0;
+    }
+    umask(caller_mask);
     int result=0;
     if(!strcmp(mode,"foreign-member")) {
         int fd=openat(root,"foreign",O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);require(fd>=0&&close(fd)==0);
@@ -203,7 +337,7 @@ def _run(probe, tmp_path, mode):
                           pass_fds=test_storage.scratch_descriptors())
 
 
-@pytest.mark.parametrize('mode', ['abort', 'complete', 'cleanup-cut'])
+@pytest.mark.parametrize('mode', ['abort', 'complete', 'cleanup-cut', 'private-0777'])
 def test_publication_complete_or_owned_cleanup(publication_probe, tmp_path, mode):
     result = _run(publication_probe, tmp_path, mode)
     assert result.returncode == 0, result.stderr

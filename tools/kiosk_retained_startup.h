@@ -89,6 +89,19 @@ static inline int kiosk_retained_staging_until(struct kiosk_retained_startup *g)
     placeholder = openat(s->view.root, "source", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     g->invocation = openat(s->view.root, "invocation", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (placeholder < 0 || g->invocation < 0) goto done;
+    /* Both mkdirat calls succeeded in this owned tmpfs. Bind the no-follow
+     * descriptors to their names before initializing metadata; existing trees
+     * never reach this path. Preserve the view's cleanup ticket on any cut. */
+    int created[] = {placeholder, g->invocation};
+    const char *names[] = {"source", "invocation"};
+    if (kiosk_pin_fd_mount(s->view.root, &parent_mount)) goto done;
+    for (unsigned i = 0; i < 2; i++) {
+        struct stat opened, named;
+        if (kiosk_pin_before(s->deadline) || fstat(created[i], &opened) || !S_ISDIR(opened.st_mode) ||
+            fstatat(s->view.root, names[i], &named, AT_SYMLINK_NOFOLLOW) ||
+            !kiosk_pin_same_stat(&opened, &named) || kiosk_pin_fd_mount(created[i], &target_mount) ||
+            parent_mount != target_mount || kiosk_private_initialize(created[i], 0700, 1)) goto done;
+    }
     if (s->view.selinux) {
         const char context[] = "system_u:object_r:onpc_kiosk_runtime_t:s0";
         if (fsetxattr(placeholder, "security.selinux", context, sizeof(context), 0) ||
@@ -193,7 +206,7 @@ static inline int kiosk_retained_startup_until(struct kiosk_retained_startup *g,
     s->attempted = 1; s->deadline = deadline; s->stage = "identity";
     if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || !username || strcmp(username, KIOSK_ACCOUNT_NAME) ||
         pam_get_item(pamh, PAM_SERVICE, (const void **)&service) != PAM_SUCCESS ||
-        !service || strcmp(service, "gdm-password") || geteuid() != 0 ||
+        !service || strcmp(service, "gdm-password") || kiosk_private_fsuid() ||
         kiosk_pin_now(&now) || deadline <= now || deadline - now > 60000000ULL ||
         kiosk_preparation_deadline_ns(deadline, &s->child.deadline_ns) || lock == lease ||
         kiosk_admission_current(lease) || flock(lease, LOCK_SH | LOCK_NB) ||

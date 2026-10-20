@@ -9,6 +9,7 @@
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
 #include <sys/xattr.h>
+#include "kiosk_private_creation.h"
 
 #ifndef KIOSK_CONFINEMENT_PREPARE
 #define KIOSK_CONFINEMENT_PREPARE "/usr/libexec/oh-no-parent-control-kiosk-confinement"
@@ -88,8 +89,7 @@ kiosk_admission(pam_handle_t *pamh, const char *username)
     fd = malloc(sizeof(*fd));
     if (fd == NULL)
         return PAM_BUF_ERR;
-    *fd = open(KIOSK_ADMISSION_LOCK,
-               O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0600);
+    *fd = kiosk_private_lock_open(KIOSK_ADMISSION_LOCK, KIOSK_ADMISSION_LOCK_OWNER, O_NONBLOCK);
     if (*fd < 0 || fstat(*fd, &info) != 0 || !S_ISREG(info.st_mode) ||
         info.st_uid != KIOSK_ADMISSION_LOCK_OWNER || (info.st_mode & 07777) != 0600 ||
         info.st_nlink != 1 || flock(*fd, LOCK_SH | LOCK_NB) != 0 ||
@@ -1337,7 +1337,11 @@ kiosk_pin_publish_until(struct kiosk_source_pin *pin, int owned_parent, const ch
     if (pending < 0)
         goto done;
     created = 1;
-    if (fchmod(pending, 0600) != 0 || fstat(pending, &pending_info) != 0 ||
+    if (fstat(pending, &pending_info) != 0 ||
+        fstatat(root, "ready.pending", &named, AT_SYMLINK_NOFOLLOW) != 0 ||
+        named.st_dev != pending_info.st_dev || named.st_ino != pending_info.st_ino ||
+        kiosk_pin_fd_mount(pending, &id) != 0 || id != expected->mount ||
+        kiosk_private_initialize(pending, 0600, 1) != 0 || fstat(pending, &pending_info) != 0 ||
         !kiosk_trusted_stat(&pending_info, S_IFREG) || (pending_info.st_mode & 07777) != 0600 ||
         pending_info.st_nlink != 1 || kiosk_label(pending, NULL, 0, selinux) != 0)
         goto done;
@@ -1505,17 +1509,18 @@ kiosk_tmpfs_context(unsigned long long mount_id)
 static int
 setup_kiosk_view(struct kiosk_view *view)
 {
-    struct stat info, before, after;
+    struct stat info, before, after, named;
     struct statfs fs;
     unsigned long long parent_id, existing;
     DIR *directory = NULL;
     struct dirent *entry;
     void *library = NULL;
-    int ns = -1, fresh = -1, scan = -1, empty = 1, result = -1;
+    int ns = -1, fresh = -1, scan = -1, empty = 1, result = -1, created;
     const char *stage = "staging", *reason = "metadata";
     int (*enabled)(void);
     memset(view, 0, sizeof(*view));
     view->root = -1;
+    if (kiosk_private_fsuid()) goto done;
     if (kiosk_os_failure(&view->failure, stage, reason,
                         (view->mounts = calloc(KIOSK_VIEW_ROWS, sizeof(*view->mounts))) == NULL))
         goto done;
@@ -1544,13 +1549,19 @@ setup_kiosk_view(struct kiosk_view *view)
     view->namespace_device = after.st_dev;
     view->namespace_inode = after.st_ino;
     stage = "staging"; reason = "metadata";
-    if ((mkdir(KIOSK_CONFINEMENT_VIEW, 0700) != 0 && errno != EEXIST) ||
+    created = mkdir(KIOSK_CONFINEMENT_VIEW, 0700) == 0;
+    if ((!created && errno != EEXIST) ||
         (view->root = open(KIOSK_CONFINEMENT_VIEW,
                            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) < 0 ||
-        fstat(view->root, &info) != 0 || !kiosk_trusted_stat(&info, S_IFDIR) ||
-        (info.st_mode & 07777) != 0700 ||
+        fstat(view->root, &info) != 0 || lstat(KIOSK_CONFINEMENT_VIEW, &named) != 0 ||
+        !S_ISDIR(info.st_mode) || !S_ISDIR(named.st_mode) ||
+        info.st_dev != named.st_dev || info.st_ino != named.st_ino ||
         kiosk_mount_id(KIOSK_CONFINEMENT_RUNTIME, &parent_id) != 0 ||
         kiosk_mount_id(KIOSK_CONFINEMENT_VIEW, &existing) != 0 || existing != parent_id ||
+        kiosk_pin_fd_mount(view->root, &existing) != 0 || existing != parent_id ||
+        (created && kiosk_private_initialize(view->root, 0700, 1)) ||
+        fstat(view->root, &info) != 0 || !kiosk_trusted_stat(&info, S_IFDIR) ||
+        (info.st_mode & 07777) != 0700 ||
         (scan = fcntl(view->root, F_DUPFD_CLOEXEC, STDERR_FILENO + 1)) < 0 || (directory = fdopendir(scan)) == NULL)
         goto done;
     scan = -1; /* fdopendir owns the descriptor after success. */
@@ -1564,8 +1575,8 @@ setup_kiosk_view(struct kiosk_view *view)
     directory = NULL;
     if (kiosk_os_failure(&view->failure, stage, "mount",
         mount("tmpfs", KIOSK_CONFINEMENT_VIEW, "tmpfs", 0,
-              view->selinux ? "mode=0700,size=536870912,nr_inodes=32776,fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0"
-                            : "mode=0700,size=536870912,nr_inodes=32776") != 0))
+              view->selinux ? "mode=0700,uid=0,gid=0,size=536870912,nr_inodes=32776,fscontext=system_u:object_r:tmpfs_t:s0,rootcontext=system_u:object_r:onpc_kiosk_runtime_t:s0"
+                            : "mode=0700,uid=0,gid=0,size=536870912,nr_inodes=32776") != 0))
         goto done;
     view->mounted = 1;
     if (kiosk_mount_id(KIOSK_CONFINEMENT_VIEW, &view->root_id) != 0 ||
@@ -1574,7 +1585,8 @@ setup_kiosk_view(struct kiosk_view *view)
     close(view->root);
     view->root = open(KIOSK_CONFINEMENT_VIEW,
                       O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-    if (view->root < 0 || fstat(view->root, &info) != 0 ||
+    if (view->root < 0 || kiosk_pin_fd_mount(view->root, &existing) != 0 || existing != view->root_id ||
+        kiosk_private_initialize(view->root, 0700, 1) != 0 || fstat(view->root, &info) != 0 ||
         !kiosk_trusted_stat(&info, S_IFDIR) || (info.st_mode & 07777) != 0700 ||
         fstatfs(view->root, &fs) != 0 || (unsigned long) fs.f_type != 0x01021994UL ||
         fs.f_bsize <= 0 || !fs.f_blocks || !fs.f_files ||
@@ -2611,7 +2623,7 @@ kiosk_confinement(pam_handle_t *pamh)
         goto done;
     deadline = now + 60000000U;
     stage = "lock";
-    fd = open(KIOSK_CONFINEMENT_LOCK, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    fd = kiosk_private_lock_open(KIOSK_CONFINEMENT_LOCK, 0, 0);
     if (fd < 0 || fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != 0 ||
         (info.st_mode & 07777) != 0600 || info.st_nlink != 1 ||
         flock(fd, LOCK_EX | LOCK_NB) != 0 ||

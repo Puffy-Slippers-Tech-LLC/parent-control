@@ -7,6 +7,7 @@ identities remain real. Every child has pipe barriers and is waited by its owner
 """
 
 import json
+import os
 import hashlib
 from pathlib import Path
 import subprocess
@@ -146,6 +147,8 @@ static ssize_t retained_getline(char **line,size_t *capacity,FILE *stream) {
 }
 static int retained_openat(int dir,const char *path,int flags,...) {
     mode_t permission=0;if(flags&O_CREAT){va_list a;va_start(a,flags);permission=va_arg(a,int);va_end(a);}
+    char private_cut[128];snprintf(private_cut,sizeof(private_cut),"private-%s-open-cut",path);
+    if(gate_phase && !strcmp(mode,private_cut)) {private_initializer_cuts++;errno=EIO;return -1;}
     if(gate_phase && !strcmp(path,"mountinfo") &&
         (!strcmp(mode,"required-drift-final-manager") || !strcmp(mode,"required-drift-expired"))) {
         require(!material_witness_cut,"one-diagnostic-source-proof-cut");material_witness_cut++;
@@ -565,7 +568,7 @@ static void observe_tree(int root,const char *name,struct tree_witness *rows,uns
 }
 static void put_text(const char *name,const char *text) {
     char path[PATH_MAX];snprintf(path,sizeof(path),"%s/%s",base,name);int fd=open(path,O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,0600);
-    require(fd>=0 && write(fd,text,strlen(text))==(ssize_t)strlen(text) && close(fd)==0,"owned-scene-record");
+    require(fd>=0 && fchmod(fd,0600)==0 && write(fd,text,strlen(text))==(ssize_t)strlen(text) && close(fd)==0,"owned-scene-record");
 }
 static void invocation_sources(void) {
     struct kiosk_admission_transaction *owner=(void *)pam_data[1];
@@ -612,6 +615,8 @@ static void invocation_sources(void) {
 }
 static void release_pam(void) {for(int slot=1;slot>=0;slot--)if(pam_data[slot]){pam_cleanup[slot](NULL,(void *)pam_data[slot],PAM_SUCCESS);pam_data[slot]=NULL;}}
 static const char *expected_stage(const char *name) {
+    if(!strncmp(name,"private-source-",15) || !strncmp(name,"private-invocation-",19))return "source-staging";
+    if(!strncmp(name,"private-marker-",15))return "realization";
     if(!strcmp(name,"healthy") || !strcmp(name,"measurement-production-healthy") || !strcmp(name,"ambient-narrow") || !strcmp(name,"ambient-mask") || !strcmp(name,"same-reexec") ||
         !strcmp(name,"same-fd-reexec") || !strcmp(name,"exit-after-decision") ||
         !strcmp(name,"stable-two-tasks") || !strcmp(name,"capabilities-inherited") || !strcmp(name,"capabilities-zero") ||
@@ -741,7 +746,7 @@ int main(int argc,char **argv) {
     require(pipe(ready)==0 && pipe(release)==0,"manager-owned-pipes");manager_pid=fork();require(manager_pid>=0,"manager-owned-fork");
     if(!manager_pid) {
         if(prctl(PR_SET_PDEATHSIG,SIGKILL) || getppid()!=manager_parent)_exit(127);
-        close(ready[0]);close(release[1]);int result=kiosk_confinement(NULL);
+        close(ready[0]);close(release[1]);native_private_begin();int result=kiosk_confinement(NULL);native_private_end();
         require(result==PAM_SUCCESS,"exact-production-fresh-caller");release_pam();actual_nested();
         if(!strcmp(argv[1],"failed-manager-exec") || !strcmp(argv[1],"interrupted-manager-before-exec")) {
             if(!strcmp(argv[1],"failed-manager-exec")) {
@@ -845,7 +850,7 @@ int main(int argc,char **argv) {
     require(kiosk_admission(NULL,"oh-no-parent-control-kiosk")==PAM_SUCCESS,"owned-gate-admission");unsigned baseline=descriptors();
     final_fd_baseline=(int)baseline;
     for(int caller=0;caller<4096;caller++)caller_fds[caller]=fstat(caller,&caller_objects[caller])==0;
-    int result=kiosk_confinement(NULL);int positive=!strcmp(expected_stage(mode),"armed");
+    native_private_begin();int result=kiosk_confinement(NULL);native_private_end();int positive=!strcmp(expected_stage(mode),"armed");
     if(capability_model())capability_expect(result==PAM_SUCCESS?0:-1);
     if(positive)require(capability_get_calls==2 && capability_set_calls==1 && capability_ambient_calls==1,
         "production-retained-cut-uses-shared-capability-clear");
@@ -855,6 +860,9 @@ int main(int argc,char **argv) {
     struct kiosk_fresh_startup *transaction=&owner->retained.common;
     if(!transaction->stage || strcmp(transaction->stage,expected_stage(mode)))fprintf(stderr,"retained-boundary mode=%s expected=%s actual=%s\n",mode,expected_stage(mode),transaction->stage?transaction->stage:"-");
     require(transaction->stage && !strcmp(transaction->stage,expected_stage(mode)),"exact-fault-applicability-boundary");
+    if(!strncmp(mode,"private-",8))require(private_initializer_cuts==1,"one-private-staging-or-marker-initialization-cut");
+    if(positive && getenv("ONPC_FIXTURE_NATIVE_UMASK"))require(transaction->marker_info.st_uid==0 &&
+        transaction->marker_info.st_gid==0 && (transaction->marker_info.st_mode&07777)==0444,"retained-exact-marker-metadata-under-0777");
     if(!strcmp(mode,"required-drift")) {
         require(transaction->failure.stage && !strcmp(transaction->failure.stage,"manager-material") &&
             !strcmp(transaction->failure.reason,"stale-manager-reboot-required") && transaction->failure.error==-1 &&
@@ -1056,6 +1064,12 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
 
 
 @pytest.mark.parametrize('mode', [
+    'native-private-0777',
+    'private-source-open-cut', 'private-invocation-open-cut',
+    'private-source-identity-cut', 'private-invocation-identity-cut',
+    'private-source-chown-cut', 'private-source-chmod-cut',
+    'private-invocation-chown-cut', 'private-invocation-chmod-cut',
+    'private-marker-chown-cut', 'private-marker-chmod-cut',
     'healthy', 'ambient-narrow', 'ambient-mask', 'same-reexec', 'same-fd-reexec', 'exit-after-decision',
     'wrong-clone', 'missing-nested-clone', 'required-drift', 'post-attach-required-drift', 'absent-ready',
     'required-drift-absent-ready', 'required-drift-stale-ready', 'required-drift-forged-ready',
@@ -1092,8 +1106,13 @@ def test_completed_ready_requires_live_manager_after_exec_boundary(retained_scen
   + [f'{phase}-{kind}' for phase in ('acquire', 'final', 'closure') for kind in ('same-reexec', 'fd-reexec')])
 def test_exact_pam_fresh_then_retained_transaction(retained_scene, mode):
     directory, binary = retained_scene
+    native_private = mode == 'native-private-0777'
+    if native_private:
+        (directory / 'native-private-mask').touch()
+        mode = 'healthy'
     completed = subprocess.run([str(binary), mode, str(directory)],
                                capture_output=True, text=True, timeout=30,
+                               env=dict(os.environ, ONPC_FIXTURE_NATIVE_UMASK='0777') if native_private else None,
                                pass_fds=test_storage.scratch_descriptors())
     errors = directory / 'helper-error'
     assert completed.returncode == 0, (

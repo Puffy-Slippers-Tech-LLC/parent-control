@@ -7,6 +7,11 @@ failures, required-input refusals and owned cleanup.
 Every row inherits the master's symptom boundary. Existing lifecycle evidence is
 reviewed at 011a; only a demonstrated affected kiosk-entry history can become a
 finite prerequisite. There are no unconditional full-lifecycle acceptance rows.
+The master's [remaining repair tasks](Kiosk-Prompt.md#remaining-repair-tasks)
+allocate the Astra review's repairs and the prepared per-target bootstrap
+prerequisites. Activate staged rows only through their selected consumer's brief.
+Every product fix requires the master's
+[Astra XHigh review and revision gate](Kiosk-Prompt.md#astra-review-and-revision-for-every-product-fix).
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
@@ -40,7 +45,10 @@ finite prerequisite. There are no unconditional full-lifecycle acceptance rows.
 | [x] | 007a1b | [Transport bounded preparation refusal causes](Kiosk-Prompt.md#preparation-refusal-transport--007a1b) | 006, 007a1a | Carry allowlisted preparation failure causes through the checked native channel while preserving closed stdio and descriptor ownership | Host passed: 878 checks; finite measurement causes, malformed/late/substituted refusal and both-role production dispatch controls; both builds and owned cleanup passed |
 | [x] | 007a1c | [Distinguish retained material refusal evidence](Kiosk-Prompt.md#retained-material-refusal-witness--007a1c) | 006, 007a1b | Distinct verified material-mismatch diagnostics and exact per-call internal/public refusal observers with composed host proof | Host passed: 1,257 affected checks; verified old/current material distinction, exact journal call/source/boot/time and branch controls, both builds, independent review and owned cleanup |
 | [x] | 007a1 | [Implement canonical retained-view histories](Kiosk-Prompt.md#canonical-retained-view-histories--007a1) | 006, 007a1a, 007a1b, 007a1c | Register and host-validate the shared finite ambient and required-drift histories without installed acceptance | Host passed: 4,231 affected checks; canonical IDs 293/294, exact mutation/pin/refusal/recovery and input-closure controls; owned cleanup finished |
-| [ ] | 007a2 | [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md) | 007a1 | Complete Ubuntu unrelated-change, immutable-view, enforcing-entry and ordinary-account history | 15–30 min |
+| [x] | 007a2a | [Make native private creation independent of caller credentials](Kiosk-Prompt.md#native-private-creation--007a2a) | 007a1 | Initialize newly owned native kiosk state with explicit ownership and modes while preserving existing-state refusal and caller context | Host passed: 2,640-case selection plus four final fixture controls, both package builds, Sol/Astra XHigh review and owned cleanup; actual caller/policy proof remains installed |
+| [ ] | 007a2b | [Complete caller-independent helper creation and witnesses](Kiosk-Prompt-Tasks/007a2b-helper-private-creation.md) | 007a2a | Correct Python preparation ownership and modes, actual GDM credential witnesses and cumulative native/helper validation | 20–30 min |
+| [ ] | 007a2c | [Reconcile retained-manager session cleanup](Kiosk-Prompt-Tasks/007a2c-manager-session-cleanup.md) | 007a1, 007a2b | Resolve the observed owned-manager cleanup refusal with exact session classification and identity-preserving recovery controls | 15–30 min |
+| [ ] | 007a2 | [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a2-ambient-ubuntu.md) | 007a1, 007a2a, 007a2b, 007a2c | Complete Ubuntu unrelated-change, immutable-view, enforcing-entry and ordinary-account history | First installed attempt failed before ambient changes; native/helper creation and cleanup prerequisites inserted; no acceptance credit |
 | [ ] | 007a3 | [Qualify Ubuntu required drift and recovery](Kiosk-Prompt-Tasks/007a3-required-ubuntu.md) | 007a1, 007a2 | Complete Ubuntu required native/config/policy/privilege drift refusals, exact restoration and reboot/reentry histories | 20–30 min; keep each history intact |
 | [ ] | 007a | [Qualify Ubuntu retained ambient changes](Kiosk-Prompt-Tasks/007a-generation-ubuntu.md) | 006, 007a1, 007a2, 007a3 | Ubuntu ambient changes remain usable; required drift refuses and recovers with native identity proof | 35–60 min; session exception; staged prerequisites inserted, no acceptance credit |
 | [ ] | 007 | [Qualify Fedora retained ambient changes](Kiosk-Prompt-Tasks/007-generation-installed.md) | 006, 007a | Fedora retained-view/drift history and both-target receipt reconciliation | 30–60 min; session exception |

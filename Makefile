@@ -191,7 +191,7 @@ PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c
 PACKAGE_SOURCE_FILES += tools/kiosk_bwrap.c
-PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_confinement.py \
+PACKAGE_SOURCE_FILES += tools/kiosk_confinement.h tools/kiosk_private_creation.h tools/kiosk_confinement.py \
 	tools/kiosk_host_proof.h tools/kiosk_manager_admission.h \
 	tools/kiosk_material_authority.h tools/kiosk_view_receipt.h \
 	tools/kiosk_preparation_channel.h tools/kiosk_preparation_child.h \

@@ -7,6 +7,7 @@ fixture boundaries. No installed path, service or host mount is changed.
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -28,6 +29,10 @@ import copy, hashlib, importlib.util, json, os, socket, sys, traceback
 from types import SimpleNamespace
 from pathlib import Path
 base = Path(@BASE@)
+# This prerequisite proves native initialization. The Python allocation owner
+# retains its own caller-context work in 007a2b; isolate that boundary explicitly.
+if (base / 'native-private-mask').exists():
+    os.umask(0o022)
 diagnostic_open = os.open
 def report_error(kind, error, tb):
     fd = diagnostic_open(str(base / 'helper-error'), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
@@ -254,6 +259,7 @@ NATIVE = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/fsuid.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
@@ -284,6 +290,7 @@ static struct stat caller_objects[4096];
 static unsigned char caller_fds[4096];
 static unsigned selinux_order;
 static unsigned fault_hits, contention_checks, writer_barriers, cleanup_hits;
+static unsigned private_initializer_cuts;
 static void contend(void);
 static void writer_barrier(const char *phase) {
     char prefix[64];snprintf(prefix,sizeof(prefix),"writer-%s-",phase);
@@ -299,6 +306,48 @@ static int ready_expected(void) {
 }
 static void require(int ok, const char *stage) {
     if (!ok) { fprintf(stderr,"fresh-witness:%s:%s\n",stage,strerror(errno)); exit(2); }
+}
+static mode_t native_private_mask;
+static uid_t native_private_uids[4];
+static gid_t native_private_gids[4];
+static void native_private_begin(void) {
+    if(!getenv("ONPC_FIXTURE_NATIVE_UMASK"))return;
+    require(getresuid(native_private_uids,native_private_uids+1,native_private_uids+2)==0 &&
+        getresgid(native_private_gids,native_private_gids+1,native_private_gids+2)==0,"private-original-credentials");
+    native_private_uids[3]=(uid_t)setfsuid((uid_t)-1);
+    native_private_gids[3]=(gid_t)setfsgid((gid_t)-1);
+    native_private_mask=umask(0777);
+}
+static void native_private_end(void) {
+    if(!getenv("ONPC_FIXTURE_NATIVE_UMASK"))return;
+    uid_t uids[4];gid_t gids[4];
+    require(getresuid(uids,uids+1,uids+2)==0 && getresgid(gids,gids+1,gids+2)==0,"private-final-credentials");
+    uids[3]=(uid_t)setfsuid((uid_t)-1);gids[3]=(gid_t)setfsgid((gid_t)-1);
+    require(!memcmp(uids,native_private_uids,sizeof(uids)) && !memcmp(gids,native_private_gids,sizeof(gids)) &&
+        umask(native_private_mask)==0777,"native-preserves-all-caller-IDs-and-0777-mask");
+}
+static int native_private_fd_cut(int fd,const char *operation) {
+    char proc[64],path[PATH_MAX],expected[128];snprintf(proc,sizeof(proc),"/proc/self/fd/%d",fd);
+    ssize_t n=readlink(proc,path,sizeof(path)-1);if(n<0)return 0;path[n]=0;
+    const char *leaf=strrchr(path,'/');leaf=leaf?leaf+1:path;
+    const char *object=!strcmp(leaf,"retained-view")?"marker":leaf;
+    snprintf(expected,sizeof(expected),"private-%s-%s-cut",object,operation);
+    if(strcmp(mode,expected))return 0;
+    private_initializer_cuts++;fault_hits++;errno=EIO;return 1;
+}
+static int fixture_fchown(int fd,uid_t uid,gid_t gid) {
+    if(native_private_fd_cut(fd,"chown"))return -1;
+    return fchown(fd,uid,gid);
+}
+static int fixture_fchmod(int fd,mode_t permissions) {
+    if(native_private_fd_cut(fd,"chmod"))return -1;
+    return fchmod(fd,permissions);
+}
+static int fixture_fstatat(int parent,const char *name,struct stat *info,int flags) {
+    int result=fstatat(parent,name,info,flags);
+    char expected[128];snprintf(expected,sizeof(expected),"private-%s-identity-cut",name);
+    if(!result && !strcmp(mode,expected)){info->st_ino++;private_initializer_cuts++;fault_hits++;}
+    return result;
 }
 static void fixture_syslog(const pam_handle_t *p,int priority,const char *format,...) {
     (void)p;(void)priority;va_list a;va_start(a,format);vfprintf(stderr,format,a);fputc('\n',stderr);va_end(a);
@@ -398,6 +447,7 @@ static unsigned descriptors(void) {
 }
 static const char *map(const char *path, char out[PATH_MAX]) {
     if (!strcmp(path,"/")) snprintf(out,PATH_MAX,"%s/host",base);
+    else if (!strcmp(path,"/run")) snprintf(out,PATH_MAX,"%s",base);
     else if (!strncmp(path,"/run/oh-no-parent-control",strlen("/run/oh-no-parent-control"))) {
         if (!strcmp(path,"/run/oh-no-parent-control-confinement.lock")) snprintf(out,PATH_MAX,"%s/lock",base);
         else if (!strcmp(path,"/run/oh-no-parent-control-kiosk-admission.lock")) snprintf(out,PATH_MAX,"%s/lease",base);
@@ -408,10 +458,32 @@ static const char *map(const char *path, char out[PATH_MAX]) {
 }
 static int fixture_open(const char *p,int flags,...) {
     mode_t permission=0; if(flags&O_CREAT) {va_list a;va_start(a,flags);permission=va_arg(a,int);va_end(a);}
-    char out[PATH_MAX]; return open(map(p,out),flags,permission);
+    char out[PATH_MAX];int fd=open(map(p,out),flags,permission);
+    if(fd>=0 && !(flags&O_PATH) && !strcmp(p,"/run/oh-no-parent-control-confinement") &&
+        !strcmp(mode,"native-private-runtime-identity-cut") && !private_initializer_cuts) {
+        /* Substitute the name only after production holds its original inode.
+         * Real fstat/lstat now disagree; no fabricated metadata is involved. */
+        char foreign[PATH_MAX],owned[PATH_MAX];
+        snprintf(foreign,sizeof(foreign),"%s/foreign-runtime",base);
+        snprintf(owned,sizeof(owned),"%s/runtime-created",base);
+        require(rename(out,owned)==0 && rename(foreign,out)==0,"fixture-runtime-identity-substitution-after-open");
+        private_initializer_cuts++;fault_hits++;
+    }
+    return fd;
 }
-static int fixture_lstat(const char *p,struct stat *s) {char out[PATH_MAX];return lstat(map(p,out),s);}
-static int fixture_mkdir(const char *p,mode_t m) {char out[PATH_MAX];return mkdir(map(p,out),m);}
+static int fixture_lstat(const char *p,struct stat *s) {
+    char out[PATH_MAX];return lstat(map(p,out),s);
+}
+static int fixture_mkdir(const char *p,mode_t m) {
+    char out[PATH_MAX];int result=mkdir(map(p,out),m);
+    if(!result && !strcmp(p,"/run/oh-no-parent-control-confinement") &&
+        !strcmp(mode,"native-private-runtime-mount-cut")) {
+        char foreign[PATH_MAX];snprintf(foreign,sizeof(foreign),"%s/foreign-runtime",base);
+        require(mount(foreign,out,NULL,MS_BIND,NULL)==0,"fixture-foreign-runtime-bind-before-open");
+        fault_hits++;
+    }
+    return result;
+}
 static int fixture_statx(int fd,const char *p,int flags,unsigned mask,struct statx *s) {
     char out[PATH_MAX];return statx(fd,p[0]=='/'?map(p,out):p,flags,mask,s);
 }
@@ -704,6 +776,9 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #define umount2 fixture_umount
 #define unshare fixture_unshare
 #define fstat fixture_fstat
+#define fstatat fixture_fstatat
+#define fchown fixture_fchown
+#define fchmod fixture_fchmod
 #define execve fixture_execve
 #define getpwnam_r fixture_account
 #define pam_putenv fixture_environment
@@ -731,6 +806,9 @@ static ssize_t fixture_write(int fd,const void *data,size_t size) {
 #undef umount2
 #undef unshare
 #undef fstat
+#undef fstatat
+#undef fchown
+#undef fchmod
 #undef execve
 #undef getpwnam_r
 #undef pam_putenv
@@ -855,6 +933,9 @@ static void completion_boundary(const struct kiosk_fresh_startup *s) {
     for(unsigned i=0;i<sizeof(publication)/sizeof(*publication);i++)
         if(!strcmp(mode,publication[i])) expected="publication";
     if(!strcmp(mode,"bind-cut") || !strcmp(mode,"ambient-bind-undo-cleanup-cut")) expected="realization";
+    if(!strncmp(mode,"private-marker-",15)) expected="realization";
+    if(!strncmp(mode,"private-runtime-existing-",25)) expected="runtime";
+    if(!strncmp(mode,"native-private-runtime-",23)) expected="runtime";
     if(!strcmp(mode,"clone-cut") || !strcmp(mode,"attachment-cut") || !strcmp(mode,"readonly-cut")) expected="attachment";
     if(!strcmp(mode,"staging-detach-cut")) expected="staging";
     if(!strcmp(mode,"environment-failure")) expected="environment";
@@ -910,7 +991,9 @@ int main(int argc,char **argv) {
     uint64_t now;require(kiosk_pin_now(&now)==0,"clock");
     uint64_t deadline=!strcmp(mode,"expired")?now-1:now+(!strcmp(mode,"helper-timeout")?250000:!strcmp(mode,"mac-deadline")?2000000:10000000);
     transaction_deadline=deadline;
+    native_private_begin();
     int result=kiosk_fresh_startup_until(&startup,NULL,lock,lease,deadline);
+    native_private_end();
     require(startup.deadline==deadline &&
         kiosk_fresh_startup_until(&startup,NULL,lock,lease,deadline+1000000)!=0 && startup.deadline==deadline,
         "original-deadline-and-single-attempt");
@@ -919,7 +1002,15 @@ int main(int argc,char **argv) {
     if((result==0)!=positive) fprintf(stderr,"fresh-result mode=%s result=%d stage=%s child-started=%d reaped=%d phase=%u pidfd=%d channel=%d\n",mode,result,startup.stage?startup.stage:"-",
         startup.child.started,startup.child.reaped,startup.child.phase,startup.child.pidfd,startup.child.channel);
     require((result==0)==positive,"complete-transaction-result");
+    if(positive && getenv("ONPC_FIXTURE_NATIVE_UMASK")) {
+        struct stat info;snprintf(path,sizeof(path),"%s/runtime",base);
+        require(lstat(path,&info)==0 && info.st_uid==0 && info.st_gid==0 && (info.st_mode&07777)==0700,
+            "exact-private-runtime-metadata-under-0777");
+        require(startup.marker_info.st_uid==0 && startup.marker_info.st_gid==0 &&
+            (startup.marker_info.st_mode&07777)==0444,"exact-private-marker-metadata-under-0777");
+    }
     completion_boundary(&startup);
+    if(!strncmp(mode,"private-marker-",15))require(private_initializer_cuts==1,"one-marker-initialization-failure-cut");
     struct kiosk_failure primary=startup.failure, cleanup=startup.cleanup_failure;
     if(!strcmp(mode,"measurement-config-refusal") || !strcmp(mode,"measurement-policy-refusal") ||
         !strcmp(mode,"measurement-helper-refusal") || !strcmp(mode,"measurement-attestation-refusal")) {
@@ -1138,6 +1229,8 @@ def fresh_scene(tmp_path):
 
 
 @pytest.mark.parametrize('mode', [
+    'native-private-0777', 'native-private-new-runtime-0777',
+    'private-marker-chown-cut', 'private-marker-chmod-cut',
     'healthy', 'ambient-narrow', 'helper-exit', 'helper-result-exit', 'helper-timeout', 'helper-order',
     'measurement-config-refusal', 'measurement-policy-refusal', 'measurement-helper-refusal',
     'measurement-attestation-refusal', 'measurement-production-healthy',
@@ -1158,6 +1251,12 @@ def fresh_scene(tmp_path):
 ])
 def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
     directory, binary = fresh_scene
+    native_private = mode.startswith('native-private-')
+    if native_private:
+        (directory / 'native-private-mask').touch()
+        if mode == 'native-private-new-runtime-0777':
+            (directory / 'runtime').rmdir()
+        mode = 'healthy'
     (directory / 'mode').write_text(mode)
     borrowed = {name: (directory / name).stat() for name in ('lock', 'lease')}
     retained_generations = {}
@@ -1174,6 +1273,7 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
             retained_generations[generation.name] = (generation.stat(), (generation / 'foreign-record').stat())
     completed = subprocess.run([str(binary), mode, str(directory)],
                                capture_output=True, text=True, timeout=20,
+                               env=dict(os.environ, ONPC_FIXTURE_NATIVE_UMASK='0777') if native_private else None,
                                pass_fds=test_storage.scratch_descriptors())
     helper_error = directory / 'helper-error'
     helper_started = directory / 'helper-started'
@@ -1267,6 +1367,55 @@ def test_complete_native_fresh_manager_transaction(fresh_scene, mode):
         assert not generations
         assert not any(path.name.startswith('.runtime-')
                        for path in (directory / 'runtime').iterdir())
+
+
+@pytest.mark.parametrize('permissions', [0o000, 0o770, 0o2700])
+def test_existing_runtime_metadata_is_never_normalized(fresh_scene, permissions):
+    directory, binary = fresh_scene
+    runtime = directory / 'runtime'
+    runtime.chmod(permissions)
+    original = runtime.stat()
+    (directory / 'mode').write_text('private-runtime-existing-mode')
+    try:
+        completed = subprocess.run([str(binary), 'private-runtime-existing-mode', str(directory)],
+                                   capture_output=True, text=True, timeout=20,
+                                   pass_fds=test_storage.scratch_descriptors())
+        actual = runtime.stat()
+    finally:
+        runtime.chmod(0o700)
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    assert completed.stdout == 'verified\n'
+    assert (actual.st_dev, actual.st_ino, actual.st_mode, actual.st_uid, actual.st_gid, actual.st_ctime_ns) == (
+        original.st_dev, original.st_ino, original.st_mode, original.st_uid, original.st_gid, original.st_ctime_ns)
+    assert not (directory / 'helper-started').exists()
+
+
+@pytest.mark.parametrize('cut', ['mount', 'identity'])
+def test_new_runtime_refuses_substitution_before_initialization(fresh_scene, cut):
+    directory, binary = fresh_scene
+    (directory / 'runtime').rmdir()
+    foreign = directory / 'foreign-runtime'
+    foreign.mkdir()
+    foreign.chmod(0o2770)
+    _put(foreign / 'sentinel', b'foreign-runtime-state', 0o660)
+    original = foreign.stat()
+    original_member = (foreign / 'sentinel').stat()
+    mode = f'native-private-runtime-{cut}-cut'
+    (directory / 'mode').write_text(mode)
+    completed = subprocess.run([str(binary), mode, str(directory)],
+                               capture_output=True, text=True, timeout=20,
+                               pass_fds=test_storage.scratch_descriptors())
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    assert completed.stdout == 'verified\n'
+    selected = foreign if cut == 'mount' else directory / 'runtime'
+    actual = selected.stat()
+    actual_member = (selected / 'sentinel').stat()
+    assert (actual.st_dev, actual.st_ino, actual.st_mode, actual.st_uid, actual.st_gid) == (
+        original.st_dev, original.st_ino, original.st_mode, original.st_uid, original.st_gid)
+    assert (actual_member.st_dev, actual_member.st_ino, actual_member.st_mode, actual_member.st_uid, actual_member.st_gid) == (
+        original_member.st_dev, original_member.st_ino, original_member.st_mode, original_member.st_uid, original_member.st_gid)
+    assert (selected / 'sentinel').read_bytes() == b'foreign-runtime-state'
+    assert not (directory / 'helper-started').exists()
 
 
 @pytest.mark.parametrize('mode', ['selinux-healthy', 'selinux-disabled', 'selinux-permissive',

@@ -148,6 +148,30 @@ static unsigned descriptors(void) {
         if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) count++;
     closedir(directory); return count;
 }
+static unsigned private_changes;
+static int fixture_private_chown(int fd, uid_t uid, gid_t gid) {
+    if (fault("publish-chown-error")) return -1;
+    private_changes++; return fchown(fd, uid, gid);
+}
+static int fixture_private_chmod(int fd, mode_t mode) {
+    if (fault("publish-chmod-error")) return -1;
+    private_changes++; return fchmod(fd, mode);
+}
+static int fixture_statx(int fd, const char *path, int flags, unsigned mask, struct statx *info) {
+    int result = statx(fd, path, flags, mask, info);
+    if (!result && probe_mode && !strcmp(probe_mode, "publish-mount-error") && !*path) {
+        char link[64], name[PATH_MAX];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t n = readlink(link, name, sizeof(name) - 1);
+        if (n > 0) { name[n] = 0; if (strstr(name, "/ready.pending")) info->stx_mnt_id++; }
+    }
+    return result;
+}
+#define fchown fixture_private_chown
+#define fchmod fixture_private_chmod
+#include "kiosk_private_creation.h"
+#undef fchown
+#undef fchmod
 '''
 
 
@@ -170,6 +194,7 @@ def native_pin(tmp_path_factory):
         primitives = primitives.replace(actual, controlled)
     primitives = primitives.replace('syscall(SYS_pidfd_send_signal, ', 'fixture_pidfd_send_signal(')
     primitives = primitives.replace('poll(', 'fixture_poll(').replace('waitid(', 'fixture_waitid(')
+    primitives = primitives.replace('statx(', 'fixture_statx(')
     source.write_text(PREAMBLE + r'''
 struct kiosk_failure { const char *stage, *reason; int error; };
 struct kiosk_owned_mount { char *path; unsigned long long id; int live; };
@@ -535,13 +560,17 @@ int main(int argc, char **argv) {
                 !pin.published && failure.stage != NULL && cleanup.stage != NULL, "separate-publication-cleanup-error");
             require(access("publication/ready", F_OK) != 0 && access("publication/ready.pending", F_OK) == 0,
                 "failed-cleanup-remains-incomplete");
-        } else if (strcmp(mode, "write-error") == 0 || strcmp(mode, "fsync-error") == 0 || strcmp(mode, "rename-error") == 0 ||
+        } else if (strcmp(mode, "publish-chown-error") == 0 || strcmp(mode, "publish-chmod-error") == 0 ||
+            strcmp(mode, "publish-mount-error") == 0 ||
+            strcmp(mode, "write-error") == 0 || strcmp(mode, "fsync-error") == 0 || strcmp(mode, "rename-error") == 0 ||
             strcmp(mode, "label-error") == 0) {
             require(kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5,
                 strcmp(mode, "label-error") == 0, &failure, &cleanup) != 0 && !pin.published,
                 "publication-error-denied");
             require(access("publication/ready", F_OK) != 0 && access("publication/ready.pending", F_OK) != 0,
                 "publication-error-cleaned");
+            if (!strcmp(mode, "publish-mount-error") || !strcmp(mode, "publish-chown-error"))
+                require(private_changes == 0, "publication-pre-initialization-refused");
         } else if (strcmp(mode, "interrupted-publication") == 0) {
             put("publication/ready.pending", "interrupted-native-attempt");
             require(chmod("publication/ready.pending", 0600) == 0, "pending-mode");
@@ -552,13 +581,16 @@ int main(int argc, char **argv) {
             require(kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup) != 0 && !pin.published,
                 "publication-identity-refused");
         } else {
+            mode_t before_mask = umask(!strcmp(mode, "publish-0777") ? 0777 : 0022);
             require((!strcmp(mode, "transaction-complete") ?
                 kiosk_pin_publish_until(&pin, parent, "publication", &publication, digest, entries, 5, 0,
                     transaction_deadline, &failure, &cleanup) :
                 kiosk_pin_publish(&pin, parent, "publication", &publication, digest, entries, 5, 0, &failure, &cleanup)) == 0 && pin.published,
                 "native-ready-publication");
+            if (!strcmp(mode, "publish-0777")) require(umask(0777) == 0777, "caller-mask-unchanged");
+            umask(before_mask);
             struct stat ready; require(lstat("publication/ready", &ready) == 0 && ready.st_nlink == 1 &&
-                (ready.st_mode & 07777) == 0600 && ready.st_uid == 0, "native-ready-identity");
+                (ready.st_mode & 07777) == 0600 && ready.st_uid == 0 && ready.st_gid == 0, "native-ready-identity");
             require(access("publication/ready.pending", F_OK) != 0, "atomic-pending-absent");
             require(kiosk_pin_release(&pin, 1, &cleanup) == 0, "close-setup-descriptors");
             int attached = open("attached", O_PATH | O_DIRECTORY | O_CLOEXEC); require(attached >= 0, "completed-attachment");
@@ -572,7 +604,8 @@ int main(int argc, char **argv) {
     return 0;
 }
 ''')
-    result = subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', str(source), '-o', str(binary)],
+    result = subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-I', str(ROOT / 'tools'),
+                             str(source), '-o', str(binary)],
                             capture_output=True, text=True, timeout=30,
                             pass_fds=test_storage.scratch_descriptors())
     if result.returncode != 0:
@@ -593,6 +626,7 @@ def test_private_mount_capability(native_pin, tmp_path):
     'interrupted-publication', 'publication-replaced',
     'attach-error', 'readonly-error', 'detach-error', 'cleanup-error', 'write-error', 'fsync-error', 'rename-error', 'label-error',
     'publish-cleanup-error',
+    'publish-chown-error', 'publish-chmod-error', 'publish-mount-error', 'publish-0777',
     'foreign-stage',
 ])
 def test_native_pin_mounted_lifetime_and_publication(native_pin, tmp_path, mode):

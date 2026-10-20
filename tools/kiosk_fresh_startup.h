@@ -325,8 +325,15 @@ static inline int kiosk_fresh_marker_until(struct kiosk_fresh_startup *s)
     parent = kiosk_parent(s->realized.root, KIOSK_FRESH_MARKER + 5, name);
     if (parent < 0) return -1;
     s->marker = openat(parent, name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    struct stat opened, named;
+    unsigned long long parent_mount, marker_mount;
+    int owned = s->marker >= 0 && !fstat(s->marker, &opened) && S_ISREG(opened.st_mode) &&
+        opened.st_nlink == 1 && !fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) &&
+        S_ISREG(named.st_mode) && named.st_nlink == 1 && kiosk_pin_same_stat(&opened, &named) &&
+        !kiosk_pin_fd_mount(parent, &parent_mount) &&
+        !kiosk_pin_fd_mount(s->marker, &marker_mount) && parent_mount == marker_mount;
     close(parent);
-    if (s->marker < 0) return -1;
+    if (!owned) return -1;
     if (s->realized.selinux) {
         const char context[] = "system_u:object_r:onpc_kiosk_runtime_t:s0";
         if (fsetxattr(s->marker, "security.selinux", context, sizeof(context), 0)) return -1;
@@ -339,7 +346,7 @@ static inline int kiosk_fresh_marker_until(struct kiosk_fresh_startup *s)
         if (n <= 0) return -1;
         offset += (size_t)n;
     }
-    return !fchmod(s->marker, 0444) && !fstat(s->marker, &s->marker_info) &&
+    return !kiosk_private_initialize(s->marker, 0444, 1) && !fstat(s->marker, &s->marker_info) &&
         !kiosk_realization_marker_until(&s->realized, KIOSK_FRESH_MARKER, s->marker,
             s->marker_bytes, s->marker_size, s->deadline, &s->failure) ? 0 : -1;
 }
@@ -489,14 +496,14 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     struct stat runtime, named, target, parent;
     struct kiosk_pin_target destination;
     struct kiosk_owned_mount *stages = NULL;
-    int result = -1;
+    int result = -1, runtime_parent = -1;
     if (!s || s->attempted || s->closed || s->recovered) return -1;
     s->attempted = 1; s->deadline = deadline; s->stage = "identity";
     const char *username = NULL, *service = NULL;
     uint64_t now;
     if (pam_get_user(pamh, &username, NULL) != PAM_SUCCESS || !username || strcmp(username, KIOSK_ACCOUNT_NAME) ||
         pam_get_item(pamh, PAM_SERVICE, (const void **)&service) != PAM_SUCCESS ||
-        !service || strcmp(service, "systemd-user") || geteuid() != 0 ||
+        !service || strcmp(service, "systemd-user") || kiosk_private_fsuid() ||
         kiosk_pin_now(&now) || deadline <= now || deadline - now > 60000000ULL ||
         kiosk_preparation_deadline_ns(deadline, &s->child.deadline_ns) || lock == lease ||
         kiosk_admission_current(lease) || flock(lease, LOCK_SH | LOCK_NB) ||
@@ -506,11 +513,37 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     if (kiosk_host_roots_open(&s->roots) ||
         !(s->crypto = dlopen("libcrypto.so.3", RTLD_NOW | RTLD_LOCAL))) goto done;
     s->stage = "runtime";
-    if ((mkdir(KIOSK_CONFINEMENT_RUNTIME, 0700) && errno != EEXIST) ||
+    /* Pin trusted /run before mkdir. Its root-owned, non-writable namespace
+     * plus the preparation lock excludes peer creation/rename; a privileged
+     * administrator replacing it is outside the kiosk threat boundary. A new
+     * runtime must still be on this exact parent mount before any mutation. */
+    struct stat runtime_parent_info;
+    unsigned long long runtime_parent_mount;
+    runtime_parent = open("/run", O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (runtime_parent < 0 || fstat(runtime_parent, &runtime_parent_info) ||
+        !S_ISDIR(runtime_parent_info.st_mode) || !kiosk_host_trust(&runtime_parent_info) ||
+        kiosk_pin_fd_mount(runtime_parent, &runtime_parent_mount)) goto done;
+    int created = !mkdir(KIOSK_CONFINEMENT_RUNTIME, 0700);
+    if ((!created && errno != EEXIST) ||
         (s->runtime = open(KIOSK_CONFINEMENT_RUNTIME, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) < 0 ||
+        fstat(s->runtime, &runtime) || !S_ISDIR(runtime.st_mode) ||
+        lstat(KIOSK_CONFINEMENT_RUNTIME, &named) || !kiosk_pin_same_stat(&runtime, &named)) goto done;
+    /* mkdir success is the creation authority. Existing runtime roots never
+     * receive ownership or mode repair, including after an EEXIST race. */
+    if (created) {
+        unsigned long long opened_mount, named_mount;
+        int named_fd = open(KIOSK_CONFINEMENT_RUNTIME, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        int owned = named_fd >= 0 && !fstat(named_fd, &named) && kiosk_pin_same_stat(&runtime, &named) &&
+            !kiosk_pin_fd_mount(s->runtime, &opened_mount) && !kiosk_pin_fd_mount(named_fd, &named_mount) &&
+            opened_mount == named_mount && opened_mount == runtime_parent_mount && !kiosk_pin_before(deadline);
+        if (named_fd >= 0) close(named_fd);
+        if (!owned) goto done;
+    }
+    if ((created && kiosk_private_initialize(s->runtime, 0700, 1)) ||
         fstat(s->runtime, &runtime) || !kiosk_publication_private(&runtime, 1) ||
         lstat(KIOSK_CONFINEMENT_RUNTIME, &named) || !kiosk_pin_same_stat(&runtime, &named) ||
         setup_kiosk_view(&s->view)) goto done;
+    close(runtime_parent); runtime_parent = -1;
     s->stage = "host-anchor";
     if (kiosk_fresh_reanchor_until(s) || kiosk_fresh_account_until(s)) goto done;
     s->stage = "helper-launch";
@@ -624,6 +657,7 @@ static inline int kiosk_fresh_startup_until(struct kiosk_fresh_startup *s, pam_h
     if (kiosk_fresh_mac_apply(&s->mac) || kiosk_pin_before(deadline)) goto done;
     s->armed = 1; s->stage = "armed"; result = 0;
 done:
+    if (runtime_parent >= 0) close(runtime_parent);
     free(stages);
     if (s->publication.ready) s->ready = 1;
     if (result) {

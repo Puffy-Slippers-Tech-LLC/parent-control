@@ -266,6 +266,41 @@ actionable diagnostic, legitimate-use positive control and negative control. The
 mechanisms on both platforms before broad integration; documentation is no proof
 that these decisions have been implemented or work.
 
+### R01c approval and visit decision
+
+**Selected, prospective lifetime:** use the
+[Broker's visit association and effect-admission decision](Broker.md#prospective-kiosk-approval-lifetime),
+with the visible behavior in the
+[specification](../Specification.md#prospective-kiosk-visit-lifetime).
+The protected native entry gate supplies the exact logind admission; the broker
+owns visit/request identities and cancellation versus first-write ordering.
+The fixed lifecycle controller owns only its pinned form/agent generations and
+validated locale preparation, never general manager commands or approval power.
+Manager reuse cannot reuse a visit, request or authentication result. Only one
+live session owns the kiosk UID's manager globally, including across seats.
+
+The kiosk's manager-launched form and stock MATE agent may use primary `Display`
+only when it equals that exact admitted session; no sessionless kiosk approval.
+Confine agent registration to the fixed agent role, including process-scoped
+registration, so an unrelated service cannot divert the prompt. Start a fresh
+owned agent for each activation after old requests/agent connections drain;
+freeze that generation while authentication and post-authentication checking
+remain cancellable. A unit job/PID is not registration or usable-authentication
+evidence. Keep the genuine native prompt and vendor privilege path on both
+platforms, including Fedora's helper transitions.
+
+The broker's observer must keep dispatching during usage queries, termination
+preflight and reversible account snapshot reads. Cancellation wins until the
+single effect-admission claim just before the first policy write; afterward
+only the original request may finish under unchanged transaction/rollback rules.
+No late reply can revive cancellation or reach a later visit's result screen.
+Competing logins preserve the owning live/foreign session, wait within R01e's
+entry deadline and return an explicit already-open/retry result if it remains
+occupied. R01e owns infrastructure recovery/deadlines, R02a the runnable slice,
+R06 its recovery composition and R09b2/R10c2/R11c2 the two ordered race histories.
+R01 still owns integrated independent architecture review; this is review-only
+design, with no implemented or installed acceptance credit.
+
 ### R01b effective authentication decision
 
 **Selected, prospective policy:** retain GDM's effective `auth` and `account`
@@ -602,11 +637,14 @@ restoration; a safety refusal grants no positive availability credit.
 | Child-write authority on essential code/config/activation; `trusted`, native path proofs, fixed launchers | **Exclude input/route first.** Actual injection into a consumed essential input is a reachable execution risk; reject only if protected replacement cannot establish the essential boundary. Unknown names and trusted-admin group write are insufficient. | Administrator-only writable group path works / child ACL/group permits replacement of a consumed input, so it is excluded or entry safely stops. “The request station cannot safely load a required component.” `consumed-input-untrusted`; record recovery outcome without paths/user data. |
 | Loaded enforcement/entrypoint; `enforcing`, native MAC application and policy authority | **Retain essential-boundary refusal after owned repair.** The failed operation must establish confinement; optional inventory/attestation diagnostics are not substitutes. Preserve Fedora helper privilege. | Actual wrapper/manager/form/approval succeed / required MAC operation fails, no unrestricted exec, restored enforcement permits entry. “The request station's protection could not start; retry after setup is repaired.” `execution-boundary-unavailable`. |
 | Host unit/generator/D-Bus/plugin activation; current trailing-colon unit path and generated known-name masks | **Exclude consumption; confine exposed control routes.** An unfamiliar automatic external-launch provider must not acquire kiosk launch authority or veto normal entry. Reload cannot reopen it. | Unfamiliar fixture automatically activates and exposes its action for an ordinary account; kiosk still approves / same public action cannot launch an outside application in kiosk, including after reload/reentry. “This action is unavailable at the request station.” `launch-route-excluded`. |
-| Exact retained manager/material equality, contention and inherited caller state; retained gate and preparation locks | **Recover, not exact-manager refusal.** Serialize and wait within one deadline; renew only a proven owned inactive/failed instance with no live visit. Preserve healthy/live/foreign instances. No reboot for unrelated drift. R01c/R01e choose competing-visit handling and deadline. | Reentry, valid inherited GIDs/umask and owned stale renewal succeed / foreign/live replacement remains untouched, no partial startup escapes. “The request station is starting; try again when ready.” `startup-wait` / `owned-renewal-failed` / `session-conflict`; retain original cause. |
+| Exact retained manager/material equality, contention and inherited caller state; retained gate and preparation locks | **Recover, not exact-manager refusal.** Serialize and wait within one deadline; renew only a proven owned inactive/failed instance with no live visit. Preserve healthy/live/foreign instances. No reboot for unrelated drift. R01c selects exclusive live-session ownership and wait/return-to-sign-in for competitors; R01e sets the deadline/recovery. | Reentry, valid inherited GIDs/umask and owned stale renewal succeed / foreign/live replacement remains untouched, no partial startup escapes. “The request station is starting; try again when ready.” Occupied: “The request station is already open; return to it or retry after it closes.” `startup-wait` / `owned-renewal-failed` / `session-conflict`; retain original cause. |
 | Pre-boundary callbacks and teardown; vendor PAM rewriting, final gate, PAM-data cleanup | **Select kiosk callbacks and preserve confined lifetime.** Final exec cannot repair an earlier unrestricted callback child. R01b retains effective administrator denial while excluding optional session integration by branch, not module-name exceptions. | Unfamiliar benign callback demonstrably works for ordinary accounts; kiosk still enters/approves/exits / no callback-created unconfined kiosk launch and no orphan authority after failed open, close or delete-cred. “The request station could not finish starting or closing; retry.” `session-boundary-unavailable`; unfinished owned cleanup prevents renewal credit. |
 | Effective GDM authentication/account/session policy; native PAM results, shared profiles and Fedora authselect selection | **Honor effective denial.** Run preserved policy with its real service/items/control flow. No global `nullok`, alternate auth service, success bypass or automatic removal of administrator expiry/credentials. An unfamiliar module or harmless source change is not denial. Product quarantine recovery belongs to R01d. | Existing policy permits empty-token kiosk entry and ordinary child/admin authentication stays unchanged / effective empty-token prohibition, locked credential, account or required session access denial, and administrator expiry remain denied; restore the fixture and obtain usable entry. “This computer's sign-in policy does not allow the request station.” `authentication-policy-denied` / `account-policy-denied`; report the failing management group and restoration outcome without credentials or identity data. |
 | Required policy/setup evaluation unavailable; PAM loader/result and login helper integration checks | **Report a setup failure, not administrator denial.** Retry transient prerequisites within R01e's budget; never grant success through a fallback stack. Missing required enforcement cannot be degraded, while optional callback failure/name/text alone cannot establish this predicate. | Valid include/substack/formatting and unfamiliar benign callback controls enter / actual required module/load or core setup failure prevents unrestricted entry, restoration permits entry. “The request station could not check a required sign-in setting; retry after setup is repaired.” `authentication-policy-unavailable`; preserve original cause and owned cleanup result. |
 | Selected-parent Polkit authorization and vendor privileged helper; authorizer, admin rule and role policy | **Retain genuine authentication independently of kiosk entry.** No reusable approval, different-parent fallback, global null-token change, blanket NNP/nosuid or copied/relabelled Fedora helper. A denied request leaves the form usable. | Selected parent's genuine credential grants once on Ubuntu and Fedora / wrong password, Cancel, other identity or unavailable required helper grants nothing; a fresh permitted request succeeds after restoration. “Request denied” for denial; Cancel returns silently; unavailable authentication offers retry/exit. `parent-authentication-denied` / `parent-authentication-unavailable`; retain finite causes only. |
+| Originating visit and native-agent association; `_session_for_caller`, `User.Display`, fixed controller/agent and `KioskAgentLocale.prepare` | **Pin the exact admitted visit and agent; cancel affected stale work.** UID, live bus name, active unit/job or primary-display fallback alone can associate a prompt with another visit. No kiosk sessionless fallback or foreign agent takeover; deny other roles' agent registration, including process-scoped registration. Replace only an owned drained agent, then require fresh authentication. | Fresh/reused-manager entry with exact session and genuine selected-parent approval / changed/empty/foreign Display, old agent on reentry, competing seat or agent replacement during usage cannot transfer authority; fresh request succeeds after safe restoration. Cancellation returns silently; unavailable agent offers retry/exit. `visit-ended` / `agent-association-unavailable` / `session-conflict`; log correlation and finite causes, never bus/session/PID/account data. |
+| Pending authentication and post-authentication reads; `_PendingAuthorization.run`, `auth_done`, `_request_access`, preflight and `_apply` snapshots | **Extend cancellation to effect admission.** An authentication-only latch and bus-name check cannot protect an ended visit during slow reads. Keep an independently dispatching observer and a single cancellation/admission decision after all read-only work. No writes or termination if cancellation wins. | Active visit completes a genuine request / pending prompt or delayed usage/preflight/snapshot followed by switch/exit stays cancelled after late completion; reentry has no old prompt/result and fresh approval succeeds. Silent cancellation, with retry on the new visit. `visit-ended`; retain request correlation and cancellation/cleanup outcome only. |
+| Original request after first-write admission; `_apply`, `_restore`, `_restore_after_termination` and request cooldown | **Complete only the admitted original transaction.** Departure cannot retract irreversible effects or confer approval on another visit. Preserve current arithmetic, timestamps, child-only effects and rollback; admission alone is no success guarantee. No restart replay. | Release delayed usage while active, witness admission, switch/exit before writes, then observe exactly one original grant and fresh approved reentry / injected transaction failure retains the existing before/after-termination rollback assertions, never false success or transferred authority. New visit shows its own form; transaction failure remains actionable on the original connection where available. `transaction-failed` / `rollback-failed` are prospective finite categories; current diagnostics remain unchanged. |
 
 #### Proof handoff and unresolved integration
 
@@ -630,8 +668,8 @@ complete early proof on Ubuntu/Fedora, including Fedora's privileged helper.
 All selectors for this replacement proof are still **unimplemented** here.
 
 R01 must resolve the remaining cross-boundary obligations before implementation:
-composition of R01b's selected account/authentication and callback policy; R01c's exact
-visit/agent/controller authority and approval cancellation/commit ordering;
+composition of R01b's selected account/authentication and callback policy with
+[R01c's selected visit/agent/controller authority and effect-admission ordering](#r01c-approval-and-visit-decision);
 R01d's provisioning/quarantine ownership; R01e's single readiness/recovery budget,
 safe manager renewal and update activation classes. In particular, the fixed
 controller's manager methods, logind association and sanitized agent restart

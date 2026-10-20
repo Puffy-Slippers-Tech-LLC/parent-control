@@ -335,33 +335,187 @@ production adapter; see [notification recovery](Applications.md#notification-rec
 
 ### Prospective kiosk approval lifetime
 
-The kiosk resilience programme assigns this decision to R01c, integrated/reviewed
-by R01 before R02a. Current
-`_PendingAuthorization.run()` removes lifecycle subscriptions when authentication
-finishes. `_request_access()` subsequently queries usage, revalidates identities
-and preferences, performs termination preflight and applies the grant; its caller
-check observes bus-name existence, not the original visit's continued activity.
-The [specification](../Specification.md#requesting-and-approving-access)
-currently requires cancellation while authentication is pending. A successful
-authentication and a committed grant are distinct events.
+**R01c decision, prospective:** keep cancellation effective until a single broker
+effect-admission point immediately before the first policy write. Authentication
+success alone does not cross it. After admission, only that original approved
+request may finish despite departure, under the existing transaction and rollback
+rules. The [specification](../Specification.md#prospective-kiosk-visit-lifetime)
+owns the visible result. R01 integrates and independently reviews this decision
+before R02a; no implementation or installed acceptance is claimed here.
 
-R01 must define the point after which an approved original request may complete
-despite a session transition, and the ordering between cancellation and that point.
-Record the observable behavior in the specification and the chosen mechanism here
-before its implementation consumers. Bind the originating visit, request, target
-and approver through slow usage queries and irreversible effects; a later visit
-cannot adopt its prompt, result or authority. Preserve cancellation of pending
-authentication, account revalidation and existing transaction failure semantics.
-Do not describe bus-name liveness as proof of visit identity.
+#### Audited implementation gap
 
-R02a uses the chosen identity/lifetime mechanism in its entry slice; R06 completes
-recovery integration and race controls. Family D verifies both sides: cancellation
-that wins grants nothing; an approval that has crossed the defined boundary can
-affect only its original request under the declared completion semantics. Include
-a delayed post-authentication usage query, switch/exit and reentry, with a fresh
-request succeeding afterward. These are finite race controls, not permission to
-change grant arithmetic or add reusable authorization. This section records a
-required decision and proof, not an implemented lifetime guarantee.
+Current `_PendingAuthorization.run()` watches the sender and session only through
+authentication. `_authorization_finished()` sets `auth_done`, after which
+`_cancel()` ignores transitions; `run()` then removes its subscriptions.
+`_request_access()` subsequently performs the approver-scoped usage query (up to
+30 seconds), account/preference revalidation, running-app preflight and `_apply()`'s
+four account snapshot reads before its first write. Its caller check is only
+`CallerCredentials.alive()` / `NameHasOwner`, not continued visit activity.
+Extending subscriptions without replacing the authentication-only latch would
+therefore leave the same gap. The usage helper's separate bus connection and
+approver credentials are data-query authority, never the originating visit.
+
+`_session_for_caller()` resolves system-bus sender PID through `GetSessionByPID`.
+Only `NoSessionForPID` falls back through `GetUserByPID` to `User.Display`; an absent
+user or empty display permits a sessionless check today. It pins neither process
+start identity nor agent generation and does not watch later display changes.
+These current limits and the existing cancellation regression remain historical
+facts; this decision changes no source, tests or their expectations.
+
+#### Visit, requester and agent association
+
+Use the following broker-owned, in-memory association on both platforms. The
+native privileged entry gate registers the admitted session over authenticated
+system D-Bus; the broker independently reads its logind and manager identity.
+Only that protected gate may create an admission record. The fixed lifecycle
+controller from [R01a](Kiosk-Confinement.md#r01a-execution-and-activation-decision)
+may operate its own admitted visit through narrowly authorized lifecycle calls;
+neither a form-supplied token nor the shared kiosk UID establishes ownership.
+These are proposed internal interfaces, not existing D-Bus methods.
+
+Distinguish the gate-created **session admission record** from an active **visit**.
+Keep that record only while its exact logind session and pinned infrastructure
+remain owned and live; invalidate it on session removal, service-owner loss or
+infrastructure replacement. Lock/switch-away ends the visit, not necessarily the
+logind session. On return, the pinned controller asks the broker to reactivate
+that retained record: independently revalidate the original session, drain old
+work and create a fresh visit ID and form/agent generations. No second PAM/login
+gate is assumed when switching back. A new login needs a new gate-created record.
+
+| Binding | Authority and lifetime |
+| --- | --- |
+| Originating visit | Broker-issued random visit ID plus boot identity, logind unique owner, exact session ID/object path, kiosk UID, seat and session leader process/start identity. Verify a local dedicated graphical kiosk session. A lock, loss of activity, closing/removal or loss of logind ends that activation permanently; return to the same logind session creates a new visit ID. |
+| Infrastructure and controller | Pin the owned manager's systemd `InvocationID` and controller process/start identity. Reuse of a healthy manager creates no reusable visit authority. Renewal or controller replacement invalidates old unadmitted requests; new infrastructure requires a new admission association. |
+| Requester | Capture the original unique system-bus name, bus instance, kernel-derived UID/PID and process start identity; verify the fixed form's owned unit and confined role. A new connection/process cannot inherit the binding. Form callbacks carry the local visit/request generation and discard results from any earlier generation. |
+| Request and selected accounts | One random correlation/cancellation ID, request kind, target and approver account snapshots, duration, soft-app choice and non-personal preference snapshot. Retain existing eligibility and snapshot revalidation; never replace a vanished approver, target or sender with the current selection. |
+| Authentication agent | Pin the fixed agent unit's `InvocationID`, `MainPID`/start identity and its association with the exact admitted logind session. The confined graph permits only this agent role to register kiosk authentication agents, including process-scoped registrations; a foreign registrar is a conflict, never an object to unregister or kill. A new visit starts a fresh owned agent even when the manager is reused. |
+
+Use public [logind session/user interfaces](https://www.freedesktop.org/software/systemd/man/259/org.freedesktop.login1.html)
+and [systemd unit/service identities](https://www.freedesktop.org/software/systemd/man/259/org.freedesktop.systemd1.html).
+For manager-launched form/agent processes, allow `User.Display` fallback only
+when it equals the gate's exact admitted session and that session still meets
+the activity/ownership checks. Subscribe before reading, reread after association,
+and watch that user's display and service-owner changes through effect admission.
+A missing, changed, ambiguous or foreign display cancels the affected attempt;
+never resolve it again to adopt a later session. The kiosk route has **no
+sessionless fallback**. Ordinary child/sessionless callers retain their existing
+contract; narrowing kiosk admission does not remove their bus-agent support.
+
+Keep the stock MATE agent and its vendor privileged authentication helper.
+The [agent's startup](https://github.com/mate-desktop/mate-polkit/blob/master/src/main.c)
+resolves its process's session before public
+[Polkit registration](https://polkit.pages.freedesktop.org/polkit/PolkitAgentListener.html).
+Serialize startup with the visit association and stable `Display`; no other
+kiosk visit may register/start a competing form or agent in that manager.
+Before reusing the fixed agent unit, cancel/drain old requests and prove the old
+owned agent process and its bus connections have ended. Pin the new unit/process
+before requesting authentication. A completed systemd job or `Type=simple`
+process is only startup evidence, not proof of successful registration. The
+genuine selected-parent Polkit exchange establishes operational authentication;
+an unfulfilled challenge may wait only within the original readiness budget and
+the same visit/agent pins. Never retry approval, dismissal or denial as startup.
+Do not invent a registration-enumeration API, use log text as readiness, or
+substitute a password collector/probe. R02a–R04 must prove the shipped agent's
+session association and actual prompt on each platform, including the absence
+of a process-scoped competing agent. A registration conflict preserves the
+foreign instance and offers retry/exit after the conflict is resolved.
+
+Locale preparation uses the fixed controller's validated locale-only launcher,
+with visit and agent generation on each callback. Freeze agent replacement while
+authentication or post-authentication checking is pending; agent death, unit
+replacement or Polkit owner loss cancels that unadmitted request. A recovered
+agent requires a fresh request/authentication; it cannot resume the old check.
+R08b owns translation fallback, not a relaxation of these identity checks.
+
+One admitted live logind session owns the kiosk UID/user manager globally at a
+time, including across seats; seat identity never creates another owner. A competing
+login waits under R01e's single entry deadline for normal release, then either
+starts its own new visit or returns to sign-in with an already-open/retry result.
+It cannot attach to an old prompt, steal the manager or terminate a healthy or
+foreign session. Returning to the same session after switching away creates new
+form/agent generations after old cancellation cleanup. Physical infrastructure
+renewal, interruption recovery and the numeric deadline remain R01e/R06a's scope.
+
+#### Cancellation versus effect admission
+
+The broker owns one monotonic request state machine:
+`authenticating → checking → committing → finished`, with
+`authenticating/checking → cancelled` terminal for authority. Authentication
+approval enters `checking`; it does not make later cancellation a no-op.
+Keep a dispatching lifecycle observer alive while the worker performs blocking
+usage queries, preflight and account reads. It must not depend on the blocked
+worker pumping its old authentication loop.
+
+Observe sender/process loss, visit/controller/manager/agent replacement, logind
+or Polkit owner loss, session lock/inactivity/closing/removal and fallback-display
+change. Before admission any such event permanently cancels the request. Cancel
+pending Polkit remotely with the original broker connection/cancellation ID and
+locally with GIO, retaining the existing five-second remote cleanup limit. After
+authentication, discard the outstanding read result; no new remote check or
+reusable authorization is created. Keep the transaction slot until owned work
+has drained or its maintained timeout has ended; then release it for a fresh
+request. Cancellation causes no policy writes, app termination or success
+cooldown; already-saved request choices need not be rolled back.
+
+Perform usage/calculation, termination preflight and **all four reversible account
+snapshot reads** while still cancellable. Revalidate the bound caller, accounts,
+preferences, visit and service generations after those slow operations. Complete
+a fresh read of the pinned session/display state and dispatch queued lifecycle
+events before requesting admission. A short broker-owned state lock orders
+cancellation against `checking → committing`; it performs no blocking I/O and
+claims the transaction exactly once, immediately before its first possible write.
+No usage query, preflight or snapshot reads may be deferred until after this
+claim. Apply the same gate to rest-of-day, which has no usage query.
+
+This is a broker ordering boundary, not an atomic transaction with logind:
+already observed cancellation or an unavailable final read wins; a transition
+first observed after the claim is ordered after it. The controlled histories
+below must establish which event won, rather than infer it from a hidden prompt,
+wall-clock timing or bus-name survival. Near-simultaneous external events are
+reported according to that observed order, never described as a global instant.
+
+Once `committing` wins, departure, disconnect or agent teardown does not retract
+the accepted transaction. Finish only the original immutable request, retaining
+the broker transaction lock through completion/rollback. Apply existing daily
+limit/type, filter, verified child-only termination and `ActiveExtension`-last
+ordering. Preserve all current calculation timestamps, grant arithmetic,
+eligibility checks, rollback and failure reporting: admission is permission to
+attempt the transaction, not a success receipt. Before termination failure
+restores reversible state; after termination may have changed processes, keep
+strict filtering and restore prior time state. Record cooldown only on success.
+Do not replay an in-memory approval across broker restart or infer a successful
+grant after a crash. R01e owns infrastructure recovery; current failure limits
+remain explicit. An old reply goes only to its original connection/generation;
+a later visit can observe the child's actual balance but receives no old success
+screen, prompt or authorization. A fresh request waits for transaction/cleanup
+release and, after original success, the existing kiosk cooldown.
+
+#### Finite implementation and acceptance handoff
+
+R02a implements the identity/observer/admission slice; R06 composes renewal and
+competing visits. R09b2 registers the following complete histories for R10c2 and
+R11c2 on their respective targets. Selectors remain **unimplemented**. Preserve
+each request, transition, late-result release, independent grant observation,
+fresh approved request and restoration in one attempt.
+
+| Ordering control | Required result |
+| --- | --- |
+| Authentication still pending; switch/exit, then reenter; release a late authentication result | Original request is cancelled, with no grant/policy/app effect or success cooldown. New visit adopts no prompt/result. Fresh genuine approval succeeds. Include return to the same logind session, not only a new login. |
+| Authenticate; hold the fixed-duration usage query; switch/exit and observe cancellation before releasing the query; reenter | The released query/result cannot cross admission. Original policy/grant remains at its baseline and its apps are not terminated; fresh approval succeeds after drain. Repeat bounded engineering controls with delay in preflight/snapshot reads and rest-of-day to cover the other pre-write gaps. |
+| Authenticate; delay and release usage while the visit is active; observe admission; hold immediately after the claim and before the first write; switch/exit and reenter; release completion | The original request may complete once for its original child, duration and soft-app choice, even with its form/connection gone. Independently observe its actual grant/filter/app result before submitting a fresh request. No old UI result or authority is adopted; fresh genuine approval succeeds after transaction release and successful-request cooldown. |
+
+Delay/release and phase witnesses are engineering controls; no public action
+exposes them. Observe the original child's grant through a separate Parent view,
+and permitted/blocked app behavior for the selected soft-app choice; do not use
+prompt disappearance as the grant oracle. Capture the baseline and original
+result before the fresh request can replace it. Include a successful permitted
+control after cancellation, agent replacement, display change and competing
+visit; preserve other users' apps and live/foreign sessions. Engineering failure
+controls on each side of termination retain existing rollback assertions and
+must not relabel a failed transaction as cancellation or success. R01c itself
+accepts only this source-grounded decision and documentation consistency, with
+no runtime state; integrated architecture review remains R01's obligation.
 
 ## Related design
 

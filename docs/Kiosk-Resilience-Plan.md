@@ -1,7 +1,7 @@
 # Reliable kiosk entry with explicit confinement
 
 Task queue: [Ordered task queue](Kiosk-Prompt-Queue.md).
-Next task: **R01c — [Settle approval and visit lifetime](Kiosk-Prompt-Tasks/R01c-approval.md)**.
+Next task: **R01d — [Settle configuration and quarantine ownership](Kiosk-Prompt-Tasks/R01d-configuration.md)**.
 
 ## Outcome
 

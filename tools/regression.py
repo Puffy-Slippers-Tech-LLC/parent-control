@@ -614,7 +614,13 @@ class Execution:
         item, run = self.item, self.run
         try:
             if self.pending:
-                self.line(self.pending)
+                # Cancellation can interrupt a large inventory write midway
+                # through its JSON record. The raw/report output already keeps
+                # those bytes; an unterminated event is not result evidence.
+                # Complete lines still pass every validation in output().
+                if not (run.control.stopped.is_set() and self.events
+                        and self.pending.startswith(PREFIX.encode())):
+                    self.line(self.pending)
                 self.pending = b''
             tail = self.decoder.decode(b'', final=True)
             run.report.write('\n' + html.escape(tail) + '\n' + item.name +

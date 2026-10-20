@@ -999,6 +999,51 @@ def test_partial_failure_is_durable_before_cancellation(report, tmp_path):
     assert item.done == 0
 
 
+@pytest.mark.parametrize('cancelled', [False, True])
+def test_truncated_inventory_at_eof_requires_cancellation(report, tmp_path, cancelled):
+    nodes = ('tests/unit/test_sample.py::test_first',)
+    control = Control()
+    run = regression.Run(tmp_path, report, control, host_only=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Truncated collector', 1, nodeids=nodes,
+                               retry_category='unit')
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    fragment = (regression.PREFIX + '{"kind":"collection","nodeids":["test').encode()
+    try:
+        execution.output(fragment)
+        if cancelled:
+            control.stop()
+            assert execution.finish(130)[0] == 130
+            assert item.state == 'Interrupted'
+            assert item.nodeids == nodes and item.total == 1 and item.done == 0
+            assert not execution.inventory_seen
+            assert regression.failure_targets([item]) == []
+        else:
+            with pytest.raises(json.JSONDecodeError):
+                execution.finish(0)
+            assert item.state != 'Passed'
+        assert Path(execution.raw.name).read_bytes() == fragment
+    finally:
+        execution.close()
+
+
+def test_cancelled_complete_malformed_event_still_refused(report, tmp_path):
+    control = Control()
+    run = regression.Run(tmp_path, report, control, host_only=True)
+    run.dashboard.stream = io.StringIO()
+    item = regression.Category('Malformed collector', 1, retry_category='unit')
+    run.categories.append(item)
+    execution = regression.Execution(run, item, events=True)
+    try:
+        control.stop()
+        with pytest.raises(json.JSONDecodeError):
+            execution.output((regression.PREFIX + '{"kind":\n').encode())
+        assert item.state != 'Passed' and item.done == 0
+    finally:
+        execution.close()
+
+
 @pytest.mark.parametrize('partial', [False, True])
 @pytest.mark.parametrize('cancelled', [False, True])
 def test_interrupted_collection_preserves_assigned_inventory_and_requires_cancellation(

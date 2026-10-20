@@ -110,8 +110,27 @@ class Conflict:
     def boundary(self):
         from system_removal import mount_inventory
         parents(self.path)
-        require(tuple((p, metadata(p.lstat())) for p, _ in self.ancestors) ==
-                self.ancestors, 'parent-identity-changed')
+        current = tuple((p, metadata(p.lstat())) for p, _ in self.ancestors)
+        try:
+            require(current == self.ancestors, 'parent-identity-changed')
+        except guest.GuestError as error:
+            # Diagnose the exact failed observation, without a second stat that
+            # could miss a transient change. Never disclose paths or account IDs.
+            fields = ('device', 'inode', 'owner', 'group', 'mode', 'links')
+            changes = []
+            for index, ((_, before), (_, after)) in enumerate(zip(self.ancestors, current)):
+                if before != after:
+                    change = {
+                        'ancestor_from_target': index,
+                        'ancestor_from_root': len(self.ancestors) - index - 1,
+                        'fields': [name for name, old, new in zip(fields, before, after)
+                                   if old != new],
+                    }
+                    if before[5] != after[5]:
+                        change['links_before'], change['links_after'] = before[5], after[5]
+                    changes.append(change)
+            error.add_note('ancestor-metadata-deltas=' + json.dumps(changes, sort_keys=True))
+            raise
         namespace, mounts = mount_inventory()
         require(namespace == self.namespace and mounts == self.mounts,
                 'mount-identity-changed')

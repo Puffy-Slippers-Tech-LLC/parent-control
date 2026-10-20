@@ -1,5 +1,11 @@
 """Balance reviewed unit modules without splitting their fixtures.
 
+Repair Git close-out extends fix_tests and fix_tests_cleanup_safety with tiny
+pytest-private checkouts and bare remotes, finite waited Git children and
+process-local failure doubles. No external network, shared Git state, VM,
+display, bus or additional asynchronous cleanup owner is acquired; both modules
+retain compatible unit scheduling and the existing cleanup classification.
+
 kiosk_rendering's lava-cache checks decode one bounded read-only shipped image
 through GDK and compare bounded in-memory RGBA buffers. Native decoding uses
 the launcher's private scratch/cache and process group; no window or display

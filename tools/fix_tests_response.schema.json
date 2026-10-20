@@ -3,6 +3,7 @@
   "properties": {
     "status": {"type": "string", "enum": ["test_fixed", "fixed", "blocked", "app_issue", "uncertain", "stalled", "diagnostic_ready"]},
     "summary": {"type": "string"},
+    "stage_paths": {"type": "array", "items": {"type": "string"}},
     "blocker": {
       "type": ["object", "null"],
       "properties": {
@@ -14,6 +15,6 @@
       "additionalProperties": false
     }
   },
-  "required": ["status", "summary", "blocker"],
+  "required": ["status", "summary", "blocker", "stage_paths"],
   "additionalProperties": false
 }

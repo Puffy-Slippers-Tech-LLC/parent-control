@@ -329,6 +329,22 @@ and remaining cases without repeating its completed passes. Failures without a
 case ID replay the original category selection without saved passes, including
 diagnostic execution and its subsequent repair verification. Each newly entered
 category and each fresh verification pass starts without `--resume`.
+After confirming that the specific repaired case passed, the launcher stages
+the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`
+(with the VM name when applicable), and runs `git push` before another repair
+session or category. This uses the current branch's configured upstream.
+Case verification requires the runner's teardown-complete pass for that exact
+case and VM under the original selectors; a different failure alone does not
+prove a pass. Non-case failures require a successful replay of their category.
+Diagnostic execution alone never triggers a commit. Agents report `stage_paths`
+and leave staging, commits and pushes to the launcher. Pre-existing dirty or
+staged work is protected; overlapping close-out refuses rather than including it.
+Staging, commit or push failures stop advancement and retain the accepted repair.
+The next invocation retries that close-out before tests or agents, preserving
+branch/upstream identity and recognizing an already-created completion commit.
+Changed validated files require renewed verification; no force-push, automatic
+pull or Git configuration change is performed. Unverified repair scopes survive
+restart separately from the fresh agent-session budgets.
 If another invocation replaces a host category's runner checkpoint between
 attempts, the repair launcher replays the same category and original selectors
 once without saved passes. Only a validated checkpoint selection mismatch

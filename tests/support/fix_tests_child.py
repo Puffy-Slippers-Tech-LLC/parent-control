@@ -1,6 +1,7 @@
 """Finite, harmless test/agent doubles for fix-tests process qualification."""
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import signal
@@ -38,6 +39,11 @@ def main():
     if kind == 'agent':
         record['prompt'] = sys.stdin.read()
         record['thread'] = os.environ.get('CODEX_THREAD_ID')
+    script = json.loads((root / 'script.json').read_text()) if mode == 'agent-script' else {}
+    if script.get('record_git'):
+        record['pushed_subject'] = subprocess.run(
+            ['git', 'log', '-1', '--format=%s', '@{upstream}'], cwd=root,
+            capture_output=True, text=True, check=True, timeout=10).stdout.strip()
     with (root / 'calls').open('a') as stream:
         stream.write(json.dumps(record) + '\n')
 
@@ -55,16 +61,24 @@ def main():
             return 0
         if kind == 'test':
             print('Started run-tests session: harmless', flush=True)
+        script = json.loads((root / 'script.json').read_text()) if mode == 'agent-script' else {}
+        if kind == 'test':
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+            from test_checkpoint import Checkpoint
+            from vm_selection import vm_config
+            options, _ = vm_config.extract_selector(test_args[2:])
+            selections = script.get('checkpoint', [(category, options)])
+            try:
+                checkpoint = Checkpoint(root, selections, resume='--resume' in args,
+                                        **({} if 'checkpoint' in script else {'binding': ''}))
+            except ValueError as error:
+                print(f'Test runner infrastructure failed: ValueError: {error}', flush=True)
+                return 1
+            for arg in args:
+                if arg.startswith('--resume-case='):
+                    checkpoint.event(category, dict(kind='failure', nodeid=arg.partition('=')[2]), set())
         if kind == 'test' and mode == 'agent-script':
-            script = json.loads((root / 'script.json').read_text())
             if 'checkpoint' in script:
-                sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
-                from test_checkpoint import Checkpoint
-                try:
-                    checkpoint = Checkpoint(root, script['checkpoint'], resume='--resume' in args)
-                except ValueError as error:
-                    print(f'Test runner infrastructure failed: ValueError: {error}', flush=True)
-                    return 1
                 checkpoint.event(category, dict(kind='finished', nodeid='earlier-pass'), set())
                 checkpoint.save()
             marker = root / 'script-tests'
@@ -76,6 +90,23 @@ def main():
                 while not (root / 'release').exists() and time.monotonic() < deadline:
                     time.sleep(.02)
             case = script['tests'][index]
+            # Model runner-owned completion evidence, including the exact case
+            # after teardown. Different failures remain unknown unless listed.
+            passed = script.get('passed', {}).get(str(index), [])
+            if case is None:
+                passed = [*passed, *[item if isinstance(item, str) else item['case']
+                                    for item in script['tests'][:index] if item is not None]]
+            for node in passed:
+                if node and node not in script.get('unexecuted', []):
+                    checkpoint.event(category, dict(kind='finished', nodeid=node), set())
+            checkpoint.save()
+            if case is None:
+                for item in script['tests'][:index]:
+                    if not isinstance(item, dict) or item['category'] != category:
+                        continue
+                    guest = Checkpoint(root, [(category, options)], resume=True, binding=item['vm'])
+                    guest.event(category, dict(kind='finished', nodeid=item['case']), set())
+                    guest.save()
             if case is None:
                 return 0
             target = dict(category=category, case=case, vm='') if isinstance(case, str) else case
@@ -158,8 +189,18 @@ def main():
             if script.get('invalid_checkpoint'):
                 (checkpoint.store.path / checkpoint.name).write_text('{}')
     reply = Path(args[args.index('--output-last-message') + 1])
+    stage_paths = []
+    if status in ('fixed', 'test_fixed', 'diagnostic_ready'):
+        failures = json.loads((root / 'failure.json').read_text()).get('failures', [])
+        identity = json.dumps(failures[0] if failures else {}, sort_keys=True)
+        path = script.get('repair_path', 'repair-' + hashlib.sha256(identity.encode()).hexdigest()[:12] + '.py')
+        (root / path).write_text(f'fixture repair {count + 1}\n')
+        stage_paths = [path]
+        if script.get('omit_paths_once') and count == 0:
+            stage_paths = []
     reply.write_text(json.dumps([] if mode == 'agent-invalid' else
                                {'status': status,
+                                'stage_paths': stage_paths,
                                 'summary': f'fixture result {count + 1}' if mode == 'agent-script' else 'fixture result',
                                 'blocker': {
                                     'explanation': 'Expected the specified behavior; observed a mismatch.',

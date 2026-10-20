@@ -29,6 +29,20 @@ def wait_for(path):
 
 @pytest.fixture
 def checkout(tmp_path, monkeypatch):
+    def git(*args):
+        return subprocess.run(['git', *args], cwd=tmp_path, capture_output=True,
+                              text=True, check=True, timeout=10)
+    git('init', '-q')
+    git('config', 'user.name', 'Repair launcher test')
+    git('config', 'user.email', 'repair@example.invalid')
+    (tmp_path / '.gitignore').write_text('*\n!.gitignore\n!owned.py\n!repair-*.py\n')
+    (tmp_path / 'owned.py').write_text('original\n')
+    git('add', '--', '.gitignore', 'owned.py')
+    git('commit', '-qm', 'Initial fixture')
+    remote = tmp_path / 'remote.git'
+    git('init', '--bare', '-q', str(remote))
+    git('remote', 'add', 'origin', str(remote))
+    git('push', '-qu', 'origin', 'HEAD')
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'bin').mkdir()
     for target, kind in ((tmp_path / 'tools/run-tests', 'test'),
@@ -79,6 +93,184 @@ def test_worker_round_count_and_top_frame(checkout, rounds):
     rendered = Text.from_ansi(output.getvalue()).plain
     assert all(f'Round {number}: Category: unit' in rendered
                for number in range(1, rounds + 1))
+
+
+def test_verified_case_is_pushed_before_repairing_the_next_failure(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed', 'test_fixed'], tests=['A', 'B', None],
+        passed={'1': ['A']}, record_git=True)))
+    # Unrelated staged work must survive both commits.
+    (root / 'owned.py').write_text('unrelated staged work\n')
+    subprocess.run(['git', 'add', '--', 'owned.py'], cwd=root, check=True, timeout=10)
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    agents = [call for call in calls if call['kind'] == 'agent']
+    assert [call['pushed_subject'] for call in agents] == ['Initial fixture', 'TA: Fixed unit A']
+    log = subprocess.run(['git', 'log', '-2', '--format=%s', '@{upstream}'], cwd=root,
+                         capture_output=True, text=True, check=True, timeout=10).stdout.splitlines()
+    assert log == ['TA: Fixed unit B', 'TA: Fixed unit A']
+    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=root,
+                            capture_output=True, text=True, check=True, timeout=10).stdout
+    assert staged == 'owned.py\n'
+    assert (root / 'owned.py').read_text() == 'unrelated staged work\n'
+
+
+def test_failed_push_resumes_before_tests_without_duplicate_commit(checkout):
+    root, _ = checkout
+    hook = root / 'remote.git/hooks/pre-receive'
+    hook.write_text('#!/bin/sh\nexit 1\n')
+    hook.chmod(0o700)
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(agents=['test_fixed'], tests=['A', None])))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    assert 'repair push failed' in output.getvalue()
+    accepted = json.loads((run / 'checkpoint.json').read_text())
+    assert accepted['pending'] and accepted['commit_intent']
+    before = (root / 'calls').read_text()
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout
+    hook.unlink()
+    resumed, started = fix_tests.select(root, categories=('unit',), resume=True)
+    output = io.StringIO()
+    assert started and fix_tests.follow(resumed, output) == 0, output.getvalue()
+    assert (root / 'calls').read_text() == before
+    assert subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout == head
+    assert subprocess.run(['git', 'rev-parse', '@{upstream}'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout == head
+    assert json.loads((resumed / 'checkpoint.json').read_text())['repairs'] == {}
+
+
+@pytest.mark.parametrize('staged', [False, True])
+def test_repair_closeout_refuses_preexisting_owned_work(checkout, staged):
+    root, _ = checkout
+    (root / 'owned.py').write_text('preexisting work\n')
+    if staged:
+        subprocess.run(['git', 'add', '--', 'owned.py'], cwd=root, check=True, timeout=10)
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['A', None], repair_path='owned.py')))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    assert 'close-out overlaps pre-existing work: owned.py' in output.getvalue()
+    assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
+
+
+def test_diagnostics_and_failed_verification_are_never_committed(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['diagnostic_ready', 'fixed', 'fixed'], tests=['A', None, 'A', None], record_git=True)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    agents = [json.loads(line) for line in (root / 'calls').read_text().splitlines()
+              if json.loads(line)['kind'] == 'agent']
+    assert [call['pushed_subject'] for call in agents] == ['Initial fixture'] * 3
+    assert subprocess.run(['git', 'rev-list', '--count', 'HEAD'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout.strip() == '2'
+
+
+@pytest.mark.parametrize('failure', ['stage', 'commit', 'push', 'after_commit'])
+def test_repair_git_recovers_each_interrupted_closeout_step(checkout, monkeypatch, failure):
+    import fix_tests_git
+    root, _ = checkout
+    run = root / 'closeout'
+    run.mkdir()
+    commits = fix_tests_git.RepairCommits(root, run)
+    target = ('unit', 'A', '')
+    commits.begin(target)
+    (root / 'owned.py').write_text('validated fix\n')
+    commits.record(target, dict(status='test_fixed', stage_paths=['owned.py']))
+    original_commit, original_git = fix_tests_git.finish_commit, fix_tests_git.git_output
+    def reject(*args, **kwargs):
+        raise ValueError('injected Git interruption')
+    def after_commit(*args, **kwargs):
+        original_commit(*args, **kwargs)
+        raise OSError('injected Git interruption')
+    def reject_push(root, *args, **kwargs):
+        if args == ('push',):
+            return subprocess.CompletedProcess(args, 1, '', 'injected Git interruption')
+        return original_git(root, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        if failure == 'stage':
+            patch.setattr(fix_tests_git, 'stage_task', reject)
+        elif failure in ('commit', 'after_commit'):
+            patch.setattr(fix_tests_git, 'finish_commit', after_commit if failure == 'after_commit' else reject)
+        else:
+            patch.setattr(fix_tests_git, 'git_output', reject_push)
+        with pytest.raises((OSError, ValueError), match='injected Git interruption'):
+            commits.verified(target)
+    fix_tests_git.RepairCommits(root, run).finish_pending()
+    assert subprocess.run(['git', 'rev-list', '--count', '@{upstream}'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout.strip() == '2'
+    assert json.loads((run / 'checkpoint.json').read_text())['repairs'] == {}
+
+
+@pytest.mark.parametrize('change', ['content', 'mode'])
+def test_repair_git_refuses_changed_validated_files(checkout, change):
+    from fix_tests_git import RepairCommits
+    root, _ = checkout
+    run = root / 'closeout'
+    run.mkdir()
+    commits = RepairCommits(root, run)
+    target = ('unit', 'A', '')
+    commits.begin(target)
+    (root / 'owned.py').write_text('validated fix\n')
+    commits.record(target, dict(status='fixed', stage_paths=['owned.py']))
+    if change == 'content':
+        (root / 'owned.py').write_text('untested change\n')
+    else:
+        (root / 'owned.py').chmod(0o700)
+    with pytest.raises(ValueError, match='validated repair files changed'):
+        commits.verified(target)
+    assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
+
+
+def test_category_success_without_the_repaired_case_pass_cannot_commit(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed'], tests=['A', None], unexecuted=['A'])))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 1
+    assert 'repair case has no confirmed pass' in output.getvalue()
+    assert subprocess.run(['git', 'log', '-1', '--format=%s'], cwd=root, capture_output=True,
+                          text=True, check=True, timeout=10).stdout.strip() == 'Initial fixture'
+    script = json.loads((root / 'script.json').read_text())
+    script.pop('unexecuted')
+    script['tests'].append(None)
+    (root / 'script.json').write_text(json.dumps(script))
+    resumed, _ = fix_tests.select(root, categories=('unit',), resume=True)
+    output = io.StringIO()
+    assert fix_tests.follow(resumed, output) == 0, output.getvalue()
+    calls = [json.loads(line)['kind'] for line in (root / 'calls').read_text().splitlines()]
+    assert calls == ['test', 'agent', 'test', 'test']
+    assert subprocess.run(['git', 'log', '-1', '--format=%s', '@{upstream}'], cwd=root,
+                          capture_output=True, text=True, check=True, timeout=10).stdout.strip() == 'TA: Fixed unit A'
+
+
+def test_unreported_repair_edits_require_a_corrected_handoff_before_verification(checkout):
+    root, _ = checkout
+    (root / 'mode').write_text('agent-script')
+    (root / 'script.json').write_text(json.dumps(dict(
+        agents=['test_fixed', 'test_fixed'], tests=['A', None], omit_paths_once=True)))
+    run, _ = fix_tests.select(root, categories=('unit',))
+    output = io.StringIO()
+    assert fix_tests.follow(run, output) == 0, output.getvalue()
+    calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+    assert [call['kind'] for call in calls] == ['test', 'agent', 'agent', 'test']
+    assert 'repair omitted changed files from stage_paths' in calls[2]['prompt']
 
 
 @pytest.mark.parametrize('next_category', [False, True])
@@ -240,7 +432,7 @@ def test_repair_replays_original_selection_after_another_run_replaces_checkpoint
     assert 'replaying the requested category from the start with its original selectors' in output.getvalue()
     from test_checkpoint import Checkpoint
     checkpoint = Checkpoint(root, [('unit', ['-k', 'selected', '-q'])], resume=True)
-    assert checkpoint.passed('unit') == {'earlier-pass'}
+    assert checkpoint.passed('unit') == {'earlier-pass', 'failed-case'}
 
 
 def test_repair_does_not_reset_an_invalid_checkpoint(checkout):

@@ -24,6 +24,17 @@ from plan_launcher import execute as execute_session
 from tests.support.terminal_screen import Terminal
 
 
+@pytest.fixture(autouse=True)
+def synthetic_plan_evidence(monkeypatch):
+    # Driver fixtures have synthetic acceptance strings. Real publication,
+    # rotation and interruption are qualified by test_plan_evidence.
+    monkeypatch.setattr(workflow.plan_evidence, 'capture', lambda *_: None)
+    monkeypatch.setattr(workflow.plan_evidence, 'carry', lambda *_: None)
+    monkeypatch.setattr(workflow.plan_evidence, 'preserve', lambda *_: None)
+    monkeypatch.setattr(workflow.plan_evidence, 'recover', lambda *_: None)
+    monkeypatch.setattr(workflow.plan_evidence, 'rewrite_references', lambda *_: None)
+
+
 @pytest.fixture(params=[
     ('reliability-plan', 'docs/Reliability-Plan.md'),
     ('kiosk-prompt', 'docs/Kiosk-Resilience-Plan.md'),
@@ -308,11 +319,200 @@ def test_rejected_result_stops_before_retrying_with_stale_validation_code(rig, m
     assert TaskBudget(rig.run).read()['completed'] == 0
 
 
+@pytest.mark.parametrize('status', ['continue', 'blocked', 'task_complete'])
+def test_valid_result_source_change_stops_before_next_admission_or_blocked_wait(rig, monkeypatch, status):
+    original = rig.plan.state()
+    sources = {'plan_evidence_recovery.py': 'original'}
+    attempts, admissions = [], []
+    admit = TaskBudget.admit
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
+
+    def record_admission(budget):
+        admissions.append(budget.run)
+        return admit(budget)
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append(state['task_sessions'])
+        sources['plan_evidence_recovery.py'] = 'repaired'
+        result = response(state, status)
+        if status == 'task_complete':
+            complete(rig.plan, state['task_id'])
+        elif status == 'blocked':
+            result['blocker'] = dict(explanation='Required authority is unavailable.',
+                question='Which route is authorized?', options=['Keep the boundary.', 'Authorize the route.'])
+        workflow.launcher.atomic(run / 'agent-result.json', result)
+        return result
+
+    monkeypatch.setattr(TaskBudget, 'admit', record_admission)
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'wait_for_answer',
+                        lambda *_args, **_kwargs: pytest.fail('stale controller waited for an answer'))
+    assert rig.worker() == 1
+    assert attempts == [1] and admissions == [rig.run]
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert 'validation code changed' in state['reason'] and 'fresh run' in state['reason']
+    assert state['task_id'] == '001' and state['task_sessions'] == state['total_sessions'] == 1
+    assert state['queue_before'] == original and not state['in_flight']
+    assert 'result_recovery' not in state
+    assert state['phase'] == {'continue': 'recover', 'blocked': 'blocked', 'task_complete': 'complete'}[status]
+    assert json.loads((rig.run / 'agent-result.json').read_text())['status'] == status
+    assert 'fresh run' in (rig.run / 'handoff.txt').read_text()
+    assert rig.plan.state() == dict(original, **{'001': status == 'task_complete'})
+    assert TaskBudget(rig.run).read()['completed'] == int(status == 'task_complete')
+    assert rig.cleanups[-1] == rig.run
+
+
+def test_valid_continuation_source_change_reaches_fresh_startup_recovery(rig, monkeypatch):
+    sources = {'plan_evidence_recovery.py': 'original'}
+    accepted_execute = workflow.execute
+    attempts, recovered = [], []
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append(state['task_sessions'])
+        sources['plan_evidence_recovery.py'] = 'repaired'
+        result = response(state, 'continue')
+        workflow.launcher.atomic(run / 'agent-result.json', result)
+        return result
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    assert rig.worker() == 1
+    retained = (rig.run / 'checkpoint.json').read_bytes()
+
+    def recover(plan, state, previous, **callbacks):
+        assert previous == rig.run and not state['in_flight']
+        assert state['task_sessions'] == state['total_sessions'] == 1
+        assert callbacks['verify_proof'] and callbacks['read_authorization']
+        recovered.append(state['task_id'])
+        return state
+
+    monkeypatch.setattr(workflow.plan_evidence_recovery, 'recover_evidence', recover)
+    monkeypatch.setattr(workflow.launcher, 'current_run', lambda _: rig.run)
+    initial = workflow.initial_state(rig.plan, rig.spec, rig.run.parent)
+    assert recovered == ['001'] and attempts == [1]
+    assert initial['session_limit'] == 1 + rig.spec.max_sessions
+    assert (rig.run / 'checkpoint.json').read_bytes() == retained
+    restarted = rig.root / 'restarted'
+    restarted.mkdir()
+    TaskBudget(restarted).initialize(1)
+    monkeypatch.setattr(workflow, 'execute', accepted_execute)
+    owner = os.open(restarted / 'owner', os.O_CREAT | os.O_RDWR, 0o600)
+    assert workflow.worker(rig.root, restarted, owner, rig.spec, initial) == 0
+    with pytest.raises(OSError):
+        os.fstat(owner)
+    assert rig.calls == [('001', 2, rig.spec.effort)]
+    assert TaskBudget(restarted).read()['completed'] == 1
+
+
+def test_source_change_while_blocked_retains_answer_before_new_session(rig, monkeypatch):
+    sources = {'plan_launcher.py': 'original'}
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: sources.copy())
+    blocker = dict(explanation='Required authority is unavailable.', question='Which route is authorized?',
+                   options=['Keep the boundary.', 'Authorize the route.'])
+    answer = {'question': blocker['question'], 'answer': blocker['options'][0]}
+
+    def wait(*_args, **_kwargs):
+        sources['plan_launcher.py'] = 'repaired'
+        return answer
+
+    monkeypatch.setattr(workflow, 'wait_for_answer', wait)
+    monkeypatch.setattr(TaskBudget, 'admit', lambda *_: pytest.fail('stale controller admitted a session'))
+    state = state_for(rig.plan, phase='blocked', task_sessions=1, total_sessions=1,
+                      blocker=blocker, blocker_id='decision')
+    assert rig.worker(state) == 1
+    checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert checkpoint['phase'] == 'recover' and checkpoint['answer'] == answer
+    assert checkpoint['task_sessions'] == checkpoint['total_sessions'] == 1
+    assert 'fresh run' in checkpoint['reason']
+    assert rig.calls == [] and rig.cleanups == [rig.run]
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+def write_evidence_recovery_request(plan, state):
+    recovery = workflow.plan_evidence_recovery
+    request = dict(version=1, plan=plan.path, queue=plan.queue, task=state['task'],
+                   baseline_sha256=recovery.protected_digest(state),
+                   queue_sha256=recovery.digest((plan.root / plan.queue).read_bytes()),
+                   authorization={}, corrections=[])
+    # Boundary detection parses request identity only. Authorization and proof
+    # validation must remain exclusively with the inactive startup controller.
+    Path(state['task']['brief']).write_text('Acceptance: host\n```plan-evidence-recovery\n'
+        + json.dumps(request) + '\n```\n')
+    return request
+
+
+@pytest.mark.parametrize('status', ['continue', 'blocked'])
+def test_new_evidence_request_stops_after_one_valid_session_without_source_changes(rig, monkeypatch, status):
+    original = rig.plan.state()
+    attempts = []
+    monkeypatch.setattr(workflow, 'response_validator_sources', lambda: {'unchanged': 'source'})
+
+    def execute(root, spec, run, owner):
+        state = json.loads((run / 'checkpoint.json').read_text())
+        attempts.append(state['task_sessions'])
+        write_evidence_recovery_request(rig.plan, state)
+        result = response(state, status)
+        if status == 'blocked':
+            result['blocker'] = dict(explanation='Required authority is unavailable.',
+                question='Which route is authorized?', options=['Keep the boundary.', 'Authorize the route.'])
+        workflow.launcher.atomic(run / 'agent-result.json', result)
+        return result
+
+    monkeypatch.setattr(workflow, 'execute', execute)
+    monkeypatch.setattr(workflow, 'wait_for_answer',
+                        lambda *_args, **_kwargs: pytest.fail('pending recovery reached blocked wait'))
+    monkeypatch.setattr(workflow.plan_evidence_recovery, 'recover_evidence',
+                        lambda *_args, **_kwargs: pytest.fail('active worker applied evidence recovery'))
+    assert rig.worker() == 1
+    assert attempts == [1]
+    state = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert state['task_id'] == '001' and state['task_sessions'] == state['total_sessions'] == 1
+    assert state['queue_before'] == original and rig.plan.state() == original
+    assert not state['in_flight'] and 'evidence_recovery' not in state
+    assert 'unapplied evidence recovery request' in state['reason']
+    assert 'fresh run' in (rig.run / 'handoff.txt').read_text()
+    assert json.loads((rig.run / 'agent-result.json').read_text())['status'] == status
+    assert TaskBudget(rig.run).read()['completed'] == 0 and rig.cleanups == [rig.run]
+
+
+@pytest.mark.parametrize('new_selection', [False, True])
+def test_prepared_evidence_request_stops_before_first_session_including_new_selection(rig, monkeypatch, new_selection):
+    state = state_for(rig.plan)
+    write_evidence_recovery_request(rig.plan, state)
+    if new_selection:
+        state = dict(phase='complete', task_sessions=0, total_sessions=0)
+    monkeypatch.setattr(workflow, 'execute',
+                        lambda *_: pytest.fail('pending recovery started an agent session'))
+    assert rig.worker(state) == 1
+    checkpoint = json.loads((rig.run / 'checkpoint.json').read_text())
+    assert checkpoint['task_id'] == '001' and checkpoint['task_sessions'] == checkpoint['total_sessions'] == 0
+    assert 'unapplied evidence recovery request' in checkpoint['reason']
+    assert TaskBudget(rig.run).read()['completed'] == 0
+
+
+@pytest.mark.parametrize('exact_marker', [False, True])
+def test_evidence_request_boundary_matches_exact_applied_request_identity(rig, exact_marker):
+    state = state_for(rig.plan)
+    request = write_evidence_recovery_request(rig.plan, state)
+    recovery = workflow.plan_evidence_recovery
+    # Full transaction verification belongs to startup and has its own tests;
+    # this fixture supplies the applied identity returned by that verified route.
+    state['evidence_recovery'] = dict(request_sha256=
+        recovery.digest(recovery.encoded(request)) if exact_marker else 'another request')
+    assert rig.worker(state) == (0 if exact_marker else 1)
+    assert rig.calls == ([('001', 1, rig.spec.effort)] if exact_marker else [])
+    assert TaskBudget(rig.run).read()['completed'] == int(exact_marker)
+
+
 @pytest.mark.parametrize('changed', [
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
+    'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py',
 ])
 def test_response_validator_sources_detects_content_changes_only(tmp_path, monkeypatch, changed):
-    names = ('plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py')
+    names = ('plan_launcher.py', 'execution_plan.py', 'document_checks.py', 'launcher_runtime.py',
+             'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py')
     for name in names:
         (tmp_path / name).write_text('original')
     monkeypatch.setattr(workflow, '__file__', str(tmp_path / 'plan_launcher.py'))
@@ -690,7 +890,7 @@ def test_interrupted_partial_closeout_resumes_without_a_brief(rig, monkeypatch, 
     monkeypatch.setattr(workflow, 'execute', restore)
     assert rig.worker(recovered) == 0
     assert TaskBudget(rig.run).read()['completed'] == 1
-    assert rig.cleanups == [previous, rig.run]
+    assert rig.cleanups == [previous, rig.run, rig.run]
 
 
 def test_recovery_refuses_unrelated_queue_changes(rig):
@@ -1048,7 +1248,7 @@ def test_retained_completion_recovers_estimate_closeout_without_another_session(
     spec = replace(rig.spec, commit_prefix='Fixture', push=True)
     assert workflow.worker(rig.root, rig.run, owner, spec, recovered) == 0
     assert rig.calls == []
-    assert [event[0] for event in events] == ['cleanup', 'stage', 'commit', 'push', 'cleanup']
+    assert [event[0] for event in events] == ['cleanup', 'cleanup', 'stage', 'commit', 'push', 'cleanup']
     assert events[0][1] == previous
     assert TaskBudget(rig.run).read()['completed'] == 1
     final = json.loads((rig.run / 'checkpoint.json').read_text())
@@ -1185,6 +1385,35 @@ def test_closeout_stages_only_claimed_files(rig, monkeypatch):
     workflow.closeout(rig.plan, replace(rig.spec, commit_prefix='Fixture'), rig.run, state)
     assert staged == committed == ['docs/plan.md', 'docs/queue.md']
     assert 'unrelated.py' not in staged
+
+
+@pytest.mark.parametrize('publication_fails', [False, True])
+def test_closeout_preserves_proof_after_cleanup_before_git(rig, monkeypatch, publication_fails):
+    state = state_for(rig.plan)
+    state['pending_completion'] = response(state)
+    complete(rig.plan, '001')
+    events = []
+    monkeypatch.setattr(workflow.launcher, 'finish_nested', lambda *_: events.append('cleanup'))
+
+    def preserve(plan, run, accepted, result):
+        events.append('proof')
+        assert accepted is state and result is state['pending_completion']
+        assert result['cleanup_complete'] is True
+        if publication_fails:
+            raise ValueError('exact proof unavailable')
+
+    monkeypatch.setattr(workflow.plan_evidence, 'preserve', preserve)
+    monkeypatch.setattr(workflow, 'pull_before_commit', lambda *_, **__: events.append('pull'))
+    monkeypatch.setattr(workflow, 'stage_task', lambda _, paths, **__: events.append('stage') or paths)
+    monkeypatch.setattr(workflow, 'finish_commit', lambda *_: events.append('commit'))
+    if publication_fails:
+        with pytest.raises(ValueError, match='exact proof unavailable'):
+            workflow.closeout(rig.plan, rig.spec, rig.run, state)
+        assert events == ['cleanup', 'proof']
+        assert state['pending_completion']['status'] == 'task_complete'
+    else:
+        assert workflow.closeout(rig.plan, rig.spec, rig.run, state)
+        assert events == ['cleanup', 'proof', 'pull', 'stage', 'commit']
 
 
 @pytest.mark.parametrize('failure', ['pull', 'stage', 'commit', 'push'])
@@ -2198,7 +2427,8 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     source = Path(workflow.__file__).parent
     for name in ['execute-plan', 'plan_launcher.py', 'detached_launcher.py', 'execution_plan.py',
                  'document_checks.py', 'launcher_git.py', 'launcher_progress.py', 'launcher_question.py',
-                 'launcher_runtime.py', 'test_storage.py']:
+                 'launcher_runtime.py', 'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
+                 'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py']:
         shutil.copy2(source / name, tools / name)
     result = subprocess.run([sys.executable, '-B', str(tools / 'execute-plan'), '--plan', 'docs/plan.md', '--check'],
                             cwd=tmp_path, capture_output=True, text=True, timeout=10)
@@ -2206,6 +2436,29 @@ def test_relocated_public_cli_checks_plan_without_an_agent(tmp_path):
     assert json.loads(result.stdout) == dict(plan='docs/plan.md', queue='docs/queue.md',
                                            next_task='001', remaining=2, model='gpt-6.1-sol', effort='high')
     assert not (tmp_path / 'output').exists()
+
+
+def test_worker_entry_uses_checkpoint_published_after_command_construction(tmp_path):
+    run = tmp_path / 'run'
+    run.mkdir(mode=0o700)
+    workflow.launcher.atomic(run / 'checkpoint.json',
+                             {'source': 'carried exact proof', 'recovery': 'x' * (256 * 1024)})
+    source = Path(workflow.__file__).read_text()
+    marker = "if __name__ == '__main__':"
+    observer = ("def worker(root, run, owner, spec, state):\n"
+                "    assert state['source'] == 'carried exact proof', state\n"
+                "    assert len(state['recovery']) == 256 * 1024\n"
+                "    return 0\n\n")
+    # Keep the real private entry and argument parser; substitute only its
+    # process body so no model, Git transaction or shared owner is started.
+    entry = tmp_path / 'entry.py'
+    entry.write_text('import sys\nsys.path.insert(0, '
+                     + repr(str(Path(workflow.__file__).parent)) + ')\n'
+                     + source.replace(marker, observer + marker, 1))
+    command = [sys.executable, '-B', str(entry), '--worker', str(tmp_path), str(run), '-1',
+               json.dumps(dict(name='fixture-plan', plan='docs/plan.md'))]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_plan_namespace_registers_and_cancels_only_recorded_nested_owner(tmp_path, monkeypatch):
@@ -2264,6 +2517,167 @@ def test_backend_clock_is_published_before_spawn_preserved_on_attach_and_reset_o
     assert publications[-1]['started_monotonic'] == 1720.0
 
 
+@pytest.fixture(params=[False, True], ids=['legacy-registration', 'resumable-registration'])
+def pending_plan_start(tmp_path, monkeypatch, request):
+    import detached_launcher as launcher
+    import test_retention as retention
+    monkeypatch.delenv(retention.VARIABLE, raising=False)
+    spawned = []
+    monkeypatch.setattr(launcher.subprocess, 'Popen', lambda *args, **kwargs: spawned.append(args))
+    namespace = 'e' * 64
+
+    def start(run):
+        launcher.atomic(run / 'checkpoint.json', {'exact': 'source accepted work'})
+        (run / 'accepted-proof').write_text('exact accepted proof')
+
+    source, _ = launcher.select(tmp_path, 'plans', lambda *_: ['worker-double'],
+                                namespace=namespace, resumable_start=request.param, on_start=start)
+    attempts = []
+
+    def command(run, owner):
+        assert launcher.current_run(run.parent) == source
+        assert json.loads((source / 'checkpoint.json').read_text()) == {'exact': 'source accepted work'}
+        attempts.append(run)
+        return ['worker-double']
+
+    def fail(run):
+        launcher.atomic(run / 'checkpoint.json', {'partial': 'interrupted carry'})
+        raise OSError('carry interrupted')
+
+    def invoke(callback=fail):
+        return launcher.select(tmp_path, 'plans', command, namespace=namespace,
+                               resumable_start=True, on_start=callback)
+
+    return SimpleNamespace(launcher=launcher, retention=retention, root=tmp_path,
+                           source=source, attempts=attempts, spawned=spawned, invoke=invoke,
+                           legacy=not request.param, namespace=namespace)
+
+
+def test_resumable_start_retries_same_registered_run_without_rotating_source(pending_plan_start):
+    scene = pending_plan_start
+    source, launcher = scene.source, scene.launcher
+    current = (source.parent / 'current.json').read_bytes()
+    for _ in range(3):
+        with pytest.raises(OSError, match='carry interrupted'):
+            scene.invoke()
+        assert (source.parent / 'current.json').read_bytes() == current
+        assert (source / 'accepted-proof').read_text() == 'exact accepted proof'
+    pending = json.loads((source.parent / 'pending-start.json').read_text())
+    destination = source.parent / pending['run']
+    assert scene.attempts == [destination] * 3
+    journal = json.loads((source.parent / 'retention/current.json').read_text())
+    assert [entry['run'] for entry in [*journal['history'], journal]] == [
+        pending['source_retention_run'], destination.name]
+    assert pending['source_allocation']['path'] == str(source)
+    if scene.legacy:
+        assert pending['source_retention_run'] != source.name
+    else:
+        assert pending['source_retention_run'] == source.name
+
+    def complete(run):
+        assert run == destination
+        launcher.atomic(run / 'checkpoint.json', json.loads((source / 'checkpoint.json').read_text()))
+        (run / 'accepted-proof').write_bytes((source / 'accepted-proof').read_bytes())
+
+    assert scene.invoke(complete) == (destination, True)
+    assert not (source.parent / 'pending-start.json').exists()
+    assert launcher.current_run(source.parent) == destination
+    assert source.exists() and (destination / 'accepted-proof').read_text() == 'exact accepted proof'
+    assert len(scene.spawned) == 2
+
+
+@pytest.mark.parametrize('defect', ['marker', 'directory', 'foreign-registration', 'missing-journal'])
+def test_resumable_start_refuses_replaced_pending_identity(pending_plan_start, defect):
+    scene = pending_plan_start
+    with pytest.raises(OSError):
+        scene.invoke()
+    path = scene.source.parent / 'pending-start.json'
+    pending = json.loads(path.read_text())
+    destination = scene.source.parent / pending['run']
+    journal_path = scene.source.parent / 'retention/current.json'
+    if defect == 'marker':
+        pending['inode'] += 1
+        scene.launcher._publish_start(path, pending)
+    elif defect == 'directory':
+        destination.rename(destination.with_name(destination.name + '-replaced'))
+        destination.mkdir(mode=0o700)
+    elif defect == 'foreign-registration':
+        journal = json.loads(journal_path.read_text())
+        journal['paths'].append(journal['history'][-1]['paths'][0])
+        scene.launcher.atomic(journal_path, journal)
+    else:
+        journal_path.unlink()
+    original = journal_path.read_bytes() if journal_path.exists() else None
+    with pytest.raises(ValueError):
+        scene.invoke()
+    assert scene.launcher.current_run(scene.source.parent) == scene.source
+    assert (scene.source / 'accepted-proof').read_text() == 'exact accepted proof'
+    assert (journal_path.read_bytes() if journal_path.exists() else None) == original
+
+
+def test_pending_partial_carry_over_budget_refuses_before_any_retention_prune(pending_plan_start, monkeypatch):
+    scene = pending_plan_start
+    with pytest.raises(OSError):
+        scene.invoke()
+    destination = scene.attempts[-1]
+    journal = scene.source.parent / 'retention/current.json'
+    original = journal.read_bytes()
+    real_size = scene.retention.allocation_bytes
+    monkeypatch.setattr(scene.retention, 'allocation_bytes', lambda record:
+        scene.retention.MAX_RETAINED_BYTES if record['path'] == str(destination) else real_size(record))
+    with pytest.raises(ValueError, match='budget; source evidence preserved'):
+        scene.invoke()
+    assert journal.read_bytes() == original
+    assert scene.source.exists() and destination.exists()
+
+
+def test_exact_pending_registration_can_recover_an_interrupted_retention_session(pending_plan_start):
+    scene = pending_plan_start
+    with pytest.raises(OSError):
+        scene.invoke()
+    journal = scene.source.parent / 'retention/current.json'
+    value = json.loads(journal.read_text())
+    value['finished'] = False
+    scene.launcher.atomic(journal, value)
+    journal.chmod(0o600)
+    destination = scene.attempts[-1]
+    assert scene.invoke(lambda run: None) == (destination, True)
+    assert (scene.source.parent / 'retention' / ('interrupted-' + destination.name + '.json')).exists()
+    assert scene.source.exists()
+
+
+def test_ready_current_publication_never_spawns_a_duplicate_pending_worker(pending_plan_start, monkeypatch):
+    scene = pending_plan_start
+    clear = scene.launcher._clear_start
+    monkeypatch.setattr(scene.launcher, '_clear_start',
+                        lambda *_: (_ for _ in ()).throw(OSError('interrupted ready publication')))
+    with pytest.raises(OSError, match='ready publication'):
+        scene.invoke(lambda run: None)
+    destination = scene.attempts[-1]
+    assert scene.launcher.current_run(scene.source.parent) == destination
+    assert len(scene.spawned) == 1
+    monkeypatch.setattr(scene.launcher, '_clear_start', clear)
+    # This branch verifies and retires the ready marker; command/on_start must
+    # not be called against the already published destination.
+    assert scene.invoke(lambda run: pytest.fail('duplicated startup')) == (destination, False)
+    assert len(scene.spawned) == 1
+    assert not (scene.source.parent / 'pending-start.json').exists()
+
+
+def test_nonresumable_caller_cannot_ignore_a_pending_start(pending_plan_start):
+    scene = pending_plan_start
+    with pytest.raises(OSError):
+        scene.invoke()
+    journal = scene.source.parent / 'retention/current.json'
+    original = journal.read_bytes()
+    with pytest.raises(ValueError, match='requires its resumable controller'):
+        scene.launcher.select(scene.root, 'plans', lambda *_: pytest.fail('allocated another run'),
+                              namespace=scene.namespace)
+    assert journal.read_bytes() == original
+    assert scene.launcher.current_run(scene.source.parent) == scene.source
+    assert len(set(scene.attempts)) == 1
+
+
 @pytest.mark.parametrize('limit', [0, -3, 8])
 def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(tmp_path, limit):
     """Exercise real worker serialization and supervision without a model or VM."""
@@ -2282,6 +2696,7 @@ def test_public_detached_adapter_exhausts_private_queue_with_app_server_double(t
         'launcher_question.py', 'launcher_view.py', 'launcher_display.py',
         'launcher_chat.py', 'launcher_render.py', 'watch_output.py', 'vm_selection.py',
         'test_storage.py', 'test_retention.py', 'test_input_transfer.py',
+        'plan_evidence.py', 'plan_evidence_recovery.py', 'evidence_bundle.py',
         'plan_response.schema.json', 'plan_monitor.toml', 'plan_worker.toml',
     ]
     for name in names:

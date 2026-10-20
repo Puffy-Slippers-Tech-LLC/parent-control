@@ -63,6 +63,48 @@ validation, expected results, cleanup and close-out. Mark planned selectors as
 unimplemented until registered. Keep indivisible installed histories together;
 split independent large work before execution without reducing acceptance.
 
+### Accepted evidence lifetime and historical recovery
+
+Before an ordinary plan closes an accepted task, the controller preserves its
+selected plan/queue/brief inputs, exact result, prompt, command record, referenced
+reports and owned-cleanup record through the shared verified bundle publication.
+The plan namespace has its own bounded publication journal, separate from model
+sessions and ordinary artifact exports. Each generation carries forward all
+previous accepted proof within the existing limits; missing or changed proof and
+budget exhaustion refuse close-out. The stable `accepted-evidence.json` locator
+names the verified bundle and original members. Selected queue evidence links
+and verified destinations in previously completed rows move to that locator
+only after verification, retaining their labels and claims. Unfinished consumers
+remain protected. A locator alone is no acceptance.
+Publication recovery verifies the committed payload and publishes its matching
+locator before retiring recorded older generations. Ordinary session and export
+rotation remains bounded and unchanged.
+Every fresh controller carries exact active and suspended task inputs, including
+an unpublished accepted result's command and cleanup records. Failed startup
+retries its recorded allocation before admitting another retention slot; changed
+identities and exceeded budgets refuse while preserving the previous owner.
+
+Where detailed historical proof is already lost, destination-only repair cannot
+make a stronger claim than the retained record supports. A selected recovery
+brief may contain one finite `plan-evidence-recovery` JSON request, binding its
+exact task/acceptance, protected checkpoint baseline, queue bytes, retained
+developer authorization and exact before/after evidence links. A fresh inactive
+controller verifies the request and bundle provenance before applying it. The
+route permits only explicit completed-row proof-loss disclosures and verified
+destination repairs for completed rows or suspended consumers. Disclosures retain
+the original label with ` — detailed proof unavailable; retained accepted
+completion`; they grant no missing check result or new acceptance.
+
+The controller retains the exact original checkpoint, queue claims and
+authorization before atomic publication, then updates only the corresponding
+saved evidence cells. Completion, relative order, Scope, Requires, task identity,
+acceptance, session counts and Git ownership remain protected. Interrupted
+publication resumes only its exact recorded transaction. This route needs no
+agent commit, competing launcher, manual checkpoint edit or general replan.
+Ordinary transition guards remain strict. An agent preparing such a request for
+a controller that predates the repair returns `continue`, leaving its task open
+until the fresh controller applies the request and live acceptance passes.
+
 ## Execution and delegation
 
 Read repository instructions, the master, the selected brief and only applicable
@@ -183,9 +225,16 @@ keeps the original task, queue and acceptance baseline and uses the existing
 session allowance; it grants no completion credit, promotion or extra sessions.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
 the normal session cap with a resumable checkpoint and diagnostic handoff.
-If ordinary-plan validation sources change during a rejected session, the
-controller stops at that boundary with the response retained instead of spending
-more sessions under stale guards. A fresh run loads the repaired validation.
+If ordinary-plan controller or validation sources change during any session, the
+controller stops at the next session boundary with the result and handoff retained,
+before admitting another task, waiting for an answer or spending another session
+under stale code. This includes a valid `continue` response: another coordinator
+session in the same controller cannot load startup recovery changes. A fresh run
+loads the repair and applies any exact evidence-recovery request before execution.
+An unapplied request prepared during a session also stops the controller at that
+boundary, even when no source file changed. Matching an applied request's identity
+only avoids an unnecessary restart; startup still owns its full proof and
+checkpoint verification.
 Provider refusals, failed agent processes, missing grants, ownership/cleanup
 failures and Git close-out failures retain their explicit stop/recovery policies;
 they are never converted into automatic response retries.

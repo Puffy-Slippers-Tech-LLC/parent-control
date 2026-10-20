@@ -119,6 +119,7 @@ def main(argv=None):
             command.add_argument('--offset', type=nonnegative, default=0)
     for action in ('bundle-plan', 'bundle-export'):
         command = actions.add_parser(action, allow_abbrev=False)
+        command.add_argument('--plan')
         command.add_argument('--target', action='append', default=[])
         command.add_argument('--source', action='append', default=[])
         command.add_argument('--bundle', action='append', default=[])
@@ -149,8 +150,13 @@ def main(argv=None):
             sys.path.insert(0, str(Path(CHECKOUT) / 'tools'))
             import evidence_bundle
             if args.action in ('bundle-plan', 'bundle-export'):
+                namespace = None
+                if args.plan is not None:
+                    from execution_plan import Plan, plan_namespace
+                    namespace = plan_namespace(Plan.load(Path(CHECKOUT), args.plan).path)
                 with evidence_bundle.Selection(CHECKOUT, uid, gid, args.target,
-                                               args.source, args.bundle) as selection:
+                                               args.source, args.bundle,
+                                               plan_namespace=namespace) as selection:
                     result = (selection.plan() if args.action == 'bundle-plan' else
                               evidence_bundle.export(selection, expected=args.expect,
                                                      defer_cleanup=args.defer_cleanup))

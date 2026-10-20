@@ -84,9 +84,27 @@ def privacy(path):
 def checkout_allocation(checkout, record):
     path = path_text(record['path'])
     base = Path(checkout) / 'output/test-runs'
-    if path.parent not in {base / owner / kind for owner in ('host', 'privileged')
-                           for kind in ('allocations', 'reports', 'exports')}:
+    ordinary = path.parent in {base / owner / kind for owner in ('host', 'privileged')
+                               for kind in ('allocations', 'reports', 'exports')}
+    parts = path.relative_to(base).parts if path.is_relative_to(base) else ()
+    plan = (len(parts) in (4, 5) and parts[0] in ('host', 'privileged')
+            and parts[1] == 'plans' and re.fullmatch(r'[0-9a-f]{64}', parts[2])
+            and ((len(parts) == 4 and re.fullmatch(r'[0-9a-f]{32}', parts[3]))
+                 or (len(parts) == 5 and parts[3] == 'evidence'
+                     and parts[4].startswith('onpc-evidence-bundle-'))))
+    if not ordinary and not plan:
         raise ValueError('bundle: allocation is outside the trusted checkout storage')
+
+
+def plan_parent(checkout, namespace, *, create=False):
+    """A plan's bounded publication owner, isolated from ordinary exports."""
+    if not isinstance(namespace, str) or not re.fullmatch(r'[0-9a-f]{64}', namespace):
+        raise ValueError('bundle: invalid plan namespace')
+    parent = storage.directory('plans', root=checkout, create=create) / namespace
+    if create:
+        retention.ensure_directory(parent)
+        retention.ensure_directory(parent / 'evidence')
+    return parent / 'evidence'
 
 
 def fingerprint(info):
@@ -130,7 +148,7 @@ def stream_bytes(stream, size, output=None):
 
 
 class Selection:
-    def __init__(self, checkout, uid, gid, targets, sources, bundles):
+    def __init__(self, checkout, uid, gid, targets, sources, bundles, *, plan_namespace=None):
         self.checkout, self.uid, self.gid = Path(checkout), uid, gid
         self.targets, self.sources, self.bundles = targets, sources, bundles
         self.stack = ExitStack()
@@ -141,6 +159,16 @@ class Selection:
         self.bundle_identities = {}
         self.source_budgets, self.previous = [], []
         self.total_bytes = 0
+        self.plan_namespace = plan_namespace
+
+    def publication_parent(self, *, create=False):
+        # The installed reader inventories privileged sources as root, while
+        # every publication belongs to its authenticated unprivileged caller.
+        # Resolve under that identity even after catalogue() restores root.
+        with identity(self.uid, self.gid):
+            return (plan_parent(self.checkout, self.plan_namespace, create=create)
+                    if self.plan_namespace is not None else
+                    storage.directory('exports', root=self.checkout, create=create))
 
     def __enter__(self):
         try:
@@ -155,13 +183,14 @@ class Selection:
 
     def catalogue(self):
         # Only fixed shared journals and registered canonical targets are read.
-        import sys
-        sys.path.insert(0, str(self.checkout / 'tests/integration'))
-        import vm_config
-        registry = vm_config.registry()
-        if (len(self.targets) != len(set(self.targets))
-                or any(target not in registry for target in self.targets)):
-            raise ValueError('bundle: expected registered canonical targets')
+        if self.targets:
+            import sys
+            sys.path.insert(0, str(self.checkout / 'tests/integration'))
+            import vm_config
+            registry = vm_config.registry()
+            if (len(self.targets) != len(set(self.targets))
+                    or any(target not in registry for target in self.targets)):
+                raise ValueError('bundle: expected registered canonical targets')
         result = []
         if self.targets:
             if os.geteuid() != 0:
@@ -182,12 +211,20 @@ class Selection:
                 if diagnostics.exists():
                     result.append((diagnostics, 0, 0))
         with identity(self.uid, self.gid):
-            parent = storage.directory('state', root=self.checkout, create=False)
+            try:
+                parent = storage.directory('state', root=self.checkout, create=False)
+            except FileNotFoundError:
+                parent = None  # A plan can precede its first host test run.
             names = ('retention-host', 'retention-batch', 'retention', 'standalone-reports',
                      *(f'retention-{target}' for target in sorted(self.targets)))
             for name in names:
-                if (parent / name).exists():
+                if parent is not None and (parent / name).exists():
                     result.append((parent / name, self.uid, self.gid))
+            if self.plan_namespace is not None:
+                proof = self.publication_parent()
+                result.append((proof.parent / 'retention', self.uid, self.gid))
+                if (proof / 'retention').exists():
+                    result.append((proof / 'retention', self.uid, self.gid))
             try:
                 exports = storage.directory('exports', root=self.checkout, create=False)
             except FileNotFoundError:
@@ -203,7 +240,9 @@ class Selection:
             raise ValueError('bundle: duplicate selected source')
         for journal, uid, gid in self.catalogue():
             with identity(uid, gid):
-                owner = self.export_stack if journal.parent.name == 'exports' else self.stack
+                publication = (journal.parent.name == 'exports' if self.plan_namespace is None else
+                               journal == self.publication_parent() / 'retention')
+                owner = self.export_stack if publication else self.stack
                 state = owner.enter_context(retention.Store(journal).inspection())
                 if state is None:
                     continue
@@ -223,6 +262,12 @@ class Selection:
             path = path_text(value)
             privacy(path)
             record = self.record(path)
+            # A plan accepts a complete host report, including its exact input,
+            # command and cleanup records, rather than only the linked summary.
+            if self.plan_namespace is not None and Path(record['path']).parent.name == 'reports':
+                with self.open(path):
+                    pass  # A missing named report is never replaced by siblings.
+                path = Path(record['path'])
             with self.open(path) as (fd, info):
                 if stat.S_ISDIR(info.st_mode):
                     self.walk(fd, path, record, depth=0)
@@ -275,7 +320,9 @@ class Selection:
             raise ValueError('bundle: selection exceeds the 1 GiB bundle limit')
         self.selection_sha256 = digest(data)
         export_bytes = sum(item['allocated_bytes'] for item in self.source_budgets
-                           if Path(item['journal']).parent.name == 'exports')
+                           if (Path(item['journal']).parent.name == 'exports'
+                               if self.plan_namespace is None else
+                               Path(item['journal']) == self.publication_parent() / 'retention'))
         self.export_budget = dict(existing_allocated_bytes=export_bytes,
                                  projected_bytes=self.projected_bytes,
                                  simultaneous_bytes=export_bytes + self.projected_bytes,
@@ -500,14 +547,25 @@ def verify_stream(stream):
             path_text(record['journal'])
             allocation = path_text(record['path'])
             journal = path_text(record['journal'])
-            if (allocation.parent.name not in ('allocations', 'reports', 'exports')
-                    or allocation.parent.parent.name not in ('host', 'privileged')
-                    or journal.parent not in (allocation.parent.parent / 'state',
-                                              allocation.parent.parent / 'exports')
-                    or not (journal.name.startswith('retention') or journal.name == 'standalone-reports'
-                            or re.fullmatch(r'recovery-diagnostics-[0-9]+(?:-[A-Za-z0-9._-]+)?',
-                                            journal.name))
-                    or path == allocation):
+            ordinary = (allocation.parent.name in ('allocations', 'reports', 'exports')
+                        and allocation.parent.parent.name in ('host', 'privileged')
+                        and journal.parent in (allocation.parent.parent / 'state',
+                                               allocation.parent.parent / 'exports')
+                        and (journal.name.startswith('retention') or journal.name == 'standalone-reports'
+                             or re.fullmatch(r'recovery-diagnostics-[0-9]+(?:-[A-Za-z0-9._-]+)?',
+                                             journal.name)))
+            plan_run = (re.fullmatch(r'[0-9a-f]{32}', allocation.name)
+                        and re.fullmatch(r'[0-9a-f]{64}', allocation.parent.name)
+                        and allocation.parent.parent.name == 'plans'
+                        and allocation.parent.parent.parent.name in ('host', 'privileged')
+                        and journal == allocation.parent / 'retention')
+            plan_export = (allocation.name.startswith('onpc-evidence-bundle-')
+                           and allocation.parent.name == 'evidence'
+                           and re.fullmatch(r'[0-9a-f]{64}', allocation.parent.parent.name)
+                           and allocation.parent.parent.parent.name == 'plans'
+                           and allocation.parents[3].name in ('host', 'privileged')
+                           and journal == allocation.parent / 'retention')
+            if not (ordinary or plan_run or plan_export) or path == allocation:
                 raise ValueError('bundle: inconsistent storage provenance')
             paths.add(str(path))
             expected.append(entry['member'])
@@ -532,10 +590,10 @@ def export(selection, *, expected, defer_cleanup=False):
     # Publication takes that same owner before any selected export can rotate.
     selection.export_stack.close()
     with identity(selection.uid, selection.gid):
-        parent = storage.directory('exports', root=selection.checkout)
+        parent = selection.publication_parent(create=True)
         with retention.Store(parent / 'retention').publication(
                 projected_bytes=selection.projected_bytes,
-                verify=lambda record: inspect_record(record, selection.uid)) as transaction:
+                verify=lambda record: inspect_record(record, selection.uid, checkout=selection.checkout)) as transaction:
             directory = transaction.allocate(tempfile.mkdtemp, prefix='onpc-evidence-bundle-', dir=parent)
             fd = retention.directory(directory)
             try:
@@ -571,7 +629,12 @@ def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000):
     if type(offset) is not int or type(count) is not int or offset < 0 or not 0 <= count <= MAX_READ:
         raise ValueError('bundle: invalid inspection byte range')
     with identity(uid, gid):
-        parent = storage.directory('exports', root=checkout, create=False)
+        base = Path(checkout) / 'output/test-runs'
+        parts = path.relative_to(base).parts if path.is_relative_to(base) else ()
+        if len(parts) == 6 and parts[0] in ('host', 'privileged') and parts[1] == 'plans' and parts[3] == 'evidence':
+            parent = plan_parent(checkout, parts[2])
+        else:
+            parent = storage.directory('exports', root=checkout, create=False)
         if path.parent.parent != parent:
             raise ValueError('bundle: bundle must be in retained exports')
         with retention.Store(parent / 'retention').inspection(include_committed=True) as state:
@@ -581,15 +644,16 @@ def inspect(checkout, uid, gid, path, *, member=None, offset=0, count=8000):
                        if record['path'] == str(path.parent)]
             if len(records) != 1:
                 raise ValueError('bundle: bundle has no unique recorded owner')
-            return inspect_record(records[0], uid, member=member, offset=offset, count=count)
+            return inspect_record(records[0], uid, checkout=checkout, member=member, offset=offset, count=count)
 
 
-def inspect_record(record, uid, *, member=None, offset=0, count=8000):
+def inspect_record(record, uid, *, checkout=None, member=None, offset=0, count=8000):
     """Already owner-locked publication verification, including deferred recovery."""
     directory = path_text(record['path'])
     if not directory.name.startswith('onpc-evidence-bundle-'):
         raise ValueError('bundle: expected a recorded evidence bundle allocation')
-    selection = Selection(directory.parents[4], uid, os.getegid(), [], [], [])
+    checkout = Path(checkout) if checkout is not None else directory.parents[4]
+    selection = Selection(checkout, uid, os.getegid(), [], [], [])
     selection.records = {str(directory): record}
     with selection.open(directory / 'receipt.json') as (fd, info):
         receipt_identity = fingerprint(info)
@@ -607,7 +671,7 @@ def inspect_record(record, uid, *, member=None, offset=0, count=8000):
             archive, manifest = verify_stream(stream)
             try:
                 for entry in manifest['files']:
-                    checkout_allocation(directory.parents[4], entry['allocation'])
+                    checkout_allocation(checkout, entry['allocation'])
                 if digest(encoded(manifest)) != receipt['selection_sha256']:
                     raise ValueError('bundle: selection checksum mismatch')
                 if member is None:

@@ -7,6 +7,7 @@ processes, transcript retention and cancellation use one implementation.
 from contextlib import contextmanager
 import codecs
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -368,8 +369,151 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             os.close(owner)
 
 
+def _start_record(path):
+    """Read a finite private startup identity without following replacements."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+                or info.st_size > 16384):
+            raise ValueError('unsafe pending workflow start record')
+        return json.loads(os.read(fd, 16385))
+    finally:
+        os.close(fd)
+
+
+def _publish_start(path, value):
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(value, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _start_source(directory):
+    path = directory / 'current.json'
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return None, None
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_nlink != 1 or info.st_size > 16384):
+            raise ValueError('unsafe workflow start source')
+        raw = os.read(fd, 16385)
+        return json.loads(raw), hashlib.sha256(raw).hexdigest()
+    finally:
+        os.close(fd)
+
+
+def _clear_start(path):
+    path.unlink()
+    parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(parent)
+    finally:
+        os.close(parent)
+
+
+def _start_retention_source(store, directory, source_run):
+    """Bind legacy journal tokens separately from their allocation names."""
+    import test_retention as retention
+    if source_run is not None and (not isinstance(source_run, str) or len(source_run) != 32
+            or any(c not in '0123456789abcdef' for c in source_run)):
+        raise ValueError('workflow source allocation label is invalid')
+    if not store.path.exists():
+        if source_run is not None:
+            raise ValueError('workflow source has no retained allocation identity')
+        return None, None
+    with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+        with store.locked(fd, 'writer.lock'):
+            state = store.read(fd)
+            retention.finished_owner(fd, state)
+            if state is None:
+                if source_run is not None:
+                    raise ValueError('workflow source has no retained allocation identity')
+                return None, None
+            records = [record for record in state['paths']
+                       if record['path'] == str(directory / source_run)] if source_run else []
+            if len(records) != 1 or state['paths'] != records:
+                raise ValueError('workflow source is not the current retained allocation; preserve evidence')
+            retention.remove(records[0], validate_only=True)
+            return state['run'], records[0]
+
+
+def _validate_start(directory, pending):
+    if (not isinstance(pending, dict) or set(pending) != {
+            'version', 'run', 'device', 'inode', 'source_run', 'source_sha256',
+            'source_retention_run', 'source_allocation', 'phase', 'published_record'} or pending['version'] != 1
+            or not isinstance(pending['run'], str) or len(pending['run']) != 32
+            or any(c not in '0123456789abcdef' for c in pending['run'])
+            or pending['phase'] not in ('allocated', 'registered', 'ready')):
+        raise ValueError('invalid pending workflow start identity')
+    run = directory / pending['run']
+    info = run.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+            or stat.S_IMODE(info.st_mode) != 0o700
+            or (info.st_dev, info.st_ino) != (pending['device'], pending['inode'])):
+        raise ValueError('pending workflow start directory identity changed')
+    source, checksum = _start_source(directory)
+    if source is not None and source.get('run') == run.name:
+        if pending['phase'] != 'ready' or source != pending['published_record']:
+            raise ValueError('pending workflow publication identity changed')
+        return run, True
+    if checksum != pending['source_sha256'] or (source or {}).get('run') != pending['source_run']:
+        raise ValueError('pending workflow source owner changed')
+    return run, False
+
+
+def _audit_start(store, directory, pending):
+    """Audit the entire journal before session() can prune any source proof."""
+    import test_retention as retention
+    with store.opened() as fd, store.locked(fd, 'writer.lock'):
+        state = store.read(fd)
+        if state is None:
+            if pending['source_retention_run'] is not None or pending['phase'] != 'allocated':
+                raise ValueError('pending workflow retention journal is missing')
+            return
+        if state['run'] not in (pending['run'], pending['source_retention_run']):
+            raise ValueError('pending workflow retention owner changed')
+        expected = dict(path=str(directory / pending['run']), device=pending['device'],
+                        inode=pending['inode'], mode=0o700)
+        if state['run'] == pending['run'] and state['paths'] not in ([], [expected]):
+            raise ValueError('pending workflow has foreign registered allocations')
+        if (state['run'] == pending['source_retention_run']
+                and state['paths'] != [pending['source_allocation']]):
+            raise ValueError('pending workflow retained source identity changed')
+        allocations = retention.latest_allocations([*state['history'], state])
+        source = pending['source_allocation']
+        if source is not None and (source not in [record for _, record in allocations]
+                                   or not Path(source['path']).exists()):
+            raise ValueError('pending workflow retained source is missing or replaced')
+        allocated = 0
+        for _, record in allocations:
+            path = Path(record['path'])
+            if (path.parent != directory or len(path.name) != 32
+                    or any(c not in '0123456789abcdef' for c in path.name)):
+                raise ValueError('pending workflow retention contains a foreign allocation')
+            retention.remove(record, validate_only=True)
+            allocated += retention.allocation_bytes(record)
+        if allocated > retention.MAX_RETAINED_BYTES:
+            raise ValueError('pending workflow exceeds retention budget; source evidence preserved')
+
+
 def select(root, name, command, *, stop=False, stop_marker='cancel',
-           on_attach=None, on_start=None, namespace=None):
+           on_attach=None, on_start=None, namespace=None, resumable_start=False):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -390,18 +534,77 @@ def select(root, name, command, *, stop=False, stop_marker='cancel',
             return run, False
         if stop:
             return None, False
-        run = directory / uuid.uuid4().hex
+        pending_path = directory / 'pending-start.json'
+        pending = None
+        if not resumable_start and os.path.lexists(pending_path):
+            raise ValueError('pending workflow start requires its resumable controller')
+        if resumable_start and os.path.lexists(pending_path):
+            pending = _start_record(pending_path)
+            run, published = _validate_start(directory, pending)
+            if published:
+                import test_retention
+                store = test_retention.Store(directory / 'retention')
+                with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+                    _audit_start(store, directory, pending)
+                _clear_start(pending_path)
+                return run, False  # Never spawn a possibly already published worker twice.
+        else:
+            run = directory / uuid.uuid4().hex
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
         private_directory(run)
         import test_retention
-        with test_retention.Store(directory / 'retention').session():
+        store = test_retention.Store(directory / 'retention')
+        if resumable_start and pending is None:
+            source, checksum = _start_source(directory)
+            source_retention_run, source_allocation = _start_retention_source(
+                store, directory, (source or {}).get('run'))
+            info = run.stat()
+            pending = dict(version=1, run=run.name, device=info.st_dev, inode=info.st_ino,
+                           source_run=(source or {}).get('run'), source_sha256=checksum,
+                           source_retention_run=source_retention_run, source_allocation=source_allocation,
+                           phase='allocated', published_record=None)
+            _publish_start(pending_path, pending)
+        guard = (lambda: _audit_start(store, directory, pending)) if resumable_start else None
+        recover = (lambda state: state['run'] == pending['run']) if resumable_start else None
+        with store.session(run=run.name if resumable_start else None, guard=guard, recover=recover):
             test_retention.retain(run)
+        if resumable_start:
+            pending['phase'] = 'registered'
+            _publish_start(pending_path, pending)
         if on_start is not None:
             on_start(run)
+        if resumable_start:
+            _validate_start(directory, pending)
+            with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
+                _audit_start(store, directory, pending)
         fcntl.flock(owner, fcntl.LOCK_EX)
-        atomic(directory / 'current.json', owner_record(run))
-        with (run / 'output').open('xb') as output:
+        published_record = owner_record(run)
+        if resumable_start:
+            # Output exists before current publication so a ready interruption
+            # remains inspectable, but can contain no worker bytes yet.
+            try:
+                output_fd = os.open(run / 'output', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            except FileExistsError:
+                output_fd = os.open(run / 'output', os.O_WRONLY | os.O_NOFOLLOW)
+                info = os.fstat(output_fd)
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                        or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or info.st_size):
+                    os.close(output_fd)
+                    raise ValueError('pending workflow output identity changed')
+            try:
+                pending.update(phase='ready', published_record=published_record)
+                _publish_start(pending_path, pending)
+                _publish_start(directory / 'current.json', published_record)
+                _clear_start(pending_path)
+            except BaseException:
+                os.close(output_fd)
+                raise
+            output_context = os.fdopen(output_fd, 'wb')
+        else:
+            atomic(directory / 'current.json', published_record)
+            output_context = (run / 'output').open('xb')
+        with output_context as output:
             subprocess.Popen(argv, cwd=root, env=environment(), stdin=subprocess.DEVNULL,
                              stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                              pass_fds=(owner, *scratch_descriptors()))

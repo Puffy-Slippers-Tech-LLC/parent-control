@@ -35,8 +35,9 @@ existing compatible unit/cleanup partition remains appropriate.
 execution_plan_launcher uses tiny pytest-private Markdown/checkpoint/lock trees,
 process-local Git/agent/cleanup doubles, recorded private nested-directory
 identities with synchronous ownership doubles, in-memory VT panes and four finite
-joined budget-update threads. Its relocated CLI check owns one bounded, waited Python
-child without model inference. No VM, bus, display, network, shared mutable path
+joined budget-update threads. Its relocated CLI and carried-checkpoint entry
+checks each own a bounded, waited Python child without model inference.
+No VM, bus, display, network, shared mutable path
 or cache, heavy build or cleanup-inventory resource is acquired; compatible unit
 scheduling is appropriate. Cleanup and UI inventories gain no module.
 Committed-baseline close-out checks reuse pytest-private checkouts and bare
@@ -103,7 +104,9 @@ budget per fixture. No real model, VM, display, bus, network, shared cache or
 new cleanup owner is introduced; compatible unit/cleanup classifications remain.
 Stale-controller and rejected-completion regressions use private source files,
 checkpoint/response trees and process-local agent/Git/cleanup doubles. They add
-no subprocess or shared mutation; compatible unit scheduling and the existing
+no subprocess or shared mutation. Valid-continuation and unapplied-request
+boundary checks reuse these private briefs, checkpoints and doubles; compatible
+unit scheduling and the existing
 cleanup/UI inventories remain appropriate.
 
 Repair failure-context checks extend fix_tests with tiny pytest-private report,
@@ -1157,6 +1160,7 @@ from regression_ui import Bucket
 # metadata doubles. No cleanup or UI inventory entry
 # or shared resource is added; the existing scheduling admission still applies.
 REVIEWED = frozenset("""
+plan_evidence plan_evidence_recovery
 kiosk_pin_native kiosk_pin_storage kiosk_material_selection kiosk_required_material kiosk_retained_projection
 kiosk_manager_admission kiosk_host_proof
 kiosk_initial_realization kiosk_view_receipt kiosk_preparation_channel
@@ -1586,6 +1590,11 @@ def buckets(nodeids):
 # ZIP files, descriptors and synchronous metadata/failure doubles. They start no
 # subprocess, VM, network, display or service and mutate no shared cache/path;
 # evidence_bundle and test_retention remain compatible with reviewed unit work.
+# Accepted-plan publication and historical-reference recovery use bounded private
+# ZIP/Markdown/checkpoint trees and process-local interruption/identity doubles.
+# Every descriptor closes in its owner; there is no live launcher, VM, network,
+# display, shared cache, service or subprocess. Both plan evidence modules retain
+# compatible unit scheduling; cleanup/UI inventories gain no module or resource.
 # Target-journal catalogue checks use private paths and process-local identity/
 # registry doubles; they neither switch credentials nor inspect real journals.
 # Recovery-diagnostic export/rotation checks reuse those private journals and

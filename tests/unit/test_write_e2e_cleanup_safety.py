@@ -19,6 +19,10 @@ from tests.support.paths import ROOT
 from tests.support.write_e2e_fixtures import prepare, reply, prerequisite_writes
 
 
+EXIT_TIMING_PATTERN = (r'\nEnded: (?:0[1-9]|1[0-2]):[0-5]\d'
+                       r'\nDuration: \d+(?:h \d+m|m)\s*$')
+
+
 def select_vm(root, argv):
     return workflow.select(root, ['--vm', vm_name(), *argv])
 
@@ -343,7 +347,8 @@ def test_first_session_success_closes_and_stages_without_another_session(
     from rich.text import Text
     assert ('Task 001 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 001: First \(\d+m\)$',
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 001: First \(\d+m\)'
+                     + EXIT_TIMING_PATTERN,
                      Text.from_ansi(output.getvalue()).plain)
     assert len(calls(root)) == 1
     invocation = calls(root)[0]
@@ -736,7 +741,8 @@ def test_limit_and_restart_pass_only_last_handoff_in_fresh_process(
     rendered = Text.from_ansi(output.getvalue())
     assert re.search(
         r'Task 001 complete\.\n- Took 2 sessions\.\n'
-        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+\n+✓ Task 001: First \(\d+m\)$',
+        r'- Duration: \d+ minutes\n- Total launcher sessions: 2\n─+\n+✓ Task 001: First \(\d+m\)'
+        + EXIT_TIMING_PATTERN,
         rendered.plain.rstrip())
     assert rendered.plain.count('Task 001 complete.') == 1
     assert re.search(r'─+\nTask 001 complete\.', rendered.plain)
@@ -1012,7 +1018,8 @@ def test_completion_reports_each_task_sessions_and_cumulative_launcher_sessions(
     assert 'Task 002 complete.\n- Took 3 sessions.\n- Duration: ' in rendered
     assert rendered.count('Total launcher sessions:') == 1
     assert re.search(r'- Duration: \d+ minutes\n- Total launcher sessions: 5\n─+\n+'
-                     r'✓ Task 001: First \(\d+m\)\n✓ Task 002: Second \(\d+m\)$', rendered)
+                     r'✓ Task 001: First \(\d+m\)\n✓ Task 002: Second \(\d+m\)'
+                     + EXIT_TIMING_PATTERN, rendered)
     assert rendered.count('- Duration: ') == 2
     assert len(re.findall(r'─+\nTask \d+ complete\.', rendered)) == 2
     recap = rendered[rendered.index('Task 001 complete.'):]
@@ -1102,7 +1109,8 @@ def test_completion_excludes_sessions_from_previous_completed_launcher(
     assert len(calls(root)) == 5
     assert ('Task 002 complete.\n- Took 1 sessions.\n'
             '- Duration: ') in Text.from_ansi(output.getvalue()).plain
-    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 002: Second \(\d+m\)$',
+    assert re.search(r'- Total launcher sessions: 1\n─+\n+✓ Task 002: Second \(\d+m\)'
+                     + EXIT_TIMING_PATTERN,
                      Text.from_ansi(output.getvalue()).plain)
     assert workflow.git_output(root, 'log', '--reverse', '--format=%s').stdout.splitlines() == [
         'TA: Completed task 001', 'TA: Completed task 002']
@@ -1318,18 +1326,19 @@ def test_attached_adjustments_control_next_boundary(
     initial_total = json.loads((run / 'limits.json').read_text())['tasks']
     if initial_total is None:
         initial_total = 2
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{initial_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{initial_total}/{initial_total}']
     assert select_vm(root, adjustment) == (run, False)
     adjusted_total = json.loads((run / 'limits.json').read_text())['tasks']
     display_total = adjusted_total if adjusted_total is not None else 2
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{display_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: 0/{display_total}/{display_total}']
     assert len(spawned) == 1 and spawned[0].poll() is None
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()
     assert json.loads((run / 'result.json').read_text()) == {
         'status': 0, 'sessions': sessions, 'tasks': completed}
-    assert workflow.task_progress(run, [])[0]['lines'] == [f'Tasks: {completed}/{display_total}']
+    assert workflow.task_progress(run, [])[0]['lines'] == [
+        f'Tasks: {completed}/{max(0, display_total - completed)}/{display_total}']
     if completed:
         assert workflow.git_output(root, 'ls-remote', 'origin', f'refs/heads/{branch}').stdout.split()[0] == (
             workflow.git_output(root, 'rev-parse', 'HEAD').stdout.strip())
@@ -1351,13 +1360,13 @@ def test_concurrent_limit_replacements_preserve_completed_work(
            {'result': reply(task_id='002'), 'wait': True})
     run, _ = select_vm(root, ['--tasks', '2'])
     wait_for(root / 'agent-ready-3')
-    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/2']
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/1/2']
     with ThreadPoolExecutor(max_workers=4) as pool:
         attached = list(pool.map(lambda _: select_vm(root, ['--tasks', '1']), range(4)))
     assert attached == [(run, False)] * 4
     assert json.loads((run / 'limits.json').read_text()) == {
         'tasks': 1, 'started': 3, 'completed': 1, 'remaining': 2}
-    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/1']
+    assert workflow.task_progress(run, [])[0]['lines'] == ['Tasks: 1/0/1']
     (root / 'release').touch()
     output = io.StringIO()
     assert launcher.follow(run, output) == 0, output.getvalue()

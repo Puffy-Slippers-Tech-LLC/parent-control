@@ -55,6 +55,29 @@ def test_reads_and_exports_any_format_without_changing_source(artifact, name, mo
         shutil.rmtree(exported.parent)
 
 
+def test_scoped_bundle_helper_derives_owner_from_validated_plan(tmp_path, monkeypatch, capsys):
+    import evidence_bundle
+    import execution_plan
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    namespace = HELPER['main'].__globals__
+    monkeypatch.setitem(namespace, 'CHECKOUT', str(tmp_path))
+    monkeypatch.setitem(namespace, 'caller', lambda: (os.geteuid(), os.getegid()))
+    seen = {}
+    def load(root, path):
+        assert root == tmp_path and path == 'docs/Plan.md'
+        return SimpleNamespace(path=path)
+    monkeypatch.setattr(execution_plan.Plan, 'load', load)
+    @contextmanager
+    def selection(*args, **kwargs):
+        seen.update(kwargs)
+        yield SimpleNamespace(plan=lambda: {'selection_sha256': 'verified'})
+    monkeypatch.setattr(evidence_bundle, 'Selection', selection)
+    assert HELPER['main'](['bundle-plan', '--plan', 'docs/Plan.md', '--source', '/source']) == 0
+    assert seen == {'plan_namespace': execution_plan.plan_namespace('docs/Plan.md')}
+    assert json.loads(capsys.readouterr().out)['selection_sha256'] == 'verified'
+
+
 @pytest.mark.parametrize('path', ['/tmp/onpc-system-future/input/anything',
     '/tmp/onpc-another-suite/a/b/image.jpg', '/tmp/onpc-standalone.log',
     '/var/tmp/onpc-future/test', '/var/tmp/oh-no-parent-control-artifacts/run/log',

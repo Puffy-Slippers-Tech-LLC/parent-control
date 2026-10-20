@@ -22,6 +22,8 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
+import plan_evidence
+import plan_evidence_recovery
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace
 from launcher_git import (GitReconciliationRequired, finish_commit, git_output,
                           pull_before_commit, reconciliation_instructions, stage_task,
@@ -164,6 +166,11 @@ above remains required. The current combined brief replaces only the former
 single-target scheduling and queue close-out instructions.
 {reconciliation_instructions(state)}
 {result_recovery_instructions(state.get('result_recovery'))}
+{('The temporary brief is missing and no exact earlier brief snapshot was retained. '
+  'Restore the authorized brief and return continue with the task unchecked. '
+  'The next session must capture its exact restored input before completion; '
+  'do not report task_complete in this restoration session.')
+ if state.get('evidence_capture_requires_brief') else ''}
 """
 
 
@@ -233,9 +240,15 @@ def recover_rejected_completion(plan, state, previous):
 
 
 def initial_state(plan, spec, directory):
+    plan_evidence.recover(plan)
     previous = launcher.current_run(directory)
     if previous and (previous / 'checkpoint.json').exists():
         state = json.loads((previous / 'checkpoint.json').read_text())
+        state = plan_evidence_recovery.recover_evidence(
+            plan, state, previous,
+            verify_proof=lambda correction, request: plan_evidence_recovery.verify_proof(
+                plan, correction, request),
+            read_authorization=lambda request: plan_evidence_recovery.read_authorization(plan, request))
         if (state.get('consolidation_obligations') and not any(
                 state.get(key) for key in ('in_flight', 'pending_completion',
                                           'git_reconciliation', 'pull_intent', 'result_recovery'))):
@@ -472,6 +485,12 @@ def closeout(plan, spec, run, state):
     result = state['pending_completion']
     if not state.get('pull_intent'):
         validate_result(plan, state, result)
+    # Acceptance must outlive the disposable model session, including a later
+    # interrupted Git transaction. Close nested owners before recording cleanup.
+    launcher.finish_nested(plan.root, run)
+    index = plan_evidence.preserve(plan, run, state, result)
+    plan_evidence.rewrite_references(plan, state, index)
+    validate_result(plan, state, result)
     if spec.commit_prefix:
         paths = state.get('commit_intent', {}).get('paths')
         if paths is None:
@@ -549,7 +568,22 @@ def response_validator_sources():
     """Detect repairs that this process cannot load by retrying an agent turn."""
     return {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
             for name in ('plan_launcher.py', 'execution_plan.py', 'document_checks.py',
-                         'launcher_runtime.py')}
+                         'launcher_runtime.py', 'plan_evidence.py',
+                         'plan_evidence_recovery.py', 'evidence_bundle.py', 'detached_launcher.py')}
+
+
+def evidence_recovery_pending(plan, state):
+    """Detect a startup-only request without applying or authorizing it here."""
+    if state.get('phase') == 'complete':
+        return False
+    request = plan_evidence_recovery.request_from_brief(plan, state)
+    if request is None:
+        return False
+    marker = state.get('evidence_recovery')
+    # Startup owns full marker/proof verification. The running controller only
+    # needs to distinguish its exact already-applied request from a new one.
+    return (not isinstance(marker, dict) or marker.get('request_sha256')
+            != plan_evidence_recovery.digest(plan_evidence_recovery.encoded(request)))
 
 
 def worker(root, run, owner, spec, state):
@@ -563,6 +597,11 @@ def worker(root, run, owner, spec, state):
     status, reason = 0, 'queue complete'
     try:
         validator_sources = response_validator_sources()
+        reload_reason = ('launcher validation code changed during the session; '
+                         'resume with a fresh run to reload controller startup '
+                         'and revalidate the retained handoff')
+        evidence_recovery_reason = ('selected task has an unapplied evidence recovery request; '
+                                    'resume with a fresh run for inactive controller verification')
         if state.get('recovery_run'):
             launcher.finish_nested(root, Path(state['recovery_run']))
         if state.get('pending_completion'):
@@ -574,6 +613,12 @@ def worker(root, run, owner, spec, state):
                 raise launcher.Stopped()
             if (run / 'stop').exists():
                 reason = 'stopped at a session boundary'
+                break
+            # A valid continuation can need new startup recovery just as a
+            # rejected response can need repaired guards. Never spend another
+            # session, select another task or wait for an answer under old code.
+            if response_validator_sources() != validator_sources:
+                status, reason = 1, reload_reason
                 break
             admitted = False
             if state['phase'] == 'complete':
@@ -611,6 +656,11 @@ def worker(root, run, owner, spec, state):
                 if state.get('consolidation_obligations'):
                     selected['consolidation_obligations'] = state['consolidation_obligations']
                 state = selected
+            # Check after selection as well as continuations: a newly selected
+            # brief can already contain a request requiring inactive ownership.
+            if evidence_recovery_pending(plan, state):
+                status, reason = 1, evidence_recovery_reason
+                break
             if state['phase'] == 'blocked':
                 launcher.atomic(run / 'chat-state.json', {'session': state.get('total_sessions'),
                     'task_id': state['task_id'], 'task_session': state['task_sessions'], 'status': 'blocked'})
@@ -622,12 +672,16 @@ def worker(root, run, owner, spec, state):
                 state['answer'] = answer
                 state['phase'] = 'recover'
                 state['session_limit'] = max(state['session_limit'], state['task_sessions'] + 1)
+                # Waiting can outlive a repair; retain the answer for the fresh
+                # controller instead of starting a turn under the old imports.
+                if response_validator_sources() != validator_sources:
+                    status, reason = 1, reload_reason
+                    break
+                if evidence_recovery_pending(plan, state):
+                    status, reason = 1, evidence_recovery_reason
+                    break
             if not admitted and not budget.admit():
                 reason = 'task limit reached'
-                break
-            if state.get('result_recovery') and response_validator_sources() != validator_sources:
-                status, reason = 1, ('launcher validation code changed during the session; '
-                                     'resume with a fresh run to revalidate the retained response')
                 break
             if state['task_sessions'] >= state['session_limit']:
                 status, reason = 1, 'task session limit reached; resume with a fresh run'
@@ -637,9 +691,14 @@ def worker(root, run, owner, spec, state):
             state.setdefault('started_at', time.time())
             state['task_sessions'] += 1
             state['total_sessions'] += 1
+            plan_evidence.capture(plan, run, state)
             # Clear the preceding response before publishing a new in-flight turn,
             # so restart recovery cannot adopt a stale response for this task.
             (run / 'agent-result.json').unlink(missing_ok=True)
+            # A genuine no-tool turn still has an exact empty command record.
+            # Never truncate the retained history from earlier task sessions.
+            with (run / 'agent-commands.log').open('ab'):
+                pass
             state['in_flight'] = True
             remaining = sum(not done for done in state['queue_before'].values())
             budget.update(lambda value: value.update(remaining=remaining + value['completed']))
@@ -757,6 +816,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         initial = {}
         initial_info = {}
         initial_remaining = 0
+        initial_plan = None
         def attach(selected):
             check_binding(selected, binding, stopping=args.stop)
             if args.tasks is not None:
@@ -770,11 +830,12 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     warn_remaining(limit, remaining + budget.read()['completed'], label=spec.name)
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
-            nonlocal initial_remaining
+            nonlocal initial_remaining, initial_plan
             previous = launcher.current_run(selected.parent)
             saved = (json.loads((previous / 'checkpoint.json').read_text())
                      if previous is not None and (previous / 'checkpoint.json').exists() else {})
             plan = load_plan(root, path, saved)
+            initial_plan = plan
             validation_error = None
             try:
                 records = [task_record(task) for task in plan.tasks() if not task.complete]
@@ -799,16 +860,20 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             initial_remaining = remaining
             warn_remaining(task_limit(args.tasks if args.tasks is not None else 1), remaining, label=spec.name)
             return ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), '--worker',
-                    str(root), str(selected), str(owner), json.dumps(asdict(spec)), json.dumps(initial)]
+                    str(root), str(selected), str(owner), json.dumps(asdict(spec))]
         def start(selected):
             TaskBudget(selected).initialize(args.tasks if args.tasks is not None else 1,
                                             remaining=initial_remaining)
+            # Git recovery and suspended consumers may start no model session.
+            # Move their exact captured inputs forward on every registered run.
+            plan_evidence.carry(initial_plan, selected, initial)
             launcher.atomic(selected / 'checkpoint.json', initial)
             if initial_info:
                 launcher.atomic(selected / 'task-info.json', initial_info)
             save_binding(selected, binding)
         run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
-                                       on_attach=attach, on_start=start, namespace=plan_namespace(path))
+                                       on_attach=attach, on_start=start, namespace=plan_namespace(path),
+                                       resumable_start=True)
         if run is None:
             print(f'{spec.name}: no active launcher.')
             return 0
@@ -835,7 +900,11 @@ if __name__ == '__main__':
     mode, root, run, owner, spec, *options = sys.argv[1:]
     root, run, owner, spec = Path(root), Path(run), int(owner), PlanWorkflow(**json.loads(spec))
     if mode == '--worker':
-        sys.exit(worker(root, run, owner, spec, json.loads(options[0])))
+        # on_start may have moved exact active/suspended proof into this newly
+        # registered run after command construction. Its published checkpoint,
+        # rather than the earlier argv snapshot, is the worker's input.
+        initial = json.loads(plan_evidence_recovery._read(run / 'checkpoint.json'))
+        sys.exit(worker(root, run, owner, spec, initial))
     if mode == '--supervise':
         sys.exit(launcher.supervise(root, run, owner, 'agent', session_command(root, spec, run),
                                    nested=True, interactive=True, hide_task_completion=True))

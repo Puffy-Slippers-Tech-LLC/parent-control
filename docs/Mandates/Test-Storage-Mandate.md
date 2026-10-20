@@ -173,6 +173,12 @@ discard authorization. Preserve current-run evidence at a budget failure;
 failed or interrupted recovery retains diagnostics without clearing or rotating
 the unfinished VM journal.
 
+Accepted ordinary-plan proof uses the shared bundle writer and verified
+publication in its plan namespace, with the same bounded limits. Its stable
+locator and historical-disclosure transaction follow the
+[execution-plan evidence owner](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).
+They do not pin disposable allocations or authorize checkpoint edits by agents.
+
 Changes to allocation or cleanup must cover the affected lifetime, interruption,
 identity/refusal and retention boundaries through the maintained test launchers.
 Run applicable cleanup-safety regressions as explicit validation before exercising

@@ -1541,6 +1541,13 @@ reports before their execution journal rotates, and verify their actual paths
 after the final export/preparation/check. A remembered export path is not a
 retention guarantee; see [artifact access](#prompt-free-test-artifact-access).
 
+Ordinary plans preserve accepted proof through the same verified bundle format
+and publication transactions, in a separate bounded journal within their plan
+namespace. The [execution-plan evidence contract](../docs/Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery)
+owns exact-input capture, the cumulative stable locator and controller adoption
+of authorized historical disclosures. This does not change ordinary session or
+export limits, adopt foreign evidence, or excuse missing detailed proof.
+
 Multi-file evidence uses `Store.inspection()` and `Store.publication()` in the
 same export journal, with the same three-run/4-GiB limits. Publication registers
 one empty staging allocation before writing, measures existing plus projected

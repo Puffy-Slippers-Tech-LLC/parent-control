@@ -79,7 +79,7 @@ def test_footer_resources_recover_from_unavailable_and_reset_counters(tmp_path):
     now[0] = 3
     assert usage.text() == 'CPU:    — | Memory:  50% | Disk:   0%'
     (proc / 'stat').write_text('cpu 20 0 0 100 0 0 0 0\n')
-    (proc / 'diskstats').write_text('8 0 sda 0 0 0 10 0 0 0 60 0 0 0\n')
+    (proc / 'diskstats').write_text('8 0 sda 0 0 0 10 0 0 0 510 0 0 0\n')
     (proc / 'meminfo').unlink()
     now[0] = 4
     assert usage.text() == 'CPU:  10% | Memory:    — | Disk:  50%'
